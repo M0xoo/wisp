@@ -1,5 +1,7 @@
 // Session orchestration: launches turns on adapters, folds their events into the
-// session record, and queues follow-ups that arrive while the agent is busy.
+// session record, and handles follow-ups that arrive while the agent is busy: by default
+// they interrupt the run and resume the session with the new message; with the `queue`
+// setting they wait until the run finishes.
 
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
@@ -56,6 +58,7 @@ export class Runner extends EventEmitter {
     this.bridge = bridge;
     this.live = new Map(); // sessionId -> adapter handle
     this.stopping = new Set();
+    this.interrupting = new Set();
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
 
     // Anything that was mid-flight when wisp last died is now orphaned.
@@ -95,15 +98,26 @@ export class Runner extends EventEmitter {
     return session;
   }
 
-  reply(session, text, attachments = []) {
+  reply(session, text, attachments = [], { queue = false } = {}) {
     if (session.ask) {
       this.answer(session, text);
       return { answered: true };
     }
     if (this.live.has(session.id)) {
-      session.queue.push({ text, attachments });
-      this.#touch(session);
-      return { queued: true };
+      // Interrupting needs an agent session to resume; before the agent reports one, queue.
+      const turn = session.turns.at(-1);
+      if (queue || !session.agentSessionId) {
+        session.queue.push({ text, attachments });
+        this.#touch(session);
+        return { queued: true };
+      }
+      // Ahead of anything queued, but after earlier interrupting follow-ups, so they keep their order.
+      const at = session.queue.findIndex((q) => !q.now);
+      session.queue.splice(at < 0 ? session.queue.length : at, 0, { text, attachments, now: true });
+      // If the run already produced its result it's just exiting; done.finally() picks this up.
+      if (turn?.status === 'running') this.#interrupt(session);
+      else this.#touch(session);
+      return { interrupted: true };
     }
     this.#startTurn(session, text, attachments);
     return { queued: false };
@@ -159,6 +173,14 @@ export class Runner extends EventEmitter {
     this.live.get(session.id).stop();
   }
 
+  // Stop the current run but keep the queue: done.finally() starts the next follow-up.
+  #interrupt(session) {
+    if (this.interrupting.has(session.id)) return; // already on its way down
+    this.interrupting.add(session.id);
+    this.stopping.add(session.id);
+    this.live.get(session.id).stop();
+  }
+
   #startTurn(session, prompt, attachments = []) {
     const turn = {
       id: newId(),
@@ -206,6 +228,7 @@ export class Runner extends EventEmitter {
 
     handle.done.finally(() => {
       this.live.delete(session.id);
+      this.interrupting.delete(session.id);
       if (turn.status === 'running') this.#finishTurn(session, turn, { isError: true, text: 'The agent exited without a result.' });
       const next = session.queue.shift();
       if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments);
@@ -250,11 +273,14 @@ export class Runner extends EventEmitter {
     turn.stats = ev.stats || null;
     delete session.ask;
     if (this.stopping.delete(session.id)) ev = { ...ev, stopped: true };
+    const interrupted = ev.stopped && this.interrupting.has(session.id);
     if (ev.stopped) {
       turn.status = 'stopped';
       turn.presentation = {
         blocks: [
-          { type: 'hero', title: 'Stopped', summary: reason || 'You stopped this run. Follow up to pick it back up.', status: 'partial' },
+          interrupted
+            ? { type: 'hero', title: 'Interrupted', summary: 'You sent a follow-up while this was running, so it picked that up instead.', status: 'partial' }
+            : { type: 'hero', title: 'Stopped', summary: reason || 'You stopped this run. Follow up to pick it back up.', status: 'partial' },
           ...(turn.changes.length ? [{ type: 'files', items: turn.changes.map((c) => ({ path: c.file, change: c.op === 'create' ? 'added' : 'modified' })) }] : []),
         ],
       };
@@ -275,10 +301,11 @@ export class Runner extends EventEmitter {
       if (hero?.title && session.titleAuto && session.turns.length === 1) session.title = hero.title;
     }
     session.state = 'review';
-    session.unread = true;
+    session.unread = !interrupted;
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
-    this.emit('finished', { session: summarize(session, this.store) });
+    // The follow-up starts right away; don't notify for the run it replaced.
+    if (!interrupted) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   #touch(session, { turn, quiet } = {}) {

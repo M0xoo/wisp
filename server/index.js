@@ -265,10 +265,10 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       }
 
       if (action === 'reply' && m === 'POST') {
-        const { text, attachments } = await readJson(req);
+        const { text, attachments, queue } = await readJson(req);
         if (!text?.trim()) return send(res, 400, { error: 'text required' });
         if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to follow up.' });
-        return send(res, 200, runner.reply(s, text.trim(), resolveAttachments(attachments)));
+        return send(res, 200, runner.reply(s, text.trim(), resolveAttachments(attachments), { queue: queue ?? store.config.defaults.followUp === 'queue' }));
       }
 
       if (action === 'answer' && m === 'POST') {

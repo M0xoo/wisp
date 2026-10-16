@@ -789,6 +789,8 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .send:hover { opacity: 0.86; }
 .send:disabled { opacity: 0.5; }
 .c-done { color: var(--muted); }
+.c-queue { color: var(--faint); font-size: 12px; }
+.c-queue.on { color: var(--ink); background: var(--bg-2); }
 .c-done:hover { color: var(--good); }
 
 /* attachments tray */

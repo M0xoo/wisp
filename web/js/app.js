@@ -935,6 +935,7 @@ function renderDock(id) {
         <button class="icon-btn c-attach" title="Attach files">${icon('clip')}</button>
         <span class="c-hint"></span>
         <button class="ghost sm c-done" data-a="done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
+        <button class="ghost xs c-queue" hidden>${icon('queue')}<span>Queue</span></button>
         <button class="send" title="Send (Enter · Shift+Enter for newline)">${icon('enter')}</button>
       </div>
     </div>`);
@@ -946,6 +947,7 @@ function renderDock(id) {
   acceptFiles(comp, ta, n.tray);
   $('.c-attach', comp).onclick = n.tray.pick;
   $('.c-done', comp).onclick = () => toggleDone(id);
+  $('.c-queue', comp).onclick = toggleQueue;
   ta.value = S.drafts.get(id) || '';
   ta.addEventListener('input', () => S.drafts.set(id, ta.value));
   ta.addEventListener('focus', () => setFocus(id, { scroll: false }));
@@ -971,11 +973,29 @@ function updateDock(id) {
     : s.ask
       ? `Answer ${name}…`
       : s.state === 'running'
-        ? `Queue a follow-up — sent when ${name} finishes`
+        ? queueing()
+          ? `Queue a follow-up — sent when ${name} finishes`
+          : `Steer ${name} — interrupts and sends now`
         : s.state === 'done'
           ? 'Follow up to reopen…'
           : `Follow up with ${name}…`;
   $('.c-hint', n.card).innerHTML = s.queue?.length ? `${s.queue.length} queued` : '';
+  const q = $('.c-queue', n.card);
+  q.hidden = tour || s.state !== 'running';
+  q.classList.toggle('on', queueing());
+  q.title = queueing()
+    ? `Queueing: follow-ups wait until ${name} finishes. Click to send now instead.`
+    : `Sending now: follow-ups interrupt ${name}. Click to queue them instead.`;
+}
+
+// Follow-ups sent while an agent works interrupt it, unless the user flipped this on.
+const queueing = () => S.config?.defaults?.followUp === 'queue';
+
+async function toggleQueue() {
+  const followUp = queueing() ? 'now' : 'queue';
+  S.config.defaults.followUp = followUp;
+  S.nodes.forEach((_, id) => updateDock(id));
+  await api('/config', { method: 'PATCH', body: { defaults: { followUp } } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
 }
 
 async function sendReply(id, text) {
@@ -988,7 +1008,7 @@ async function sendReply(id, text) {
   try {
     const r = s.ask && !attachments.length
       ? await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
-      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments } });
+      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing() } });
     const ta = n && $('.reply', n.card);
     if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
     S.drafts.delete(id);
