@@ -403,7 +403,7 @@ select {
 .it-side .model-logo::after { left: auto; right: -6px; bottom: auto; top: calc(100% + 6px); transform: translateY(-2px); }
 .it-side .model-logo:hover::after, .it-side .model-logo:focus-visible::after { transform: none; }
 .ask-atts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.ask-atts img { height: 72px; border-radius: 10px; border: 1px solid var(--line); cursor: zoom-in; object-fit: cover; }
+.ask-atts img { height: 72px; border-radius: 10px; border: 1px solid var(--line); cursor: zoom-in; object-fit: cover; max-width: min(100%, 320px); }
 .att-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; }
 
 /* ---------- working panel (not `.working` — the feed group and head badge use that) ---------- */
