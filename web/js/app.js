@@ -1796,17 +1796,6 @@ async function loadConfig() {
   renderLaunchChips();
 }
 
-function renderAgentStatus() {
-  const ready = S.agents.filter((a) => a.available);
-  const a = ready.length ? null : S.agents[0];
-  $('#agentStatus').innerHTML = ready.length
-    ? `<span class="dot ok"></span>${esc(ready.map((x) => x.name).join(' · '))}`
-    : a
-      ? `<span class="dot bad"></span>${esc(a.name)}`
-      : '';
-  $('#agentStatus').title = ready.length ? ready.map((x) => `${x.name} ${x.version || ''}`.trim()).join('\n') : a?.error || '';
-}
-
 // --- keyboard ---------------------------------------------------------------------------
 
 const feedIds = () => $$('#feed .item').map((x) => x.dataset.id);
@@ -1925,7 +1914,6 @@ window.addEventListener('focus', () => {
 
 (async () => {
   [S.agents] = await Promise.all([api('/agents').catch(() => []), loadConfig(), loadSessions()]);
-  renderAgentStatus();
   renderLauncher();
   connect();
   route();

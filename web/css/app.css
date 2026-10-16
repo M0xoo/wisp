@@ -206,7 +206,6 @@ select {
 .to-top:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 .brand { display: flex; align-items: center; gap: 9px; flex: none; }
 .brand .word { font: 600 15px/1 var(--display); letter-spacing: -0.02em; }
-.agent-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.ok { background: var(--good); }
 .dot.bad { background: var(--bad); }
@@ -999,7 +998,6 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 /* ---------- responsive ---------- */
 @media (max-width: 720px) {
   .topbar { padding: 0 12px; gap: 10px; }
-  .agent-status { display: none; }
   .search-btn span, .search-btn kbd { display: none; }
   .search-btn { padding: 0 8px; border-color: transparent; background: none; }
   .feed-wrap { padding: 14px 16px 80px; }
