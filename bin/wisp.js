@@ -14,6 +14,7 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { wispAppBinary } from './mac-app.js';
 
 const argv = process.argv.slice(2);
 const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null };
@@ -94,7 +95,8 @@ if (flags.open) {
 function electronBinary() {
   try {
     const bin = createRequire(import.meta.url)('electron'); // the electron package exports its binary path
-    return typeof bin === 'string' && existsSync(bin) ? bin : null;
+    if (typeof bin !== 'string' || !existsSync(bin)) return null;
+    return process.platform === 'darwin' ? wispAppBinary(bin) : bin;
   } catch {
     return null;
   }

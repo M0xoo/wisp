@@ -15,10 +15,10 @@
   ],
   "scripts": {
     "start": "node bin/wisp.js",
-    "app": "electron .",
-    "dev": "WISP_DEV=1 electron .",
+    "app": "node bin/wisp.js",
+    "dev": "WISP_DEV=1 node bin/wisp.js",
     "dev:web": "node --watch-path=server bin/wisp.js --no-open",
-    "prepublishOnly": "node --check bin/wisp.js && node -e \"import('./server/index.js')\" && node --check electron/main.js"
+    "prepublishOnly": "node --check bin/wisp.js && node --check bin/mac-app.js && node -e \"import('./server/index.js')\" && node --check electron/main.js"
   },
   "engines": {
     "node": ">=20"
