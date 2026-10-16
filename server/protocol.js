@@ -76,24 +76,92 @@ Strings must be valid JSON (escape newlines as \\n and quotes as \\"). Example:
 \`\`\`
 `.trim();
 
-const FENCE = /```wisp[^\n]*\n([\s\S]*?)\n?```/g;
+// Only the opener is matched by regex. The closing fence can't be: the JSON itself often
+// contains ``` (a markdown block with a code sample), and a lazy match would cut it there.
+const OPEN = /```wisp[^\n]*\n/g;
 
 export function parsePresentation(text = '') {
-  const matches = [...text.matchAll(FENCE)];
-  const last = matches.at(-1);
-  if (last) {
-    const json = tryJson(last[1]);
+  const opens = [...text.matchAll(OPEN)];
+  for (let i = opens.length - 1; i >= 0; i--) {
+    const open = opens[i];
+    const json = readJson(text.slice(open.index + open[0].length));
     const blocks = Array.isArray(json) ? json : json?.blocks;
     if (Array.isArray(blocks) && blocks.length) {
-      const extra = text.slice(0, last.index).trim();
+      const extra = text.slice(0, open.index).trim();
       return { blocks: blocks.filter((b) => b && typeof b.type === 'string'), notes: extra || undefined };
     }
   }
-  // The agent ignored (or broke) the protocol — show its answer as plain markdown.
+  // The agent ignored (or broke) the protocol — show its answer as plain markdown, with any
+  // broken wisp payload kept verbatim in a fence rather than half-rendered as prose.
+  const last = opens.at(-1);
+  let md = text.trim();
+  if (last) {
+    const prose = text.slice(0, last.index).trim();
+    const raw = text.slice(last.index + last[0].length).replace(/\n?```\s*$/, '');
+    md = `${prose}\n\n\`\`\`\`\`json\n${raw}\n\`\`\`\`\``.trim();
+  }
   return {
     fallback: true,
-    blocks: [{ type: 'markdown', text: text.replace(FENCE, '').trim() || '_The agent finished without a message._' }],
+    blocks: [{ type: 'markdown', text: md || '_The agent finished without a message._' }],
   };
+}
+
+// Parse the JSON value at the start of `src` (the body after a ```wisp opener). First find its
+// end by bracket matching, respecting strings; if that fails (e.g. a stray unescaped quote), try
+// every ``` after it as the closing fence.
+function readJson(src) {
+  const end = jsonEnd(src);
+  if (end > 0) {
+    const json = tryJson(src.slice(0, end));
+    if (json) return json;
+  }
+  for (let i = src.indexOf('```'); i !== -1; i = src.indexOf('```', i + 3)) {
+    const json = tryJson(src.slice(0, i));
+    if (json) return json;
+  }
+  return salvageBlocks(src);
+}
+
+// Last resort: parse the blocks array one element at a time, so a single malformed block (an
+// unescaped quote in a terminal output, say) costs that block rather than the whole answer.
+function salvageBlocks(src) {
+  const m = /^\s*(\{\s*"blocks"\s*:\s*)?\[/.exec(src);
+  if (!m) return null;
+  const blocks = [];
+  let bad = 0;
+  let i = m[0].length;
+  while (i < src.length) {
+    while (/[\s,]/.test(src[i] || '')) i++;
+    if (src[i] !== '{') break;
+    const len = jsonEnd(src.slice(i));
+    if (len < 0) break;
+    const block = tryJson(src.slice(i, i + len));
+    if (block && typeof block === 'object') blocks.push(block);
+    else bad++;
+    i += len;
+  }
+  if (!blocks.length) return null;
+  if (bad) blocks.push({ type: 'callout', tone: 'warn', title: `${bad} block${bad > 1 ? 's' : ''} skipped`, text: 'Part of the agent\'s answer was malformed JSON and could not be shown.' });
+  return blocks;
+}
+
+function jsonEnd(src) {
+  const start = src.search(/\S/);
+  if (src[start] !== '{' && src[start] !== '[') return -1;
+  let depth = 0;
+  let inStr = false;
+  for (let i = start; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      if (c === '\\') i++;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') {
+      if (--depth === 0) return i + 1;
+    }
+  }
+  return -1;
 }
 
 function tryJson(src) {

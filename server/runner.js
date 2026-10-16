@@ -262,6 +262,7 @@ export class Runner extends EventEmitter {
       };
     } else {
       turn.status = 'done';
+      turn.raw = ev.text; // kept so the turn can be re-parsed if the parser improves
       turn.presentation = parsePresentation(ev.text);
       const hero = heroOf(turn.presentation);
       if (hero?.title && session.titleAuto && session.turns.length === 1) session.title = hero.title;

@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { parsePresentation } from './protocol.js';
 
 const DEFAULT_CONFIG = {
   projects: [], // [{ id, name, path, color, addedAt }]
@@ -24,6 +25,7 @@ export class Store {
       if (!f.endsWith('.json')) continue;
       try {
         const s = JSON.parse(fs.readFileSync(path.join(this.dir, f), 'utf8'));
+        reparse(s);
         this.sessions.set(s.id, s);
       } catch (err) {
         console.warn(`wisp: skipping unreadable session ${f}: ${err.message}`);
@@ -116,5 +118,15 @@ export class Store {
       const s = this.sessions.get(id);
       if (s) this.save(s, { now: true });
     }
+  }
+}
+
+// Turns that fell back to plain text are re-parsed from their raw answer on load, so parser
+// fixes repair old turns too.
+function reparse(session) {
+  for (const t of session.turns || []) {
+    if (!t.presentation?.fallback || typeof t.raw !== 'string') continue;
+    const p = parsePresentation(t.raw);
+    if (!p.fallback) t.presentation = p;
   }
 }
