@@ -9,6 +9,7 @@
   },
   "files": [
     "bin/",
+    "CHANGELOG.md",
     "electron/",
     "server/",
     "web/"
