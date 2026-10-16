@@ -52,9 +52,9 @@ async function api(path, { method = 'GET', body } = {}) {
 }
 
 const MODES = [
-  { id: 'plan', label: 'Plan', hint: 'Read-only. The agent investigates and proposes.' },
-  { id: 'edits', label: 'Edits', hint: 'May edit files. Shell commands that need approval are denied.' },
-  { id: 'auto', label: 'Full auto', hint: 'No permission prompts at all. Trusted repos only.' },
+  { id: 'plan', label: 'Plan', icon: 'plan', hint: 'Read-only. The agent investigates and proposes.' },
+  { id: 'edits', label: 'Edits', icon: 'pen', hint: 'May edit files. Shell commands that need approval are denied.' },
+  { id: 'auto', label: 'Full auto', icon: 'spark', hint: 'No permission prompts at all. Trusted repos only.' },
 ];
 const KIND_ICON = { read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask' };
 const STATUS_LABEL = { done: 'Done', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
@@ -436,7 +436,7 @@ function renderLauncher() {
     <textarea id="prompt" rows="2" spellcheck="false"></textarea>
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
-      <div class="seg" id="mode">${MODES.map((m) => `<button data-mode="${m.id}" class="${m.id === mode ? 'on' : ''}" title="${esc(m.hint)}">${m.label}</button>`).join('')}</div>
+      <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
       <span class="grow"></span>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
@@ -459,14 +459,24 @@ function renderLauncher() {
   hint();
   $('#attach', box).onclick = tray.pick;
 
+  // Mode is set-and-forget, so it's one small button: just an icon on the default (Edits),
+  // spelled out when it's Plan or Full auto so you can't miss it.
   let curMode = mode;
-  $$('#mode button', box).forEach((b) =>
-    b.addEventListener('click', () => {
-      curMode = b.dataset.mode;
-      $$('#mode button', box).forEach((x) => x.classList.toggle('on', x === b));
-      api('/config', { method: 'PATCH', body: { defaults: { mode: curMode } } }).catch(() => {});
-    }),
-  );
+  const modeBtn = $('#mode', box);
+  const paintMode = () => {
+    const m = MODES.find((x) => x.id === curMode) || MODES[1];
+    modeBtn.className = `mode-btn m-${m.id}`;
+    modeBtn.innerHTML = `${icon(m.icon)}${m.id === 'edits' ? '' : `<span>${m.label}</span>`}`;
+    modeBtn.title = `${m.label}: ${m.hint}\nShift+Tab to switch`;
+  };
+  const setMode = (id) => {
+    curMode = id;
+    S.config.defaults.mode = id;
+    paintMode();
+    api('/config', { method: 'PATCH', body: { defaults: { mode: id } } }).catch(() => {});
+  };
+  paintMode();
+  modeBtn.onclick = () => modeMenu(modeBtn, curMode, setMode);
   // The model is remembered per harness (ids aren't portable between them).
   const savedModel = (id) => {
     const d = S.config.defaults;
@@ -526,7 +536,49 @@ function renderLauncher() {
       e.preventDefault();
       launch();
     }
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      setMode(MODES[(MODES.findIndex((m) => m.id === curMode) + 1) % MODES.length].id);
+    }
   });
+}
+
+function modeMenu(anchor, current, pick) {
+  const open = $('.menu.mode');
+  if (open) return open.close();
+  const menu = el(`
+    <div class="menu mode" role="menu">
+      ${MODES.map((m) => `<button role="menuitemradio" aria-checked="${m.id === current}" data-mode="${m.id}" class="m-${m.id}${m.id === current ? ' on' : ''}">
+        ${icon(m.icon)}<span class="mm-text"><b>${m.label}</b><small>${esc(m.hint)}</small></span>${icon('check', 'mm-check')}
+      </button>`).join('')}
+    </div>`);
+  const close = () => (menu.remove(), anchor.classList.remove('open'), document.removeEventListener('mousedown', outside));
+  const outside = (ev) => !menu.contains(ev.target) && !anchor.contains(ev.target) && close();
+  menu.close = close;
+  setTimeout(() => document.addEventListener('mousedown', outside));
+  menu.onclick = (ev) => {
+    const b = ev.target.closest('button');
+    if (!b) return;
+    close();
+    pick(b.dataset.mode);
+    $('#prompt')?.focus();
+  };
+  menu.addEventListener('keydown', (ev) => {
+    const items = $$('button', menu);
+    const i = items.indexOf(document.activeElement);
+    if (ev.key === 'Escape') (close(), anchor.focus());
+    else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
+    }
+  });
+  document.body.append(menu);
+  anchor.classList.add('open');
+  const r = anchor.getBoundingClientRect();
+  const h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - menu.offsetWidth - 8))}px`;
+  menu.style.top = `${r.bottom + 6 + h < innerHeight - 8 ? r.bottom + 6 : r.top - 6 - h}px`;
+  $('button.on', menu)?.focus();
 }
 
 function renderLaunchChips() {
