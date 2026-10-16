@@ -1491,6 +1491,10 @@ async function loadConfig() {
   renderProjects();
   renderLaunchChips();
 }
+    // A card left open while it worked shouldn't land in "Needs you" expanded —
+    // fold it unless the user is actually watching it.
+    const n = S.nodes.get(s.id);
+    if (prev?.state === 'running' && s.state !== 'running' && S.open.has(s.id) && !(n && isInView(n.card) && document.hasFocus())) collapse(s.id);
 
 function renderAgentStatus() {
   const a = S.agents[0];
