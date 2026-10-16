@@ -10,7 +10,7 @@ const S = {
   sessions: new Map(), // id -> summary
   full: new Map(), // id -> full session, for expanded items
   open: new Set(load('wisp.open', [])), // expanded item ids
-  nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll }
+  nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll, unfolded, latestTurn }
   focus: null, // id of the keyboard-focused item
   config: { defaults: {}, projects: [] },
   agents: [],
@@ -155,18 +155,15 @@ function renderFeedHead(needs, working) {
   placeCollapseAll();
 }
 
-// "Collapse all" rides on the first visible group heading, a row that is always
-// there, so showing or hiding it never shifts the feed.
-const collapseAllBtn = el(`<button class="collapse-all" title="Collapse all (Esc collapses one)">Collapse all</button>`);
-collapseAllBtn.addEventListener('click', (e) => {
-  e.stopPropagation(); // the Done heading is itself a toggle
-  [...S.open].forEach((id) => collapse(id));
-});
+// "Collapse all" floats over the page instead of living in the flow: showing it
+// never shifts the feed, and it stays reachable deep inside a long open card.
+const collapseAllBtn = el(`<button class="collapse-all" title="Collapse all (Esc collapses the focused one)"></button>`);
+document.body.append(collapseAllBtn);
+collapseAllBtn.addEventListener('click', () => [...S.open].forEach((id) => collapse(id)));
 function placeCollapseAll() {
   const open = [...S.open].filter((id) => S.nodes.get(id)?.card.isConnected).length;
-  const h4 = $$('#feed .f-group:not([hidden]) h4')[0];
-  if (h4 && collapseAllBtn.parentNode !== h4) h4.append(collapseAllBtn);
-  collapseAllBtn.classList.toggle('on', open > 1);
+  collapseAllBtn.classList.toggle('on', open > 0);
+  if (open) collapseAllBtn.textContent = open > 1 ? `Collapse all · ${open}` : 'Collapse';
 }
 
 // Get (or create) the card for a summary and refresh its header.
@@ -174,7 +171,7 @@ function item(s) {
   let n = S.nodes.get(s.id);
   if (!n) {
     const card = el(`<article class="item" data-id="${s.id}"><div class="it-head" role="button" tabindex="-1"></div></article>`);
-    n = { card, head: $('.it-head', card), body: null, turnNodes: new Map(), tray: null, showAll: false };
+    n = { card, head: $('.it-head', card), body: null, turnNodes: new Map(), tray: null, showAll: false, unfolded: new Set(), latestTurn: null };
     S.nodes.set(s.id, n);
     n.head.addEventListener('click', (e) => {
       if (n.head.querySelector('[contenteditable="true"]')) return;
@@ -574,7 +571,8 @@ function ctxFor(s, turn, isLatest) {
   };
 }
 
-const VISIBLE_TURNS = 2;
+// Older turns render as one-line folded rows; past this many they hide behind "Show earlier".
+const VISIBLE_TURNS = 8;
 
 function renderBody(id, { fresh }) {
   const s = S.full.get(id);
@@ -634,17 +632,22 @@ function renderBody(id, { fresh }) {
   const earlier = $('.earlier', body);
   earlier.hidden = !hiddenCount;
   earlier.textContent = `Show ${hiddenCount} earlier turn${hiddenCount === 1 ? '' : 's'}`;
+  // A new turn re-folds everything older, so the latest exchange is what's open by default.
+  const latestId = s.turns.at(-1)?.id;
+  if (n.latestTurn !== latestId) (n.unfolded.clear(), (n.latestTurn = latestId));
   const keep = new Set();
   let firstNew = null;
   turns.forEach((t) => {
-    const isLatest = t === s.turns.at(-1);
-    const key = `${t.status}|${isLatest}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}`;
+    const isLatest = t.id === latestId;
+    const folded = !isLatest && !n.unfolded.has(t.id);
+    const key = `${t.status}|${isLatest}|${folded}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
-      node = renderTurn(s, t, isLatest);
+      const toggle = () => (n.unfolded.has(t.id) ? n.unfolded.delete(t.id) : n.unfolded.add(t.id), renderBody(id, { fresh: false }));
+      node = folded ? renderFoldedTurn(t, toggle) : renderTurn(s, t, isLatest, isLatest ? null : toggle);
       if (prev) prev.node.replaceWith(node);
-      if (!prev && !fresh) firstNew ??= node;
+      if (!prev && !fresh && !folded) firstNew ??= node;
       if (prev && prev.status === 'running' && t.status !== 'running') firstNew ??= node;
       n.turnNodes.set(t.id, { key, node, status: t.status });
     }
@@ -662,7 +665,23 @@ function isInView(node) {
   return r.bottom > 0 && r.top < innerHeight;
 }
 
-function renderTurn(s, t, isLatest) {
+function renderFoldedTurn(t, unfold) {
+  const hero = t.presentation?.blocks?.find((b) => b.type === 'hero');
+  const node = el(`
+    <article class="turn folded" data-turn="${t.id}">
+      <button class="t-fold" title="Show this exchange">
+        ${icon('chevron', 'chev')}
+        <span class="t-prompt">${esc(t.prompt.replace(/\s+/g, ' '))}</span>
+        ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
+        <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+      </button>
+    </article>`);
+  $('.t-fold', node).onclick = unfold;
+  return node;
+}
+
+// `fold` is set for older turns the user unfolded, so they can tuck them away again.
+function renderTurn(s, t, isLatest, fold) {
   const node = el(`<article class="turn" data-turn="${t.id}"></article>`);
   const long = t.prompt.length > 360 || t.prompt.split('\n').length > 5;
   const ask = el(`
@@ -671,7 +690,9 @@ function renderTurn(s, t, isLatest) {
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
       <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+      ${fold ? `<button class="ghost xs t-unfold" title="Collapse this exchange">${icon('chevron', 'chev')}</button>` : ''}
     </div>`);
+  if (fold) ask.querySelector('.t-unfold').onclick = fold;
   ask.querySelector('.more-btn')?.addEventListener('click', (e) => {
     ask.querySelector('.ask-text').classList.toggle('clamped');
     e.target.textContent = ask.querySelector('.ask-text').classList.contains('clamped') ? 'Show all' : 'Show less';
@@ -1396,8 +1417,13 @@ setInterval(() => {
   }
 }, 30000);
 
-// Sticky top bar gets a hairline once the page scrolls.
-stage.addEventListener('scroll', () => $('#topbar').classList.toggle('scrolled', stage.scrollTop > 4), { passive: true });
+// Sticky top bar gets a hairline once the page scrolls; "back to top" shows after a screen's worth.
+const toTop = $('#toTop');
+stage.addEventListener('scroll', () => {
+  $('#topbar').classList.toggle('scrolled', stage.scrollTop > 4);
+  toTop.hidden = stage.scrollTop < stage.clientHeight * 0.75;
+}, { passive: true });
+toTop.onclick = () => stage.scrollTo({ top: 0, behavior: 'smooth' });
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');
 
