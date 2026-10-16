@@ -8,6 +8,7 @@
 
 Launch coding agents in the background, skip the transcript, and read the presentation they hand back when they finish.
 
+[![npm](https://img.shields.io/npm/v/wisp-agents?color=cb3837&logo=npm)](https://www.npmjs.com/package/wisp-agents)
 [![License: MIT](https://img.shields.io/badge/license-MIT-6a5cff.svg)](#license)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/desktop-Electron-47848f?logo=electron&logoColor=white)](https://www.electronjs.org)
@@ -51,6 +52,20 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 > **Requirements:** Node.js ≥ 20 and [Claude Code](https://claude.com/claude-code) (`claude`) installed and signed in.
 
 ```sh
+npx wisp-agents                          # open wisp → http://localhost:4477
+npx wisp-agents "fix the flaky auth test" # launch a task in the current folder
+```
+
+Or install it globally to get the `wisp` command everywhere:
+
+```sh
+npm install -g wisp-agents
+wisp "fix the flaky auth test"
+```
+
+From source:
+
+```sh
 git clone https://github.com/M0xoo/wisp.git
 cd wisp
 
@@ -87,8 +102,9 @@ wisp --mode plan "audit deps"     # permission mode: plan | edits | auto
 | `--port`, `-p N` | Port to use (default `4477`, or `WISP_PORT`) |
 | `--mode`, `-m` | `plan` · `edits` · `auto` |
 | `--no-open` | Don't open a browser |
+| `--version`, `-v` | Print the version |
 
-> Run `npm link` to put `wisp` on your `PATH`.
+> `npm install -g wisp-agents` (or `npm link` from a clone) puts `wisp` on your `PATH`. Without installing, use `npx wisp-agents …` with the same arguments.
 
 ## Keyboard shortcuts
 

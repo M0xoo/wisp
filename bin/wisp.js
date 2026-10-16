@@ -19,8 +19,12 @@ for (let i = 0; i < argv.length; i++) {
   if (a === '--no-open') flags.open = false;
   else if (a === '--port' || a === '-p') flags.port = Number(argv[++i]);
   else if (a === '--mode' || a === '-m') flags.mode = argv[++i];
-  else if (a === '--help' || a === '-h') {
-    console.log('usage:\n  wisp                    open wisp\n  wisp "task"             launch a task in this folder\n  wisp add [path]         add a project\n\noptions: --port N  --mode plan|edits|auto  --no-open');
+  else if (a === '--version' || a === '-v') {
+    const { readFileSync } = await import('node:fs');
+    console.log(JSON.parse(readFileSync(new URL('../package.json', import.meta.url))).version);
+    process.exit(0);
+  } else if (a === '--help' || a === '-h') {
+    console.log('usage:\n  wisp                    open wisp\n  wisp "task"             launch a task in this folder\n  wisp add [path]         add a project\n\noptions: --port N  --mode plan|edits|auto  --no-open  --version');
     process.exit(0);
   } else words.push(a);
 }
