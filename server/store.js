@@ -10,12 +10,16 @@ const DEFAULT_CONFIG = {
   defaults: { agent: 'claude', mode: 'edits', model: '' },
 };
 
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const MAX_KEPT_IMAGE = 25 * 1024 * 1024;
+
 export const PROJECT_COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
 
 export class Store {
   constructor(home = process.env.WISP_HOME || path.join(os.homedir(), '.wisp')) {
     this.home = home;
     this.dir = path.join(home, 'sessions');
+    this.shots = path.join(home, 'shots');
     fs.mkdirSync(this.dir, { recursive: true });
     this.sessions = new Map();
     this.timers = new Map();
@@ -27,6 +31,8 @@ export class Store {
         const s = JSON.parse(fs.readFileSync(path.join(this.dir, f), 'utf8'));
         reparse(s);
         this.sessions.set(s.id, s);
+        // Backfill: keep screenshots from older turns while their files still exist.
+        if ((s.turns || []).map((t) => this.keepImages(s, t)).some(Boolean)) this.save(s, { now: true });
       } catch (err) {
         console.warn(`wisp: skipping unreadable session ${f}: ${err.message}`);
       }
@@ -111,6 +117,34 @@ export class Store {
     clearTimeout(this.timers.get(id));
     this.sessions.delete(id);
     fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
+    fs.rmSync(path.join(this.shots, id), { recursive: true, force: true });
+  }
+
+  // Agents save screenshots to /tmp, which macOS clears. Copy every local image a turn shows
+  // into ~/.wisp/shots/<session>/ and point the block at the copy; `source` keeps the original.
+  keepImages(session, turn) {
+    let changed = false;
+    (turn.presentation?.blocks || []).forEach((b, i) => {
+      const rel = b?.type === 'image' && (b.path || b.src);
+      if (typeof rel !== 'string' || !rel || /^https?:/.test(rel)) return;
+      const src = path.resolve(session.cwd || this.home, rel);
+      const ext = path.extname(src).toLowerCase();
+      if (!IMAGE_EXT.has(ext) || src.startsWith(this.shots + path.sep)) return;
+      try {
+        const st = fs.statSync(src);
+        if (!st.isFile() || st.size > MAX_KEPT_IMAGE) return;
+        const dir = path.join(this.shots, session.id);
+        fs.mkdirSync(dir, { recursive: true });
+        const dest = path.join(dir, `${turn.id}-${i}${ext}`);
+        fs.copyFileSync(src, dest);
+        Object.assign(b, { path: dest, source: rel });
+        delete b.src;
+        changed = true;
+      } catch {
+        // gone or unreadable: leave the block as it was
+      }
+    });
+    return changed;
   }
 
   flush() {

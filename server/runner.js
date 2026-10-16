@@ -297,6 +297,7 @@ export class Runner extends EventEmitter {
       turn.status = 'done';
       turn.raw = ev.text; // kept so the turn can be re-parsed if the parser improves
       turn.presentation = parsePresentation(ev.text);
+      this.store.keepImages(session, turn);
       const hero = heroOf(turn.presentation);
       if (hero?.title && session.titleAuto && session.turns.length === 1) session.title = hero.title;
     }
