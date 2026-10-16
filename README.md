@@ -114,6 +114,7 @@ wisp --mode plan "audit deps"     # permission mode: plan | edits | auto
 
 | Key | Action |
 |---|---|
+| `⌘ K` / `Ctrl K` | Command palette: fuzzy-search sessions, projects and actions |
 | `N` | New task (focus the launcher) |
 | `⌘ ↵` | Launch and keep the launcher open for the next task |
 | `J` / `K` | Move down / up through the queue |

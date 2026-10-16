@@ -1,5 +1,6 @@
 import { renderPresentation, icon, el, fmtDuration, copy, countChanges } from './blocks.js';
 import { esc, md } from './md.js';
+import { palette } from './palette.js';
 
 // One page: the launcher on top, every session in a feed under it. Sessions
 // expand in place; nothing navigates away.
@@ -104,7 +105,8 @@ function overlay(node, { onClose } = {}) {
   requestAnimationFrame(() => o.classList.add('on'));
   const close = () => {
     o.classList.remove('on');
-    setTimeout(() => ((o.hidden = true), (o.innerHTML = '')), 200);
+    // Another overlay may have replaced this one while it faded (palette → settings): leave that alone.
+    setTimeout(() => o.firstChild === node && ((o.hidden = true), (o.innerHTML = '')), 200);
     onClose?.();
   };
   o.onclick = (e) => e.target === o && close();
@@ -1467,6 +1469,7 @@ function openSettings() {
 
 function shortcuts() {
   const rows = [
+    [`${MOD} K`, 'Search & commands'],
     ['N', 'New wisp (focus the launcher)'],
     ['J / K', 'Next / previous item'],
     ['O / ↵', 'Expand / collapse item'],
@@ -1482,6 +1485,91 @@ function shortcuts() {
   ];
   const node = el(`<div class="modal keys-modal"><header><h2>Shortcuts</h2></header>${rows.map(([k, l]) => `<div class="krow"><kbd>${k}</kbd><span>${l}</span></div>`).join('')}</div>`);
   overlay(node);
+}
+
+// --- command palette ------------------------------------------------------------------
+
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
+const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
+
+function focusLauncher() {
+  stage.scrollTo({ top: 0, behavior: 'smooth' });
+  $('#prompt')?.focus({ preventScroll: true });
+}
+
+// Run something on a session's card, expanding it first if the action needs the body.
+function withCard(id, fn, { open = false } = {}) {
+  reveal(id);
+  if (!open || S.open.has(id)) return setTimeout(fn, 50);
+  expand(id).then(fn);
+}
+
+function paletteItems() {
+  const items = [];
+  const cur = S.focus && S.sessions.get(S.focus);
+  if (cur) {
+    const id = cur.id;
+    const live = cur.state === 'running' || cur.state === 'waiting';
+    const g = 'This wisp';
+    const sub = cur.title;
+    items.push({ group: g, label: 'Follow up', sub, icon: 'send', kbd: '/', run: () => withCard(id, () => $('.reply', S.nodes.get(id)?.card)?.focus(), { open: true }) });
+    if (!live) items.push({ group: g, label: cur.state === 'done' ? 'Move back to review' : 'Mark done', sub, icon: 'done', kbd: 'E', run: () => toggleDone(id) });
+    if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
+    items.push({ group: g, label: 'Take over in terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
+    items.push({ group: g, label: 'Replay presentation', sub, icon: 'replay', kbd: 'R', run: () => withCard(id, () => replay(id), { open: true }) });
+    items.push({ group: g, label: 'Rename', sub, icon: 'pen', run: () => withCard(id, () => rename(id)) });
+  }
+
+  const sessions = [...S.sessions.values()].sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
+  for (const s of sessions) {
+    const state = s.archived ? 'Archived' : s.state === 'review' ? STATUS_LABEL[s.status] || 'Review' : STATE_LABEL[s.state] || s.state;
+    items.push({
+      group: 'Wisps',
+      label: s.title,
+      sub: `${s.project} · ${state} · ${ago(s.updatedAt)}`,
+      dot: s.color,
+      keywords: [s.preview, s.live, s.question, agentName(s.agent)].filter(Boolean).join(' '),
+      // Live and unread work floats up; archived sinks.
+      rank: (s.state === 'waiting' ? 3 : 0) + (s.unread ? 2 : 0) + (s.state === 'running' ? 1 : 0) - (s.archived ? 4 : 0),
+      run: () => reveal(s.id),
+    });
+  }
+
+  const a = 'Actions';
+  items.push(
+    { group: a, label: 'New wisp', icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: focusLauncher },
+    { group: a, label: S.showDone ? 'Hide done' : 'Show done', icon: 'done', keywords: 'toggle finished', run: () => $('#secDone .toggle-done').click() },
+    { group: a, label: S.showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', keywords: 'toggle', run: () => $('#secArchived .toggle-done').click() },
+  );
+  if (S.open.size) items.push({ group: a, label: 'Collapse all', icon: 'minus', kbd: 'Esc', run: () => [...S.open].forEach((id) => collapse(id)) });
+  items.push(
+    { group: a, label: 'Add project…', icon: 'folder', keywords: 'folder repo directory', run: () => openProjects({ focusAdd: true }) },
+    { group: a, label: 'Manage projects', icon: 'folder', keywords: 'rename color remove', run: () => openProjects() },
+    { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences editor terminal notifications', run: openSettings },
+    { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
+  );
+
+  const filter = (id) => () => {
+    S.filter = id;
+    save('wisp.filter', id);
+    renderProjects();
+    renderFeed();
+    renderLaunchChips();
+  };
+  items.push({ group: 'Projects', label: 'All projects', sub: S.filter === 'all' ? 'Current filter' : '', dot: 'slate', keywords: 'filter clear', run: filter('all') });
+  for (const p of S.config.projects.slice().sort((x, y) => (y.lastUsedAt || y.addedAt) - (x.lastUsedAt || x.addedAt))) {
+    items.push({ group: 'Projects', label: p.name, sub: S.filter === p.id ? 'Current filter' : p.path, dot: p.color, keywords: `filter ${p.path}`, run: filter(p.id) });
+  }
+  return items;
+}
+
+let paletteOpen = false;
+function openPalette() {
+  if (paletteOpen) return closeOverlay();
+  // Don't stack over another modal (settings, projects…); the palette replaces nothing.
+  if (!$('#overlay').hidden) return;
+  paletteOpen = true;
+  palette({ items: paletteItems(), overlay: (node) => overlay(node, { onClose: () => (paletteOpen = false) }) });
 }
 
 // --- notifications -----------------------------------------------------------------------
@@ -1560,6 +1648,11 @@ function renderAgentStatus() {
 const feedIds = () => $$('#feed .item').map((x) => x.dataset.id);
 
 document.addEventListener('keydown', (e) => {
+  // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    return openPalette();
+  }
   const typing = e.target.closest('input, textarea, select, [contenteditable="true"]');
   if (e.key === 'Escape') {
     if (!$('#overlay').hidden) return closeOverlay();
@@ -1572,8 +1665,7 @@ document.addEventListener('keydown', (e) => {
   const id = S.focus && S.nodes.has(S.focus) ? S.focus : null;
   if (k === 'n') {
     e.preventDefault();
-    stage.scrollTo({ top: 0, behavior: 'smooth' });
-    $('#prompt')?.focus({ preventScroll: true });
+    focusLauncher();
   } else if (k === 'j' || k === 'k') {
     const ids = feedIds();
     if (!ids.length) return;
@@ -1604,6 +1696,9 @@ document.addEventListener('keydown', (e) => {
 });
 
 $('#settingsBtn').onclick = openSettings;
+$('#searchBtn').onclick = openPalette;
+$('#searchBtn').title = `Search (${MOD}K)`;
+$('#searchBtn .mod-k').textContent = `${MOD}K`;
 $('#secDone .toggle-done').onclick = () => {
   S.showDone = !S.showDone;
   save('wisp.showDone', S.showDone);
