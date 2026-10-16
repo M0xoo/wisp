@@ -166,7 +166,26 @@ select {
 @keyframes orb-spin { to { rotate: 360deg; } }
 
 /* ---------- layout: one column — top bar, launcher, feed ---------- */
-.stage { position: relative; height: 100vh; overflow-y: auto; overflow-x: hidden; scroll-padding-top: 64px; }
+.stage {
+  position: relative; height: 100vh; overflow-y: auto; overflow-x: hidden; scroll-padding-top: 64px;
+  /* reserve the gutter on both sides so the scrollbar appearing never shifts or off-centres the layout */
+  scrollbar-gutter: stable both-edges;
+}
+
+/* scrollbars: a hairline pill on a clear track — faint at rest, firmer and wider when grabbed, gone when idle */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  border-radius: 99px; border: 3px solid transparent; min-height: 40px;
+  background: color-mix(in srgb, var(--ink) 16%, transparent) padding-box;
+}
+::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: color-mix(in srgb, var(--ink) 32%, transparent); }
+::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: color-mix(in srgb, var(--ink) 45%, transparent); }
+:not(:hover)::-webkit-scrollbar-thumb { background-color: transparent; }
+::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 20%, transparent) transparent; }
+}
 .feed-wrap { max-width: 800px; margin: 0 auto; padding: 20px 24px 120px; }
 
 .topbar {
@@ -834,6 +853,9 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .menu button:hover { background: var(--bg-2); color: var(--ink); }
 .menu .danger:hover { color: var(--bad); background: var(--del-bg); }
 .menu.models { width: 260px; }
+.mm-list { max-height: 420px; overflow-y: auto; }
+.mm-filter { width: 100%; margin-bottom: 5px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2); color: var(--ink); font: inherit; font-size: 13px; outline: 0; }
+.mm-filter:focus { border-color: var(--accent); }
 .menu.models button { padding: 8px 10px; outline: 0; }
 .menu.models button:focus-visible { background: var(--bg-2); color: var(--ink); }
 .mm-text { flex: 1; display: flex; flex-direction: column; gap: 1px; text-align: left; min-width: 0; }
