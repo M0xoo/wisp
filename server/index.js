@@ -162,7 +162,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       if (!id && m === 'GET') return send(res, 200, store.config.projects);
       if (!id && m === 'POST') {
         const body = await readJson(req);
-        const dir = path.resolve(String(body.path || '').replace(/^~(?=$|\/)/, os.homedir()));
+        const dir = path.resolve(String(body.path || '').replace(/^~(?=$|[\\/])/, os.homedir()));
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return send(res, 400, { error: `Not a folder: ${dir}` });
         const p = store.addProject(dir, { name: body.name });
         broadcast('config', {});
@@ -211,9 +211,10 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
 
     // Directory suggestions for the launcher's project picker.
     if (root === 'fs' && m === 'GET') {
-      const raw = (url.searchParams.get('q') || '').replace(/^~(?=$|\/)/, os.homedir());
-      const dir = raw.endsWith('/') ? raw : path.dirname(raw);
-      const prefix = raw.endsWith('/') ? '' : path.basename(raw).toLowerCase();
+      const raw = (url.searchParams.get('q') || '').replace(/^~(?=$|[\\/])/, os.homedir());
+      const trailing = /[\\/]$/.test(raw); // a trailing backslash counts too (Windows)
+      const dir = trailing ? raw : path.dirname(raw);
+      const prefix = trailing ? '' : path.basename(raw).toLowerCase();
       let entries = [];
       try {
         entries = fs
@@ -231,7 +232,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         if (m === 'POST') {
           const body = await readJson(req);
           if (!body.prompt?.trim()) return send(res, 400, { error: 'prompt required' });
-          const cwd = path.resolve((body.cwd || process.cwd()).replace(/^~(?=$|\/)/, os.homedir()));
+          const cwd = path.resolve((body.cwd || process.cwd()).replace(/^~(?=$|[\\/])/, os.homedir()));
           if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) return send(res, 400, { error: `Not a directory: ${cwd}` });
           if (!adapters[body.agent || 'claude']) return send(res, 400, { error: 'unknown agent' });
           const s = runner.create({ prompt: body.prompt, cwd, agent: body.agent, mode: body.mode, model: body.model, attachments: resolveAttachments(body.attachments) });

@@ -1,73 +1,127 @@
 // Open a command in the user's terminal so they can take over an agent session interactively.
+//
+// terminalPlan() is pure (platform and PATH lookups are injected) so every platform's command
+// line can be tested anywhere; openInTerminal() runs the plan.
 
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { escapeCmdArgument, escapeCmdCommand, onPath } from './proc.js';
 
-export const TERMINALS = [
+// os: which platforms list the entry (all if omitted).
+const ALL_TERMINALS = [
   { id: 'auto', label: 'Auto-detect' },
-  { id: 'terminal', label: 'Terminal.app', mac: true },
-  { id: 'iterm', label: 'iTerm', mac: true, app: '/Applications/iTerm.app' },
-  { id: 'ghostty', label: 'Ghostty', app: '/Applications/Ghostty.app', bin: 'ghostty' },
-  { id: 'warp', label: 'Warp', mac: true, app: '/Applications/Warp.app' },
-  { id: 'kitty', label: 'kitty', app: '/Applications/kitty.app', bin: 'kitty' },
-  { id: 'wezterm', label: 'WezTerm', app: '/Applications/WezTerm.app', bin: 'wezterm' },
+  { id: 'terminal', label: 'Terminal.app', os: ['darwin'] },
+  { id: 'iterm', label: 'iTerm', os: ['darwin'] },
+  { id: 'warp', label: 'Warp', os: ['darwin'] },
+  { id: 'wt', label: 'Windows Terminal', os: ['win32'] },
+  { id: 'powershell', label: 'PowerShell', os: ['win32'] },
+  { id: 'cmd', label: 'Command Prompt', os: ['win32'] },
+  { id: 'ghostty', label: 'Ghostty', os: ['darwin', 'linux'] },
+  { id: 'kitty', label: 'kitty', os: ['darwin', 'linux'] },
+  { id: 'wezterm', label: 'WezTerm' },
+  { id: 'gnome-terminal', label: 'GNOME Terminal', os: ['linux'] },
+  { id: 'konsole', label: 'Konsole', os: ['linux'] },
+  { id: 'xfce4-terminal', label: 'Xfce Terminal', os: ['linux'] },
+  { id: 'alacritty', label: 'Alacritty', os: ['linux'] },
+  { id: 'xterm', label: 'xterm', os: ['linux'] },
   { id: 'custom', label: 'Custom command' },
 ];
 
+export const terminalsFor = (platform = process.platform) => ALL_TERMINALS.filter((t) => !t.os || t.os.includes(platform === 'darwin' || platform === 'win32' ? platform : 'linux')).map(({ id, label }) => ({ id, label }));
+export const TERMINALS = terminalsFor();
+
 export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+const psq = (s) => `'${String(s).replace(/'/g, "''")}'`; // PowerShell single-quoted string
+const asStr = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`; // AppleScript string
 
-const has = (bin) => {
-  try {
-    execFileSync('which', [bin], { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-};
+const LINUX_ORDER = ['ghostty', 'kitty', 'wezterm', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'alacritty', 'x-terminal-emulator', 'xterm'];
 
-function detect() {
-  if (process.platform === 'darwin') {
-    if (process.env.TERM_PROGRAM === 'iTerm.app' && fs.existsSync('/Applications/iTerm.app')) return 'iterm';
-    if (process.env.TERM_PROGRAM === 'ghostty' && fs.existsSync('/Applications/Ghostty.app')) return 'ghostty';
+export function detectTerminal({ platform = process.platform, env = process.env, has = (b) => onPath(b, env), exists = fs.existsSync } = {}) {
+  if (platform === 'darwin') {
+    if (env.TERM_PROGRAM === 'iTerm.app' && exists('/Applications/iTerm.app')) return 'iterm';
+    if (env.TERM_PROGRAM === 'ghostty' && exists('/Applications/Ghostty.app')) return 'ghostty';
     return 'terminal';
   }
-  for (const t of ['ghostty', 'kitty', 'wezterm']) if (has(t)) return t;
-  return 'x-terminal-emulator';
+  if (platform === 'win32') return env.WT_SESSION || has('wt') ? 'wt' : 'powershell';
+  return LINUX_ORDER.find((t) => has(t)) || 'xterm';
 }
 
-const osa = (script) => spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' }).unref();
-const asStr = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-
-// argv: the agent's resume command, e.g. ['claude', '--resume', 'abc'].
-export function openInTerminal({ cwd, argv, terminal = 'auto', custom = '' }) {
+// Returns a list of steps: { command, args, options? } to spawn, { osa } to run as AppleScript,
+// or { delay } in ms. argv is the agent's resume command, e.g. ['claude', '--resume', 'abc'].
+export function terminalPlan({ cwd, argv, terminal = 'auto', custom = '', platform = process.platform, env = process.env, has, exists } = {}) {
+  const t = terminal === 'auto' ? detectTerminal({ platform, env, has, exists }) : terminal;
+  const mac = platform === 'darwin';
+  const win = platform === 'win32';
   const cmd = argv.map(shq).join(' ');
   const line = `cd ${shq(cwd)} && ${cmd}`;
-  const t = terminal === 'auto' ? detect() : terminal;
-  const mac = process.platform === 'darwin';
+  // Linux terminals: run the command, then leave an interactive shell open in the project.
+  const keepOpen = ['sh', '-c', `${cmd}; exec "\${SHELL:-sh}"`];
+  // Windows: `& 'codex' 'resume' 'id'` works for .exe, .cmd and .ps1 alike.
+  const ps = `& ${argv.map(psq).join(' ')}`;
+  const cmdLine = [escapeCmdCommand(argv[0]), ...argv.slice(1).map((a) => escapeCmdArgument(a, true))].join(' ');
+  const detached = { cwd, detached: true, stdio: 'ignore' };
 
   switch (t) {
     case 'terminal':
-      return osa(`tell application "Terminal"\nactivate\ndo script ${asStr(line)}\nend tell`);
+      return [{ osa: `tell application "Terminal"\nactivate\ndo script ${asStr(line)}\nend tell` }];
     case 'iterm':
-      return osa(`tell application "iTerm"\nactivate\nset w to (create window with default profile)\ntell current session of w to write text ${asStr(line)}\nend tell`);
+      return [{ osa: `tell application "iTerm"\nactivate\nset w to (create window with default profile)\ntell current session of w to write text ${asStr(line)}\nend tell` }];
     case 'warp':
       // Warp has no scripting API; open a tab in the folder and type via System Events.
-      spawn('open', ['-a', 'Warp', cwd], { detached: true, stdio: 'ignore' }).unref();
-      return setTimeout(() => osa(`tell application "System Events" to keystroke ${asStr(cmd)} & return`), 1200);
+      return [{ command: 'open', args: ['-a', 'Warp', cwd] }, { delay: 1200 }, { osa: `tell application "System Events" to keystroke ${asStr(cmd)} & return` }];
+    case 'wt':
+      // `;` separates wt subcommands, so it can't appear unescaped in the command line.
+      return [{ command: 'wt.exe', args: ['-d', cwd, 'powershell.exe', '-NoExit', '-Command', ps.replace(/;/g, '\\;')], options: detached }];
+    case 'powershell':
+      // detached gives the child its own console window on Windows.
+      return [{ command: 'powershell.exe', args: ['-NoExit', '-Command', ps], options: detached }];
+    case 'cmd':
+      return [{ command: env.ComSpec || env.COMSPEC || 'cmd.exe', args: ['/d', '/s', '/k', `"${cmdLine}"`], options: { ...detached, windowsVerbatimArguments: true } }];
     case 'ghostty':
-      if (mac) return spawn('open', ['-na', 'Ghostty', '--args', `--working-directory=${cwd}`, '-e', ...argv], { detached: true, stdio: 'ignore' }).unref();
-      return spawn('ghostty', [`--working-directory=${cwd}`, '-e', ...argv], { detached: true, stdio: 'ignore' }).unref();
+      if (mac) return [{ command: 'open', args: ['-na', 'Ghostty', '--args', `--working-directory=${cwd}`, '-e', ...argv] }];
+      return [{ command: 'ghostty', args: [`--working-directory=${cwd}`, '-e', ...keepOpen] }];
     case 'kitty':
-      if (mac) return spawn('open', ['-na', 'kitty', '--args', '--directory', cwd, ...argv], { detached: true, stdio: 'ignore' }).unref();
-      return spawn('kitty', ['--directory', cwd, ...argv], { detached: true, stdio: 'ignore' }).unref();
+      if (mac) return [{ command: 'open', args: ['-na', 'kitty', '--args', '--directory', cwd, ...argv] }];
+      return [{ command: 'kitty', args: ['--directory', cwd, ...keepOpen] }];
     case 'wezterm':
-      return spawn(mac ? '/Applications/WezTerm.app/Contents/MacOS/wezterm' : 'wezterm', ['start', '--cwd', cwd, '--', ...argv], { detached: true, stdio: 'ignore' }).unref();
+      return [{ command: mac ? '/Applications/WezTerm.app/Contents/MacOS/wezterm' : 'wezterm', args: ['start', '--cwd', cwd, '--', ...(win ? ['powershell.exe', '-NoExit', '-Command', ps] : mac ? argv : keepOpen)], ...(win ? { options: detached } : {}) }];
+    case 'gnome-terminal':
+      return [{ command: 'gnome-terminal', args: [`--working-directory=${cwd}`, '--', ...keepOpen] }];
+    case 'konsole':
+      return [{ command: 'konsole', args: ['--workdir', cwd, '-e', ...keepOpen] }];
+    case 'xfce4-terminal':
+      return [{ command: 'xfce4-terminal', args: [`--working-directory=${cwd}`, '-x', ...keepOpen] }];
+    case 'alacritty':
+      return [{ command: 'alacritty', args: ['--working-directory', cwd, '-e', ...keepOpen] }];
     case 'custom': {
       if (!custom) throw new Error('Set a custom terminal command in settings, e.g.  alacritty --working-directory {cwd} -e {cmd}');
+      if (win) {
+        const full = custom.replaceAll('{cwd}', `"${cwd}"`).replaceAll('{cmd}', cmdLine).replaceAll('{line}', `cd /d "${cwd}" ^&^& ${cmdLine}`);
+        return [{ command: env.ComSpec || env.COMSPEC || 'cmd.exe', args: ['/d', '/s', '/c', `"${full}"`], options: { ...detached, windowsVerbatimArguments: true } }];
+      }
       const full = custom.replaceAll('{cwd}', shq(cwd)).replaceAll('{cmd}', cmd).replaceAll('{line}', shq(line));
-      return spawn('sh', ['-c', full], { detached: true, stdio: 'ignore' }).unref();
+      return [{ command: 'sh', args: ['-c', full], options: detached }];
     }
-    default:
-      return spawn('x-terminal-emulator', ['-e', 'sh', '-c', `${line}; exec $SHELL`], { detached: true, stdio: 'ignore' }).unref();
+    default: // x-terminal-emulator (Debian/Ubuntu alternatives), xterm
+      return [{ command: t, args: ['-e', ...keepOpen], options: detached }];
+  }
+}
+
+export function openInTerminal(opts) {
+  const steps = terminalPlan(opts);
+  let wait = 0;
+  for (const step of steps) {
+    if (step.delay) {
+      wait += step.delay;
+      continue;
+    }
+    const run = () => {
+      const [command, args] = step.osa ? ['osascript', ['-e', step.osa]] : [step.command, step.args];
+      const child = spawn(command, args, { cwd: opts.cwd, detached: true, stdio: 'ignore', ...step.options });
+      child.on('error', () => {}); // a missing terminal shouldn't crash the server
+      child.unref();
+    };
+    if (wait) setTimeout(run, wait);
+    else run();
   }
 }

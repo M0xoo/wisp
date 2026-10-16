@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adapters } from './adapters/index.js';
-import { SYSTEM_PROMPT, parsePresentation, heroOf } from './protocol.js';
+import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 
 const MAX_ACTIVITY = 400;
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
@@ -228,8 +228,8 @@ export class Runner extends EventEmitter {
       resumeId: session.agentSessionId,
       mode: session.mode,
       model: session.model,
-      systemPrompt: SYSTEM_PROMPT,
-      mcpServers: this.bridge
+      systemPrompt: systemPrompt({ askTool: adapter.askTool }),
+      mcpServers: this.bridge && adapter.askTool !== null
         ? {
             wisp: {
               command: process.execPath,

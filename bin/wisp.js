@@ -6,6 +6,7 @@
 //   wisp add [path]        add a folder as a project (default: current folder)
 //   --port N               port (default 4477, or WISP_PORT)
 //   --mode plan|edits|auto permission mode for a launch
+//   --agent ID             claude, codex, opencode or cursor (default: the launcher's pick)
 //   --browser              use the browser instead of the desktop app
 //   --no-open              just run the server, open nothing
 
@@ -17,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { wispAppBinary } from './mac-app.js';
 
 const argv = process.argv.slice(2);
-const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null };
+const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null };
 const words = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -25,12 +26,13 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--browser' || a === '-b') flags.browser = true;
   else if (a === '--port' || a === '-p') flags.port = Number(argv[++i]);
   else if (a === '--mode' || a === '-m') flags.mode = argv[++i];
+  else if (a === '--agent' || a === '-a') flags.agent = argv[++i];
   else if (a === '--version' || a === '-v') {
     const { readFileSync } = await import('node:fs');
     console.log(JSON.parse(readFileSync(new URL('../package.json', import.meta.url))).version);
     process.exit(0);
   } else if (a === '--help' || a === '-h') {
-    console.log('usage:\n  wisp                    open wisp\n  wisp "task"             launch a task in this folder\n  wisp add [path]         add a project\n\noptions: --port N  --mode plan|edits|auto  --browser  --no-open  --version');
+    console.log('usage:\n  wisp                    open wisp\n  wisp "task"             launch a task in this folder\n  wisp add [path]         add a project\n\noptions: --port N  --mode plan|edits|auto  --agent claude|codex|opencode|cursor  --browser  --no-open  --version');
     process.exit(0);
   } else words.push(a);
 }
@@ -80,7 +82,10 @@ if (words[0] === 'add') {
   if (running || electron) process.exit(0);
 } else if (words.length) {
   const cfg = await api('/config');
-  const s = await api('/sessions', { prompt: words.join(' '), cwd: process.cwd(), agent: cfg.defaults.agent, mode: flags.mode || cfg.defaults.mode, model: cfg.defaults.model });
+  const agent = flags.agent || cfg.defaults.agent;
+  // The saved model belongs to the saved agent; another agent gets its own default.
+  const model = agent === cfg.defaults.agent ? cfg.defaults.model : '';
+  const s = await api('/sessions', { prompt: words.join(' '), cwd: process.cwd(), agent, mode: flags.mode || cfg.defaults.mode, model });
   console.log(`  ◌ launched: ${s.title}`);
   openPath = `/#/s/${s.id}`;
   if (running || electron) process.exit(0); // the running wisp will show it in the queue

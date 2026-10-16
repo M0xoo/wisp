@@ -1,0 +1,61 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Adapters, process launching, terminals and the full ask_user loop, against fake CLIs that
+  # speak each harness's real output format. No network, no accounts.
+  test:
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # No install step: wisp has no runtime dependencies.
+      - run: npm test
+      - run: npm run prepublishOnly
+
+  # The real CLIs, installed the way users install them (npm shims on Windows, Cursor's own
+  # installer). Without accounts they answer "not logged in", which is enough to prove wisp can
+  # find, start and parse each one on every OS.
+  real-clis:
+    name: real CLIs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code, Codex and opencode
+        run: npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai
+      - name: Install Cursor CLI (Unix)
+        if: runner.os != 'Windows'
+        continue-on-error: true
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Cursor CLI (Windows)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: irm 'https://cursor.com/install?win32=true' | iex
+      - name: Smoke test
+        run: npm run test:real
+        env:
+          WISP_REAL_REQUIRE: claude,codex,opencode
+          WISP_REAL_TIMEOUT: '120000'

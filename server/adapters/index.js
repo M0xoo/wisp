@@ -1,9 +1,11 @@
-// Agent registry. To add a harness (codex, opencode, …) write an adapter with the
-// same shape as ./claude.js and register it here:
+// Agent registry. To add a harness write an adapter with the same shape as ./claude.js
+// (./common.js has the shared plumbing) and register it here:
 //
 //   {
-//     id, name, models: [{id, label}],
-//     detect(): Promise<{ available, version?, error? }>,
+//     id, name, models: [{id, label, hint?}],
+//     askTool: string | null | undefined           how the agent sees wisp's ask_user MCP tool;
+//                                                  null = can't inject MCP, ask via a question block
+//     detect(): Promise<{ available, version?, error?, models? }>   models overrides the static list
 //     resumeCommand({ resumeId, model }): string[]   argv to continue the session interactively
 //     run({ prompt, cwd, resumeId, mode, model, systemPrompt, onEvent }): { stop(), done: Promise }
 //   }
@@ -18,11 +20,14 @@
 //   { type: 'result', text, isError, stopped?, stats? }   exactly once, at the end
 //
 // mode is one of: plan (read-only), edits (auto-accept file edits), auto (no permission prompts).
-// Agents without a system-prompt flag can prepend `systemPrompt` to the first prompt instead.
+// Agents without a system-prompt flag prepend `systemPrompt` to the first prompt (withProtocol).
 
 import claude from './claude.js';
+import codex from './codex.js';
+import opencode from './opencode.js';
+import cursor from './cursor.js';
 
-export const adapters = { [claude.id]: claude };
+export const adapters = Object.fromEntries([claude, codex, opencode, cursor].map((a) => [a.id, a]));
 
 const detected = new Map();
 

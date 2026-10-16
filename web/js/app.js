@@ -424,13 +424,16 @@ let launchProject = load('wisp.launchProject', null);
 function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || 'edits';
-  const agent = S.agents.find((a) => a.id === (S.config.defaults.agent || 'claude')) || S.agents[0];
+  const ready = S.agents.filter((a) => a.available);
+  const chosen = S.agents.find((a) => a.id === (S.config.defaults.agent || 'claude'));
+  let agent = chosen?.available ? chosen : ready[0] || chosen || S.agents[0];
   box.innerHTML = `
     <div class="l-projects"></div>
     <textarea id="prompt" rows="2" placeholder="What should I go do? Paste screenshots, drop logs or videos…" spellcheck="false"></textarea>
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
       <div class="seg" id="mode">${MODES.map((m) => `<button data-mode="${m.id}" class="${m.id === mode ? 'on' : ''}" title="${esc(m.hint)}">${m.label}</button>`).join('')}</div>
+      <button class="model-btn" id="agent" title="Agent" aria-haspopup="menu" ${ready.length > 1 ? '' : 'hidden'}></button>
       <button class="model-btn" id="model" title="Model" aria-haspopup="menu"></button>
       <span class="grow"></span>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
@@ -454,15 +457,29 @@ function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { mode: curMode } } }).catch(() => {});
     }),
   );
-  const models = agent?.models || [{ id: '', label: 'Default' }];
-  let curModel = models.some((m) => m.id === S.config.defaults.model) ? S.config.defaults.model : models[0].id;
+  let models = agent?.models || [{ id: '', label: 'Default' }];
+  let curModel = agent?.id === S.config.defaults.agent && models.some((m) => m.id === S.config.defaults.model) ? S.config.defaults.model : models[0].id;
   const modelBtn = $('#model', box);
   const paintModel = () => {
-    const m = models.find((x) => x.id === curModel);
+    const m = models.find((x) => x.id === curModel) || models[0];
     modelBtn.innerHTML = `${icon('spark')}<span>${esc(m.label)}</span>${icon('chevron', 'chev')}`;
     modelBtn.classList.toggle('set', !!curModel);
   };
   paintModel();
+  const agentBtn = $('#agent', box);
+  const paintAgent = () => (agentBtn.innerHTML = `${icon('agent')}<span>${esc(agent?.name || 'Agent')}</span>${icon('chevron', 'chev')}`);
+  paintAgent();
+  agentBtn.onclick = () =>
+    modelMenu(agentBtn, ready.map((a) => ({ id: a.id, label: a.name, hint: a.version })), agent?.id, (id) => {
+      agent = ready.find((a) => a.id === id);
+      models = agent.models || [{ id: '', label: 'Default' }];
+      curModel = models[0].id;
+      paintAgent();
+      paintModel();
+      // Model ids are per harness, so switching agents resets the model.
+      Object.assign(S.config.defaults, { agent: id, model: curModel });
+      api('/config', { method: 'PATCH', body: { defaults: { agent: id, model: curModel } } }).catch(() => {});
+    });
   modelBtn.onclick = () =>
     modelMenu(modelBtn, models, curModel, (id) => {
       curModel = id;
@@ -1126,18 +1143,22 @@ function modelMenu(anchor, models, current, pick) {
   const open = $('.menu.models');
   if (open) return open.close();
   const r = anchor.getBoundingClientRect();
-  const below = r.bottom + 60 * models.length + 20 < innerHeight;
+  const long = models.length > 10; // opencode/Cursor list every model they can reach
+  const below = r.bottom + Math.min(60 * models.length, 420) + (long ? 44 : 0) + 20 < innerHeight;
   const menu = el(`
     <div class="menu models" role="menu" style="left:${r.left}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
-      ${models
+      ${long ? '<input class="mm-filter" placeholder="Filter…" spellcheck="false" aria-label="Filter">' : ''}
+      <div class="mm-list">${models
         .map(
           (m) => `<button role="menuitemradio" aria-checked="${m.id === current}" data-id="${esc(m.id)}" class="${m.id === current ? 'on' : ''}">
             <span class="mm-text"><b>${esc(m.label)}</b>${m.hint ? `<small>${esc(m.hint)}</small>` : ''}</span>${icon('check', 'mm-check')}
           </button>`,
         )
-        .join('')}
+        .join('')}</div>
     </div>`);
   const items = $$('button', menu);
+  const shown = () => items.filter((b) => !b.hidden);
+  const filter = $('.mm-filter', menu);
   const close = () => {
     menu.remove();
     anchor.classList.remove('open');
@@ -1145,28 +1166,39 @@ function modelMenu(anchor, models, current, pick) {
     document.removeEventListener('keydown', keys, true);
   };
   menu.close = close;
+  const choose = (b) => {
+    close();
+    anchor.focus();
+    if (b.dataset.id !== current) pick(b.dataset.id);
+  };
   const outside = (e) => !menu.contains(e.target) && !anchor.contains(e.target) && close();
   const keys = (e) => {
-    const i = items.indexOf(document.activeElement);
+    const list = shown();
+    const i = list.indexOf(document.activeElement);
     if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), close(), anchor.focus());
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       e.stopPropagation();
-      items[(i +(e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
-    } else if (e.key === 'Tab') close();
+      if (list.length) list[(i + (e.key === 'ArrowDown' ? 1 : i < 0 ? 0 : -1) + list.length) % list.length].focus();
+    } else if (e.key === 'Enter' && document.activeElement === filter && list[0]) (e.preventDefault(), choose(list[0]));
+    else if (e.key === 'Tab') close();
   };
+  if (filter)
+    filter.oninput = () => {
+      const q = filter.value.trim().toLowerCase();
+      for (const b of items) b.hidden = !!q && !`${b.dataset.id} ${b.textContent}`.toLowerCase().includes(q);
+    };
   menu.onclick = (e) => {
     const b = e.target.closest('button');
-    if (!b) return;
-    close();
-    anchor.focus();
-    if (b.dataset.id !== current) pick(b.dataset.id);
+    if (b) choose(b);
   };
   setTimeout(() => document.addEventListener('mousedown', outside));
   document.addEventListener('keydown', keys, true);
   document.body.append(menu);
   anchor.classList.add('open');
-  (items.find((b) => b.classList.contains('on')) || items[0]).focus();
+  const on = items.find((b) => b.classList.contains('on'));
+  on?.scrollIntoView({ block: 'nearest' });
+  (filter || on || items[0]).focus();
 }
 
 function moreMenu(id, anchor) {
@@ -1449,7 +1481,7 @@ function openSettings() {
       <label><span>Notifications</span><button class="ghost sm" id="notif">${'Notification' in window && Notification.permission === 'granted' ? 'Enabled' : 'Enable'}</button></label>
       <div class="agents">${S.agents
         .map((a) => `<div class="agent-row"><span class="dot ${a.available ? 'ok' : 'bad'}"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.available ? a.version : a.error || 'not found')}</span></div>`)
-        .join('')}<p class="muted xs">More harnesses (Codex, opencode…) plug in via <code>server/adapters</code>.</p></div>
+        .join('')}<p class="muted xs">Pick the agent next to the model in the launcher. Others plug in via <code>server/adapters</code>.</p></div>
     </div>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
@@ -1636,11 +1668,14 @@ async function loadConfig() {
 }
 
 function renderAgentStatus() {
-  const a = S.agents[0];
-  $('#agentStatus').innerHTML = a
-    ? `<span class="dot ${a.available ? 'ok' : 'bad'}"></span>${esc(a.name)}`
-    : '';
-  $('#agentStatus').title = a ? a.version || a.error || '' : '';
+  const ready = S.agents.filter((a) => a.available);
+  const a = ready.length ? null : S.agents[0];
+  $('#agentStatus').innerHTML = ready.length
+    ? `<span class="dot ok"></span>${esc(ready.map((x) => x.name).join(' · '))}`
+    : a
+      ? `<span class="dot bad"></span>${esc(a.name)}`
+      : '';
+  $('#agentStatus').title = ready.length ? ready.map((x) => `${x.name} ${x.version || ''}`.trim()).join('\n') : a?.error || '';
 }
 
 // --- keyboard ---------------------------------------------------------------------------

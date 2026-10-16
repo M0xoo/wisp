@@ -1,12 +1,12 @@
 // Claude Code adapter — drives `claude -p --output-format stream-json`.
 
-import { spawn, execFile } from 'node:child_process';
 import readline from 'node:readline';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn, killTree } from '../proc.js';
+import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectVersion, flatten, rel } from './common.js';
 
 const BIN = process.env.WISP_CLAUDE_BIN || 'claude';
-const MAX_SNAPSHOT = 256 * 1024;
 
 const PERMISSION_MODES = {
   plan: 'plan',
@@ -30,11 +30,7 @@ export default {
   },
 
   detect() {
-    return new Promise((resolve) => {
-      execFile(BIN, ['--version'], { timeout: 10_000 }, (err, stdout) => {
-        resolve(err ? { available: false, error: err.message } : { available: true, version: stdout.trim() });
-      });
-    });
+    return detectVersion(BIN);
   },
 
   // Returns { stop(), done: Promise<void> }. Everything else is reported through onEvent.
@@ -54,12 +50,12 @@ export default {
     const dirs = [...new Set(attachments.map((a) => path.dirname(a.path)))];
     if (dirs.length) args.push('--add-dir', ...dirs);
     args.push('--verbose'); // terminates the variadic flags above
-    if (attachments.length) prompt += attachmentNote(attachments);
+    prompt += attachmentNote(attachments, 'Read images and PDFs with the Read tool');
 
     const env = { ...process.env };
     delete env.CLAUDECODE; // don't let a parent Claude Code session leak into the child
     delete env.CLAUDE_CODE_ENTRYPOINT;
-    env.MCP_TOOL_TIMEOUT ??= String(7 * 24 * 3600 * 1000); // ask_user may wait for the human a long time
+    env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
     const child = spawn(BIN, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
     child.stdin.end(prompt);
@@ -119,6 +115,7 @@ export default {
       }
     });
 
+    let stopping = false;
     const done = new Promise((resolve) => {
       child.on('error', (err) => {
         onEvent({ type: 'result', isError: true, text: `Could not start \`${BIN}\`: ${err.message}` });
@@ -130,7 +127,7 @@ export default {
           onEvent({
             type: 'result',
             isError: true,
-            stopped: signal === 'SIGTERM' || signal === 'SIGINT',
+            stopped: stopping || signal === 'SIGTERM' || signal === 'SIGINT',
             text: stderr.trim() || `claude exited with ${signal || `code ${code}`}`,
           });
         }
@@ -141,27 +138,15 @@ export default {
     return {
       done,
       stop() {
-        if (child.exitCode === null) child.kill('SIGTERM');
+        stopping = true;
+        killTree(child);
       },
     };
   },
 };
 
-function attachmentNote(files) {
-  const lines = files.map((f) => `- ${f.path}  (${f.mime}, ${Math.max(1, Math.round(f.size / 1024))} KB)`);
-  return `\n\n<attachments>\nThe user attached these files. Read images and PDFs with the Read tool; for video/audio/other formats use the shell (e.g. ffmpeg, ffprobe) if needed.\n${lines.join('\n')}\n</attachments>`;
-}
 
-function rel(file, cwd) {
-  if (!file) return '';
-  const r = path.relative(cwd, file);
-  return r && !r.startsWith('..') ? r : file;
-}
 
-function clip(s, n = 80) {
-  s = String(s ?? '').replace(/\s+/g, ' ').trim();
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
-}
 
 // Human sentence for the live ticker + a coarse kind for the trail summary.
 function describeTool(name, input, cwd) {
@@ -223,8 +208,3 @@ function captureChange(name, input, cwd) {
   return null;
 }
 
-function flatten(content) {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) return content.map((c) => c.text || '').join('\n');
-  return '';
-}

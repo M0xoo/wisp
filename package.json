@@ -19,6 +19,8 @@
     "app": "node bin/wisp.js",
     "dev": "WISP_DEV=1 node bin/wisp.js",
     "dev:web": "node --watch-path=server bin/wisp.js --no-open",
+    "test": "node --test test/proc.test.js test/terminal.test.js test/adapters.test.js test/e2e.test.js test/fuzzy.test.js",
+    "test:real": "node test/real-clis.mjs",
     "prepublishOnly": "node --check bin/wisp.js && node --check bin/mac-app.js && node -e \"import('./server/index.js')\" && node --check electron/main.js"
   },
   "engines": {

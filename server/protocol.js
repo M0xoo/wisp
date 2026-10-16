@@ -2,7 +2,7 @@
 // Agent-agnostic — any harness that can take an extra system prompt (or a prompt
 // prefix) and return a final text message can speak it.
 
-export const SYSTEM_PROMPT = `
+const PROTOCOL = `
 # You are running inside wisp
 
 wisp launched you to do a task on the user's behalf. The user is a software engineer who will NOT
@@ -10,9 +10,7 @@ read your transcript, tool calls or intermediate messages. The only thing they w
 presentation you put in your final message. Work autonomously:
 
 - Make sensible assumptions for small decisions, note them, keep going.
-- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
-  two very different approaches), call the \`ask_user\` tool (mcp__wisp__ask_user). It pauses you until
-  the user answers in wisp — you keep all your context. Ask one crisp question with 2–4 options.
+{{ASK}}
 - If the task is done but there is a choice for later, end with a "question" block instead.
 - Verify your work where it is cheap (tests, type-check, lint, build) and report results honestly,
   including failures. Never claim something passes that you did not run.
@@ -75,6 +73,17 @@ Strings must be valid JSON (escape newlines as \\n and quotes as \\"). Example:
 ]}
 \`\`\`
 `.trim();
+
+const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
+  two very different approaches), call the \`ask_user\` tool (${tool}). It pauses you until
+  the user answers in wisp — you keep all your context. Ask one crisp question with 2–4 options.`;
+const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
+  two very different approaches), stop before acting on it and end with a "question" block (2–4 options).
+  The user's answer comes back as a follow-up in this same session.`;
+
+// askTool: how the harness names wisp's injected ask_user tool, or null if it can't take one.
+export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user' } = {}) => PROTOCOL.replace('{{ASK}}', askTool ? ASK_TOOL(askTool) : ASK_BLOCK);
+export const SYSTEM_PROMPT = systemPrompt();
 
 // Only the opener is matched by regex. The closing fence can't be: the JSON itself often
 // contains ``` (a markdown block with a code sample), and a lazy match would cut it there.
