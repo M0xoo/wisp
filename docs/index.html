@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
@@ -162,12 +162,12 @@
       <article class="card c-queue reveal spot">
         <div class="card-copy">
           <h3>A queue, not a chat log</h3>
-          <p>Sessions sort into <b>Needs you</b>, <b>Working</b> with a live one-line status, and <b>Done</b>.</p>
+          <p>One feed, grouped: <b>Needs you</b> on top, <b>Working</b> with a live one-line status, <b>Done</b> below.</p>
         </div>
         <div class="queue" id="queue">
-          <div class="q-col" data-col="needs"><h5><span class="qd needs"></span>Needs you <span class="qn">1</span></h5><div class="q-list"></div></div>
-          <div class="q-col" data-col="working"><h5><span class="qd working"></span>Working <span class="qn">2</span></h5><div class="q-list"></div></div>
-          <div class="q-col" data-col="done"><h5><span class="qd done"></span>Done <span class="qn">1</span></h5><div class="q-list"></div></div>
+          <section class="q-col" data-col="needs"><h5><span class="qd needs"></span>Needs you <span class="qn">1</span></h5><div class="q-list"></div></section>
+          <section class="q-col" data-col="working"><h5><span class="qd working"></span>Working <span class="qn">2</span></h5><div class="q-list"></div></section>
+          <section class="q-col" data-col="done"><h5><span class="qd done"></span>Done <span class="qn">2</span></h5><div class="q-list"></div></section>
         </div>
       </article>
 
@@ -348,6 +348,6 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=4"></script>
+  <script src="main.js?v=5"></script>
 </body>
 </html>

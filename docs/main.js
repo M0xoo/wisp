@@ -262,7 +262,7 @@
     };
     const counts = () => $$('.q-col', root).forEach((c) => ($('.qn', c).textContent = $('.q-list', c).children.length));
     const add = (col) => { const [t, s] = pool[n++ % pool.length]; const el = item(t, s[0]); el._s = s; el._i = 0; lists[col].prepend(el); return el; };
-    add('done').lastChild.textContent = 'Done'; add('working'); add('working'); const nd = add('needs'); nd.lastChild.textContent = needsCopy[0];
+    add('done').lastChild.textContent = 'Done'; add('done').lastChild.textContent = 'Done'; add('working'); add('working'); const nd = add('needs'); nd.lastChild.textContent = needsCopy[0];
     counts();
     let tick = 0;
     whenVisible(root, () => setInterval(() => {
