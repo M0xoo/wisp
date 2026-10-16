@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>wisp — Send coding agents off. Read the highlights.</title>
+  <meta name="description" content="wisp runs coding agents in the background and hands you a short, animated presentation when they finish. Diffs, tests, commits and decisions — no transcript." />
+  <meta name="theme-color" content="#07070a" />
+  <meta property="og:title" content="wisp — Send coding agents off. Read the highlights." />
+  <meta property="og:description" content="Launch coding agents in the background, skip the transcript, read the presentation they hand back." />
+  <meta property="og:image" content="assets/icon.png" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- ───────────── nav ───────────── -->
+  <header class="nav" id="nav">
+    <a class="brand" href="#top" aria-label="wisp home">
+      <span class="orb sm"></span><span>wisp</span>
+    </a>
+    <nav class="links">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#keys">Keyboard</a>
+      <a href="#start">Get started</a>
+    </nav>
+    <a class="gh" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>Star on GitHub</span>
+    </a>
+  </header>
+
+  <!-- ───────────── hero ───────────── -->
+  <section class="hero" id="top">
+    <canvas id="wisps" aria-hidden="true"></canvas>
+    <div class="hero-orb" aria-hidden="true">
+      <div class="halo"></div>
+      <div class="orb xl"></div>
+      <span class="spark s1"></span><span class="spark s2"></span><span class="spark s3"></span>
+    </div>
+
+    <div class="hero-copy">
+      <a class="pill reveal" href="#start"><span class="dot"></span> Open source · MIT · zero runtime deps <span class="arr">→</span></a>
+      <h1 class="reveal">
+        Send agents off.<br />
+        <em>Read the highlights.</em>
+      </h1>
+      <p class="lede reveal">
+        wisp runs your coding agents in the background. When one finishes, you don't get a
+        4,000-line transcript — you get a <strong>30-second presentation</strong>: the diff, the
+        tests, the decisions, and what's next.
+      </p>
+      <div class="cta reveal">
+        <button class="copy-cmd" data-copy="git clone https://github.com/M0xoo/wisp && cd wisp && node bin/wisp.js">
+          <span class="prompt">$</span>
+          <code>node bin/wisp.js</code>
+          <span class="copy-label">Copy</span>
+        </button>
+        <a class="btn primary" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">Get wisp <span class="arr">→</span></a>
+      </div>
+      <p class="works reveal">Works with <b>Claude Code</b> today · Codex &amp; opencode next</p>
+    </div>
+
+    <a class="scroll-hint" href="#how" aria-label="Scroll">
+      <span></span>
+    </a>
+  </section>
+
+  <!-- ───────────── the transformation (sticky scroll) ───────────── -->
+  <section class="distill" id="how">
+    <div class="distill-sticky">
+      <div class="distill-captions">
+        <p class="eyebrow">How it works</p>
+        <ol class="caps">
+          <li data-at="0"><span class="n">01</span><h3>You hand off a task.</h3><p>From the launcher, or <code>wisp "fix the flaky auth test"</code> in any folder.</p></li>
+          <li data-at="0.22"><span class="n">02</span><h3>The agent works. A lot.</h3><p>Reads, greps, edits, re-runs tests. Thousands of lines you were never going to read.</p></li>
+          <li data-at="0.5"><span class="n">03</span><h3>wisp distills it.</h3><p>The agent ends with structured blocks. wisp renders them — real diffs from its own tool calls.</p></li>
+          <li data-at="0.72"><span class="n">04</span><h3>You read the highlights.</h3><p>Thirty seconds. Then follow up, take over, or mark it done.</p></li>
+        </ol>
+        <div class="meter"><span id="meterFill"></span></div>
+      </div>
+
+      <div class="window distill-window" id="distillWin">
+        <div class="win-bar">
+          <span class="lights"><i></i><i></i><i></i></span>
+          <span class="win-title"><span class="orb xs"></span> wisp · <span class="muted">api-server</span></span>
+          <span class="win-status" id="winStatus"><span class="live"></span><span id="statusLbl">Working</span> · <span id="statusText">Reading session.ts</span></span>
+        </div>
+        <div class="win-body">
+          <!-- transcript layer -->
+          <div class="transcript" id="transcript">
+            <div class="t-scroll" id="tScroll"></div>
+            <div class="t-counter"><span id="lineCount">0</span> lines of transcript</div>
+          </div>
+
+          <!-- the collapse -->
+          <div class="collapse-orb" id="collapseOrb"><div class="orb lg"></div></div>
+
+          <!-- presentation layer -->
+          <div class="present" id="present">
+            <div class="blk b-hero" data-at="0.6">
+              <div class="hero-top"><span class="status done">● done</span><span class="meta">47 min</span><span class="meta">api-server</span></div>
+              <h4>Flaky auth test fixed</h4>
+              <p>The token refresh raced the clock. Injected a fake clock into <code>SessionStore</code> and removed the 50&nbsp;ms <code>setTimeout</code>.</p>
+            </div>
+            <div class="blk b-stats" data-at="0.66">
+              <div><b data-count="48">0</b><span>tests passing</span><i class="good">+6</i></div>
+              <div><b data-count="0">0</b><span>flakes / 200 runs</span><i class="good">−31</i></div>
+              <div><b data-count="4.1" data-dec="1">0</b><span>seconds</span><i class="good">−2.3</i></div>
+            </div>
+            <div class="blk b-diff" data-at="0.72">
+              <div class="d-head"><span class="path"><span class="dir">src/auth/</span>session.ts</span><span class="d-n"><b class="add">+9</b> <b class="del">−4</b></span></div>
+              <pre><span class="ln ctx"> export class SessionStore {</span><span class="ln del">-  constructor(private ttl: number) {}</span><span class="ln add">+  constructor(private ttl: number, private clock = systemClock) {}</span><span class="ln ctx">   isExpired(t: Token) {</span><span class="ln del">-    return Date.now() &gt; t.exp;</span><span class="ln add">+    return this.clock.now() &gt; t.exp;</span></pre>
+            </div>
+            <div class="blk b-tests" data-at="0.78">
+              <span class="t-cmd">npm test</span>
+              <span class="t-bar"><i style="--w:100%"></i></span>
+              <span class="t-sum"><b class="good">48 passed</b> · 0 failed · 4.1s</span>
+            </div>
+            <div class="blk b-next" data-at="0.84">
+              <span class="lbl">Next</span>
+              <button>Apply the clock to RefreshQueue</button>
+              <button>Add a 200× flake check to CI</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── numbers ───────────── -->
+  <section class="numbers">
+    <div class="num reveal"><b><span data-count="3417">0</span></b><span>lines of transcript, typical run</span></div>
+    <div class="num-arrow reveal" aria-hidden="true">→</div>
+    <div class="num reveal"><b><span data-count="6">0</span></b><span>blocks you actually read</span></div>
+    <div class="num-arrow reveal" aria-hidden="true">→</div>
+    <div class="num reveal"><b><span data-count="30">0</span><small>s</small></b><span>to know what happened</span></div>
+  </section>
+
+  <!-- ───────────── manifesto ───────────── -->
+  <section class="manifesto">
+    <p class="big reveal-words">
+      Agents got good enough to work <em>alone</em>. Our tools still make us <em>watch</em>.
+      wisp is built for the part that matters: deciding what happens <em>next</em>.
+    </p>
+  </section>
+
+  <!-- ───────────── features bento ───────────── -->
+  <section class="features" id="features">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Features</p>
+      <h2>An inbox for your <em>agents</em>.</h2>
+      <p>Fire off as many tasks as you like. wisp sorts them, surfaces the ones that need you, and stays out of the way otherwise.</p>
+    </div>
+
+    <div class="bento">
+      <!-- queue -->
+      <article class="card c-queue reveal spot">
+        <div class="card-copy">
+          <h3>A queue, not a chat log</h3>
+          <p>Sessions sort into <b>Needs you</b>, <b>Working</b> with a live one-line status, and <b>Done</b>.</p>
+        </div>
+        <div class="queue" id="queue">
+          <div class="q-col" data-col="needs"><h5><span class="qd needs"></span>Needs you <span class="qn">1</span></h5><div class="q-list"></div></div>
+          <div class="q-col" data-col="working"><h5><span class="qd working"></span>Working <span class="qn">2</span></h5><div class="q-list"></div></div>
+          <div class="q-col" data-col="done"><h5><span class="qd done"></span>Done <span class="qn">1</span></h5><div class="q-list"></div></div>
+        </div>
+      </article>
+
+      <!-- live question -->
+      <article class="card c-ask reveal spot">
+        <div class="card-copy">
+          <h3>Agents can ask. Mid-run.</h3>
+          <p>Every agent gets an <code>ask_user</code> tool. Your answer goes straight back into the running session.</p>
+        </div>
+        <div class="ask" id="ask">
+          <div class="ask-q"><span class="orb xs"></span><span>Old v1 tokens are still in prod. Keep backward-compat?</span></div>
+          <div class="ask-opts">
+            <button data-r="Keep v1 working until next major"><kbd>1</kbd> Keep compat</button>
+            <button data-r="Break it, we migrate on Friday"><kbd>2</kbd> Break it</button>
+            <button data-r="Add a feature flag"><kbd>3</kbd> Flag it</button>
+          </div>
+          <div class="ask-sent" id="askSent"><span class="tick">↳</span> <span id="askText"></span> <span class="muted">· delivered to running agent</span></div>
+        </div>
+      </article>
+
+      <!-- real diffs -->
+      <article class="card c-diff reveal spot">
+        <div class="card-copy">
+          <h3>Real diffs</h3>
+          <p>Captured from the agent's own tool calls. Not a summary of a change — the change.</p>
+        </div>
+        <div class="mini-diff">
+          <span class="ln del">-  await sleep(50)</span>
+          <span class="ln add">+  clock.tick(ttl + 1)</span>
+          <span class="ln add">+  expect(store.isExpired(t)).toBe(true)</span>
+        </div>
+      </article>
+
+      <!-- take over -->
+      <article class="card c-term reveal spot">
+        <div class="card-copy">
+          <h3>Take over, any time</h3>
+          <p>Press <kbd>T</kbd>. Your terminal opens in the project, session resumed. Terminal, iTerm, Ghostty, Warp, kitty, WezTerm.</p>
+        </div>
+        <div class="term" id="term"><span class="t-line"><span class="p">~/api-server</span> <span class="typed" data-type="claude --resume 7f3a…c21"></span><span class="caret"></span></span></div>
+      </article>
+
+      <!-- modes -->
+      <article class="card c-modes reveal spot">
+        <div class="card-copy">
+          <h3>You set the leash</h3>
+          <p>Choose a permission mode for every launch.</p>
+        </div>
+        <div class="modes" id="modes">
+          <div class="seg">
+            <button data-m="0">Plan</button><button data-m="1" class="on">Edits</button><button data-m="2">Full auto</button>
+            <span class="seg-ind"></span>
+          </div>
+          <p class="mode-desc" id="modeDesc">File edits are auto-accepted. Everything else asks.</p>
+        </div>
+      </article>
+
+      <!-- zero deps -->
+      <article class="card c-zero reveal spot">
+        <div class="zero"><b id="zeroCount">1,284</b><span>runtime dependencies</span></div>
+        <p>The server is Node built-ins only. No build step. <code>node bin/wisp.js</code> and you're in.</p>
+      </article>
+
+      <!-- attachments -->
+      <article class="card c-attach reveal spot">
+        <div class="card-copy">
+          <h3>Show, don't describe</h3>
+          <p>Paste screenshots or drop video, logs and PDFs into the launcher.</p>
+        </div>
+        <div class="files-fan">
+          <span class="f f1"><i>PNG</i>checkout-bug.png</span>
+          <span class="f f2"><i>MOV</i>repro.mov</span>
+          <span class="f f3"><i>LOG</i>crash.log</span>
+          <span class="f f4"><i>PDF</i>spec-v2.pdf</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ───────────── blocks marquee ───────────── -->
+  <section class="blocks">
+    <div class="sec-head center reveal">
+      <p class="eyebrow">The vocabulary</p>
+      <h2>Nineteen blocks. <em>Infinite</em> reports.</h2>
+      <p>Agents compose presentations from a fixed set of animated blocks — so every report is skimmable, and none look the same.</p>
+    </div>
+    <div class="marquee" aria-label="Presentation blocks">
+      <div class="track" id="trackA"></div>
+      <div class="track rev" id="trackB"></div>
+    </div>
+  </section>
+
+  <!-- ───────────── keyboard ───────────── -->
+  <section class="keys" id="keys">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Keyboard first</p>
+      <h2>Clear your queue <em>without the mouse</em>.</h2>
+      <p>Go on — press <kbd>J</kbd>, <kbd>K</kbd>, <kbd>O</kbd>, <kbd>E</kbd> or <kbd>T</kbd> on your keyboard. Or click the keys.</p>
+    </div>
+    <div class="kb-wrap reveal">
+      <div class="kb" id="kb">
+        <button class="key" data-k="n"><b>N</b><span>New task</span></button>
+        <button class="key" data-k="j"><b>J</b><span>Down</span></button>
+        <button class="key" data-k="k"><b>K</b><span>Up</span></button>
+        <button class="key" data-k="o"><b>O</b><span>Open</span></button>
+        <button class="key" data-k="/"><b>/</b><span>Reply</span></button>
+        <button class="key" data-k="t"><b>T</b><span>Take over</span></button>
+        <button class="key" data-k="e"><b>E</b><span>Done → next</span></button>
+        <button class="key" data-k="r"><b>R</b><span>Replay</span></button>
+      </div>
+      <div class="kb-demo window">
+        <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title"><span class="orb xs"></span> Needs you</span><span class="kb-toast" id="kbToast"></span></div>
+        <ul class="kb-list" id="kbList"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── architecture ───────────── -->
+  <section class="arch">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Under the hood</p>
+      <h2>Small enough to <em>read in an afternoon</em>.</h2>
+      <p>Vanilla JS UI, an HTTP + SSE server, and one adapter per harness. State is plain JSON in <code>~/.wisp</code>.</p>
+    </div>
+    <div class="flow reveal">
+      <div class="node"><span class="k">web/</span><span>UI · no build step</span></div>
+      <div class="edge"><span>HTTP + SSE</span></div>
+      <div class="node hl"><span class="k">server/</span><span>runner · protocol · store</span></div>
+      <div class="edge"><span>adapter</span></div>
+      <div class="node"><span class="k">claude -p</span><span>stream-json</span></div>
+      <div class="branch">
+        <div class="node sm"><span class="k">mcp-ask.js</span><span>ask_user, injected per run</span></div>
+      </div>
+    </div>
+    <div class="harness reveal">
+      <div class="h on"><span class="hd"></span>Claude Code<small>shipping</small></div>
+      <div class="h"><span class="hd"></span>Codex<small>next</small></div>
+      <div class="h"><span class="hd"></span>opencode<small>next</small></div>
+      <div class="h add"><span>+</span>Your harness<small>one file</small></div>
+    </div>
+  </section>
+
+  <!-- ───────────── get started ───────────── -->
+  <section class="start" id="start">
+    <div class="sec-head center reveal">
+      <p class="eyebrow">Get started</p>
+      <h2>Ninety seconds to <em>your first handoff</em>.</h2>
+      <p>Requires Node ≥ 20 and Claude Code, signed in.</p>
+    </div>
+    <div class="install window reveal">
+      <div class="win-bar">
+        <span class="lights"><i></i><i></i><i></i></span>
+        <div class="tabs" role="tablist">
+          <button class="on" data-tab="browser">Browser</button>
+          <button data-tab="desktop">Desktop app</button>
+          <button data-tab="cli">CLI</button>
+        </div>
+        <button class="copy-sm" id="copyInstall">Copy</button>
+      </div>
+      <pre class="code" id="installCode"></pre>
+    </div>
+  </section>
+
+  <!-- ───────────── final cta ───────────── -->
+  <section class="final">
+    <div class="final-orb" aria-hidden="true"><div class="halo"></div><div class="orb xl"></div></div>
+    <h2 class="reveal">Let it <em>go</em>.</h2>
+    <p class="reveal">Your agents will tell you how it went.</p>
+    <div class="cta reveal">
+      <a class="btn primary" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">Get wisp on GitHub <span class="arr">→</span></a>
+      <a class="btn ghost" href="#how">Watch it again</a>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span class="brand"><span class="orb xs"></span> wisp</span>
+    <span class="muted">MIT © M0xoo · Made for people who'd rather not read transcripts.</span>
+    <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
