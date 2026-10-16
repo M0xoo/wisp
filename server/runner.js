@@ -35,6 +35,7 @@ export function summarize(s, store) {
     model: s.model,
     state: s.state,
     unread: s.unread,
+    archived: !!s.archived,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
     turnCount: s.turns.length,
@@ -120,6 +121,7 @@ export class Runner extends EventEmitter {
     };
     session.state = 'waiting';
     session.unread = true;
+    delete session.archived; // a question needs the user, so it comes back to the feed
     if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'ask', label: `Asked you: ${session.ask.question}` });
     this.#touch(session, { turn: turn?.id });
     this.emit('finished', { session: summarize(session, this.store) });
@@ -173,6 +175,7 @@ export class Runner extends EventEmitter {
     session.turns.push(turn);
     session.state = 'running';
     session.unread = false;
+    delete session.archived;
     this.#touch(session, { turn: turn.id });
 
     const adapter = adapters[session.agent];

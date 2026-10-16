@@ -16,6 +16,7 @@ const S = {
   agents: [],
   filter: load('wisp.filter', 'all'),
   showDone: load('wisp.showDone', false),
+  showArchived: false,
   drafts: new Map(),
 };
 
@@ -100,18 +101,20 @@ function visible(list) {
 }
 
 function groups() {
-  const all = visible([...S.sessions.values()]);
+  const every = visible([...S.sessions.values()]);
+  const all = every.filter((s) => !s.archived);
   const needs = all
     .filter((s) => s.state === 'review' || s.state === 'waiting')
     .sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   // Working items keep launch order so the feed doesn't reshuffle on every tool call.
   const working = all.filter((s) => s.state === 'running').sort((a, b) => b.createdAt - a.createdAt);
   const done = all.filter((s) => s.state === 'done').sort((a, b) => b.updatedAt - a.updatedAt);
-  return { needs, working, done };
+  const archived = every.filter((s) => s.archived).sort((a, b) => b.updatedAt - a.updatedAt);
+  return { needs, working, done, archived };
 }
 
 function renderFeed() {
-  const { needs, working, done } = groups();
+  const { needs, working, done, archived } = groups();
   const place = (sec, list, show = true) => {
     const box = $('.f-list', sec);
     sec.hidden = !list.length;
@@ -129,12 +132,14 @@ function renderFeed() {
   place($('#secWorking'), working);
   place($('#secDone'), done.slice(0, 60), S.showDone);
   $('#secDone').classList.toggle('collapsed', !S.showDone);
+  place($('#secArchived'), archived.slice(0, 60), S.showArchived);
+  $('#secArchived').classList.toggle('collapsed', !S.showArchived);
 
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
-  const shown = new Set([...needs, ...working, ...done].map((s) => s.id));
+  const shown = new Set([...needs, ...working, ...done, ...archived].map((s) => s.id));
   for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id));
 
-  const empty = !needs.length && !working.length && !done.length;
+  const empty = !needs.length && !working.length && !done.length && !archived.length;
   $('#feedEmpty').hidden = !empty;
   if (empty)
     $('#feedEmpty').innerHTML = `<div class="orb big"><i></i><i></i><i></i></div><p>${S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.'}</p>`;
@@ -180,6 +185,11 @@ function item(s) {
       toggle(s.id);
     });
     card.addEventListener('mousedown', () => setFocus(s.id, { scroll: false }));
+    n.head.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      setFocus(s.id, { scroll: false });
+      taskMenu(s.id, e);
+    });
     if (S.open.has(s.id)) expand(s.id, { scroll: false });
   }
   renderHead(n, s);
@@ -208,7 +218,7 @@ function renderHead(n, s) {
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       <span class="q-proj">${esc(s.project)}</span>
       <span class="q-time">${ago(s.updatedAt)}</span>
-      ${s.state === 'review' && !open ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
+      ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
       ${icon('chevron', 'chev')}
     </span>`;
 }
@@ -1031,6 +1041,7 @@ function moreMenu(id, anchor) {
       <button data-a="rename">${icon('pen')}Rename</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       <button data-a="folder">${icon('folder')}Open project in editor</button>
+      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive</button>` : ''}
       <button data-a="delete" class="danger">${icon('trash')}Delete session</button>
     </div>`);
   const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
@@ -1046,11 +1057,60 @@ function moreMenu(id, anchor) {
       toast('Copied resume command');
     }
     if (a === 'folder') openInEditor(s, '.');
+    if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete' && confirm('Delete this session from wisp? (The agent’s own history is kept.)')) {
       await api(`/sessions/${id}`, { method: 'DELETE' });
     }
   };
   document.body.append(menu);
+}
+
+// Right-click on a feed item.
+function taskMenu(id, e) {
+  const s = S.sessions.get(id);
+  if (!s) return;
+  $('.menu.task')?.close();
+  const busy = s.state === 'running' || s.state === 'waiting';
+  const menu = el(`
+    <div class="menu task" style="top:${e.clientY}px;left:${e.clientX}px">
+      ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse</button>` : `<button data-a="open">${icon('chevron')}Open</button>`}
+      <button data-a="rename">${icon('pen')}Rename</button>
+      ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}</button>`}
+      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive</button>`}
+      <button data-a="delete" class="danger">${icon('trash')}Delete session</button>
+    </div>`);
+  const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
+  const outside = (ev) => !menu.contains(ev.target) && close();
+  menu.close = close;
+  setTimeout(() => document.addEventListener('mousedown', outside));
+  menu.onclick = async (ev) => {
+    const a = ev.target.closest('button')?.dataset.a;
+    close();
+    if (a === 'open') expand(id);
+    if (a === 'collapse') collapse(id);
+    if (a === 'rename') rename(id);
+    if (a === 'done') toggleDone(id);
+    if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
+    if (a === 'delete' && confirm('Delete this session from wisp? (The agent’s own history is kept.)')) {
+      await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    }
+  };
+  document.body.append(menu);
+  const r = menu.getBoundingClientRect();
+  if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
+  if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
+}
+
+async function setArchived(id, archived) {
+  try {
+    await api(`/sessions/${id}`, { method: 'PATCH', body: { archived } });
+  } catch (err) {
+    return toast(esc(err.message), { tone: 'bad' });
+  }
+  if (archived) {
+    if (S.open.has(id)) collapse(id);
+    toast('Archived', { action: { label: 'Undo', run: () => setArchived(id, false) } });
+  }
 }
 
 function replay(id) {
@@ -1084,7 +1144,8 @@ function openInEditor(s, p, line) {
 function reveal(id) {
   const s = S.sessions.get(id);
   if (!s) return;
-  if (s.state === 'done' && !S.showDone) {
+  if (s.archived) S.showArchived = true;
+  else if (s.state === 'done' && !S.showDone) {
     S.showDone = true;
     save('wisp.showDone', true);
   }
@@ -1276,6 +1337,7 @@ function shortcuts() {
     ['O / ↵', 'Expand / collapse item'],
     ['/', 'Follow up on item'],
     ['E', 'Mark done & go to next'],
+    ['A', 'Archive / unarchive'],
     ['T', 'Take over in terminal'],
     ['R', 'Replay presentation'],
     ['1–9', 'Pick an answer when asked'],
@@ -1383,6 +1445,10 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     toggle(id);
   } else if (k === 'e' && id) toggleDone(id);
+  else if (k === 'a' && id) {
+    const s = S.sessions.get(id);
+    if (s && (s.archived || (s.state !== 'running' && s.state !== 'waiting'))) setArchived(id, !s.archived);
+  }
   else if (k === 't' && id) takeOver(id);
   else if (k === 'r' && id) replay(id);
   else if (k === '/' && id) {
@@ -1402,6 +1468,10 @@ $('#settingsBtn').onclick = openSettings;
 $('#secDone .toggle-done').onclick = () => {
   S.showDone = !S.showDone;
   save('wisp.showDone', S.showDone);
+  renderFeed();
+};
+$('#secArchived .toggle-done').onclick = () => {
+  S.showArchived = !S.showArchived;
   renderFeed();
 };
 

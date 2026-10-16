@@ -250,6 +250,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           if (body.state === 'done' && s.state !== 'running') s.state = 'done';
           if (body.state === 'review' && s.state === 'done') s.state = 'review';
           if (typeof body.unread === 'boolean') s.unread = body.unread;
+          if (body.archived === true && s.state !== 'running' && s.state !== 'waiting') Object.assign(s, { archived: true, unread: false });
+          if (body.archived === false) delete s.archived;
           store.save(s);
           broadcast('summary', summarize(s, store));
           return send(res, 200, summarize(s, store));
