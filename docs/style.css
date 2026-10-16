@@ -228,7 +228,7 @@ h1 em {
 .num:first-child b { color: #ff8a8e; text-decoration: line-through; text-decoration-thickness: 3px; text-decoration-color: rgba(255,99,105,.5); }
 .num:last-child b { background: linear-gradient(120deg, var(--mint), var(--teal), var(--violet-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .num b small { font-size: .5em; letter-spacing: -0.02em; }
-.num span { display: block; margin-top: 10px; font-size: 14px; color: var(--muted); }
+.num > span { display: block; margin-top: 10px; font-size: 14px; color: var(--muted); }
 .num-arrow { font-size: 32px; color: var(--faint); }
 
 /* ───────── manifesto ───────── */
