@@ -189,7 +189,9 @@ export class Runner extends EventEmitter {
             wisp: {
               command: process.execPath,
               args: [ASK_SERVER],
-              env: { WISP_URL: this.bridge.url, WISP_TOKEN: this.bridge.token, WISP_SESSION: session.id },
+              // Inside the desktop app execPath is the Electron binary; without
+              // ELECTRON_RUN_AS_NODE it boots a second app (extra Dock icon) per turn.
+              env: { ELECTRON_RUN_AS_NODE: '1', WISP_URL: this.bridge.url, WISP_TOKEN: this.bridge.token, WISP_SESSION: session.id },
             },
           }
         : {},
