@@ -1003,10 +1003,39 @@ function renderQueued(s, list, name) {
         <span class="cq-text">${esc(q.text)}</span>
         ${q.id ? `<button class="att-x" title="Cancel this follow-up">${icon('x')}</button>` : ''}
       </li>`);
+    const cancel = () => api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
     const x = $('.att-x', li);
-    if (x) x.onclick = () => api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    if (x) x.onclick = cancel;
+    if (q.id)
+      li.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        queuedMenu(e, cancel);
+      });
     list.append(li);
   });
+}
+
+// Right-click on a queued follow-up.
+function queuedMenu(e, cancel) {
+  $('.menu.queued')?.close();
+  const menu = el(`
+    <div class="menu queued" style="top:${e.clientY}px;left:${e.clientX}px">
+      <button data-a="cancel" class="danger">${icon('x')}Cancel follow-up</button>
+    </div>`);
+  const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
+  const outside = (ev) => !menu.contains(ev.target) && close();
+  menu.close = close;
+  setTimeout(() => document.addEventListener('mousedown', outside));
+  menu.onclick = (ev) => {
+    const a = ev.target.closest('button')?.dataset.a;
+    close();
+    if (a === 'cancel') cancel();
+  };
+  document.body.append(menu);
+  const r = menu.getBoundingClientRect();
+  if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
+  if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
 }
 
 // Follow-ups sent while an agent works interrupt it, unless the user flipped this on.
