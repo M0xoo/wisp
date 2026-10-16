@@ -98,10 +98,6 @@ em { font-family: var(--serif); font-style: italic; font-weight: 400; letter-spa
 @keyframes drift { 50% { transform: translate(14px, -22px); } }
 
 .hero-copy { max-width: 920px; text-align: center; display: flex; flex-direction: column; align-items: center; }
-.pill { display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px 6px 10px; border-radius: 999px; font-size: 13px; color: var(--ink-2); background: rgba(255,255,255,.04); border: 1px solid var(--line-2); transition: border-color .2s, background .2s; }
-.pill:hover { border-color: rgba(143,132,255,.5); background: rgba(106,92,255,.08); }
-.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 10px var(--teal); animation: pulse 2s infinite; }
-.pill .arr { color: var(--muted); }
 @keyframes pulse { 50% { opacity: .35; } }
 
 h1 {
