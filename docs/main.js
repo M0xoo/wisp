@@ -448,13 +448,13 @@
     const T = {
       browser: [
         ['c', '# Nothing to install. Node built-ins only.'],
-        ['p', 'git clone https://github.com/M0xoo/wisp.git'],
-        ['p', 'cd wisp'],
-        ['p', 'node bin/wisp.js'],
+        ['p', 'npx wisp-agents'],
         ['o', '→ wisp running at http://localhost:4477'],
+        ['c', '# or launch a task in the current folder:'],
+        ['c', '# npx wisp-agents "fix the flaky auth test"'],
       ],
       desktop: [
-        ['c', '# The Electron app. Same wisp, in your dock.'],
+        ['c', '# The Electron app. Same wisp, in your dock. Runs from source.'],
         ['p', 'git clone https://github.com/M0xoo/wisp.git'],
         ['p', 'cd wisp'],
         ['p', 'npm install'],
@@ -462,7 +462,7 @@
       ],
       cli: [
         ['c', '# Put wisp on your PATH, then use it from any folder.'],
-        ['p', 'npm link'],
+        ['p', 'npm install -g wisp-agents'],
         ['p', 'wisp "fix the flaky auth test"'],
         ['p', 'wisp --mode plan "audit deps"'],
         ['p', 'wisp add ~/code/api-server'],
