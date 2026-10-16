@@ -1459,6 +1459,10 @@ function connect() {
     const s = JSON.parse(e.data);
     const prev = S.sessions.get(s.id);
     S.sessions.set(s.id, s);
+    // A card left open while it worked shouldn't land in "Needs you" expanded —
+    // fold it unless the user is actually watching it.
+    const n = S.nodes.get(s.id);
+    if (prev?.state === 'running' && s.state !== 'running' && S.open.has(s.id) && !(n && isInView(n.card) && document.hasFocus())) collapse(s.id);
     renderFeed();
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
   });
@@ -1491,10 +1495,6 @@ async function loadConfig() {
   renderProjects();
   renderLaunchChips();
 }
-    // A card left open while it worked shouldn't land in "Needs you" expanded —
-    // fold it unless the user is actually watching it.
-    const n = S.nodes.get(s.id);
-    if (prev?.state === 'running' && s.state !== 'running' && S.open.has(s.id) && !(n && isInView(n.card) && document.hasFocus())) collapse(s.id);
 
 function renderAgentStatus() {
   const a = S.agents[0];
