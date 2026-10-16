@@ -1,0 +1,23 @@
+{
+  "name": "wisp",
+  "version": "0.1.0",
+  "description": "Launch coding agents, skip the transcript, read the presentation.",
+  "type": "module",
+  "bin": {
+    "wisp": "bin/wisp.js"
+  },
+  "scripts": {
+    "start": "node bin/wisp.js",
+    "app": "electron .",
+    "dev": "WISP_DEV=1 electron .",
+    "dev:web": "node --watch-path=server bin/wisp.js --no-open"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "main": "electron/main.js",
+  "devDependencies": {
+    "electron": "^44.8.0"
+  }
+}
