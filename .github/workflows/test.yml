@@ -53,9 +53,12 @@ jobs:
         if: runner.os == 'Windows'
         continue-on-error: true
         shell: pwsh
-        run: irm 'https://cursor.com/install?win32=true' | iex
+        run: |
+          irm 'https://cursor.com/install?win32=true' | iex
+          # The installer edits the user's PATH in the registry; this session needs it too.
+          "$env:LOCALAPPDATA\cursor-agent" >> $env:GITHUB_PATH
       - name: Smoke test
         run: npm run test:real
         env:
-          WISP_REAL_REQUIRE: claude,codex,opencode
-          WISP_REAL_TIMEOUT: '120000'
+          WISP_REAL_REQUIRE: claude,codex,opencode,cursor
+          WISP_REAL_TIMEOUT: '180000'

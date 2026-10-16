@@ -5,7 +5,8 @@
 // whatever comes back (usually "not logged in" in CI) arrives as exactly one result.
 //
 //   WISP_REAL_REQUIRE=claude,codex   fail if these aren't detected (default: none required)
-//   WISP_REAL_TIMEOUT=90000          per-agent run timeout in ms
+//   WISP_REAL_TIMEOUT=90000          per-agent run timeout in ms (a slow model that already
+//                                    streamed events still passes)
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -49,9 +50,12 @@ for (const a of Object.values(adapters)) {
   const results = events.filter((e) => e.type === 'result');
   const r = results[0];
   const startFailure = r?.text?.startsWith('Could not start');
-  const ok = results.length === 1 && !startFailure;
+  // A run we had to stop only counts if the CLI got as far as streaming events we parsed (a
+  // free hosted model can just be slow). Stopped with nothing parsed = it hung, e.g. on stdin.
+  const parsed = events.some((e) => e.type !== 'result');
+  const ok = results.length === 1 && !startFailure && (!r.stopped || parsed);
   if (!ok) failed = true;
-  const outcome = !r ? 'NO RESULT' : r.stopped ? 'timed out (stopped)' : r.isError ? 'ran, returned an error' : 'ran, succeeded';
+  const outcome = !r ? 'NO RESULT' : r.stopped ? `timed out after ${timeout / 1000}s, ${parsed ? `${events.length - 1} events parsed` : 'nothing parsed'}` : r.isError ? 'ran, returned an error' : 'ran, succeeded';
   rows.push([a.id, `${found.version} · ${(found.models || a.models).length} models`, `${ok ? 'OK' : 'FAIL'}: ${outcome}${r?.text ? ` — ${r.text.replace(/\s+/g, ' ').slice(0, 140)}` : ''}`]);
 }
 
