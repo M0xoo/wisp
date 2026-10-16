@@ -930,6 +930,7 @@ function renderDock(id) {
   const dock = $('.it-dock', n.body);
   const comp = el(`
     <div class="composer">
+      <ul class="c-queued"></ul>
       <textarea class="reply" rows="1" spellcheck="false"></textarea>
       <div class="c-bar">
         <button class="icon-btn c-attach" title="Attach files">${icon('clip')}</button>
@@ -980,12 +981,32 @@ function updateDock(id) {
           ? 'Follow up to reopen…'
           : `Follow up with ${name}…`;
   $('.c-hint', n.card).innerHTML = s.queue?.length ? `${s.queue.length} queued` : '';
+  renderQueued(s, $('.c-queued', n.card), name);
   const q = $('.c-queue', n.card);
   q.hidden = tour || s.state !== 'running';
   q.classList.toggle('on', queueing());
   q.title = queueing()
     ? `Queueing: follow-ups wait until ${name} finishes. Click to send now instead.`
     : `Sending now: follow-ups interrupt ${name}. Click to queue them instead.`;
+}
+
+// Follow-ups waiting their turn, shown above the composer so it's clear what goes out next.
+function renderQueued(s, list, name) {
+  const key = (s.queue || []).map((q) => q.id).join();
+  if (list.dataset.key === key) return;
+  list.dataset.key = key;
+  list.innerHTML = '';
+  (s.queue || []).forEach((q, i) => {
+    const li = el(`
+      <li class="cq">
+        <span class="cq-tag">${i === 0 ? `Next · after ${esc(name)} finishes` : `Queued #${i + 1}`}</span>
+        <span class="cq-text">${esc(q.text)}</span>
+        ${q.id ? `<button class="att-x" title="Cancel this follow-up">${icon('x')}</button>` : ''}
+      </li>`);
+    const x = $('.att-x', li);
+    if (x) x.onclick = () => api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    list.append(li);
+  });
 }
 
 // Follow-ups sent while an agent works interrupt it, unless the user flipped this on.
@@ -1013,7 +1034,8 @@ async function sendReply(id, text) {
     if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
     S.drafts.delete(id);
     n?.tray?.clear();
-    if (r.queued) toast('Queued — it goes out as soon as the agent finishes.');
+    if (r.queued)
+      toast(r.ahead ? `Queued behind ${r.ahead} earlier follow-up${r.ahead > 1 ? 's' : ''} — they go out first, in order.` : 'Queued — it goes out as soon as the agent finishes.');
   } catch (err) {
     toast(esc(err.message), { tone: 'bad' });
   }

@@ -11,6 +11,7 @@ import { adapters } from './adapters/index.js';
 import { SYSTEM_PROMPT, parsePresentation, heroOf } from './protocol.js';
 
 const MAX_ACTIVITY = 400;
+const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
 
 export const newId = () => randomUUID().replace(/-/g, '').slice(0, 12);
@@ -103,24 +104,39 @@ export class Runner extends EventEmitter {
       this.answer(session, text);
       return { answered: true };
     }
-    if (this.live.has(session.id)) {
-      // Interrupting needs an agent session to resume; before the agent reports one, queue.
+    const handle = this.live.get(session.id);
+    if (handle) {
       const turn = session.turns.at(-1);
+      // The run already produced its result and the CLI is only lingering on its way out:
+      // there's nothing to wait for, so let it go and start the follow-up now.
+      if (turn?.status !== 'running') {
+        session.queue.push({ id: newId(), text, attachments });
+        handle.release();
+        return { queued: session.queue.length > 0 };
+      }
+      // Interrupting needs an agent session to resume; before the agent reports one, queue.
       if (queue || !session.agentSessionId) {
-        session.queue.push({ text, attachments });
+        session.queue.push({ id: newId(), text, attachments });
         this.#touch(session);
-        return { queued: true };
+        return { queued: true, ahead: session.queue.length - 1 };
       }
       // Ahead of anything queued, but after earlier interrupting follow-ups, so they keep their order.
       const at = session.queue.findIndex((q) => !q.now);
-      session.queue.splice(at < 0 ? session.queue.length : at, 0, { text, attachments, now: true });
-      // If the run already produced its result it's just exiting; done.finally() picks this up.
-      if (turn?.status === 'running') this.#interrupt(session);
-      else this.#touch(session);
+      session.queue.splice(at < 0 ? session.queue.length : at, 0, { id: newId(), text, attachments, now: true });
+      this.#interrupt(session);
       return { interrupted: true };
     }
     this.#startTurn(session, text, attachments);
     return { queued: false };
+  }
+
+  // Drop a follow-up that hasn't gone out yet.
+  unqueue(session, itemId) {
+    const at = session.queue.findIndex((q) => q.id === itemId);
+    if (at < 0) return false;
+    session.queue.splice(at, 1);
+    this.#touch(session);
+    return true;
   }
 
   // ask_user: the agent is blocked inside a tool call until answer() is called.
@@ -202,6 +218,8 @@ export class Runner extends EventEmitter {
     delete session.archived;
     this.#touch(session, { turn: turn.id });
 
+    let released = false;
+    let linger;
     const adapter = adapters[session.agent];
     const handle = adapter.run({
       prompt,
@@ -222,18 +240,32 @@ export class Runner extends EventEmitter {
             },
           }
         : {},
-      onEvent: (ev) => this.#onEvent(session, turn, ev),
+      onEvent: (ev) => {
+        if (released) return; // a lingering process we already let go of
+        this.#onEvent(session, turn, ev);
+        // A CLI can outlive its result (flushing, or a background process it spawned holding
+        // stdout open, so 'close' never fires). Don't hold the session hostage to that.
+        if (ev.type === 'result') linger = setTimeout(release, LINGER_MS);
+      },
     });
-    this.live.set(session.id, handle);
-
-    handle.done.finally(() => {
+    // Ends the run exactly once: on exit, LINGER_MS after the result, or when a follow-up arrives.
+    const release = () => {
+      if (released) return;
+      if (turn.status === 'running') this.#finishTurn(session, turn, { isError: true, text: 'The agent exited without a result.' });
+      released = true;
+      clearTimeout(linger);
+      handle.stop();
+      if (this.live.get(session.id) !== handle) return;
       this.live.delete(session.id);
       this.interrupting.delete(session.id);
-      if (turn.status === 'running') this.#finishTurn(session, turn, { isError: true, text: 'The agent exited without a result.' });
+      this.stopping.delete(session.id); // a stop that landed after the result has nothing left to stop
       const next = session.queue.shift();
       if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments);
       else this.#touch(session);
-    });
+    };
+    handle.release = release;
+    this.live.set(session.id, handle);
+    handle.done.finally(release);
   }
 
   #onEvent(session, turn, ev) {

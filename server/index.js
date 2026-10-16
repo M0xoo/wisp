@@ -271,6 +271,11 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         return send(res, 200, runner.reply(s, text.trim(), resolveAttachments(attachments), { queue: queue ?? store.config.defaults.followUp === 'queue' }));
       }
 
+      if (action === 'queue' && m === 'DELETE') {
+        const ok = runner.unqueue(s, url.searchParams.get('item') || '');
+        return ok ? send(res, 200, { ok }) : send(res, 404, { error: 'Already sent.' });
+      }
+
       if (action === 'answer' && m === 'POST') {
         const { text } = await readJson(req);
         if (!text?.trim()) return send(res, 400, { error: 'text required' });
