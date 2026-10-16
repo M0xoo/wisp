@@ -41,7 +41,8 @@ const saveOpen = () => save('wisp.open', [...S.open]);
 async function api(path, { method = 'GET', body } = {}) {
   const r = await fetch(`/api${path}`, {
     method,
-    headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+    // The server only accepts JSON on non-GET requests (CSRF guard), even body-less DELETEs.
+    headers: method !== 'GET' ? { 'content-type': 'application/json' } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const j = await r.json().catch(() => ({}));
