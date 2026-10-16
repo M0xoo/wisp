@@ -433,7 +433,7 @@ function renderLauncher() {
   let agent = chosen?.available ? chosen : ready[0] || chosen || S.agents[0];
   box.innerHTML = `
     <div class="l-projects"></div>
-    <textarea id="prompt" rows="2" placeholder="What should I go do? Paste screenshots, drop logs or videos…" spellcheck="false"></textarea>
+    <textarea id="prompt" rows="2" spellcheck="false"></textarea>
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
       <div class="seg" id="mode">${MODES.map((m) => `<button data-mode="${m.id}" class="${m.id === mode ? 'on' : ''}" title="${esc(m.hint)}">${m.label}</button>`).join('')}</div>
@@ -450,6 +450,13 @@ function renderLauncher() {
   autosize(ta);
   ta.value = S.drafts.get('home') || '';
   ta.addEventListener('input', () => S.drafts.set('home', ta.value));
+  // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
+  const hint = () => (ta.placeholder = document.activeElement === ta
+    ? 'What should I go do? Paste screenshots, drop logs or videos…'
+    : `What should I go do? Press ${combo('L')} to start typing`);
+  ta.addEventListener('focus', hint);
+  ta.addEventListener('blur', hint);
+  hint();
   $('#attach', box).onclick = tray.pick;
 
   let curMode = mode;
@@ -1607,8 +1614,8 @@ function openSettings() {
 
 function shortcuts() {
   const rows = [
-    [`${MOD} K`, 'Search & commands'],
-    ['N', 'New wisp (focus the launcher)'],
+    [combo('K'), 'Search & commands'],
+    [`N · ${combo('L')}`, 'New wisp (focus the launcher)'],
     ['J / K', 'Next / previous item'],
     ['O / ↵', 'Expand / collapse item'],
     ['/', 'Follow up on item'],
@@ -1630,7 +1637,14 @@ function shortcuts() {
 
 // --- command palette ------------------------------------------------------------------
 
-const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+// How a modifier shortcut reads on this OS: "⌘L" on macOS, "Ctrl+L" on Windows/Linux.
+const combo = (k) => (IS_MAC ? `⌘${k}` : `Ctrl+${k}`);
+// ⌘ on macOS, Ctrl elsewhere (AltGr on Windows reports Ctrl+Alt, so Alt is excluded). Falls back to
+// the physical key on non-Latin layouts, where e.key is e.g. "д" for the L key.
+const modKey = (e, k) =>
+  (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey &&
+  (e.key.toLowerCase() === k || (!/^[a-z]$/i.test(e.key) && e.code === `Key${k.toUpperCase()}`));
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
 function focusLauncher() {
@@ -1799,9 +1813,15 @@ const feedIds = () => $$('#feed .item').map((x) => x.dataset.id);
 
 document.addEventListener('keydown', (e) => {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
-  if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+  if (modKey(e, 'k')) {
     e.preventDefault();
     return openPalette();
+  }
+  // ⌘L / Ctrl+L jumps to the launcher from anywhere, including another composer.
+  if (modKey(e, 'l')) {
+    e.preventDefault();
+    if (!$('#overlay').hidden) closeOverlay();
+    return focusLauncher();
   }
   const typing = e.target.closest('input, textarea, select, [contenteditable="true"]');
   if (e.key === 'Escape') {
@@ -1854,8 +1874,8 @@ document.addEventListener('keydown', (e) => {
 
 $('#settingsBtn').onclick = openSettings;
 $('#searchBtn').onclick = openPalette;
-$('#searchBtn').title = `Search (${MOD}K)`;
-$('#searchBtn .mod-k').textContent = `${MOD}K`;
+$('#searchBtn').title = `Search (${combo('K')})`;
+$('#searchBtn .mod-k').textContent = combo('K');
 $('#secDone .toggle-done').onclick = () => {
   S.showDone = !S.showDone;
   save('wisp.showDone', S.showDone);
