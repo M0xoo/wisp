@@ -1212,7 +1212,7 @@ function moreMenu(id, anchor) {
   const r = anchor.getBoundingClientRect();
   const menu = el(`
     <div class="menu" style="top:${r.bottom + 6}px;right:${innerWidth - r.right}px">
-      <button data-a="rename">${icon('pen')}Rename</button>
+      <button data-a="rename">${icon('pen')}Rename${keyHint('F2')}</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       <button data-a="folder">${icon('folder')}Open project in editor</button>
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
@@ -1246,7 +1246,7 @@ function taskMenu(id, e) {
   const menu = el(`
     <div class="menu task" style="top:${e.clientY}px;left:${e.clientX}px">
       ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
-      <button data-a="rename">${icon('pen')}Rename</button>
+      <button data-a="rename">${icon('pen')}Rename${keyHint('F2')}</button>
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
@@ -1532,6 +1532,7 @@ function shortcuts() {
     ['/', 'Follow up on item'],
     ['E', 'Mark done & go to next'],
     ['A', 'Archive / unarchive'],
+    ['F2', 'Rename item'],
     ['⌫', 'Delete item'],
     ['T', 'Take over in terminal'],
     ['R', 'Replay presentation'],
@@ -1575,7 +1576,7 @@ function paletteItems() {
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
     items.push({ group: g, label: 'Take over in terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Replay presentation', sub, icon: 'replay', kbd: 'R', run: () => withCard(id, () => replay(id), { open: true }) });
-    items.push({ group: g, label: 'Rename', sub, icon: 'pen', run: () => withCard(id, () => rename(id)) });
+    items.push({ group: g, label: 'Rename', sub, icon: 'pen', kbd: 'F2', run: () => withCard(id, () => rename(id)) });
     items.push({ group: g, label: 'Delete session', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
   }
 
@@ -1748,7 +1749,10 @@ document.addEventListener('keydown', (e) => {
     if (s && (s.archived || (s.state !== 'running' && s.state !== 'waiting'))) setArchived(id, !s.archived);
   }
   else if (k === 'c' && S.open.size) collapseAll();
-  else if ((k === 'delete' || k === 'backspace') && id) {
+  else if (k === 'f2' && id) {
+    e.preventDefault();
+    rename(id);
+  } else if ((k === 'delete' || k === 'backspace') && id) {
     e.preventDefault();
     deleteSession(id);
   } else if (k === 't' && id) takeOver(id);
