@@ -309,10 +309,15 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       // Images the agent pointed at (screenshots etc.). Served if inside the session's project,
       // or if the agent named that exact path in an image block (screenshots often land in /tmp).
       if (action === 'file' && m === 'GET') {
-        const p = path.resolve(s.cwd, url.searchParams.get('path') || '');
+        let p = path.resolve(s.cwd, url.searchParams.get('path') || '');
         const ext = path.extname(p).toLowerCase();
-        const named = s.turns.some((t) => t.presentation?.blocks?.some((b) => b?.type === 'image' && typeof (b.path || b.src) === 'string' && path.resolve(s.cwd, b.path || b.src) === p));
-        if (!(p.startsWith(s.cwd + path.sep) || named) || !IMAGE_EXT.has(ext) || !fs.existsSync(p)) return send(res, 404, { error: 'not found' });
+        const images = s.turns.flatMap((t) => (t.presentation?.blocks || []).filter((b) => b?.type === 'image'));
+        const at = (v) => typeof v === 'string' && path.resolve(s.cwd, v) === p;
+        const named = images.find((b) => at(b.path || b.src));
+        // A page rendered before keepImages() rewrote the block still asks for the original path.
+        const kept = !named && images.find((b) => at(b.source) && typeof b.path === 'string');
+        if (kept) p = path.resolve(s.cwd, kept.path);
+        if (!(p.startsWith(s.cwd + path.sep) || named || kept) || !IMAGE_EXT.has(ext) || !fs.existsSync(p)) return send(res, 404, { error: 'not found' });
         res.writeHead(200, { 'content-type': MIME[ext] });
         return fs.createReadStream(p).pipe(res);
       }
