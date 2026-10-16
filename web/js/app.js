@@ -557,7 +557,51 @@ function renderProjects() {
       renderLaunchChips();
     }),
   );
+  $$('.p-chip[data-id]:not([data-id="all"])').forEach((b) =>
+    b.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      projectMenu(b.dataset.id, e);
+    }),
+  );
   $('#manageProjects').onclick = () => openProjects();
+}
+
+function projectMenu(id, e) {
+  const p = projectById(id);
+  if (!p) return;
+  $('.menu.project')?.close();
+  const menu = el(`
+    <div class="menu project" style="top:${e.clientY}px;left:${e.clientX}px">
+      <button data-a="manage">${icon('pen')}Manage projects…</button>
+      <button data-a="delete" class="danger">${icon('trash')}Remove project</button>
+    </div>`);
+  const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
+  const outside = (ev) => !menu.contains(ev.target) && close();
+  menu.close = close;
+  setTimeout(() => document.addEventListener('mousedown', outside));
+  menu.onclick = async (ev) => {
+    const a = ev.target.closest('button')?.dataset.a;
+    close();
+    if (a === 'manage') openProjects();
+    if (a === 'delete' && confirm(`Remove “${p.name}” from wisp? Sessions and files are kept.`)) {
+      try {
+        await api(`/projects/${id}`, { method: 'DELETE' });
+      } catch (err) {
+        return toast(esc(err.message), { tone: 'bad' });
+      }
+      if (S.filter === id) {
+        S.filter = 'all';
+        save('wisp.filter', S.filter);
+      }
+      await loadConfig();
+      renderFeed();
+    }
+  };
+  document.body.append(menu);
+  // Keep the menu on-screen when right-clicking near the window edge.
+  const r = menu.getBoundingClientRect();
+  if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
+  if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
 }
 
 // --- expanded item body ------------------------------------------------------------
