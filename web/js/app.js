@@ -68,13 +68,16 @@ const HARNESS_LOGO = {
   opencode: { file: 'opencode', mono: true },
   cursor: { file: 'cursor', mono: true },
 };
+function harnessLogo(agent) {
+  const l = HARNESS_LOGO[agent];
+  const src = l && `/logos/${l.file}.svg`;
+  return !l ? icon('spark') : l.mono ? `<i class="mono" style="--logo:url(${src})"></i>` : `<img src="${src}" alt="">`;
+}
 function modelBadge(agent, model) {
   if (agent === 'wisp') return '';
   const label = (model && S.agents.find((a) => a.id === agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
   const tip = `${agentName(agent)} · ${label}`;
-  const l = HARNESS_LOGO[agent];
-  const src = l && `/logos/${l.file}.svg`;
-  const logo = !l ? icon('spark') : l.mono ? `<i class="mono" style="--logo:url(${src})"></i>` : `<img src="${src}" alt="">`;
+  const logo = harnessLogo(agent);
   return `<span class="model-logo" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}</span>`;
 }
 const projectById = (id) => S.config.projects.find((p) => p.id === id);
@@ -434,8 +437,7 @@ function renderLauncher() {
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
       <div class="seg" id="mode">${MODES.map((m) => `<button data-mode="${m.id}" class="${m.id === mode ? 'on' : ''}" title="${esc(m.hint)}">${m.label}</button>`).join('')}</div>
-      <button class="model-btn" id="agent" title="Agent" aria-haspopup="menu" ${ready.length > 1 ? '' : 'hidden'}></button>
-      <button class="model-btn" id="model" title="Model" aria-haspopup="menu"></button>
+      <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
       <span class="grow"></span>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
     </div>`;
@@ -458,34 +460,28 @@ function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { mode: curMode } } }).catch(() => {});
     }),
   );
-  let models = agent?.models || [{ id: '', label: 'Default' }];
-  let curModel = agent?.id === S.config.defaults.agent && models.some((m) => m.id === S.config.defaults.model) ? S.config.defaults.model : models[0].id;
-  const modelBtn = $('#model', box);
-  const paintModel = () => {
-    const m = models.find((x) => x.id === curModel) || models[0];
-    modelBtn.innerHTML = `${icon('spark')}<span>${esc(m.label)}</span>${icon('chevron', 'chev')}`;
-    modelBtn.classList.toggle('set', !!curModel);
+  // The model is remembered per harness (ids aren't portable between them).
+  const savedModel = (id) => {
+    const d = S.config.defaults;
+    const want = d.models?.[id] ?? (id === d.agent ? d.model : '');
+    const models = S.agents.find((a) => a.id === id)?.models || [];
+    return models.some((m) => m.id === want) ? want : '';
   };
-  paintModel();
-  const agentBtn = $('#agent', box);
-  const paintAgent = () => (agentBtn.innerHTML = `${icon('agent')}<span>${esc(agent?.name || 'Agent')}</span>${icon('chevron', 'chev')}`);
-  paintAgent();
-  agentBtn.onclick = () =>
-    modelMenu(agentBtn, ready.map((a) => ({ id: a.id, label: a.name, hint: a.version })), agent?.id, (id) => {
-      agent = ready.find((a) => a.id === id);
-      models = agent.models || [{ id: '', label: 'Default' }];
-      curModel = models[0].id;
-      paintAgent();
-      paintModel();
-      // Model ids are per harness, so switching agents resets the model.
-      Object.assign(S.config.defaults, { agent: id, model: curModel });
-      api('/config', { method: 'PATCH', body: { defaults: { agent: id, model: curModel } } }).catch(() => {});
-    });
-  modelBtn.onclick = () =>
-    modelMenu(modelBtn, models, curModel, (id) => {
-      curModel = id;
-      paintModel();
-      api('/config', { method: 'PATCH', body: { defaults: { model: id } } }).catch(() => {});
+  let curModel = savedModel(agent?.id);
+  const runnerBtn = $('#runner', box);
+  const paintRunner = () => {
+    const m = (agent?.models || []).find((x) => x.id === curModel);
+    runnerBtn.innerHTML = `<span class="rb-logo">${harnessLogo(agent?.id)}</span><span class="rb-h">${esc(agent?.name || 'No agent')}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${icon('chevron', 'chev')}`;
+  };
+  paintRunner();
+  runnerBtn.onclick = () =>
+    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, savedModel }, (id, model) => {
+      agent = S.agents.find((a) => a.id === id);
+      curModel = model;
+      paintRunner();
+      const models = { ...S.config.defaults.models, [id]: model };
+      Object.assign(S.config.defaults, { agent: id, model, models });
+      api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models } } }).catch(() => {});
     });
 
   const launch = async () => {
@@ -1144,66 +1140,152 @@ function rename(id) {
   title.onblur = () => done(true);
 }
 
-function modelMenu(anchor, models, current, pick) {
-  const open = $('.menu.models');
+// One popover for both choices: harnesses on the left, the focused harness's models on the right.
+// Clicking (or arrowing to) a harness previews its models; picking a model commits both.
+function runnerPicker(anchor, { agent, model, savedModel }, pick) {
+  const open = $('.picker');
   if (open) return open.close();
+  let focusAgent = S.agents.find((a) => a.id === agent && a.available) ? agent : S.agents.find((a) => a.available)?.id;
+
   const r = anchor.getBoundingClientRect();
-  const long = models.length > 10; // opencode/Cursor list every model they can reach
-  const below = r.bottom + Math.min(60 * models.length, 420) + (long ? 44 : 0) + 20 < innerHeight;
-  const menu = el(`
-    <div class="menu models" role="menu" style="left:${r.left}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
-      ${long ? '<input class="mm-filter" placeholder="Filter…" spellcheck="false" aria-label="Filter">' : ''}
-      <div class="mm-list">${models
-        .map(
-          (m) => `<button role="menuitemradio" aria-checked="${m.id === current}" data-id="${esc(m.id)}" class="${m.id === current ? 'on' : ''}">
-            <span class="mm-text"><b>${esc(m.label)}</b>${m.hint ? `<small>${esc(m.hint)}</small>` : ''}</span>${icon('check', 'mm-check')}
-          </button>`,
-        )
-        .join('')}</div>
+  const width = Math.min(580, innerWidth - 24);
+  // Stay inside the launcher card when there's room, else inside the window.
+  const box = anchor.closest('.launcher')?.getBoundingClientRect();
+  const right = Math.min(innerWidth - 12, box && box.width >= width ? box.right : innerWidth - 12);
+  const left = Math.max(12, Math.min(r.left, right - width));
+  const below = r.bottom + 440 < innerHeight;
+  const node = el(`
+    <div class="picker" role="dialog" aria-label="Harness and model" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
+      <div class="pk-side" role="listbox" aria-label="Harness">
+        <div class="pk-head">Harness</div>
+        ${S.agents
+          .map(
+            (a) => `<button class="pk-h${a.available ? '' : ' off'}" role="option" data-id="${esc(a.id)}" ${a.available ? '' : 'disabled'}>
+              <span class="pk-logo">${harnessLogo(a.id)}</span>
+              <span class="pk-text"><b>${esc(a.name)}</b><small>${esc(a.available ? `${(a.models || []).length > 1 ? `${a.models.length - 1} models` : 'Default model'}` : 'Not installed')}</small></span>
+              ${a.id === agent ? '<span class="pk-dot" title="In use"></span>' : ''}
+            </button>`,
+          )
+          .join('')}
+      </div>
+      <div class="pk-main">
+        <label class="pk-search">${icon('search')}<input spellcheck="false" autocomplete="off"></label>
+        <div class="pk-list" role="listbox" aria-label="Model"></div>
+      </div>
     </div>`);
-  const items = $$('button', menu);
-  const shown = () => items.filter((b) => !b.hidden);
-  const filter = $('.mm-filter', menu);
+  const input = $('.pk-search input', node);
+  const list = $('.pk-list', node);
+  const sideRows = $$('.pk-h', node);
+
+  const paintModels = () => {
+    const a = S.agents.find((x) => x.id === focusAgent);
+    sideRows.forEach((b) => b.classList.toggle('on', b.dataset.id === focusAgent));
+    const models = a?.models || [{ id: '', label: 'Default' }];
+    const current = focusAgent === agent ? model : savedModel(focusAgent);
+    input.placeholder = `Search ${a?.name || ''} models`;
+    $('.pk-search', node).hidden = models.length <= 6;
+    // opencode-style ids (provider/model) group by provider.
+    const groups = new Map();
+    for (const m of models) {
+      const g = m.id && m.id.includes('/') ? m.hint || '' : '';
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(m);
+    }
+    list.innerHTML = [...groups]
+      .map(
+        ([g, ms]) =>
+          `<div class="pk-group">${g ? `<div class="pk-ghead">${esc(g)}</div>` : ''}${ms
+            .map(
+              (m) => `<button class="pk-m${m.id === current ? ' on' : ''}" role="option" aria-selected="${m.id === current}" data-id="${esc(m.id)}">
+                <span class="pk-text"><b>${esc(m.id ? m.label : 'Default')}</b><small>${esc(m.id ? (m.hint && m.hint !== g ? m.hint : '') : m.hint || `Whatever ${a?.name} is set to`)}</small></span>${icon('check', 'pk-check')}
+              </button>`,
+            )
+            .join('')}</div>`,
+      )
+      .join('') + '<div class="pk-empty" hidden>No models match</div>';
+    filter();
+  };
+  const rows = () => $$('.pk-m', list).filter((b) => !b.hidden);
+  const filter = () => {
+    const q = input.value.trim().toLowerCase();
+    for (const b of $$('.pk-m', list)) b.hidden = !!q && !`${b.dataset.id} ${b.textContent}`.toLowerCase().includes(q);
+    for (const g of $$('.pk-group', list)) g.hidden = !$$('.pk-m', g).some((b) => !b.hidden);
+    $('.pk-empty', list).hidden = rows().length > 0;
+  };
+  const focusModels = () => {
+    const rs = rows();
+    const target = rs.find((b) => b.classList.contains('on')) || rs[0];
+    target?.focus();
+    target?.scrollIntoView({ block: 'nearest' });
+  };
+  const preview = (id, { focus } = {}) => {
+    if (id !== focusAgent) {
+      focusAgent = id;
+      input.value = '';
+      paintModels();
+    }
+    if (focus) sideRows.find((b) => b.dataset.id === id)?.focus();
+  };
+
   const close = () => {
-    menu.remove();
+    node.remove();
     anchor.classList.remove('open');
     document.removeEventListener('mousedown', outside);
     document.removeEventListener('keydown', keys, true);
   };
-  menu.close = close;
-  const choose = (b) => {
+  node.close = close;
+  const choose = (m) => {
     close();
     anchor.focus();
-    if (b.dataset.id !== current) pick(b.dataset.id);
+    if (focusAgent !== agent || m !== model) pick(focusAgent, m);
   };
-  const outside = (e) => !menu.contains(e.target) && !anchor.contains(e.target) && close();
+  const outside = (e) => !node.contains(e.target) && !anchor.contains(e.target) && close();
+  const step = (items, d) => {
+    if (!items.length) return;
+    const i = items.indexOf(document.activeElement);
+    const next = items[i < 0 ? (d > 0 ? 0 : items.length - 1) : (i + d + items.length) % items.length];
+    next.focus();
+    next.scrollIntoView({ block: 'nearest' });
+    return next;
+  };
   const keys = (e) => {
-    const list = shown();
-    const i = list.indexOf(document.activeElement);
-    if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), close(), anchor.focus());
-    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const inSide = sideRows.includes(document.activeElement);
+    const live = sideRows.filter((b) => !b.disabled);
+    if (e.key === 'Escape') return e.preventDefault(), e.stopPropagation(), close(), anchor.focus();
+    if (e.key === 'Tab') return close();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       e.stopPropagation();
-      if (list.length) list[(i + (e.key === 'ArrowDown' ? 1 : i < 0 ? 0 : -1) + list.length) % list.length].focus();
-    } else if (e.key === 'Enter' && document.activeElement === filter && list[0]) (e.preventDefault(), choose(list[0]));
-    else if (e.key === 'Tab') close();
+      const d = e.key === 'ArrowDown' ? 1 : -1;
+      if (inSide) preview(step(live, d)?.dataset.id);
+      else step(rows(), d);
+    } else if (e.key === 'ArrowLeft' && document.activeElement !== input) {
+      e.preventDefault();
+      preview(focusAgent, { focus: true });
+    } else if ((e.key === 'ArrowRight' || e.key === 'Enter') && inSide) {
+      e.preventDefault();
+      focusModels();
+    } else if (e.key === 'Enter' && document.activeElement === input && rows()[0]) {
+      e.preventDefault();
+      choose(rows()[0].dataset.id);
+    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !$('.pk-search', node).hidden && document.activeElement !== input) {
+      input.focus(); // type-to-search from anywhere in the picker
+    }
   };
-  if (filter)
-    filter.oninput = () => {
-      const q = filter.value.trim().toLowerCase();
-      for (const b of items) b.hidden = !!q && !`${b.dataset.id} ${b.textContent}`.toLowerCase().includes(q);
-    };
-  menu.onclick = (e) => {
-    const b = e.target.closest('button');
-    if (b) choose(b);
+  sideRows.forEach((b) => (b.onclick = () => preview(b.dataset.id)));
+  list.onclick = (e) => {
+    const b = e.target.closest('.pk-m');
+    if (b) choose(b.dataset.id);
   };
+  input.oninput = filter;
+
+  paintModels();
   setTimeout(() => document.addEventListener('mousedown', outside));
   document.addEventListener('keydown', keys, true);
-  document.body.append(menu);
+  document.body.append(node);
   anchor.classList.add('open');
-  const on = items.find((b) => b.classList.contains('on'));
-  on?.scrollIntoView({ block: 'nearest' });
-  (filter || on || items[0]).focus();
+  focusModels(); // scrolls the current model into view…
+  if (!$('.pk-search', node).hidden) input.focus({ preventScroll: true }); // …then search is ready to type
 }
 
 function moreMenu(id, anchor) {

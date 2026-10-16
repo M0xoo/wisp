@@ -83,8 +83,8 @@ if (words[0] === 'add') {
 } else if (words.length) {
   const cfg = await api('/config');
   const agent = flags.agent || cfg.defaults.agent;
-  // The saved model belongs to the saved agent; another agent gets its own default.
-  const model = agent === cfg.defaults.agent ? cfg.defaults.model : '';
+  // Models are remembered per agent (ids aren't portable between harnesses).
+  const model = cfg.defaults.models?.[agent] ?? (agent === cfg.defaults.agent ? cfg.defaults.model : '');
   const s = await api('/sessions', { prompt: words.join(' '), cwd: process.cwd(), agent, mode: flags.mode || cfg.defaults.mode, model });
   console.log(`  ◌ launched: ${s.title}`);
   openPath = `/#/s/${s.id}`;
