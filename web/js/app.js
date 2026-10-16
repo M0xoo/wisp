@@ -58,6 +58,24 @@ const MODES = [
 const KIND_ICON = { read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask' };
 const STATUS_LABEL = { done: 'Done', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
 const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id === 'wisp' ? 'wisp' : id);
+
+// Harness logos for the request bubble, vendored from @lobehub/icons into web/logos/.
+// `mono` marks are drawn in the text colour so they work in both themes.
+const HARNESS_LOGO = {
+  claude: { file: 'claudecode-color' },
+  codex: { file: 'codex-color' },
+  opencode: { file: 'opencode', mono: true },
+  cursor: { file: 'cursor', mono: true },
+};
+function modelBadge(agent, model) {
+  if (agent === 'wisp') return '';
+  const label = (model && S.agents.find((a) => a.id === agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
+  const tip = `${agentName(agent)} · ${label}`;
+  const l = HARNESS_LOGO[agent];
+  const src = l && `/logos/${l.file}.svg`;
+  const logo = !l ? icon('spark') : l.mono ? `<i class="mono" style="--logo:url(${src})"></i>` : `<img src="${src}" alt="">`;
+  return `<span class="model-logo" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}</span>`;
+}
 const projectById = (id) => S.config.projects.find((p) => p.id === id);
 
 function ago(t) {
@@ -217,6 +235,7 @@ function renderHead(n, s) {
     <span class="it-side">
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
+      ${modelBadge(s.agent, s.model)}
       <span class="q-proj">${esc(s.project)}</span>
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
@@ -744,7 +763,7 @@ function renderTurn(s, t, isLatest, fold) {
       <div class="ask-text ${long ? 'clamped' : ''}">${esc(t.prompt)}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
-      <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+      <div class="ask-foot">${modelBadge(t.agent || s.agent, t.model ?? s.model)}<time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>
       ${fold ? `<button class="ghost xs t-unfold" title="Collapse this exchange">${icon('chevron', 'chev')}</button>` : ''}
     </div>`);
   if (fold) ask.querySelector('.t-unfold').onclick = fold;

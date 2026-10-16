@@ -163,6 +163,8 @@ export class Runner extends EventEmitter {
     const turn = {
       id: newId(),
       prompt,
+      agent: session.agent,
+      model: session.model,
       attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })),
       startedAt: Date.now(),
       endedAt: null,
