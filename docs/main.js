@@ -446,19 +446,16 @@
   (function install() {
     const code = $('#installCode');
     const T = {
-      browser: [
-        ['c', '# Nothing to install. Node built-ins only.'],
+      desktop: [
+        ['c', '# Opens the wisp desktop app. Electron downloads on first run.'],
         ['p', 'npx wisp-agents'],
-        ['o', '→ wisp running at http://localhost:4477'],
         ['c', '# or launch a task in the current folder:'],
         ['c', '# npx wisp-agents "fix the flaky auth test"'],
       ],
-      desktop: [
-        ['c', '# The Electron app. Same wisp, in your dock. Runs from source.'],
-        ['p', 'git clone https://github.com/M0xoo/wisp.git'],
-        ['p', 'cd wisp'],
-        ['p', 'npm install'],
-        ['p', 'npm run app'],
+      browser: [
+        ['c', '# Same wisp in a browser tab. Node built-ins only.'],
+        ['p', 'npx wisp-agents --browser'],
+        ['o', '→ wisp running at http://localhost:4477'],
       ],
       cli: [
         ['c', '# Put wisp on your PATH, then use it from any folder.'],
@@ -468,7 +465,7 @@
         ['p', 'wisp add ~/code/api-server'],
       ],
     };
-    let cur = 'browser';
+    let cur = 'desktop';
     const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
     const show = (k) => {
       cur = k;
@@ -478,6 +475,6 @@
     $$('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
     const btn = $('#copyInstall');
     btn.addEventListener('click', () => copy(T[cur].filter(([t]) => t === 'p').map(([, s]) => s).join('\n'), btn));
-    show('browser');
+    show('desktop');
   })();
 })();

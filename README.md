@@ -52,9 +52,12 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 > **Requirements:** Node.js ≥ 20 and [Claude Code](https://claude.com/claude-code) (`claude`) installed and signed in.
 
 ```sh
-npx wisp-agents                          # open wisp → http://localhost:4477
+npx wisp-agents                          # open the wisp desktop app
 npx wisp-agents "fix the flaky auth test" # launch a task in the current folder
+npx wisp-agents --browser                # or use it in the browser → http://localhost:4477
 ```
+
+The first run downloads Electron for the desktop app; if that isn't possible, wisp opens in the browser instead.
 
 Or install it globally to get the `wisp` command everywhere:
 
@@ -101,7 +104,8 @@ wisp --mode plan "audit deps"     # permission mode: plan | edits | auto
 |---|---|
 | `--port`, `-p N` | Port to use (default `4477`, or `WISP_PORT`) |
 | `--mode`, `-m` | `plan` · `edits` · `auto` |
-| `--no-open` | Don't open a browser |
+| `--browser`, `-b` | Use the browser instead of the desktop app |
+| `--no-open` | Just run the server; open nothing |
 | `--version`, `-v` | Print the version |
 
 > `npm install -g wisp-agents` (or `npm link` from a clone) puts `wisp` on your `PATH`. Without installing, use `npx wisp-agents …` with the same arguments.
