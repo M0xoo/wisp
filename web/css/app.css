@@ -790,6 +790,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .cq-tag { flex: none; font-size: 11px; font-weight: 600; color: var(--accent-ink); }
 .cq-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .c-hint { flex: 1; font-size: 11.5px; color: var(--faint); }
+.cq .att-x:hover { color: var(--bad); }
 .send { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--ink); color: var(--bg); transition: opacity 0.15s; }
 .send:hover { opacity: 0.86; }
 .send:disabled { opacity: 0.5; }

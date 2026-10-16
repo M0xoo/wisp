@@ -1020,17 +1020,21 @@ function renderQueued(s, list, name) {
       <li class="cq">
         <span class="cq-tag">${i === 0 ? `Next · after ${esc(name)} finishes` : `Queued #${i + 1}`}</span>
         <span class="cq-text">${esc(q.text)}</span>
-        ${q.id ? `<button class="att-x" title="Cancel this follow-up">${icon('x')}</button>` : ''}
+        <button class="att-x" title="Cancel this follow-up">${icon('x')}</button>
       </li>`);
-    const cancel = () => api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
-    const x = $('.att-x', li);
-    if (x) x.onclick = cancel;
-    if (q.id)
-      li.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        queuedMenu(e, cancel);
-      });
+    const cancel = () => {
+      // Items queued by a wisp older than queue ids get one when wisp restarts.
+      if (!q.id) return toast('Restart wisp to cancel this follow-up.', { tone: 'bad' });
+      const short = q.text.length > 80 ? `${q.text.slice(0, 80)}…` : q.text;
+      if (!confirm(`Cancel this queued follow-up?\n\n“${short}”`)) return;
+      api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    };
+    $('.att-x', li).onclick = cancel;
+    li.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      queuedMenu(e, cancel);
+    });
     list.append(li);
   });
 }

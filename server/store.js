@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { randomUUID } from 'node:crypto';
 import { parsePresentation } from './protocol.js';
 
 const DEFAULT_CONFIG = {
@@ -31,8 +32,10 @@ export class Store {
         const s = JSON.parse(fs.readFileSync(path.join(this.dir, f), 'utf8'));
         reparse(s);
         this.sessions.set(s.id, s);
+        // Backfill: follow-ups queued before items had ids can't be cancelled without one.
+        const ids = (s.queue || []).filter((q) => !q.id).map((q) => (q.id = randomUUID().replace(/-/g, '').slice(0, 12)));
         // Backfill: keep screenshots from older turns while their files still exist.
-        if ((s.turns || []).map((t) => this.keepImages(s, t)).some(Boolean)) this.save(s, { now: true });
+        if ((s.turns || []).map((t) => this.keepImages(s, t)).some(Boolean) || ids.length) this.save(s, { now: true });
       } catch (err) {
         console.warn(`wisp: skipping unreadable session ${f}: ${err.message}`);
       }
