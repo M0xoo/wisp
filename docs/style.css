@@ -298,6 +298,9 @@ section { position: relative; }
 
 /* terminal */
 .term { margin-top: auto; padding: 16px; border-radius: 12px; background: #050507; border: 1px solid var(--line); font: 13px var(--mono); min-height: 56px; }
+.term { display: grid; }
+.term > .t-line { grid-area: 1 / 1; overflow-wrap: anywhere; }
+.term > .t-ghost { visibility: hidden; } /* full command, reserves the final wrapped height so typing never shifts layout */
 .term .p { color: var(--teal); }
 .caret { display: inline-block; width: 7px; height: 15px; margin-left: 2px; vertical-align: -2px; background: var(--ink); animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }

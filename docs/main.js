@@ -300,6 +300,11 @@
   (function term() {
     const el = $('#term .typed');
     const text = el.dataset.type;
+    const line = el.parentNode, ghost = line.cloneNode(true);
+    ghost.classList.add('t-ghost');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.querySelector('.typed').textContent = text;
+    line.before(ghost);
     if (reduced) return (el.textContent = text);
     let i = 0, hold = 0;
     whenVisible($('#term'), () => setInterval(() => {
