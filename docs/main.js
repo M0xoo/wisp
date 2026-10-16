@@ -262,7 +262,7 @@
     };
     const counts = () => $$('.q-col', root).forEach((c) => ($('.qn', c).textContent = $('.q-list', c).children.length));
     const add = (col) => { const [t, s] = pool[n++ % pool.length]; const el = item(t, s[0]); el._s = s; el._i = 0; lists[col].prepend(el); return el; };
-    add('done'); add('working'); add('working'); const nd = add('needs'); nd.lastChild.textContent = needsCopy[0];
+    add('done').lastChild.textContent = 'Done'; add('working'); add('working'); const nd = add('needs'); nd.lastChild.textContent = needsCopy[0];
     counts();
     let tick = 0;
     whenVisible(root, () => setInterval(() => {
@@ -348,7 +348,7 @@
 
   // ───────── blocks marquee ─────────
   (function blocks() {
-    const bars = (...cls) => cls.map((c) => `<span class="bar ${c}" style="width:${30 + ((c.length * 37 + cls.length * 13) % 65)}%"></span>`).join('');
+    const bars = (...cls) => cls.map((c, i) => `<span class="bar ${c}" style="width:${[88, 62, 74, 45][(i + cls.length) % 4]}%"></span>`).join('');
     const B = [
       ['hero', '#8f84ff', `<span class="big">Fixed.</span>${bars('')}`],
       ['diff', '#4cc38a', bars('r', 'g', 'g')],
