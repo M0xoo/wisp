@@ -41,11 +41,13 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🎞️ **Presentations, not transcripts** | Agents end with structured blocks that render as an animated, skimmable report. |
 | ❓ **Live questions** | Agents get an `ask_user` tool, so they can pause mid-run. Your answer goes straight back to the running agent. |
 | 🧾 **Real diffs** | Edits come from the agent's own tool calls, so `diff` blocks show what actually changed. |
-| 📥 **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. |
-| 🤖 **Any harness** | Claude Code, Codex, opencode, or Cursor CLI. Pick one per launch next to the model. Models are discovered from each CLI. |
-| 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, or a custom command. |
+| 📥 **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
+| 💬 **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. |
+| 🔎 **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
+| 🤖 **Any harness** | Claude Code, Codex, opencode, or Cursor CLI. Pick the harness and model together in the launcher; the model is remembered per harness. Each card shows the harness it ran on. |
+| 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
-| 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. |
+| 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
 | 🪶 **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
 
 ## Quick start
@@ -118,7 +120,8 @@ wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor
 | Key | Action |
 |---|---|
 | `⌘ K` / `Ctrl K` | Command palette: fuzzy-search sessions, projects and actions |
-| `N` | New task (focus the launcher) |
+| `N` · `⌘ L` / `Ctrl L` | New task (focus the launcher; `⌘ L` works from anywhere) |
+| `⇧ Tab` | Cycle permission mode (in the launcher) |
 | `⌘ ↵` | Launch and keep the launcher open for the next task |
 | `J` / `K` | Move down / up through the queue |
 | `O` / `↵` | Open or collapse the focused session |
@@ -126,7 +129,11 @@ wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor
 | `1`–`9` | Pick an option in a pending question |
 | `T` | Take over in your terminal |
 | `E` | Mark done and jump to the next session that needs you |
+| `A` | Archive / unarchive |
+| `M` | Rename |
+| `⌫` | Delete |
 | `R` | Replay the presentation |
+| `C` | Collapse all |
 | `?` | Show all shortcuts |
 | `Esc` | Close, blur, or collapse |
 
@@ -172,7 +179,7 @@ wisp/
 
 - **Protocol** (`server/protocol.js`): a system prompt tells agents to work autonomously and to end with a fenced `wisp` JSON block of presentation blocks. The parser reads that block, and falls back to plain markdown if it is missing.
 - **Adapters** (`server/adapters/`): one file per harness. An adapter turns a run into normalized events (`session`, `tool`, `change`, `text`, `result`, …) and provides a `resumeCommand` for take over.
-- **State** lives in `~/.wisp` (override with `WISP_HOME`): one JSON file per session, plus `config.json` and `uploads/`.
+- **State** lives in `~/.wisp` (override with `WISP_HOME`): one JSON file per session, plus `config.json`, `uploads/`, and `shots/` (copies of images agents showed).
 
 ### Presentation blocks
 
