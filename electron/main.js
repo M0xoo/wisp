@@ -1,7 +1,7 @@
 // wisp desktop shell. The Node server runs inside Electron's main process and
 // the window loads the same UI the browser mode serves.
 
-import { app, BrowserWindow, shell, nativeTheme, Menu, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, nativeTheme, Menu, dialog, ipcMain, clipboard } from 'electron';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -74,6 +74,23 @@ function createWindow() {
     e.preventDefault();
     const n = Number(title.match(/^\((\d+)\)/)?.[1] || 0);
     app.setBadgeCount(n);
+  });
+
+  // Electron has no right-click menu by default: give text and links the usual one.
+  win.webContents.on('context-menu', (_, p) => {
+    const f = p.editFlags;
+    const items = [
+      ...p.dictionarySuggestions.map((w) => ({ label: w, click: () => win.webContents.replaceMisspelling(w) })),
+      ...(p.misspelledWord ? [{ type: 'separator' }] : []),
+      ...(p.linkURL ? [{ label: 'Copy Link', click: () => clipboard.writeText(p.linkURL) }, { type: 'separator' }] : []),
+      ...(p.isEditable ? [{ role: 'undo', enabled: f.canUndo }, { role: 'redo', enabled: f.canRedo }, { type: 'separator' }] : []),
+      ...(p.isEditable ? [{ role: 'cut', enabled: f.canCut }] : []),
+      ...(p.isEditable || p.selectionText ? [{ role: 'copy', enabled: f.canCopy }] : []),
+      ...(p.isEditable ? [{ role: 'paste', enabled: f.canPaste }, { role: 'pasteAndMatchStyle', enabled: f.canPaste }] : []),
+      { role: 'selectAll', enabled: f.canSelectAll },
+      ...(DEV ? [{ type: 'separator' }, { label: 'Inspect Element', click: () => win.webContents.inspectElement(p.x, p.y) }] : []),
+    ];
+    Menu.buildFromTemplate(items).popup({ window: win });
   });
 
   win.on('closed', () => (win = null));
