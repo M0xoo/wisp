@@ -183,13 +183,14 @@ function renderFeedHead(needs, working) {
 
 // "Collapse all" floats over the page instead of living in the flow: showing it
 // never shifts the feed, and it stays reachable deep inside a long open card.
-const collapseAllBtn = el(`<button class="collapse-all" title="Collapse all (Esc collapses the focused one)"></button>`);
+const collapseAllBtn = el(`<button class="collapse-all" title="Collapse all (C) · Esc collapses the focused one"><span></span><kbd>C</kbd></button>`);
 document.body.append(collapseAllBtn);
-collapseAllBtn.addEventListener('click', () => [...S.open].forEach((id) => collapse(id)));
+const collapseAll = () => [...S.open].forEach((id) => collapse(id));
+collapseAllBtn.addEventListener('click', collapseAll);
 function placeCollapseAll() {
   const open = [...S.open].filter((id) => S.nodes.get(id)?.card.isConnected).length;
   collapseAllBtn.classList.toggle('on', open > 0);
-  if (open) collapseAllBtn.textContent = open > 1 ? `Collapse all · ${open}` : 'Collapse';
+  if (open) collapseAllBtn.firstChild.textContent = open > 1 ? `Collapse all · ${open}` : 'Collapse';
 }
 
 // Get (or create) the card for a summary and refresh its header.
@@ -1214,8 +1215,8 @@ function moreMenu(id, anchor) {
       <button data-a="rename">${icon('pen')}Rename</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       <button data-a="folder">${icon('folder')}Open project in editor</button>
-      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive</button>` : ''}
-      <button data-a="delete" class="danger">${icon('trash')}Delete session</button>
+      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
+      <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
     </div>`);
   const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
   const outside = (e) => !menu.contains(e.target) && close();
@@ -1231,9 +1232,7 @@ function moreMenu(id, anchor) {
     }
     if (a === 'folder') openInEditor(s, '.');
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
-    if (a === 'delete' && confirm('Delete this session from wisp? (The agent’s own history is kept.)')) {
-      await api(`/sessions/${id}`, { method: 'DELETE' });
-    }
+    if (a === 'delete') deleteSession(id);
   };
   document.body.append(menu);
 }
@@ -1246,11 +1245,11 @@ function taskMenu(id, e) {
   const busy = s.state === 'running' || s.state === 'waiting';
   const menu = el(`
     <div class="menu task" style="top:${e.clientY}px;left:${e.clientX}px">
-      ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse</button>` : `<button data-a="open">${icon('chevron')}Open</button>`}
+      ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
       <button data-a="rename">${icon('pen')}Rename</button>
-      ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}</button>`}
-      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive</button>`}
-      <button data-a="delete" class="danger">${icon('trash')}Delete session</button>
+      ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
+      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
+      <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
     </div>`);
   const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
   const outside = (ev) => !menu.contains(ev.target) && close();
@@ -1264,14 +1263,21 @@ function taskMenu(id, e) {
     if (a === 'rename') rename(id);
     if (a === 'done') toggleDone(id);
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
-    if (a === 'delete' && confirm('Delete this session from wisp? (The agent’s own history is kept.)')) {
-      await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
-    }
+    if (a === 'delete') deleteSession(id);
   };
   document.body.append(menu);
   const r = menu.getBoundingClientRect();
   if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
   if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
+}
+
+// The keyboard shortcut for a menu item, shown at its right edge. Menus act on the
+// focused card, so the key does the same thing as the click.
+const keyHint = (k) => `<kbd class="menu-kbd">${k}</kbd>`;
+
+async function deleteSession(id) {
+  if (!confirm('Delete this session from wisp? (The agent’s own history is kept.)')) return;
+  await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
 }
 
 async function setArchived(id, archived) {
@@ -1482,7 +1488,7 @@ function openSettings() {
         <select name="terminal">${(S.config.terminals || []).map((t) => `<option value="${t.id}" ${(d.terminal || 'auto') === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}</select></label>
       <label class="custom-term" ${d.terminal === 'custom' ? '' : 'hidden'}><span>Terminal command</span>
         <input name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></label>
-      <label><span>Notifications</span><button class="ghost sm" id="notif">${'Notification' in window && Notification.permission === 'granted' ? 'Enabled' : 'Enable'}</button></label>
+      <div class="setting"><span>Desktop notifications</span><span class="notif-hint muted xs"></span><button class="switch" id="notif" role="switch"></button></div>
       <div class="agents">${S.agents
         .map((a) => `<div class="agent-row"><span class="dot ${a.available ? 'ok' : 'bad'}"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.available ? a.version : a.error || 'not found')}</span></div>`)
         .join('')}<p class="muted xs">Pick the agent next to the model in the launcher. Others plug in via <code>server/adapters</code>.</p></div>
@@ -1496,11 +1502,25 @@ function openSettings() {
     await api('/config', { method: 'PATCH', body: { defaults: { [name]: value } } });
     await loadConfig();
   });
-  $('#notif', node).onclick = async (e) => {
-    if (!('Notification' in window)) return;
-    const p = await Notification.requestPermission();
-    e.target.textContent = p === 'granted' ? 'Enabled' : 'Blocked in browser';
+  // The switch shows wisp's own on/off preference; the browser permission can only be
+  // granted from here, never revoked, so it surfaces as a hint when it blocks the switch.
+  const sw = $('#notif', node);
+  const paint = () => {
+    const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+    const on = notifyOn();
+    sw.setAttribute('aria-checked', on);
+    sw.disabled = perm === 'denied' || perm === 'unsupported';
+    $('.notif-hint', node).textContent =
+      perm === 'denied' ? 'Blocked — allow notifications for this site in your browser' : perm === 'unsupported' ? 'Not supported here' : on ? 'On' : 'Off';
   };
+  sw.onclick = async () => {
+    let want = !notifyOn();
+    if (want && Notification.permission !== 'granted') want = (await Notification.requestPermission()) === 'granted';
+    await api('/config', { method: 'PATCH', body: { defaults: { notify: want ? 'on' : 'off' } } });
+    await loadConfig();
+    paint();
+  };
+  paint();
 }
 
 function shortcuts() {
@@ -1512,11 +1532,13 @@ function shortcuts() {
     ['/', 'Follow up on item'],
     ['E', 'Mark done & go to next'],
     ['A', 'Archive / unarchive'],
+    ['⌫', 'Delete item'],
     ['T', 'Take over in terminal'],
     ['R', 'Replay presentation'],
     ['1–9', 'Pick an answer when asked'],
     ['↵', 'Launch / send'],
     ['⇧↵', 'New line'],
+    ['C', 'Collapse all'],
     ['Esc', 'Close / collapse'],
   ];
   const node = el(`<div class="modal keys-modal"><header><h2>Shortcuts</h2></header>${rows.map(([k, l]) => `<div class="krow"><kbd>${k}</kbd><span>${l}</span></div>`).join('')}</div>`);
@@ -1554,6 +1576,7 @@ function paletteItems() {
     items.push({ group: g, label: 'Take over in terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Replay presentation', sub, icon: 'replay', kbd: 'R', run: () => withCard(id, () => replay(id), { open: true }) });
     items.push({ group: g, label: 'Rename', sub, icon: 'pen', run: () => withCard(id, () => rename(id)) });
+    items.push({ group: g, label: 'Delete session', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
   }
 
   const sessions = [...S.sessions.values()].sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
@@ -1577,7 +1600,7 @@ function paletteItems() {
     { group: a, label: S.showDone ? 'Hide done' : 'Show done', icon: 'done', keywords: 'toggle finished', run: () => $('#secDone .toggle-done').click() },
     { group: a, label: S.showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', keywords: 'toggle', run: () => $('#secArchived .toggle-done').click() },
   );
-  if (S.open.size) items.push({ group: a, label: 'Collapse all', icon: 'minus', kbd: 'Esc', run: () => [...S.open].forEach((id) => collapse(id)) });
+  if (S.open.size) items.push({ group: a, label: 'Collapse all', icon: 'minus', kbd: 'C', run: collapseAll });
   items.push(
     { group: a, label: 'Add project…', icon: 'folder', keywords: 'folder repo directory', run: () => openProjects({ focusAdd: true }) },
     { group: a, label: 'Manage projects', icon: 'folder', keywords: 'rename color remove', run: () => openProjects() },
@@ -1610,8 +1633,13 @@ function openPalette() {
 
 // --- notifications -----------------------------------------------------------------------
 
+// On unless turned off in settings, and only if the browser lets us.
+function notifyOn() {
+  return S.config.defaults.notify !== 'off' && 'Notification' in window && Notification.permission === 'granted';
+}
+
 function askNotify() {
-  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  if (S.config.defaults.notify !== 'off' && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }
 
 function notifyFinished(s) {
@@ -1620,7 +1648,7 @@ function notifyFinished(s) {
   if (viewing) return;
   const verb = s.state === 'waiting' ? 'has a question' : 'is ready';
   toast(`${icon(s.state === 'waiting' ? 'ask' : 'spark')} <b>${esc(s.title)}</b> ${verb}`, { action: { label: 'Open', run: () => reveal(s.id) }, timeout: 7000 });
-  if ('Notification' in window && Notification.permission === 'granted' && !document.hasFocus()) {
+  if (notifyOn() && !document.hasFocus()) {
     const note = new Notification(`${s.project}: ${s.title}`, { body: s.state === 'waiting' ? s.question : s.preview || 'Ready for review', icon: '/favicon.svg', tag: s.id });
     note.onclick = () => (window.focus(), reveal(s.id));
   }
@@ -1719,7 +1747,11 @@ document.addEventListener('keydown', (e) => {
     const s = S.sessions.get(id);
     if (s && (s.archived || (s.state !== 'running' && s.state !== 'waiting'))) setArchived(id, !s.archived);
   }
-  else if (k === 't' && id) takeOver(id);
+  else if (k === 'c' && S.open.size) collapseAll();
+  else if ((k === 'delete' || k === 'backspace') && id) {
+    e.preventDefault();
+    deleteSession(id);
+  } else if (k === 't' && id) takeOver(id);
   else if (k === 'r' && id) replay(id);
   else if (k === '/' && id) {
     e.preventDefault();
