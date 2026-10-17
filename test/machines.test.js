@@ -9,7 +9,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installFakeBins, makeRepo, records, tmp, until, win } from './helpers.js';
-import { bootstrapScript, splitId, qualify, sshHint, sshHosts } from '../server/machines.js';
+import { bootstrapScript, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts } from '../server/machines.js';
 
 const RECORD = tmp('machines-record');
 const THERE = tmp('machines-there'); // WISP_HOME on "the machine"
@@ -105,6 +105,57 @@ test('ids, hints, ~/.ssh/config hosts and the bootstrap script', () => {
   assert.match(sh, /^PORT=4555$/m);
   assert.match(sh, /^CMD='npx -y wisp-agents@1\.2\.3 # it'\\''s'$/m);
   assert.doesNotMatch(sh, /__[A-Z]+__/);
+});
+
+test('found hosts: ~/.ssh/config, Tailscale peers and known_hosts, one entry per target', { skip: win }, async () => {
+  const dir = tmp('sshdir');
+  fs.writeFileSync(path.join(dir, 'config'), 'Host devbox\n  HostName 10.0.0.5\n  User me\n');
+  fs.writeFileSync(
+    path.join(dir, 'known_hosts'),
+    [
+      'github.com ssh-ed25519 AAAA',
+      'gpu.lan,192.168.1.20 ssh-ed25519 AAAA',
+      '192.168.1.30 ecdsa-sha2-nistp256 AAAA',
+      '[build.lan]:2222 ssh-ed25519 AAAA',
+      '|1|aGFzaA==|aGFzaA== ssh-ed25519 AAAA',
+      '@cert-authority *.corp ssh-ed25519 AAAA',
+      'devbox ssh-ed25519 AAAA',
+      'localhost ssh-ed25519 AAAA',
+    ].join('\n'),
+  );
+  assert.deepEqual(knownHosts(path.join(dir, 'known_hosts')), [
+    { host: 'gpu.lan', hostname: '192.168.1.20' },
+    { host: '192.168.1.30', hostname: '' },
+    { host: 'devbox', hostname: '' },
+  ]);
+
+  const ts = path.join(dir, 'tailscale');
+  const status = {
+    Self: { HostName: 'me' },
+    Peer: {
+      a: { HostName: 'studio', DNSName: 'studio.tail1.ts.net.', OS: 'macOS', Online: true, TailscaleIPs: ['100.64.0.2'] },
+      b: { HostName: 'phone', DNSName: 'phone.tail1.ts.net.', OS: 'iOS', Online: true },
+      c: { HostName: 'old-vm', DNSName: '', OS: 'linux', Online: false, TailscaleIPs: ['100.64.0.9'] },
+    },
+  };
+  fs.writeFileSync(ts, `#!/bin/sh\n[ "$1 $2" = "status --json" ] || exit 2\ncat <<'EOF'\n${JSON.stringify(status)}\nEOF\n`, { mode: 0o755 });
+  assert.deepEqual(await tailscalePeers({ bin: ts }), [
+    { host: 'studio.tail1.ts.net', name: 'studio', os: 'macOS', online: true },
+    { host: '100.64.0.9', name: 'old-vm', os: 'linux', online: false },
+  ]);
+  assert.deepEqual(await tailscalePeers({ bin: path.join(dir, 'missing') }), []);
+
+  const found = await discoverHosts({ sshDir: dir, tailscale: { bin: ts } });
+  assert.deepEqual(
+    found.map((x) => [x.target, x.name, x.source]),
+    [
+      ['devbox', 'devbox', 'ssh-config'],
+      ['studio.tail1.ts.net', 'studio', 'tailscale'],
+      ['gpu.lan', 'gpu', 'known-hosts'],
+      ['192.168.1.30', '192.168.1.30', 'known-hosts'],
+      ['100.64.0.9', 'old-vm', 'tailscale'],
+    ],
+  ); // offline peers last; devbox only once
 });
 
 test('an SSH host that is not a host is refused (no option injection)', async () => {

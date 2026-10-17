@@ -151,6 +151,7 @@ export function openapi({ version, port }) {
           responses: { 201: json({ type: 'object' }), 400: err[400] },
         },
       },
+      '/machines/discover': { get: { summary: 'Hosts this computer can reach: ~/.ssh/config, Tailscale peers, ~/.ssh/known_hosts', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/machines/ssh-hosts': { get: { summary: 'Hosts from ~/.ssh/config, for suggestions', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/machines/{mid}': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], patch: { summary: 'Edit a machine (host, port or command changes reconnect)', responses: { 200: json({ type: 'object' }) } }, delete: { summary: 'Remove a machine and its projects here (nothing on the machine is touched)', responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/connect': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Connect: SSH in, start wisp there if needed, open the tunnel', responses: { 200: json({ type: 'object' }) } } },

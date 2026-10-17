@@ -22,7 +22,7 @@ import { createWorktree, worktreeSource, ensureWorktree, removeWorktree, worktre
 import { normalizeRecipe, findRecipe, recipeView, fill, positional } from './recipes.js';
 import { Triggers, normalizeTrigger, triggerView } from './triggers.js';
 import { Remote } from './remote.js';
-import { Machines, splitId, qualify, sshHosts } from './machines.js';
+import { Machines, splitId, qualify, sshHosts, discoverHosts } from './machines.js';
 import { usage } from './usage.js';
 import { normalizeTeam, normalizePreset, delegationReport } from './subagents.js';
 
@@ -963,6 +963,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       return send(res, 201, one(x.id));
     }
     if (id === 'ssh-hosts' && m === 'GET') return send(res, 200, sshHosts());
+    if (id === 'discover' && m === 'GET') return send(res, 200, await discoverHosts());
     machines.get(id); // 404s
     if (!action && m === 'PATCH') return send(res, 200, (await machines.update(id, await readJson(req)), one(id)));
     if (!action && m === 'DELETE') {

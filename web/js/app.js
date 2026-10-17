@@ -3539,14 +3539,31 @@ function openMachines({ host, focusAdd = false } = {}) {
   const close = present(node, host);
   const body = $('.mc-body', node);
   let editing = null; // machine id whose form is open, '' = a new one, null = closed
-  let hosts = [];
-  api('/machines/ssh-hosts')
+  let hosts = []; // found on this computer: ~/.ssh/config, Tailscale peers, ~/.ssh/known_hosts
+  api('/machines/discover')
     .then((h) => {
       hosts = h;
+      const slot = $('.mc-found-slot', node);
+      if (slot) slot.innerHTML = found();
       const dl = $('#sshHosts', node);
-      if (dl) dl.innerHTML = hosts.map((x) => `<option value="${esc(x.host)}">${esc([x.user, x.hostname].filter(Boolean).join('@'))}</option>`).join('');
+      if (dl) dl.innerHTML = datalist();
     })
     .catch(() => {});
+  const datalist = () => hosts.map((x) => `<option value="${esc(x.target)}">${esc(x.detail || '')}</option>`).join('');
+  const SOURCE = { 'ssh-config': '~/.ssh/config', tailscale: 'Tailscale', 'known-hosts': 'You’ve SSHed here before' };
+  // Hosts not added yet, one click from a filled-in form.
+  const found = () => {
+    const added = new Set(S.machines.map((m) => m.target));
+    const list = hosts.filter((x) => !added.has(x.target));
+    if (!list.length) return '';
+    return `<div class="mc-found"><h4>Found on this computer</h4><div class="mc-found-list">${list
+      .slice(0, 12)
+      .map(
+        (x) =>
+          `<button type="button" class="lp-chip${x.online === false ? ' off' : ''}" data-a="pick" data-target="${esc(x.target)}" data-name="${esc(x.name)}" title="${esc([SOURCE[x.source], x.target, x.detail].filter(Boolean).join(' · '))}">${icon('server')}${esc(x.name)}${x.online !== undefined ? `<i class="mc-fdot"></i>` : ''}</button>`,
+      )
+      .join('')}</div></div>`;
+  };
 
   // Projects on a machine open here, with a way back.
   const sub = (view) => {
@@ -3630,8 +3647,10 @@ function openMachines({ host, focusAdd = false } = {}) {
     const add = $('.mc-add', node);
     // The form for a new machine: open when there are none yet, else behind a button.
     if (!S.machines.length || editing === '') {
-      if (!$('form[data-id=""]', add)) add.innerHTML = `<h4>${S.machines.length ? 'Add another machine' : 'Add your first machine'}</h4>${form(null)}<datalist id="sshHosts">${hosts.map((x) => `<option value="${esc(x.host)}">${esc([x.user, x.hostname].filter(Boolean).join('@'))}</option>`).join('')}</datalist>`;
-    } else add.innerHTML = `<button class="lp-chip add mc-new" data-a="new">${icon('plus')}Add a machine</button><datalist id="sshHosts">${hosts.map((x) => `<option value="${esc(x.host)}"></option>`).join('')}</datalist>`;
+      // Keep a half-filled form; only the suggestions above it change.
+      if ($('form[data-id=""]', add)) $('.mc-found-slot', add).innerHTML = found();
+      else add.innerHTML = `<div class="mc-found-slot">${found()}</div><h4>${S.machines.length ? 'Add another machine' : 'Add your first machine'}</h4>${form(null)}<datalist id="sshHosts">${datalist()}</datalist>`;
+    } else add.innerHTML = `<div class="mc-found-slot">${found()}</div><button class="lp-chip add mc-new" data-a="new">${icon('plus')}Add a machine</button><datalist id="sshHosts">${datalist()}</datalist>`;
   };
 
   const menu = (m, anchor) => {
@@ -3703,6 +3722,16 @@ function openMachines({ host, focusAdd = false } = {}) {
       $('.mc-add input[name="target"]', node)?.focus();
       return;
     }
+    if (a === 'pick') {
+      // Fill in the form; connecting still waits for the button.
+      editing = '';
+      paint();
+      const f = $('.mc-add form[data-id=""]', node);
+      f.target.value = b.dataset.target;
+      f.name.value = b.dataset.name;
+      $('button[type="submit"]', f).focus();
+      return;
+    }
     if (a === 'cancel') {
       editing = null;
       paint();
@@ -3718,8 +3747,8 @@ function openMachines({ host, focusAdd = false } = {}) {
   node.addEventListener('input', (e) => {
     if (e.target.name !== 'target') return;
     const name = $('input[name="name"]', e.target.form);
-    const h = hosts.find((x) => x.host === e.target.value.trim());
-    name.placeholder = (h?.host || e.target.value.trim().replace(/^.*@/, '')).slice(0, 40) || 'devbox';
+    const h = hosts.find((x) => x.target === e.target.value.trim());
+    name.placeholder = (h?.name || e.target.value.trim().replace(/^.*@/, '')).slice(0, 40) || 'devbox';
   });
   node.addEventListener('submit', async (e) => {
     e.preventDefault();

@@ -1455,6 +1455,13 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .mc-add { margin-top: 12px; }
 .mc-add h4 { margin-top: 18px; }
 .mc-new { height: 32px; }
+.mc-found { margin-bottom: 14px; }
+.mc-found h4 { margin: 0 0 8px; }
+.mc-found-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.mc-found .lp-chip .i { width: 14px; height: 14px; color: var(--muted); }
+.mc-found .lp-chip.off { color: var(--muted); }
+.mc-fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); }
+.lp-chip.off .mc-fdot { background: var(--faint); }
 .mc-form { display: flex; flex-direction: column; gap: 10px; }
 .mc-row { display: flex; gap: 10px; }
 .mc-field { display: flex; flex-direction: column; gap: 5px; width: 150px; min-width: 0; }
