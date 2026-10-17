@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- A lead with subagents now uses them instead of its harness's built-in subagents. Claude Code leads run with `Task`, `Agent` and `Workflow` disallowed, opencode leads with `permission.task: "deny"`, and every lead is told to use `delegate` in place of its own subagent tool. Without a team, nothing changes.
 - The selects in the recipe and trigger forms and in the Ship it / Run dialogs had lost their dropdown chevron.
 - Settings and Phone text fields, and every select, showed no focus state.
 

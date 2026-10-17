@@ -351,6 +351,8 @@ export class Runner extends EventEmitter {
       model: session.model,
       effort: session.effort || '',
       systemPrompt: prompt0 + workspaceNote(session) + this.promptExtra(session),
+      // A lead with a team delegates through wisp, so the harness's own subagent tool is switched off.
+      delegating: team.length > 0 && !!this.bridge,
       mcpServers: this.bridge && adapter.askTool !== null && !session.parentId
         ? {
             wisp: {

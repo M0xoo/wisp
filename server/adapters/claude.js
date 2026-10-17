@@ -35,7 +35,7 @@ export default {
   },
 
   // Returns { stop(), done: Promise<void> }. Everything else is reported through onEvent.
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, onEvent }) {
     const args = [
       '-p',
       '--output-format', 'stream-json',
@@ -49,6 +49,8 @@ export default {
       args.push('--mcp-config', JSON.stringify({ mcpServers }));
       args.push('--allowedTools', ...Object.keys(mcpServers).map((n) => `mcp__${n}`));
     }
+    // Its built-in subagents (Task, or Agent in newer versions) would bypass the user's team.
+    if (delegating) args.push('--disallowedTools', 'Task', 'Agent', 'Workflow');
     const dirs = [...new Set(attachments.map((a) => path.dirname(a.path)))];
     if (dirs.length) args.push('--add-dir', ...dirs);
     args.push('--verbose'); // terminates the variadic flags above
