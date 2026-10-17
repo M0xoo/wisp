@@ -294,14 +294,17 @@ function item(s) {
     n = { card, head: $('.it-head', card), body: null, turnNodes: new Map(), tray: null, showAll: false, unfolded: new Set(), latestTurn: null };
     S.nodes.set(s.id, n);
     n.head.addEventListener('click', (e) => {
-      if (n.head.querySelector('[contenteditable="true"]')) return;
+      if (s.pending || n.head.querySelector('[contenteditable="true"]')) return;
       if (e.target.closest('[data-a="quick-done"]')) return toggleDone(s.id);
       setFocus(s.id);
       toggle(s.id);
     });
-    card.addEventListener('mousedown', () => setFocus(s.id, { scroll: false }));
+    card.addEventListener('mousedown', () => {
+      if (!s.pending) setFocus(s.id, { scroll: false });
+    });
     n.head.addEventListener('contextmenu', (e) => {
       e.preventDefault();
+      if (s.pending) return;
       setFocus(s.id, { scroll: false });
       taskMenu(s.id, e);
     });
@@ -322,7 +325,7 @@ function renderHead(n, s) {
         ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || 'Done'}</span>`
         : '';
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
-  n.card.className = `item c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
+  n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
   n.head.innerHTML = `
     <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
     <span class="it-main">
@@ -526,6 +529,17 @@ function attachTray() {
     },
     clear() {
       items.length = 0;
+      render();
+    },
+    // Empty the tray for an optimistic send, and put the files back if the send fails.
+    take() {
+      const list = items.splice(0);
+      render();
+      return list;
+    },
+    restore(list) {
+      if (!list?.length) return;
+      items.unshift(...list);
       render();
     },
     get busy() {
@@ -783,17 +797,34 @@ function renderLauncher() {
       if (missing) return toast(`${esc(agentName(missing))} isn’t installed on <b>${esc(t.m.name)}</b>`, { tone: 'bad' });
     }
     const btn = $('#launch', box);
-    btn.disabled = true;
-    btn.classList.add('busy'); // a fetch and fresh worktrees can take a second or two
+    // Optimistic: wait only for uploads, then empty the box and show the task in Working at
+    // once. Fetching and making worktrees can take a few seconds; the real card replaces the
+    // placeholder when the server has it. On failure the prompt and files come back.
+    const attachments = await tray.ids();
+    const files = tray.take();
+    const cmp = compare;
+    const runner = { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
+    const pending = targets.map((t) => addPending(prompt, t, runner));
+    if (compare) (compare = null), paintCompare();
+    ta.value = '';
+    S.drafts.delete('home');
+    ta.dispatchEvent(new Event('input'));
+    if (S.filter !== 'all' && targets.some((t) => t.project.id !== S.filter)) {
+      S.filter = 'all';
+      save('wisp.filter', S.filter);
+    }
+    renderFeed();
+    const ghost = S.nodes.get(pending[0])?.card;
+    showLaunched(btn, ghost);
+    ta.focus();
     try {
-      const attachments = await tray.ids();
       // Several places: one shared groupId, so the runs land as one task with a row each.
       const groupId = targets.length > 1 ? [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('') : undefined;
       const results = await Promise.allSettled(
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: agent?.id || 'claude', mode: curMode, model: curModel, effort: curEffort, attachments, worktree: S.config.defaults.worktree === 'off' && !compare ? false : undefined, compare: compare ? [compare] : undefined, subagents: team.length && canLead(agent?.id) ? team : undefined },
+            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp ? false : undefined, compare: cmp ? [cmp] : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -801,28 +832,20 @@ function renderLauncher() {
         if (r.status === 'rejected') toast(`${esc(placeName(targets[i].k))}: ${esc(r.reason.message)}`, { tone: 'bad' });
       });
       const started = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
-      if (!started.length) return;
+      for (const id of pending) S.sessions.delete(id);
       for (const x of started.flatMap((y) => y.group || [y])) S.sessions.set(x.id, x);
-      const s = started[0];
-      if (compare) (compare = null), paintCompare();
-      ta.value = '';
-      S.drafts.delete('home');
-      tray.clear();
-      ta.dispatchEvent(new Event('input'));
-      if (S.filter !== 'all' && (started.length > 1 || S.filter !== s.projectId)) {
-        S.filter = 'all';
-        save('wisp.filter', S.filter);
+      keepInPlace(feedAnchor(), renderFeed);
+      if (!started.length) {
+        if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
+        tray.restore(files);
+        if (cmp && !compare) (compare = cmp), paintCompare();
+        return;
       }
-      renderFeed();
-      const card = S.nodes.get(s.id)?.card;
-      showLaunched(btn, card?.closest('.task-item') || card);
       askNotify();
     } catch (err) {
+      for (const id of pending) S.sessions.delete(id);
+      renderFeed();
       toast(esc(err.message), { tone: 'bad' });
-    } finally {
-      btn.disabled = false;
-      btn.classList.remove('busy');
-      ta.focus();
     }
   };
   $('#launch', box).onclick = launch;
@@ -1467,6 +1490,65 @@ function launchedFx(from, to) {
   ).onfinish = () => w.remove();
 }
 
+// A launch the server hasn't answered yet: a placeholder summary that shows in Working as a
+// "Starting up" card. It can't be opened; the real card takes its place.
+let pendingSeq = 0;
+function addPending(prompt, { project: p, m }, { agent, model, effort }) {
+  const id = `pending-${++pendingSeq}`;
+  const line = prompt.split('\n')[0].replace(/\s+/g, ' ');
+  const now = Date.now();
+  S.sessions.set(id, {
+    id,
+    pending: true,
+    title: line.length > 64 ? `${line.slice(0, 63)}…` : line,
+    agent,
+    model,
+    effort,
+    cwd: p.path,
+    project: p.name,
+    projectId: p.id,
+    color: p.color || 'slate',
+    state: 'running',
+    live: 'Starting up',
+    createdAt: now,
+    updatedAt: now,
+    machine: m ? { id: m.id, name: m.name, target: m.target } : null,
+  });
+  return id;
+}
+
+// A launch from a dialog (rerun, recipes): the dialog closes and a placeholder shows in Working
+// at once; the real session replaces it, or it disappears and the error is thrown on.
+async function launchBehind({ prompt, cwd, runner }, request) {
+  const sum = S.config.projects.find((p) => p.path === cwd);
+  const project = sum || { path: cwd, name: cwd.split('/').filter(Boolean).pop() || cwd, id: null, color: 'slate' };
+  const ghost = addPending(prompt, { project, m: project.machine ? machineById(project.machine) : null }, runner);
+  if (S.filter !== 'all' && S.filter !== project.id) {
+    S.filter = 'all';
+    save('wisp.filter', S.filter);
+  }
+  renderFeed();
+  const card = S.nodes.get(ghost)?.card;
+  if (card) (card.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), card.classList.add('arrived'), setTimeout(() => card.classList.remove('arrived'), 1600));
+  try {
+    const s = await request();
+    S.sessions.delete(ghost);
+    for (const x of s.group || [s]) S.sessions.set(x.id, x);
+    keepInPlace(feedAnchor(), renderFeed);
+    return s;
+  } catch (err) {
+    S.sessions.delete(ghost);
+    renderFeed();
+    throw err;
+  }
+}
+
+// The real session showed up (live events can beat the launch response): drop its placeholder.
+function dropPending(s) {
+  if (s.pending || s.parentId) return;
+  for (const x of S.sessions.values()) if (x.pending && x.projectId === s.projectId) return S.sessions.delete(x.id);
+}
+
 // A new card lands in Working, below everything in "Needs you", so it's often off-screen. Scroll
 // it into view (just enough) and flash it; the flying wisp only plays when the card is already
 // on screen, since the launcher it starts from may scroll away or fold into the dock.
@@ -1807,8 +1889,18 @@ function renderWorking(s, t) {
     .filter((a) => a.kind !== 'text')
     .slice(-5)
     .forEach((a) => ticker.prepend(actItem(a)));
-  $('.stop', node).onclick = async () => {
-    await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((e) => toast(esc(e.message), { tone: 'bad' }));
+  $('.stop', node).onclick = async (e) => {
+    // Shows at once; the run winds down and the live update replaces this panel.
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.lastChild.textContent = 'Stopping…';
+    $('.w-status b', node).textContent = `Stopping ${agentName(s.agent)}…`;
+    await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((err) => {
+      btn.disabled = false;
+      btn.lastChild.textContent = 'Stop';
+      $('.w-status b', node).textContent = `${agentName(s.agent)} is working`;
+      toast(esc(err.message), { tone: 'bad' });
+    });
   };
   $('.peek', node).onclick = (e) => {
     const log = $('.log', node);
@@ -1836,7 +1928,15 @@ function renderAskCard(s) {
   const answer = async (text) => {
     if (!text.trim()) return;
     node.classList.add('sent');
-    await api(`/sessions/${s.id}/answer`, { method: 'POST', body: { text } }).catch((e) => toast(esc(e.message), { tone: 'bad' }));
+    const undo = startOptimistic(s.id, text, null, { answering: true });
+    try {
+      await api(`/sessions/${s.id}/answer`, { method: 'POST', body: { text } });
+      if (undo) scheduleRefetch(s.id);
+    } catch (e) {
+      node.classList.remove('sent');
+      undo?.();
+      toast(esc(e.message), { tone: 'bad' });
+    }
   };
   node.addEventListener('click', (e) => {
     const b = e.target.closest('.opt');
@@ -2063,19 +2163,56 @@ async function sendReply(id, text) {
   if (!s || !text) return;
   if (n?.tray?.busy) toast('Waiting for uploads…');
   const attachments = n?.tray ? await n.tray.ids() : [];
+  const answering = !!s.ask && !attachments.length;
+  // Optimistic: the composer empties and the card goes to Working before the server answers
+  // (it may first have to bring back an archived worktree, or reach another machine).
+  const ta = n && $('.reply', n.card);
+  if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+  S.drafts.delete(id);
+  const files = n?.tray?.take();
+  const undo = startOptimistic(id, text, files, { answering });
   try {
-    const r = s.ask && !attachments.length
+    const r = answering
       ? await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
       : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing() } });
-    const ta = n && $('.reply', n.card);
-    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
-    S.drafts.delete(id);
-    n?.tray?.clear();
+    if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
     if (r.queued)
       toast(r.ahead ? `Queued behind ${r.ahead} earlier follow-up${r.ahead > 1 ? 's' : ''} — they go out first, in order.` : 'Queued — it goes out as soon as the agent finishes.');
   } catch (err) {
+    undo?.();
+    // Give the message back, unless the user has already started typing another one.
+    if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+    n?.tray?.restore(files);
     toast(esc(err.message), { tone: 'bad' });
   }
+}
+
+// Show a follow-up as started right away: the card moves to Working with the prompt as a live
+// turn. Only when it will start now, not when it queues or interrupts a run already working.
+// Returns an undo for a failed send, or null when nothing changed.
+function startOptimistic(id, text, files, { answering }) {
+  const full = S.full.get(id);
+  const sum = S.sessions.get(id);
+  if (!full || !sum) return null;
+  const live = full.state === 'running' || full.state === 'waiting';
+  if (live && !answering) return null;
+  const now = Date.now();
+  const turn = { id: `pending-${now}`, prompt: text, status: 'running', startedAt: now, activity: [], attachments: (files || []).filter((f) => f.id).map((f) => ({ id: f.id, name: f.name, mime: f.mime })) };
+  const nextFull = { ...full, state: 'running', ask: null, turns: answering ? full.turns : [...full.turns, turn] };
+  const nextSum = { ...sum, state: 'running', live: answering ? 'Picking up your answer' : 'Starting up', updatedAt: now };
+  const apply = (f, sm) => {
+    S.full.set(id, f);
+    S.sessions.set(id, sm);
+    const card = S.nodes.get(id)?.card;
+    keepInPlace(watching(id) ? card : feedAnchor(id), renderFeed);
+    renderBody(id, { fresh: false });
+  };
+  apply(nextFull, nextSum);
+  return () => {
+    // A live update may already have replaced the guess; only roll back what is still ours.
+    if (S.full.get(id) !== nextFull || S.sessions.get(id) !== nextSum) return scheduleRefetch(id);
+    apply(full, sum);
+  };
 }
 
 // --- item actions ------------------------------------------------------------------
@@ -2085,12 +2222,31 @@ async function toggleDone(id) {
   if (!s) return;
   if (s.state === 'running' || s.state === 'waiting') return toast('Still working — stop it first or let it finish.');
   const next = s.state === 'done' ? 'review' : 'done';
-  const leave = next === 'done' && handOff(id); // measured before the live update moves the card
-  await api(`/sessions/${id}`, { method: 'PATCH', body: { state: next } });
-  if (leave) {
-    leave(() => S.sessions.set(id, { ...S.sessions.get(id), state: 'done' }));
-    toast(`Marked done`, { action: { label: 'Undo', run: () => api(`/sessions/${id}`, { method: 'PATCH', body: { state: 'review' } }) } });
+  // Optimistic: the card moves now; a failed save puts it back.
+  move(id, { ...s, state: next }, next === 'done');
+  if (next === 'done') toast(`Marked done`, { action: { label: 'Undo', run: () => toggleDone(id) } });
+  try {
+    await api(`/sessions/${id}`, { method: 'PATCH', body: { state: next } });
+  } catch (err) {
+    revertSummary(id, s);
+    toast(esc(err.message), { tone: 'bad' });
   }
+}
+
+// Apply a summary change locally before the server confirms it. Leaving the list (done, archived)
+// hands focus to the next card; coming back just re-renders around the reader.
+function move(id, next, leaving) {
+  if (leaving) return handOff(id)(() => S.sessions.set(id, next));
+  S.sessions.set(id, next);
+  keepInPlace(feedAnchor(id), renderFeed);
+}
+
+// Put back a summary changed optimistically, unless a live update has replaced it since.
+function revertSummary(id, prev) {
+  const cur = S.sessions.get(id);
+  if (cur && cur.updatedAt > prev.updatedAt) return;
+  S.sessions.set(id, prev);
+  keepInPlace(feedAnchor(id), renderFeed);
 }
 
 // Every finished run of a compare task at once, with one toast to undo them all.
@@ -2098,10 +2254,16 @@ async function taskDone(ids) {
   if (!ids.length) return;
   const card = S.nodes.get(ids[0])?.card.closest('.task-item');
   const next = card?.nextElementSibling?.querySelector('.item')?.dataset.id || card?.nextElementSibling?.dataset.id;
-  const set = (state) => Promise.all(ids.map((id) => api(`/sessions/${id}`, { method: 'PATCH', body: { state } })));
-  await set('done').catch((err) => toast(esc(err.message), { tone: 'bad' }));
-  for (const id of ids) S.sessions.set(id, { ...S.sessions.get(id), state: 'done' });
-  renderFeed();
+  const set = (state) => {
+    const prev = ids.map((id) => S.sessions.get(id));
+    for (const id of ids) S.sessions.set(id, { ...S.sessions.get(id), state });
+    renderFeed();
+    Promise.all(ids.map((id) => api(`/sessions/${id}`, { method: 'PATCH', body: { state } }))).catch((err) => {
+      prev.forEach((p, i) => p && revertSummary(ids[i], p));
+      toast(esc(err.message), { tone: 'bad' });
+    });
+  };
+  set('done');
   if (next && S.nodes.has(next)) setFocus(next);
   toast(`Marked ${ids.length} runs done`, { action: { label: 'Undo', run: () => set('review') } });
 }
@@ -2476,9 +2638,12 @@ const keyHint = (k) => `<kbd class="menu-kbd">${k}</kbd>`;
 
 async function deleteSession(id) {
   if (!confirm('Delete this session from wisp? (The agent’s own history is kept.)')) return;
-  const leave = handOff(id);
-  const ok = await api(`/sessions/${id}`, { method: 'DELETE' }).then(() => true, (err) => toast(esc(err.message), { tone: 'bad' }));
-  if (ok) leave(() => S.sessions.delete(id));
+  const prev = S.sessions.get(id);
+  handOff(id)(() => S.sessions.delete(id));
+  await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => {
+    if (prev && !S.sessions.has(id)) (S.sessions.set(id, prev), keepInPlace(feedAnchor(id), renderFeed));
+    toast(esc(err.message), { tone: 'bad' });
+  });
 }
 
 // Launch the task again as a new session in the same folder: same prompt and attachments,
@@ -2537,22 +2702,13 @@ async function rerun(id) {
   const go = async () => {
     const prompt = ta.value.trim();
     if (!prompt) return ta.focus();
-    const btn = $('[data-a="go"]', node);
-    btn.disabled = true;
+    close();
     try {
-      const next = await api('/sessions', { method: 'POST', body: { prompt, cwd: s.cwd, agent, mode, model, effort, attachments: files.map((f) => f.id) } });
-      S.sessions.set(next.id, next);
-      close();
-      if (S.filter !== 'all' && S.filter !== next.projectId) {
-        S.filter = 'all';
-        save('wisp.filter', S.filter);
-      }
-      renderFeed();
+      const body = { prompt, cwd: s.cwd, agent, mode, model, effort, attachments: files.map((f) => f.id) };
+      const next = await launchBehind({ prompt, cwd: s.cwd, runner: { agent, model, effort } }, () => api('/sessions', { method: 'POST', body }));
       setFocus(next.id);
-      toast(`Rerunning on ${esc(agentName(agent))}`);
     } catch (err) {
-      btn.disabled = false;
-      toast(esc(err.message), { tone: 'bad' });
+      toast(`Rerun failed: ${esc(err.message)}`, { tone: 'bad', action: { label: 'Edit again', run: () => rerun(id) } });
     }
   };
   $('[data-a="go"]', node).onclick = go;
@@ -2568,15 +2724,16 @@ async function rerun(id) {
 }
 
 async function setArchived(id, archived) {
-  const leave = archived && handOff(id);
+  const prev = S.sessions.get(id);
+  if (!prev) return;
+  // Optimistic: the card leaves (or comes back) now; a failed save puts it back.
+  move(id, { ...prev, archived }, archived);
+  if (archived) toast('Archived', { action: { label: 'Undo', run: () => setArchived(id, false) } });
   try {
     await api(`/sessions/${id}`, { method: 'PATCH', body: { archived } });
   } catch (err) {
-    return toast(esc(err.message), { tone: 'bad' });
-  }
-  if (leave) {
-    leave(() => S.sessions.set(id, { ...S.sessions.get(id), archived: true }));
-    toast('Archived', { action: { label: 'Undo', run: () => setArchived(id, false) } });
+    revertSummary(id, prev);
+    toast(esc(err.message), { tone: 'bad' });
   }
 }
 
@@ -3008,16 +3165,21 @@ async function compareView(id) {
     if (a === 'open') return close(), reveal(keep);
     const others = group.filter((g) => g.id !== keep);
     if (!confirm(`Keep ${agentName(S.sessions.get(keep)?.agent)}'s result?\n\nThe other ${others.length === 1 ? 'run is' : `${others.length} runs are`} archived, and ${others.length === 1 ? 'its worktree is' : 'their worktrees are'} deleted with their changes.`)) return;
+    // Optimistic: the others leave the feed now; stopping and cleaning them up goes on behind.
+    for (const o of others) S.sessions.set(o.id, { ...S.sessions.get(o.id), archived: true });
+    close();
+    renderFeed();
+    reveal(keep);
+    toast(`Kept ${esc(agentName(S.sessions.get(keep)?.agent))}'s run. Ship it when you're ready.`);
+    let failed = false;
     for (const o of others) {
       if (o.state === 'running' || o.state === 'waiting') {
         await api(`/sessions/${o.id}/stop`, { method: 'POST', body: {} }).catch(() => {});
         await until(() => S.sessions.get(o.id)?.state !== 'running', 5000);
       }
-      await api(`/sessions/${o.id}`, { method: 'PATCH', body: { archived: true, discardWorktree: true } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+      await api(`/sessions/${o.id}`, { method: 'PATCH', body: { archived: true, discardWorktree: true } }).catch((err) => ((failed = true), toast(esc(err.message), { tone: 'bad' })));
     }
-    close();
-    reveal(keep);
-    toast(`Kept ${esc(agentName(S.sessions.get(keep)?.agent))}'s run. Ship it when you're ready.`);
+    if (failed) loadSessions(); // show what really got archived
   };
 }
 
@@ -3282,18 +3444,17 @@ function runRecipe(r) {
     const params = Object.fromEntries($$('input[name^="p:"]', node).map((i) => [i.name.slice(2), i.value]));
     const d = S.config.defaults;
     const agent = r.agent || d.agent;
+    const cwd = needsProject ? $('[name="cwd"]', node).value : r.cwd;
+    const model = r.agent ? r.model : savedModel(agent);
+    const effort = r.agent ? r.effort : savedEffort(agent, model);
+    const body = { params, cwd: needsProject ? cwd : undefined, agent, model: r.agent ? undefined : model, effort: r.agent ? undefined : effort, mode: r.mode || d.mode };
+    close();
     try {
-      const s = await api(`/recipes/${r.id}/run`, {
-        method: 'POST',
-        body: { params, cwd: needsProject ? $('[name="cwd"]', node).value : undefined, agent, model: r.agent ? undefined : savedModel(agent), effort: r.agent ? undefined : savedEffort(agent, savedModel(agent)), mode: r.mode || d.mode },
-      });
-      S.sessions.set(s.id, s);
-      close();
-      renderFeed();
+      const prompt = r.prompt.replace(/\{([a-zA-Z][\w-]{0,30})\}/g, (_, k) => params[k] || ''); // as the server fills it
+      const s = await launchBehind({ prompt, cwd, runner: { agent, model, effort } }, () => api(`/recipes/${r.id}/run`, { method: 'POST', body }));
       setFocus(s.id);
-      toast(`Running “${esc(r.name)}”`);
     } catch (err) {
-      toast(esc(err.message), { tone: 'bad' });
+      toast(`“${esc(r.name)}” didn’t start: ${esc(err.message)}`, { tone: 'bad', action: { label: 'Try again', run: () => runRecipe(r) } });
     }
   };
   // Always wait for Run, even with nothing to fill in, so a click on a recipe never launches it outright.
@@ -4251,7 +4412,7 @@ function paletteItems() {
     items.push({ group: g, label: 'Delete session', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
   }
 
-  const sessions = [...S.sessions.values()].sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
+  const sessions = [...S.sessions.values()].filter((s) => !s.pending).sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
   for (const s of sessions) {
     const state = s.archived ? 'Archived' : s.state === 'review' ? STATUS_LABEL[s.status] || 'Review' : STATE_LABEL[s.state] || s.state;
     items.push({
@@ -4350,6 +4511,7 @@ function connect() {
     const s = JSON.parse(e.data);
     if (s.parentId) return onChildSummary(s); // a subagent: lives inside its lead's card
     const prev = S.sessions.get(s.id);
+    if (!prev) dropPending(s);
     const was = prev && sectionOf(prev); // before the update: a compare task's section depends on all its runs
     S.sessions.set(s.id, s);
     // A section change moves the card (a follow-up sends it from "Needs you" to "Working").
@@ -4449,7 +4611,7 @@ async function installUpdate() {
 
 // --- keyboard ---------------------------------------------------------------------------
 
-const feedIds = () => $$('#feed .item').map((x) => x.dataset.id);
+const feedIds = () => $$('#feed .item:not(.pending)').map((x) => x.dataset.id);
 // The user takes a card out of its list (done, archive, delete). The next card — the one below,
 // or the one above at the end of the list — gets focus and lands where the old one sat, so
 // triage continues on the same spot. Call before the request, while the card is still laid
