@@ -8,6 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - Antigravity CLI adapter (`agy --input-format stream-json --output-format stream-json`). Plan → `--mode plan`, Edits → `--mode accept-edits`, Full auto → `--dangerously-skip-permissions`; models from `agy models`, `--effort low|medium|high`, follow-ups via `--conversation`. Like Cursor it has no flag to inject MCP servers, so Antigravity agents ask with a `question` block. Override the binary with `WISP_ANTIGRAVITY_BIN`.
+- Integrations: wisp can now be driven by other agents, editors and scripts. Reference: [docs/integrations.md](docs/integrations.md).
+- `wisp mcp`: a stdio MCP server with `wisp_launch`, `wisp_wait`, `wisp_get`, `wisp_reply`, `wisp_list`, `wisp_stop` and `wisp_agents`, so Claude Code, Codex, opencode, Cursor or Claude Desktop can hand tasks to wisp and read the results.
+- Agent skill (`skills/wisp/SKILL.md`), installed with `wisp skill install [--agent claude|codex|opencode|all] [--project]`.
+- Scripting CLI: `wisp ls`, `show`, `wait`, `reply`, `stop`, plus `--json`, `--wait`, `--cwd`, `--model` and `--effort` on launches. Use `wisp -- …` for a task whose first word is a command name.
+- JS SDK: `import { WispClient } from 'wisp-agents'`. It connects to the running wisp (or starts a headless one) and covers launch, wait, reply, presentation, uploads and the event stream. `wisp-agents/render`, `/protocol` and `/server` are exported too.
+- HTTP API: `GET /api/health`, `GET /api/openapi.json` (OpenAPI 3.1), `GET /api/sessions/:id/wait` (long-poll until it finishes or asks), `GET /api/sessions/:id/presentation` (blocks + markdown, `?format=markdown`), and `state`/`agent`/`project`/`cwd`/`archived`/`limit` filters on `GET /api/sessions`.
+- `~/.wisp/server.json` advertises the running server's URL, port and pid.
+- Webhooks (`PATCH /api/config {"webhooks": [...]}`): POST `session.finished` / `session.waiting` with the presentation as markdown.
 
 ## [0.5.0] - 2026-10-17
 

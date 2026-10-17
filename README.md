@@ -15,7 +15,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
 [![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity-d97757)](#adding-a-harness)
 
-[Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
+[Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
 </div>
 
@@ -48,6 +48,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
+| 🔌 **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
 | 🪶 **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
 
 ## Quick start
@@ -104,16 +105,55 @@ wisp --mode plan "audit deps"     # permission mode: plan | edits | auto
 wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor | antigravity
 ```
 
+Scripting (every command takes `--json`):
+
+```sh
+wisp "add a test" --wait          # block until it finishes, print the presentation as markdown
+wisp ls --state running,waiting   # list sessions
+wisp show <id>                    # state + latest presentation
+wisp wait <id>                    # until it finishes or asks you something
+wisp reply <id> "also do X"       # follow up (answers a pending question)
+wisp stop <id>
+wisp mcp                          # MCP server for other agents and editors
+wisp skill install                # install the wisp skill for Claude Code (--agent all for Codex/opencode too)
+```
+
 | Option | Description |
 |---|---|
 | `--port`, `-p N` | Port to use (default `4477`, or `WISP_PORT`) |
 | `--mode`, `-m` | `plan` · `edits` · `auto` |
 | `--agent`, `-a` | `claude` · `codex` · `opencode` · `cursor` · `antigravity` (default: the agent last picked in the launcher) |
+| `--model` · `--effort` | Model id and thinking level for the launch |
+| `--cwd`, `-C DIR` | Project folder (default: the current one) |
+| `--wait`, `-w` | Wait for the run to finish or ask, then print the presentation |
+| `--json` | Machine-readable output |
 | `--browser`, `-b` | Use the browser instead of the desktop app |
 | `--no-open` | Just run the server; open nothing |
 | `--version`, `-v` | Print the version |
 
 > `npm install -g wisp-agents` (or `npm link` from a clone) puts `wisp` on your `PATH`. Without installing, use `npx wisp-agents …` with the same arguments.
+
+## Integrations
+
+wisp is a local server, and the app is just one client of it. Other agents, editors and scripts can launch tasks into the same queue and read the presentations back. Full reference: [docs/integrations.md](docs/integrations.md).
+
+```sh
+claude mcp add wisp -- npx -y wisp-agents mcp   # Claude Code can now delegate with wisp_launch / wisp_wait / wisp_reply
+wisp skill install --agent all                  # teach Claude Code, Codex and opencode when and how to use wisp
+```
+
+```js
+import { WispClient } from 'wisp-agents';
+const wisp = await WispClient.connect();
+const s = await wisp.launch({ prompt: 'fix the flaky auth test', cwd: '/path/to/repo' });
+console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markdown);
+```
+
+- **MCP** (`wisp mcp`): `wisp_launch`, `wisp_wait`, `wisp_get`, `wisp_reply`, `wisp_list`, `wisp_stop`, `wisp_agents`. Config snippets for Claude Code, Codex, opencode, Cursor and Claude Desktop are in the docs.
+- **Skill** ([`skills/wisp/SKILL.md`](skills/wisp/SKILL.md)): when to delegate, how to brief, and to pass a waiting agent's question on to you instead of answering it.
+- **HTTP API**: `GET /api/openapi.json`. The new routes are `/api/health`, `/api/sessions/:id/wait` (long-poll), `/api/sessions/:id/presentation` (blocks + markdown), and filters on `/api/sessions`.
+- **Discovery**: the running server writes `~/.wisp/server.json` (`url`, `port`, `pid`, `version`).
+- **Webhooks**: `PATCH /api/config {"webhooks":[…]}`. wisp POSTs `session.finished` and `session.waiting` with the presentation as markdown.
 
 ## Keyboard shortcuts
 
@@ -156,6 +196,10 @@ wisp/
 │   └── wisp.js            # CLI: starts the server or talks to the running one
 ├── server/
 │   ├── index.js           # HTTP API, SSE stream, static UI, uploads
+│   ├── openapi.js         # OpenAPI document for the public API
+│   ├── client.js          # JS SDK (wisp-agents/client), used by the CLI and MCP server
+│   ├── mcp-wisp.js        # `wisp mcp`: wisp as tools for other agents
+│   ├── render.js          # presentation → markdown
 │   ├── runner.js          # session lifecycle, follow-ups, event normalization
 │   ├── protocol.js        # system prompt + ```wisp block parser (markdown fallback)
 │   ├── mcp-ask.js         # ask_user MCP server
@@ -170,6 +214,7 @@ wisp/
 │       ├── opencode.js    # opencode adapter
 │       ├── cursor.js      # Cursor CLI adapter
 │       └── antigravity.js # Antigravity CLI adapter
+├── skills/wisp/SKILL.md   # agent skill: how other agents use wisp
 ├── web/                   # vanilla JS UI, no build step
 │   ├── index.html
 │   ├── css/app.css
