@@ -3306,7 +3306,6 @@ function openSettings(opts) {
           <div class="sx-group">${S.agents
             .map((a) => row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(a.available ? a.version : a.error || 'not found'), `<span class="sx-state ${a.available ? 'ok' : 'bad'}"><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`))
             .join('')}</div>
-          <p class="hint">Others plug in via <code>server/adapters</code>.</p>
         </section>
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">
