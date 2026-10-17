@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>wisp — Run Claude Code, Codex &amp; Cursor agents in the background</title>
-  <meta name="description" content="wisp is a free, open-source launcher that runs coding agents (Claude Code, Codex, opencode, Cursor, Antigravity) in the background and hands you a 30-second presentation instead of a transcript." />
+  <meta name="description" content="wisp is a free, open-source launcher that runs coding agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok) in the background and hands you a 30-second presentation instead of a transcript." />
   <link rel="canonical" href="https://m0xoo.github.io/wisp/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="M0xoo" />
@@ -13,7 +13,7 @@
   <meta property="og:site_name" content="wisp" />
   <meta property="og:url" content="https://m0xoo.github.io/wisp/" />
   <meta property="og:title" content="wisp — Send coding agents off. Read the highlights." />
-  <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor and Antigravity in the background. Get diffs, tests and decisions back as a 30-second presentation — no transcript." />
+  <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in the background. Get diffs, tests and decisions back as a 30-second presentation — no transcript." />
   <meta property="og:image" content="https://m0xoo.github.io/wisp/assets/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -21,7 +21,7 @@
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="wisp — Send coding agents off. Read the highlights." />
-  <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor and Antigravity in the background. Read a 30-second presentation instead of the transcript." />
+  <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in the background. Read a 30-second presentation instead of the transcript." />
   <meta name="twitter:image" content="https://m0xoo.github.io/wisp/assets/og.png" />
   <meta name="twitter:image:alt" content="wisp — Send agents off. Read the highlights." />
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
@@ -67,9 +67,9 @@
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@type": "Person", "name": "M0xoo", "url": "https://github.com/M0xoo" },
-        "keywords": "Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, AI coding agents, MCP server, developer tools",
+        "keywords": "Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, AI coding agents, MCP server, developer tools",
         "featureList": [
-          "Runs Claude Code, Codex, opencode, Cursor CLI and Antigravity CLI in the background",
+          "Runs Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI and Grok Build in the background",
           "Animated presentations instead of transcripts",
           "Real diffs captured from the agent's own tool calls",
           "ask_user tool so agents can ask questions mid-run",
@@ -104,7 +104,7 @@
             "name": "Which coding agents does wisp support?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Claude Code (claude), OpenAI Codex (codex), opencode, Cursor CLI (cursor-agent) and Antigravity CLI (agy). Each harness is one adapter file, so adding another is small."
+              "text": "Claude Code (claude), OpenAI Codex (codex), opencode, Cursor CLI (cursor-agent), Antigravity CLI (agy) and Grok Build (grok). Each harness is one adapter file, so adding another is small."
             }
           },
           {
@@ -120,7 +120,7 @@
             "name": "Is wisp free?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor or Antigravity account, and those providers bill as usual."
+              "text": "Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity or Grok account, and those providers bill as usual."
             }
           },
           {
@@ -215,7 +215,7 @@
           <span class="copy-label">Copy</span>
         </button>
       </div>
-      <p class="works reveal">Works with <b>Claude Code</b> · <b>Codex</b> · <b>opencode</b> · <b>Cursor</b> · <b>Antigravity</b></p>
+      <p class="works reveal">Works with <b>Claude Code</b> · <b>Codex</b> · <b>opencode</b> · <b>Cursor</b> · <b>Antigravity</b> · <b>Grok</b></p>
       <p class="platforms reveal"><b>macOS</b> stable · Linux &amp; Windows beta</p>
     </div>
 
@@ -544,6 +544,7 @@
       <div class="h on"><span class="hd"></span>opencode<small>shipping</small></div>
       <div class="h on"><span class="hd"></span>Cursor<small>shipping</small></div>
       <div class="h on"><span class="hd"></span>Antigravity<small>shipping</small></div>
+      <div class="h on"><span class="hd"></span>Grok<small>shipping</small></div>
       <div class="h add"><span>+</span>Your harness<small>one file</small></div>
     </div>
   </section>
@@ -553,7 +554,7 @@
     <div class="sec-head center reveal">
       <p class="eyebrow">Get started</p>
       <h2>Ninety seconds to <em>your first handoff</em>.</h2>
-      <p>Requires Node ≥ 20 and one harness signed in: Claude Code, Codex, opencode, Cursor or Antigravity CLI.</p>
+      <p>Requires Node ≥ 20 and one harness signed in: Claude Code, Codex, opencode, Cursor, Antigravity CLI or Grok Build.</p>
     </div>
     <div class="install window reveal">
       <div class="win-bar">
@@ -585,7 +586,7 @@
       </details>
       <details class="qa">
         <summary>Which coding agents does wisp support?</summary>
-        <p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>) and Antigravity CLI (<code>agy</code>). Each harness is one adapter file, so adding another is small.</p>
+        <p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>), Antigravity CLI (<code>agy</code>) and Grok Build (<code>grok</code>). Each harness is one adapter file, so adding another is small.</p>
       </details>
       <details class="qa">
         <summary>How do I install wisp?</summary>
@@ -593,7 +594,7 @@
       </details>
       <details class="qa">
         <summary>Is wisp free?</summary>
-        <p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor or Antigravity account, and those providers bill as usual.</p>
+        <p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity or Grok account, and those providers bill as usual.</p>
       </details>
       <details class="qa">
         <summary>Does my code leave my machine?</summary>

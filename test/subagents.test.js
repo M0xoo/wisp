@@ -53,7 +53,7 @@ const TEAM = [
   { name: 'Researcher', agent: 'opencode', model: 'fake/model-a', use: 'research' },
 ];
 
-for (const lead of ['claude', 'codex', 'opencode']) {
+for (const lead of ['claude', 'codex', 'opencode', 'grok']) {
   test(`${lead} lead delegates to codex and opencode subagents and gets their reports`, async () => {
     const cwd = makeRepo();
     const s = await api('/sessions', { prompt: 'DELEGATE the review', cwd, agent: lead, worktree: false, subagents: TEAM });

@@ -1,6 +1,6 @@
 # wisp
 
-> Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI) in the background and hands back a 30-second animated presentation instead of a 4,000-line transcript.
+> Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build) in the background and hands back a 30-second animated presentation instead of a 4,000-line transcript.
 
 - Website: https://m0xoo.github.io/wisp/
 - GitHub: https://github.com/M0xoo/wisp
@@ -31,6 +31,7 @@ wisp --mode plan "audit dependencies"
 - **opencode** (`opencode`)
 - **Cursor CLI** (`cursor-agent`)
 - **Antigravity CLI** (`agy`)
+- **Grok Build** (`grok`)
 
 ## Key features
 

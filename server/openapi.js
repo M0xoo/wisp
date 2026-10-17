@@ -16,7 +16,7 @@ export function openapi({ version, port }) {
       title: 'wisp',
       version,
       description:
-        'Local API of wisp, a launcher and queue for coding agents (Claude Code, Codex, opencode, Cursor, Antigravity). ' +
+        'Local API of wisp, a launcher and queue for coding agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok). ' +
         'Binds to 127.0.0.1 only. Requests must carry a Host of 127.0.0.1/localhost:<port>; non-GET requests must be ' +
         'application/json (uploads: application/octet-stream) and, if they send an Origin, a local one. ' +
         'The running server advertises { url, port, pid, version } in ~/.wisp/server.json.',
@@ -246,7 +246,7 @@ export function openapi({ version, port }) {
           properties: {
             prompt: { type: 'string' },
             cwd: { type: 'string', description: 'Project folder (absolute; ~ allowed). Default: the server’s cwd' },
-            agent: { enum: ['claude', 'codex', 'opencode', 'cursor', 'antigravity'], default: 'claude' },
+            agent: { enum: ['claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'claude' },
             mode: { enum: ['plan', 'edits', 'auto'], default: 'edits' },
             model: { type: 'string' },
             effort: { type: 'string', description: 'Thinking level: low, medium, high, xhigh, max (per harness)' },

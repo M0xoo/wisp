@@ -1,4 +1,4 @@
-// A stand-in for the claude / codex / opencode / cursor-agent / agy CLIs. It speaks each one's real
+// A stand-in for the claude / codex / opencode / cursor-agent / agy / grok CLIs. It speaks each one's real
 // output format (captured from the actual CLIs), edits files for real, and — when the prompt
 // says ASK and an MCP server was injected — calls wisp's ask_user tool like a real agent would.
 //
@@ -41,16 +41,24 @@ if (name === 'cursor-agent' && argv[0] === '--list-models') {
   console.log('Available models\n\nauto - Auto (current, default)\nfast-1 - Fast One\nbig-2 - Big Two');
   process.exit(0);
 }
+if (name === 'grok' && argv[0] === 'models') {
+  console.log('You are logged in with grok.com.\n\nDefault model: grok-9\n\nAvailable models:\n  * grok-9 (default)\n  - grok-9-fast');
+  process.exit(0);
+}
 if (name === 'agy' && argv[0] === 'models') {
   console.log('Fetching available models...\ngemini-9-pro-high\tGemini 9 Pro (High)\ngemini-9-flash          Gemini 9 Flash');
   process.exit(0);
 }
 
-const stdin = await new Promise((resolve) => {
-  let s = '';
-  process.stdin.setEncoding('utf8');
-  process.stdin.on('data', (d) => (s += d)).on('end', () => resolve(s));
-});
+// grok takes its prompt as --prompt-file (it never reads stdin); it's recorded as stdin.
+const stdin =
+  name === 'grok'
+    ? fs.readFileSync(flag('--prompt-file'), 'utf8')
+    : await new Promise((resolve) => {
+        let s = '';
+        process.stdin.setEncoding('utf8');
+        process.stdin.on('data', (d) => (s += d)).on('end', () => resolve(s));
+      });
 
 // A retro run (wisp's learner): recorded on its own, no tools, just the JSON reply.
 const retro = name === 'claude' && !!flag('--append-system-prompt')?.includes('# wisp retro');
@@ -93,6 +101,12 @@ function injectedMcp() {
     const srv = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || '{}').mcp?.wisp;
     return srv ? { command: srv.command[0], args: srv.command.slice(1), env: srv.environment } : null;
   }
+  if (name === 'grok') {
+    // --agent <file>: an agent definition whose frontmatter declares `mcpServers: [ … ]`.
+    const file = flag('--agent');
+    const line = file && fs.readFileSync(file, 'utf8').match(/^mcpServers: (.*)$/m);
+    return line ? JSON.parse(line[1]).find((s) => s.name === 'wisp') : null;
+  }
   return null; // cursor-agent and agy can't take one
 }
 
@@ -128,7 +142,7 @@ const cwd = process.cwd();
 const target = path.join(cwd, 'math.js');
 const before = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
 const after = before.replace('a - b', 'a + b');
-const resumeId = name === 'claude' || name === 'cursor-agent' ? flag('--resume') : name === 'opencode' ? flag('--session') : name === 'agy' ? flag('--conversation') : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
+const resumeId = name === 'claude' || name === 'cursor-agent' || name === 'grok' ? flag('--resume') : name === 'opencode' ? flag('--session') : name === 'agy' ? flag('--conversation') : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
 const session = resumeId || `${name}-session-1`;
 const final = (answer) =>
   'All done.\n```wisp\n' + JSON.stringify({ blocks: [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : 'No question asked.', status: 'done' }] }) + '\n```';
@@ -224,5 +238,33 @@ if (name === 'claude') {
     step(4, { state: 'DONE', step_type: 'agent_response', text_delta: 'it.' });
     const usage = { input_tokens: 10, output_tokens: 5, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 15 };
     out({ event: 'result', result: { conversation_id: session, status: 'SUCCESS', response: final(''), duration_seconds: 0.01, num_turns: 1, usage } });
+  }
+} else if (name === 'grok') {
+  // --output-format streaming-messages-json: Claude's stream-json shape with grok's tool names.
+  // A batch of tool calls may be streamed after it ran; results follow as `user` tool_results.
+  const ev = (o) => out({ ...o, parent_tool_use_id: null, session_id: session });
+  const use = (id, tool, input) => ev({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id, name: tool, input }] } });
+  const result = (id, content, isError = false) => ev({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content, is_error: isError }] } });
+  out({ type: 'system', subtype: 'init', session_id: session, cwd, tools: ['read_file', 'search_replace', 'write', 'run_terminal_command', 'use_tool'] });
+  use('c1', 'read_file', { target_file: target });
+  if (process.env.FAKE_HANG) hang();
+  else {
+    result('c1', JSON.stringify({ type: 'ReadFile' }));
+    fs.writeFileSync(target, after);
+    fs.writeFileSync(path.join(cwd, 'notes.txt'), 'new file\n');
+    ev({ type: 'assistant', message: { role: 'assistant', content: [
+      { type: 'thinking', thinking: 'fixing' },
+      { type: 'tool_use', id: 'c2', name: 'search_replace', input: { file_path: target, old_string: 'a - b', new_string: 'a + b' } },
+      { type: 'tool_use', id: 'c3', name: 'write', input: { file_path: path.join(cwd, 'notes.txt'), content: 'new file\n' } },
+    ] } });
+    ev({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'c2', content: '{}', is_error: false }, { type: 'tool_result', tool_use_id: 'c3', content: '{}', is_error: false }] } });
+    use('c4', 'run_terminal_command', { command: 'npm test', description: 'Run the tests' });
+    result('c4', '1 failing', true);
+    const answer = await ask();
+    if (answer) {
+      use('c5', 'use_tool', { tool_name: 'wisp__ask_user', tool_input: { question: 'Proceed with the fix?' } });
+      result('c5', answer);
+    }
+    out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 5, num_turns: 3, result: final(answer), stop_reason: 'end_turn', total_cost_usd: 0.02, usage: { input_tokens: 10, output_tokens: 5 }, session_id: session });
   }
 }
