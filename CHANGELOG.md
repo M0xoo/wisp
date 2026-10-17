@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-17
+
 ### Added
 
 - Antigravity CLI adapter (`agy --input-format stream-json --output-format stream-json`). Plan → `--mode plan`, Edits → `--mode accept-edits`, Full auto → `--dangerously-skip-permissions`; models from `agy models`, `--effort low|medium|high`, follow-ups via `--conversation`. Like Cursor it has no flag to inject MCP servers, so Antigravity agents ask with a `question` block. Override the binary with `WISP_ANTIGRAVITY_BIN`.
@@ -16,6 +18,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - HTTP API: `GET /api/health`, `GET /api/openapi.json` (OpenAPI 3.1), `GET /api/sessions/:id/wait` (long-poll until it finishes or asks), `GET /api/sessions/:id/presentation` (blocks + markdown, `?format=markdown`), and `state`/`agent`/`project`/`cwd`/`archived`/`limit` filters on `GET /api/sessions`.
 - `~/.wisp/server.json` advertises the running server's URL, port and pid.
 - Webhooks (`PATCH /api/config {"webhooks": [...]}`): POST `session.finished` / `session.waiting` with the presentation as markdown.
+
+### Fixed
+
+- Clicking a harness in the harness · model picker (or Enter on it) switches to it with the model and thinking level shown, instead of only previewing its models.
+- Antigravity models are listed with newer `agy` builds that print tab-separated `agy models` output.
+- A harness CLI installed while wisp is running is detected without restarting wisp.
 
 ## [0.5.0] - 2026-10-17
 
@@ -101,7 +109,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/M0xoo/wisp/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/M0xoo/wisp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/M0xoo/wisp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/M0xoo/wisp/compare/v0.2.2...v0.3.0
