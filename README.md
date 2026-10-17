@@ -50,6 +50,8 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🧠 **Learns as you go** | After a session goes quiet, a background retro records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later runs get them in their prompt. See [Learning](#learning). |
 | 🌿 **A worktree per task** | In a git repo each task gets its own worktree and branch from `origin/main`, so parallel agents never collide. |
 | 🚢 **Ship it** | One click commits, pushes and opens the PR. The card follows CI and reviews; **Merge** squash-merges and syncs your local main. |
+| 🤝 **Subagents** | Give the lead agent a team on other harnesses (e.g. Claude Code hands tests to Codex ×3). It delegates through a `delegate` tool; their edits land in its worktree. See [Subagents](#subagents). |
+| ⏪ **Checkpoints & rollback** | Every turn is snapshotted first. Restore to before any turn, revert a single file, or re-run a command block from the presentation. |
 | ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
 | 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.8.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
@@ -282,6 +284,14 @@ In a git repo, every launch (except Plan mode) runs in its own [git worktree](ht
 **Compare** (the **vs** button next to the harness picker) launches the same task on a second harness. Both get their own worktree and show up as one task in the feed, with a row per run; **Compare** on the task shows them side by side, and **Keep this** archives the others and deletes their worktrees.
 
 Turn worktrees off in Settings → *Worktree per task*, with the launcher's **Worktree / In place** toggle, or per launch (`--no-worktree`, `"worktree": false`).
+
+## Subagents
+
+The launcher's **Subagents** button gives the lead agent a team: up to 6 members, each with its own harness, model, thinking level, name, a **Use for** note that tells the lead when to pick it, and a **×N** copies count (`Codex ×3` → `codex#1`…`codex#3`). The lead gets a `delegate` tool on wisp's MCP server; tasks sent in one call run in parallel in the lead's folder, and delegating to the same member again resumes its conversation. Claude Code, Codex and opencode can lead; Cursor and Antigravity can be members. **Save as preset** stores a team for later. Subagent edits count as the lead's, so they show up in its diffs, rollback and Ship it. API: `subagents` / `preset` on `POST /sessions`, `/teams`.
+
+## Checkpoints and rollback
+
+Before each turn, wisp snapshots the git working tree (pinned at `refs/wisp/checkpoints/<session>/<turn>`). **Restore to before this turn** (turn bar, session menu or ⌘K) rolls back; **Re-apply turn** undoes that. `diff` and `files` blocks have a per-file **Revert / Re-apply**, and `actions`, `terminal` and `tests` blocks run their command in the project folder with one click.
 
 ## Automations
 

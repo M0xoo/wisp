@@ -42,6 +42,11 @@ wisp --mode plan "audit dependencies"
 - **Permission modes**: `Plan` (read-only), `Edits` (auto-accept file edits), `Full auto` (unattended commands, edits, and tests).
 - **Learns as you go**: After a session goes quiet, a background retro records your preferences and the agent's lessons, globally and per project; later runs get them in their prompt. Review and edit them in the Memory view.
 - **Rerun & updates**: Rerun any task with another harness/model (`⇧R`); an in-app Update button installs new `wisp-agents` releases.
+- **Worktree per task & Ship it**: Each task runs in its own git worktree and branch; one click (`S`) commits, pushes and opens the PR, then follows CI and reviews; **Merge** squash-merges.
+- **Subagents**: Give the lead agent a team on other harnesses (e.g. Claude Code delegating to Codex ×3) through a `delegate` tool.
+- **Checkpoints & rollback**: Every turn is snapshotted; restore to before any turn or revert a single file.
+- **Compare, recipes, triggers**: Run one task on two harnesses side by side; saved prompts with `{params}`; triggers on a schedule, failed CI or labelled issues.
+- **Usage & phone**: Spend and success rate per project and model; questions and finished tasks on ntfy or Telegram.
 - **Zero runtime dependencies**: The server uses Node.js built-ins only and stores plain JSON state in `~/.wisp`.
 
 ## Integrations & programmatic surfaces
