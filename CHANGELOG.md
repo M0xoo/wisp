@@ -14,6 +14,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The app responds right away instead of waiting for the server. A new task clears the prompt box and shows up in **Working** as a "Starting up" card while wisp makes its worktree. A follow-up or an answer clears the composer and moves the card to **Working** with your message as the live turn. **Mark done**, **Reopen**, **Archive**, **Delete**, **Stop**, **Rerun**, recipe runs and **Keep this** in Compare also act immediately. If the server refuses, the change is undone, your text and attachments come back, and an error toast says why.
 - The web app uses the same icon as the site and the desktop app (the glowing orb on a dark tile) for its browser tab, home-screen shortcut and notifications.
 
+### Fixed
+
+- The launcher's harness picker now lists the harnesses installed on the places picked under **Run on**, not the ones on this computer. Any picked place that has a harness makes it pickable (a union), with its models taken from a place that has it; a harness missing on some of them says **Not on <machine>**, and launching names the place it's missing on. Before, running only on a machine still offered Claude when only this computer had it, and hid a harness only the machine had. Changing the places (or a machine coming online) moves the pick to an installed harness if the current one isn't there. Machines now report each harness's models, thinking levels and whether it can lead subagents.
+
 ## [0.10.0] - 2026-10-18
 
 ### Added

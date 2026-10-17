@@ -64,6 +64,28 @@ const MODES = [
 const KIND_ICON = { read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask' };
 const STATUS_LABEL = { done: 'Done', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
 const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id === 'wisp' ? 'wisp' : id);
+// Harness lists per place: '' is this computer, else a machine (what it reported when it came online).
+const agentsAt = (k) => (k ? (machineById(k)?.state === 'online' && machineById(k).remote?.agents) || null : S.agents);
+// A harness's models and levels: this computer's if it's installed here, else the first machine's that has it.
+function agentById(id) {
+  const local = S.agents.find((a) => a.id === id);
+  if (local?.available) return local;
+  return S.machines.map((m) => agentsAt(m.id)?.find((a) => a.id === id && a.available)).find(Boolean) || local;
+}
+// The harnesses you can pick for the places under "Run on": installed on any of them counts (a union).
+// `missing` names the picked places that don't have it. Machines not online yet don't count.
+function harnessesAt(places) {
+  const known = places.map((k) => [k, agentsAt(k)]).filter(([, l]) => l);
+  if (!known.length) known.push(['', S.agents]);
+  const ids = [...new Set([...S.agents, ...known.flatMap(([, l]) => l)].map((a) => a.id))];
+  return ids
+    .map((id) => {
+      const hits = known.filter(([, l]) => l.some((a) => a.id === id && a.available));
+      const base = hits.length ? hits[0][1].find((a) => a.id === id) : S.agents.find((a) => a.id === id) || known.flatMap(([, l]) => l).find((a) => a.id === id);
+      return { ...base, available: hits.length > 0, missing: hits.length ? known.filter((x) => !hits.includes(x)).map(([k]) => k) : [] };
+    })
+    .filter((a) => a.available || S.agents.some((x) => x.id === a.id));
+}
 
 // Harness logos for the request bubble, vendored from @lobehub/icons into web/logos/.
 // `mono` marks are drawn in the text colour so they work in both themes.
@@ -83,14 +105,14 @@ function harnessLogo(agent) {
 // Reasoning levels the harness accepts for a model: the model's own list (opencode variants),
 // else the harness-wide one. Empty means the harness has no knob for it.
 function effortsFor(agent, model) {
-  const a = S.agents.find((x) => x.id === agent);
+  const a = agentById(agent);
   return a?.models?.find((m) => m.id === model)?.efforts ?? a?.efforts ?? [];
 }
 const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUpperCase() + e.slice(1);
 
 function modelBadge(agent, model, effort) {
   if (agent === 'wisp') return '';
-  const label = (model && S.agents.find((a) => a.id === agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
+  const label = (model && agentById(agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
   const tip = `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`;
   const logo = harnessLogo(agent);
   return `<span class="model-logo" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}</span>`;
@@ -620,7 +642,7 @@ function syncWhere() {
 function savedModel(id) {
   const d = S.config.defaults;
   const want = d.models?.[id] ?? (id === d.agent ? d.model : '');
-  const models = S.agents.find((a) => a.id === id)?.models || [];
+  const models = agentById(id)?.models || [];
   return models.some((m) => m.id === want) ? want : '';
 }
 // Thinking level too, and only if the chosen model still accepts it.
@@ -633,9 +655,9 @@ function savedEffort(id, model) {
 function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || 'edits';
-  const ready = S.agents.filter((a) => a.available);
-  const chosen = S.agents.find((a) => a.id === (S.config.defaults.agent || 'claude'));
-  let agent = chosen?.available ? chosen : ready[0] || chosen || S.agents[0];
+  const here = harnessesAt(launchWhere);
+  const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'claude'));
+  let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
   box.innerHTML = `
     <div class="l-projects"></div>
     <textarea id="prompt" rows="2" spellcheck="false"></textarea>
@@ -733,7 +755,7 @@ function renderLauncher() {
   const paintTeam = () => paintTeamBtn(teamBtn, team, teamPreset, agent?.id);
   paintTeam();
   teamBtn.onclick = () =>
-    teamEditor(teamBtn, { lead: agent?.id, team, presetId: teamPreset }, (members, preset) => {
+    teamEditor(teamBtn, { lead: agent?.id, team, presetId: teamPreset, places: launchWhere }, (members, preset) => {
       if (JSON.stringify([members, preset]) === JSON.stringify([team, teamPreset])) return;
       team = members;
       teamPreset = preset;
@@ -757,19 +779,19 @@ function renderLauncher() {
   vsBtn.onclick = () => {
     if (compare) compare = null;
     else {
-      const other = S.agents.find((a) => a.available && a.id !== agent?.id) || agent;
+      const other = harnessesAt(launchWhere).find((a) => a.available && a.id !== agent?.id) || agent;
       compare = { agent: other?.id, model: savedModel(other?.id), effort: savedEffort(other?.id, savedModel(other?.id)) };
     }
     paintCompare();
   };
   runner2.onclick = () =>
-    runnerPicker(runner2, { ...compare, savedModel, savedEffort }, (id, model, effort) => {
+    runnerPicker(runner2, { ...compare, savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
       compare = { agent: id, model, effort };
       paintCompare();
     });
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort }, (id, model, effort) => {
-      agent = S.agents.find((a) => a.id === id);
+    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
+      agent = harnessesAt(launchWhere).find((a) => a.id === id);
       curModel = model;
       curEffort = effort;
       paintRunner();
@@ -793,8 +815,9 @@ function renderLauncher() {
     if (off) return offlineToast(off.k);
     const wanted = [agent?.id, ...(compare ? [compare.agent] : [])];
     for (const t of targets) {
-      const missing = t.m?.remote?.agents && wanted.find((id) => !t.m.remote.agents.some((x) => x.id === id && x.available));
-      if (missing) return toast(`${esc(agentName(missing))} isn’t installed on <b>${esc(t.m.name)}</b>`, { tone: 'bad' });
+      const list = agentsAt(t.k);
+      const missing = list && wanted.find((id) => !list.some((x) => x.id === id && x.available));
+      if (missing) return toast(`${esc(agentName(missing))} isn’t installed on <b>${esc(placeName(t.k))}</b>`, { tone: 'bad' });
     }
     const btn = $('#launch', box);
     // Optimistic: wait only for uploads, then empty the box and show the task in Working at
@@ -849,6 +872,19 @@ function renderLauncher() {
     }
   };
   $('#launch', box).onclick = launch;
+  // Picking other places (or a machine coming online) changes which harnesses exist: keep the
+  // pick if one of them still has it, else move to one that's installed there.
+  box.placesChanged = () => {
+    const here = harnessesAt(launchWhere);
+    if (!agent || here.find((a) => a.id === agent.id)?.available) return paintRunner();
+    const next = here.find((a) => a.id === S.config.defaults.agent && a.available) || here.find((a) => a.available);
+    if (!next) return paintRunner();
+    agent = next;
+    curModel = savedModel(agent.id);
+    curEffort = savedEffort(agent.id, curModel);
+    paintRunner();
+    paintTeam();
+  };
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -863,7 +899,7 @@ function renderLauncher() {
 
 // The harness · model · thinking button, as in the launcher. agent '' reads "Launcher default".
 function paintRunnerBtn(btn, agentId, model, effort) {
-  const a = S.agents.find((x) => x.id === agentId);
+  const a = agentById(agentId);
   const m = (a?.models || []).find((x) => x.id === model);
   btn.innerHTML = agentId
     ? `<span class="rb-logo">${harnessLogo(agentId)}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${icon('chevron', 'chev')}`
@@ -879,9 +915,9 @@ const MAX_COPIES = 5; // parallel copies of one row
 const MAX_INSTANCES = 12; // copies across the team
 const copiesOf = (m) => Math.max(1, m.count || 1);
 const teamSize = (team) => team.reduce((n, m) => n + copiesOf(m), 0);
-const canLead = (id) => S.agents.find((a) => a.id === id)?.delegates !== false;
+const canLead = (id) => agentById(id)?.delegates !== false;
 const memberLabel = (m) => {
-  const a = S.agents.find((x) => x.id === m.agent);
+  const a = agentById(m.agent);
   const model = (m.model && a?.models?.find((x) => x.id === m.model)?.label) || m.model || 'Default model';
   return `${a?.name || agentName(m.agent)} · ${model}${m.effort ? ` · ${effortLabel(m.effort)}` : ''}`;
 };
@@ -928,7 +964,7 @@ function paintTeamBtn(btn, team, presetId, lead) {
       : `${agentName(lead)} can't delegate (wisp can't give it tools), so this launch runs without subagents`;
 }
 
-function teamEditor(anchor, { lead, team, presetId }, onChange) {
+function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
   const open = $('.team-pop');
   if (open) return open.close();
   let members = team.map((m) => ({ ...m }));
@@ -992,7 +1028,8 @@ function teamEditor(anchor, { lead, team, presetId }, onChange) {
   const add = () => {
     if (members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES) return;
     const used = new Set([lead, ...members.map((m) => m.agent)]);
-    const a = S.agents.find((x) => x.available && !used.has(x.id)) || S.agents.find((x) => x.available && x.id !== lead) || S.agents.find((x) => x.available);
+    const pool = places ? harnessesAt(places) : S.agents;
+    const a = pool.find((x) => x.available && !used.has(x.id)) || pool.find((x) => x.available && x.id !== lead) || pool.find((x) => x.available);
     if (!a) return toast('No harness is installed.', { tone: 'bad' });
     const model = savedModel(a.id);
     members.push({ name: '', agent: a.id, model, effort: savedEffort(a.id, model), use: '', count: 1 });
@@ -1095,7 +1132,7 @@ function teamEditor(anchor, { lead, team, presetId }, onChange) {
     const rb = e.target.closest('.tp-runner');
     if (rb) {
       const m = members[i];
-      runnerPicker(rb, { agent: m.agent, model: m.model, effort: m.effort, savedModel, savedEffort }, (agent, model, effort) => {
+      runnerPicker(rb, { agent: m.agent, model: m.model, effort: m.effort, savedModel, savedEffort, places }, (agent, model, effort) => {
         Object.assign(m, { agent, model, effort });
         paintList();
         commit();
@@ -1372,6 +1409,7 @@ function whereMenu(anchor) {
     // A machine picked while disconnected starts connecting; you asked to run there.
     for (const k of launchWhere) if (k && machineById(k)?.state === 'off') connectMachine(k);
     renderLaunchChips();
+    $('#launcher')?.placesChanged?.();
     paint();
     saveWhere();
   };
@@ -2344,10 +2382,17 @@ function rename(id) {
 // One popover for all three choices: harnesses on the left, the focused harness's models on the
 // right, and its thinking levels underneath. Clicking (or arrowing to) a harness previews its
 // models; picking a model commits harness + model, picking a thinking level commits it in place.
-function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort }, pick) {
+// places: the "Run on" picks, so the list is what's installed there rather than only on this computer.
+function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, places }, pick) {
   const open = $('.picker');
   if (open) return open.close();
-  let focusAgent = S.agents.find((a) => a.id === agent && a.available) ? agent : S.agents.find((a) => a.available)?.id;
+  const agents = places ? harnessesAt(places) : S.agents;
+  const sub = (a) => {
+    if (!a.available) return places?.length > 1 || places?.[0] ? 'Not installed there' : 'Not installed';
+    const models = (a.models || []).length > 1 ? `${a.models.length - 1} models` : 'Default model';
+    return a.missing?.length ? `Not on ${a.missing.map(placeName).join(', ')}` : models;
+  };
+  let focusAgent = agents.find((a) => a.id === agent && a.available) ? agent : agents.find((a) => a.available)?.id;
 
   const r = anchor.getBoundingClientRect();
   const width = Math.min(580, innerWidth - 24);
@@ -2360,11 +2405,11 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
     <div class="picker" role="dialog" aria-label="Harness, model and thinking level" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
       <div class="pk-side" role="listbox" aria-label="Harness">
         <div class="pk-head">Harness</div>
-        ${S.agents
+        ${agents
           .map(
             (a) => `<button class="pk-h${a.available ? '' : ' off'}" role="option" data-id="${esc(a.id)}" ${a.available ? '' : 'disabled'}>
               <span class="pk-logo">${harnessLogo(a.id)}</span>
-              <span class="pk-text"><b>${esc(a.name)}</b><small>${esc(a.available ? `${(a.models || []).length > 1 ? `${a.models.length - 1} models` : 'Default model'}` : 'Not installed')}</small></span>
+              <span class="pk-text"><b>${esc(a.name)}</b><small${a.missing?.length ? ' class="warn"' : ''}>${esc(sub(a))}</small></span>
               ${a.id === agent ? '<span class="pk-dot" title="In use"></span>' : ''}
             </button>`,
           )
@@ -2408,7 +2453,7 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
   };
 
   const paintModels = () => {
-    const a = S.agents.find((x) => x.id === focusAgent);
+    const a = agents.find((x) => x.id === focusAgent);
     sideRows.forEach((b) => b.classList.toggle('on', b.dataset.id === focusAgent));
     const models = a?.models || [{ id: '', label: 'Default' }];
     const current = focusAgent === agent ? model : savedModel(focusAgent);
@@ -3661,6 +3706,7 @@ function setMachines(list) {
   S.machines = list;
   paintMachinesBtn();
   renderLaunchChips();
+  $('#launcher')?.placesChanged?.();
   renderProjects();
   $('.machines-modal')?.refresh();
   $('.projects-modal')?.refresh?.();
