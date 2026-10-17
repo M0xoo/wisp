@@ -905,10 +905,10 @@ function teamEditor(anchor, { lead, team, presetId }, onChange) {
                   <b>×${copiesOf(m)}</b>
                   <button class="tp-inc" aria-label="One copy more" ${copiesOf(m) >= MAX_COPIES || teamSize(members) >= MAX_INSTANCES ? 'disabled' : ''}>${icon('plus')}</button>
                 </span>
-                <label class="tp-name" title="What the lead calls it"><span>@</span><input value="${esc(m.name || '')}" placeholder="${esc(named[i].name)}" maxlength="24" spellcheck="false" autocomplete="off"></label>
+                <label class="field sm mono tp-name" title="What the lead calls it"><span>@</span><input value="${esc(m.name || '')}" placeholder="${esc(named[i].name)}" maxlength="24" spellcheck="false" autocomplete="off"></label>
                 <button class="icon-btn tp-del" title="Remove">${icon('x')}</button>
               </div>
-              <label class="tp-use"><span>Use for</span><input value="${esc(m.use || '')}" placeholder="e.g. image and UI work · research · writing tests" maxlength="300" spellcheck="false" autocomplete="off"></label>
+              <label class="field sm tp-use"><span>Use for</span><input value="${esc(m.use || '')}" placeholder="e.g. image and UI work · research · writing tests" maxlength="300" spellcheck="false" autocomplete="off"></label>
             </div>`,
           )
           .join('')
@@ -931,7 +931,7 @@ function teamEditor(anchor, { lead, team, presetId }, onChange) {
   // Save: name it; an existing preset's name updates that preset.
   const askName = () => {
     const cur = (S.config.teams || []).find((x) => x.id === preset);
-    foot.innerHTML = `<form class="tp-saveform"><input placeholder="Preset name, e.g. Review crew" value="${esc(cur?.name || '')}" maxlength="60"><button class="primary sm">Save</button><button type="button" class="link xs tp-cancel">Cancel</button></form>`;
+    foot.innerHTML = `<form class="tp-saveform"><input class="input sm" placeholder="Preset name, e.g. Review crew" value="${esc(cur?.name || '')}" maxlength="60"><button class="primary sm">Save</button><button type="button" class="link xs tp-cancel">Cancel</button></form>`;
     const input = $('input', foot);
     input.focus();
     input.select();
@@ -1690,7 +1690,7 @@ function renderAskCard(s) {
       <p class="q-text">${esc(a.question)}</p>
       ${a.context ? `<div class="prose q-context">${md(a.context)}</div>` : ''}
       ${a.options?.length ? `<div class="q-opts">${a.options.map((o, i) => `<button class="opt" data-i="${i}"><span class="k">${i + 1}</span>${esc(o)}</button>`).join('')}</div>` : ''}
-      <form class="q-own"><input placeholder="${a.options?.length ? 'Or answer in your own words…' : 'Your answer…'}"><button class="primary sm">Answer</button></form>
+      <form class="q-own"><input class="input" placeholder="${a.options?.length ? 'Or answer in your own words…' : 'Your answer…'}"><button class="primary sm">Answer</button></form>
     </div>`);
   const answer = async (text) => {
     if (!text.trim()) return;
@@ -2068,7 +2068,7 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
           .join('')}
       </div>
       <div class="pk-main">
-        <label class="pk-search">${icon('search')}<input spellcheck="false" autocomplete="off"></label>
+        <label class="field pk-search">${icon('search')}<input spellcheck="false" autocomplete="off"></label>
         <div class="pk-list" role="listbox" aria-label="Model"></div>
         <div class="pk-effort" role="radiogroup" aria-label="Thinking level"></div>
       </div>
@@ -2495,7 +2495,7 @@ async function openProjects({ focusAdd = false } = {}) {
     <div class="modal projects-modal">
       <header><h2>Projects</h2><button class="icon-btn close">${icon('x')}</button></header>
       <div class="add-row">
-        <div class="path-input">
+        <div class="field lg mono path-input">
           ${window.wispDesktop ? `<button class="browse" title="Browse…">${icon('folder')}</button>` : icon('folder')}
           <input id="ppath" placeholder="~/code/my-app" spellcheck="false" autocomplete="off">
           <div class="suggest" hidden></div>
@@ -2677,9 +2677,9 @@ async function shipDialog(id) {
       <header><h2>${open ? `Push to PR #${info.pr.number}` : 'Ship it'}</h2><button class="icon-btn close">${icon('x')}</button></header>
       <p class="ship-route">${icon('branch')}<code>${esc(info.branch)}</code>${icon('arrow')}<code>${esc(info.remote || 'no remote')}/${esc(info.base)}</code>
         <span class="muted">${info.dirty ? `${info.dirty} uncommitted change${info.dirty > 1 ? 's' : ''}` : 'Nothing uncommitted'} · ${info.ahead} commit${info.ahead === 1 ? '' : 's'} on the branch</span></p>
-      ${info.dirty ? `<label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><input name="title" spellcheck="false" maxlength="100"></label>` : ''}
-      ${open ? '' : `<label class="ship-field"><span>Pull request description</span><textarea name="body" rows="9" spellcheck="false"></textarea></label>
-      <label class="ship-check"><input type="checkbox" name="draft"> Open as a draft</label>`}
+      ${info.dirty ? `<label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><input class="input" name="title" spellcheck="false" maxlength="100"></label>` : ''}
+      ${open ? '' : `<label class="ship-field"><span>Pull request description</span><textarea class="textarea mono" name="body" rows="9" spellcheck="false"></textarea></label>
+      <label class="check ship-check"><input type="checkbox" name="draft"> Open as a draft</label>`}
       ${!info.remote ? '<p class="hint bad">This repo has no <code>origin</code> remote, so there is nowhere to push.</p>' : nothing ? '<p class="hint">Nothing to ship yet: the branch has no changes.</p>' : ''}
       <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in the worktree.</span><button class="primary sm" data-a="go" ${nothing || !info.remote ? 'disabled' : ''}>${icon('send')}${open ? 'Commit & push' : 'Commit, push & open PR'}</button></div>
     </div>`);
@@ -2917,8 +2917,8 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
 
   const recipeForm = (d) => {
     const f = el(`<form class="au-form">
-        <label><span>Name</span><input name="name" maxlength="60" placeholder="Release" spellcheck="false"></label>
-        <label class="stack"><span>Prompt <small class="muted">· <code>{version}</code> becomes a field</small></span><textarea name="prompt" rows="7" spellcheck="false" placeholder="Prepare release {version}: update CHANGELOG, README and docs/, bump package.json, tag v{version}…"></textarea></label>
+        <label><span>Name</span><input class="input" name="name" maxlength="60" placeholder="Release" spellcheck="false"></label>
+        <label class="stack"><span>Prompt <small class="muted">· <code>{version}</code> becomes a field</small></span><textarea class="textarea mono" name="prompt" rows="7" spellcheck="false" placeholder="Prepare release {version}: update CHANGELOG, README and docs/, bump package.json, tag v{version}…"></textarea></label>
         <p class="au-params muted xs"></p>
         <label><span>Project</span><select name="cwd">${projectOptions(d.cwd, { any: 'Any project (picked when run)' })}</select></label>
         <label><span>Mode</span><select name="mode">${modeOptions(d.mode, { inherit: 'Launcher default' })}</select></label>
@@ -2954,15 +2954,15 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
     d.kind ||= 'schedule';
     const f = el(`<form class="au-form">
         <div class="au-kinds">${TRIGGER_KINDS.map((k) => `<button type="button" data-kind="${k.kind}" class="${k.kind === d.kind ? 'on' : ''}">${icon(k.icon)}<b>${k.label}</b><small>${k.hint}</small></button>`).join('')}</div>
-        <label><span>Name</span><input name="name" maxlength="60" spellcheck="false"></label>
+        <label><span>Name</span><input class="input" name="name" maxlength="60" spellcheck="false"></label>
         <label><span>Project</span><select name="cwd">${projectOptions(d.cwd || projectById(launchProject)?.path)}</select></label>
-        <div class="k-schedule"><label><span>When</span><input name="cron" spellcheck="false" placeholder="0 9 * * 1-5"></label>
+        <div class="k-schedule"><label><span>When</span><input class="input mono" name="cron" spellcheck="false" placeholder="0 9 * * 1-5"></label>
           <p class="au-presets">${CRON_PRESETS.map(([l, c]) => `<button type="button" class="lp-chip" data-cron="${c}">${l}</button>`).join('')}<span class="muted xs">minute hour day month weekday</span></p></div>
-        <div class="k-ci"><label><span>Branch</span><input name="branch" spellcheck="false" placeholder="Any branch (e.g. main)"></label></div>
-        <div class="k-issues"><label><span>Label</span><input name="label" spellcheck="false" placeholder="wisp"></label></div>
+        <div class="k-ci"><label><span>Branch</span><input class="input mono" name="branch" spellcheck="false" placeholder="Any branch (e.g. main)"></label></div>
+        <div class="k-issues"><label><span>Label</span><input class="input" name="label" spellcheck="false" placeholder="wisp"></label></div>
         <div class="k-gh"><label><span>Check every</span><select name="every">${[2, 5, 15, 60].map((m) => `<option value="${m}" ${Number(d.every || 5) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label></div>
         <label><span>Run</span><select name="recipeId"><option value="">This prompt</option>${recipes.map((r) => `<option value="${r.id}" ${r.id === d.recipeId ? 'selected' : ''}>Recipe: ${esc(r.name)}</option>`).join('')}</select></label>
-        <label class="stack k-prompt"><span>Prompt <small class="muted k-vars"></small></span><textarea name="prompt" rows="6" spellcheck="false"></textarea></label>
+        <label class="stack k-prompt"><span>Prompt <small class="muted k-vars"></small></span><textarea class="textarea mono" name="prompt" rows="6" spellcheck="false"></textarea></label>
         <label><span>Mode</span><select name="mode">${modeOptions(d.mode || (d.kind === 'issues' ? 'plan' : 'edits'))}</select></label>
         <div class="au-row"><span>Harness</span></div>
         <p class="au-warn" hidden>${icon('warn')}<span>Issue text comes from GitHub: anyone who can open and label issues can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.</span></p>
@@ -3054,7 +3054,7 @@ function runRecipe(r) {
     <form class="modal run-modal">
       <header><h2>${esc(r.name)}</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
       <p class="cmp-prompt">${esc(r.prompt)}</p>
-      ${r.params.map((p) => `<label class="ship-field"><span>${esc(p)}</span><input name="p:${esc(p)}" spellcheck="false" required></label>`).join('')}
+      ${r.params.map((p) => `<label class="ship-field"><span>${esc(p)}</span><input class="input" name="p:${esc(p)}" spellcheck="false" required></label>`).join('')}
       ${needsProject ? `<label class="ship-field"><span>Project</span><select name="cwd">${projectOptions(projectById(launchProject)?.path)}</select></label>` : ''}
       <div class="ship-foot"><span class="muted xs">${r.agent ? `${esc(agentName(r.agent))}${r.model ? ` · ${esc(r.model)}` : ''}` : 'Launcher harness'} · ${esc(MODES.find((m) => m.id === r.mode)?.label || 'launcher mode')}</span><button class="primary sm">${icon('enter')}Run</button></div>
     </form>`);
@@ -3190,22 +3190,22 @@ async function openPhone({ host } = {}) {
     $('.ph-body', node).innerHTML = `
       <div class="settings-modal ph-sec">
         <div class="setting"><span>Send me</span>
-          <label class="ph-check"><input type="checkbox" data-ev="waiting" ${r.events.includes('waiting') ? 'checked' : ''}> Questions</label>
-          <label class="ph-check"><input type="checkbox" data-ev="finished" ${r.events.includes('finished') ? 'checked' : ''}> Finished tasks</label></div>
+          <label class="check"><input type="checkbox" data-ev="waiting" ${r.events.includes('waiting') ? 'checked' : ''}> Questions</label>
+          <label class="check"><input type="checkbox" data-ev="finished" ${r.events.includes('finished') ? 'checked' : ''}> Finished tasks</label></div>
       </div>
       <section class="ph-sec">
         <h4>ntfy <span class="muted xs">· tap a button on the notification to answer</span>${status(r.status.ntfy)}<button class="switch" data-sw="ntfy" role="switch" aria-checked="${r.ntfy.enabled}"></button></h4>
         <div class="settings-modal">
-          <label><span>Topic</span><input data-ntfy="topic" value="${esc(r.ntfy.topic)}" placeholder="wisp-…" spellcheck="false"></label>
-          <label><span>Server</span><input data-ntfy="server" value="${esc(r.ntfy.server)}" spellcheck="false"></label>
-          <label><span>Access token</span><input data-ntfy="token" value="${esc(r.ntfy.token)}" placeholder="Only for protected topics" spellcheck="false" type="password"></label>
+          <label><span>Topic</span><input class="input mono" data-ntfy="topic" value="${esc(r.ntfy.topic)}" placeholder="wisp-…" spellcheck="false"></label>
+          <label><span>Server</span><input class="input mono" data-ntfy="server" value="${esc(r.ntfy.server)}" spellcheck="false"></label>
+          <label><span>Access token</span><input class="input mono" data-ntfy="token" value="${esc(r.ntfy.token)}" placeholder="Only for protected topics" spellcheck="false" type="password"></label>
         </div>
         <p class="hint">Install the ntfy app and subscribe to the topic. Anyone who knows the topic name can read it, so keep it long and random; answers are signed, so nobody else can send them.</p>
       </section>
       <section class="ph-sec">
         <h4>Telegram <span class="muted xs">· buttons, or reply to a message in your own words</span>${status(r.status.telegram)}<button class="switch" data-sw="telegram" role="switch" aria-checked="${tg.enabled}"></button></h4>
         <div class="settings-modal">
-          <label><span>Bot token</span><input data-tg="token" value="${esc(tg.token)}" placeholder="123456:ABC… from @BotFather" spellcheck="false" type="password"></label>
+          <label><span>Bot token</span><input class="input mono" data-tg="token" value="${esc(tg.token)}" placeholder="123456:ABC… from @BotFather" spellcheck="false" type="password"></label>
         </div>
         <p class="hint">${
           tg.linked
@@ -3288,7 +3288,7 @@ function openSettings(opts) {
               .join('')}</select>`)}
             ${row('Take over in', 'The terminal a session opens in when you take it over', `<select name="terminal">${(S.config.terminals || []).map((t) => `<option value="${t.id}" ${(d.terminal || 'auto') === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}</select>`)}
             <div class="sx-row custom-term" ${d.terminal === 'custom' ? '' : 'hidden'}><div class="sx-text"><b>Terminal command</b><small><code>{cwd}</code> and <code>{cmd}</code> are filled in</small></div>
-              <div class="sx-ctl"><input name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></div></div>
+              <div class="sx-ctl"><input class="input mono" name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></div></div>
           </div>
           <div class="sx-group">
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}

@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Every text field, textarea, select and checkbox now shares one look from a small form kit in `web/css/app.css` (`.input`, `.textarea`, `.field`, `.check`, plus `.mono` / `.sm` / `.lg`): the same border, radius, height, placeholder colour, hover and focus ring across Settings, Phone, Automations, Ship it, Run recipe, Projects, the model picker search, the Subagents editor and question cards. Checkboxes use the accent colour.
+
+### Fixed
+
+- The selects in the recipe and trigger forms and in the Ship it / Run dialogs had lost their dropdown chevron.
+- Settings and Phone text fields, and every select, showed no focus state.
+
 ## [0.8.0] - 2026-10-17
 
 ### Added
