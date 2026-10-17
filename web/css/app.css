@@ -1055,7 +1055,45 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .switch[aria-checked='true']::after { transform: translateX(14px); }
 .switch:disabled { opacity: 0.4; cursor: not-allowed; }
 .settings-modal input { flex: 1; max-width: 340px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); padding: 0 10px; font: 12px var(--mono); outline: 0; }
-.setting #openMemory { margin-left: -4px; }
+
+/* settings: sidebar of sections, one pane at a time */
+.modal.sx { display: grid; grid-template-columns: 196px 1fr; width: min(800px, 100%); height: min(560px, 86vh); padding: 0; overflow: hidden; }
+.sx-nav { display: flex; flex-direction: column; gap: 1px; padding: 18px 10px; background: var(--bg-2); border-right: 1px solid var(--line); overflow-y: auto; }
+.sx-nav h2 { margin: 0 8px 14px; font: 600 18px/1.2 var(--display); letter-spacing: -0.015em; }
+.sx-nav button { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--ink-2); text-align: left; transition: background 0.12s, color 0.12s; }
+.sx-nav button .i { width: 15px; height: 15px; color: var(--muted); }
+.sx-nav button span { flex: 1; }
+.sx-nav button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+.sx-nav button[aria-selected='true'] { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-1); }
+.sx-nav button[aria-selected='true'] .i { color: var(--accent); }
+.sx-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sx-main { min-width: 0; padding: 18px 24px 24px; overflow-y: auto; }
+.sx-main header { align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.sx-title { margin: 2px 0 4px; font: 600 16px/1.3 var(--display); letter-spacing: -0.01em; }
+.sx-lede { margin: 0; font-size: 12.5px; color: var(--muted); }
+.sx-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.sx-group + .sx-group, .sx-pane > * + .sx-group { margin-top: 14px; }
+.sx-row { display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 9px 14px; }
+.sx-row + .sx-row { border-top: 1px solid var(--line); }
+.sx-row[hidden] { display: none; }
+.sx-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sx-text b { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13.5px; }
+.sx-text small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.sx-text code { font-size: 11px; }
+.sx-ctl { flex: none; display: flex; align-items: center; gap: 8px; }
+.sx-ctl input { width: 300px; }
+.sx-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.sx-state.bad { color: var(--bad); }
+.sx-usage .it-loading { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .modal.sx { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .sx-nav { flex-direction: row; align-items: center; padding: 10px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sx-nav h2 { display: none; }
+  .sx-nav button { flex: none; }
+  .sx-main { padding: 16px; }
+  .sx-ctl input { width: 180px; }
+  .sx-usage { grid-template-columns: repeat(2, 1fr); }
+}
 
 /* memory: what the background retros learned */
 .memory-modal { width: min(680px, 100%); }
@@ -1121,8 +1159,6 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .tl-del::before { content: '− '; font-weight: 600; }
 .tl-tag { margin-left: 4px; font-size: 11px; color: var(--faint); white-space: nowrap; }
 .tl-err { color: var(--bad); font: 11.5px/1.45 var(--mono); }
-.agents { margin-top: 18px; }
-.agent-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
 .keys-modal { width: min(380px, 100%); }
 .krow { display: flex; align-items: center; gap: 14px; padding: 6px 0; }
 .krow kbd { min-width: 56px; text-align: center; font-size: 11.5px; }
