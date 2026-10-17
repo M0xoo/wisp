@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const REGISTRY = `https://registry.npmjs.org/${PKG.name}/latest`;
-const EVERY = 6 * 3600_000;
+const DAY = 24 * 3600_000;
+const TICK = 30 * 60_000; // timers stall while the machine sleeps, so poll the wall clock instead
 
 export function newer(a, b) {
   const p = (v) => String(v).replace(/^v/, '').split(/[-+]/)[0].split('.').map(Number);
@@ -29,9 +30,12 @@ export function installMethod(root = ROOT) {
 }
 
 export class Updater {
-  constructor({ port, onChange = () => {}, env = process.env } = {}) {
+  constructor({ port, onChange = () => {}, env = process.env, fetch = globalThis.fetch, now = Date.now } = {}) {
     this.port = port;
     this.onChange = onChange;
+    this.fetch = fetch;
+    this.now = now;
+    this.checkedAt = -Infinity;
     this.enabled = !/^(0|false|no|off)$/i.test(env.WISP_UPDATE_CHECK || '') && !env.CI;
     this.method = installMethod();
     this.state = { current: PKG.version, latest: null, available: false, method: this.method, status: 'idle', error: null };
@@ -40,7 +44,13 @@ export class Updater {
   start() {
     if (!this.enabled) return;
     setTimeout(() => this.check(), 5000).unref();
-    setInterval(() => this.check(), EVERY).unref();
+    setInterval(() => this.maybeCheck(), TICK).unref();
+  }
+
+  // At most once a day, however long wisp stays open (or asleep). Callers fire and forget:
+  // a new version reaches the UI through onChange.
+  maybeCheck() {
+    if (this.enabled && this.now() - this.checkedAt >= DAY) this.check();
   }
 
   set(patch) {
@@ -55,8 +65,9 @@ export class Updater {
   }
 
   async check() {
+    this.checkedAt = this.now();
     try {
-      const r = await fetch(REGISTRY, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+      const r = await this.fetch(REGISTRY, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
       if (!r.ok) return this.view();
       const { version } = await r.json();
       const available = newer(version, PKG.version);

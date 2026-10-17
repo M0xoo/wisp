@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { newer, installMethod } from '../server/update.js';
+import { newer, installMethod, Updater } from '../server/update.js';
 import { tmp } from './helpers.js';
 
 test('newer compares major.minor.patch numerically and ignores prerelease tags', () => {
@@ -23,4 +23,23 @@ test('installMethod tells a clone, an npx cache and a global install apart', () 
   assert.equal(installMethod(clone), 'git');
   assert.equal(installMethod(path.join('/home/u/.npm/_npx/abc123/node_modules/wisp-agents')), 'npx');
   assert.equal(installMethod(tmp('upd-global')), 'global');
+});
+
+test('maybeCheck hits the registry at most once a day, on the wall clock', async () => {
+  let t = 1_000_000;
+  let calls = 0;
+  const seen = [];
+  const fetch = async () => (calls++, { ok: true, json: async () => ({ version: '99.0.0' }) });
+  const u = new Updater({ port: 1, fetch, now: () => t, env: {}, onChange: (v) => seen.push(v) });
+  u.maybeCheck();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(calls, 1);
+  assert.equal(seen.at(-1).available, true);
+  assert.equal(seen.at(-1).latest, '99.0.0');
+  t += 23 * 3600_000;
+  u.maybeCheck();
+  assert.equal(calls, 1);
+  t += 3600_000;
+  u.maybeCheck();
+  assert.equal(calls, 2);
 });

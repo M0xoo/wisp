@@ -157,7 +157,11 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     // New wisp-agents on npm? POST installs it and relaunches; running agents are stopped, so the
     // client must pass force once it has confirmed that with the user.
     if (root === 'update') {
-      if (m === 'GET') return send(res, 200, url.searchParams.has('check') ? await updater.check() : updater.view());
+      if (m === 'GET') {
+        if (url.searchParams.has('check')) return send(res, 200, await updater.check());
+        updater.maybeCheck(); // the UI asks on focus and reconnect: a day-old check gets refreshed
+        return send(res, 200, updater.view());
+      }
       if (m === 'POST') {
         const body = await readJson(req);
         if (runner.live.size && !body.force) return send(res, 409, { error: 'agents are running', running: runner.live.size });
