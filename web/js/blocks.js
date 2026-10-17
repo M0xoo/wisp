@@ -121,6 +121,7 @@ R.stats = (b, ctx) => {
 };
 
 R.files = (b, ctx) => {
+  const canRevert = !!(ctx.revertFile && ctx.session?.agent && ctx.session.agent !== 'wisp');
   const node = el(`
     <div class="b-files card">
       <h3 class="b-title">${esc(b.title || 'Files')}<span class="count">${(b.items || []).length}</span></h3>
@@ -129,11 +130,13 @@ R.files = (b, ctx) => {
           const [ch, cls] = CHANGE[f.change] || CHANGE.modified;
           const c = findChange(ctx.turn, f.path);
           const n = c ? countChanges(c.edits) : null;
-          return `<li style="--k:${i}" data-path="${esc(f.path)}" class="${c ? 'has-diff' : ''}">
+          const rev = !!c?.reverted;
+          return `<li style="--k:${i}" data-path="${esc(f.path)}" class="${c ? 'has-diff' : ''} ${rev ? 'is-reverted' : ''}">
             <div class="row">
               <span class="badge ${cls}">${ch}</span>${pathHtml(f.path)}
+              ${rev ? '<span class="rev-tag">Reverted</span>' : ''}
               ${n ? `<span class="nums"><span class="plus">+${n.add}</span><span class="minus">−${n.del}</span></span>` : ''}
-              <span class="actions">${c ? `<button class="ghost xs toggle" title="Show diff">${icon('chevron')}</button>` : ''}<button class="ghost xs open" title="Open in editor">${icon('external')}</button></span>
+              <span class="actions">${c && canRevert ? `<button class="ghost xs revert" title="${rev ? 'Re-apply changes to this file' : 'Revert file to before this turn'}">${icon(rev ? 'rerun' : 'replay')}<span>${rev ? 'Re-apply' : 'Revert'}</span></button>` : ''}${c ? `<button class="ghost xs toggle" title="Show diff">${icon('chevron')}</button>` : ''}<button class="ghost xs open" title="Open in editor">${icon('external')}</button></span>
             </div>
             ${f.note ? `<p class="note">${inlineMd(f.note)}</p>` : ''}
           </li>`;
@@ -144,6 +147,11 @@ R.files = (b, ctx) => {
     const li = e.target.closest('li');
     if (!li) return;
     if (e.target.closest('.open')) return ctx.openFile(li.dataset.path);
+    const revBtn = e.target.closest('.revert');
+    if (revBtn) {
+      const c = findChange(ctx.turn, li.dataset.path);
+      return ctx.revertFile?.(c?.file || li.dataset.path, !!c?.reverted);
+    }
     if (!li.classList.contains('has-diff')) return;
     if (e.target.closest('a')) return;
     const existing = li.querySelector('.b-diff');
@@ -199,14 +207,12 @@ R.diff = (b, ctx) => {
   let edits;
   let op = 'edit';
   let file = b.file || b.path || '';
+  const c = findChange(ctx.turn, file);
   if (b.before !== undefined || b.after !== undefined) edits = [{ before: b.before || '', after: b.after || '' }];
-  else {
-    const c = findChange(ctx.turn, file);
-    if (c) {
-      edits = c.edits;
-      op = c.op;
-      file = c.file;
-    }
+  else if (c) {
+    edits = c.edits;
+    op = c.op;
+    file = c.file;
   }
   if (!edits) {
     return el(`<div class="b-diff card missing"><div class="diff-head">${icon('file')}${pathHtml(file)}</div><p class="muted">No captured edits for this file.</p></div>`);
@@ -214,6 +220,8 @@ R.diff = (b, ctx) => {
   const { add, del } = countChanges(edits);
   const numbered = op === 'create' || op === 'write';
   const lang = langOf(file);
+  const canRevert = !!(c && ctx.revertFile && ctx.session?.agent && ctx.session.agent !== 'wisp');
+  const reverted = !!c?.reverted;
   const body = edits
     .map((e, ei) => {
       const rows = hunks(diffLines(e.before, e.after), 3)
@@ -227,12 +235,13 @@ R.diff = (b, ctx) => {
     })
     .join('');
   const node = el(`
-    <div class="b-diff ${b.bare ? 'bare' : 'card'}">
-      ${b.bare ? '' : `<div class="diff-head">${icon('file')}${pathHtml(file)}<span class="nums"><span class="plus">+${add}</span><span class="minus">−${del}</span></span><button class="ghost xs open" title="Open in editor">${icon('external')}</button></div>`}
+    <div class="b-diff ${b.bare ? 'bare' : 'card'} ${reverted ? 'is-reverted' : ''}">
+      ${b.bare ? '' : `<div class="diff-head">${icon('file')}${pathHtml(file)}${reverted ? '<span class="rev-tag">Reverted</span>' : ''}<span class="nums"><span class="plus">+${add}</span><span class="minus">−${del}</span></span>${canRevert ? `<button class="ghost xs revert ${reverted ? 'reverted' : ''}" title="${reverted ? 'Re-apply changes to this file' : 'Revert this file to before this turn'}">${icon(reverted ? 'rerun' : 'replay')}<span>${reverted ? 'Re-apply' : 'Revert'}</span></button>` : ''}<button class="ghost xs open" title="Open in editor">${icon('external')}</button></div>`}
       <div class="diff-scroll"><table><tbody>${body}</tbody></table></div>
       ${b.caption ? `<p class="caption">${inlineMd(b.caption)}</p>` : ''}
     </div>`);
   node.querySelector('.open')?.addEventListener('click', () => ctx.openFile(file));
+  node.querySelector('.revert')?.addEventListener('click', () => ctx.revertFile?.(file, reverted));
   return node;
 };
 
@@ -370,17 +379,20 @@ R.chart = (b, ctx) => {
 };
 
 R.terminal = (b, ctx) => {
-  const ok = b.exitCode === undefined || Number(b.exitCode) === 0;
+  const cmd = String(b.command || '');
+  const key = `term:${cmd}`;
+  const prev = cmd && ctx.turn?.actionRuns?.[key];
+  const exitCode = prev ? prev.exitCode : b.exitCode;
+  const ok = exitCode === undefined || Number(exitCode) === 0;
   const node = el(`
     <div class="b-term">
-      <div class="term-head"><span class="lights"><i></i><i></i><i></i></span><span class="title">${esc(b.title || ctx.session?.cwd?.split('/').pop() || 'terminal')}</span>${b.exitCode !== undefined ? `<span class="exit ${ok ? 'ok' : 'bad'}">exit ${esc(b.exitCode)}</span>` : ''}</div>
+      <div class="term-head"><span class="lights"><i></i><i></i><i></i></span><span class="title">${esc(b.title || ctx.session?.cwd?.split('/').pop() || 'terminal')}</span>${exitCode !== undefined ? `<span class="exit ${ok ? 'ok' : 'bad'}">exit ${esc(exitCode)}</span>` : ''}${cmd && ctx.exec ? `<button class="term-run" title="Run command again">${icon('rerun')}<span>Run</span></button>` : ''}</div>
       <pre><span class="cmd"><span class="ps">$</span> <span class="typed"></span><span class="caret"></span></span>\n<span class="out"></span></pre>
     </div>`);
   const typed = node.querySelector('.typed');
   const out = node.querySelector('.out');
-  const cmd = String(b.command || '');
-  out.textContent = String(b.output || '').replace(/\s+$/, '');
-  if (reduced()) {
+  out.textContent = String(prev ? prev.output : b.output || '').replace(/\s+$/, '');
+  if (reduced() || prev) {
     typed.textContent = cmd;
     node.classList.add('ran');
   } else {
@@ -390,6 +402,31 @@ R.terminal = (b, ctx) => {
       if (i < cmd.length) setTimeout(type, 14 + Math.random() * 30);
       else setTimeout(() => node.classList.add('ran'), 220);
     }, ctx.delay + 300);
+  }
+  const runBtn = node.querySelector('.term-run');
+  if (runBtn) {
+    runBtn.addEventListener('click', async () => {
+      runBtn.disabled = true;
+      runBtn.querySelector('span').textContent = 'Running…';
+      try {
+        const res = await ctx.exec(cmd, key);
+        if (res) {
+          typed.textContent = cmd;
+          node.classList.add('ran');
+          out.textContent = String(res.output || '').replace(/\s+$/, '');
+          let badge = node.querySelector('.exit');
+          if (!badge) {
+            badge = el('<span class="exit"></span>');
+            runBtn.before(badge);
+          }
+          badge.className = `exit ${res.exitCode === 0 ? 'ok' : 'bad'}`;
+          badge.textContent = `exit ${res.exitCode}`;
+        }
+      } finally {
+        runBtn.disabled = false;
+        runBtn.querySelector('span').textContent = 'Run';
+      }
+    });
   }
   return node;
 };
@@ -402,6 +439,9 @@ R.tests = (b, ctx) => {
   const C = 2 * Math.PI * 34;
   const seg = (n, off) => `stroke-dasharray="${(n / total) * C} ${C}" stroke-dashoffset="${-off}"`;
   const ok = failed === 0;
+  const cmd = String(b.command || '').trim();
+  const runKey = `tests:${cmd}`;
+  const prevRun = cmd && ctx.turn?.actionRuns?.[runKey];
   const node = el(`
     <div class="b-tests card ${ok ? 'ok' : 'bad'}">
       <div class="tests-main">
@@ -415,9 +455,10 @@ R.tests = (b, ctx) => {
         <div class="tests-text">
           <div class="verdict">${ok ? 'All green' : `${failed} failing`}</div>
           <div class="counts"><span class="pass"><b class="v" data-v="${passed}"></b> passed</span>${failed ? `<span class="fail"><b class="v" data-v="${failed}"></b> failed</span>` : ''}${skipped ? `<span class="skip"><b class="v" data-v="${skipped}"></b> skipped</span>` : ''}${b.durationMs ? `<span class="dur">${fmtDuration(b.durationMs)}</span>` : ''}</div>
-          ${b.command ? `<code class="cmdline">$ ${esc(b.command)}</code>` : ''}
+          ${cmd ? `<div class="tests-cmd"><code class="cmdline">$ ${esc(cmd)}</code>${ctx.exec ? `<button class="ghost xs run-tests" title="Re-run ${esc(cmd)}">${icon('rerun')}<span>Re-run</span></button>` : ''}</div>` : ''}
         </div>
       </div>
+      <div class="tests-rerun-out" ${prevRun ? '' : 'hidden'}></div>
       ${(b.failures || []).length ? `<ul class="failures">${b.failures
         .map((f) => `<li>${icon('x')}<div><b>${esc(f.name)}</b>${f.message ? `<pre>${esc(f.message)}</pre>` : ''}${f.file ? `<button class="link file" data-file="${esc(f.file)}">${esc(f.file)}</button>` : ''}</div></li>`)
         .join('')}</ul>` : ''}
@@ -429,6 +470,28 @@ R.tests = (b, ctx) => {
       ctx.openFile(p, line);
     }),
   );
+  const outSlot = node.querySelector('.tests-rerun-out');
+  const paintRun = (res) => {
+    if (!res || !outSlot) return;
+    outSlot.hidden = false;
+    const pass = res.exitCode === 0;
+    outSlot.innerHTML = `<div class="act-res ${pass ? 'ok' : 'bad'}"><div class="act-res-bar"><span class="exit ${pass ? 'ok' : 'bad'}">exit ${esc(res.exitCode)}</span><span class="muted xs">${fmtDuration(res.durationMs)}</span></div>${res.output ? `<pre class="act-out">${esc(res.output)}</pre>` : ''}</div>`;
+  };
+  if (prevRun) paintRun(prevRun);
+  const runBtn = node.querySelector('.run-tests');
+  if (runBtn) {
+    runBtn.addEventListener('click', async () => {
+      runBtn.disabled = true;
+      runBtn.querySelector('span').textContent = 'Running…';
+      try {
+        const res = await ctx.exec(cmd, runKey);
+        paintRun(res);
+      } finally {
+        runBtn.disabled = false;
+        runBtn.querySelector('span').textContent = 'Re-run';
+      }
+    });
+  }
   return node;
 };
 
@@ -485,6 +548,81 @@ R.question = (b, ctx) => {
     if (btn.classList.contains('own')) return ctx.draft('');
     const o = b.options[btn.dataset.i];
     ctx.reply(typeof o === 'string' ? o : o.reply || o.label);
+  });
+  return node;
+};
+
+R.actions = (b, ctx) => {
+  const items = (b.items || []).map((it, i) => (typeof it === 'string' ? { label: it, command: it, _i: i } : { ...it, _i: i }));
+  const node = el(`
+    <div class="b-actions card">
+      ${b.title ? `<h3 class="b-title">${icon('terminal')}${esc(b.title)}</h3>` : ''}
+      <ul class="act-list">${items
+        .map((it, i) => {
+          const isCmd = !!it.command;
+          const key = `act:${i}:${it.command || it.reply || it.label}`;
+          const prev = isCmd && ctx.turn?.actionRuns?.[key];
+          return `<li class="act-row ${it.tone ? `tone-${esc(it.tone)}` : ''}" style="--k:${i}" data-i="${i}" data-key="${esc(key)}">
+            <div class="act-bar">
+              <div class="act-info">
+                <b>${esc(it.label || it.command || it.reply || 'Action')}</b>
+                ${isCmd ? `<code class="act-cmd">$ ${esc(it.command)}</code>` : ''}
+                ${it.detail || it.note ? `<span class="act-detail">${inlineMd(it.detail || it.note)}</span>` : ''}
+              </div>
+              <div class="act-side">
+                <span class="act-badge">${prev ? `<span class="exit ${prev.exitCode === 0 ? 'ok' : 'bad'}">exit ${esc(prev.exitCode)}</span>` : ''}</span>
+                <button class="ghost xs act-go">${icon(isCmd ? (prev ? 'rerun' : 'play') : 'send')}<span>${isCmd ? (prev ? 'Run again' : 'Run') : 'Send'}</span></button>
+              </div>
+            </div>
+            <div class="act-slot" ${prev ? '' : 'hidden'}></div>
+          </li>`;
+        })
+        .join('')}</ul>
+    </div>`);
+
+  const paintResult = (li, it, res) => {
+    if (!res) return;
+    const badge = li.querySelector('.act-badge');
+    const ok = res.exitCode === 0;
+    badge.innerHTML = `<span class="exit ${ok ? 'ok' : 'bad'}">exit ${esc(res.exitCode)}</span>${res.durationMs ? `<span class="muted xs">${fmtDuration(res.durationMs)}</span>` : ''}`;
+    const slot = li.querySelector('.act-slot');
+    slot.hidden = false;
+    slot.innerHTML = `
+      <div class="act-res ${ok ? 'ok' : 'bad'}">
+        <pre class="act-out">${esc(res.output || '(no output)')}</pre>
+        ${!ok && ctx.reply ? `<button class="link xs act-fix">${icon('send')}Send failure to agent</button>` : ''}
+      </div>`;
+    slot.querySelector('.act-fix')?.addEventListener('click', () => {
+      ctx.reply(`Command \`${it.command}\` failed (exit ${res.exitCode}):\n\`\`\`\n${(res.output || '').slice(0, 1600)}\n\`\`\``);
+    });
+  };
+
+  items.forEach((it, i) => {
+    const key = `act:${i}:${it.command || it.reply || it.label}`;
+    const prev = it.command && ctx.turn?.actionRuns?.[key];
+    if (prev) paintResult(node.querySelector(`li[data-i="${i}"]`), it, prev);
+  });
+
+  node.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.act-go');
+    if (!btn) return;
+    const li = btn.closest('li.act-row');
+    const it = items[Number(li.dataset.i)];
+    if (!it) return;
+    if (!it.command) {
+      return ctx.reply?.(it.reply || it.label);
+    }
+    if (it.confirm && !confirm(`Run this command in ${ctx.session?.cwd || 'the project'}?\n\n$ ${it.command}`)) return;
+    if (!ctx.exec) return;
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Running…';
+    try {
+      const res = await ctx.exec(it.command, li.dataset.key);
+      if (res) paintResult(li, it, res);
+    } finally {
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Run again';
+    }
   });
   return node;
 };

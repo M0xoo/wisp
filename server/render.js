@@ -68,6 +68,10 @@ const R = {
   callout: (b) => `> **${b.tone === 'danger' ? '⛔' : b.tone === 'warn' ? '⚠️' : b.tone === 'success' ? '✅' : 'ℹ️'} ${str(b.title)}**\n> ${str(b.text).replace(/\n/g, '\n> ')}`,
   image: (b) => `🖼️ \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
   question: (b) => `**❓ ${str(b.question)}**\n${list(b.options).map((o, i) => `${i + 1}. ${str(o.label || o)}`).join('\n')}`,
+  actions: (b) =>
+    `${b.title ? `**${b.title}**\n` : '**Actions**\n'}${list(b.items)
+      .map((a) => (typeof a === 'string' ? `- ${a}` : `- **${str(a.label || a.command)}**${a.command ? ` — \`$ ${str(a.command)}\`` : a.reply ? ` — _${str(a.reply)}_` : ''}${a.detail ? ` (${str(a.detail)})` : ''}`))
+      .join('\n')}`,
   next: (b) => `**Next**\n${list(b.items).map((i) => `- ${str(i)}`).join('\n')}`,
 };
 

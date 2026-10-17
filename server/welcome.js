@@ -70,7 +70,7 @@ export function welcomeSession() {
               items: [
                 { label: 'lines of transcript you skipped', value: 4182, tone: 'good' },
                 { label: 'agents running at once', value: 6, unit: '×' },
-                { label: 'block types', value: 19 },
+                { label: 'block types', value: 20 },
               ],
             },
             {
@@ -151,6 +151,14 @@ export function welcomeSession() {
             },
             { type: 'callout', tone: 'info', title: 'Agents can ask you mid-run', text: 'When a decision matters, the agent pauses with a question. The session jumps to **Needs you**; your answer goes straight back to the still-running agent.' },
             { type: 'callout', tone: 'warn', title: 'Heads up', text: 'This tour is static. Launch a real wisp with **N** — or take any real session over in your terminal with **T**.' },
+            {
+              type: 'actions',
+              title: 'One-click actions',
+              items: [
+                { label: 'Run test suite', command: 'npm test', detail: 'Executes in your project folder' },
+                { label: 'Check git status', command: 'git status -sb' },
+              ],
+            },
             {
               type: 'question',
               question: 'Which agent harness should wisp support next?',

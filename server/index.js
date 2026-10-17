@@ -16,6 +16,8 @@ import { blocksToMarkdown, sessionToMarkdown } from './render.js';
 import { openapi } from './openapi.js';
 import { Updater } from './update.js';
 import { Preferences, Retro, KINDS } from './preferences.js';
+import { cleanupCheckpoints, revertFileChange, rollbackToTurn, execCommand } from './checkpoint.js';
+import { clip } from './adapters/common.js';
 import { createWorktree, ensureWorktree, removeWorktree, worktreeStatus, ship, merge, prView, repoRoot } from './git.js';
 import { normalizeRecipe, findRecipe, recipeView, fill, positional } from './recipes.js';
 import { Triggers, normalizeTrigger, triggerView } from './triggers.js';
@@ -602,6 +604,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         if (m === 'DELETE') {
           runner.stop(s);
           await runner.live.get(s.id)?.done;
+          cleanupCheckpoints(workdir(s), s.id);
           // Its worktree goes with it; the branch only if it holds nothing beyond its base.
           if (s.worktree) await removeWorktree(s.worktree, { force: true, branch: true }).catch(() => {});
           store.delete(id);
@@ -642,7 +645,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           blocks: turn.presentation?.blocks || [],
           notes: turn.presentation?.notes,
           fallback: !!turn.presentation?.fallback,
-          changes: turn.changes.map((c) => ({ file: c.file, op: c.op, edits: c.edits.length })),
+          checkpoint: turn.checkpoint ? { commit: turn.checkpoint.commit, head: turn.checkpoint.head, branch: turn.checkpoint.branch, dirty: turn.checkpoint.dirty, at: turn.checkpoint.at } : null,
+          rolledBackAt: turn.rolledBackAt || null,
+          changes: turn.changes.map((c) => ({ file: c.file, op: c.op, edits: c.edits.length, reverted: !!c.reverted })),
           stats: turn.stats,
           ask: latest ? s.ask || null : null,
           markdown,
@@ -665,6 +670,64 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         const { text } = await readJson(req);
         if (!text?.trim()) return send(res, 400, { error: 'text required' });
         return send(res, 200, { ok: runner.answer(s, text.trim()) });
+      }
+
+      // Revert (or re-apply) a single file's edits from a turn.
+      if (action === 'revert' && m === 'POST') {
+        if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to revert files.' });
+        if (runner.live.has(s.id)) return send(res, 409, { error: 'Stop the running turn before reverting files.' });
+        const { turnId, file, restore } = await readJson(req);
+        const turn = turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1);
+        if (!turn) return send(res, 404, { error: 'no such turn' });
+        await ensureWorktree(s.worktree);
+        const result = revertFileChange(s, turn, file, { restore: !!restore });
+        turn.activity.push({ t: Date.now(), kind: 'edit', label: `${result.reverted ? 'Reverted' : 'Re-applied'} ${result.file}`, file: result.file });
+        s.updatedAt = Date.now();
+        store.save(s);
+        broadcast('summary', summarize(s, store));
+        broadcast('turn', { sessionId: s.id, turnId: turn.id });
+        telemetry.track('revert_file', { agent: s.agent, restore: !!restore });
+        return send(res, 200, { ok: true, turnId: turn.id, ...result });
+      }
+
+      // Roll back (or re-apply) the project working tree to the checkpoint before a turn.
+      if (action === 'rollback' && m === 'POST') {
+        if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to roll back turns.' });
+        if (runner.live.has(s.id)) return send(res, 409, { error: 'Stop the running turn before rolling back.' });
+        const { turnId, restore } = await readJson(req);
+        const turn = turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1);
+        if (!turn) return send(res, 404, { error: 'no such turn' });
+        await ensureWorktree(s.worktree);
+        const result = rollbackToTurn(s, turn, { restore: !!restore });
+        turn.activity.push({ t: Date.now(), kind: 'edit', label: result.rolledBack ? 'Restored checkpoint before this turn' : 'Re-applied turn changes' });
+        s.updatedAt = Date.now();
+        store.save(s);
+        broadcast('summary', summarize(s, store));
+        broadcast('turn', { sessionId: s.id, turnId: turn.id });
+        telemetry.track('rollback_turn', { agent: s.agent, restore: !!restore });
+        return send(res, 200, { ok: true, turnId: turn.id, ...result });
+      }
+
+      // Run a command from an actionable presentation block (actions, tests, terminal).
+      if (action === 'exec' && m === 'POST') {
+        const { command, turnId, key } = await readJson(req);
+        const cmd = String(command || '').trim();
+        if (!cmd) return send(res, 400, { error: 'command required' });
+        const turn = (turnId && s.turns.find((t) => t.id === turnId)) || s.turns.at(-1);
+        if (s.agent === 'wisp') {
+          return send(res, 200, { command: cmd, output: '✓ Tour preview — in a real project, wisp runs this command in your repo folder and streams the exit code and output here.', exitCode: 0, durationMs: 18 });
+        }
+        await ensureWorktree(s.worktree);
+        const resExec = await execCommand(workdir(s), cmd);
+        if (turn) {
+          turn.actionRuns ||= {};
+          turn.actionRuns[key || cmd] = { ...resExec, ranAt: Date.now() };
+          turn.activity.push({ t: Date.now(), kind: 'run', label: `Ran ${clip(cmd, 60)}`, detail: cmd });
+          store.save(s);
+          broadcast('turn', { sessionId: s.id, turnId: turn.id });
+        }
+        telemetry.track('exec_action', { agent: s.agent, exitCode: resExec.exitCode });
+        return send(res, 200, resExec);
       }
 
       // Take over: continue this exact agent session interactively in a terminal.

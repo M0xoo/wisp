@@ -169,7 +169,7 @@ export function fileTracker(cwd) {
       known.set(r, after);
       announced.delete(r);
       if (before === after) return null;
-      return { file: r, op: before === null ? 'create' : 'write', edits: [{ before: before ?? '', after: after ?? '' }] };
+      return { file: r, op: before === null ? 'create' : 'write', beforeFile: before, edits: [{ before: before ?? '', after: after ?? '' }] };
     },
   };
 }

@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
+import { captureCheckpoint, readGitFile } from './checkpoint.js';
 
 const MAX_ACTIVITY = 400;
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
@@ -218,8 +219,10 @@ export class Runner extends EventEmitter {
   }
 
   #startTurn(session, prompt, attachments = []) {
+    const id = newId();
+    const checkpoint = session.agent === 'wisp' ? null : captureCheckpoint(workdir(session), session.id, id);
     const turn = {
-      id: newId(),
+      id,
       prompt,
       agent: session.agent,
       model: session.model,
@@ -228,6 +231,7 @@ export class Runner extends EventEmitter {
       startedAt: Date.now(),
       endedAt: null,
       status: 'running',
+      checkpoint,
       activity: [],
       changes: [],
       presentation: null,
@@ -311,8 +315,17 @@ export class Runner extends EventEmitter {
       }
       case 'change': {
         let entry = turn.changes.find((c) => c.file === ev.file);
-        if (!entry) turn.changes.push((entry = { file: ev.file, op: ev.op, edits: [] }));
+        if (!entry) {
+          let beforeFile = ev.beforeFile;
+          if (turn.checkpoint?.commit && !path.isAbsolute(ev.file)) {
+            const fromGit = readGitFile(workdir(session), turn.checkpoint.commit, ev.file);
+            if (fromGit !== null) beforeFile = fromGit;
+            else if (!(turn.checkpoint.untracked || []).includes(ev.file)) beforeFile = null;
+          }
+          turn.changes.push((entry = { file: ev.file, op: ev.op, ...(beforeFile !== undefined ? { beforeFile } : {}), edits: [] }));
+        }
         if (ev.op === 'create' && entry.edits.length === 0) entry.op = 'create';
+        delete entry.reverted;
         entry.edits.push(...ev.edits);
         this.store.save(session);
         return;
