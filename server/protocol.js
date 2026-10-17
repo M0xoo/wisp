@@ -42,6 +42,13 @@ diff, the test run, the command output — over prose. Use file paths relative t
   A test/lint/type-check run you actually executed. Prefer this over "terminal" for test runs.
 - {"type":"commits","items":[{"hash":"a1b2c3d","message":"feat(auth): add rate limiter","files":3,"additions":120,"deletions":8}],"branch":"feat/limit"}
   Commits you created, if any.
+- {"type":"graph","title":"Refresh sessions in auth","ref":"#128","state":"open|draft|merged|closed","into":"main","merge":"conflict|ready|merged|blocked|pending",
+   "commits":[{"hash":"d29f50","message":"Add refresh tests","branch":"feat/refresh","author":"You","when":"now"},{"hash":"5be27d","message":"Rotate keys","branch":"main","author":"Lena","when":"6m","conflict":true}],
+   "conflicts":[{"file":"src/auth.ts","line":42,"commit":"5be27d","detail":"Both sides rewrote getSession()","ours":"refresh(token)","theirs":"rotate(key)","resolution":"Rotate first, then refresh"}],
+   "checks":[{"label":"Tests","value":"42 passed","status":"pass|fail|pending"}],"action":{"label":"Resolve conflicts","reply":"Merge main in and resolve the conflicts"}}
+  Branch graph, newest commit first; each commit's "branch" gives its lane ("into" is the base lane).
+  Use it to explain merge conflicts, a rebase, or where branches diverged. Mark the base commits that
+  conflict with "conflict":true; optional "parents":[hash,…] for merge commits.
 - {"type":"tree","title":"…","items":[{"path":"src/auth/limiter.ts","change":"added","note":"…"}]}
   A file tree; use for new modules/scaffolding where structure matters.
 - {"type":"code","language":"ts","code":"…","caption":"…","file":"src/a.ts","line":10,"highlight":[3,4]}

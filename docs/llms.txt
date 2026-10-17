@@ -35,7 +35,7 @@ wisp --mode plan "audit dependencies"
 ## Key features
 
 - **Queue, not a chat log**: Sessions are grouped into `Needs you`, `Working` (live one-line status), and `Done`.
-- **19 presentation blocks**: Agents finish with structured JSON blocks (`hero`, `diff`, `tests`, `stats`, `steps`, `files`, `commits`, `tree`, `code`, `compare`, `flow`, `chart`, `terminal`, `checklist`, `callout`, `image`, `question`, `markdown`, `next`).
+- **21 presentation blocks**: Agents finish with structured JSON blocks (`hero`, `diff`, `tests`, `stats`, `steps`, `files`, `commits`, `graph`, `tree`, `code`, `compare`, `flow`, `chart`, `terminal`, `checklist`, `callout`, `image`, `question`, `actions`, `markdown`, `next`).
 - **Real diffs**: Captured directly from the agent's own file-edit tool calls.
 - **Mid-run questions (`ask_user`)**: Every agent gets an `ask_user` MCP tool so it can ask clarifying questions mid-run; user answers resume the running session.
 - **Terminal takeover**: Press `T` to open the session in Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, or Windows Terminal with the agent's native `--resume` command.

@@ -506,6 +506,183 @@ R.commits = (b) =>
         .join('')}</ol>
     </div>`);
 
+// A branch graph for a PR or merge: lanes per branch, the merge target on top, commits that
+// conflict marked and numbered, and the conflicts themselves listed underneath.
+const GRAPH_ROW = 30;
+const GRAPH_LANE = 16;
+const GRAPH_STATE = {
+  conflict: { label: 'conflicts', icon: 'warn' },
+  ready: { label: 'ready', icon: 'check' },
+  merged: { label: 'merged', icon: 'branch' },
+  blocked: { label: 'blocked', icon: 'x' },
+  pending: { label: 'checking', icon: 'clock' },
+};
+const PR_STATE = { open: 'Open', draft: 'Draft', merged: 'Merged', closed: 'Closed' };
+
+export function layoutGraph(b) {
+  const commits = (Array.isArray(b.commits) ? b.commits : []).filter((c) => c && typeof c === 'object');
+  const into = b.into ? String(b.into) : '';
+  // Lane 0 is the base branch (what we merge into); the others in order of first appearance.
+  const lanes = [];
+  const laneOf = (name) => {
+    let i = lanes.indexOf(name);
+    if (i < 0) i = lanes.push(name) - 1;
+    return i;
+  };
+  const base = into || String(commits.find((c) => c.branch)?.branch || '');
+  laneOf(base);
+  const off = into ? 1 : 0; // the merge target takes row 0
+  const rows = commits.map((c, i) => ({ c, row: i + off, lane: laneOf(c.branch ? String(c.branch) : base) }));
+  const head = b.head ? laneOf(String(b.head)) : lanes.length > 1 ? 1 : 0;
+  const same = (a, z) => !!a && !!z && (a.startsWith(z) || z.startsWith(a));
+  const find = (h) => rows.find((r) => same(String(r.c.hash || ''), String(h)));
+  const edges = [];
+  const tails = [];
+  rows.forEach((r, i) => {
+    const below = rows.slice(i + 1);
+    let parents = Array.isArray(r.c.parents) ? r.c.parents.map(find).filter(Boolean) : [];
+    if (!parents.length) {
+      // Implied parent: the next older commit on this branch, else where the branch forked off base.
+      const p = below.find((o) => o.lane === r.lane) || (r.lane !== 0 && below.find((o) => o.lane === 0));
+      if (p) parents = [p];
+    }
+    parents.forEach((p, k) => edges.push({ from: r, to: p, lane: k === 0 ? r.lane : p.lane, bend: k === 0 ? 'late' : 'early' }));
+    if (!parents.length) tails.push(r);
+  });
+  const conflictNo = new Map();
+  rows.forEach((r) => {
+    if (r.c.conflict) conflictNo.set(r, conflictNo.size + 1);
+  });
+  const tips = new Set(lanes.map((_, l) => rows.find((r) => r.lane === l)).filter(Boolean));
+  return { rows, lanes, head, edges, tails, conflictNo, tips, into, off };
+}
+
+R.graph = (b, ctx) => {
+  const g = layoutGraph(b);
+  const conflicts = (Array.isArray(b.conflicts) ? b.conflicts : []).filter(Boolean).map((c) => (typeof c === 'string' ? { file: c } : c));
+  const nConflicts = conflicts.length || g.conflictNo.size;
+  const merge = GRAPH_STATE[b.merge] ? b.merge : nConflicts ? 'conflict' : g.into ? 'ready' : '';
+  const merged = merge === 'merged';
+  const laneColor = (l) => (l === 0 ? 'var(--g-base)' : merged && l === g.head ? 'var(--g-merged)' : `var(--g-${((l - 1) % 4) + 1})`);
+  const x = (l) => 9 + l * GRAPH_LANE;
+  const y = (row) => row * GRAPH_ROW + GRAPH_ROW / 2;
+  const nRows = g.rows.length + g.off;
+  const width = x(Math.max(0, g.lanes.length - 1)) + 10;
+  const height = nRows * GRAPH_ROW + 10;
+  const path = (x1, y1, x2, y2, bend) => {
+    if (x1 === x2) return `M${x1} ${y1}V${y2}`;
+    const r = GRAPH_ROW * 0.8;
+    // 'late' stays in the child's lane and curves into the parent near it (a fork); 'early'
+    // curves out right away (a merge pulling another branch in).
+    return bend === 'early' ? `M${x1} ${y1}C${x1} ${y1 + r} ${x2} ${y1 + r * 0.2} ${x2} ${y1 + r}V${y2}` : `M${x1} ${y1}V${y2 - r}C${x1} ${y2 - r * 0.2} ${x2} ${y2 - r} ${x2} ${y2}`;
+  };
+  const wires = [];
+  g.edges.forEach((e, k) => {
+    wires.push(`<path class="g-wire" style="--k:${k};stroke:${laneColor(e.lane)}" pathLength="1" d="${path(x(e.from.lane), y(e.from.row), x(e.to.lane), y(e.to.row), e.bend)}"/>`);
+  });
+  g.tails.forEach((r) => wires.push(`<path class="g-tail" style="stroke:${laneColor(r.lane)}" d="M${x(r.lane)} ${y(r.row)}V${height}"/>`));
+  if (g.into) {
+    const headTip = g.rows.find((r) => r.lane === g.head && g.head !== 0);
+    const baseTip = g.rows.find((r) => r.lane === 0);
+    if (baseTip) wires.push(`<path class="g-tail" style="stroke:var(--g-base)" d="M${x(0)} ${y(0)}V${y(baseTip.row)}"/>`);
+    if (headTip) wires.push(`<path class="g-wire ${merged ? '' : 'pending'} st-${merge}" style="--k:0" pathLength="1" d="${path(x(0), y(0), x(headTip.lane), y(headTip.row), 'early')}"/>`);
+  }
+  const dots = g.rows.map((r) => {
+    const cls = r.c.conflict ? 'conflict' : r.c.merge || (Array.isArray(r.c.parents) && r.c.parents.length > 1) ? 'merge' : '';
+    return `<circle class="g-dot ${cls}" style="--k:${r.row};--lc:${laneColor(r.lane)}" cx="${x(r.lane)}" cy="${y(r.row)}" r="${cls === 'merge' ? 4.5 : 4}"/>`;
+  });
+  const target = g.into ? `<g class="g-target st-${merge}" transform="translate(${x(0)} ${y(0)})"><circle r="7.5"/>${merge === 'conflict' ? '<path d="M0 -3.6V0.6M0 3V3.2"/>' : merge === 'ready' ? '<path d="M-3 0.2L-0.9 2.3L3.2 -2"/>' : merge === 'blocked' ? '<path d="M-2.6 -2.6L2.6 2.6M2.6 -2.6L-2.6 2.6"/>' : ''}</g>` : '';
+
+  const meta = (c) => [c.hash ? `<code>${esc(String(c.hash).slice(0, 7))}</code>` : '', [c.author, c.when].filter(Boolean).map((s) => esc(s)).join(' · ')].filter(Boolean).join(' ');
+  const rowHtml = (r) => {
+    const n = g.conflictNo.get(r);
+    const tag = g.tips.has(r) && g.lanes[r.lane] ? `<span class="g-tag" style="--lc:${laneColor(r.lane)}">${esc(g.lanes[r.lane])}</span>` : '';
+    const tone = r.c.conflict ? 'conflict' : r.lane === g.head ? 'head' : 'other';
+    return `<li class="g-row ${tone}" style="--k:${r.row}" ${n ? `data-n="${n}"` : ''} title="${esc(r.c.note || '')}"><span class="g-msg">${inlineMd(r.c.message || r.c.hash || '')}</span>${tag}${n ? `<span class="g-num">${n}</span>` : ''}<span class="g-meta">${meta(r.c)}</span></li>`;
+  };
+  const stateNote = b.note || (merge === 'conflict' ? `${nConflicts} conflict${nConflicts === 1 ? '' : 's'}` : GRAPH_STATE[merge]?.label || '');
+  const targetRow = g.into ? `<li class="g-row target st-${merge}" style="--k:0"><span class="g-msg">${merged ? 'Merged' : 'Merge'} into ${esc(g.into)}</span><span class="g-state">${esc(stateNote)}</span></li>` : '';
+
+  const checks = (Array.isArray(b.checks) ? b.checks : []).filter(Boolean).map((c) => (typeof c === 'string' ? { label: c, status: 'pass' } : c));
+  const checkIcon = { pass: 'check', fail: 'x', pending: 'clock', skip: 'skip' };
+  const checksHtml = checks.length
+    ? `<div class="g-checks">${checks.map((c, i) => `<span class="g-check st-${esc(c.status || 'pass')}" style="--k:${i}" ${c.detail ? `title="${esc(c.detail)}"` : ''}>${icon(checkIcon[c.status] || 'check')}<b>${esc(c.label || '')}</b>${c.value ? `<span>${esc(c.value)}</span>` : ''}</span>`).join('')}</div>`
+    : '';
+
+  const numFor = (c) => {
+    if (c.n) return Number(c.n);
+    const r = c.commit && g.rows.find((o) => o.c.hash && (String(o.c.hash).startsWith(String(c.commit)) || String(c.commit).startsWith(String(o.c.hash))));
+    return r ? g.conflictNo.get(r) : undefined;
+  };
+  const side = (label, text, cls) => (text ? `<div class="g-side ${cls}"><span class="g-who">${esc(label)}</span><code>${esc(text)}</code></div>` : '');
+  const headName = g.lanes[g.head] || 'ours';
+  const conflictsHtml = conflicts.length
+    ? `<ol class="g-conflicts" ${b.expanded === false ? 'hidden' : ''}>${conflicts
+        .map((c, i) => {
+          const n = numFor(c);
+          const loc = c.file ? `${c.file}${c.line || c.lines ? `:${c.line || c.lines}` : ''}` : '';
+          return `<li style="--k:${i}" ${n ? `data-n="${n}"` : ''}>
+            <div class="g-c-head"><span class="g-num ${n ? '' : 'plain'}">${n || i + 1}</span>${loc ? `<button class="link g-file" data-file="${esc(loc)}">${esc(loc)}</button>` : ''}${c.detail ? `<span class="g-c-detail">${inlineMd(c.detail)}</span>` : ''}</div>
+            ${c.ours || c.theirs ? `<div class="g-sides">${side(c.oursLabel || headName, c.ours, 'ours')}${side(c.theirsLabel || g.into || g.lanes[0] || 'theirs', c.theirs, 'theirs')}</div>` : ''}
+            ${c.resolution ? `<div class="g-res">${icon('check')}<span>${inlineMd(c.resolution)}</span></div>` : ''}
+          </li>`;
+        })
+        .join('')}</ol>`
+    : '';
+
+  const footText = b.summary
+    ? inlineMd(b.summary)
+    : merge === 'conflict'
+      ? `${conflicts.length ? `<button class="g-count">${nConflicts} conflict${nConflicts === 1 ? '' : 's'}</button>` : `<b>${nConflicts} conflict${nConflicts === 1 ? '' : 's'}</b>`} with ${esc(g.into || g.lanes[0] || 'base')}`
+      : merge === 'ready'
+        ? 'Ready to merge'
+        : merged
+          ? `Merged into ${esc(g.into || g.lanes[0])}`
+          : merge === 'blocked'
+            ? 'Blocked'
+            : merge === 'pending'
+              ? 'Checks running'
+              : '';
+  const action = b.action && (typeof b.action === 'string' ? { label: b.action } : b.action);
+  const live = ctx.isLatest !== false;
+  const foot = footText || action ? `<div class="g-foot st-${merge}">${merge ? icon(GRAPH_STATE[merge].icon) : ''}<span class="g-foot-text">${footText}</span>${action ? `<button class="g-action" ${live ? '' : 'disabled'}>${esc(action.label || 'Continue')}</button>` : ''}</div>` : '';
+  const pr = PR_STATE[b.state] ? b.state : merged ? 'merged' : '';
+
+  const node = el(`
+    <div class="b-graph card">
+      ${b.title || b.ref || pr ? `<div class="g-head"><h3>${inlineMd(b.title || '')}${b.ref ? ` <span class="g-ref">${esc(b.ref)}</span>` : ''}</h3>${pr ? `<span class="g-pr st-${pr}"><i></i>${PR_STATE[pr]}</span>` : ''}</div>` : ''}
+      <div class="g-body" style="--g-w:${width}px">
+        <svg class="g-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">${wires.join('')}${dots.join('')}${target}</svg>
+        <ol class="g-rows">${targetRow}${g.rows.map(rowHtml).join('')}</ol>
+      </div>
+      ${checksHtml}${conflictsHtml}${foot}
+    </div>`);
+
+  const list = node.querySelector('.g-conflicts');
+  node.querySelector('.g-count')?.addEventListener('click', () => {
+    list.hidden = !list.hidden;
+  });
+  // Hovering a numbered conflict lights up the commit it came from, and the other way round.
+  const light = (n, on) => node.querySelectorAll(`[data-n="${n}"]`).forEach((e) => e.classList.toggle('lit', on));
+  node.querySelectorAll('[data-n]').forEach((e) => {
+    e.addEventListener('mouseenter', () => light(e.dataset.n, true));
+    e.addEventListener('mouseleave', () => light(e.dataset.n, false));
+  });
+  node.querySelectorAll('.g-file').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const [p, line] = btn.dataset.file.split(':');
+      ctx.openFile?.(p, line);
+    }),
+  );
+  node.querySelector('.g-action')?.addEventListener('click', () => {
+    if (!live) return;
+    const text = action.reply || action.label;
+    if (action.draft) ctx.draft?.(text);
+    else ctx.reply?.(text);
+  });
+  return node;
+};
+
 R.checklist = (b) =>
   el(`
     <div class="b-check card">
