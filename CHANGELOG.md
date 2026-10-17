@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Grok Build harness (`grok`, `--agent grok`). wisp runs `grok --output-format streaming-messages-json` headless. It lists the models from `grok models` with each model's thinking levels (Low to X-High), maps Plan / Edits / Full auto to grok's permission modes, and resumes follow-ups with `--resume`. Grok can lead a team of subagents, and it asks you questions through wisp's `ask_user`. The tool reaches grok through a throwaway `--agent` definition that keeps grok's stock prompt. Diffs come from `search_replace` and `write`. Cost shows in Usage when grok reports it.
+
 ### Changed
 
 - Every text field, textarea, select and checkbox now shares one look from a small form kit in `web/css/app.css` (`.input`, `.textarea`, `.field`, `.check`, plus `.mono` / `.sm` / `.lg`): the same border, radius, height, placeholder colour, hover and focus ring across Settings, Phone, Automations, Ship it, Run recipe, Projects, the model picker search, the Subagents editor and question cards. Checkboxes use the accent colour.
