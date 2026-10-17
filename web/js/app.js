@@ -496,9 +496,11 @@ function renderLauncher() {
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
-      <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
-      <button class="tog-btn vs" id="compareBtn" title="Compare: run the same task on a second harness, side by side">vs</button>
-      <button class="runner-btn" id="runner2" title="Second harness to compare with" aria-haspopup="dialog" hidden></button>
+      <div class="runners">
+        <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
+        <button class="vs-btn" id="compareBtn" aria-pressed="false"><span>vs</span>${icon('x')}</button>
+        <button class="runner-btn" id="runner2" title="Second harness to compare with" aria-haspopup="dialog" hidden></button>
+      </div>
       <span class="grow"></span>
       <button class="tog-btn" id="wtBtn"></button>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
@@ -577,10 +579,13 @@ function renderLauncher() {
   const vsBtn = $('#compareBtn', box);
   const runner2 = $('#runner2', box);
   const paintCompare = () => {
-    vsBtn.classList.toggle('on', !!compare);
+    vsBtn.parentElement.classList.toggle('cmp', !!compare);
+    vsBtn.setAttribute('aria-pressed', String(!!compare));
+    vsBtn.title = compare ? 'Stop comparing' : 'Compare: run the same task on a second harness, side by side';
     runner2.hidden = !compare;
     if (compare) paintRunnerBtn(runner2, compare.agent, compare.model, compare.effort);
   };
+  paintCompare();
   vsBtn.onclick = () => {
     if (compare) compare = null;
     else {
