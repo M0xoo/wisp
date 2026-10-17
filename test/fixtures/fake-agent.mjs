@@ -1,4 +1,4 @@
-// A stand-in for the claude / codex / opencode / cursor-agent CLIs. It speaks each one's real
+// A stand-in for the claude / codex / opencode / cursor-agent / agy CLIs. It speaks each one's real
 // output format (captured from the actual CLIs), edits files for real, and — when the prompt
 // says ASK and an MCP server was injected — calls wisp's ask_user tool like a real agent would.
 //
@@ -35,6 +35,10 @@ if (name === 'opencode' && argv[0] === 'models') {
 }
 if (name === 'cursor-agent' && argv[0] === '--list-models') {
   console.log('Available models\n\nauto - Auto (current, default)\nfast-1 - Fast One\nbig-2 - Big Two');
+  process.exit(0);
+}
+if (name === 'agy' && argv[0] === 'models') {
+  console.log('gemini-9-pro-high       Gemini 9 Pro (High)\ngemini-9-flash          Gemini 9 Flash');
   process.exit(0);
 }
 
@@ -76,7 +80,7 @@ function injectedMcp() {
     const srv = JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || '{}').mcp?.wisp;
     return srv ? { command: srv.command[0], args: srv.command.slice(1), env: srv.environment } : null;
   }
-  return null; // cursor-agent can't take one
+  return null; // cursor-agent and agy can't take one
 }
 
 async function askUser(srv, question) {
@@ -106,7 +110,7 @@ const cwd = process.cwd();
 const target = path.join(cwd, 'math.js');
 const before = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
 const after = before.replace('a - b', 'a + b');
-const resumeId = name === 'claude' || name === 'cursor-agent' ? flag('--resume') : name === 'opencode' ? flag('--session') : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
+const resumeId = name === 'claude' || name === 'cursor-agent' ? flag('--resume') : name === 'opencode' ? flag('--session') : name === 'agy' ? flag('--conversation') : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
 const session = resumeId || `${name}-session-1`;
 const final = (answer) =>
   'All done.\n```wisp\n' + JSON.stringify({ blocks: [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : 'No question asked.', status: 'done' }] }) + '\n```';
@@ -176,5 +180,24 @@ if (name === 'claude') {
     ev({ type: 'tool_call', subtype: 'completed', call_id: 's', tool_call: { shellToolCall: { args: { command: 'npm test' }, result: { rejected: { reason: 'needs --force' } } } } });
     ev({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Fixed it.' }] } });
     ev({ type: 'result', subtype: 'success', is_error: false, duration_ms: 5, result: final('') });
+  }
+} else if (name === 'agy') {
+  // --input-format stream-json: one `user` event per line on stdin.
+  const prompt = JSON.parse(stdin.split('\n')[0]).message.content;
+  const step = (i, o) => out({ event: 'step_update', step_update: { conversation_id: session, step_index: i, ...o } });
+  out({ event: 'init', conversation_id: session, init: { cwd, tools: ['run_command', 'view_file', 'write_to_file', 'replace_file_content'], permission_mode: argv.includes('--dangerously-skip-permissions') ? 'always-proceed' : 'request-review' } });
+  step(0, { state: 'DONE', step_type: 'user_input' });
+  step(1, { state: 'DONE', step_type: 'tool', tool_name: 'view_file', tool_info: { name: 'view_file', parameters: { AbsolutePath: target }, output: before } });
+  if (process.env.FAKE_HANG) hang();
+  else {
+    const edit = { name: 'replace_file_content', parameters: { TargetFile: target, TargetContent: 'a - b', ReplacementContent: 'a + b' } };
+    step(2, { state: 'ACTIVE', step_type: 'tool', tool_name: edit.name, tool_info: edit });
+    fs.writeFileSync(target, after);
+    step(2, { state: 'DONE', step_type: 'tool', tool_name: edit.name, tool_info: { ...edit, output: 'ok' } });
+    step(3, { state: 'DONE', step_type: 'tool', tool_name: 'run_command', tool_info: { name: 'run_command', parameters: { CommandLine: 'npm test' }, output: '', error: { type: 'PERMISSION_DENIED', message: 'run_command needs approval' } } });
+    step(4, { state: 'ACTIVE', step_type: 'agent_response', text_delta: 'Fixed ' });
+    step(4, { state: 'DONE', step_type: 'agent_response', text_delta: 'it.' });
+    const usage = { input_tokens: 10, output_tokens: 5, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 15 };
+    out({ event: 'result', result: { conversation_id: session, status: 'SUCCESS', response: final(''), duration_seconds: 0.01, num_turns: 1, usage } });
   }
 }

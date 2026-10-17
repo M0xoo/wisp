@@ -49,7 +49,7 @@ after(() => {
 
 test('every fake harness is detected through /api/agents', async () => {
   const agents = await api('/agents');
-  assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true]]);
+  assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true], ['antigravity', true]]);
 });
 
 for (const agent of ['claude', 'codex', 'opencode']) {
@@ -103,6 +103,19 @@ test('cursor: runs without ask_user and still lands a presentation', async () =>
   const change = done.turns[0].changes.find((c) => c.file === 'math.js');
   assert.match(change.edits[0].before, /a - b/);
   assert.ok(records(RECORD, 'cursor-agent').at(-1).argv.includes('--force'), 'auto mode');
+});
+
+test('antigravity: runs without ask_user and still lands a presentation', async () => {
+  const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'antigravity', mode: 'auto' });
+  const done = await until(async () => {
+    const x = await session(s.id);
+    return x.state === 'review' && x;
+  });
+  assert.equal(done.turns[0].status, 'done');
+  assert.equal(done.turns[0].presentation.blocks[0].title, 'Fake agy finished');
+  const change = done.turns[0].changes.find((c) => c.file === 'math.js');
+  assert.match(change.edits[0].before, /a - b/);
+  assert.ok(records(RECORD, 'agy').at(-1).argv.includes('--dangerously-skip-permissions'), 'auto mode');
 });
 
 test('stopping a running session marks the turn stopped', async () => {

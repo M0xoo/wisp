@@ -14,7 +14,7 @@ installFakeBins();
 const { adapters } = await import('../server/adapters/index.js');
 const { systemPrompt } = await import('../server/protocol.js');
 
-const BIN = { claude: 'claude', codex: 'codex', opencode: 'opencode', cursor: 'cursor-agent' };
+const BIN = { claude: 'claude', codex: 'codex', opencode: 'opencode', cursor: 'cursor-agent', antigravity: 'agy' };
 
 // What each permission mode must put on the command line.
 const MODE_ARGS = {
@@ -22,10 +22,13 @@ const MODE_ARGS = {
   codex: { plan: ['-c', 'sandbox_mode="read-only"'], edits: ['-c', 'sandbox_mode="workspace-write"'], auto: ['--dangerously-bypass-approvals-and-sandbox'] },
   opencode: { plan: ['--agent', 'plan'], edits: [], auto: ['--auto'] },
   cursor: { plan: ['--mode', 'plan'], edits: [], auto: ['--force'] },
+  antigravity: { plan: ['--mode', 'plan'], edits: ['--mode', 'accept-edits'], auto: ['--dangerously-skip-permissions'] },
 };
-const EFFORT_ARGS = { claude: ['--effort', 'high'], codex: ['-c', 'model_reasoning_effort="high"'], opencode: ['--variant', 'high'], cursor: null };
-const RESUME_ARGS = { claude: ['--resume', 'prev-1'], codex: ['resume', 'prev-1'], opencode: ['--session', 'prev-1'], cursor: ['--resume', 'prev-1'] };
+const EFFORT_ARGS = { claude: ['--effort', 'high'], codex: ['-c', 'model_reasoning_effort="high"'], opencode: ['--variant', 'high'], cursor: null, antigravity: ['--effort', 'high'] };
+const RESUME_ARGS = { claude: ['--resume', 'prev-1'], codex: ['resume', 'prev-1'], opencode: ['--session', 'prev-1'], cursor: ['--resume', 'prev-1'], antigravity: ['--conversation', 'prev-1'] };
 
+// agy takes the prompt as a stream-json `user` event; the rest read it raw.
+const promptOf = (id, stdin) => (id === 'antigravity' ? JSON.parse(stdin.split('\n')[0]).message.content : stdin);
 const hasSeq = (arr, seq) => seq.length === 0 || arr.some((_, i) => seq.every((s, j) => arr[i + j] === s));
 
 function run(id, opts = {}) {
@@ -53,6 +56,10 @@ for (const id of Object.keys(BIN)) {
       assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'high'], []], 'per-model reasoning variants');
     }
     if (id === 'cursor') assert.deepEqual(models.slice(1), ['fast-1', 'big-2']);
+    if (id === 'antigravity') {
+      assert.deepEqual(models.slice(1), ['gemini-9-pro-high', 'gemini-9-flash']);
+      assert.deepEqual(found.models.map((m) => m.efforts), [undefined, [], undefined], 'effort baked into the slug means no selector');
+    }
   });
 
   test(`${id}: a turn yields session, tools, real diffs and the final presentation`, async () => {
@@ -65,7 +72,7 @@ for (const id of Object.keys(BIN)) {
 
     // wisp's protocol reaches the agent: as a system prompt flag, or in front of the prompt.
     if (id === 'claude') assert.match(rec.argv[rec.argv.indexOf('--append-system-prompt') + 1], /running inside wisp/);
-    else assert.match(rec.stdin, /running inside wisp[\s\S]*# Task\n\nfix the add bug/);
+    else assert.match(promptOf(id, rec.stdin), /running inside wisp[\s\S]*# Task\n\nfix the add bug/);
 
     assert.deepEqual(events.find((e) => e.type === 'session'), { type: 'session', id: `${BIN[id]}-session-1` });
     assert.ok(events.some((e) => e.type === 'tool' && e.kind === 'run' && /npm test|Run the tests/.test(e.label)), 'shell command shown');
@@ -114,7 +121,7 @@ for (const id of Object.keys(BIN)) {
     const events = await run(id, { resumeId: 'prev-1', prompt: 'and add a test' }).done;
     const rec = records(RECORD, BIN[id]).at(-1);
     assert.ok(hasSeq(rec.argv, RESUME_ARGS[id]), rec.argv.join(' '));
-    if (id !== 'claude') assert.equal(rec.stdin.startsWith('and add a test'), true, 'no protocol prefix on resume');
+    if (id !== 'claude') assert.equal(promptOf(id, rec.stdin).startsWith('and add a test'), true, 'no protocol prefix on resume');
     assert.equal(events.find((e) => e.type === 'session')?.id, 'prev-1');
   });
 
@@ -160,4 +167,14 @@ test('cursor: no ask_user tool, so the protocol asks for a question block', asyn
   const { stdin } = records(RECORD, 'cursor-agent').at(-1);
   assert.match(stdin, /end with a "question" block/);
   assert.doesNotMatch(stdin, /ask_user/);
+});
+
+test('antigravity: no ask_user tool, denied shell surfaces as a tool error', async () => {
+  const events = await run('antigravity').done;
+  const { stdin } = records(RECORD, 'agy').at(-1);
+  assert.match(promptOf('antigravity', stdin), /end with a "question" block/);
+  assert.doesNotMatch(stdin, /ask_user/);
+  assert.deepEqual(events.find((e) => e.type === 'tool_error'), { type: 'tool_error', name: 'run_command', text: 'run_command needs approval' });
+  assert.ok(events.some((e) => e.type === 'text' && e.text === 'Fixed it.'), 'text deltas joined per step');
+  assert.equal(events.find((e) => e.type === 'result').stats.durationMs, 10);
 });

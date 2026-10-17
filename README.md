@@ -13,7 +13,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/desktop-Electron-47848f?logo=electron&logoColor=white)](https://www.electronjs.org)
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
-[![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor-d97757)](#adding-a-harness)
+[![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity-d97757)](#adding-a-harness)
 
 [Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
@@ -23,7 +23,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 
 ## Why wisp?
 
-Agent transcripts are long, and you rarely need them. wisp runs agent harnesses (Claude Code, Codex, opencode, and Cursor) on your projects in the background. When an agent finishes, it hands you a short, animated **presentation**: diffs, test results, commits, flows, and decisions. The session then waits in your queue.
+Agent transcripts are long, and you rarely need them. wisp runs agent harnesses (Claude Code, Codex, opencode, Cursor, and Antigravity) on your projects in the background. When an agent finishes, it hands you a short, animated **presentation**: diffs, test results, commits, flows, and decisions. The session then waits in your queue.
 
 From there you can **follow up**, **answer its questions**, **take it over** in your terminal, or **mark it done**.
 
@@ -44,7 +44,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 📥 **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
 | 💬 **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. |
 | 🔎 **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
-| 🤖 **Any harness** | Claude Code, Codex, opencode, or Cursor CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
+| 🤖 **Any harness** | Claude Code, Codex, opencode, Cursor CLI, or Antigravity CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
@@ -52,7 +52,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 
 ## Quick start
 
-> **Requirements:** macOS, Linux, or Windows; Node.js ≥ 20; and at least one harness installed and signed in: [Claude Code](https://claude.com/claude-code) (`claude`), [Codex](https://github.com/openai/codex) (`codex`), [opencode](https://opencode.ai) (`opencode`), or [Cursor CLI](https://cursor.com/cli) (`cursor-agent`). Override a binary path with `WISP_CLAUDE_BIN`, `WISP_CODEX_BIN`, `WISP_OPENCODE_BIN`, or `WISP_CURSOR_BIN`.
+> **Requirements:** macOS, Linux, or Windows; Node.js ≥ 20; and at least one harness installed and signed in: [Claude Code](https://claude.com/claude-code) (`claude`), [Codex](https://github.com/openai/codex) (`codex`), [opencode](https://opencode.ai) (`opencode`), [Cursor CLI](https://cursor.com/cli) (`cursor-agent`), or [Antigravity CLI](https://antigravity.google/docs/cli/headless/) (`agy`). Override a binary path with `WISP_CLAUDE_BIN`, `WISP_CODEX_BIN`, `WISP_OPENCODE_BIN`, `WISP_CURSOR_BIN`, or `WISP_ANTIGRAVITY_BIN`.
 
 ```sh
 npx wisp-agents                          # open the wisp desktop app
@@ -101,14 +101,14 @@ wisp                              # open wisp (or focus the running one)
 wisp "fix the flaky auth test"    # launch a task in this folder (it becomes a project)
 wisp add [path]                   # add a folder as a project (default: cwd)
 wisp --mode plan "audit deps"     # permission mode: plan | edits | auto
-wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor
+wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor | antigravity
 ```
 
 | Option | Description |
 |---|---|
 | `--port`, `-p N` | Port to use (default `4477`, or `WISP_PORT`) |
 | `--mode`, `-m` | `plan` · `edits` · `auto` |
-| `--agent`, `-a` | `claude` · `codex` · `opencode` · `cursor` (default: the agent last picked in the launcher) |
+| `--agent`, `-a` | `claude` · `codex` · `opencode` · `cursor` · `antigravity` (default: the agent last picked in the launcher) |
 | `--browser`, `-b` | Use the browser instead of the desktop app |
 | `--no-open` | Just run the server; open nothing |
 | `--version`, `-v` | Print the version |
@@ -146,6 +146,7 @@ web/ (UI) ⇄ HTTP + SSE ⇄ server/ ── adapters/claude.js   ── claude -
                                  ├─ adapters/codex.js    ── codex exec --json
                                  ├─ adapters/opencode.js ── opencode run --format json
                                  ├─ adapters/cursor.js   ── cursor-agent -p --output-format stream-json
+                                 ├─ adapters/antigravity.js ── agy --output-format stream-json
                                  └─ mcp-ask.js  (ask_user MCP tool, injected per run)
 ```
 
@@ -167,7 +168,8 @@ wisp/
 │       ├── claude.js      # Claude Code adapter
 │       ├── codex.js       # Codex CLI adapter
 │       ├── opencode.js    # opencode adapter
-│       └── cursor.js      # Cursor CLI adapter
+│       ├── cursor.js      # Cursor CLI adapter
+│       └── antigravity.js # Antigravity CLI adapter
 ├── web/                   # vanilla JS UI, no build step
 │   ├── index.html
 │   ├── css/app.css
@@ -201,6 +203,7 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] Codex adapter
 - [x] opencode adapter
 - [x] Cursor CLI adapter
+- [x] Antigravity CLI adapter
 
 ## Telemetry
 
@@ -228,7 +231,7 @@ npm test         # adapters, process launching, terminals, and the full ask_user
 npm run test:real  # smoke test against the real CLIs installed on this machine
 ```
 
-`npm test` needs no network or accounts. A fake CLI (`test/fixtures/fake-agent.mjs`) speaks each harness's real output format, edits files, and calls `ask_user` through the real MCP bridge. On Windows the fakes are installed as npm-style `.cmd` shims, which is how npm installs the real CLIs. CI (`.github/workflows/test.yml`) runs the suite on Linux, macOS, and Windows with Node 20 and 22, then runs `test:real` against freshly installed Claude Code, Codex, opencode, and Cursor CLIs.
+`npm test` needs no network or accounts. A fake CLI (`test/fixtures/fake-agent.mjs`) speaks each harness's real output format, edits files, and calls `ask_user` through the real MCP bridge. On Windows the fakes are installed as npm-style `.cmd` shims, which is how npm installs the real CLIs. CI (`.github/workflows/test.yml`) runs the suite on Linux, macOS, and Windows with Node 20 and 22, then runs `test:real` against freshly installed Claude Code, Codex, opencode, Cursor, and Antigravity CLIs.
 
 ## License
 

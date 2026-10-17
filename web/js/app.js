@@ -67,6 +67,7 @@ const HARNESS_LOGO = {
   codex: { file: 'codex-color' },
   opencode: { file: 'opencode', mono: true },
   cursor: { file: 'cursor', mono: true },
+  antigravity: { file: 'antigravity-color' },
 };
 function harnessLogo(agent) {
   const l = HARNESS_LOGO[agent];

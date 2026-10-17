@@ -28,8 +28,9 @@ import claude from './claude.js';
 import codex from './codex.js';
 import opencode from './opencode.js';
 import cursor from './cursor.js';
+import antigravity from './antigravity.js';
 
-export const adapters = Object.fromEntries([claude, codex, opencode, cursor].map((a) => [a.id, a]));
+export const adapters = Object.fromEntries([claude, codex, opencode, cursor, antigravity].map((a) => [a.id, a]));
 
 const detected = new Map();
 

@@ -12,6 +12,8 @@ import { adapters, listAgents } from './adapters/index.js';
 import { welcomeSession } from './welcome.js';
 import { openInTerminal, TERMINALS, shq } from './terminal.js';
 import { Telemetry, envDisabled } from './telemetry.js';
+import { blocksToMarkdown, sessionToMarkdown } from './render.js';
+import { openapi } from './openapi.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -32,6 +34,13 @@ const MIME = {
   '.pdf': 'application/pdf',
 };
 const MAX_UPLOAD = 500 * 1024 * 1024;
+const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
+const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
+export const API_VERSION = 1;
+
+// A session "needs you" once it stops running: finished, or blocked on ask_user. A finished run
+// with follow-ups still queued is about to start the next one, so it doesn't count yet.
+const settled = (s) => s.state === 'waiting' || (s.state !== 'running' && !s.queue?.length);
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 
 export async function startServer({ port = 4477, host = '127.0.0.1', handleSignals = true } = {}) {
@@ -61,6 +70,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   runner.on('activity', (a) => broadcast('activity', a));
   runner.on('turn', (t) => broadcast('turn', t));
   runner.on('finished', (f) => broadcast('finished', f));
+  runner.on('finished', ({ session }) => notifyWebhooks(store, session));
   setInterval(() => broadcast('ping', {}), 25_000).unref();
 
   const telemetry = new Telemetry(store);
@@ -123,6 +133,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       return;
     }
 
+    if (root === 'health' && m === 'GET') return send(res, 200, { ok: true, name: 'wisp', version: VERSION, apiVersion: API_VERSION, pid: process.pid, url: `http://127.0.0.1:${port}` });
+    if (root === 'openapi.json' && m === 'GET') return send(res, 200, openapi({ version: VERSION, port }));
+
     if (root === 'agents' && m === 'GET') return send(res, 200, await listAgents());
 
     // Bridge for the ask_user MCP server running inside an agent process.
@@ -178,6 +191,12 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       if (m === 'PATCH') {
         const body = await readJson(req);
         if (body.defaults) Object.assign(store.config.defaults, body.defaults);
+        if (body.webhooks !== undefined) {
+          const hooks = Array.isArray(body.webhooks) ? body.webhooks : [];
+          const bad = hooks.find((h) => !/^https?:\/\/\S+$/.test(String(h?.url ?? h)));
+          if (bad !== undefined) return send(res, 400, { error: `Not an http(s) URL: ${bad?.url ?? bad}` });
+          store.config.webhooks = hooks.map((h) => (typeof h === 'string' ? { url: h } : { url: h.url, events: Array.isArray(h.events) ? h.events : undefined }));
+        }
         store.saveConfig();
         broadcast('config', {});
         return send(res, 200, store.config);
@@ -254,7 +273,18 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
 
     if (root === 'sessions') {
       if (!id) {
-        if (m === 'GET') return send(res, 200, store.all().map((x) => summarize(x, store)).sort((a, b) => b.updatedAt - a.updatedAt));
+        if (m === 'GET') {
+          const q = Object.fromEntries(url.searchParams);
+          const cwd = q.cwd && path.resolve(q.cwd.replace(/^~(?=$|[\\/])/, os.homedir()));
+          let list = store.all().map((x) => summarize(x, store)).sort((a, b) => b.updatedAt - a.updatedAt);
+          if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
+          if (q.agent) list = list.filter((x) => x.agent === q.agent);
+          if (q.project) list = list.filter((x) => x.projectId === q.project || x.project === q.project);
+          if (cwd) list = list.filter((x) => x.cwd === cwd || x.cwd?.startsWith(cwd + path.sep));
+          if (q.archived !== undefined) list = list.filter((x) => x.archived === (q.archived === 'true' || q.archived === '1'));
+          if (Number(q.limit) > 0) list = list.slice(0, Number(q.limit));
+          return send(res, 200, list);
+        }
         if (m === 'POST') {
           const body = await readJson(req);
           if (!body.prompt?.trim()) return send(res, 400, { error: 'prompt required' });
@@ -289,6 +319,45 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           broadcast('removed', { id });
           return send(res, 200, { ok: true });
         }
+      }
+
+      // Long-poll until the session needs the user (finished, or asking). ?timeout=seconds.
+      if (action === 'wait' && m === 'GET') {
+        const timeout = Math.min(Math.max(Number(url.searchParams.get('timeout')) || 60, 0), MAX_WAIT_S) * 1000;
+        const end = Date.now() + timeout;
+        let gone = false;
+        req.on('close', () => (gone = true));
+        while (!gone && store.get(id) && !settled(s) && Date.now() < end) await new Promise((r) => setTimeout(r, 200));
+        if (!store.get(id)) return send(res, 404, { error: 'session was deleted' });
+        return send(res, 200, { ...summarize(s, store), timedOut: !settled(s) });
+      }
+
+      // The latest (or ?turn=<id|index>) presentation, as blocks and as markdown.
+      if (action === 'presentation' && m === 'GET') {
+        const q = url.searchParams.get('turn');
+        const turn = q === null ? s.turns.at(-1) : s.turns.find((t) => t.id === q) || s.turns.at(Number(q));
+        if (!turn) return send(res, 404, { error: 'no such turn' });
+        const latest = turn === s.turns.at(-1);
+        const markdown = latest ? sessionToMarkdown(s) : blocksToMarkdown(turn.presentation?.blocks, turn);
+        if (url.searchParams.get('format') === 'markdown') {
+          res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
+          return res.end(markdown);
+        }
+        return send(res, 200, {
+          sessionId: s.id,
+          turnId: turn.id,
+          turnIndex: s.turns.indexOf(turn),
+          state: s.state,
+          status: turn.status,
+          prompt: turn.prompt,
+          blocks: turn.presentation?.blocks || [],
+          notes: turn.presentation?.notes,
+          fallback: !!turn.presentation?.fallback,
+          changes: turn.changes.map((c) => ({ file: c.file, op: c.op, edits: c.edits.length })),
+          stats: turn.stats,
+          ask: latest ? s.ask || null : null,
+          markdown,
+        });
       }
 
       if (action === 'reply' && m === 'POST') {
@@ -365,7 +434,12 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     fs.createReadStream(p).pipe(res);
   }
 
+  // Advertise this server so integrations (CLI, MCP, editors) can find it without knowing the port.
+  const serverFile = path.join(store.home, 'server.json');
   const shutdown = () => {
+    try {
+      if (JSON.parse(fs.readFileSync(serverFile, 'utf8')).pid === process.pid) fs.rmSync(serverFile, { force: true });
+    } catch {}
     for (const s of store.all()) runner.stop(s);
     store.flush();
     telemetry.persist();
@@ -380,6 +454,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     server.once('error', reject);
     server.listen(port, host, resolve);
   });
+  fs.writeFileSync(serverFile, JSON.stringify({ url: `http://127.0.0.1:${port}`, port, pid: process.pid, version: VERSION, apiVersion: API_VERSION, startedAt: Date.now() }, null, 2));
 
   if (telemetry.enabled) {
     if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
@@ -389,6 +464,23 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   }
 
   return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry };
+}
+
+// POST { event, session, markdown } to each configured webhook (Slack bridges, CI, notifiers).
+// event: session.waiting (blocked on ask_user) | session.finished. Fire and forget.
+function notifyWebhooks(store, summary) {
+  const hooks = store.config.webhooks || [];
+  if (!hooks.length) return;
+  const s = store.get(summary.id);
+  if (!s) return;
+  const event = s.state === 'waiting' ? 'session.waiting' : 'session.finished';
+  const body = JSON.stringify({ event, session: summary, markdown: sessionToMarkdown(s), at: Date.now() });
+  for (const h of hooks) {
+    if (h.events?.length && !h.events.includes(event)) continue;
+    fetch(h.url, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': `wisp/${VERSION}` }, body, signal: AbortSignal.timeout(10_000) }).catch((err) =>
+      console.warn(`wisp: webhook ${h.url} failed: ${err.message}`),
+    );
+  }
 }
 
 function send(res, status, body) {

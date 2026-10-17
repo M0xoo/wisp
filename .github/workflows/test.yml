@@ -57,6 +57,18 @@ jobs:
           irm 'https://cursor.com/install?win32=true' | iex
           # The installer edits the user's PATH in the registry; this session needs it too.
           "$env:LOCALAPPDATA\cursor-agent" >> $env:GITHUB_PATH
+      # Not in WISP_REAL_REQUIRE yet: the agy installer hasn't been exercised on CI runners.
+      - name: Install Antigravity CLI (Unix)
+        if: runner.os != 'Windows'
+        continue-on-error: true
+        run: |
+          curl -fsSL https://antigravity.google/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Antigravity CLI (Windows)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: irm https://antigravity.google/cli/install.ps1 | iex
       - name: Smoke test
         run: npm run test:real
         env:

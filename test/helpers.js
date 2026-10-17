@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 process.env.WISP_TELEMETRY = '0'; // tests never report to PostHog
 
 const FAKE = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta.url));
-export const BINS = ['claude', 'codex', 'opencode', 'cursor-agent'];
+export const BINS = ['claude', 'codex', 'opencode', 'cursor-agent', 'agy'];
 export const win = process.platform === 'win32';
 
 export const tmp = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), `wisp-${prefix}-`));
