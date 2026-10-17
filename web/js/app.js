@@ -3196,6 +3196,7 @@ function shortcuts() {
     ['↵', 'Launch / send'],
     ['⇧↵', 'New line'],
     ['C', 'Collapse all'],
+    ['U', 'Back to top'],
     ['Esc', 'Close / collapse'],
   ];
   const node = el(`<div class="modal keys-modal"><header><h2>Shortcuts</h2></header>${rows.map(([k, l]) => `<div class="krow"><kbd>${k}</kbd><span>${l}</span></div>`).join('')}</div>`);
@@ -3507,6 +3508,10 @@ document.addEventListener('keydown', (e) => {
     if (s && (s.archived || (s.state !== 'running' && s.state !== 'waiting'))) setArchived(id, !s.archived);
   }
   else if (k === 'c' && S.open.size) collapseAll();
+  else if (k === 'u' || k === 'home') {
+    e.preventDefault();
+    backToTop();
+  }
   else if (k === 'm' && id) {
     e.preventDefault();
     rename(id);
@@ -3575,7 +3580,8 @@ stage.addEventListener('scroll', () => {
   dockLauncher();
   toTop.hidden = stage.scrollTop < stage.clientHeight * 0.75;
 }, { passive: true });
-toTop.onclick = () => stage.scrollTo({ top: 0, behavior: 'smooth' });
+const backToTop = () => stage.scrollTo({ top: 0, behavior: 'smooth' });
+toTop.onclick = backToTop;
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');
 

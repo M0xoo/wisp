@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Usage view (⌘K → *Usage*, Settings → *Usage*): spend per day, and spend, turns, success rate, questions and average time by project and by harness · model, over 7, 30 or 90 days. Harnesses that don't report cost are counted but not priced. `wisp usage`, `GET /api/usage`.
 - Phone (Settings → *Phone*): questions and finished tasks go to [ntfy](https://ntfy.sh) and/or a Telegram bot. Tap an option to answer; on Telegram, reply to a message to answer in your own words or follow up, and tap *Mark done*. wisp polls both, so nothing has to reach your machine. ntfy answers are HMAC-signed; Telegram is linked to one chat with a one-time code.
 - API: `POST /sessions` takes `worktree` and `compare`; new `/sessions/:id/ship`, `/pr`, `/merge`, `/recipes`, `/triggers`, `/remote`, `/usage` (all in `GET /api/openapi.json`). SDK: `ship`, `merge`, `recipes`, `saveRecipe`, `runRecipe`, `triggers`, `usage`. Summaries carry `branch`, `pr`, `groupId` and `origin`.
+- Back to top from the keyboard: `U` (or `Home`) scrolls the feed to the top. The back-to-top button that appears once you scroll shows the `U` key next to its arrow, and the shortcut is listed under `?`.
 
 ### Changed
 
