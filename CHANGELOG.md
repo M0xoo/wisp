@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - The launcher stays reachable while you scroll: once it passes under the top bar it docks there as a one-line bar (project chip + draft). Click it, or press `⌘L` / `N`, and the full launcher opens in place over the feed, without scrolling you back to the top. `Esc` or clicking away folds it again. Cards selected with `J` / `K` or opened scroll into view below it.
+- The launcher's **vs** (compare) control is part of the harness pill instead of a separate button. Turned on, the second harness joins the same pill (`Claude Code ⌄ vs opencode ⌄`); hover **vs** for × to stop comparing. The bar no longer wraps onto a second line: on narrow widths model names, then labels, fold away and the logos stay.
 
 ### Fixed
 
