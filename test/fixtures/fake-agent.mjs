@@ -38,7 +38,7 @@ if (name === 'cursor-agent' && argv[0] === '--list-models') {
   process.exit(0);
 }
 if (name === 'agy' && argv[0] === 'models') {
-  console.log('gemini-9-pro-high       Gemini 9 Pro (High)\ngemini-9-flash          Gemini 9 Flash');
+  console.log('Fetching available models...\ngemini-9-pro-high\tGemini 9 Pro (High)\ngemini-9-flash          Gemini 9 Flash');
   process.exit(0);
 }
 

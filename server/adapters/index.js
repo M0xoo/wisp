@@ -38,7 +38,10 @@ export async function listAgents() {
   return Promise.all(
     Object.values(adapters).map(async (a) => {
       if (!detected.has(a.id)) detected.set(a.id, a.detect());
-      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], ...(await detected.get(a.id)) };
+      const found = await detected.get(a.id);
+      // Only a hit is cached: a CLI installed while wisp is running shows up on the next call.
+      if (!found.available) detected.delete(a.id);
+      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], ...found };
     }),
   );
 }

@@ -39,11 +39,11 @@ export default {
   async detect() {
     const found = await detectVersion(BIN);
     if (!found.available) return found;
-    // `agy models` prints "slug   Label" lines. Most slugs bake the effort in (…-high), so
-    // those get no separate selector.
+    // `agy models` prints a "Fetching…" line, then "slug<TAB>Label" lines (older builds pad with
+    // spaces). Most slugs bake the effort in (…-high), so those get no separate selector.
     const models = [];
     for (const line of (await quietOutput(BIN, ['models'])).split('\n')) {
-      const m = line.trim().match(/^([\w.\-]+)\s{2,}(.+)$/);
+      const m = line.trim().match(/^([\w.\-]+)(?:\t|\s{2,})\s*(.+)$/);
       if (m) models.push({ id: m[1], label: m[2].trim(), hint: m[1], ...(EFFORT_SUFFIX.test(m[1]) ? { efforts: [] } : {}) });
     }
     return { ...found, models: [this.models[0], ...models] };
