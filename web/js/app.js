@@ -3624,7 +3624,7 @@ function openMachines({ host, focusAdd = false } = {}) {
       </div>
       ${
         st === 'online'
-          ? `<div class="mc-meta"><span>wisp ${esc(m.remote?.version || '')}</span>${ready.length ? `<span class="mc-agents">${ready.map((a) => `<span class="model-logo" title="${esc(a.name)} ${esc(a.version || '')}">${harnessLogo(a.id)}</span>`).join('')}</span>` : '<span class="bad">no harnesses found</span>'}${m.working ? `<span>${m.working} working</span>` : ''}</div>`
+          ? `<div class="mc-meta"><span>wisp ${esc(m.remote?.version || '')}</span>${m.outdated ? `<button class="ghost xs mc-update" data-a="update" title="Restart wisp on ${esc(m.name)} as ${esc(m.outdated)}">${icon('rerun')}Update to ${esc(m.outdated)}</button>` : ''}${ready.length ? `<span class="mc-agents">${ready.map((a) => `<span class="model-logo" title="${esc(a.name)} ${esc(a.version || '')}">${harnessLogo(a.id)}</span>`).join('')}</span>` : '<span class="bad">no harnesses found</span>'}${m.working ? `<span>${m.working} working</span>` : ''}</div>`
           : ''
       }
       ${busy || st === 'error' ? steps(m) : ''}
@@ -3697,8 +3697,9 @@ function openMachines({ host, focusAdd = false } = {}) {
         paint();
         $(`.mc[data-id="${m.id}"] input[name="target"]`, node)?.focus();
       }
-      if (a === 'restart') {
-        if (m.working && !confirm(`${m.working} agent${m.working === 1 ? ' is' : 's are'} working on ${m.name}. Restarting wisp there stops ${m.working === 1 ? 'it' : 'them'}. Restart?`)) return;
+      if (a === 'restart' || a === 'update') {
+        const verb = a === 'update' ? `Updating wisp there to ${m.outdated}` : 'Restarting wisp there';
+        if (m.working && !confirm(`${m.working} agent${m.working === 1 ? ' is' : 's are'} working on ${m.name}. ${verb} stops ${m.working === 1 ? 'it' : 'them'}. ${a === 'update' ? 'Update' : 'Restart'}?`)) return;
         await api(`/machines/${m.id}/stop`, { method: 'POST', body: { restart: true } });
       }
       if (a === 'stop') {
