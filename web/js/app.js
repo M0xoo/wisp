@@ -4498,7 +4498,7 @@ function notifyFinished(s) {
   }
   toast(`${icon(s.state === 'waiting' ? 'ask' : 'spark')} <b>${esc(s.title)}</b> ${verb}`, { action: { label: 'Open', run: () => reveal(s.id) }, timeout: 7000 });
   if (notifyOn() && !document.hasFocus()) {
-    const note = new Notification(`${s.project}: ${s.title}`, { body: s.state === 'waiting' ? s.question : s.preview || 'Ready for review', icon: '/favicon.svg', tag: s.id });
+    const note = new Notification(`${s.project}: ${s.title}`, { body: s.state === 'waiting' ? s.question : s.preview || 'Ready for review', icon: '/apple-touch-icon.png', tag: s.id });
     note.onclick = () => (window.focus(), reveal(s.id));
   }
 }
