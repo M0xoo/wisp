@@ -7,6 +7,7 @@
 //   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid } to <name>.jsonl
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
+//   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -48,9 +49,18 @@ const stdin = await new Promise((resolve) => {
   process.stdin.on('data', (d) => (s += d)).on('end', () => resolve(s));
 });
 
+// A retro run (wisp's learner): recorded on its own, no tools, just the JSON reply.
+const retro = name === 'claude' && !!flag('--append-system-prompt')?.includes('# wisp retro');
+
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid }) + '\n');
+}
+
+if (retro) {
+  out({ type: 'system', subtype: 'init', session_id: 'retro-session' });
+  out({ type: 'result', subtype: 'success', is_error: false, result: process.env.FAKE_RETRO || '{}', session_id: 'retro-session' });
+  process.exit(0);
 }
 
 if (process.env.FAKE_FAIL) {

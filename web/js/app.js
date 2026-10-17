@@ -1716,6 +1716,8 @@ function openSettings() {
         <input name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></label>
       <div class="setting"><span>Desktop notifications</span><span class="notif-hint muted xs"></span><button class="switch" id="notif" role="switch"></button></div>
       <div class="setting"><span>Anonymous usage stats</span><span class="tele-hint muted xs"></span><button class="switch" id="tele" role="switch"></button></div>
+      <div class="setting"><span>Learn from sessions</span><span class="learn-hint muted xs"></span><button class="switch" id="learn" role="switch"></button></div>
+      <div class="learned" id="learned"></div>
       <div class="agents">${S.agents
         .map((a) => `<div class="agent-row"><span class="dot ${a.available ? 'ok' : 'bad'}"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.available ? a.version : a.error || 'not found')}</span></div>`)
         .join('')}<p class="muted xs">Pick the agent next to the model in the launcher. Others plug in via <code>server/adapters</code>.</p></div>
@@ -1762,6 +1764,66 @@ function openSettings() {
     paintTele();
   };
   paintTele();
+  // Learned preferences and lessons: shown, editable, and switchable off as a whole.
+  const learn = $('#learn', node);
+  const paintLearn = () => {
+    const on = S.config.defaults.learn !== 'off';
+    learn.setAttribute('aria-checked', on);
+    $('.learn-hint', node).textContent = on ? 'A quiet retro after each session' : 'Off — nothing learned or applied';
+  };
+  learn.onclick = async () => {
+    await api('/config', { method: 'PATCH', body: { defaults: { learn: S.config.defaults.learn === 'off' ? 'on' : 'off' } } });
+    await loadConfig();
+    paintLearn();
+    renderLearned($('#learned', node));
+  };
+  paintLearn();
+  renderLearned($('#learned', node));
+}
+
+const LEARN_KINDS = [
+  ['preferences', 'Preferences', 'How you like agents to work'],
+  ['lessons', 'Lessons', 'Mistakes made before, and the way that worked'],
+];
+
+// Settings → what wisp learned, global first, then each project. Every list is editable.
+async function renderLearned(box) {
+  if (!box?.isConnected) return;
+  const data = await api('/preferences').catch(() => null);
+  if (!data || !box.isConnected) return;
+  const scopes = [{ scope: 'global', name: 'Everywhere', ...data.global }, ...data.projects.map((p) => ({ scope: p.path, name: p.name, sub: p.path.replace(S.config.home, '~'), ...p }))];
+  const count = (x) => x.preferences.length + x.lessons.length;
+  const list = (x, [kind, label, hint]) => `
+    <div class="learn-list" data-scope="${esc(x.scope)}" data-kind="${kind}">
+      <h5>${label} <span class="muted xs">${hint}</span></h5>
+      ${x[kind].map((t) => `<div class="learn-item"><input value="${esc(t)}" spellcheck="false"><button class="icon-btn" data-del title="Forget">${icon('x')}</button></div>`).join('')}
+      <div class="learn-item add"><input placeholder="Add one…" spellcheck="false"></div>
+    </div>`;
+  const recent = data.history.slice(0, 4);
+  box.classList.toggle('off', !data.enabled);
+  box.innerHTML = `
+    ${scopes
+      .map((x, i) => `<details ${i === 0 ? 'open' : ''}><summary><b>${esc(x.name)}</b>${x.sub ? `<span class="ppath">${esc(x.sub)}</span>` : ''}<span class="muted xs">${count(x)} item${count(x) === 1 ? '' : 's'}${x.updatedAt ? ` · ${ago(x.updatedAt)}` : ''}</span></summary>${LEARN_KINDS.map((k) => list(x, k)).join('')}</details>`)
+      .join('')}
+    ${recent.length ? `<h5>Recently learned</h5>${recent.map((h) => `<div class="learn-log"><span class="muted xs">${ago(h.at)}</span><span>${esc(h.title || 'session')}</span><span class="add-n">+${h.added.length}</span><span class="del-n">−${h.removed.length}</span></div>`).join('')}` : ''}`;
+  const put = async (listNode) => {
+    const items = $$('.learn-item:not(.add) input', listNode).map((i) => i.value.trim()).filter(Boolean);
+    const add = $('.learn-item.add input', listNode).value.trim();
+    if (add) items.push(add);
+    await api('/preferences', { method: 'PUT', body: { scope: listNode.dataset.scope, kind: listNode.dataset.kind, items } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    const open = $$('details', box).map((d) => d.open);
+    await renderLearned(box);
+    $$('details', box).forEach((d, i) => (d.open = open[i] ?? d.open));
+  };
+  box.onchange = (e) => e.target.matches('input') && put(e.target.closest('.learn-list'));
+  box.onclick = (e) => {
+    const del = e.target.closest('[data-del]');
+    if (!del) return;
+    const listNode = del.closest('.learn-list');
+    del.closest('.learn-item').remove();
+    put(listNode);
+  };
+  box.onkeydown = (e) => e.key === 'Enter' && e.target.matches('input') && e.target.blur();
 }
 
 // Say once that anonymous stats are on, with a way out.
@@ -1861,7 +1923,7 @@ function paletteItems() {
   items.push(
     { group: a, label: 'Add project…', icon: 'folder', keywords: 'folder repo directory', run: () => openProjects({ focusAdd: true }) },
     { group: a, label: 'Manage projects', icon: 'folder', keywords: 'rename color remove', run: () => openProjects() },
-    { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences editor terminal notifications', run: openSettings },
+    { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
 
@@ -1939,6 +2001,7 @@ function connect() {
   });
   es.addEventListener('config', () => loadConfig());
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
+  es.addEventListener('preferences', () => renderLearned($('.settings-modal #learned')));
   es.addEventListener('hello', () => loadSessions());
 }
 

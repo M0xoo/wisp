@@ -950,6 +950,25 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .switch[aria-checked='true']::after { transform: translateX(14px); }
 .switch:disabled { opacity: 0.4; cursor: not-allowed; }
 .settings-modal input { flex: 1; max-width: 340px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); padding: 0 10px; font: 12px var(--mono); outline: 0; }
+.learned { padding: 4px 0 6px; border-bottom: 1px solid var(--line); }
+.learned.off { opacity: 0.55; }
+.learned details { padding: 6px 0; }
+.learned summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; padding: 4px 0; }
+.learned summary::-webkit-details-marker { display: none; }
+.learned summary::before { content: '›'; color: var(--muted); transition: transform 0.15s; }
+.learned details[open] > summary::before { transform: rotate(90deg); }
+.learned summary .ppath { flex: 1; min-width: 0; }
+.learned h5 { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.learn-list { padding-left: 14px; }
+.learn-item { display: flex; align-items: center; gap: 4px; }
+.settings-modal .learn-item input { max-width: none; height: 26px; border-color: transparent; background: transparent; font: 12.5px var(--sans); }
+.settings-modal .learn-item input:hover, .settings-modal .learn-item input:focus { border-color: var(--line); background: var(--surface-2); }
+.learn-item .icon-btn { opacity: 0; }
+.learn-item:hover .icon-btn { opacity: 1; }
+.learn-log { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; padding: 2px 0; }
+.learn-log > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.learn-log .add-n { color: var(--good); font-variant-numeric: tabular-nums; }
+.learn-log .del-n { color: var(--muted); font-variant-numeric: tabular-nums; }
 .agents { margin-top: 18px; }
 .agent-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 13px; }
 .keys-modal { width: min(380px, 100%); }

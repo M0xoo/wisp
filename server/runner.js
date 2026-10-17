@@ -62,6 +62,7 @@ export class Runner extends EventEmitter {
     this.stopping = new Set();
     this.interrupting = new Set();
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
+    this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
 
     // Anything that was mid-flight when wisp last died is now orphaned.
     for (const s of store.all()) {
@@ -233,7 +234,7 @@ export class Runner extends EventEmitter {
       mode: session.mode,
       model: session.model,
       effort: session.effort || '',
-      systemPrompt: systemPrompt({ askTool: adapter.askTool }),
+      systemPrompt: systemPrompt({ askTool: adapter.askTool }) + this.promptExtra(session),
       mcpServers: this.bridge && adapter.askTool !== null
         ? {
             wisp: {

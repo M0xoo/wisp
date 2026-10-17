@@ -28,6 +28,22 @@ export function openapi({ version, port }) {
         get: { summary: 'Current and latest published version, and how this copy updates (global | npx | git). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
         post: { summary: 'Install the latest version and relaunch. 409 while agents run unless { force: true }', responses: { 202: json({ type: 'object' }), 409: json({ type: 'object' }) } },
       },
+      '/preferences': {
+        get: { summary: 'What wisp learned: { enabled, global: { preferences, lessons }, projects: [{ path, name, preferences, lessons }], history }', responses: { 200: json({ type: 'object' }) } },
+        put: {
+          summary: 'Replace one learned list',
+          requestBody: body({
+            type: 'object',
+            required: ['scope', 'kind', 'items'],
+            properties: {
+              scope: { type: 'string', description: '"global" or an absolute project path' },
+              kind: { type: 'string', enum: ['preferences', 'lessons'] },
+              items: { type: 'array', items: { type: 'string' }, description: 'Deduped and capped at 10 items of 180 characters' },
+            },
+          }),
+          responses: { 200: json({ type: 'object' }), 400: err[400] },
+        },
+      },
       '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/config': {
         get: { summary: 'Launcher defaults, projects, webhooks', responses: { 200: json({ type: 'object' }) } },
@@ -115,7 +131,7 @@ export function openapi({ version, port }) {
       },
       '/events': {
         get: {
-          summary: 'Server-sent events: summary, activity, turn, finished, removed, config, ping',
+          summary: 'Server-sent events: summary, activity, turn, finished, removed, config, preferences, ping',
           responses: { 200: { description: 'text/event-stream', content: { 'text/event-stream': { schema: { type: 'string' } } } } },
         },
       },

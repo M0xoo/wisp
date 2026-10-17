@@ -15,6 +15,7 @@ import { Telemetry, envDisabled } from './telemetry.js';
 import { blocksToMarkdown, sessionToMarkdown } from './render.js';
 import { openapi } from './openapi.js';
 import { Updater } from './update.js';
+import { Preferences, Retro, KINDS } from './preferences.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -76,6 +77,23 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
 
   const telemetry = new Telemetry(store);
   const updater = new Updater({ port, onChange: (u) => broadcast('update', u) });
+
+  // Learned preferences: injected into every turn, refreshed by a background retro per session.
+  const prefs = new Preferences(store.home);
+  const learning = () => store.config.defaults.learn !== 'off';
+  const projectOf = (cwd) => store.projectFor(cwd)?.path || cwd;
+  runner.promptExtra = (s) => (learning() && s.agent !== 'wisp' ? prefs.prompt(projectOf(s.cwd)) : '');
+  const retro = new Retro({
+    store,
+    runner,
+    prefs,
+    projectOf,
+    enabled: learning,
+    onDone: ({ session, ok, added = [], removed = [] }) => {
+      telemetry.track('retro', { agent: session.agent, ok, added: added.length, removed: removed.length });
+      if (added.length || removed.length) broadcast('preferences', { added: added.length, removed: removed.length });
+    },
+  });
   const run = (s, t) => ({ agent: s.agent, model: s.model || 'default', mode: s.mode, effort: s.effort || 'default', followUp: s.turns.indexOf(t) > 0 });
   runner.on('started', ({ session, turn }) => telemetry.track('turn_started', { ...run(session, turn), attachments: turn.attachments.length }));
   runner.on('ended', ({ session, turn, interrupted, errorText }) => {
@@ -219,6 +237,27 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       }
     }
 
+    // What wisp learned: preferences and lessons, global and per project (scope = 'global' or a project path).
+    if (root === 'preferences') {
+      const view = () => ({
+        enabled: learning(),
+        global: prefs.data.global,
+        projects: Object.entries(prefs.data.projects).map(([p, v]) => ({ path: p, name: store.projectFor(p)?.name || path.basename(p), ...v })),
+        history: prefs.data.history.slice().reverse(),
+      });
+      if (m === 'GET') return send(res, 200, view());
+      if (m === 'PUT') {
+        const body = await readJson(req);
+        const scope = String(body.scope || '');
+        if (scope !== 'global' && !path.isAbsolute(scope)) return send(res, 400, { error: 'scope must be "global" or a project path' });
+        if (!KINDS.includes(body.kind)) return send(res, 400, { error: `kind must be one of ${KINDS.join(', ')}` });
+        if (!Array.isArray(body.items)) return send(res, 400, { error: 'items must be an array of strings' });
+        prefs.set(scope, body.kind, body.items);
+        broadcast('preferences', {});
+        return send(res, 200, view());
+      }
+    }
+
     if (root === 'projects') {
       if (!id && m === 'GET') return send(res, 200, store.config.projects);
       if (!id && m === 'POST') {
@@ -325,6 +364,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           if (typeof body.unread === 'boolean') s.unread = body.unread;
           if (body.archived === true && s.state !== 'running' && s.state !== 'waiting') Object.assign(s, { archived: true, unread: false });
           if (body.archived === false) delete s.archived;
+          if (s.state === 'done' || s.archived) retro.schedule(s, 0); // finished with it: learn now
           store.save(s);
           broadcast('summary', summarize(s, store));
           return send(res, 200, summarize(s, store));
@@ -456,6 +496,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     try {
       if (JSON.parse(fs.readFileSync(serverFile, 'utf8')).pid === process.pid) fs.rmSync(serverFile, { force: true });
     } catch {}
+    retro.stop();
     for (const s of store.all()) runner.stop(s);
     store.flush();
     telemetry.persist();

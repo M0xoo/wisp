@@ -47,6 +47,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🤖 **Any harness** | Claude Code, Codex, opencode, Cursor CLI, or Antigravity CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
+| 🧠 **Learns as you go** | After a session goes quiet, a background retro records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later runs get them in their prompt. See [Learning](#learning). |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
 | 🔌 **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
 | 🪶 **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
@@ -249,6 +250,19 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] opencode adapter
 - [x] Cursor CLI adapter
 - [x] Antigravity CLI adapter
+
+## Learning
+
+After a session has been quiet for 90 seconds (or right away when you mark it done or archive it), wisp runs a short **retro**: the same harness, read-only and without tools (Claude Code runs it on Haiku), reads a digest of the turns it hasn't seen yet. The digest holds your requests and follow-ups, questions and answers, failed tool calls and the commands run around them, and how each run ended. The retro then updates four small lists:
+
+| | Everywhere | This project |
+|---|---|---|
+| **Preferences**: how you like agents to work | report style, git habits, "never …" | tooling, conventions, areas to leave alone |
+| **Lessons**: a mistake and the way that worked | "use `python3`, not `python`" | "run tests with `node --test`; `npm test -- x` runs everything" |
+
+The retro gets the current lists along with the digest, so when you change your mind it rewrites or drops the old item instead of adding a contradicting one. Each list holds at most 10 items of 180 characters or less, and the digest is capped at 10k characters, so the prompt block stays small. Every later turn gets the lists in its system prompt, and the current request always wins over them.
+
+Settings → *Learn from sessions* shows every list, lets you edit, add or forget items, and lists what recent retros changed. Switching it off stops both learning and applying. The data lives in `~/.wisp/preferences.json`, and the API is `GET/PUT /api/preferences`.
 
 ## Telemetry
 
