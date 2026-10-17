@@ -3046,7 +3046,7 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
   render();
 }
 
-// Run a recipe: ask for its fields (and a project, if it isn't tied to one), then launch.
+// Run a recipe: show it, ask for its fields (and a project, if it isn't tied to one), launch on Run.
 function runRecipe(r) {
   if (!r) return;
   const needsProject = !r.cwd;
@@ -3079,8 +3079,8 @@ function runRecipe(r) {
       toast(esc(err.message), { tone: 'bad' });
     }
   };
-  if (!r.params.length && !needsProject) return node.requestSubmit();
-  requestAnimationFrame(() => $('input, select', node)?.focus());
+  // Always wait for Run, even with nothing to fill in, so a click on a recipe never launches it outright.
+  requestAnimationFrame(() => ($('input, select', node) || $('button.primary', node))?.focus());
 }
 
 // A task worth repeating becomes a recipe, starting from its first prompt.
