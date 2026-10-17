@@ -2102,7 +2102,13 @@ function connect() {
     // fold it unless the user is actually watching it.
     const n = S.nodes.get(s.id);
     if (prev?.state === 'running' && s.state !== 'running' && S.open.has(s.id) && !(n && isInView(n.card) && document.hasFocus())) collapse(s.id);
+    // A state change moves the card to another section (a follow-up sends it from
+    // "Needs you" to "Working"). If the user is looking at it, follow it there
+    // instead of leaving them on whatever slid into its place. (Marking done
+    // moves focus to the next item on purpose, so that case is left alone.)
+    const pin = prev && prev.state !== s.state && s.state !== 'done' && n?.card.isConnected && isInView(n.card) ? n.card.getBoundingClientRect().top : null;
     renderFeed();
+    if (pin !== null && n.card.isConnected) stage.scrollTop += n.card.getBoundingClientRect().top - pin;
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
