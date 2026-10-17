@@ -22,6 +22,7 @@ import { createWorktree, worktreeSource, ensureWorktree, removeWorktree, worktre
 import { normalizeRecipe, findRecipe, recipeView, fill, positional } from './recipes.js';
 import { Triggers, normalizeTrigger, triggerView } from './triggers.js';
 import { Remote } from './remote.js';
+import { Machines, splitId, qualify, sshHosts } from './machines.js';
 import { usage } from './usage.js';
 import { normalizeTeam, normalizePreset, delegationReport } from './subagents.js';
 
@@ -87,6 +88,30 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   runner.on('finished', (f) => broadcast('finished', f));
   runner.on('finished', ({ session }) => notifyWebhooks(store, session));
   runner.on('finished', ({ session }) => remote.notify(store.get(session.id), session).catch((err) => console.warn(`wisp: phone: ${err.message}`)));
+
+  // Machines: other computers running their own wisp, reached over SSH. Their sessions show up
+  // here as <id>@<machine>; their events are relayed into this stream.
+  const machines = new Machines({
+    store,
+    version: VERSION,
+    apiVersion: API_VERSION,
+    onChange: () => broadcast('machines', machines.view()),
+    onEvent: (event, data) => {
+      broadcast(event, data);
+      if (event === 'finished' && remote.on) notifyFromMachine(data.session).catch((err) => console.warn(`wisp: phone: ${err.message}`));
+    },
+  });
+  async function notifyFromMachine(summary) {
+    const at = splitId(summary.id);
+    const s = machines.session(at.machine, await machines.json(at.machine, 'GET', `/sessions/${at.id}`));
+    await remote.notify(s, summary);
+  }
+  // Attachments are uploaded here; a machine gets its own copies before a launch or reply.
+  const pushUploads = async (mid, ids) => {
+    const out = [];
+    for (const u of resolveAttachments(ids)) out.push((await machines.upload(mid, u)).id);
+    return out;
+  };
   setInterval(() => broadcast('ping', {}), 25_000).unref();
 
   const telemetry = new Telemetry(store);
@@ -150,7 +175,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     // runs need one each, or the harnesses would edit the same files.
     const comparing = runners.length > 1;
     const wantTree = body.worktree ?? (comparing || (mode !== 'plan' && d.worktree !== 'off'));
-    const groupId = comparing ? newId() : null;
+    // groupId: one launch sent to several machines (or here and there) shows as one task.
+    const groupId = /^[a-f0-9]{12}$/.test(body.groupId || '') ? body.groupId : comparing ? newId() : null;
     const attachments = resolveAttachments(body.attachments);
     const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
     if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
@@ -177,6 +203,27 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents }));
   }
 
+  // Where a launch runs: body.machine, else a project folder that only exists on a machine
+  // (recipes and schedules keep just the path). null = here.
+  function machineFor(body) {
+    if (body.machine) return machines.get(String(body.machine)).id;
+    const cwd = String(body.cwd || '');
+    if (!cwd || fs.existsSync(expand(cwd))) return null;
+    return store.config.projects.find((p) => p.machine && (cwd === p.path || cwd.startsWith(`${p.path}/`)))?.machine || null;
+  }
+
+  // launch(), here or on a machine. Resolves with summaries (a compare launch has several).
+  async function launchAny(body, origin = null) {
+    const mid = machineFor(body);
+    if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));
+    const out = await machines.launch(mid, { ...body, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
+    const known = store.projectFor(out.cwd, mid);
+    (known || store.addProject(out.cwd, { machine: mid })).lastUsedAt = Date.now();
+    store.saveConfig();
+    if (!known) broadcast('config', {});
+    return (out.group || [out]).map((x) => machines.summary(mid, x));
+  }
+
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
   async function replyTo(s, text, attachments = [], queue) {
     await ensureWorktree(s.worktree);
@@ -194,29 +241,31 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   };
 
   // Recipes and triggers.
-  const runRecipe = async (r, { params = {}, words, cwd, agent, model, effort, mode } = {}) => {
+  const runRecipe = async (r, { params = {}, words, cwd, machine, agent, model, effort, mode } = {}) => {
     const values = words ? { ...positional(r.prompt, words), ...params } : params;
-    const [s] = await launch({ prompt: fill(r.prompt, values), cwd: r.cwd || cwd, agent: agent || r.agent || undefined, model: model ?? (r.model || undefined), effort: effort || r.effort || undefined, mode: mode || r.mode || undefined }, { kind: 'recipe', id: r.id, name: r.name });
+    const [s] = await launchAny({ prompt: fill(r.prompt, values), cwd: r.cwd || cwd, machine, agent: agent || r.agent || undefined, model: model ?? (r.model || undefined), effort: effort || r.effort || undefined, mode: mode || r.mode || undefined }, { kind: 'recipe', id: r.id, name: r.name });
     r.runs = (r.runs || 0) + 1;
     r.lastRunAt = Date.now();
     store.saveConfig();
     broadcast('config', {});
     return s;
   };
-  const triggers = new Triggers({ store, launch: async (body, origin) => (await launch(body, origin))[0], onChange: () => broadcast('config', {}) });
+  const triggers = new Triggers({ store, launch: async (body, origin) => (await launchAny(body, origin))[0], onChange: () => broadcast('config', {}) });
 
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
   const remote = new Remote({
     store,
     onChange: () => broadcast('remote', {}),
     act: async ({ sessionId, kind, ref, index, text }) => {
-      const s = store.get(sessionId);
-      if (!s) return 'That session is gone.';
+      const ops = await sessionOps(sessionId).catch((err) => ({ error: err.message }));
+      if (ops?.error) return `Can’t reach it: ${ops.error}`;
+      if (!ops) return 'That session is gone.';
+      const { s } = ops;
       if (kind === 'answer') {
         if (!s.ask || s.ask.id !== ref) return 'That question was already answered.';
         const answer = s.ask.options[index];
         if (answer === undefined) return 'Unknown option.';
-        runner.answer(s, answer);
+        await ops.answer(answer);
         return `✓ Answered: ${answer}`;
       }
       if (kind === 'reply') {
@@ -226,18 +275,34 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         const o = q?.options?.[index];
         const msg = typeof o === 'string' ? o : o?.reply || o?.label;
         if (!msg) return 'Unknown option.';
-        await replyTo(s, msg);
+        await ops.reply(msg);
         return `✓ Sent: ${typeof o === 'string' ? o : o.label || msg}`;
       }
       if (kind === 'done') {
         if (s.turns.at(-1)?.id !== ref && ref) return 'There is newer work on that session; open wisp to review it.';
-        return markDone(s) ? '✓ Marked done' : 'It is still working.';
+        return (await ops.done()) ? '✓ Marked done' : 'It is still working.';
       }
       if (s.agent === 'wisp') return 'That is the tour; it can’t take follow-ups.';
-      const r = await replyTo(s, String(text || '').trim());
+      const r = await ops.reply(String(text || '').trim());
       return r.answered ? '✓ Answered' : r.interrupted ? '✓ Sent; the agent picked it up mid-run' : r.queued ? '✓ Queued for when it finishes' : '✓ Sent';
     },
   });
+
+  // What the phone can do to a session, here or on a machine: { s, answer, reply, done } or null.
+  async function sessionOps(sessionId) {
+    const at = splitId(sessionId);
+    if (!at) {
+      const s = store.get(sessionId);
+      return s && { s, answer: (a) => runner.answer(s, a), reply: (t) => replyTo(s, t), done: () => markDone(s) };
+    }
+    const call = (method, p, body) => machines.json(at.machine, method, `/sessions/${at.id}${p}`, body);
+    const s = await call('GET', '').catch((err) => {
+      if (err.status === 404) return null;
+      throw err;
+    });
+    const live = s && (s.state === 'running' || s.state === 'waiting');
+    return s && { s: machines.session(at.machine, s), answer: (a) => call('POST', '/answer', { text: a }), reply: (t) => call('POST', '/reply', { text: t }), done: async () => !live && !!(await call('PATCH', '', { state: 'done' })) };
+  }
 
   // Ship it: follow open PRs (checks, reviews, merges) so their cards stay current.
   const refreshPr = async (s) => {
@@ -391,6 +456,10 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         fs.writeFileSync(path.join(uploadsDir, `${uid}.json`), JSON.stringify(meta));
         return send(res, 201, meta);
       }
+      if (id && m === 'GET' && splitId(id)) {
+        const at = splitId(id);
+        return pipeFrom(res, await machines.stream(at.machine, 'GET', `/uploads/${at.id}`));
+      }
       if (id && m === 'GET') {
         const u = uploads.get(id);
         if (!u || !fs.existsSync(u.path)) return send(res, 404, { error: 'not found' });
@@ -486,8 +555,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       }
       if (action === 'run' && m === 'POST') {
         const body = await readJson(req);
-        const s = await runRecipe(r, { params: body.params || {}, words: Array.isArray(body.words) ? body.words.map(String) : undefined, cwd: body.cwd, agent: body.agent, model: body.model, effort: body.effort, mode: body.mode });
-        return send(res, 201, summarize(s, store));
+        // machine: run it in a project there (r.cwd empty, or a path on that machine).
+        const s = await runRecipe(r, { params: body.params || {}, words: Array.isArray(body.words) ? body.words.map(String) : undefined, cwd: body.cwd, machine: body.machine || undefined, agent: body.agent, model: body.model, effort: body.effort, mode: body.mode });
+        return send(res, 201, s);
       }
     }
 
@@ -518,7 +588,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       }
       if (action === 'run' && m === 'POST') {
         const r = await triggers.runNow(t);
-        const started = (Array.isArray(r) ? r : r ? [r] : []).map((x) => summarize(x, store));
+        const started = Array.isArray(r) ? r : r ? [r] : [];
         return send(res, 200, { started, trigger: triggerView(t) });
       }
     }
@@ -543,6 +613,11 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       if (!id && m === 'GET') return send(res, 200, store.config.projects);
       if (!id && m === 'POST') {
         const body = await readJson(req);
+        if (body.machine) {
+          const p = await machines.addProject(String(body.machine), String(body.path || '').trim(), body.name);
+          broadcast('config', {});
+          return send(res, 201, p);
+        }
         const dir = path.resolve(String(body.path || '').replace(/^~(?=$|[\\/])/, os.homedir()));
         if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return send(res, 400, { error: `Not a folder: ${dir}` });
         const p = store.addProject(dir, { name: body.name });
@@ -607,13 +682,18 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       return send(res, 200, entries);
     }
 
+    if (root === 'machines') return machinesApi(req, res, url, id, action);
+
     if (root === 'sessions') {
+      if (id && splitId(id)) return machineSessionApi(req, res, url, splitId(id), action);
       if (!id) {
         if (m === 'GET') {
           const q = Object.fromEntries(url.searchParams);
           const cwd = q.cwd && path.resolve(q.cwd.replace(/^~(?=$|[\\/])/, os.homedir()));
           // Subagent sessions belong to their lead; ?children=1 lists them too.
-          let list = store.all().filter((x) => !x.parentId || q.children).map((x) => summarize(x, store)).sort((a, b) => b.updatedAt - a.updatedAt);
+          // Sessions on machines too (the last ones seen, for a machine that's offline).
+          const here = store.all().filter((x) => !x.parentId || q.children).map((x) => summarize(x, store));
+          let list = [...here, ...(await machines.sessions(q))].sort((a, b) => b.updatedAt - a.updatedAt);
           if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
           if (q.agent) list = list.filter((x) => x.agent === q.agent);
           if (q.project) list = list.filter((x) => x.projectId === q.project || x.project === q.project);
@@ -623,9 +703,12 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           return send(res, 200, list);
         }
         if (m === 'POST') {
-          const made = await launch(await readJson(req));
-          const out = made.map((x) => summarize(x, store));
-          return send(res, 201, made.length > 1 ? { ...out[0], group: out } : out[0]);
+          const body = await readJson(req);
+          // A machine's wisp hands on where a recipe or trigger launch came from.
+          const o = body.origin;
+          const origin = o && (o.kind === 'recipe' || o.kind === 'trigger') ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
+          const out = await launchAny(body, origin);
+          return send(res, 201, out.length > 1 ? { ...out[0], group: out } : out[0]);
         }
       }
 
@@ -868,6 +951,64 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     send(res, 404, { error: 'not found' });
   }
 
+  // /api/machines: add, connect, and browse folders on other computers.
+  async function machinesApi(req, res, url, id, action) {
+    const m = req.method;
+    const one = (mid) => machines.view().find((x) => x.id === mid);
+    if (!id && m === 'GET') return send(res, 200, machines.view());
+    if (!id && m === 'POST') {
+      const body = await readJson(req);
+      const x = machines.add(body);
+      if (body.connect !== false) await machines.connect(x.id);
+      return send(res, 201, one(x.id));
+    }
+    if (id === 'ssh-hosts' && m === 'GET') return send(res, 200, sshHosts());
+    machines.get(id); // 404s
+    if (!action && m === 'PATCH') return send(res, 200, (await machines.update(id, await readJson(req)), one(id)));
+    if (!action && m === 'DELETE') {
+      machines.remove(id);
+      broadcast('config', {});
+      return send(res, 200, { ok: true });
+    }
+    if (action === 'connect' && m === 'POST') return send(res, 200, await machines.connect(id));
+    if (action === 'disconnect' && m === 'POST') return send(res, 200, (machines.disconnect(id), one(id)));
+    // Stop wisp over there (its agents too); restart starts this version in its place.
+    if (action === 'stop' && m === 'POST') return send(res, 200, (await machines.stopRemote(id, { restart: !!(await readJson(req)).restart }), one(id)));
+    if (action === 'fs' && m === 'GET') return send(res, 200, await machines.json(id, 'GET', `/fs?q=${encodeURIComponent(url.searchParams.get('q') || '')}`));
+    if (action === 'discover' && m === 'GET') {
+      const known = new Set(store.config.projects.filter((p) => p.machine === id).map((p) => p.path));
+      return send(res, 200, (await machines.json(id, 'GET', '/projects/discover')).filter((f) => !known.has(f.path)));
+    }
+    send(res, 404, { error: 'not found' });
+  }
+
+  // /api/sessions/<id>@<machine>/…: passed through to that machine's wisp, ids rewritten.
+  async function machineSessionApi(req, res, url, at, action) {
+    const m = req.method;
+    const mid = at.machine;
+    const sub = `/sessions/${at.id}${action ? `/${action}` : ''}${url.search}`;
+    if ((action === 'file' && m === 'GET') || (action === 'presentation' && url.searchParams.get('format') === 'markdown')) return pipeFrom(res, await machines.stream(mid, 'GET', sub));
+    // Take over: a terminal here, signed in over there, resuming the agent in its folder.
+    if (action === 'takeover') {
+      const { command } = await machines.json(mid, 'GET', `/sessions/${at.id}/takeover`);
+      const argv = machines.terminalArgv(mid, command);
+      if (m === 'POST') {
+        const s = await machines.json(mid, 'GET', `/sessions/${at.id}`);
+        if (s.state === 'running' || s.state === 'waiting') await machines.json(mid, 'POST', `/sessions/${at.id}/stop`, {});
+        openInTerminal({ cwd: os.homedir(), argv, terminal: store.config.defaults.terminal || 'auto', custom: store.config.defaults.terminalCommand });
+        telemetry.track('takeover', { agent: s.agent, terminal: store.config.defaults.terminal || 'auto', machine: true });
+      }
+      return send(res, 200, { command: argv.map(shq).join(' ') });
+    }
+    const body = m === 'GET' ? undefined : await readJson(req);
+    if (action === 'reply' && body?.attachments?.length) body.attachments = await pushUploads(mid, body.attachments);
+    const out = await machines.json(mid, m, sub, body, action === 'wait' ? { timeout: (MAX_WAIT_S + 30) * 1000 } : undefined);
+    if (!action && m === 'GET') return send(res, 200, machines.session(mid, out));
+    if ((!action && m === 'PATCH') || action === 'wait') return send(res, 200, machines.summary(mid, out));
+    if (out && typeof out === 'object' && out.sessionId) out.sessionId = qualify(out.sessionId, mid);
+    return send(res, 200, out);
+  }
+
   function serveStatic(res, pathname) {
     const p = path.normalize(path.join(WEB, pathname === '/' ? 'index.html' : pathname));
     if (!p.startsWith(WEB) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) {
@@ -888,6 +1029,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     retro.stop();
     triggers.stop();
     remote.stop();
+    machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     clearInterval(prTimer);
     for (const s of store.all()) runner.stop(s);
     store.flush();
@@ -907,6 +1049,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   updater.start();
   triggers.start();
   remote.start();
+  machines.start();
 
   if (telemetry.enabled) {
     if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
@@ -915,7 +1058,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers, remote };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers, remote, machines };
 }
 
 // POST { event, session, markdown } to each configured webhook (Slack bridges, CI, notifiers).
@@ -933,6 +1076,14 @@ function notifyWebhooks(store, summary) {
       console.warn(`wisp: webhook ${h.url} failed: ${err.message}`),
     );
   }
+}
+
+// Pass a machine's raw response (images, markdown, uploads) straight through.
+function pipeFrom(res, r) {
+  const headers = { 'content-type': r.headers['content-type'] || 'application/octet-stream' };
+  if (r.headers['content-length']) headers['content-length'] = r.headers['content-length'];
+  res.writeHead(r.statusCode, headers);
+  r.pipe(res);
 }
 
 function send(res, status, body) {

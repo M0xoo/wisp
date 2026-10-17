@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Machines: run agents on your other computers (a dev box, a GPU server, a cloud VM) over SSH. **Machines** in the top bar (also Settings → *Machines*, ⌘K) takes an SSH host (suggested from `~/.ssh/config`) and connects: wisp signs in with your keys, finds Node.js there, starts `npx -y wisp-agents@<this version>` detached (or reuses the wisp already running), and opens an `ssh -L` tunnel back. Each step shows live, and a failure says what to run (`ssh-copy-id`, install Node, restart an older wisp). Then pick projects on the machine (its git repos are listed, folders autocomplete). The launcher's **Run on** button (next to the harness) picks where a prompt goes: this computer, a machine, or several at once. Each place gets its own row of project chips, and one Enter launches on all of them in parallel, as one task card with a row per machine (its own project, badge and status) and a single "ready on 3 machines" toast. A machine picked while disconnected connects. Each run executes the agent on its machine, with worktrees, diffs, rollback, `ask_user`, subagents, compare and Ship it working as usual. Its sessions join your feed with a machine badge, answer questions from your phone like any other, open in VS Code / Cursor / Windsurf over Remote - SSH, and **Take over** opens `ssh -t` in your terminal. Nothing new listens on the network: wisp over there stays on its own loopback, keeps running (agents too) when this computer sleeps, and wisp reconnects when it wakes. API: `/api/machines`, `machine` and `groupId` (to group runs launched in several places) on `POST /sessions`, `machine` on `/projects`; remote sessions are `<id>@<machine>` everywhere (CLI, SDK, MCP).
+
 ## [0.8.0] - 2026-10-17
 
 ### Added

@@ -143,6 +143,21 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 400: err[400] },
         },
       },
+      '/machines': {
+        get: { summary: 'Machines (other computers over SSH) with connection state, steps, hints and their wisp version and harnesses', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } },
+        post: {
+          summary: 'Add a machine and connect (unless connect: false). wisp starts itself there over SSH and tunnels back',
+          requestBody: body({ type: 'object', required: ['target'], properties: { target: { type: 'string', description: 'user@host, a host, or a Host from ~/.ssh/config' }, name: { type: 'string' }, port: { type: 'integer', default: 4477, description: 'wisp port on the machine' }, command: { type: 'string', description: 'Start command; default npx -y wisp-agents@<this version>' }, autoConnect: { type: 'boolean', default: true }, connect: { type: 'boolean', default: true } } }),
+          responses: { 201: json({ type: 'object' }), 400: err[400] },
+        },
+      },
+      '/machines/ssh-hosts': { get: { summary: 'Hosts from ~/.ssh/config, for suggestions', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
+      '/machines/{mid}': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], patch: { summary: 'Edit a machine (host, port or command changes reconnect)', responses: { 200: json({ type: 'object' }) } }, delete: { summary: 'Remove a machine and its projects here (nothing on the machine is touched)', responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/connect': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Connect: SSH in, start wisp there if needed, open the tunnel', responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/disconnect': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Close the tunnel; wisp and its agents keep running there', responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/stop': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Stop wisp on the machine (its agents too); restart: true starts this version in its place', requestBody: body({ type: 'object', properties: { restart: { type: 'boolean' } } }), responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/fs': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'q', in: 'query', schema: { type: 'string' } }], get: { summary: 'Folder suggestions on the machine', responses: { 200: json({ type: 'array', items: { type: 'string' } }) } } },
+      '/machines/{mid}/discover': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], get: { summary: 'Git repos found on the machine that are not projects yet', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/remote/test': { post: { summary: 'Send a test message to the enabled channels', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
       '/usage': {
         get: {

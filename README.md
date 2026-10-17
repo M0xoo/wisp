@@ -228,6 +228,7 @@ wisp/
 │   ├── recipes.js         # saved prompts with {params}
 │   ├── triggers.js        # cron schedules and GitHub watchers
 │   ├── remote.js          # phone: ntfy and Telegram, out and back
+│   ├── machines.js        # other computers: SSH, a tunnel to wisp there, relayed sessions
 │   ├── usage.js           # spend and outcomes
 │   ├── terminal.js        # "take over" in your terminal
 │   ├── welcome.js         # the gallery session
@@ -325,6 +326,18 @@ Settings → *Phone* sends questions and finished tasks to your phone and takes 
 - **Telegram**: create a bot with @BotFather, paste its token, then send `/link <code>` to the bot. Tap a button to answer, or reply to a message to answer in your own words or send a follow-up.
 
 They receive titles, summaries and questions (with their context), never code or diffs.
+
+## Machines
+
+**Machines** (top bar, Settings → *Machines*, or ⌘K) runs agents on your other computers over SSH. Give it `user@host` or a `Host` from `~/.ssh/config` and press **Connect**:
+
+1. wisp signs in with `ssh` using your keys, agent and config (never a password; `BatchMode=yes`, new host keys are trusted on first use).
+2. On the machine it finds Node.js 20+ and starts `npx -y wisp-agents@<this version> --no-open` detached, or reuses the wisp already answering on its port (4477 by default).
+3. It forwards a free local port to that wisp with `ssh -L` and relays its event stream.
+
+Then **Pick projects on it**: the machine's git repos are listed, and folders autocomplete. In the launcher, **Run on** (next to the harness) picks where the prompt goes: this computer, any machine, or several at once. Each place shows its own project chips; Enter launches on all of them in parallel, and the runs land as one task with a row per machine. Each run executes on its machine, with worktrees, diffs, rollback, `ask_user`, subagents, compare and Ship it all working on that machine. Its sessions join your feed with a badge, answer from your phone like any other, open in VS Code, Cursor or Windsurf through Remote - SSH, and **Take over** opens `ssh -t <host>` resuming the agent in your terminal.
+
+Nothing new listens on the network: wisp on the machine stays on its own `127.0.0.1`, and it keeps running (agents too) when this computer sleeps or disconnects; wisp reconnects on its own. **Stop wisp there** (the machine's ⋯ menu) stops it. The machine needs Node.js 20+ and the harness CLIs, signed in. Sessions there are `<id>@<machine>` in the API, CLI, SDK and MCP; recipes and schedules work with machine projects, while CI and issue triggers, usage and memory stay per machine.
 
 ## Learning
 
