@@ -1270,13 +1270,14 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
       .map((e) => `<button role="radio" aria-checked="${e === current}" class="${e === current ? 'on' : ''}" data-e="${esc(e)}" title="${e ? `${esc(effortLabel(e))} reasoning effort` : 'Whatever the harness is set to'}">${esc(e ? effortLabel(e) : 'Default')}</button>`)
       .join('')}</span>`;
   };
+  const markInUse = (id) => {
+    $$('.pk-dot', node).forEach((d) => d.remove());
+    sideRows.find((b) => b.dataset.id === id)?.insertAdjacentHTML('beforeend', '<span class="pk-dot" title="In use"></span>');
+  };
   const chooseEffort = (e) => {
     const m = modelOf(focusAgent);
     if (focusAgent === agent && e === effort) return;
-    if (focusAgent !== agent) {
-      $$('.pk-dot', node).forEach((d) => d.remove());
-      sideRows.find((b) => b.dataset.id === focusAgent)?.insertAdjacentHTML('beforeend', '<span class="pk-dot" title="In use"></span>');
-    }
+    if (focusAgent !== agent) markInUse(focusAgent);
     agent = focusAgent;
     model = m;
     effort = e;
@@ -1336,6 +1337,17 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
     if (focus) sideRows.find((b) => b.dataset.id === id)?.focus();
   };
 
+  // Picking a harness applies it straight away with the model and level it shows as selected.
+  const useAgent = (id) => {
+    preview(id);
+    if (id === agent) return;
+    markInUse(id);
+    agent = id;
+    model = savedModel(id);
+    effort = savedEffort(id, model);
+    pick(agent, model, effort);
+  };
+
   const close = () => {
     node.remove();
     anchor.classList.remove('open');
@@ -1390,6 +1402,7 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
       preview(focusAgent, { focus: true });
     } else if ((e.key === 'ArrowRight' || e.key === 'Enter') && inSide) {
       e.preventDefault();
+      if (e.key === 'Enter') useAgent(focusAgent);
       focusModels();
     } else if (e.key === 'Enter' && document.activeElement === input && rows()[0]) {
       e.preventDefault();
@@ -1398,7 +1411,7 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
       input.focus(); // type-to-search from anywhere in the picker
     }
   };
-  sideRows.forEach((b) => (b.onclick = () => preview(b.dataset.id)));
+  sideRows.forEach((b) => (b.onclick = () => useAgent(b.dataset.id)));
   list.onclick = (e) => {
     const b = e.target.closest('.pk-m');
     if (b) choose(b.dataset.id);
