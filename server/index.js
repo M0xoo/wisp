@@ -18,7 +18,7 @@ import { Updater } from './update.js';
 import { Preferences, Retro, KINDS } from './preferences.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn, execCommand } from './checkpoint.js';
 import { clip } from './adapters/common.js';
-import { createWorktree, ensureWorktree, removeWorktree, worktreeStatus, ship, merge, prView, repoRoot } from './git.js';
+import { createWorktree, worktreeSource, ensureWorktree, removeWorktree, worktreeStatus, ship, merge, prView, repoRoot } from './git.js';
 import { normalizeRecipe, findRecipe, recipeView, fill, positional } from './recipes.js';
 import { Triggers, normalizeTrigger, triggerView } from './triggers.js';
 import { Remote } from './remote.js';
@@ -150,21 +150,26 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     const wantTree = body.worktree ?? (comparing || (mode !== 'plan' && d.worktree !== 'off'));
     const groupId = comparing ? newId() : null;
     const attachments = resolveAttachments(body.attachments);
-    const made = [];
-    for (const r of runners) {
-      const id = newId();
-      let worktree = null;
-      if (wantTree) {
-        worktree = await createWorktree({ cwd, home: store.home, id, title: body.prompt }).catch((err) => {
-          if (body.worktree === true || (comparing && mode !== 'plan')) throw bad(`Could not create a worktree: ${err.message}`);
-          console.warn(`wisp: no worktree for ${cwd}: ${err.message}`);
-          return null;
-        });
-        if (!worktree && (body.worktree === true || (comparing && mode !== 'plan'))) throw bad(comparing ? 'Compare needs a git repo with at least one commit, so each harness gets its own worktree.' : 'Not a git repo with commits, so there is nothing to make a worktree from.');
+    const ids = runners.map(() => newId());
+    let trees = ids.map(() => null);
+    if (wantTree) {
+      const must = body.worktree === true || (comparing && mode !== 'plan');
+      // One fetch for the whole launch, then the checkouts side by side: compare runs used to
+      // fetch and check out one after the other before anything showed up in the feed.
+      const results = await worktreeSource(cwd).then(
+        (source) => source && Promise.allSettled(ids.map((id) => createWorktree({ cwd, home: store.home, id, title: body.prompt, source }))),
+        (err) => [{ status: 'rejected', reason: err }],
+      );
+      const failed = results?.find((x) => x.status === 'rejected')?.reason;
+      trees = ids.map((_, i) => (results?.[i]?.status === 'fulfilled' ? results[i].value : null));
+      if (must && (failed || trees.some((t) => !t))) {
+        await Promise.all(trees.map((t) => t && removeWorktree(t, { force: true, branch: 'force' }).catch(() => {})));
+        if (failed) throw bad(`Could not create a worktree: ${failed.message}`);
+        throw bad(comparing ? 'Compare needs a git repo with at least one commit, so each harness gets its own worktree.' : 'Not a git repo with commits, so there is nothing to make a worktree from.');
       }
-      made.push(runner.create({ id, prompt: body.prompt, cwd, ...r, mode, attachments, worktree, groupId, origin }));
+      if (failed) console.warn(`wisp: no worktree for ${cwd}: ${failed.message}`);
     }
-    return made;
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin }));
   }
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.

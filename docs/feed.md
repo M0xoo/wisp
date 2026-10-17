@@ -2,7 +2,7 @@
 
 How a task moves through the feed in the web UI, and what the page does with your scroll position
 and focus when it moves. The code is in `web/js/app.js` (`groups()`, the `summary` event handler,
-`watching()`, `keepInPlace()`, `feedAnchor()`, `handOff()`).
+`watching()`, `keepInPlace()`, `feedAnchor()`, `handOff()`, `taskOf()`).
 
 ## Sections
 
@@ -45,6 +45,32 @@ waiting ──answer──▶ running            review ◀── Reopen / Undo 
 | `review` / `done` | Archive (A) | archived → Archived | you |
 | archived | Unarchive | back to its section | you |
 | any | Delete (stops it first if running) | removed | you |
+
+## Compare tasks
+
+A launch with **vs** (or `compare` in the API) starts one session per harness, all sharing a
+`groupId`. While two or more of them are on the same side of archived, the feed shows them as
+**one task card** (`taskOf()`, `taskItem()`): the prompt as the title, a status line, a **Compare**
+button for the side-by-side view, and a row per run. Each row is an ordinary item (harness and
+model instead of a title) that expands in place, takes follow-ups and answers, and is reached by
+j / k like any card.
+
+The task's state, which decides its section, comes from its runs:
+
+| Runs | Task state | Section | Status line |
+|---|---|---|---|
+| any `waiting` | `waiting` | Needs you (top) | A run is asking you |
+| else any `running` | `running` | Working | *n* of *m* finished |
+| else all `done` | `done` | Done | Done |
+| else (finished, some not done) | `review` | Needs you | All finished · pick one to keep |
+
+| Action | Result |
+|---|---|
+| **Keep this** in Compare | the other runs are stopped, archived and lose their worktrees; the kept run is an ordinary card again |
+| ✓ on the task row | every finished run → `done`, one toast to undo them all |
+| Mark done / Archive on one run | that run moves; the task stays a task while two or more runs remain together |
+
+Compare runs keep the prompt as their title: one run's headline shouldn't name the task.
 
 ## Scroll and focus rules
 
