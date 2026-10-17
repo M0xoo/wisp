@@ -964,6 +964,14 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .search-btn:hover { border-color: var(--line-2); color: var(--ink); }
 .search-btn .i { width: 14px; height: 14px; }
 .search-btn kbd { margin-left: 8px; }
+.update-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 9px;
+  background: var(--accent-soft); color: var(--accent-ink); font-size: 13px; font-weight: 500; transition: background 0.15s;
+}
+.update-btn[hidden] { display: none; }
+.update-btn:hover { background: var(--accent); color: #fff; }
+.update-btn.busy { opacity: 0.7; cursor: progress; }
+.update-btn .i { width: 14px; height: 14px; }
 .overlay:has(.palette) { place-items: start center; padding-top: min(14vh, 120px); background: rgba(0, 0, 0, 0.18); }
 .palette {
   display: flex; flex-direction: column; width: min(640px, 100%); max-height: min(560px, 72vh); overflow: hidden; border-radius: 14px;
@@ -1021,7 +1029,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 /* ---------- responsive ---------- */
 @media (max-width: 720px) {
   .topbar { padding: 0 12px; gap: 10px; }
-  .search-btn span, .search-btn kbd { display: none; }
+  .search-btn span, .search-btn kbd, .update-btn span { display: none; }
   .search-btn { padding: 0 8px; border-color: transparent; background: none; }
   .feed-wrap { padding: 14px 16px 80px; }
   .it-side .q-proj, .it-actions span, .c-done span { display: none; }

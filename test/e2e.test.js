@@ -4,12 +4,14 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import net from 'node:net';
 import { installFakeBins, makeRepo, records, tmp, until } from './helpers.js';
 
 const RECORD = tmp('e2e-record');
 process.env.FAKE_RECORD = RECORD;
 process.env.WISP_HOME = tmp('e2e-home');
+process.env.WISP_UPDATE_CHECK = '0'; // no registry calls from tests
 installFakeBins();
 
 const { startServer } = await import('../server/index.js');
@@ -50,6 +52,16 @@ after(() => {
 test('every fake harness is detected through /api/agents', async () => {
   const agents = await api('/agents');
   assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true], ['antigravity', true]]);
+});
+
+test('/api/update reports the current version; a git checkout refuses to self-update', async () => {
+  const u = await api('/update');
+  assert.equal(u.current, JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
+  assert.equal(u.available, false);
+  assert.equal(u.method, 'git');
+  assert.equal(u.auto, false);
+  const r = await fetch(`${base}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(r.status, 400);
 });
 
 for (const agent of ['claude', 'codex', 'opencode']) {

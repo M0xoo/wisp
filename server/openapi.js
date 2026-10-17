@@ -24,6 +24,10 @@ export function openapi({ version, port }) {
     servers: [{ url: `http://127.0.0.1:${port}/api` }],
     paths: {
       '/health': { get: { summary: 'Liveness, version and pid', responses: { 200: json(ref('Health')) } } },
+      '/update': {
+        get: { summary: 'Current and latest published version, and how this copy updates (global | npx | git). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
+        post: { summary: 'Install the latest version and relaunch. 409 while agents run unless { force: true }', responses: { 202: json({ type: 'object' }), 409: json({ type: 'object' }) } },
+      },
       '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/config': {
         get: { summary: 'Launcher defaults, projects, webhooks', responses: { 200: json({ type: 'object' }) } },

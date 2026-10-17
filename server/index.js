@@ -14,6 +14,7 @@ import { openInTerminal, TERMINALS, shq } from './terminal.js';
 import { Telemetry, envDisabled } from './telemetry.js';
 import { blocksToMarkdown, sessionToMarkdown } from './render.js';
 import { openapi } from './openapi.js';
+import { Updater } from './update.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -74,6 +75,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   setInterval(() => broadcast('ping', {}), 25_000).unref();
 
   const telemetry = new Telemetry(store);
+  const updater = new Updater({ port, onChange: (u) => broadcast('update', u) });
   const run = (s, t) => ({ agent: s.agent, model: s.model || 'default', mode: s.mode, effort: s.effort || 'default', followUp: s.turns.indexOf(t) > 0 });
   runner.on('started', ({ session, turn }) => telemetry.track('turn_started', { ...run(session, turn), attachments: turn.attachments.length }));
   runner.on('ended', ({ session, turn, interrupted, errorText }) => {
@@ -134,6 +136,20 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     }
 
     if (root === 'health' && m === 'GET') return send(res, 200, { ok: true, name: 'wisp', version: VERSION, apiVersion: API_VERSION, pid: process.pid, url: `http://127.0.0.1:${port}` });
+    // New wisp-agents on npm? POST installs it and relaunches; running agents are stopped, so the
+    // client must pass force once it has confirmed that with the user.
+    if (root === 'update') {
+      if (m === 'GET') return send(res, 200, url.searchParams.has('check') ? await updater.check() : updater.view());
+      if (m === 'POST') {
+        const body = await readJson(req);
+        if (runner.live.size && !body.force) return send(res, 409, { error: 'agents are running', running: runner.live.size });
+        await updater.install();
+        send(res, 202, updater.view());
+        telemetry.track('update', { from: updater.state.current, to: updater.state.latest, method: updater.method });
+        setTimeout(() => (shutdown(), process.exit(0)), 300);
+        return;
+      }
+    }
     if (root === 'openapi.json' && m === 'GET') return send(res, 200, openapi({ version: VERSION, port }));
 
     if (root === 'agents' && m === 'GET') return send(res, 200, await listAgents());
@@ -455,6 +471,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     server.listen(port, host, resolve);
   });
   fs.writeFileSync(serverFile, JSON.stringify({ url: `http://127.0.0.1:${port}`, port, pid: process.pid, version: VERSION, apiVersion: API_VERSION, startedAt: Date.now() }, null, 2));
+  updater.start();
 
   if (telemetry.enabled) {
     if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
