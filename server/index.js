@@ -89,9 +89,10 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     prefs,
     projectOf,
     enabled: learning,
+    onStart: () => broadcast('preferences', {}),
     onDone: ({ session, ok, added = [], removed = [] }) => {
       telemetry.track('retro', { agent: session.agent, ok, added: added.length, removed: removed.length });
-      if (added.length || removed.length) broadcast('preferences', { added: added.length, removed: removed.length });
+      broadcast('preferences', { added: added.length, removed: removed.length });
     },
   });
   const run = (s, t) => ({ agent: s.agent, model: s.model || 'default', mode: s.mode, effort: s.effort || 'default', followUp: s.turns.indexOf(t) > 0 });
@@ -248,6 +249,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         global: prefs.data.global,
         projects: Object.entries(prefs.data.projects).map(([p, v]) => ({ path: p, name: store.projectFor(p)?.name || path.basename(p), ...v })),
         history: prefs.data.history.slice().reverse(),
+        running: retro.running,
       });
       if (m === 'GET') return send(res, 200, view());
       if (m === 'PUT') {
