@@ -20,6 +20,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { randomBytes } from 'node:crypto';
 import { spawn, execFile, killTree } from './proc.js';
+import { newer } from './update.js';
 
 export const DEFAULT_PORT = 4477;
 const READY_TIMEOUT_MS = 6 * 60_000; // the first `npx` download can take a while
@@ -44,6 +45,10 @@ export function splitId(id) {
   const i = String(id || '').lastIndexOf('@');
   return i > 0 ? { id: id.slice(0, i), machine: id.slice(i + 1) } : null;
 }
+
+// The version an older wisp on the machine would become on Restart wisp there: this one, unless a
+// custom start command decides what runs there.
+export const updateTo = (local, remote, command) => (!command && remote && newer(local, remote) ? local : null);
 
 // What runs on the machine. Sent on stdin, so the login shell there (bash, zsh, fish…) only ever
 // sees `sh -s`. Steps come back as `@@wisp step <id> <run|done> <detail>`, `@@wisp fail <id>
@@ -332,6 +337,7 @@ export class Machines extends EventEmitter {
         attempt: c?.attempt || 0,
         since: c?.since || null,
         remote: c?.remote || null,
+        outdated: updateTo(this.version, c?.remote?.version, m.command),
         log: c?.log.slice(-30) || [],
         projects: this.store.config.projects.filter((p) => p.machine === m.id).length,
         working: cached.filter((s) => s.state === 'running').length,

@@ -9,7 +9,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installFakeBins, makeRepo, records, tmp, until, win } from './helpers.js';
-import { bootstrapScript, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts } from '../server/machines.js';
+import { bootstrapScript, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, updateTo } from '../server/machines.js';
 
 const RECORD = tmp('machines-record');
 const THERE = tmp('machines-there'); // WISP_HOME on "the machine"
@@ -105,6 +105,14 @@ test('ids, hints, ~/.ssh/config hosts and the bootstrap script', () => {
   assert.match(sh, /^PORT=4555$/m);
   assert.match(sh, /^CMD='npx -y wisp-agents@1\.2\.3 # it'\\''s'$/m);
   assert.doesNotMatch(sh, /__[A-Z]+__/);
+});
+
+test('an older wisp on the machine can be updated to this version', () => {
+  assert.equal(updateTo('0.10.0', '0.9.0'), '0.10.0');
+  assert.equal(updateTo('0.10.0', '0.10.0'), null);
+  assert.equal(updateTo('0.10.0', '0.11.0'), null); // newer there: leave it
+  assert.equal(updateTo('0.10.0', undefined), null); // not connected yet
+  assert.equal(updateTo('0.10.0', '0.9.0', 'wisp'), null); // a custom command picks the version
 });
 
 test('found hosts: ~/.ssh/config, Tailscale peers and known_hosts, one entry per target', { skip: win }, async () => {
