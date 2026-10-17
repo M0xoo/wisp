@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The web app uses the same icon as the site and the desktop app (the glowing orb on a dark tile) for its browser tab, home-screen shortcut and notifications.
+
 ## [0.10.0] - 2026-10-18
 
 ### Added
