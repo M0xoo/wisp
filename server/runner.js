@@ -67,6 +67,7 @@ export function summarize(s, store) {
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
     branch: s.worktree?.branch || '',
+    toShip: s.toShip || null, // { dirty, ahead, unpushed } of the worktree, null until checked
     pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks } : null,
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger', id, name }
