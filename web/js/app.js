@@ -1449,10 +1449,8 @@ function renderBody(id, { fresh }) {
           <div class="it-meta"></div>
           <div class="it-actions">
             <button class="ghost xs" data-a="replay" title="Replay presentation (R)">${icon('replay')}</button>
-            <button class="ghost xs" data-a="compare" title="Compare the runs side by side" hidden><b class="vs-mark">vs</b><span>Compare</span></button>
+            <button class="ghost xs" data-a="takeover" title="Take over in your terminal (T)">${icon('terminal')}</button>
             <button class="ghost xs" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
-            <button class="ghost xs" data-a="takeover" title="Take over in your terminal (T)">${icon('terminal')}<span>Take over</span></button>
-            <button class="ghost xs" data-a="done" title="Mark done (E)">${icon('done')}<span>Done</span></button>
             <button class="ghost xs" data-a="more" title="More">${icon('dots')}</button>
           </div>
         </div>
@@ -1468,8 +1466,6 @@ function renderBody(id, { fresh }) {
       if (a === 'replay') replay(id);
       if (a === 'takeover') takeOver(id);
       if (a === 'ship') shipDialog(id);
-      if (a === 'compare') compareView(id);
-      if (a === 'done') toggleDone(id);
       if (a === 'more') moreMenu(id, e.target.closest('button'));
     });
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
@@ -1478,25 +1474,25 @@ function renderBody(id, { fresh }) {
 
   const body = n.body;
   const proj = projectById(summary.projectId);
+  // The head already shows the harness, model and project, the task head has Compare, and Done
+  // sits by the composer. This bar only says how the run was set up: a mode worth noticing
+  // (Plan or Full auto, as on the launcher), the branch, and what launched it.
+  const mode = MODES.find((m) => m.id === s.mode);
+  const where = (proj?.path || s.cwd).replace(S.config.home || '', '~');
+  $('.it-meta', body).title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where].filter(Boolean).join(' · ');
   $('.it-meta', body).innerHTML = `
-    <span class="m">${esc(agentName(s.agent))}</span>
-    <span class="m">${esc(MODES.find((m) => m.id === s.mode)?.label || s.mode)}</span>
-    ${s.model ? `<span class="m">${esc(s.model)}</span>` : ''}
-    ${s.effort ? `<span class="m">${esc(effortLabel(s.effort))} thinking</span>` : ''}
-    <span class="m path" title="${esc(s.cwd)}">${esc((proj?.path || s.cwd).replace(S.config.home || '', '~'))}</span>
+    ${mode && mode.id !== 'edits' ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
     ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} subagent${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
     ${s.origin ? `<span class="m" title="Launched by a ${esc(s.origin.kind)}">${icon(s.origin.kind === 'trigger' ? 'replay' : 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
-  const ship = $('[data-a="ship"]', body);
-  ship.hidden = !s.worktree || live || s.agent === 'wisp' || s.pr?.state === 'MERGED';
-  $('[data-a="compare"]', body).hidden = !s.groupId;
+  // Ship sits in the top bar and again next to the composer, so it's there after reading the result.
+  $$('[data-a="ship"]', body).forEach((b) => (b.hidden = !s.worktree || live || s.agent === 'wisp' || s.pr?.state === 'MERGED'));
   renderPrStrip(id);
-  // Done lives both in the top bar and next to the composer, so it's reachable after reading.
   $$('[data-a="done"]', body).forEach((b) => {
     b.classList.toggle('on', s.state === 'done');
     b.hidden = s.state === 'running' || s.state === 'waiting';
-    $('span', b).textContent = s.state === 'done' ? 'Reopen' : b.closest('.c-bar') ? 'Mark done' : 'Done';
+    $('span', b).textContent = s.state === 'done' ? 'Reopen' : 'Mark done';
   });
   $('[data-a="takeover"]', body).hidden = !s.agentSessionId;
 
@@ -1796,6 +1792,7 @@ function renderDock(id) {
       <div class="c-bar">
         <button class="icon-btn c-attach" title="Attach files">${icon('clip')}</button>
         <span class="c-hint"></span>
+        <button class="ghost sm c-ship" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
         <button class="ghost sm c-done" data-a="done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
         <button class="ghost xs c-queue" hidden>${icon('queue')}<span>Queue</span></button>
         <button class="send" title="Send (Enter · Shift+Enter for newline)">${icon('enter')}</button>
@@ -1809,6 +1806,7 @@ function renderDock(id) {
   acceptFiles(comp, ta, n.tray);
   $('.c-attach', comp).onclick = n.tray.pick;
   $('.c-done', comp).onclick = () => toggleDone(id);
+  $('.c-ship', comp).onclick = () => shipDialog(id);
   $('.c-queue', comp).onclick = toggleQueue;
   ta.value = S.drafts.get(id) || '';
   ta.addEventListener('input', () => S.drafts.set(id, ta.value));
@@ -2638,8 +2636,7 @@ function renderPrStrip(id) {
   const s = S.sessions.get(id);
   if (!node || !s) return;
   const pr = s.pr;
-  const ship = $('[data-a="ship"] span', n.body);
-  if (ship) ship.textContent = pr?.state === 'OPEN' ? `Push to #${pr.number}` : pr ? 'Ship again' : 'Ship it';
+  $$('[data-a="ship"] span', n.body).forEach((b) => (b.textContent = pr?.state === 'OPEN' ? `Push to #${pr.number}` : pr ? 'Ship again' : 'Ship it'));
   node.hidden = !pr;
   if (!pr) return;
   const tone = prTone(pr);

@@ -492,7 +492,6 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .it-loading { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--muted); font-size: 13px; }
 .it-bar { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; }
 .it-meta { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
-.it-meta .path { font-family: var(--mono); font-size: 11px; color: var(--faint); }
 .it-actions { display: flex; gap: 2px; flex: none; }
 .it-body .earlier { display: block; margin: 4px 0 0 18px; }
 .it-dock { padding: 4px 14px 14px; }
@@ -1057,6 +1056,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .send.busy::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; border: 2px solid var(--bg); border-right-color: transparent; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .c-done { color: var(--muted); }
+.c-ship { color: var(--accent-ink); }
 .c-queue { color: var(--faint); font-size: 12px; }
 .c-queue.on { color: var(--ink); background: var(--bg-2); }
 .c-done:hover { color: var(--good); }
@@ -1410,6 +1410,8 @@ body.electron.mac .topbar { padding-left: 88px; }
 .it-meta .m.branch, .it-meta .m:has(> .i) { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .it-meta .m.branch { font: 11px var(--mono); color: var(--ink-2); }
 .it-meta .m .i { width: 12px; height: 12px; flex: none; color: var(--faint); }
+.it-meta .m.m-plan, .it-meta .m.m-plan .i { color: var(--accent-ink); }
+.it-meta .m.m-auto, .it-meta .m.m-auto .i { color: var(--warn); }
 
 .pill.pr { gap: 5px; font-variant-numeric: tabular-nums; }
 .pill.pr-pass, .pr-strip.pr-pass { --tone: var(--good); }
