@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Thinking level in the harness · model picker: Default / Low / Medium / High / X-High / Max under the model list, remembered per harness and shown on the launcher button. Claude Code gets `--effort`, Codex `-c model_reasoning_effort=…`, opencode `--variant` (levels read per model from `opencode models --verbose`). Cursor bakes effort into its model ids, so it has no separate selector.
 - Take over in [cmux](https://cmux.dev): opens a new cmux workspace in the project running the resume command. Auto-detected when wisp is started from a cmux terminal.
 
 ## [0.3.0] - 2026-10-17

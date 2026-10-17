@@ -8,7 +8,7 @@ import { parsePresentation } from './protocol.js';
 
 const DEFAULT_CONFIG = {
   projects: [], // [{ id, name, path, color, addedAt }]
-  defaults: { agent: 'claude', mode: 'edits', model: '' },
+  defaults: { agent: 'claude', mode: 'edits', model: '', effort: '' },
 };
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);

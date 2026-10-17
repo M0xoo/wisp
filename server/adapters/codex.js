@@ -21,21 +21,23 @@ export default {
   name: 'Codex',
   askTool: 'mcp__wisp__ask_user',
   models: [{ id: '', label: 'Default', hint: 'Whatever Codex is set to' }],
+  efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
 
-  resumeCommand({ resumeId, model }) {
-    return [BIN, ...(resumeId ? ['resume', resumeId] : []), ...(model ? ['--model', model] : [])];
+  resumeCommand({ resumeId, model, effort }) {
+    return [BIN, ...(resumeId ? ['resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['-c', `model_reasoning_effort=${toml(effort)}`] : [])];
   },
 
   detect() {
     return detectVersion(BIN);
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, systemPrompt, mcpServers = {}, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     // `resume` doesn't take --sandbox, so set it through config for both paths.
     if (mode === 'auto') args.push('--dangerously-bypass-approvals-and-sandbox');
     else args.push('-c', `sandbox_mode=${toml(SANDBOX[mode] || 'workspace-write')}`);
     if (model) args.push('-m', model);
+    if (effort) args.push('-c', `model_reasoning_effort=${toml(effort)}`);
     for (const [name, srv] of Object.entries(mcpServers)) {
       const key = `mcp_servers.${name}`;
       args.push('-c', `${key}.command=${toml(srv.command)}`, '-c', `${key}.args=${toml(srv.args || [])}`);

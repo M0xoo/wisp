@@ -44,7 +44,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 📥 **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
 | 💬 **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. |
 | 🔎 **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
-| 🤖 **Any harness** | Claude Code, Codex, opencode, or Cursor CLI. Pick the harness and model together in the launcher; the model is remembered per harness. Each card shows the harness it ran on. |
+| 🤖 **Any harness** | Claude Code, Codex, opencode, or Cursor CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |

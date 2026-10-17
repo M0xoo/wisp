@@ -235,7 +235,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           const cwd = path.resolve((body.cwd || process.cwd()).replace(/^~(?=$|[\\/])/, os.homedir()));
           if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) return send(res, 400, { error: `Not a directory: ${cwd}` });
           if (!adapters[body.agent || 'claude']) return send(res, 400, { error: 'unknown agent' });
-          const s = runner.create({ prompt: body.prompt, cwd, agent: body.agent, mode: body.mode, model: body.model, attachments: resolveAttachments(body.attachments) });
+          const s = runner.create({ prompt: body.prompt, cwd, agent: body.agent, mode: body.mode, model: body.model, effort: /^[\w-]{1,20}$/.test(body.effort || '') ? body.effort : '', attachments: resolveAttachments(body.attachments) });
           return send(res, 201, summarize(s, store));
         }
       }
@@ -287,7 +287,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       if (action === 'takeover') {
         const adapter = adapters[s.agent];
         if (!adapter?.resumeCommand || !s.agentSessionId) return send(res, 400, { error: 'This session cannot be resumed in a terminal.' });
-        const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model });
+        const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort });
         const command = `cd ${shq(s.cwd)} && ${argv.map(shq).join(' ')}`;
         if (m === 'GET') return send(res, 200, { command });
         if (m === 'POST') {

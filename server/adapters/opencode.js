@@ -11,23 +11,40 @@ export default {
   models: [{ id: '', label: 'Default', hint: 'Whatever opencode is set to' }],
 
   resumeCommand({ resumeId, model }) {
+    // The TUI has no --variant flag; the effort only applies to `run`.
     return [BIN, ...(resumeId ? ['--session', resumeId] : []), ...(model ? ['--model', model] : [])];
   },
 
   async detect() {
     const found = await detectVersion(BIN);
     if (!found.available) return found;
-    // `opencode models` prints provider/model ids, one per line, for every configured provider.
-    const ids = (await quietOutput(BIN, ['models'])).split('\n').map((l) => l.trim()).filter((l) => /^[\w.-]+\/\S+$/.test(l));
-    return { ...found, models: [this.models[0], ...ids.map((id) => ({ id, label: id.split('/').slice(1).join('/'), hint: id.split('/')[0] }))] };
+    // `opencode models --verbose` prints each provider/model id followed by its JSON metadata;
+    // the metadata's `variants` are the reasoning efforts `run --variant` accepts for that model.
+    const out = await quietOutput(BIN, ['models', '--verbose']);
+    const models = [];
+    for (const [, id, json] of out.matchAll(/^([\w.-]+\/\S+)\n(\{[\s\S]*?\n\})$/gm)) {
+      let efforts = [];
+      try {
+        efforts = Object.keys(JSON.parse(json).variants || {});
+      } catch {}
+      models.push({ id, label: id.split('/').slice(1).join('/'), hint: id.split('/')[0], efforts });
+    }
+    if (!models.length) {
+      // Older builds without --verbose: plain ids, one per line.
+      for (const l of (await quietOutput(BIN, ['models'])).split('\n').map((x) => x.trim())) {
+        if (/^[\w.-]+\/\S+$/.test(l)) models.push({ id: l, label: l.split('/').slice(1).join('/'), hint: l.split('/')[0] });
+      }
+    }
+    return { ...found, models: [this.models[0], ...models] };
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, systemPrompt, mcpServers = {}, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     const args = ['run', '--format', 'json'];
     if (mode === 'plan') args.push('--agent', 'plan');
     if (mode === 'auto') args.push('--auto');
     if (model) args.push('--model', model);
+    if (model && effort) args.push('--variant', effort);
     if (resumeId) args.push('--session', resumeId);
     for (const a of attachments) args.push('--file', a.path);
 

@@ -73,10 +73,18 @@ function harnessLogo(agent) {
   const src = l && `/logos/${l.file}.svg`;
   return !l ? icon('spark') : l.mono ? `<i class="mono" style="--logo:url(${src})"></i>` : `<img src="${src}" alt="">`;
 }
-function modelBadge(agent, model) {
+// Reasoning levels the harness accepts for a model: the model's own list (opencode variants),
+// else the harness-wide one. Empty means the harness has no knob for it.
+function effortsFor(agent, model) {
+  const a = S.agents.find((x) => x.id === agent);
+  return a?.models?.find((m) => m.id === model)?.efforts ?? a?.efforts ?? [];
+}
+const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUpperCase() + e.slice(1);
+
+function modelBadge(agent, model, effort) {
   if (agent === 'wisp') return '';
   const label = (model && S.agents.find((a) => a.id === agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
-  const tip = `${agentName(agent)} · ${label}`;
+  const tip = `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`;
   const logo = harnessLogo(agent);
   return `<span class="model-logo" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}</span>`;
 }
@@ -241,7 +249,7 @@ function renderHead(n, s) {
     <span class="it-side">
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
-      ${modelBadge(s.agent, s.model)}
+      ${modelBadge(s.agent, s.model, s.effort)}
       <span class="q-proj">${esc(s.project)}</span>
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
@@ -484,21 +492,33 @@ function renderLauncher() {
     const models = S.agents.find((a) => a.id === id)?.models || [];
     return models.some((m) => m.id === want) ? want : '';
   };
+  // Thinking level too, and only if the chosen model still accepts it.
+  const savedEffort = (id, model) => {
+    const d = S.config.defaults;
+    const want = d.efforts?.[id] ?? (id === d.agent ? d.effort : '');
+    return effortsFor(id, model).includes(want) ? want : '';
+  };
   let curModel = savedModel(agent?.id);
+  let curEffort = savedEffort(agent?.id, curModel);
   const runnerBtn = $('#runner', box);
   const paintRunner = () => {
     const m = (agent?.models || []).find((x) => x.id === curModel);
-    runnerBtn.innerHTML = `<span class="rb-logo">${harnessLogo(agent?.id)}</span><span class="rb-h">${esc(agent?.name || 'No agent')}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${icon('chevron', 'chev')}`;
+    runnerBtn.innerHTML = `<span class="rb-logo">${harnessLogo(agent?.id)}</span><span class="rb-h">${esc(agent?.name || 'No agent')}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${curEffort ? `<span class="rb-e">${esc(effortLabel(curEffort))}</span>` : ''}${icon('chevron', 'chev')}`;
+    runnerBtn.title = `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
   };
   paintRunner();
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, savedModel }, (id, model) => {
+    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort }, (id, model, effort) => {
       agent = S.agents.find((a) => a.id === id);
       curModel = model;
+      curEffort = effort;
       paintRunner();
-      const models = { ...S.config.defaults.models, [id]: model };
-      Object.assign(S.config.defaults, { agent: id, model, models });
-      api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models } } }).catch(() => {});
+      const d = S.config.defaults;
+      const models = { ...d.models, [id]: model };
+      // A model without levels leaves the harness's saved level alone, so switching back restores it.
+      const efforts = effort || effortsFor(id, model).length ? { ...d.efforts, [id]: effort } : d.efforts;
+      Object.assign(d, { agent: id, model, models, effort, efforts });
+      api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models, effort, efforts } } }).catch(() => {});
     });
 
   const launch = async () => {
@@ -510,7 +530,7 @@ function renderLauncher() {
     btn.disabled = true;
     try {
       const attachments = await tray.ids();
-      const s = await api('/sessions', { method: 'POST', body: { prompt, cwd: project.path, agent: agent?.id || 'claude', mode: curMode, model: curModel, attachments } });
+      const s = await api('/sessions', { method: 'POST', body: { prompt, cwd: project.path, agent: agent?.id || 'claude', mode: curMode, model: curModel, effort: curEffort, attachments } });
       S.sessions.set(s.id, s);
       ta.value = '';
       S.drafts.delete('home');
@@ -765,6 +785,7 @@ function renderBody(id, { fresh }) {
     <span class="m">${esc(agentName(s.agent))}</span>
     <span class="m">${esc(MODES.find((m) => m.id === s.mode)?.label || s.mode)}</span>
     ${s.model ? `<span class="m">${esc(s.model)}</span>` : ''}
+    ${s.effort ? `<span class="m">${esc(effortLabel(s.effort))} thinking</span>` : ''}
     <span class="m path" title="${esc(s.cwd)}">${esc((proj?.path || s.cwd).replace(S.config.home || '', '~'))}</span>`;
   // Done lives both in the top bar and next to the composer, so it's reachable after reading.
   $$('[data-a="done"]', body).forEach((b) => {
@@ -838,7 +859,7 @@ function renderTurn(s, t, isLatest, fold) {
       <div class="ask-text ${long ? 'clamped' : ''}">${esc(t.prompt)}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
-      <div class="ask-foot">${modelBadge(t.agent || s.agent, t.model ?? s.model)}<time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>
+      <div class="ask-foot">${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}<time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>
       ${fold ? `<button class="ghost xs t-unfold" title="Collapse this exchange">${icon('chevron', 'chev')}</button>` : ''}
     </div>`);
   if (fold) ask.querySelector('.t-unfold').onclick = fold;
@@ -1199,9 +1220,10 @@ function rename(id) {
   title.onblur = () => done(true);
 }
 
-// One popover for both choices: harnesses on the left, the focused harness's models on the right.
-// Clicking (or arrowing to) a harness previews its models; picking a model commits both.
-function runnerPicker(anchor, { agent, model, savedModel }, pick) {
+// One popover for all three choices: harnesses on the left, the focused harness's models on the
+// right, and its thinking levels underneath. Clicking (or arrowing to) a harness previews its
+// models; picking a model commits harness + model, picking a thinking level commits it in place.
+function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort }, pick) {
   const open = $('.picker');
   if (open) return open.close();
   let focusAgent = S.agents.find((a) => a.id === agent && a.available) ? agent : S.agents.find((a) => a.available)?.id;
@@ -1214,7 +1236,7 @@ function runnerPicker(anchor, { agent, model, savedModel }, pick) {
   const left = Math.max(12, Math.min(r.left, right - width));
   const below = r.bottom + 440 < innerHeight;
   const node = el(`
-    <div class="picker" role="dialog" aria-label="Harness and model" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
+    <div class="picker" role="dialog" aria-label="Harness, model and thinking level" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
       <div class="pk-side" role="listbox" aria-label="Harness">
         <div class="pk-head">Harness</div>
         ${S.agents
@@ -1230,11 +1252,38 @@ function runnerPicker(anchor, { agent, model, savedModel }, pick) {
       <div class="pk-main">
         <label class="pk-search">${icon('search')}<input spellcheck="false" autocomplete="off"></label>
         <div class="pk-list" role="listbox" aria-label="Model"></div>
+        <div class="pk-effort" role="radiogroup" aria-label="Thinking level"></div>
       </div>
     </div>`);
   const input = $('.pk-search input', node);
   const list = $('.pk-list', node);
   const sideRows = $$('.pk-h', node);
+  const seg = $('.pk-effort', node);
+  const modelOf = (id) => (id === agent ? model : savedModel(id));
+  const effortOf = (id) => (id === agent ? effort : savedEffort(id, modelOf(id)));
+
+  const paintEffort = () => {
+    const levels = effortsFor(focusAgent, modelOf(focusAgent));
+    const current = effortOf(focusAgent);
+    seg.hidden = !levels.length;
+    seg.innerHTML = `<span class="pk-ehead">Thinking</span><span class="pk-seg">${['', ...levels]
+      .map((e) => `<button role="radio" aria-checked="${e === current}" class="${e === current ? 'on' : ''}" data-e="${esc(e)}" title="${e ? `${esc(effortLabel(e))} reasoning effort` : 'Whatever the harness is set to'}">${esc(e ? effortLabel(e) : 'Default')}</button>`)
+      .join('')}</span>`;
+  };
+  const chooseEffort = (e) => {
+    const m = modelOf(focusAgent);
+    if (focusAgent === agent && e === effort) return;
+    if (focusAgent !== agent) {
+      $$('.pk-dot', node).forEach((d) => d.remove());
+      sideRows.find((b) => b.dataset.id === focusAgent)?.insertAdjacentHTML('beforeend', '<span class="pk-dot" title="In use"></span>');
+    }
+    agent = focusAgent;
+    model = m;
+    effort = e;
+    pick(agent, model, effort);
+    paintEffort();
+    $(`button[data-e="${CSS.escape(e)}"]`, seg)?.focus();
+  };
 
   const paintModels = () => {
     const a = S.agents.find((x) => x.id === focusAgent);
@@ -1263,6 +1312,7 @@ function runnerPicker(anchor, { agent, model, savedModel }, pick) {
       )
       .join('') + '<div class="pk-empty" hidden>No models match</div>';
     filter();
+    paintEffort();
   };
   const rows = () => $$('.pk-m', list).filter((b) => !b.hidden);
   const filter = () => {
@@ -1296,7 +1346,10 @@ function runnerPicker(anchor, { agent, model, savedModel }, pick) {
   const choose = (m) => {
     close();
     anchor.focus();
-    if (focusAgent !== agent || m !== model) pick(focusAgent, m);
+    // Carry the thinking level over when the new model accepts it, else fall back to the saved one.
+    const cur = effortOf(focusAgent);
+    const e = effortsFor(focusAgent, m).includes(cur) ? cur : savedEffort(focusAgent, m);
+    if (focusAgent !== agent || m !== model || e !== effort) pick(focusAgent, m, e);
   };
   const outside = (e) => !node.contains(e.target) && !anchor.contains(e.target) && close();
   const step = (items, d) => {
@@ -1310,8 +1363,22 @@ function runnerPicker(anchor, { agent, model, savedModel }, pick) {
   const keys = (e) => {
     const inSide = sideRows.includes(document.activeElement);
     const live = sideRows.filter((b) => !b.disabled);
+    const segBtns = $$('button', seg);
+    const inSeg = segBtns.includes(document.activeElement);
     if (e.key === 'Escape') return e.preventDefault(), e.stopPropagation(), close(), anchor.focus();
+    // Tab hops from the model list to the thinking levels and back; anywhere else it leaves.
+    if (e.key === 'Tab' && !seg.hidden && (inSeg ? e.shiftKey : !e.shiftKey && !inSide)) {
+      e.preventDefault();
+      return inSeg ? focusModels() : (segBtns.find((b) => b.classList.contains('on')) || segBtns[0]).focus();
+    }
     if (e.key === 'Tab') return close();
+    if (inSeg && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      e.stopPropagation();
+      return step(segBtns, e.key === 'ArrowRight' ? 1 : -1);
+    }
+    if (inSeg && e.key === 'ArrowUp') return e.preventDefault(), focusModels();
+    if (inSeg && (e.key === 'Enter' || e.key === ' ')) return e.preventDefault(), chooseEffort(document.activeElement.dataset.e);
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       e.stopPropagation();
@@ -1337,6 +1404,10 @@ function runnerPicker(anchor, { agent, model, savedModel }, pick) {
     if (b) choose(b.dataset.id);
   };
   input.oninput = filter;
+  seg.onclick = (e) => {
+    const b = e.target.closest('button[data-e]');
+    if (b) chooseEffort(b.dataset.e);
+  };
 
   paintModels();
   setTimeout(() => document.addEventListener('mousedown', outside));
