@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Machines finds hosts for you. **Found on this computer** lists the hosts this computer already reaches: `Host` entries in `~/.ssh/config`, your Tailscale peers (`tailscale status --json`, with an online dot; phones and tablets are skipped) and hosts in `~/.ssh/known_hosts` (code hosts such as github.com, hashed entries and non-default ports are skipped). Hosts you've already added aren't listed. Click one to fill in the form, then press Connect. The SSH host field suggests the same hosts. API: `GET /api/machines/discover`.
 
+### Fixed
+
+- Updating from the top-bar Update button now restarts wisp on the port it was running on. Before, a wisp started with `--port` came back on 4477 and the open tab said "wisp did not come back".
+
 ## [0.9.0] - 2026-10-18
 
 ### Added
