@@ -10,10 +10,13 @@ import { fileURLToPath } from 'node:url';
 import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
+import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
 
 const MAX_ACTIVITY = 400;
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
+// The delegate tool lives on the same injected server, so harnesses name it like ask_user.
+const delegateTool = (askTool) => askTool && askTool.replace(/ask_user$/, 'delegate');
 
 export const newId = () => randomUUID().replace(/-/g, '').slice(0, 12);
 
@@ -37,6 +40,9 @@ export function summarize(s, store) {
   const last = s.turns.at(-1);
   const hero = heroOf(last?.presentation);
   const lastAct = last?.activity?.findLast?.((a) => a.kind !== 'text');
+  // A lead blocked on its subagents says who it's waiting for.
+  const busy = last?.status === 'running' ? (last.delegations || []).filter((d) => store?.get(d.sessionId)?.turns.find((t) => t.id === d.turnId)?.status === 'running') : [];
+  const waitingOn = busy.length ? `Waiting on ${[...new Set(busy.map((d) => d.name))].join(', ')}` : '';
   return {
     id: s.id,
     title: s.title,
@@ -57,13 +63,21 @@ export function summarize(s, store) {
     queued: s.queue?.length || 0,
     status: last?.status === 'running' ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
     preview: hero?.summary || '',
-    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? lastAct?.label || 'Starting up' : '',
+    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : '',
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
     branch: s.worktree?.branch || '',
     pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks } : null,
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger', id, name }
+    // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.
+    team: (s.subagents || []).flatMap((m) =>
+      copies(m).map((name) => {
+        const child = store?.get(s.children?.[name]);
+        return { name, agent: m.agent, model: m.model, effort: m.effort, used: !!child, busy: child?.state === 'running' };
+      }),
+    ),
+    ...(s.parentId && { parentId: s.parentId, member: s.member }),
   };
 }
 
@@ -91,7 +105,8 @@ export class Runner extends EventEmitter {
     }
   }
 
-  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null }) {
+  // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
+  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '' }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -113,9 +128,11 @@ export class Runner extends EventEmitter {
       ...(worktree && { worktree }),
       ...(groupId && { groupId }),
       ...(origin && { origin }),
+      ...(subagents.length && { subagents, children: {} }),
+      ...(parentId && { parentId, member }),
     };
     this.store.put(session);
-    this.store.touchProject(cwd);
+    if (!parentId) this.store.touchProject(cwd); // a subagent's cwd may be the lead's worktree
     this.#startTurn(session, prompt, attachments);
     return session;
   }
@@ -202,9 +219,75 @@ export class Runner extends EventEmitter {
     return open ? { pending: true } : { cancelled: true };
   }
 
+  // delegate: the lead hands tasks to members of its team. Each member is one child session,
+  // created on first use and resumed after that. Returns one record (or { error }) per task.
+  delegate(lead, tasks) {
+    const turn = lead.turns.at(-1);
+    if (turn?.status !== 'running') throw Object.assign(new Error('The lead agent is not running.'), { status: 409 });
+    const team = lead.subagents || [];
+    if (!team.length) throw Object.assign(new Error('This session has no subagents. The user can add them when launching.'), { status: 400 });
+    const out = [];
+    const claimed = new Set(); // copies handed a task in this call
+    const busy = (name) => claimed.has(name) || this.live.has(lead.children?.[name]);
+    for (const task of Array.isArray(tasks) ? tasks.slice(0, 12) : []) {
+      const want = String(task?.subagent || '').trim();
+      const m = team.find((x) => x.name === want || copies(x).includes(want));
+      const prompt = String(task?.prompt || '').trim();
+      if (!m) {
+        out.push({ subagent: want, error: `No subagent named "${want}". The team: ${team.map((x) => x.name).join(', ')}.` });
+        continue;
+      }
+      if (!prompt) {
+        out.push({ subagent: want, error: 'The task prompt is empty.' });
+        continue;
+      }
+      // A member name goes to its first free copy; a copy name (codex#2) to that copy.
+      const slot = (want === m.name ? copies(m) : [want]).find((n) => !busy(n));
+      if (!slot) {
+        out.push({ subagent: want, error: `${want} is still working${m.count > 1 && want === m.name ? ` (all ${m.count} copies)` : ''} on earlier tasks. Wait with subagent_results, then delegate again.` });
+        continue;
+      }
+      claimed.add(slot);
+      let child = this.store.get(lead.children?.[slot]);
+      if (child) {
+        child.cwd = workdir(lead); // follows the lead if its worktree moved
+        this.#startTurn(child, prompt);
+      } else {
+        child = this.create({ prompt, cwd: workdir(lead), agent: m.agent, mode: lead.mode, model: m.model, effort: m.effort, parentId: lead.id, member: slot });
+        (lead.children ||= {})[slot] = child.id;
+      }
+      const d = { id: newId(), name: slot, member: m.name, agent: m.agent, model: m.model, effort: m.effort, sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now() };
+      (turn.delegations ||= []).push(d);
+      out.push(d);
+    }
+    const sent = out.filter((d) => !d.error);
+    if (sent.length) this.#onEvent(lead, turn, { type: 'tool', kind: 'agent', label: `Delegated to ${[...new Set(sent.map((d) => d.name))].join(', ')}` });
+    this.#touch(lead, { turn: turn.id });
+    return out;
+  }
+
+  // Delegations by id (any turn), or the current turn's when ids is empty, with their child sessions.
+  delegations(lead, ids = []) {
+    const all = lead.turns.flatMap((t) => t.delegations || []);
+    const list = ids.length ? all.filter((d) => ids.includes(d.id)) : lead.turns.at(-1)?.delegations || [];
+    return list.map((d) => ({ d, child: this.store.get(d.sessionId) }));
+  }
+
+  // A child's state changed: the lead's card shows it, so the lead's turn re-renders too.
+  #touchLead(child) {
+    const lead = child.parentId && this.store.get(child.parentId);
+    if (!lead) return;
+    const turn = lead.turns.findLast((t) => t.delegations?.some((d) => d.sessionId === child.id)) || lead.turns.at(-1);
+    this.#touch(lead, { turn: turn?.id });
+  }
+
   stop(session) {
     session.queue = [];
     delete session.ask;
+    for (const cid of Object.values(session.children || {})) {
+      const child = this.store.get(cid);
+      if (child) this.stop(child);
+    }
     if (!this.live.has(session.id)) return;
     this.stopping.add(session.id);
     this.live.get(session.id).stop();
@@ -220,8 +303,13 @@ export class Runner extends EventEmitter {
 
   #startTurn(session, prompt, attachments = []) {
     const id = newId();
+    // A subagent's edits land in the lead's turn, whose checkpoint already covers them.
     const checkpoint =
-      session.agent === 'wisp' ? null : !session.turns.length && session.worktree?.head ? freshCheckpoint(session.worktree) : captureCheckpoint(workdir(session), session.id, id);
+      session.agent === 'wisp' || session.parentId
+        ? null
+        : !session.turns.length && session.worktree?.head
+          ? freshCheckpoint(session.worktree)
+          : captureCheckpoint(workdir(session), session.id, id);
     const turn = {
       id,
       prompt,
@@ -243,11 +331,17 @@ export class Runner extends EventEmitter {
     session.unread = false;
     delete session.archived;
     this.#touch(session, { turn: turn.id });
+    this.#touchLead(session);
     this.emit('started', { session, turn });
 
     let released = false;
     let linger;
     const adapter = adapters[session.agent];
+    // Leads get the delegate tool next to ask_user; subagents get neither (nobody to ask).
+    const team = adapter.askTool !== null ? session.subagents || [] : [];
+    const prompt0 = session.parentId
+      ? systemPrompt({ ask: SUBAGENT_ASK })
+      : systemPrompt({ askTool: adapter.askTool }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const handle = adapter.run({
       prompt,
       attachments,
@@ -256,15 +350,21 @@ export class Runner extends EventEmitter {
       mode: session.mode,
       model: session.model,
       effort: session.effort || '',
-      systemPrompt: systemPrompt({ askTool: adapter.askTool }) + workspaceNote(session) + this.promptExtra(session),
-      mcpServers: this.bridge && adapter.askTool !== null
+      systemPrompt: prompt0 + workspaceNote(session) + this.promptExtra(session),
+      mcpServers: this.bridge && adapter.askTool !== null && !session.parentId
         ? {
             wisp: {
               command: process.execPath,
               args: [ASK_SERVER],
               // Inside the desktop app execPath is the Electron binary; without
               // ELECTRON_RUN_AS_NODE it boots a second app (extra Dock icon) per turn.
-              env: { ELECTRON_RUN_AS_NODE: '1', WISP_URL: this.bridge.url, WISP_TOKEN: this.bridge.token, WISP_SESSION: session.id },
+              env: {
+                ELECTRON_RUN_AS_NODE: '1',
+                WISP_URL: this.bridge.url,
+                WISP_TOKEN: this.bridge.token,
+                WISP_SESSION: session.id,
+                ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m) }))) }),
+              },
             },
           }
         : {},
@@ -328,7 +428,12 @@ export class Runner extends EventEmitter {
         if (ev.op === 'create' && entry.edits.length === 0) entry.op = 'create';
         delete entry.reverted;
         entry.edits.push(...ev.edits);
+        if (ev.by && !entry.by?.includes(ev.by)) (entry.by ||= []).push(ev.by);
         this.store.save(session);
+        // A subagent's edits are the lead's too: they show up in its files, diffs and Ship it.
+        const lead = session.parentId && this.store.get(session.parentId);
+        const leadTurn = lead?.turns.at(-1);
+        if (leadTurn?.status === 'running') this.#onEvent(lead, leadTurn, { ...ev, by: session.member });
         return;
       }
       case 'result':
@@ -376,8 +481,10 @@ export class Runner extends EventEmitter {
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
-    // The follow-up starts right away; don't notify for the run it replaced.
-    if (!interrupted) this.emit('finished', { session: summarize(session, this.store) });
+    this.#touchLead(session);
+    // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
+    // to its lead, not to the user.
+    if (!interrupted && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   #touch(session, { turn, quiet } = {}) {

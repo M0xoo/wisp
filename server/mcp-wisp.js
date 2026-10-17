@@ -28,6 +28,12 @@ const TOOLS = [
         mode: { type: 'string', enum: ['plan', 'edits', 'auto'], description: 'plan = read-only, edits = auto-accept file edits, auto = no permission prompts. Default: the user’s pick.' },
         model: { type: 'string', description: 'Model id for that harness. Default: the user’s pick.' },
         effort: { type: 'string', description: 'Thinking level, e.g. low | medium | high.' },
+        subagents: {
+          type: 'array',
+          description: 'A team the agent can delegate to, each on its own harness: [{ agent, model?, effort?, name?, use?, count? }]. use = when to pick it ("research", "image work"); count = parallel copies (1–5).',
+          items: { type: 'object', properties: { agent: { type: 'string', enum: AGENTS }, model: { type: 'string' }, effort: { type: 'string' }, name: { type: 'string' }, use: { type: 'string' }, count: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['agent'] },
+        },
+        preset: { type: 'string', description: 'Id of a saved subagent preset, instead of subagents.' },
         wait: { type: 'boolean', description: 'Block until the agent finishes or asks (up to timeout_seconds).' },
         timeout_seconds: { type: 'number', description: `Max wait when wait=true. Default ${DEFAULT_WAIT_S}.` },
       },
@@ -98,7 +104,7 @@ async function callTool(name, a = {}) {
   switch (name) {
     case 'wisp_launch': {
       if (!a.prompt?.trim()) throw new Error('prompt is required');
-      const s = await c.launch({ prompt: a.prompt, cwd: a.cwd || process.cwd(), agent: a.agent, mode: a.mode, model: a.model, effort: a.effort });
+      const s = await c.launch({ prompt: a.prompt, cwd: a.cwd || process.cwd(), agent: a.agent, mode: a.mode, model: a.model, effort: a.effort, subagents: a.subagents, preset: a.preset });
       if (a.wait) return waitFor(s.id);
       return `Launched session \`${s.id}\` (“${s.title}”) on ${s.agent} in ${s.cwd}, mode ${s.mode}. Call wisp_wait or wisp_get with this id for the result.`;
     }

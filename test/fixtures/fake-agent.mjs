@@ -8,6 +8,9 @@
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
+//   FAKE_DELAY   ms to work before answering (screenshots of live runs)
+// A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
+// (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -93,7 +96,7 @@ function injectedMcp() {
   return null; // cursor-agent and agy can't take one
 }
 
-async function askUser(srv, question) {
+async function mcpCall(srv, tool, args) {
   const child = spawn(srv.command, srv.args || [], { env: { ...process.env, ...srv.env }, stdio: ['pipe', 'pipe', 'inherit'] });
   const pending = new Map();
   readline.createInterface({ input: child.stdout }).on('line', (l) => {
@@ -108,11 +111,16 @@ async function askUser(srv, question) {
     });
   await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: `fake-${name}`, version: '0' } });
   const tools = await rpc('tools/list', {});
-  if (!tools.result.tools.some((t) => t.name === 'ask_user')) throw new Error('ask_user missing');
-  const res = await rpc('tools/call', { name: 'ask_user', arguments: { question, options: ['Yes', 'No'] } });
+  const list = tools.result.tools;
+  if (!list.some((t) => t.name === tool)) {
+    child.kill();
+    return null;
+  }
+  const res = await rpc('tools/call', { name: tool, arguments: typeof args === 'function' ? args(list) : args });
   child.kill();
   return res.result.content[0].text;
 }
+const askUser = (srv, question) => mcpCall(srv, 'ask_user', { question, options: ['Yes', 'No'] });
 
 // --- the work ---------------------------------------------------------------------------
 
@@ -126,8 +134,15 @@ const final = (answer) =>
   'All done.\n```wisp\n' + JSON.stringify({ blocks: [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : 'No question asked.', status: 'done' }] }) + '\n```';
 
 const hang = () => setInterval(() => {}, 1 << 30);
+if (process.env.FAKE_DELAY) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_DELAY)));
 const ask = async () => {
   const srv = injectedMcp();
+  if (stdin.includes('DELEGATE') && srv) {
+    const names = (list) => list.find((t) => t.name === 'delegate').inputSchema.properties.tasks.items.properties.subagent.enum.filter((n) => !n.includes('#'));
+    const times = stdin.includes('DELEGATE TWICE') ? 2 : 1;
+    const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${i ? ` (${i + 1})` : ''}` }))) }));
+    return report ? `delegated (${report.length} chars) ${report.match(/### [\w#-]+/g)?.join(' ')}` : 'no delegate tool';
+  }
   return stdin.includes('ASK') && srv ? askUser(srv, 'Proceed with the fix?') : '';
 };
 
