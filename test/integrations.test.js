@@ -232,6 +232,7 @@ test('render: every block type becomes markdown; diffs come from captured edits'
     { type: 'code', code: 'x ``` y', language: 'js' },
     { type: 'tests', command: 'npm t', passed: 1, failed: 1, failures: [{ name: 'f' }] },
     { type: 'commits', items: [{ hash: 'abcdef123', message: 'm' }] },
+    { type: 'graph', title: 'PR', into: 'main', merge: 'conflict', commits: [{ hash: 'd29f50', message: 'tests', branch: 'feat' }, { hash: '5be27d', message: 'rotate', branch: 'main', conflict: true }], conflicts: [{ file: 'src/auth.ts', line: 42, ours: 'a', theirs: 'b' }] },
     { type: 'terminal', command: 'ls', output: 'o', exitCode: 2 },
     { type: 'compare', before: { items: ['a'] }, after: { items: ['b'] } },
     { type: 'flow', nodes: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }] },
@@ -245,5 +246,5 @@ test('render: every block type becomes markdown; diffs come from captured edits'
     { type: 'unknown', x: 1 },
   ];
   const md = blocksToMarkdown(blocks, turn);
-  for (const s of ['## T', '🟡 Partly done', '```diff\n a\n-b\n+c', '````js\nx ``` y\n````', '1 passed, 1 failed', '`abcdef1` m', '[exit 2]', 'A → B', '- [x] t', '> **⚠️ c**', '1. y', '**Run tests** — `$ npm test` (suite)', '"type": "unknown"']) assert.ok(md.includes(s), s);
+  for (const s of ['## T', '🟡 Partly done', '```diff\n a\n-b\n+c', '````js\nx ``` y\n````', '1 passed, 1 failed', '`abcdef1` m', '⚠️ `5be27d` rotate [main]', '`src/auth.ts:42`', '[exit 2]', 'A → B', '- [x] t', '> **⚠️ c**', '1. y', '**Run tests** — `$ npm test` (suite)', '"type": "unknown"']) assert.ok(md.includes(s), s);
 });

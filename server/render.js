@@ -55,6 +55,18 @@ const R = {
     `${b.branch ? `**Branch** \`${b.branch}\`\n\n` : ''}${list(b.items)
       .map((c) => `- \`${str(c.hash).slice(0, 7)}\` ${str(c.message)}${c.additions !== undefined ? ` (+${c.additions}/−${c.deletions ?? 0})` : ''}`)
       .join('\n')}`,
+  graph: (b) => {
+    const head = `**${str(b.title) || 'Branches'}**${b.ref ? ` ${b.ref}` : ''}${b.state ? ` · ${b.state}` : ''}${b.into ? ` → \`${b.into}\`${b.merge ? ` (${b.merge})` : ''}` : ''}`;
+    const commits = list(b.commits).map((c) => `- ${c.conflict ? '⚠️ ' : ''}\`${str(c.hash).slice(0, 7)}\` ${str(c.message)}${c.branch ? ` [${c.branch}]` : ''}${c.author ? ` — ${c.author}${c.when ? `, ${c.when}` : ''}` : ''}`);
+    const conflicts = list(b.conflicts).map((c, i) => {
+      const o = typeof c === 'string' ? { file: c } : c || {};
+      return `${i + 1}. \`${str(o.file)}${o.line || o.lines ? `:${o.line || o.lines}` : ''}\`${o.detail ? ` — ${o.detail}` : ''}${o.ours ? `\n   - ours: \`${o.ours}\`` : ''}${o.theirs ? `\n   - theirs: \`${o.theirs}\`` : ''}${o.resolution ? `\n   - ✔︎ ${o.resolution}` : ''}`;
+    });
+    const checks = list(b.checks).map((c) => `${c.status === 'fail' ? '❌' : c.status === 'pending' ? '⏳' : '✅'} ${str(c.label || c)}${c.value ? ` ${c.value}` : ''}`);
+    return [head, commits.join('\n'), conflicts.length ? `**Conflicts**\n${conflicts.join('\n')}` : '', checks.join(' · '), b.summary ? str(b.summary) : '']
+      .filter(Boolean)
+      .join('\n\n');
+  },
   terminal: (b) => fence(`$ ${str(b.command)}\n${str(b.output)}${b.exitCode !== undefined && b.exitCode !== 0 ? `\n[exit ${b.exitCode}]` : ''}`, 'console'),
   compare: (b) => ['before', 'after'].map((k) => `**${str(b[k]?.label) || (k === 'before' ? 'Before' : 'After')}**\n${list(b[k]?.items).map((i) => `- ${str(i)}`).join('\n')}`).join('\n\n'),
   flow: (b) => {
