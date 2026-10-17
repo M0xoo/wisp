@@ -12,6 +12,7 @@ const S = {
   full: new Map(), // id -> full session, for expanded items
   open: new Set(load('wisp.open', [])), // expanded item ids
   nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll, unfolded, latestTurn }
+  tasks: new Map(), // compare task key -> { card, head, runs, lead }
   focus: null, // id of the keyboard-focused item
   config: { defaults: {}, projects: [] },
   agents: [],
@@ -136,8 +137,39 @@ function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => s.projectId === S.filter);
 }
 
+// Compare runs (one launch on several harnesses, sharing a groupId) are one task in the feed
+// while two or more of them are on the same side of archived: a card with a row per run.
+// Keeping one archives the rest, and what's left is an ordinary card again.
+function runsOf(s) {
+  if (!s.groupId) return [s];
+  const runs = [...S.sessions.values()].filter((x) => x.groupId === s.groupId && !x.archived === !s.archived);
+  return runs.length > 1 ? runs.sort((a, b) => a.createdAt - b.createdAt) : [s];
+}
+// The task as a whole: asking if any run asks, working while any works, done once all are.
+function taskOf(s) {
+  const runs = runsOf(s);
+  if (runs.length < 2) return s;
+  const state = runs.some((r) => r.state === 'waiting') ? 'waiting' : runs.some((r) => r.state === 'running') ? 'running' : runs.every((r) => r.state === 'done') ? 'done' : 'review';
+  return {
+    ...runs[0],
+    key: `g:${s.groupId}${s.archived ? ':a' : ''}`,
+    runs,
+    state,
+    unread: runs.some((r) => r.unread),
+    createdAt: Math.min(...runs.map((r) => r.createdAt)),
+    updatedAt: Math.max(...runs.map((r) => r.updatedAt)),
+  };
+}
+
 function groups() {
-  const every = visible([...S.sessions.values()]);
+  const every = [];
+  const seen = new Set();
+  for (const s of visible([...S.sessions.values()])) {
+    const t = taskOf(s);
+    if (t.runs && seen.has(t.key)) continue;
+    if (t.runs) seen.add(t.key);
+    every.push(t);
+  }
   const all = every.filter((s) => !s.archived);
   const needs = all
     .filter((s) => s.state === 'review' || s.state === 'waiting')
@@ -157,7 +189,7 @@ function renderFeed() {
     $('h4 .n', sec).textContent = list.length || '';
     const want = show ? list : [];
     want.forEach((s, i) => {
-      const { card } = item(s);
+      const { card } = s.runs ? taskItem(s) : item(s);
       // Only touch the DOM when the order actually changed: moving a node
       // would blur a composer the user is typing in.
       if (box.children[i] !== card) box.insertBefore(card, box.children[i] || null);
@@ -172,8 +204,11 @@ function renderFeed() {
   $('#secArchived').classList.toggle('collapsed', !S.showArchived);
 
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
-  const shown = new Set([...needs, ...working, ...done, ...archived].map((s) => s.id));
+  const tasks = [...needs, ...working, ...done, ...archived];
+  const shown = new Set(tasks.flatMap((s) => (s.runs || [s]).map((r) => r.id)));
   for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id));
+  const keys = new Set(tasks.map((t) => t.key));
+  for (const [key, g] of S.tasks) if (!keys.has(key)) (g.card.remove(), S.tasks.delete(key));
 
   const empty = !needs.length && !working.length && !done.length && !archived.length;
   $('#feedEmpty').hidden = !empty;
@@ -272,6 +307,7 @@ function renderHead(n, s) {
       : s.state === 'review'
         ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || 'Done'}</span>`
         : '';
+  if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
   n.card.className = `item c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
   n.head.innerHTML = `
     <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
@@ -283,13 +319,71 @@ function renderHead(n, s) {
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${s.pr ? prPill(s.pr) : ''}
-      ${s.groupId ? `<span class="q-vs" title="Compare run: the same task on several harnesses">vs</span>` : ''}
       ${modelBadge(s.agent, s.model, s.effort)}
       <span class="q-proj">${esc(s.project)}</span>
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
       ${icon('chevron', 'chev')}
     </span>`;
+}
+
+// One run inside a compare task: the harness and model stand in for the title the task shows.
+function renderRunHead(n, s, { open, live, pill }) {
+  const a = S.agents.find((x) => x.id === s.agent);
+  const model = (s.model && a?.models?.find((m) => m.id === s.model)?.label) || s.model || 'Default model';
+  n.card.className = `item run c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
+  n.head.innerHTML = `
+    <span class="run-logo">${harnessLogo(s.agent)}</span>
+    <span class="it-main">
+      <span class="it-title"><b>${esc(a?.name || agentName(s.agent))}</b><span class="run-model">${esc(model)}${s.effort ? ` · ${esc(effortLabel(s.effort))}` : ''}</span></span>
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
+    </span>
+    <span class="it-side">
+      ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
+      ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
+      ${s.pr ? prPill(s.pr) : ''}
+      <span class="q-time">${ago(s.updatedAt)}</span>
+      ${icon('chevron', 'chev')}
+    </span>`;
+}
+
+// The card for a compare task: the shared prompt on top, one row per run (each an ordinary,
+// expandable item), and the side-by-side view one click away.
+function taskItem(t) {
+  let g = S.tasks.get(t.key);
+  if (!g) {
+    const card = el(`<section class="task-item"><header class="task-head"></header><div class="task-runs"></div></section>`);
+    g = { card, head: $('.task-head', card), runs: $('.task-runs', card) };
+    S.tasks.set(t.key, g);
+    g.head.addEventListener('click', (e) => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      const ids = (taskOf(S.sessions.get(g.lead) || {}).runs || []).map((r) => r.id);
+      if (a === 'compare') return compareView(g.lead);
+      if (a === 'quick-done') return taskDone(ids.filter((id) => S.sessions.get(id)?.state === 'review'));
+    });
+  }
+  g.lead = t.id;
+  const finished = t.runs.filter((r) => r.state === 'review' || r.state === 'done').length;
+  const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished` : t.state === 'done' ? 'Done' : 'All finished · pick one to keep';
+  g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
+  g.head.innerHTML = `
+    <span class="q-dot ${t.state === 'running' ? 'live' : ''} ${t.state === 'waiting' ? 'waiting' : ''}"></span>
+    <span class="it-main">
+      <span class="it-title">${esc(t.title)}</span>
+      <span class="it-sub">${esc(status)}</span>
+    </span>
+    <span class="it-side">
+      <button class="ghost xs" data-a="compare" title="Side by side: time, cost, changes, tests and each presentation"><b class="vs-mark">vs</b><span>Compare</span></button>
+      <span class="q-proj">${esc(t.project)}</span>
+      <span class="q-time">${ago(t.updatedAt)}</span>
+      ${t.state === 'review' && !t.archived ? `<button class="it-quick" data-a="quick-done" title="Mark every run done">${icon('done')}</button>` : ''}
+    </span>`;
+  t.runs.forEach((r, i) => {
+    const { card } = item(r);
+    if (g.runs.children[i] !== card) g.runs.insertBefore(card, g.runs.children[i] || null);
+  });
+  while (g.runs.children.length > t.runs.length) g.runs.lastElementChild.remove();
+  return g;
 }
 
 function setFocus(id, { scroll = true } = {}) {
@@ -622,6 +716,7 @@ function renderLauncher() {
     if (!project) return openProjects({ focusAdd: true });
     const btn = $('#launch', box);
     btn.disabled = true;
+    btn.classList.add('busy'); // a fetch and fresh worktrees can take a second or two
     try {
       const attachments = await tray.ids();
       const s = await api('/sessions', {
@@ -639,12 +734,14 @@ function renderLauncher() {
         save('wisp.filter', S.filter);
       }
       renderFeed();
-      showLaunched(btn, S.nodes.get(s.id)?.card);
+      const card = S.nodes.get(s.id)?.card;
+      showLaunched(btn, card?.closest('.task-item') || card);
       askNotify();
     } catch (err) {
       toast(esc(err.message), { tone: 'bad' });
     } finally {
       btn.disabled = false;
+      btn.classList.remove('busy');
       ta.focus();
     }
   };
@@ -1037,7 +1134,10 @@ function watching(id) {
   return S.focus === id && shown >= Math.min(r.height, innerHeight) / 3;
 }
 
-const sectionOf = (s) => (s.archived ? 'archived' : s.state === 'running' ? 'working' : s.state === 'done' ? 'done' : 'needs');
+const sectionOf = (s) => {
+  const t = taskOf(s);
+  return t.archived ? 'archived' : t.state === 'running' ? 'working' : t.state === 'done' ? 'done' : 'needs';
+};
 
 // Run a DOM change without moving `card` on screen. The browser's own scroll anchoring misses
 // cards that are moved between lists, so feed re-renders do this explicitly.
@@ -1430,6 +1530,19 @@ async function toggleDone(id) {
     leave(() => S.sessions.set(id, { ...S.sessions.get(id), state: 'done' }));
     toast(`Marked done`, { action: { label: 'Undo', run: () => api(`/sessions/${id}`, { method: 'PATCH', body: { state: 'review' } }) } });
   }
+}
+
+// Every finished run of a compare task at once, with one toast to undo them all.
+async function taskDone(ids) {
+  if (!ids.length) return;
+  const card = S.nodes.get(ids[0])?.card.closest('.task-item');
+  const next = card?.nextElementSibling?.querySelector('.item')?.dataset.id || card?.nextElementSibling?.dataset.id;
+  const set = (state) => Promise.all(ids.map((id) => api(`/sessions/${id}`, { method: 'PATCH', body: { state } })));
+  await set('done').catch((err) => toast(esc(err.message), { tone: 'bad' }));
+  for (const id of ids) S.sessions.set(id, { ...S.sessions.get(id), state: 'done' });
+  renderFeed();
+  if (next && S.nodes.has(next)) setFocus(next);
+  toast(`Marked ${ids.length} runs done`, { action: { label: 'Undo', run: () => set('review') } });
 }
 
 async function revertFile(id, turnId, file, restore = false) {
@@ -3139,12 +3252,13 @@ function connect() {
   es.addEventListener('summary', (e) => {
     const s = JSON.parse(e.data);
     const prev = S.sessions.get(s.id);
+    const was = prev && sectionOf(prev); // before the update: a compare task's section depends on all its runs
     S.sessions.set(s.id, s);
     // A section change moves the card (a follow-up sends it from "Needs you" to "Working").
     // If the user is watching it, the view follows it there; otherwise whatever they're
     // reading stays put. Marking done or archiving is the exception: the card leaves the
     // list and focus goes to the next one instead.
-    const moved = prev && sectionOf(prev) !== sectionOf(s);
+    const moved = prev && was !== sectionOf(s);
     const follow = moved && s.state !== 'done' && !s.archived && watching(s.id);
     keepInPlace(follow ? S.nodes.get(s.id).card : feedAnchor(s.id), () => {
       // A card left open while it worked shouldn't land in "Needs you" expanded —

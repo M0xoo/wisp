@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
-import { captureCheckpoint, readGitFile } from './checkpoint.js';
+import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 
 const MAX_ACTIVITY = 400;
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
@@ -220,7 +220,8 @@ export class Runner extends EventEmitter {
 
   #startTurn(session, prompt, attachments = []) {
     const id = newId();
-    const checkpoint = session.agent === 'wisp' ? null : captureCheckpoint(workdir(session), session.id, id);
+    const checkpoint =
+      session.agent === 'wisp' ? null : !session.turns.length && session.worktree?.head ? freshCheckpoint(session.worktree) : captureCheckpoint(workdir(session), session.id, id);
     const turn = {
       id,
       prompt,
@@ -367,7 +368,8 @@ export class Runner extends EventEmitter {
       turn.presentation = parsePresentation(ev.text);
       this.store.keepImages(session, turn);
       const hero = heroOf(turn.presentation);
-      if (hero?.title && session.titleAuto && session.turns.length === 1) session.title = hero.title;
+      // Compare runs keep the prompt's title: they're one task, and one run's headline shouldn't name it.
+      if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
     }
     session.state = 'review';
     session.unread = !interrupted;

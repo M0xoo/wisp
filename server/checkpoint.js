@@ -52,6 +52,13 @@ export function captureCheckpoint(cwd, sessionId, turnId) {
   };
 }
 
+// The first turn in a worktree made for it: clean, at its base commit, so the checkpoint is known
+// without asking git (captureCheckpoint's synchronous calls held up every launch, once per run).
+// The base commit stays reachable from the base branch, so it needs no pinning ref.
+export function freshCheckpoint(wt) {
+  return { commit: wt.head, head: wt.head, dirty: false, branch: wt.branch, untracked: [], at: Date.now() };
+}
+
 export function cleanupCheckpoints(cwd, sessionId) {
   if (!cwd || !sessionId || !fs.existsSync(cwd)) return;
   const refs = tryGit(cwd, ['for-each-ref', '--format=%(refname)', `refs/wisp/checkpoints/${sessionId}/`]);

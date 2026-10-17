@@ -62,10 +62,18 @@ const realpath = (p) => {
 };
 
 // A fresh worktree + branch for one session, under <home>/worktrees. Returns null outside a repo.
-export async function createWorktree({ cwd, home, id, title }) {
+// Where a launch's worktrees come from: { root, base }, or null outside a repo with commits.
+// Resolved once per launch, so compare runs share one fetch.
+export async function worktreeSource(cwd) {
   const root = await repoRoot(cwd);
-  if (!root) return null;
-  const base = await baseRef(root);
+  const base = root && (await baseRef(root));
+  if (!base) return null;
+  base.sha = await quiet(git(root, ['rev-parse', '--verify', '--quiet', `${base.ref}^{commit}`]));
+  return { root, base };
+}
+
+export async function createWorktree({ cwd, home, id, title, source }) {
+  const { root, base } = source || (await worktreeSource(cwd)) || {};
   if (!base) return null;
   // Short and readable; the full id only if that name is taken (a leftover branch, a prefix clash).
   let branch = `wisp/${slug(title) || 'task'}-${id.slice(0, 6)}`;
@@ -75,7 +83,7 @@ export async function createWorktree({ cwd, home, id, title }) {
   await git(root, ['worktree', 'add', '--quiet', '--no-track', '-b', branch, dir, base.ref]);
   // Launched from a subfolder of the repo: keep working in that subfolder.
   const sub = path.relative(realpath(root), realpath(cwd));
-  return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, remote: base.remote, root, createdAt: Date.now() };
+  return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, head: base.sha || null, remote: base.remote, root, createdAt: Date.now() };
 }
 
 // Archiving removes a clean worktree; a follow-up brings it back from its branch.

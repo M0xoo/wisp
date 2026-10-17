@@ -182,6 +182,17 @@ test('compare: one task on two harnesses, each in its own worktree; discard the 
   assert.notEqual(a.branch, b.branch);
   const [fa, fb] = await Promise.all([settled(a.id), settled(b.id)]);
   for (const f of [fa, fb]) assert.match(fs.readFileSync(path.join(f.worktree.path, 'math.js'), 'utf8'), /a \+ b/);
+  // Both branch from the same fetched commit, and that commit is the first turn's checkpoint.
+  const head = repo.git('rev-parse', 'origin/main');
+  for (const f of [fa, fb]) {
+    assert.equal(f.worktree.head, head);
+    assert.equal(f.turns[0].checkpoint.commit, head);
+    assert.equal(f.turns[0].checkpoint.dirty, false);
+    const math = f.turns[0].changes.find((c) => c.file === 'math.js');
+    assert.match(math.beforeFile, /a - b/, 'diffs read the base from the checkpoint');
+  }
+  // One task: the runs keep the prompt's title instead of each taking its own headline.
+  assert.deepEqual([fa.title, fb.title], ['Fix add()', 'Fix add()']);
   await api(`/sessions/${b.id}`, { method: 'PATCH', body: { archived: true, discardWorktree: true } });
   assert.equal(fs.existsSync(fb.worktree.path), false);
   assert.equal(repo.git('branch', '--list', fb.worktree.branch), '');
