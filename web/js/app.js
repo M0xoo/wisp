@@ -197,7 +197,29 @@ function renderFeedHead(needs, working) {
 // never shifts the feed, and it stays reachable deep inside a long open card.
 const collapseAllBtn = el(`<button class="collapse-all" title="Collapse all (C) · Esc collapses the focused one"><span></span><kbd>C</kbd></button>`);
 document.body.append(collapseAllBtn);
-const collapseAll = () => [...S.open].forEach((id) => collapse(id));
+// Collapsing shrinks everything above the reader, which would leave them staring
+// at unrelated cards far down the feed. Keep the card they were reading in view.
+const collapseAll = () => {
+  const anchor = readingCard();
+  [...S.open].forEach((id) => collapse(id));
+  if (!anchor) return;
+  setFocus(anchor, { scroll: false });
+  const card = S.nodes.get(anchor)?.card;
+  if (card?.isConnected) card.scrollIntoView({ block: 'center' });
+};
+// The open card covering the most of the viewport; the focused one breaks ties.
+function readingCard() {
+  let best = null;
+  let bestArea = 0;
+  for (const id of S.open) {
+    const card = S.nodes.get(id)?.card;
+    if (!card?.isConnected) continue;
+    const r = card.getBoundingClientRect();
+    const seen = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0) + (id === S.focus ? 1 : 0);
+    if (seen > bestArea) (best = id), (bestArea = seen);
+  }
+  return best || (S.open.has(S.focus) ? S.focus : null);
+}
 collapseAllBtn.addEventListener('click', collapseAll);
 function placeCollapseAll() {
   const open = [...S.open].filter((id) => S.nodes.get(id)?.card.isConnected).length;
@@ -2176,7 +2198,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (!$('#overlay').hidden) return closeOverlay();
     if (typing) return e.target.blur();
-    if (S.focus && S.open.has(S.focus)) collapse(S.focus);
+    if (S.focus && S.open.has(S.focus)) {
+      collapse(S.focus);
+      S.nodes.get(S.focus)?.card.scrollIntoView({ block: 'nearest' });
+    }
     return;
   }
   if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#overlay').hidden) return;
