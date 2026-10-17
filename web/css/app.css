@@ -167,7 +167,7 @@ select {
 
 /* ---------- layout: one column — top bar, launcher, feed ---------- */
 .stage {
-  position: relative; height: 100vh; overflow-y: auto; overflow-x: hidden; scroll-padding-top: 64px;
+  position: relative; height: 100vh; overflow-y: auto; overflow-x: hidden; scroll-padding-top: 116px; /* top bar + docked launcher */
   /* reserve the gutter on both sides so the scrollbar appearing never shifts or off-centres the layout */
   scrollbar-gutter: stable both-edges;
 }
