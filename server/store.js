@@ -7,12 +7,13 @@ import { randomUUID } from 'node:crypto';
 import { parsePresentation } from './protocol.js';
 
 const DEFAULT_CONFIG = {
-  projects: [], // [{ id, name, path, color, addedAt }]
+  projects: [], // [{ id, name, path, color, addedAt, machine? }]; machine: the server/machines.js id it lives on
   defaults: { agent: 'claude', mode: 'edits', model: '', effort: '' },
   recipes: [], // saved prompts with {params}: server/recipes.js
   triggers: [], // schedules and GitHub watchers: server/triggers.js
   teams: [], // saved subagent presets: server/subagents.js
   remote: {}, // phone channels (ntfy, Telegram): server/remote.js
+  machines: [], // other computers reached over SSH: server/machines.js
 };
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -55,6 +56,7 @@ export class Store {
       cfg.triggers ||= [];
       cfg.teams ||= [];
       cfg.remote ||= {};
+      cfg.machines ||= [];
       return cfg;
     } catch {
       return structuredClone(DEFAULT_CONFIG);
@@ -67,21 +69,24 @@ export class Store {
 
   // --- projects: plain folders, matched to sessions by path prefix ---
 
-  projectFor(cwd = '') {
+  // machine: a project on another computer (paths there are POSIX); null = this one.
+  projectFor(cwd = '', machine = null) {
+    const sep = machine ? '/' : path.sep;
     let best = null;
     for (const p of this.config.projects)
-      if ((cwd === p.path || cwd.startsWith(p.path + path.sep)) && (!best || p.path.length > best.path.length)) best = p;
+      if ((p.machine || null) === machine && (cwd === p.path || cwd.startsWith(p.path + sep)) && (!best || p.path.length > best.path.length)) best = p;
     return best;
   }
 
-  addProject(dir, { name, color } = {}) {
-    const existing = this.config.projects.find((p) => p.path === dir);
+  addProject(dir, { name, color, machine } = {}) {
+    const existing = this.config.projects.find((p) => p.path === dir && (p.machine || null) === (machine || null));
     if (existing) return existing;
     const used = new Set(this.config.projects.map((p) => p.color));
     const project = {
       id: Math.random().toString(36).slice(2, 10),
-      name: name || path.basename(dir) || dir,
+      name: name || (machine ? path.posix.basename(dir) : path.basename(dir)) || dir,
       path: dir,
+      ...(machine && { machine }),
       color: color || PROJECT_COLORS.find((c) => !used.has(c)) || PROJECT_COLORS[this.config.projects.length % PROJECT_COLORS.length],
       addedAt: Date.now(),
     };

@@ -163,6 +163,10 @@ Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
 | POST | `/api/triggers/:id/run` | fire a schedule now, or poll a watcher now |
 | GET · PUT | `/api/remote` | phone channels (ntfy, Telegram); tokens come back masked |
 | POST | `/api/remote/test` | send a test message |
+| GET · POST | `/api/machines` | machines (other computers over SSH) with state / add `{ target, name, port, command, autoConnect }` and connect |
+| PATCH · DELETE | `/api/machines/:id` | edit, remove |
+| POST | `/api/machines/:id/connect` · `/disconnect` · `/stop` | connect; close the tunnel (wisp keeps running there); stop wisp there (`{ restart }`) |
+| GET | `/api/machines/:id/fs?q=` · `/discover` | folders and git repos on the machine; add one with `POST /api/projects { path, machine }` |
 | GET | `/api/usage?days=30` | spend and outcomes per day, project and harness · model |
 | GET | `/api/sessions/:id/wait?timeout=60` | long-poll (max 290 s) until it finishes or asks; `timedOut` if not |
 | GET | `/api/sessions/:id/presentation` | `{ blocks, markdown, ask, changes, stats, … }`; `?turn=<id\|index>`, `?format=markdown` |

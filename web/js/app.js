@@ -16,6 +16,7 @@ const S = {
   focus: null, // id of the keyboard-focused item
   config: { defaults: {}, projects: [] },
   agents: [],
+  machines: [], // other computers over SSH: GET /api/machines, kept fresh by the 'machines' event
   filter: load('wisp.filter', 'all'),
   showDone: load('wisp.showDone', false),
   showArchived: false,
@@ -333,6 +334,7 @@ function renderHead(n, s) {
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${s.pr ? prPill(s.pr) : ''}
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort)}
+      ${s.machine ? machinePill(s.machine) : ''}
       <span class="q-proj">${esc(s.project)}</span>
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
@@ -352,6 +354,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
     </span>
     <span class="it-side">
+      ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}<span class="q-proj">${esc(s.project)}</span>` : ''}
       ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${s.pr ? prPill(s.pr) : ''}
@@ -377,7 +380,8 @@ function taskItem(t) {
   }
   g.lead = t.id;
   const finished = t.runs.filter((r) => r.state === 'review' || r.state === 'done').length;
-  const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished` : t.state === 'done' ? 'Done' : 'All finished · pick one to keep';
+  const places = new Set(t.runs.map((r) => r.machine?.id || '')).size;
+  const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep';
   g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
   g.head.innerHTML = `
     <span class="q-dot ${t.state === 'running' ? 'live' : ''} ${t.state === 'waiting' ? 'waiting' : ''}"></span>
@@ -387,7 +391,7 @@ function taskItem(t) {
     </span>
     <span class="it-side">
       <button class="ghost xs" data-a="compare" title="Side by side: time, cost, changes, tests and each presentation"><b class="vs-mark">vs</b><span>Compare</span></button>
-      <span class="q-proj">${esc(t.project)}</span>
+      ${places > 1 ? '' : `<span class="q-proj">${esc(t.project)}</span>`}
       <span class="q-time">${ago(t.updatedAt)}</span>
       ${t.state === 'review' && !t.archived ? `<button class="it-quick" data-a="quick-done" title="Mark every run done">${icon('done')}</button>` : ''}
     </span>`;
@@ -575,7 +579,28 @@ function autosize(ta, max = 340) {
 
 // --- launcher ----------------------------------------------------------------------
 
-let launchProject = load('wisp.launchProject', null);
+let launchProject = load('wisp.launchProject', null); // the project picked in the first place below
+// Where the launcher sends a prompt: '' = this computer, else machine ids. Several run in parallel,
+// each in the project picked for it (launchPicks[place]), and show up as one task.
+let launchWhere = load('wisp.launchWhere', ['']);
+let launchPicks = load('wisp.launchPicks', {});
+const placeOf = (p) => p?.machine || '';
+const placeName = (k) => (k ? machineById(k)?.name || 'machine' : 'This computer');
+const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
+const projectsAt = (k) => S.config.projects.filter((p) => placeOf(p) === k).sort(recentFirst);
+const saveWhere = () => (save('wisp.launchWhere', launchWhere), save('wisp.launchPicks', launchPicks), save('wisp.launchProject', launchProject));
+function syncWhere() {
+  launchWhere = launchWhere.filter((k, i) => (!k || machineById(k)) && launchWhere.indexOf(k) === i);
+  if (!launchWhere.length) launchWhere = [''];
+  // Filtering the feed to a project points the launcher at it (its machine joins if it wasn't picked).
+  const f = S.filter !== 'all' && projectById(S.filter);
+  if (f) {
+    if (!launchWhere.includes(placeOf(f))) launchWhere = [placeOf(f)];
+    launchPicks[placeOf(f)] = f.id;
+  } else if (projectById(launchProject) && !Object.values(launchPicks).includes(launchProject)) launchPicks[placeOf(projectById(launchProject))] ??= launchProject;
+  for (const k of launchWhere) if (!projectsAt(k).some((p) => p.id === launchPicks[k])) launchPicks[k] = projectsAt(k)[0]?.id || null;
+  launchProject = launchPicks[launchWhere[0]] || null;
+}
 
 // The model is remembered per harness (ids aren't portable between them).
 function savedModel(id) {
@@ -608,6 +633,7 @@ function renderLauncher() {
         <button class="vs-btn" id="compareBtn" aria-pressed="false"><span>vs</span>${icon('x')}</button>
         <button class="runner-btn" id="runner2" title="Second harness to compare with" aria-haspopup="dialog" hidden></button>
       </div>
+      <button class="tog-btn where-btn" id="whereBtn" aria-haspopup="menu"></button>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       <span class="grow"></span>
       <button class="tog-btn" id="wtBtn"></button>
@@ -637,6 +663,8 @@ function renderLauncher() {
     ta.focus();
   });
   $('#attach', box).onclick = tray.pick;
+  $('#whereBtn', box).onclick = (e) => whereMenu(e.currentTarget);
+  paintWhereBtn();
 
   // Mode is set-and-forget, so it's one small button: just an icon on the default (Edits),
   // spelled out when it's Plan or Full auto so you can't miss it.
@@ -743,24 +771,45 @@ function renderLauncher() {
   const launch = async () => {
     const prompt = ta.value.trim();
     if (!prompt) return ta.focus();
-    const project = projectById(launchProject);
-    if (!project) return openProjects({ focusAdd: true });
+    // One run per place picked under "Run on", each in the project picked for it.
+    const targets = launchWhere.map((k) => ({ k, m: k ? machineById(k) : null, project: projectById(launchPicks[k]) }));
+    const unset = targets.find((t) => !t.project);
+    if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
+    const off = targets.find((t) => t.m && t.m.state !== 'online');
+    if (off) return offlineToast(off.k);
+    const wanted = [agent?.id, ...(compare ? [compare.agent] : [])];
+    for (const t of targets) {
+      const missing = t.m?.remote?.agents && wanted.find((id) => !t.m.remote.agents.some((x) => x.id === id && x.available));
+      if (missing) return toast(`${esc(agentName(missing))} isn’t installed on <b>${esc(t.m.name)}</b>`, { tone: 'bad' });
+    }
     const btn = $('#launch', box);
     btn.disabled = true;
     btn.classList.add('busy'); // a fetch and fresh worktrees can take a second or two
     try {
       const attachments = await tray.ids();
-      const s = await api('/sessions', {
-        method: 'POST',
-        body: { prompt, cwd: project.path, agent: agent?.id || 'claude', mode: curMode, model: curModel, effort: curEffort, attachments, worktree: S.config.defaults.worktree === 'off' && !compare ? false : undefined, compare: compare ? [compare] : undefined, subagents: team.length && canLead(agent?.id) ? team : undefined },
+      // Several places: one shared groupId, so the runs land as one task with a row each.
+      const groupId = targets.length > 1 ? [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('') : undefined;
+      const results = await Promise.allSettled(
+        targets.map((t) =>
+          api('/sessions', {
+            method: 'POST',
+            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: agent?.id || 'claude', mode: curMode, model: curModel, effort: curEffort, attachments, worktree: S.config.defaults.worktree === 'off' && !compare ? false : undefined, compare: compare ? [compare] : undefined, subagents: team.length && canLead(agent?.id) ? team : undefined },
+          }),
+        ),
+      );
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') toast(`${esc(placeName(targets[i].k))}: ${esc(r.reason.message)}`, { tone: 'bad' });
       });
-      for (const x of s.group || [s]) S.sessions.set(x.id, x);
+      const started = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+      if (!started.length) return;
+      for (const x of started.flatMap((y) => y.group || [y])) S.sessions.set(x.id, x);
+      const s = started[0];
       if (compare) (compare = null), paintCompare();
       ta.value = '';
       S.drafts.delete('home');
       tray.clear();
       ta.dispatchEvent(new Event('input'));
-      if (S.filter !== 'all' && S.filter !== s.projectId) {
+      if (S.filter !== 'all' && (started.length > 1 || S.filter !== s.projectId)) {
         S.filter = 'all';
         save('wisp.filter', S.filter);
       }
@@ -1227,23 +1276,118 @@ function modeMenu(anchor, current, pick) {
 function renderLaunchChips() {
   const box = $('#launcher .l-projects');
   if (!box) return;
-  const projects = S.config.projects.slice().sort((a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt));
-  if (S.filter !== 'all' && projectById(S.filter)) launchProject = S.filter;
-  if (!projectById(launchProject)) launchProject = projects[0]?.id || null;
-  box.innerHTML = `
-    <span class="l-in">in</span>
-    ${projects.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launchProject ? 'on' : ''}" data-id="${p.id}" title="${esc(p.path)}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('')}
-    <button class="lp-chip add" id="lpAdd">${icon('folder')}${projects.length ? 'Other folder…' : 'Choose a project folder…'}</button>`;
-  $$('.lp-chip[data-id]', box).forEach((b) =>
-    b.addEventListener('click', () => {
-      launchProject = b.dataset.id;
-      save('wisp.launchProject', launchProject);
-      $$('.lp-chip', box).forEach((x) => x.classList.toggle('on', x === b));
+  syncWhere();
+  const multi = launchWhere.length > 1;
+  // One group per place: its name (unless it's only this computer), its projects, a way to add one.
+  const group = (k) => {
+    const m = k && machineById(k);
+    const list = projectsAt(k);
+    const off = m && m.state !== 'online';
+    const label = k || multi ? `<span class="lp-gl ${off ? 'off' : ''}" title="${esc(k ? `${m?.target} · ${MACHINE_STATE[m?.state] || ''}` : 'This computer')}">${icon(k ? 'server' : 'laptop')}${esc(placeName(k))}${off ? `<button class="link xs" data-connect="${k}">${m.state === 'connecting' || m.state === 'reconnecting' ? 'connecting…' : 'Connect'}</button>` : ''}</span>` : '';
+    const chips = list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launchPicks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
+    const add = list.length
+      ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi ? '' : 'Other folder…'}</button>`
+      : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a project folder…'}</button>`;
+    return `<span class="lp-group">${label}${chips}${add}</span>`;
+  };
+  box.innerHTML = `<span class="l-in">in</span>${launchWhere.map(group).join('')}`;
+  box.onclick = (e) => {
+    const chip = e.target.closest('.lp-chip[data-id]');
+    if (chip) {
+      launchPicks[chip.dataset.k] = chip.dataset.id;
+      if (chip.dataset.k === launchWhere[0]) launchProject = chip.dataset.id;
+      saveWhere();
+      $$(`.lp-chip[data-k="${chip.dataset.k}"]`, box).forEach((x) => x.classList.toggle('on', x === chip));
       renderLaunchRecipes();
-    }),
-  );
-  $('#lpAdd', box).onclick = () => openProjects({ focusAdd: true });
+      return;
+    }
+    const add = e.target.closest('[data-add]');
+    if (add) openProjects({ focusAdd: true, machine: add.dataset.add || null });
+    const conn = e.target.closest('[data-connect]');
+    if (conn) connectMachine(conn.dataset.connect);
+  };
   renderLaunchRecipes();
+  paintWhereBtn();
+}
+
+// "Run on": this computer and/or machines. The button says where; its menu picks one or several.
+function paintWhereBtn() {
+  const b = $('#whereBtn');
+  if (!b) return;
+  const n = launchWhere.length;
+  const remote = n > 1 || !!launchWhere[0];
+  b.classList.toggle('on', remote);
+  b.classList.toggle('bare', !S.machines.length && !remote);
+  b.innerHTML = `${icon(remote ? 'server' : 'laptop')}<span>${esc(n > 1 ? `${n} places` : placeName(launchWhere[0]))}</span>${icon('chevron', 'chev')}`;
+  b.title = n > 1 ? `Runs in parallel on ${launchWhere.map(placeName).join(', ')}` : S.machines.length ? `Runs on ${placeName(launchWhere[0])}. Pick several to run in parallel.` : 'Runs on this computer. Add a machine to run on other computers too.';
+}
+
+function whereMenu(anchor) {
+  if ($('.menu.where-menu')) return $('.menu.where-menu').close();
+  const box = el(`<div class="menu where-menu" role="menu"></div>`);
+  const paint = () => {
+    const row = (k, m) => {
+      const on = launchWhere.includes(k);
+      const st = m ? m.state : 'online';
+      const ready = m ? (m.remote?.agents || []).filter((a) => a.available) : [];
+      return `<button class="wm-row ${on ? 'on' : ''}" data-k="${k}" role="menuitemcheckbox" aria-checked="${on}">
+        <span class="wm-check">${icon('check')}</span>
+        <span class="wm-icon">${icon(k ? 'server' : 'laptop')}${m ? `<i class="dot ${st === 'online' ? 'ok' : st === 'error' ? 'bad' : ''}"></i>` : ''}</span>
+        <span class="wm-name"><b>${esc(placeName(k))}</b><small>${m ? esc(st === 'online' ? m.target : `${m.target} · ${MACHINE_STATE[st]}`) : `${projectsAt('').length} project${projectsAt('').length === 1 ? '' : 's'}`}</small></span>
+        ${m && st === 'online' && ready.length ? `<span class="wm-agents">${ready.map((a) => `<span class="model-logo">${harnessLogo(a.id)}</span>`).join('')}</span>` : ''}
+        <span class="wm-only" data-only="${k}" title="Only here">only</span>
+      </button>`;
+    };
+    box.innerHTML = `<div class="wm-h">Run on <small>pick several to run in parallel</small></div>
+      ${row('', null)}${S.machines.map((m) => row(m.id, m)).join('')}
+      <div class="wm-sep"></div>
+      <button data-a="add">${icon('plus')}${S.machines.length ? 'Add a machine…' : 'Add a machine to run on another computer…'}</button>
+      ${S.machines.length ? `<button data-a="manage">${icon('settings')}Manage machines</button>` : ''}`;
+  };
+  const set = (list) => {
+    launchWhere = list.length ? list : [''];
+    // A machine picked while disconnected starts connecting; you asked to run there.
+    for (const k of launchWhere) if (k && machineById(k)?.state === 'off') connectMachine(k);
+    renderLaunchChips();
+    paint();
+    saveWhere();
+  };
+  box.onclick = (e) => {
+    const only = e.target.closest('[data-only]');
+    if (only) return set([only.dataset.only]);
+    const r = e.target.closest('.wm-row');
+    if (r) {
+      const k = r.dataset.k;
+      return set(launchWhere.includes(k) ? launchWhere.filter((x) => x !== k) : [...launchWhere, k]);
+    }
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (!a) return;
+    shut();
+    openMachines({ focusAdd: a === 'add' });
+  };
+  const shut = () => {
+    box.remove();
+    anchor.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('mousedown', outside);
+    document.removeEventListener('keydown', esc_, true);
+  };
+  const outside = (ev) => {
+    if (!box.contains(ev.target) && !anchor.contains(ev.target)) shut();
+  };
+  const esc_ = (ev) => {
+    if (ev.key === 'Escape') (ev.stopPropagation(), shut());
+  };
+  box.close = shut;
+  box.refresh = paint;
+  paint();
+  document.body.append(box);
+  anchor.setAttribute('aria-expanded', 'true');
+  const r = anchor.getBoundingClientRect();
+  const h = box.offsetHeight;
+  box.style.left = `${Math.min(r.left, innerWidth - box.offsetWidth - 8)}px`;
+  box.style.top = `${r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6}px`;
+  setTimeout(() => document.addEventListener('mousedown', outside));
+  document.addEventListener('keydown', esc_, true);
 }
 
 // Recipes for the picked project (and the ones tied to none), one click from the launcher.
@@ -1348,8 +1492,8 @@ function renderProjects() {
   };
   const chip = (id, name, color) => {
     const st = stats(id);
-    return `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectById(id)?.path || '')}">
-      ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need">${st.need}</span>` : ''}
+    return `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectTitle(projectById(id)))}">
+      ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${projectById(id)?.machine ? icon('server', 'p-where') : ''}${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need">${st.need}</span>` : ''}
     </button>`;
   };
   $('#projects').innerHTML = `${chip('all', 'All', 'slate')}${S.config.projects
@@ -2457,9 +2601,20 @@ const EDITORS = {
   idea: (f, l) => `idea://open?file=${encodeURIComponent(f)}${l ? `&line=${l}` : ''}`,
 };
 
+// VS Code and its forks open a file on a machine through their Remote - SSH extension.
+const REMOTE_EDITORS = new Set(['vscode', 'cursor', 'windsurf']);
+
 function openInEditor(s, p, line) {
   const editor = S.config.defaults.editor || 'vscode';
   const abs = p.startsWith('/') ? p : `${s.cwd}/${p}`.replace(/\/\.$/, '');
+  if (s.machine) {
+    if (!REMOTE_EDITORS.has(editor)) {
+      copy(abs);
+      return toast(`Copied path ${esc(abs)} (on ${esc(s.machine.name)})`);
+    }
+    location.href = `${editor}://vscode-remote/ssh-remote+${encodeURIComponent(s.machine.target)}${abs}${line ? `:${line}` : ''}`;
+    return;
+  }
   if (editor === 'none' || !EDITORS[editor]) {
     copy(abs);
     return toast(`Copied path ${esc(abs)}`);
@@ -2491,10 +2646,12 @@ function reveal(id) {
 
 const COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
 
-async function openProjects({ focusAdd = false } = {}) {
+// where: a machine id to add folders on that computer (server/machines.js), else this one.
+async function openProjects({ focusAdd = false, machine = null, host } = {}) {
   const node = el(`
     <div class="modal projects-modal">
       <header><h2>Projects</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <div class="mem-tabs where"></div>
       <div class="add-row">
         <div class="field lg mono path-input">
           ${window.wispDesktop ? `<button class="browse" title="Browse…">${icon('folder')}</button>` : icon('folder')}
@@ -2504,23 +2661,55 @@ async function openProjects({ focusAdd = false } = {}) {
         ${window.wispDesktop ? `<button class="ghost" id="pbrowse">${icon('folder')}Browse…</button>` : ''}
         <button class="primary" id="padd">Add</button>
       </div>
-      <p class="hint">Tip: run <code>wisp add</code> inside any folder, or launch from a terminal with <code>wisp "task"</code> — the folder is added automatically.</p>
+      <p class="hint"></p>
       <div class="plist" id="plist"></div>
       <div class="discover" id="discover"><h4>Found on this machine</h4><p class="muted">Looking for git repos…</p></div>
     </div>`);
-  const close = overlay(node);
-  $('.close', node).onclick = close;
+  present(node, host);
   const input = $('#ppath', node);
   const sug = $('.suggest', node);
+  let where = machine && machineById(machine) ? machine : null;
+  const here = () => machineById(where);
+  const home = () => (where ? here()?.remote?.home : S.config.home) || '';
+  const tilde = (p) => (home() && p.startsWith(home()) ? `~${p.slice(home().length)}` : p);
+
+  const paintWhere = () => {
+    const tabs = $('.where', node);
+    tabs.innerHTML = `<button data-w="" class="${where ? '' : 'on'}">${icon('folder')}This computer</button>${S.machines
+      .map((m) => `<button data-w="${m.id}" class="${where === m.id ? 'on' : ''}" title="${esc(m.target)} · ${esc(MACHINE_STATE[m.state] || m.state)}">${icon('server')}${esc(m.name)}<i class="dot ${m.state === 'online' ? 'ok' : m.state === 'error' ? 'bad' : ''}"></i></button>`)
+      .join('')}<i></i>${host ? '' : `<button data-w="+" title="Run agents on another computer over SSH">${icon('plus')}Machine</button>`}`;
+    const m = here();
+    input.placeholder = m ? `~/code/my-app on ${m.name}` : '~/code/my-app';
+    $$('#pbrowse, .browse', node).forEach((b) => (b.hidden = !!m));
+    $('.hint', node).innerHTML = m
+      ? `Folders on <b>${esc(m.name)}</b>. Agents run there, in its own worktrees; you follow along here.`
+      : 'Tip: run <code>wisp add</code> inside any folder, or launch from a terminal with <code>wisp "task"</code> — the folder is added automatically.';
+  };
+  $('.where', node).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-w]');
+    if (!b) return;
+    if (b.dataset.w === '+') {
+      openMachines({ focusAdd: true });
+      return;
+    }
+    where = b.dataset.w || null;
+    sug.hidden = true;
+    paintWhere();
+    list();
+    discover();
+    input.focus();
+  });
 
   const add = async (p) => {
     try {
-      const proj = await api('/projects', { method: 'POST', body: { path: p } });
+      const proj = await api('/projects', { method: 'POST', body: { path: p, ...(where && { machine: where }) } });
       await loadConfig();
-      launchProject = proj.id;
-      save('wisp.launchProject', launchProject);
+      launchPicks[placeOf(proj)] = proj.id;
+      if (!launchWhere.includes(placeOf(proj))) launchWhere = [placeOf(proj)];
+      if (placeOf(proj) === launchWhere[0]) launchProject = proj.id;
+      saveWhere();
       renderLaunchChips();
-      toast(`Added <b>${esc(proj.name)}</b>`);
+      toast(`Added <b>${esc(proj.name)}</b>${where ? ` on ${esc(here()?.name || '')}` : ''}`);
       input.value = '';
       sug.hidden = true;
       list();
@@ -2529,7 +2718,9 @@ async function openProjects({ focusAdd = false } = {}) {
       toast(esc(err.message), { tone: 'bad' });
     }
   };
-  $('#padd', node).onclick = () => input.value.trim() && add(input.value.trim());
+  $('#padd', node).onclick = () => {
+    if (input.value.trim()) add(input.value.trim());
+  };
   const browse = async () => {
     const dir = await window.wispDesktop.pickFolder();
     if (dir) add(dir);
@@ -2543,10 +2734,10 @@ async function openProjects({ focusAdd = false } = {}) {
     t = setTimeout(async () => {
       const q = input.value;
       if (!q) return (sug.hidden = true);
-      const dirs = await api(`/fs?q=${encodeURIComponent(q)}`).catch(() => []);
+      const dirs = await api(`${where ? `/machines/${where}/fs` : '/fs'}?q=${encodeURIComponent(q)}`).catch(() => []);
       sel = -1;
       sug.hidden = !dirs.length;
-      sug.innerHTML = dirs.map((d) => `<button data-p="${esc(d)}">${esc(d.replace(S.config.home, '~'))}</button>`).join('');
+      sug.innerHTML = dirs.map((d) => `<button data-p="${esc(d)}">${esc(tilde(d))}</button>`).join('');
     }, 120);
   });
   input.addEventListener('keydown', (e) => {
@@ -2557,7 +2748,7 @@ async function openProjects({ focusAdd = false } = {}) {
       opts.forEach((o, i) => o.classList.toggle('on', i === sel));
     } else if (e.key === 'Tab' && opts.length) {
       e.preventDefault();
-      input.value = (opts[Math.max(0, sel)].dataset.p + '/').replace(S.config.home, '~');
+      input.value = tilde(opts[Math.max(0, sel)].dataset.p + '/');
       input.dispatchEvent(new Event('input'));
     } else if (e.key === 'Enter') {
       e.preventDefault();
@@ -2571,20 +2762,20 @@ async function openProjects({ focusAdd = false } = {}) {
 
   const list = () => {
     const box = $('#plist', node);
-    const projects = S.config.projects;
+    const projects = S.config.projects.filter((p) => (p.machine || null) === where);
     box.innerHTML = projects.length
       ? projects
           .map((p) => {
             const n = [...S.sessions.values()].filter((s) => s.projectId === p.id).length;
             return `<div class="prow c-${p.color}" data-id="${p.id}">
               <button class="swatch" title="Change colour"><i class="p-dot"></i></button>
-              <div class="prow-main"><input class="pname" value="${esc(p.name)}"><span class="ppath">${esc(p.path.replace(S.config.home, '~'))}</span></div>
+              <div class="prow-main"><input class="pname" value="${esc(p.name)}"><span class="ppath">${esc(tilde(p.path))}</span></div>
               <span class="pcount">${n} session${n === 1 ? '' : 's'}</span>
               <button class="icon-btn premove" title="Remove from wisp (files untouched)">${icon('trash')}</button>
             </div>`;
           })
           .join('')
-      : '<p class="muted">No projects yet. Add a folder above, or pick one below.</p>';
+      : `<p class="muted">No projects ${where ? `on ${esc(here()?.name || '')} ` : ''}yet. Add a folder above, or pick one below.</p>`;
     $$('.prow', box).forEach((row) => {
       const id = row.dataset.id;
       const p = projectById(id);
@@ -2604,18 +2795,35 @@ async function openProjects({ focusAdd = false } = {}) {
 
   const discover = async () => {
     const box = $('#discover', node);
-    const found = await api('/projects/discover').catch(() => []);
-    box.innerHTML = found.length
-      ? `<h4>Found on this machine <span class="muted">· git repos</span></h4><div class="found">${found
-          .map((f) => `<button class="found-item" data-p="${esc(f.path)}">${icon('plus')}<b>${esc(f.name)}</b><span>${esc(f.path.replace(S.config.home, '~').replace(/\/[^/]+$/, ''))}</span></button>`)
-          .join('')}</div>`
-      : '';
+    const m = here();
+    const at = where;
     box.onclick = (e) => {
       const b = e.target.closest('.found-item');
       if (b) add(b.dataset.p);
+      if (e.target.closest('[data-a="connect"]')) connectMachine(at);
     };
+    if (m && m.state !== 'online') {
+      box.innerHTML = `<p class="muted">${esc(m.name)} is ${m.state === 'connecting' || m.state === 'reconnecting' ? 'connecting…' : `offline. <button class="link" data-a="connect">Connect</button>`}</p>`;
+      return;
+    }
+    box.innerHTML = `<h4>Found on ${m ? esc(m.name) : 'this machine'}</h4><p class="muted">Looking for git repos…</p>`;
+    const found = await api(m ? `/machines/${m.id}/discover` : '/projects/discover').catch(() => []);
+    if (where !== at) return; // switched tabs meanwhile
+    box.innerHTML = found.length
+      ? `<h4>Found on ${m ? esc(m.name) : 'this machine'} <span class="muted">· git repos</span></h4><div class="found">${found
+          .map((f) => `<button class="found-item" data-p="${esc(f.path)}">${icon('plus')}<b>${esc(f.name)}</b><span>${esc(tilde(f.path).replace(/\/[^/]+$/, ''))}</span></button>`)
+          .join('')}</div>`
+      : '';
+  };
+  let wasOnline = here()?.state === 'online';
+  node.refresh = () => {
+    paintWhere();
+    const on = here()?.state === 'online';
+    if (on !== wasOnline) discover();
+    wasOnline = on;
   };
 
+  paintWhere();
   list();
   discover();
   if (focusAdd) setTimeout(() => input.focus(), 60);
@@ -3253,6 +3461,304 @@ async function openPhone({ host } = {}) {
   if (r) paint();
 }
 
+// --- machines: other computers, over SSH ---------------------------------------------------------
+
+// A machine runs its own wisp; this one signs in over SSH, tunnels to it and shows its sessions
+// as <id>@<machine>. Projects can live on a machine; launching in one runs the agent there.
+const machineById = (id) => S.machines.find((m) => m.id === id);
+const machineOnline = (id) => machineById(id)?.state === 'online';
+const MACHINE_STATE = { online: 'Online', connecting: 'Connecting…', reconnecting: 'Reconnecting…', error: 'Couldn’t connect', off: 'Not connected' };
+const projectTitle = (p) => {
+  if (!p) return '';
+  const m = p.machine && machineById(p.machine);
+  return m ? `${p.path} on ${m.name}${m.state === 'online' ? '' : ' (not connected)'}` : p.path;
+};
+
+function machinePill(mt) {
+  const on = machineOnline(mt.id);
+  return `<span class="q-machine ${on ? '' : 'off'}" title="Runs on ${esc(mt.name)} (${esc(mt.target)})${on ? '' : ' · not connected'}">${icon('server')}<span>${esc(mt.name)}</span></span>`;
+}
+
+function machinesSummary() {
+  const n = S.machines.length;
+  if (!n) return 'None yet · run agents on another computer over SSH';
+  const on = S.machines.filter((m) => m.state === 'online').length;
+  return `${n} machine${n === 1 ? '' : 's'} · ${on ? `${on} online` : 'none online'}`;
+}
+
+const loadMachines = () => api('/machines').then(setMachines).catch(() => {});
+function setMachines(list) {
+  const was = new Map(S.machines.map((m) => [m.id, m.state === 'online']));
+  S.machines = list;
+  paintMachinesBtn();
+  renderLaunchChips();
+  renderProjects();
+  $('.machines-modal')?.refresh();
+  $('.projects-modal')?.refresh?.();
+  $('.menu.where-menu')?.refresh();
+  $('.settings-modal .machines-hint') && ($('.settings-modal .machines-hint').textContent = machinesSummary());
+  // Coming online lists its sessions; going offline greys their cards.
+  if (list.some((m) => (was.get(m.id) || false) !== (m.state === 'online'))) loadSessions();
+}
+
+function paintMachinesBtn() {
+  const b = $('#machinesBtn');
+  if (!b) return;
+  const on = S.machines.filter((m) => m.state === 'online').length;
+  const trouble = S.machines.some((m) => m.state === 'error' || m.state === 'reconnecting');
+  b.classList.toggle('live', on > 0);
+  b.classList.toggle('trouble', trouble);
+  const n = $('.ab-n', b);
+  n.hidden = !on;
+  n.textContent = on;
+  b.title = S.machines.length ? `Machines: ${machinesSummary()}` : 'Machines: run agents on another computer over SSH';
+}
+
+async function connectMachine(id) {
+  try {
+    await api(`/machines/${id}/connect`, { method: 'POST', body: {} });
+  } catch (err) {
+    toast(esc(err.message), { tone: 'bad' });
+  }
+}
+
+function offlineToast(id) {
+  const m = machineById(id);
+  if (m?.state === 'connecting' || m?.state === 'reconnecting') return toast(`Still connecting to <b>${esc(m.name)}</b>…`);
+  toast(`<b>${esc(m?.name || 'That machine')}</b> isn’t connected`, { tone: 'bad', action: { label: 'Connect', run: () => connectMachine(id) } });
+}
+
+const STEP_ICON = { done: 'check', fail: 'x', warn: 'warn', run: '', pending: '' };
+
+function openMachines({ host, focusAdd = false } = {}) {
+  const node = el(`<div class="modal machines-modal">
+      <header><h2>Machines</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <div class="mc-body">
+        <p class="mem-lede">Run agents on your other computers: a dev box, a GPU server, a cloud VM. wisp signs in over SSH, starts itself there and tunnels back, so worktrees, diffs and Ship it work as usual, and agents keep going when this computer sleeps.</p>
+        <div class="mc-list"></div>
+        <section class="mc-add"></section>
+      </div>
+    </div>`);
+  const close = present(node, host);
+  const body = $('.mc-body', node);
+  let editing = null; // machine id whose form is open, '' = a new one, null = closed
+  let hosts = [];
+  api('/machines/ssh-hosts')
+    .then((h) => {
+      hosts = h;
+      const dl = $('#sshHosts', node);
+      if (dl) dl.innerHTML = hosts.map((x) => `<option value="${esc(x.host)}">${esc([x.user, x.hostname].filter(Boolean).join('@'))}</option>`).join('');
+    })
+    .catch(() => {});
+
+  // Projects on a machine open here, with a way back.
+  const sub = (view) => {
+    const head = $(':scope > header', node);
+    body.hidden = true;
+    head.hidden = true;
+    view.classList.add('embedded');
+    const back = el(`<button class="ghost sm sx-back">${icon('back')}Back</button>`);
+    back.onclick = () => {
+      view.remove();
+      body.hidden = false;
+      head.hidden = false;
+      paint();
+    };
+    $('header', view).prepend(back);
+    $('.close', view).onclick = close;
+    node.append(view);
+    return close;
+  };
+
+  const steps = (m) => `<ol class="mc-steps">${m.steps
+    .map((st) => `<li class="s-${st.status}"><span class="mc-si">${STEP_ICON[st.status] ? icon(STEP_ICON[st.status]) : ''}</span><b>${esc(st.label)}</b>${st.detail ? `<small>${esc(st.detail)}</small>` : ''}</li>`)
+    .join('')}</ol>`;
+  const trouble = (m) => `<div class="mc-hint ${m.state === 'reconnecting' ? 'soft' : ''}">
+      <p><b>${esc(m.state === 'reconnecting' ? `${m.error || 'Connection lost.'} Trying again${m.attempt > 1 ? ` (attempt ${m.attempt})` : ''}…` : m.error)}</b></p>
+      ${m.hint?.text ? `<p>${esc(m.hint.text)}</p>` : ''}
+      ${m.hint?.command ? `<div class="mc-cmd"><code>${esc(m.hint.command)}</code><button class="ghost xs" data-a="copy" data-cmd="${esc(m.hint.command)}" title="Copy">${icon('copy')}</button></div>` : ''}
+      ${m.stale ? `<button class="ghost sm" data-a="restart">${icon('rerun')}Restart wisp there</button>` : ''}
+      ${m.log.length ? `<details class="mc-log"><summary>Log</summary><pre>${esc(m.log.join('\n'))}</pre></details>` : ''}
+    </div>`;
+  const projects = (m) => {
+    const list = S.config.projects.filter((p) => p.machine === m.id);
+    return `<div class="mc-projects">${list.map((p) => `<span class="lp-chip c-${p.color}" title="${esc(p.path)}"><i class="p-dot"></i>${esc(p.name)}</span>`).join('')}
+      <button class="lp-chip add" data-a="projects">${icon(list.length ? 'plus' : 'folder')}${list.length ? 'Add' : 'Pick projects on it…'}</button></div>`;
+  };
+  const card = (m) => {
+    const st = m.state;
+    const busy = st === 'connecting' || st === 'reconnecting';
+    const ready = (m.remote?.agents || []).filter((a) => a.available);
+    return `<div class="mc st-${st}" data-id="${m.id}">
+      <div class="mc-head">
+        <span class="mc-icon">${icon('server')}<i class="mc-dot"></i></span>
+        <div class="mc-title"><b>${esc(m.name)}</b><span>${esc(m.target)}${m.port !== 4477 ? ` · port ${m.port}` : ''}</span></div>
+        <span class="mc-state">${MACHINE_STATE[st] || st}</span>
+        ${st === 'online' || busy ? `<button class="ghost sm" data-a="disconnect">${busy ? 'Cancel' : 'Disconnect'}</button>` : `<button class="primary sm" data-a="connect">${st === 'error' ? 'Try again' : 'Connect'}</button>`}
+        <button class="icon-btn" data-a="menu" title="More">${icon('dots')}</button>
+      </div>
+      ${
+        st === 'online'
+          ? `<div class="mc-meta"><span>wisp ${esc(m.remote?.version || '')}</span>${ready.length ? `<span class="mc-agents">${ready.map((a) => `<span class="model-logo" title="${esc(a.name)} ${esc(a.version || '')}">${harnessLogo(a.id)}</span>`).join('')}</span>` : '<span class="bad">no harnesses found</span>'}${m.working ? `<span>${m.working} working</span>` : ''}</div>`
+          : ''
+      }
+      ${busy || st === 'error' ? steps(m) : ''}
+      ${(st === 'error' || st === 'reconnecting') && m.error ? trouble(m) : ''}
+      ${st === 'online' || m.projects ? projects(m) : ''}
+      ${editing === m.id ? `<div class="mc-edit">${form(m)}</div>` : ''}
+    </div>`;
+  };
+  const form = (m) => `<form class="mc-form" data-id="${m?.id || ''}">
+      <div class="mc-row">
+        <label class="mc-field grow"><span>SSH host</span><input class="input mono" name="target" list="sshHosts" placeholder="me@devbox, 10.0.0.5, or a Host from ~/.ssh/config" spellcheck="false" autocomplete="off" autocapitalize="off" value="${esc(m?.target || '')}" required></label>
+        <label class="mc-field"><span>Name</span><input class="input" name="name" placeholder="${esc(m?.name || 'devbox')}" value="${esc(m?.name || '')}" spellcheck="false"></label>
+      </div>
+      <details class="mc-adv" ${m && (m.port !== 4477 || m.command) ? 'open' : ''}><summary>Advanced</summary>
+        <div class="mc-row">
+          <label class="mc-field"><span>wisp’s port there</span><input class="input mono" name="port" type="number" min="1" max="65535" value="${m?.port || 4477}"></label>
+          <label class="mc-field grow"><span>Start command</span><input class="input mono" name="command" placeholder="${esc(S.machines[0]?.defaultCommand || 'npx -y wisp-agents@<this version>')}" value="${esc(m?.command || '')}" spellcheck="false"></label>
+        </div>
+        <label class="check mc-check"><input type="checkbox" name="autoConnect" ${m?.autoConnect === false ? '' : 'checked'}> Connect when wisp starts</label>
+      </details>
+      <div class="mc-foot">
+        <p class="hint">${m ? 'Changing the host, port or command reconnects.' : 'Uses your SSH keys, agent and ~/.ssh/config; wisp never asks for a password. The machine needs Node.js 20+ and the harness CLIs, signed in.'}</p>
+        ${editing !== null && (m || S.machines.length) ? '<button type="button" class="ghost sm" data-a="cancel">Cancel</button>' : ''}
+        <button class="primary sm" type="submit">${m ? 'Save' : `${icon('server')}Connect`}</button>
+      </div>
+    </form>`;
+
+  const paint = () => {
+    if (!node.isConnected && !host) return;
+    $('.mc-list', node).innerHTML = S.machines.map(card).join('');
+    const add = $('.mc-add', node);
+    // The form for a new machine: open when there are none yet, else behind a button.
+    if (!S.machines.length || editing === '') {
+      if (!$('form[data-id=""]', add)) add.innerHTML = `<h4>${S.machines.length ? 'Add another machine' : 'Add your first machine'}</h4>${form(null)}<datalist id="sshHosts">${hosts.map((x) => `<option value="${esc(x.host)}">${esc([x.user, x.hostname].filter(Boolean).join('@'))}</option>`).join('')}</datalist>`;
+    } else add.innerHTML = `<button class="lp-chip add mc-new" data-a="new">${icon('plus')}Add a machine</button><datalist id="sshHosts">${hosts.map((x) => `<option value="${esc(x.host)}"></option>`).join('')}</datalist>`;
+  };
+
+  const menu = (m, anchor) => {
+    $('.menu.machine')?.close();
+    const r = anchor.getBoundingClientRect();
+    const box = el(`<div class="menu machine" style="top:${r.bottom + 4}px;left:${Math.max(8, r.right - 230)}px">
+        <button data-m="edit">${icon('pen')}Edit…</button>
+        <button data-m="projects">${icon('folder')}Projects on it…</button>
+        ${m.state === 'online' ? `<button data-m="restart">${icon('rerun')}Restart wisp there</button><button data-m="stop" class="danger">${icon('stop')}Stop wisp there</button>` : ''}
+        <button data-m="remove" class="danger">${icon('trash')}Remove machine</button>
+      </div>`);
+    const shut = () => (box.remove(), document.removeEventListener('mousedown', outside));
+    const outside = (ev) => {
+      if (!box.contains(ev.target)) shut();
+    };
+    box.close = shut;
+    setTimeout(() => document.addEventListener('mousedown', outside));
+    box.onclick = (ev) => {
+      const a = ev.target.closest('button')?.dataset.m;
+      shut();
+      if (a) act(a, m);
+    };
+    document.body.append(box);
+  };
+
+  const act = async (a, m) => {
+    try {
+      if (a === 'connect') await api(`/machines/${m.id}/connect`, { method: 'POST', body: {} });
+      if (a === 'disconnect') await api(`/machines/${m.id}/disconnect`, { method: 'POST', body: {} });
+      if (a === 'projects') openProjects({ machine: m.id, host: sub, focusAdd: true });
+      if (a === 'edit') {
+        editing = m.id;
+        paint();
+        $(`.mc[data-id="${m.id}"] input[name="target"]`, node)?.focus();
+      }
+      if (a === 'restart') {
+        if (m.working && !confirm(`${m.working} agent${m.working === 1 ? ' is' : 's are'} working on ${m.name}. Restarting wisp there stops ${m.working === 1 ? 'it' : 'them'}. Restart?`)) return;
+        await api(`/machines/${m.id}/stop`, { method: 'POST', body: { restart: true } });
+      }
+      if (a === 'stop') {
+        if (!confirm(`Stop wisp on ${m.name}? ${m.working ? `${m.working} working agent${m.working === 1 ? '' : 's'} stop too. ` : ''}Its sessions stay there for next time.`)) return;
+        await api(`/machines/${m.id}/stop`, { method: 'POST', body: {} });
+        toast(`Stopped wisp on <b>${esc(m.name)}</b>`);
+      }
+      if (a === 'remove') {
+        if (!confirm(`Remove ${m.name} from wisp? Its projects leave the launcher. Nothing on the machine is touched, and wisp keeps running there until you stop it.`)) return;
+        await api(`/machines/${m.id}`, { method: 'DELETE' });
+        await loadConfig();
+        await loadMachines();
+      }
+    } catch (err) {
+      toast(esc(err.message), { tone: 'bad' });
+    }
+  };
+
+  node.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-a]');
+    if (!b || !body.contains(b)) return;
+    const a = b.dataset.a;
+    const m = machineById(b.closest('.mc')?.dataset.id);
+    if (a === 'copy') {
+      copy(b.dataset.cmd);
+      toast('Copied. Run it in a terminal, then connect again.');
+      return;
+    }
+    if (a === 'new') {
+      editing = '';
+      paint();
+      $('.mc-add input[name="target"]', node)?.focus();
+      return;
+    }
+    if (a === 'cancel') {
+      editing = null;
+      paint();
+      return;
+    }
+    if (a === 'menu' && m) {
+      menu(m, b);
+      return;
+    }
+    if (m) act(a, m);
+  });
+  // The name follows the host until you type one.
+  node.addEventListener('input', (e) => {
+    if (e.target.name !== 'target') return;
+    const name = $('input[name="name"]', e.target.form);
+    const h = hosts.find((x) => x.host === e.target.value.trim());
+    name.placeholder = (h?.host || e.target.value.trim().replace(/^.*@/, '')).slice(0, 40) || 'devbox';
+  });
+  node.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const id = f.dataset.id;
+    const v = Object.fromEntries(new FormData(f));
+    const payload = { target: v.target.trim(), name: v.name.trim(), port: Number(v.port) || 4477, command: v.command.trim(), autoConnect: !!v.autoConnect };
+    const btn = $('button[type="submit"]', f);
+    btn.disabled = true;
+    try {
+      if (id) await api(`/machines/${id}`, { method: 'PATCH', body: payload });
+      else await api('/machines', { method: 'POST', body: payload });
+      editing = null;
+      await loadMachines();
+      paint();
+    } catch (err) {
+      toast(esc(err.message), { tone: 'bad' });
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  node.refresh = () => {
+    // Don't clobber a half-typed form: repaint the cards only.
+    const typing = node.contains(document.activeElement) && document.activeElement.matches('input, select');
+    if (typing && editing !== null && editing !== '') return;
+    if (typing) $('.mc-list', node).innerHTML = S.machines.map(card).join('');
+    else paint();
+  };
+  paint();
+  if (focusAdd && S.machines.length) {
+    editing = '';
+    paint();
+  }
+  if (focusAdd || !S.machines.length) setTimeout(() => $('.mc-add input[name="target"]', node)?.focus(), 60);
+}
+
 // --- settings -----------------------------------------------------------------------------
 
 // A sidebar of sections and one pane at a time, like every other app's settings. Big lists
@@ -3261,6 +3767,7 @@ const SETTINGS_PANES = [
   { id: 'general', label: 'General', icon: 'settings', lede: 'Where files open, where you take over, and how tasks start.' },
   { id: 'notifications', label: 'Notifications', icon: 'bolt', lede: 'Hear about questions and finished tasks, here or on your phone.' },
   { id: 'agents', label: 'Agents', icon: 'agent', lede: 'The harnesses wisp found on this machine. Pick one next to the model in the launcher.' },
+  { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
   { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },
@@ -3307,6 +3814,12 @@ function openSettings(opts) {
           <div class="sx-group">${S.agents
             .map((a) => row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(a.available ? a.version : a.error || 'not found'), `<span class="sx-state ${a.available ? 'ok' : 'bad'}"><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`))
             .join('')}</div>
+        </section>
+        <section class="sx-pane" data-pane="machines">
+          <div class="sx-group">
+            ${row('Machines', '<span class="machines-hint"></span>', '<button class="ghost sm" id="openMachines">Manage</button>')}
+          </div>
+          <p class="hint">Also in the top bar, and in Projects: add folders on a machine, then launch there like anywhere else.</p>
         </section>
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">
@@ -3462,6 +3975,7 @@ function openSettings(opts) {
           <div><span>Questions</span><b>${x.questions}</b></div>`;
       })
       .catch(() => ($('.sx-usage', node).innerHTML = ''));
+    $('.machines-hint', node).textContent = machinesSummary();
     api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x) === 'Off' ? 'ntfy or Telegram: answer questions from your phone' : phoneSummary(x))).catch(() => {});
     paintLearn();
   };
@@ -3470,6 +3984,7 @@ function openSettings(opts) {
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
   $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
+  $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
 }
 
 // --- memory: what the background retros learned ---------------------------------------------
@@ -3728,6 +4243,8 @@ function paletteItems() {
     { group: a, label: 'Triggers', icon: 'replay', keywords: 'automations schedule cron ci issues github', run: () => openAutomations({ tab: 'triggers' }) },
     { group: a, label: 'Usage', icon: 'stats', keywords: 'spend cost tokens outcomes success', run: () => openUsage() },
     { group: a, label: 'Phone', icon: 'send', keywords: 'ntfy telegram notifications mobile remote', run: () => openPhone() },
+    { group: a, label: 'Machines', icon: 'server', keywords: 'remote ssh server computer devbox cloud vm', run: () => openMachines() },
+    { group: a, label: 'Add a machine…', icon: 'server', keywords: 'remote ssh server computer connect', run: () => openMachines({ focusAdd: true }) },
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
@@ -3772,7 +4289,14 @@ function askNotify() {
 function notifyFinished(s) {
   const viewing = S.open.has(s.id) && watching(s.id) && document.hasFocus();
   if (viewing) return;
-  const verb = s.state === 'waiting' ? 'has a question' : 'is ready';
+  let verb = s.state === 'waiting' ? 'has a question' : 'is ready';
+  // A task run in several places (or compared) says so once, when its last run finishes.
+  const runs = s.groupId ? [...S.sessions.values()].filter((x) => x.groupId === s.groupId && !x.archived) : [];
+  if (runs.length > 1 && s.state !== 'waiting') {
+    if (runs.some((x) => x.id !== s.id && x.state === 'running')) return;
+    const places = new Set(runs.map((x) => x.machine?.id || '')).size;
+    verb = places > 1 ? `is ready on ${places} machines` : `is ready (${runs.length} runs)`;
+  }
   toast(`${icon(s.state === 'waiting' ? 'ask' : 'spark')} <b>${esc(s.title)}</b> ${verb}`, { action: { label: 'Open', run: () => reveal(s.id) }, timeout: 7000 });
   if (notifyOn() && !document.hasFocus()) {
     const note = new Notification(`${s.project}: ${s.title}`, { body: s.state === 'waiting' ? s.question : s.preview || 'Ready for review', icon: '/favicon.svg', tag: s.id });
@@ -3818,12 +4342,13 @@ function connect() {
   });
   es.addEventListener('config', () => (loadConfig(), $('.auto-modal')?.refresh()));
   es.addEventListener('remote', () => $('.phone-modal')?.refresh());
+  es.addEventListener('machines', (e) => setMachines(JSON.parse(e.data)));
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
   es.addEventListener('preferences', () => {
     $('.memory-modal')?.refresh();
     $('.settings-modal')?.paintLearn?.();
   });
-  es.addEventListener('hello', () => (loadSessions(), loadUpdate())); // also after sleep/reconnect
+  es.addEventListener('hello', () => (loadSessions(), loadUpdate(), loadMachines())); // also after sleep/reconnect
 }
 
 async function loadSessions() {
@@ -3981,6 +4506,7 @@ document.addEventListener('keydown', (e) => {
 
 $('#settingsBtn').onclick = openSettings;
 $('#searchBtn').onclick = openPalette;
+$('#machinesBtn').onclick = () => openMachines();
 $('#autoBtn').onclick = () => openAutomations({ tab: (S.config.triggers || []).length && !(S.config.recipes || []).length ? 'triggers' : 'recipes' });
 $('#updateBtn').onclick = installUpdate;
 $('#searchBtn').title = `Search (${combo('K')})`;
@@ -4046,7 +4572,7 @@ window.addEventListener('focus', () => {
 });
 
 (async () => {
-  [S.agents] = await Promise.all([api('/agents').catch(() => []), loadConfig(), loadSessions()]);
+  [S.agents] = await Promise.all([api('/agents').catch(() => []), loadConfig(), loadSessions(), loadMachines()]);
   renderLauncher();
   connect();
   route();

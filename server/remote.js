@@ -20,6 +20,7 @@ export class Remote {
   constructor({ store, act, onChange = () => {} }) {
     Object.assign(this, { store, act, onChange });
     this.status = { ntfy: null, telegram: null };
+    this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.ac = null;
     this.ntfyPollMs = 4000;
     this.tgLongPoll = 25;
@@ -188,9 +189,12 @@ export class Remote {
       text: clip(`${msg.title}\n\n${msg.text}${s ? '\n\n↩ Reply to this message to answer or follow up.' : ''}`, 4000),
       ...(buttons.length && { reply_markup: { inline_keyboard: buttons } }),
     });
-    if (s && sent?.message_id) {
+    if (s && sent?.message_id && this.store.get(s.id) === s) {
       s.remote = { ...s.remote, tg: [...(s.remote?.tg || []), sent.message_id].slice(-MAX_TG_IDS) };
       this.store.save(s);
+    } else if (s && sent?.message_id) {
+      this.tgElsewhere.set(sent.message_id, s.id);
+      if (this.tgElsewhere.size > 200) this.tgElsewhere.delete(this.tgElsewhere.keys().next().value);
     }
   }
 
@@ -238,9 +242,9 @@ export class Remote {
     }
     if (String(m.chat.id) !== String(t.chatId)) return;
     const replyTo = m.reply_to_message?.message_id;
-    const s = replyTo && this.store.all().find((x) => x.remote?.tg?.includes(replyTo));
-    if (!s) return say('Reply to one of wisp’s messages to answer it or send a follow-up.');
-    await say(await this.act({ sessionId: s.id, kind: 'text', text: m.text }), { reply_to_message_id: m.message_id });
+    const sessionId = replyTo && (this.store.all().find((x) => x.remote?.tg?.includes(replyTo))?.id || this.tgElsewhere.get(replyTo));
+    if (!sessionId) return say('Reply to one of wisp’s messages to answer it or send a follow-up.');
+    await say(await this.act({ sessionId, kind: 'text', text: m.text }), { reply_to_message_id: m.message_id });
   }
 
   // For the settings view: config with secrets masked, plus channel health.
