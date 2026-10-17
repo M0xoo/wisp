@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-17
+
 ### Added
 
 - Subagents: give the lead agent a team on other harnesses, e.g. a Claude Code run that hands tests to Codex and research to opencode. The launcher's **Subagents** button opens an editor: up to 6 members, each with its own harness, model and thinking level, a name, a **Use for** note ("image and UI work", "research") that tells the lead when to pick it, and a **×N** copies stepper: `Codex ×3` gives the lead three identical Codex agents (`codex#1`…`codex#3`, 12 agents in all). Several tasks sent to `codex` in one call go to free copies and run side by side; naming a copy continues its conversation. **Save as preset** stores the team; **Presets** loads or deletes one. The lead gets a `delegate` tool on wisp's injected MCP server (Claude Code, Codex, opencode; Cursor and Antigravity can be subagents but not leads). Tasks in one call run in parallel in the lead's folder, and delegating to the same member again resumes its conversation. Feed cards show the lead's logo with its subagents' logos stacked behind it (they fan out on hover and pulse while working). A running card lists each subagent's live status, and a finished turn shows one report card per delegated task that opens into that subagent's own presentation. Subagent edits count as the lead's, so they appear in its files, diffs, rollback and Ship it. API: `subagents` / `preset` on `POST /sessions`, `/teams` for presets, `PATCH /sessions/:id { subagents }`; `wisp_launch` takes them too.
@@ -34,6 +36,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - Clicking a recipe no longer runs it straight away when it has no fields to fill in. Its dialog now always stays open until you press **Run** (the button has focus, so Enter works too).
+- `flow` blocks that don't fit across the card wrap onto rows that alternate direction (left to right, then right to left), joined by a short line, instead of squeezing every step into a narrow column. Loop-back lines go around the cards instead of crossing them. Phone width still stacks the steps.
 - The launcher no longer flashes its focus ring when you open the harness pickers or switch between them (e.g. opencode, then Claude Code in a compare). The ring stays on while a picker or the mode menu is open; the rerun dialog behaves the same way.
 - Launching a compare no longer freezes wisp for a few seconds. The runs share one `git fetch` and their worktrees are checked out in parallel. A fresh worktree's first checkpoint is its base commit, so it no longer runs blocking `git` calls that stalled the server and the live feed. With fake harnesses, a 2-way launch went from 1.5 s to 0.7 s and a 3-way launch from 2.3 s to 0.9 s. The send button shows a spinner while the launch sets up. If one worktree fails, the ones already created are removed.
 - Scrolling in the feed stays put. When a card changes section in the background (a task finishes, asks or is removed), the card you're reading no longer jumps; one whose edge just peeks onto the screen no longer drags the view with it. Mark done, Archive and Delete put the next card where the old one was and focus it, so E / A / j triage continues from the same spot. j / k show the header of tall cards, switching project filters returns to the top of the feed, and a task launched from the box scrolls into view when its card lands off-screen. The rules are written down in [docs/feed.md](docs/feed.md).
@@ -155,7 +158,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/M0xoo/wisp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/M0xoo/wisp/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/M0xoo/wisp/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/M0xoo/wisp/compare/v0.4.0...v0.5.0
