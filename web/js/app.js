@@ -130,6 +130,14 @@ function overlay(node, { onClose } = {}) {
   return close;
 }
 const closeOverlay = () => !$('#overlay').hidden && $('#overlay').close?.();
+// A view opens as its own dialog, or inside another one (Settings) that hands it a host.
+// Returns what closes it for good: the whole overlay either way.
+function present(node, host) {
+  if (host) return host(node);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  return close;
+}
 
 // --- feed ----------------------------------------------------------------------
 
@@ -2417,15 +2425,14 @@ const projectOptions = (selected, { any } = {}) =>
 const modeOptions = (selected, { inherit } = {}) =>
   (inherit ? `<option value="">${esc(inherit)}</option>` : '') + MODES.map((m) => `<option value="${m.id}" ${m.id === selected ? 'selected' : ''}>${m.label}</option>`).join('');
 
-function openAutomations({ tab = 'recipes', edit = null } = {}) {
+function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
   const node = el(`<div class="modal auto-modal">
       <header><h2>Automations</h2><button class="icon-btn close">${icon('x')}</button></header>
       <p class="mem-lede">Recipes are prompts you send again and again; <code>{name}</code> in one becomes a field to fill in. Triggers start sessions on their own.</p>
       <div class="mem-tabs" role="tablist"></div>
       <div class="auto-body"></div>
     </div>`);
-  const close = overlay(node);
-  $('.close', node).onclick = close;
+  const close = present(node, host);
   let recipes = [];
   let triggers = [];
   let editing = edit; // { type: 'recipe' | 'trigger', draft }
@@ -2677,13 +2684,12 @@ async function saveAsRecipe(id) {
 const money = (v) => (v >= 100 ? `$${Math.round(v)}` : `$${(v || 0).toFixed(2)}`);
 const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
 
-async function openUsage({ days = 30 } = {}) {
+async function openUsage({ days = 30, host } = {}) {
   const node = el(`<div class="modal usage-modal">
       <header><h2>Usage</h2><div class="mem-tabs us-range">${[7, 30, 90].map((d) => `<button data-days="${d}">${d} days</button>`).join('')}</div><button class="icon-btn close">${icon('x')}</button></header>
       <div class="us-body"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
     </div>`);
-  const close = overlay(node);
-  $('.close', node).onclick = close;
+  const close = present(node, host);
   const render = async () => {
     $$('.us-range button', node).forEach((b) => b.classList.toggle('on', Number(b.dataset.days) === days));
     const u = await api(`/usage?days=${days}`).catch((err) => (toast(esc(err.message), { tone: 'bad' }), null));
@@ -2751,14 +2757,13 @@ function phoneSummary(r) {
   return on.length ? `${on.join(' + ')} · ${r.events.map((e) => (e === 'waiting' ? 'questions' : 'finished')).join(' & ')}` : 'Off';
 }
 
-async function openPhone() {
+async function openPhone({ host } = {}) {
   const node = el(`<div class="modal phone-modal">
       <header><h2>Phone</h2><button class="icon-btn close">${icon('x')}</button></header>
       <p class="mem-lede">Get questions and finished tasks on your phone, and answer from there. wisp polls both services, so nothing needs to reach this machine. They receive titles, summaries and questions (with their context), never code or diffs.</p>
       <div class="ph-body"></div>
     </div>`);
-  const close = overlay(node);
-  $('.close', node).onclick = close;
+  const close = present(node, host);
   let r;
   const put = async (patch) => {
     try {
@@ -2918,7 +2923,7 @@ function openSettings(opts) {
     </div>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
-  const show = (id, focus = false) => {
+  const pick = (id, focus = false) => {
     settingsPane = id;
     const p = SETTINGS_PANES.find((x) => x.id === id);
     $$('.sx-nav [data-pane]', node).forEach((b) => {
@@ -2931,6 +2936,30 @@ function openSettings(opts) {
     $('.sx-title', node).textContent = p.label;
     $('.sx-lede', node).textContent = p.lede;
     $('.sx-main', node).scrollTop = 0;
+  };
+  // Memory, Automations, Usage and Phone open in the main area, next to the sidebar, with a
+  // way back to the section they came from. Leaving one goes back; only the X closes Settings.
+  const main = $('.sx-main', node);
+  const leave = () => {
+    const v = $('.sx-main > .embedded', node);
+    if (!v) return;
+    v.remove();
+    $('.sx-main > header', node).hidden = false;
+    paintHints();
+  };
+  const show = (id, focus) => (leave(), pick(id, focus));
+  const host = (pane) => (view) => {
+    show(pane);
+    view.classList.add('embedded');
+    const back = el(`<button class="ghost sm sx-back">${icon('back')}Back</button>`);
+    back.onclick = () => show(pane);
+    $('header', view).prepend(back);
+    $('.close', view).onclick = close;
+    $('.sx-main > header', node).hidden = true;
+    $$('.sx-pane', node).forEach((s) => (s.hidden = true));
+    main.append(view);
+    main.scrollTop = 0;
+    return close;
   };
   $('.sx-nav', node).onclick = (e) => {
     const b = e.target.closest('[data-pane]');
@@ -2946,7 +2975,7 @@ function openSettings(opts) {
   show(settingsPane);
   node.addEventListener('change', async (e) => {
     const { name, value } = e.target;
-    if (!name) return;
+    if (!name || e.target.closest('.embedded')) return; // a nested view's own form
     if (name === 'terminal') $('.custom-term', node).hidden = value !== 'custom';
     await api('/config', { method: 'PATCH', body: { defaults: { [name]: value } } });
     await loadConfig();
@@ -2994,9 +3023,7 @@ function openSettings(opts) {
     await setLearning(S.config.defaults.learn === 'off');
     paintLearn();
   };
-  $('#openMemory', node).onclick = () => openMemory();
   node.paintLearn = paintLearn;
-  paintLearn();
   // One line each; their lists and charts live in their own views.
   const wt = $('#wtDefault', node);
   const paintWt = () => wt.setAttribute('aria-checked', S.config.defaults.worktree !== 'off');
@@ -3007,25 +3034,31 @@ function openSettings(opts) {
     renderLauncher();
   };
   paintWt();
-  const r = S.config.recipes?.length || 0;
-  const all = S.config.triggers || [];
-  const t = all.filter((x) => x.enabled).length;
-  $('.recipe-hint', node).textContent = r ? `${r} saved prompt${r === 1 ? '' : 's'}` : 'None yet · save a prompt you run often';
-  $('.trigger-hint', node).textContent = all.length ? `${t} of ${all.length} on` : 'None yet · run a recipe on a schedule, CI failure or new issue';
-  api('/usage?days=7')
-    .then((u) => {
-      const x = u.total;
-      $('.sx-usage', node).innerHTML = `
-        <div><span>Spend</span><b>${x.priced ? money(x.cost) : '—'}</b></div>
-        <div><span>Turns</span><b>${x.turns}</b></div>
-        <div><span>Worked</span><b>${pct(x.successRate)}</b></div>
-        <div><span>Questions</span><b>${x.questions}</b></div>`;
-    })
-    .catch(() => ($('.sx-usage', node).innerHTML = ''));
-  api('/remote').then((x) => phoneSummary(x) !== 'Off' && ($('.phone-hint', node).textContent = phoneSummary(x))).catch(() => {});
-  $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto })));
-  $('#openUsage', node).onclick = () => openUsage({ days: 7 });
-  $('#openPhone', node).onclick = () => openPhone();
+  // The one-line summaries; painted again on the way back from a view that may have changed them.
+  const paintHints = () => {
+    const r = S.config.recipes?.length || 0;
+    const all = S.config.triggers || [];
+    const t = all.filter((x) => x.enabled).length;
+    $('.recipe-hint', node).textContent = r ? `${r} saved prompt${r === 1 ? '' : 's'}` : 'None yet · save a prompt you run often';
+    $('.trigger-hint', node).textContent = all.length ? `${t} of ${all.length} on` : 'None yet · run a recipe on a schedule, CI failure or new issue';
+    api('/usage?days=7')
+      .then((u) => {
+        const x = u.total;
+        $('.sx-usage', node).innerHTML = `
+          <div><span>Spend</span><b>${x.priced ? money(x.cost) : '—'}</b></div>
+          <div><span>Turns</span><b>${x.turns}</b></div>
+          <div><span>Worked</span><b>${pct(x.successRate)}</b></div>
+          <div><span>Questions</span><b>${x.questions}</b></div>`;
+      })
+      .catch(() => ($('.sx-usage', node).innerHTML = ''));
+    api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x) === 'Off' ? 'ntfy or Telegram: answer questions from your phone' : phoneSummary(x))).catch(() => {});
+    paintLearn();
+  };
+  paintHints();
+  $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
+  $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
+  $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
+  $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
 }
 
 // --- memory: what the background retros learned ---------------------------------------------
@@ -3052,15 +3085,14 @@ function memorySummary(data) {
   return `${n ? `${n} remembered` : 'Nothing yet'}${last ? ` · last retro ${ago(last.at)}` : ''}`;
 }
 
-function openMemory({ tab = 'global' } = {}) {
+function openMemory({ tab = 'global', host } = {}) {
   const node = el(`<div class="modal memory-modal">
       <header><h2>Memory</h2><span class="mem-live"></span><button class="switch" id="memOn" role="switch" title="Learn from sessions"></button><button class="icon-btn close">${icon('x')}</button></header>
       <p class="mem-lede">Learned from your sessions and added to every agent's prompt. What you ask always wins.</p>
       <div class="mem-tabs" role="tablist"></div>
       <div class="mem-body"></div>
     </div>`);
-  const close = overlay(node);
-  $('.close', node).onclick = close;
+  const close = present(node, host);
   let data;
   let editing = null; // { scope, kind, index } (index -1 = adding)
 
@@ -3479,7 +3511,7 @@ document.addEventListener('keydown', (e) => {
   }
   const typing = e.target.closest('input, textarea, select, [contenteditable="true"]');
   if (e.key === 'Escape') {
-    if (!$('#overlay').hidden) return closeOverlay();
+    if (!$('#overlay').hidden) return $('#overlay .sx-back') ? $('#overlay .sx-back').click() : closeOverlay();
     if (typing) return e.target.blur();
     if (S.focus && S.open.has(S.focus)) {
       collapse(S.focus);

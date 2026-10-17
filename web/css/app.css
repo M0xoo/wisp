@@ -1058,7 +1058,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .settings-modal input { flex: 1; max-width: 340px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-2); padding: 0 10px; font: 12px var(--mono); outline: 0; }
 
 /* settings: sidebar of sections, one pane at a time */
-.modal.sx { display: grid; grid-template-columns: 196px 1fr; width: min(800px, 100%); height: min(560px, 86vh); padding: 0; overflow: hidden; }
+.modal.sx { display: grid; grid-template-columns: 196px 1fr; width: min(880px, 100%); height: min(620px, 86vh); padding: 0; overflow: hidden; }
 .sx-nav { display: flex; flex-direction: column; gap: 1px; padding: 18px 10px; background: var(--bg-2); border-right: 1px solid var(--line); overflow-y: auto; }
 .sx-nav h2 { margin: 0 8px 14px; font: 600 18px/1.2 var(--display); letter-spacing: -0.015em; }
 .sx-nav button { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 10px; border-radius: 8px; font-size: 13px; color: var(--ink-2); text-align: left; transition: background 0.12s, color 0.12s; }
@@ -1069,7 +1069,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .sx-nav button[aria-selected='true'] .i { color: var(--accent); }
 .sx-nav button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .sx-main { min-width: 0; padding: 18px 24px 24px; overflow-y: auto; }
-.sx-main header { align-items: flex-start; gap: 16px; margin-bottom: 18px; }
+.sx-main > header { align-items: flex-start; gap: 16px; margin-bottom: 18px; }
 .sx-title { margin: 2px 0 4px; font: 600 16px/1.3 var(--display); letter-spacing: -0.01em; }
 .sx-lede { margin: 0; font-size: 12.5px; color: var(--muted); }
 .sx-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
@@ -1086,6 +1086,12 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .sx-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .sx-state.bad { color: var(--bad); }
 .sx-usage .it-loading { grid-column: 1 / -1; }
+/* a view (Memory, Automations, Usage, Phone) opened inside Settings: no dialog chrome of its own */
+.modal.embedded { width: auto; max-height: none; overflow: visible; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; transform: none; }
+.modal.embedded header { justify-content: flex-start; gap: 10px; }
+.modal.embedded header h2 { font-size: 16px; margin-right: auto; }
+.sx-back { margin-left: -8px; padding: 0 8px 0 4px; color: var(--muted); }
+.sx-back .i { width: 16px; height: 16px; }
 @media (max-width: 640px) {
   .modal.sx { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sx-nav { flex-direction: row; align-items: center; padding: 10px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
