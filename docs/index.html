@@ -3,18 +3,153 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>wisp — Send coding agents off. Read the highlights.</title>
-  <meta name="description" content="wisp runs coding agents in the background and hands you a short, animated presentation when they finish. Diffs, tests, commits and decisions — no transcript." />
+  <title>wisp — Run Claude Code, Codex &amp; Cursor agents in the background</title>
+  <meta name="description" content="wisp is a free, open-source launcher that runs coding agents (Claude Code, Codex, opencode, Cursor, Antigravity) in the background and hands you a 30-second presentation instead of a transcript." />
+  <link rel="canonical" href="https://m0xoo.github.io/wisp/" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="author" content="M0xoo" />
   <meta name="theme-color" content="#07070a" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="wisp" />
+  <meta property="og:url" content="https://m0xoo.github.io/wisp/" />
   <meta property="og:title" content="wisp — Send coding agents off. Read the highlights." />
-  <meta property="og:description" content="Launch coding agents in the background, skip the transcript, read the presentation they hand back." />
-  <meta property="og:image" content="https://m0xoo.github.io/wisp/assets/icon.png" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor and Antigravity in the background. Get diffs, tests and decisions back as a 30-second presentation — no transcript." />
+  <meta property="og:image" content="https://m0xoo.github.io/wisp/assets/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="wisp — Send agents off. Read the highlights." />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="wisp — Send coding agents off. Read the highlights." />
+  <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor and Antigravity in the background. Read a 30-second presentation instead of the transcript." />
+  <meta name="twitter:image" content="https://m0xoo.github.io/wisp/assets/og.png" />
+  <meta name="twitter:image:alt" content="wisp — Send agents off. Read the highlights." />
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="assets/icon.png" type="image/png" sizes="1024x1024" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" sizes="180x180" />
+  <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+  <link rel="alternate" type="text/plain" href="llms.txt" title="wisp LLM documentation" />
+  <meta property="og:image:type" content="image/png" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://m0xoo.github.io/wisp/#website",
+        "url": "https://m0xoo.github.io/wisp/",
+        "name": "wisp",
+        "description": "Open-source launcher that runs AI coding agents in the background and hands back a 30-second animated presentation instead of a transcript.",
+        "inLanguage": "en",
+        "publisher": { "@type": "Person", "name": "M0xoo", "url": "https://github.com/M0xoo" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://m0xoo.github.io/wisp/#app",
+        "name": "wisp",
+        "alternateName": "wisp-agents",
+        "softwareVersion": "0.6.0",
+        "description": "Launch coding agents in the background, skip the transcript, and read the animated presentation they hand back: diffs, test results, commits and decisions.",
+        "url": "https://m0xoo.github.io/wisp/",
+        "downloadUrl": "https://www.npmjs.com/package/wisp-agents",
+        "installUrl": "https://www.npmjs.com/package/wisp-agents",
+        "codeRepository": "https://github.com/M0xoo/wisp",
+        "sameAs": [
+          "https://github.com/M0xoo/wisp",
+          "https://www.npmjs.com/package/wisp-agents"
+        ],
+        "image": "https://m0xoo.github.io/wisp/assets/og.png",
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "AI coding agent launcher",
+        "operatingSystem": "macOS, Linux, Windows",
+        "softwareRequirements": "Node.js 20 or later",
+        "license": "https://opensource.org/licenses/MIT",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "M0xoo", "url": "https://github.com/M0xoo" },
+        "keywords": "Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, AI coding agents, MCP server, developer tools",
+        "featureList": [
+          "Runs Claude Code, Codex, opencode, Cursor CLI and Antigravity CLI in the background",
+          "Animated presentations instead of transcripts",
+          "Real diffs captured from the agent's own tool calls",
+          "ask_user tool so agents can ask questions mid-run",
+          "Take over any session in your own terminal",
+          "Plan, Edits and Full auto permission modes",
+          "MCP server, CLI, JS SDK, HTTP API and webhooks"
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": "https://m0xoo.github.io/wisp/#faq-schema",
+        "isPartOf": { "@id": "https://m0xoo.github.io/wisp/#website" },
+        "about": { "@id": "https://m0xoo.github.io/wisp/#app" },
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is wisp?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "wisp is a free, open-source launcher for AI coding agents. It runs agents like Claude Code and Codex on your projects in the background. When one finishes, it hands you a short animated presentation (the diff, test results, commits and next steps) instead of a long transcript."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which coding agents does wisp support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Claude Code (claude), OpenAI Codex (codex), opencode, Cursor CLI (cursor-agent) and Antigravity CLI (agy). Each harness is one adapter file, so adding another is small."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I install wisp?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Install Node.js 20 or later and sign in to at least one supported agent CLI. Then run npx wisp-agents to open the desktop app, or npx wisp-agents \"fix the flaky auth test\" to launch a task in the current folder."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is wisp free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor or Antigravity account, and those providers bill as usual."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does my code leave my machine?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "wisp itself is a local server. Sessions and state are plain JSON in ~/.wisp. Your code only goes to the agent provider you choose, same as running that CLI directly. wisp sends anonymous usage stats with no prompts, paths or agent output. Turn them off with WISP_TELEMETRY=0 or DO_NOT_TRACK=1."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I take over a session in my terminal?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Press T and wisp opens your terminal in the project with the agent's resume command, for example claude --resume <id>. It works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, Windows Terminal and more."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can other tools send tasks to wisp?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. wisp ships an MCP server (wisp mcp), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API and webhooks. You can hand tasks to it from other agents, editors, scripts or CI."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="stylesheet" href="style.css?v=8" />
+  <noscript><style>.reveal,.blk,.reveal-words .w{opacity:1!important;transform:none!important;filter:none!important}</style></noscript>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
     posthog.init('phc_wowwZkbP8e4zYuwT67JtX6oxdPwkMWL5kKnrUmYYXhcD', {
@@ -32,11 +167,12 @@
     <a class="brand" href="#top" aria-label="wisp home">
       <span class="orb sm"></span><span>wisp</span>
     </a>
-    <nav class="links">
+    <nav class="links" aria-label="Primary">
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
       <a href="#keys">Keyboard</a>
       <a href="#start">Get started</a>
+      <a href="#faq">FAQ</a>
     </nav>
     <a class="gh" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -44,6 +180,7 @@
     </a>
   </header>
 
+  <main id="main">
   <!-- ───────────── hero ───────────── -->
   <section class="hero" id="top">
     <canvas id="wisps" aria-hidden="true"></canvas>
@@ -54,6 +191,7 @@
     </div>
 
     <div class="hero-copy">
+      <p class="eyebrow reveal">Open-source launcher for AI coding agents</p>
       <h1 class="reveal">
         Send agents off.<br />
         <em>Read the highlights.</em>
@@ -83,7 +221,7 @@
   <section class="distill" id="how">
     <div class="distill-sticky">
       <div class="distill-captions">
-        <p class="eyebrow">How it works</p>
+        <h2 class="eyebrow">How it works</h2>
         <ol class="caps">
           <li data-at="0"><span class="n">01</span><h3>You hand off a task.</h3><p>From the launcher, or <code>wisp "fix the flaky auth test"</code> in any folder.</p></li>
           <li data-at="0.22"><span class="n">02</span><h3>The agent works. A lot.</h3><p>Reads, greps, edits, re-runs tests. Thousands of lines you were never going to read.</p></li>
@@ -103,7 +241,7 @@
           <!-- transcript layer -->
           <div class="transcript" id="transcript">
             <div class="t-scroll" id="tScroll"></div>
-            <div class="t-counter"><span id="lineCount">0</span> lines of transcript</div>
+            <div class="t-counter"><span id="lineCount">3,417</span> lines of transcript</div>
           </div>
 
           <!-- the collapse -->
@@ -117,9 +255,9 @@
               <p>The token refresh raced the clock. Injected a fake clock into <code>SessionStore</code> and removed the 50&nbsp;ms <code>setTimeout</code>.</p>
             </div>
             <div class="blk b-stats" data-at="0.66">
-              <div><b data-count="48">0</b><span>tests passing</span><i class="good">+6</i></div>
+              <div><b data-count="48">48</b><span>tests passing</span><i class="good">+6</i></div>
               <div><b data-count="0">0</b><span>flakes / 200 runs</span><i class="good">−31</i></div>
-              <div><b data-count="4.1" data-dec="1">0</b><span>seconds</span><i class="good">−2.3</i></div>
+              <div><b data-count="4.1" data-dec="1">4.1</b><span>seconds</span><i class="good">−2.3</i></div>
             </div>
             <div class="blk b-diff" data-at="0.72">
               <div class="d-head"><span class="path"><span class="dir">src/auth/</span>session.ts</span><span class="d-n"><b class="add">+9</b> <b class="del">−4</b></span></div>
@@ -143,11 +281,11 @@
 
   <!-- ───────────── numbers ───────────── -->
   <section class="numbers">
-    <div class="num reveal"><b><span data-count="3417">0</span></b><span>lines of transcript, typical run</span></div>
+    <div class="num reveal"><b><span data-count="3417">3,417</span></b><span>lines of transcript, typical run</span></div>
     <div class="num-arrow reveal" aria-hidden="true">→</div>
-    <div class="num reveal"><b><span data-count="6">0</span></b><span>blocks you actually read</span></div>
+    <div class="num reveal"><b><span data-count="6">6</span></b><span>blocks you actually read</span></div>
     <div class="num-arrow reveal" aria-hidden="true">→</div>
-    <div class="num reveal"><b><span data-count="30">0</span><small>s</small></b><span>to know what happened</span></div>
+    <div class="num reveal"><b><span data-count="30">30</span><small>s</small></b><span>to know what happened</span></div>
   </section>
 
   <!-- ───────────── manifesto ───────────── -->
@@ -174,9 +312,9 @@
           <p>One feed, grouped: <b>Needs you</b> on top, <b>Working</b> with a live one-line status, <b>Done</b> below.</p>
         </div>
         <div class="queue" id="queue">
-          <section class="q-col" data-col="needs"><h5><span class="qd needs"></span>Needs you <span class="qn">1</span></h5><div class="q-list"></div></section>
-          <section class="q-col" data-col="working"><h5><span class="qd working"></span>Working <span class="qn">2</span></h5><div class="q-list"></div></section>
-          <section class="q-col" data-col="done"><h5><span class="qd done"></span>Done <span class="qn">2</span></h5><div class="q-list"></div></section>
+          <section class="q-col" data-col="needs"><h4><span class="qd needs"></span>Needs you <span class="qn">1</span></h4><div class="q-list"></div></section>
+          <section class="q-col" data-col="working"><h4><span class="qd working"></span>Working <span class="qn">2</span></h4><div class="q-list"></div></section>
+          <section class="q-col" data-col="done"><h4><span class="qd done"></span>Done <span class="qn">2</span></h4><div class="q-list"></div></section>
         </div>
       </article>
 
@@ -216,7 +354,7 @@
           <h3>Take over, any time</h3>
           <p>Press <kbd>T</kbd>. Your terminal opens in the project, session resumed. Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, Windows Terminal and more.</p>
         </div>
-        <div class="term" id="term"><span class="t-line"><span class="p">~/api-server</span> <span class="typed" data-type="claude --resume 7f3a…c21"></span><span class="caret"></span></span></div>
+        <div class="term" id="term"><span class="t-line"><span class="p">~/api-server</span> <span class="typed" data-type="claude --resume 7f3a…c21">claude --resume 7f3a…c21</span><span class="caret"></span></span></div>
       </article>
 
       <!-- modes -->
@@ -236,7 +374,7 @@
 
       <!-- zero deps -->
       <article class="card c-zero reveal spot">
-        <div class="zero"><b id="zeroCount">1,284</b><span>runtime dependencies</span></div>
+        <div class="zero"><b id="zeroCount">0</b><span>runtime dependencies</span></div>
         <p>The server is Node built-ins only. No build step. <code>npx wisp-agents</code> and you're in.</p>
       </article>
 
@@ -338,7 +476,48 @@
         </div>
         <button class="copy-sm" id="copyInstall">Copy</button>
       </div>
-      <pre class="code" id="installCode"></pre>
+      <pre class="code" id="installCode"><span class="c"># Opens the wisp desktop app. Electron downloads on first run.</span>
+<span class="p">$ </span>npx wisp-agents
+<span class="c"># or launch a task in the current folder:</span>
+<span class="c"># npx wisp-agents "fix the flaky auth test"</span></pre>
+    </div>
+  </section>
+
+  <!-- ───────────── faq ───────────── -->
+  <section class="faq" id="faq">
+    <div class="sec-head center reveal">
+      <p class="eyebrow">FAQ</p>
+      <h2>Questions, <em>answered</em>.</h2>
+    </div>
+    <div class="faq-list reveal">
+      <details class="qa">
+        <summary>What is wisp?</summary>
+        <p>wisp is a free, open-source launcher for AI coding agents. It runs agents like Claude Code and Codex on your projects in the background. When one finishes, it hands you a short animated presentation (the diff, test results, commits and next steps) instead of a long transcript.</p>
+      </details>
+      <details class="qa">
+        <summary>Which coding agents does wisp support?</summary>
+        <p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>) and Antigravity CLI (<code>agy</code>). Each harness is one adapter file, so adding another is small.</p>
+      </details>
+      <details class="qa">
+        <summary>How do I install wisp?</summary>
+        <p>Install Node.js 20 or later and sign in to at least one supported agent CLI. Then run <code>npx wisp-agents</code> to open the desktop app, or <code>npx wisp-agents &quot;fix the flaky auth test&quot;</code> to launch a task in the current folder.</p>
+      </details>
+      <details class="qa">
+        <summary>Is wisp free?</summary>
+        <p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor or Antigravity account, and those providers bill as usual.</p>
+      </details>
+      <details class="qa">
+        <summary>Does my code leave my machine?</summary>
+        <p>wisp itself is a local server. Sessions and state are plain JSON in <code>~/.wisp</code>. Your code only goes to the agent provider you choose, same as running that CLI directly. wisp sends anonymous usage stats with no prompts, paths or agent output. Turn them off with <code>WISP_TELEMETRY=0</code> or <code>DO_NOT_TRACK=1</code>.</p>
+      </details>
+      <details class="qa">
+        <summary>Can I take over a session in my terminal?</summary>
+        <p>Yes. Press <kbd>T</kbd> and wisp opens your terminal in the project with the agent's resume command, for example <code>claude --resume &lt;id&gt;</code>. It works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, Windows Terminal and more.</p>
+      </details>
+      <details class="qa">
+        <summary>Can other tools send tasks to wisp?</summary>
+        <p>Yes. wisp ships an MCP server (<code>wisp mcp</code>), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API and webhooks. You can hand tasks to it from other agents, editors, scripts or CI.</p>
+      </details>
     </div>
   </section>
 
@@ -352,10 +531,13 @@
       <a class="btn ghost" href="#how">Watch it again</a>
     </div>
   </section>
+  </main>
 
   <footer class="foot">
     <span class="brand"><span class="orb xs"></span> wisp</span>
     <span class="muted">MIT © M0xoo · Made for people who'd rather not read transcripts.</span>
+    <a href="https://github.com/M0xoo/wisp/blob/main/docs/integrations.md" target="_blank" rel="noopener">Integrations</a>
+    <a href="https://www.npmjs.com/package/wisp-agents" target="_blank" rel="noopener">npm</a>
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 

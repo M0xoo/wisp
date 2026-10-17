@@ -1,0 +1,58 @@
+# wisp
+
+> Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI) in the background and hands back a 30-second animated presentation instead of a 4,000-line transcript.
+
+- Website: https://m0xoo.github.io/wisp/
+- GitHub: https://github.com/M0xoo/wisp
+- npm: https://www.npmjs.com/package/wisp-agents
+- License: MIT
+- Requirements: Node.js >= 20 and at least one supported coding agent CLI installed and signed in.
+
+## Quick start
+
+```sh
+npx wisp-agents
+npx wisp-agents "fix the flaky auth test"
+npx wisp-agents --browser
+```
+
+Global install:
+
+```sh
+npm install -g wisp-agents
+wisp "fix the flaky auth test"
+wisp --mode plan "audit dependencies"
+```
+
+## Supported agent harnesses
+
+- **Claude Code** (`claude`)
+- **OpenAI Codex** (`codex`)
+- **opencode** (`opencode`)
+- **Cursor CLI** (`cursor-agent`)
+- **Antigravity CLI** (`agy`)
+
+## Key features
+
+- **Queue, not a chat log**: Sessions are grouped into `Needs you`, `Working` (live one-line status), and `Done`.
+- **19 presentation blocks**: Agents finish with structured JSON blocks (`hero`, `diff`, `tests`, `stats`, `steps`, `files`, `commits`, `tree`, `code`, `compare`, `flow`, `chart`, `terminal`, `checklist`, `callout`, `image`, `question`, `markdown`, `next`).
+- **Real diffs**: Captured directly from the agent's own file-edit tool calls.
+- **Mid-run questions (`ask_user`)**: Every agent gets an `ask_user` MCP tool so it can ask clarifying questions mid-run; user answers resume the running session.
+- **Terminal takeover**: Press `T` to open the session in Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, or Windows Terminal with the agent's native `--resume` command.
+- **Permission modes**: `Plan` (read-only), `Edits` (auto-accept file edits), `Full auto` (unattended commands, edits, and tests).
+- **Zero runtime dependencies**: The server uses Node.js built-ins only and stores plain JSON state in `~/.wisp`.
+
+## Integrations & programmatic surfaces
+
+- **MCP server**: `wisp mcp` (stdio MCP server exposing `wisp_launch`, `wisp_wait`, `wisp_get`, `wisp_reply`, `wisp_list`, `wisp_stop`, `wisp_agents`).
+- **Agent skill**: `wisp skill install --agent all`
+- **Scripting CLI**: `wisp "…" --json`, `wisp ls`, `wisp show <id>`, `wisp wait <id>`, `wisp reply <id> "…"`, `wisp stop <id>`
+- **JavaScript SDK**: `import { WispClient } from 'wisp-agents'`
+- **HTTP + SSE API**: `GET /api/openapi.json` (OpenAPI 3.1), `POST /api/sessions`, `GET /api/events`
+- **Webhooks**: `PATCH /api/config` with `session.waiting` and `session.finished` events.
+
+## Documentation
+
+- [Landing Page](https://m0xoo.github.io/wisp/)
+- [Integrations Guide (MCP, CLI, SDK, HTTP API, Webhooks)](https://github.com/M0xoo/wisp/blob/main/docs/integrations.md)
+- [README](https://github.com/M0xoo/wisp/blob/main/README.md)
