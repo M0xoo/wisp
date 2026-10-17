@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- Update button next to Search when a newer `wisp-agents` is on npm (checked at start and every 6 h). One click runs `npm install -g wisp-agents@latest` (or relaunches through `npx …@latest`) and restarts wisp; it asks first if agents are running. Git checkouts just get the `git pull` hint. Opt out with `WISP_UPDATE_CHECK=0`.
+- Update button next to Search when a newer `wisp-agents` is on npm (checked at start, then once a day while wisp stays open — survives sleep, and the UI re-asks on focus). One click runs `npm install -g wisp-agents@latest` (or relaunches through `npx …@latest`) and restarts wisp; it asks first if agents are running. Git checkouts just get the `git pull` hint. Opt out with `WISP_UPDATE_CHECK=0`.
 - Rerun a task: right-click a card → **Rerun…** (or `⇧R`, or ⌘K → Rerun). A dialog opens with the original prompt (editable), attachments and mode, plus the harness / model / thinking-level picker. You can pick a different setup without changing the launcher's defaults. Rerunning starts a new session in the same folder and keeps the original.
 
 ## [0.6.0] - 2026-10-17

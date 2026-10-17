@@ -2125,7 +2125,7 @@ function connect() {
   es.addEventListener('config', () => loadConfig());
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
   es.addEventListener('preferences', () => renderLearned($('.settings-modal #learned')));
-  es.addEventListener('hello', () => loadSessions());
+  es.addEventListener('hello', () => (loadSessions(), loadUpdate())); // also after sleep/reconnect
 }
 
 async function loadSessions() {
@@ -2147,6 +2147,7 @@ async function loadConfig() {
 
 // The server polls npm; when a newer wisp-agents is out, a pill appears next to Search.
 let update = null;
+const loadUpdate = () => api('/update').then(renderUpdate).catch(() => {});
 function renderUpdate(u) {
   update = u;
   const b = $('#updateBtn');
@@ -2302,6 +2303,7 @@ function route() {
 
 window.addEventListener('hashchange', route);
 window.addEventListener('focus', () => {
+  loadUpdate();
   for (const id of S.open) if (S.sessions.get(id)?.unread) scheduleRefetch(id);
 });
 
@@ -2309,7 +2311,6 @@ window.addEventListener('focus', () => {
   [S.agents] = await Promise.all([api('/agents').catch(() => []), loadConfig(), loadSessions()]);
   renderLauncher();
   connect();
-  api('/update').then(renderUpdate).catch(() => {});
   route();
   $('#prompt')?.focus();
   telemetryNotice();
