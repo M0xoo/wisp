@@ -434,6 +434,20 @@ function autosize(ta, max = 340) {
 
 let launchProject = load('wisp.launchProject', null);
 
+// The model is remembered per harness (ids aren't portable between them).
+function savedModel(id) {
+  const d = S.config.defaults;
+  const want = d.models?.[id] ?? (id === d.agent ? d.model : '');
+  const models = S.agents.find((a) => a.id === id)?.models || [];
+  return models.some((m) => m.id === want) ? want : '';
+}
+// Thinking level too, and only if the chosen model still accepts it.
+function savedEffort(id, model) {
+  const d = S.config.defaults;
+  const want = d.efforts?.[id] ?? (id === d.agent ? d.effort : '');
+  return effortsFor(id, model).includes(want) ? want : '';
+}
+
 function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || 'edits';
@@ -486,19 +500,6 @@ function renderLauncher() {
   };
   paintMode();
   modeBtn.onclick = () => modeMenu(modeBtn, curMode, setMode);
-  // The model is remembered per harness (ids aren't portable between them).
-  const savedModel = (id) => {
-    const d = S.config.defaults;
-    const want = d.models?.[id] ?? (id === d.agent ? d.model : '');
-    const models = S.agents.find((a) => a.id === id)?.models || [];
-    return models.some((m) => m.id === want) ? want : '';
-  };
-  // Thinking level too, and only if the chosen model still accepts it.
-  const savedEffort = (id, model) => {
-    const d = S.config.defaults;
-    const want = d.efforts?.[id] ?? (id === d.agent ? d.effort : '');
-    return effortsFor(id, model).includes(want) ? want : '';
-  };
   let curModel = savedModel(agent?.id);
   let curEffort = savedEffort(agent?.id, curModel);
   const runnerBtn = $('#runner', box);
@@ -587,7 +588,7 @@ function modeMenu(anchor, current, pick) {
   menu.addEventListener('keydown', (ev) => {
     const items = $$('button', menu);
     const i = items.indexOf(document.activeElement);
-    if (ev.key === 'Escape') (close(), anchor.focus());
+    if (ev.key === 'Escape') (ev.stopPropagation(), close(), anchor.focus());
     else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();
       items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
@@ -1473,6 +1474,7 @@ function taskMenu(id, e) {
     <div class="menu task" style="top:${e.clientY}px;left:${e.clientX}px">
       ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
+      <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
@@ -1487,6 +1489,7 @@ function taskMenu(id, e) {
     if (a === 'open') expand(id);
     if (a === 'collapse') collapse(id);
     if (a === 'rename') rename(id);
+    if (a === 'rerun') rerun(id);
     if (a === 'done') toggleDone(id);
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
@@ -1504,6 +1507,96 @@ const keyHint = (k) => `<kbd class="menu-kbd">${k}</kbd>`;
 async function deleteSession(id) {
   if (!confirm('Delete this session from wisp? (The agent’s own history is kept.)')) return;
   await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+}
+
+// Launch the task again as a new session in the same folder: same prompt and attachments,
+// optionally edited, on whichever harness, model and thinking level you pick. The original stays.
+async function rerun(id) {
+  const s = S.full.get(id) || (await api(`/sessions/${id}`).catch((err) => toast(esc(err.message), { tone: 'bad' })));
+  const first = s?.turns?.[0];
+  if (!first?.prompt) return toast('Nothing to rerun — this session has no prompt.', { tone: 'bad' });
+  const has = (a) => S.agents.some((x) => x.id === a && x.available);
+  let agent = has(s.agent) ? s.agent : S.agents.find((x) => x.available)?.id || s.agent;
+  const models = S.agents.find((x) => x.id === agent)?.models || [];
+  let model = agent === s.agent && models.some((m) => m.id === s.model) ? s.model : savedModel(agent);
+  let effort = agent === s.agent && effortsFor(agent, model).includes(s.effort) ? s.effort : savedEffort(agent, model);
+  let mode = MODES.some((m) => m.id === s.mode) ? s.mode : S.config.defaults.mode || 'edits';
+  const files = first.attachments || [];
+
+  const node = el(`
+    <div class="modal rerun-modal">
+      <header><h2>Rerun task</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <div class="rr-box">
+        <textarea class="rr-prompt" rows="3" spellcheck="false"></textarea>
+        ${files.length ? `<div class="rr-files">${files.map((f) => `<span class="rr-file">${icon('clip')}${esc(f.name)}</span>`).join('')}</div>` : ''}
+        <div class="l-bar">
+          <button class="mode-btn" data-a="mode" aria-haspopup="menu"></button>
+          <button class="runner-btn" data-a="runner" title="Harness, model and thinking level" aria-haspopup="dialog"></button>
+          <span class="grow"></span>
+          <button class="primary sm" data-a="go">${icon('rerun')}Rerun</button>
+        </div>
+      </div>
+      <p class="hint">Starts a new session in <code>${esc(s.cwd)}</code>. “${esc(s.title)}” is kept as it is.</p>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  const ta = $('.rr-prompt', node);
+  ta.value = first.prompt;
+  autosize(ta);
+  const modeBtn = $('[data-a="mode"]', node);
+  const paintMode = () => {
+    const m = MODES.find((x) => x.id === mode) || MODES[1];
+    modeBtn.className = `mode-btn m-${m.id}`;
+    modeBtn.innerHTML = `${icon(m.icon)}<span>${m.label}</span>`;
+    modeBtn.title = m.hint;
+  };
+  const runnerBtn = $('[data-a="runner"]', node);
+  const paintRunner = () => {
+    const a = S.agents.find((x) => x.id === agent);
+    const m = (a?.models || []).find((x) => x.id === model);
+    runnerBtn.innerHTML = `<span class="rb-logo">${harnessLogo(agent)}</span><span class="rb-h">${esc(a?.name || agentName(agent))}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${icon('chevron', 'chev')}`;
+  };
+  paintMode();
+  paintRunner();
+  modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode(), ta.focus()));
+  // Picks here only apply to this rerun; the launcher's remembered defaults are left alone.
+  runnerBtn.onclick = () =>
+    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort }, (a, m, e) => {
+      [agent, model, effort] = [a, m, e];
+      paintRunner();
+    });
+
+  const go = async () => {
+    const prompt = ta.value.trim();
+    if (!prompt) return ta.focus();
+    const btn = $('[data-a="go"]', node);
+    btn.disabled = true;
+    try {
+      const next = await api('/sessions', { method: 'POST', body: { prompt, cwd: s.cwd, agent, mode, model, effort, attachments: files.map((f) => f.id) } });
+      S.sessions.set(next.id, next);
+      close();
+      if (S.filter !== 'all' && S.filter !== next.projectId) {
+        S.filter = 'all';
+        save('wisp.filter', S.filter);
+      }
+      renderFeed();
+      setFocus(next.id);
+      toast(`Rerunning on ${esc(agentName(agent))}`);
+    } catch (err) {
+      btn.disabled = false;
+      toast(esc(err.message), { tone: 'bad' });
+    }
+  };
+  $('[data-a="go"]', node).onclick = go;
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) (e.preventDefault(), go());
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      mode = MODES[(MODES.findIndex((m) => m.id === mode) + 1) % MODES.length].id;
+      paintMode();
+    }
+  });
+  requestAnimationFrame(() => (ta.focus(), ta.setSelectionRange(ta.value.length, ta.value.length)));
 }
 
 async function setArchived(id, archived) {
@@ -1847,6 +1940,7 @@ function shortcuts() {
     ['⌫', 'Delete item'],
     ['T', 'Take over in terminal'],
     ['R', 'Replay presentation'],
+    ['⇧R', 'Rerun with another harness, model or thinking level'],
     ['1–9', 'Pick an answer when asked'],
     ['↵', 'Launch / send'],
     ['⇧↵', 'New line'],
@@ -1893,6 +1987,7 @@ function paletteItems() {
     if (!live) items.push({ group: g, label: cur.state === 'done' ? 'Move back to review' : 'Mark done', sub, icon: 'done', kbd: 'E', run: () => toggleDone(id) });
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
     items.push({ group: g, label: 'Take over in terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
+    items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
     items.push({ group: g, label: 'Replay presentation', sub, icon: 'replay', kbd: 'R', run: () => withCard(id, () => replay(id), { open: true }) });
     items.push({ group: g, label: 'Rename', sub, icon: 'pen', kbd: 'M', run: () => withCard(id, () => rename(id)) });
     items.push({ group: g, label: 'Delete session', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
@@ -2112,6 +2207,7 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     deleteSession(id);
   } else if (k === 't' && id) takeOver(id);
+  else if (k === 'r' && e.shiftKey && id) rerun(id);
   else if (k === 'r' && id) replay(id);
   else if (k === '/' && id) {
     e.preventDefault();
