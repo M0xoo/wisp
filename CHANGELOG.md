@@ -5,10 +5,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-17
+
 ### Added
 
 - Update button next to Search when a newer `wisp-agents` is on npm (checked at start, then once a day while wisp stays open — survives sleep, and the UI re-asks on focus). One click runs `npm install -g wisp-agents@latest` (or relaunches through `npx …@latest`) and restarts wisp; it asks first if agents are running. Git checkouts just get the `git pull` hint. Opt out with `WISP_UPDATE_CHECK=0`.
 - Rerun a task: right-click a card → **Rerun…** (or `⇧R`, or ⌘K → Rerun). A dialog opens with the original prompt (editable), attachments and mode, plus the harness / model / thinking-level picker. You can pick a different setup without changing the launcher's defaults. Rerunning starts a new session in the same folder and keeps the original.
+- Learning from sessions: after a session goes quiet (90 s, or right away when marked done or archived), a background retro (same harness, read-only, no tools; Haiku on Claude Code) records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later turns get them in their system prompt. Stored in `~/.wisp/preferences.json`; API `GET/PUT /api/preferences`. See [Learning](README.md#learning).
+- Memory view (Settings → *Memory* → Open, or ⌘K → Memory): a tab per scope with preferences and lessons, the session that taught each item, a token estimate, and inline edit / add / forget. The *Retros* tab is a timeline of every retro run (last 30), including *nothing new* and failures with the reason, plus a live entry while one runs. Switching Memory off stops both learning and applying.
+
+### Fixed
+
+- The card you were reading stays in view after collapsing a section, and the open card is followed when it moves to another section.
 
 ## [0.6.0] - 2026-10-17
 
@@ -114,7 +122,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/M0xoo/wisp/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/M0xoo/wisp/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/M0xoo/wisp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/M0xoo/wisp/compare/v0.3.0...v0.4.0
