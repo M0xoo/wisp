@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-18
+
 ### Added
 
 - Machines shows **Update to X** next to the version when a connected machine runs an older wisp than this computer. One click restarts wisp there as this version (you're asked first if agents are working on it). Before, reconnecting kept the old wisp running, and you had to find **Restart wisp there** in the ⋯ menu. Machines with a custom start command don't show it, because that command decides the version. Machines carry it as `outdated: "<version>"`.
@@ -203,7 +205,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/M0xoo/wisp/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/M0xoo/wisp/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/M0xoo/wisp/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/M0xoo/wisp/compare/v0.7.0...v0.8.0
