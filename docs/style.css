@@ -440,6 +440,43 @@ section { position: relative; }
 .fi.recipe-run { border-color: rgba(143,132,255,.4); }
 .fi.recipe-run .src { color: var(--violet-2); }
 
+/* machines */
+.c-mach { background: radial-gradient(90% 80% at 100% 100%, rgba(106,92,255,.13), transparent 60%), linear-gradient(180deg, var(--surface-2), var(--surface)); }
+.mach-badge { margin-left: auto; font: 11.5px var(--mono); color: var(--muted); padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line-2); }
+.mach-body { display: grid; gap: 14px; padding: 18px; }
+.mach-body > *, .mach-row > * { min-width: 0; }
+.mach-launch { padding: 16px; border-radius: 14px; background: rgba(0,0,0,.3); border: 1px solid var(--line); }
+.mach-prompt { margin: 0 0 12px; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.mach-row { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+.mach-label { flex-basis: 100%; font: 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.mach-picks { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+.mp { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface-2); font: 12px var(--mono); color: var(--muted); transition: color .2s, border-color .2s, background .2s; }
+.mp:hover { border-color: rgba(143,132,255,.45); }
+.mp .md { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 6px rgba(76,195,138,.7); }
+.mp[data-m="vm"] .md { background: var(--faint); box-shadow: none; }
+.mp.on { color: var(--ink); border-color: rgba(143,132,255,.55); background: rgba(106,92,255,.14); }
+.mach-go { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px 0 14px; border-radius: 10px; border: 1px solid rgba(143,132,255,.5); background: linear-gradient(180deg, #2d2a52, #211e3d); font-size: 13.5px; font-weight: 500; transition: transform .2s var(--ease), box-shadow .2s, opacity .2s; }
+.mach-go:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px -8px rgba(106,92,255,.7); }
+.mach-go:disabled { opacity: .4; cursor: default; }
+.mach-go kbd { height: 1.5em; }
+.mach-task { padding: 12px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.mt-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13.5px; }
+.mt-head b { font-weight: 500; }
+.mt-toast { margin-left: auto; font: 11px var(--mono); color: var(--good); opacity: 0; transition: opacity .4s; }
+.mt-toast.on { opacity: 1; }
+.mt-rows { display: grid; gap: 6px; }
+.mr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(0,0,0,.28); border: 1px solid var(--line); font-size: 12.5px; transition: border-color .3s; animation: qin .5s var(--ease); }
+.mr .mb { font: 500 11px var(--mono); padding: 2px 8px; border-radius: 6px; background: rgba(106,92,255,.18); color: var(--violet-2); white-space: nowrap; }
+.mr[data-m="local"] .mb { background: rgba(255,255,255,.06); color: var(--ink-2); }
+.mr .mpj { font: 11px var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mr .mst { display: inline-flex; align-items: center; gap: 7px; font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.mr .qd { flex: none; background: var(--faint); }
+.mr.connecting .qd { background: var(--violet-2); animation: pulse 1.2s infinite; }
+.mr.working { border-color: rgba(240,163,58,.3); }
+.mr.working .qd { background: var(--warn); box-shadow: 0 0 8px var(--warn); animation: pulse 1.2s infinite; }
+.mr.done .qd { background: var(--good); }
+.mr.done .mst { color: var(--good); }
+
 /* ───────── blocks marquee ───────── */
 .blocks { padding: 60px 0 160px; overflow: hidden; }
 .marquee { display: grid; gap: 16px; -webkit-mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }

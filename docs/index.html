@@ -75,6 +75,7 @@
           "ask_user tool so agents can ask questions mid-run",
           "Subagents: a lead agent delegates to agents on other harnesses",
           "Recipes and triggers: saved prompts run on a schedule, when CI fails or when an issue is labelled",
+          "Machines: run agents on your other computers over SSH, one prompt on several machines in parallel",
           "Take over any session in your own terminal",
           "Plan, Edits and Full auto permission modes",
           "Learns your preferences and its own lessons from past sessions",
@@ -477,6 +478,47 @@
               <h5>Launched</h5>
               <div class="fired-list" id="firedList"></div>
             </div>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- machines -->
+    <article class="card wide c-mach reveal spot" id="machines">
+      <div class="card-copy">
+        <p class="eyebrow">Machines</p>
+        <h3>Run agents on your <em>other computers</em>.</h3>
+        <p>A dev box, a GPU server, a cloud VM. Give wisp an SSH host and press <b>Connect</b>: it signs in with your keys, starts wisp over there and tunnels back. <b>Run on</b> sends one prompt to this computer and any machines at once.</p>
+        <ul class="ticks">
+          <li><b>Found on this computer</b> — hosts from <code>~/.ssh/config</code>, Tailscale and <code>known_hosts</code>, one click to add.</li>
+          <li>One task card with a row per machine. Worktrees, diffs, rollback, <code>ask_user</code> and Ship it work there too.</li>
+          <li><b>Take over</b> opens <code>ssh -t</code> in your terminal, session resumed.</li>
+          <li>Nothing new listens on the network. Agents keep running when your laptop sleeps.</li>
+        </ul>
+      </div>
+      <div class="window mach-win">
+        <div class="win-bar">
+          <span class="lights"><i></i><i></i><i></i></span>
+          <span class="win-title"><span class="orb xs"></span> New task</span>
+          <span class="mach-badge" id="machBadge">2 places</span>
+        </div>
+        <div class="mach-body">
+          <div class="mach-launch">
+            <p class="mach-prompt">Upgrade to Node 22 and fix whatever breaks</p>
+            <div class="mach-row">
+              <span class="mach-label">Run on</span>
+              <div class="mach-picks" id="machPicks">
+                <button class="mp on" data-m="local" aria-pressed="true"><span class="md"></span>This Mac</button>
+                <button class="mp on" data-m="devbox" aria-pressed="true"><span class="md"></span>devbox</button>
+                <button class="mp" data-m="gpu" aria-pressed="false"><span class="md"></span>gpu-box</button>
+                <button class="mp" data-m="vm" aria-pressed="false"><span class="md"></span>cloud-vm</button>
+              </div>
+              <button class="mach-go" id="machGo">Launch <kbd>↵</kbd></button>
+            </div>
+          </div>
+          <div class="mach-task" id="machTask">
+            <div class="mt-head"><span class="orb xs"></span><b>Upgrade to Node 22</b><span class="mt-toast" id="machToast"></span></div>
+            <div class="mt-rows" id="machRows"></div>
           </div>
         </div>
       </div>
