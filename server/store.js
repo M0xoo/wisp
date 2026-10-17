@@ -9,6 +9,9 @@ import { parsePresentation } from './protocol.js';
 const DEFAULT_CONFIG = {
   projects: [], // [{ id, name, path, color, addedAt }]
   defaults: { agent: 'claude', mode: 'edits', model: '', effort: '' },
+  recipes: [], // saved prompts with {params}: server/recipes.js
+  triggers: [], // schedules and GitHub watchers: server/triggers.js
+  remote: {}, // phone channels (ntfy, Telegram): server/remote.js
 };
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -47,6 +50,9 @@ export class Store {
       const raw = JSON.parse(fs.readFileSync(path.join(this.home, 'config.json'), 'utf8'));
       const cfg = { ...structuredClone(DEFAULT_CONFIG), ...raw, defaults: { ...DEFAULT_CONFIG.defaults, ...raw.defaults } };
       cfg.projects ||= [];
+      cfg.recipes ||= [];
+      cfg.triggers ||= [];
+      cfg.remote ||= {};
       return cfg;
     } catch {
       return structuredClone(DEFAULT_CONFIG);
@@ -130,7 +136,7 @@ export class Store {
     (turn.presentation?.blocks || []).forEach((b, i) => {
       const rel = b?.type === 'image' && (b.path || b.src);
       if (typeof rel !== 'string' || !rel || /^https?:/.test(rel)) return;
-      const src = path.resolve(session.cwd || this.home, rel);
+      const src = path.resolve(session.worktree?.cwd || session.cwd || this.home, rel);
       const ext = path.extname(src).toLowerCase();
       if (!IMAGE_EXT.has(ext) || src.startsWith(this.shots + path.sep)) return;
       try {

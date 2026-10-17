@@ -48,8 +48,9 @@ unread by the user) or `done`.
   to the user unless they already told you the answer. Only then `wisp reply`.
 - **Mode is a permission level.** Default to what the user picked in wisp (omit `--mode`). Use
   `--mode plan` for read-only investigations. Only use `--mode auto` if the user asked for it.
-- **Parallel work goes in separate folders or worktrees.** Two agents editing the same checkout
-  will step on each other; launch the second in a `git worktree` if both write.
+- **Changes land on a branch, not in your checkout.** In a git repo wisp runs each task in its own
+  worktree on a `wisp/…` branch (`wisp show` names it). Read or merge that branch, or `wisp ship <id>`
+  to open a PR. Pass `--no-worktree` only when the user wants the edit in their working copy.
 - **Report the result, not the transcript.** Summarize the hero line, files changed and test
   outcome from `wisp show`; point the user at the session in wisp for the full presentation.
 - `wisp wait` can take minutes. If you have other work, launch first, do it, then wait.

@@ -5,6 +5,7 @@
 //   wisp "fix the tests"       launch a wisp in the current folder
 //   wisp add [path]            add a folder as a project (default: current folder)
 //   wisp ls | show | wait | reply | stop    script sessions (see --help)
+//   wisp run <recipe> [values…]             run a saved recipe
 //   wisp mcp                   stdio MCP server, so other agents and editors can use wisp
 //   wisp skill [install]       the agent skill that teaches other agents to use wisp
 
@@ -25,17 +26,22 @@ const HELP = `usage:
   wisp wait <id>                block until it finishes or asks you something
   wisp reply <id> "text"        follow up (answers a pending question)   (--queue)
   wisp stop <id>                stop a run
+  wisp ship <id>                commit, push and open a PR for a worktree session   (--draft)
+  wisp merge <id>               squash-merge its PR and sync your local base branch
+  wisp run <recipe> [values…]   run a saved recipe; values fill its {params} in order, or key=value
+  wisp recipes                  list recipes
+  wisp usage                    spend and outcomes   (--days 7|30|90)
   wisp mcp                      run the MCP server (stdio) for other agents and editors
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)
   wisp -- "ls the repo"         a task that starts with a command name
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity  --model ID  --effort LEVEL
-                --cwd DIR  --wait  --json
+                --cwd DIR  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 
-const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'stop', 'mcp', 'skill']);
+const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage']);
 const argv = process.argv.slice(2);
-const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, json: false, wait: false, queue: undefined, state: null, limit: null, project: false };
+const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
 const words = [];
 let literal = false;
 for (let i = 0; i < argv.length; i++) {
@@ -56,6 +62,11 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--wait' || a === '-w') flags.wait = true;
   else if (a === '--queue') flags.queue = true;
   else if (a === '--project') flags.project = true;
+  else if (a === '--no-worktree') flags.worktree = false;
+  else if (a === '--worktree') flags.worktree = true;
+  else if (a === '--compare') flags.compare = argv[++i].split(',').filter(Boolean).map((x) => ({ agent: x.split(':')[0], model: x.split(':').slice(1).join(':') || undefined }));
+  else if (a === '--draft') flags.draft = true;
+  else if (a === '--days') flags.days = Number(argv[++i]);
   else if (a === '--version' || a === '-v') {
     console.log(JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).version);
     process.exit(0);
@@ -64,7 +75,11 @@ for (let i = 0; i < argv.length; i++) {
     process.exit(0);
   } else words.push(a);
 }
-const command = literal !== 'task' && COMMANDS.has(words[0]) ? words[0] : null;
+// Newer commands are also common first words of a task ("ship the docs", "usage of X"), so they
+// only count when the rest fits; `wisp run` falls back to a task when no recipe has that name.
+const SESSION_ID = /^[a-f0-9]{12}$/;
+const FITS = { ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, run: (w) => w.length > 1 };
+const command = literal !== 'task' && COMMANDS.has(words[0]) && (FITS[words[0]]?.(words) ?? true) ? words[0] : null;
 const cwd = flags.cwd || process.cwd();
 const die = (msg) => {
   console.error(`  ✗ ${msg}`);
@@ -98,7 +113,8 @@ async function scripted(cmd, args) {
   };
   switch (cmd) {
     case 'launch': {
-      const s = await wisp.launch({ prompt: args.join(' '), cwd, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined });
+      const s = await wisp.launch({ prompt: args.join(' '), cwd, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree, compare: flags.compare || undefined });
+      if (s.group && !flags.wait) return out(s, s.group.map((x) => `  ◌ launched on ${x.agent}: ${x.title}  (${x.id})`).join('\n'));
       if (!flags.wait) return out(s, `  ◌ launched: ${s.title}  (${s.id})`);
       if (!flags.json) console.error(`  ◌ launched: ${s.title}  (${s.id}) — waiting…`);
       return show(s.id, await wisp.wait(s.id));
@@ -122,6 +138,37 @@ async function scripted(cmd, args) {
     }
     case 'stop':
       return out(await wisp.stop(need(args[0], 'session id')), '  ✓ stopped');
+    case 'ship': {
+      const pr = await wisp.ship(need(args[0], 'session id'), { draft: flags.draft });
+      return out(pr, `  ✓ PR #${pr.number}${pr.draft ? ' (draft)' : ''}: ${pr.url}`);
+    }
+    case 'merge': {
+      const r = await wisp.merge(need(args[0], 'session id'));
+      return out(r, `  ✓ merged PR #${r.pr.number}\n  ${r.sync.ok ? '✓' : '!'} ${r.sync.text}`);
+    }
+    case 'recipes': {
+      const list = await wisp.recipes();
+      return out(list, list.map((r) => `${r.name.padEnd(24)}  ${r.params.map((p) => `{${p}}`).join(' ').padEnd(20)}  ${r.prompt.replace(/\s+/g, ' ').slice(0, 60)}`).join('\n') || 'No recipes yet. Save one from wisp (⌘K → Recipes).');
+    }
+    case 'run': {
+      const key = need(args[0], 'recipe name');
+      const kv = Object.fromEntries(args.slice(1).filter((a) => /^[a-zA-Z][\w-]*=/.test(a)).map((a) => [a.slice(0, a.indexOf('=')), a.slice(a.indexOf('=') + 1)]));
+      const words = args.slice(1).filter((a) => !/^[a-zA-Z][\w-]*=/.test(a));
+      const s = await wisp.runRecipe(key, { params: kv, words, cwd, agent: flags.agent || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, mode: flags.mode || undefined }).catch((err) => {
+        if (err.status !== 404) throw err;
+        return wisp.launch({ prompt: ['run', ...args].join(' '), cwd, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree });
+      });
+      if (!flags.wait) return out(s, `  ◌ launched: ${s.title}  (${s.id})`);
+      if (!flags.json) console.error(`  ◌ launched: ${s.title}  (${s.id}) — waiting…`);
+      return show(s.id, await wisp.wait(s.id));
+    }
+    case 'usage': {
+      const u = await wisp.usage({ days: flags.days || 30 });
+      const money = (v) => `$${v.toFixed(2)}`;
+      const pct = (v) => (v === null ? '—' : `${Math.round(v * 100)}%`);
+      const rows = (list, label) => list.map((x) => `  ${label(x).padEnd(32).slice(0, 32)}  ${money(x.cost).padStart(8)}  ${String(x.turns).padStart(5)} turns  ${pct(x.successRate).padStart(4)} ok`).join('\n');
+      return out(u, `Last ${u.days} days: ${money(u.total.cost)} · ${u.total.turns} turns in ${u.total.sessions} sessions · ${pct(u.total.successRate)} worked · ${u.total.questions} questions\n\nBy project\n${rows(u.projects, (x) => x.name)}\n\nBy harness · model\n${rows(u.runners, (x) => `${x.agent} · ${x.model || 'default'}`)}`);
+    }
   }
 }
 
