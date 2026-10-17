@@ -1,5 +1,5 @@
 // `wisp mcp`: a stdio MCP server that lets any MCP-capable agent or editor (Claude Code, Codex,
-// opencode, Cursor, Claude Desktop, Zed, …) hand tasks to wisp and read the results back.
+// opencode, Cursor, Antigravity, Claude Desktop, Zed, …) hand tasks to wisp and read the results back.
 // It talks to the running wisp over HTTP (starting a headless one if needed) via the client SDK.
 //
 //   claude mcp add wisp -- npx -y wisp-agents mcp
@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { WispClient } from './client.js';
 
 const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
-const AGENTS = ['claude', 'codex', 'opencode', 'cursor'];
+const AGENTS = ['claude', 'codex', 'opencode', 'cursor', 'antigravity'];
 const DEFAULT_WAIT_S = 240; // stay under typical MCP client tool-call timeouts; call wisp_wait again for more
 
 const TOOLS = [

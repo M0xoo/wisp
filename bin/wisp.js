@@ -29,7 +29,7 @@ const HELP = `usage:
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)
   wisp -- "ls the repo"         a task that starts with a command name
 
-launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor  --model ID  --effort LEVEL
+launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity  --model ID  --effort LEVEL
                 --cwd DIR  --wait  --json
 options:        --port N  --browser  --no-open  --json  --version`;
 
