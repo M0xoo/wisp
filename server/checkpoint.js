@@ -1,9 +1,9 @@
 // Per-turn git checkpoints, single-file revert, turn rollback, and action command execution.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn as nodeSpawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, killTree } from './proc.js';
+import { killTree } from './proc.js';
 import { MAX_SNAPSHOT, rel } from './adapters/common.js';
 
 const MAX_EXEC_OUTPUT = 32 * 1024;
@@ -291,14 +291,13 @@ export function execCommand(cwd, command, { timeoutMs = EXEC_TIMEOUT_MS } = {}) 
   const cmd = String(command || '').trim();
   if (!cmd) return Promise.reject(Object.assign(new Error('command required'), { status: 400 }));
   const t0 = Date.now();
-  const isWin = process.platform === 'win32';
-  const bin = isWin ? process.env.ComSpec || 'cmd.exe' : '/bin/sh';
-  const args = isWin ? ['/d', '/s', '/c', cmd] : ['-c', cmd];
 
   return new Promise((resolve) => {
-    const child = spawn(bin, args, {
+    const child = nodeSpawn(cmd, {
       cwd,
       env: { ...process.env, PAGER: 'cat', GIT_TERMINAL_PROMPT: '0', CI: '1' },
+      shell: true,
+      windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let out = '';
