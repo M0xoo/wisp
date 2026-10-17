@@ -19,7 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { randomBytes } from 'node:crypto';
-import { spawn, killTree } from './proc.js';
+import { spawn, execFile, killTree } from './proc.js';
 
 export const DEFAULT_PORT = 4477;
 const READY_TIMEOUT_MS = 6 * 60_000; // the first `npx` download can take a while
@@ -149,6 +149,70 @@ export function sshHosts(file = path.join(os.homedir(), '.ssh', 'config'), seen 
   }
   const uniq = new Map(hosts.map((h) => [h.host, h]));
   return [...uniq.values()];
+}
+
+// Code hosts you push to, not computers to run agents on.
+const FORGE = /(^|\.)(github\.com|gitlab\.com|bitbucket\.org|ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com|heroku\.com|codeberg\.org|sr\.ht)$/i;
+
+// Hosts you've already SSHed to, from ~/.ssh/known_hosts. Hashed entries and ones on a
+// non-default port ([host]:2222, which a bare target can't express) are skipped.
+export function knownHosts(file = path.join(os.homedir(), '.ssh', 'known_hosts')) {
+  let text = '';
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return [];
+  }
+  const out = new Map();
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#') || line.startsWith('@') || line.startsWith('|')) continue;
+    const names = line.split(/\s+/)[0].split(',').filter((n) => n && !n.startsWith('[') && !/[*?!]/.test(n));
+    // "devbox,10.0.0.5": the name, with the address as a detail.
+    const host = names.find((n) => !/^[\d.]+$|:/.test(n)) || names[0];
+    if (!host || FORGE.test(host) || /^(localhost|127\.|::1$)/.test(host) || !TARGET.test(host)) continue;
+    if (!out.has(host)) out.set(host, { host, hostname: names.find((n) => n !== host) || '' });
+  }
+  return [...out.values()];
+}
+
+const TAILSCALE_BINS = ['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale'];
+
+// Peers on your tailnet, from `tailscale status --json`. Phones and tablets don't run agents.
+export function tailscalePeers({ bin = process.env.WISP_TAILSCALE, timeout = 3_000 } = {}) {
+  const bins = bin ? [bin] : TAILSCALE_BINS;
+  const run = (i) =>
+    new Promise((resolve) => {
+      if (i >= bins.length) return resolve([]);
+      execFile(bins[i], ['status', '--json'], { timeout, maxBuffer: 8 << 20 }, (err, stdout) => {
+        if (err) return resolve(err.code === 'ENOENT' ? run(i + 1) : []);
+        try {
+          const peers = Object.values(JSON.parse(stdout).Peer || {});
+          resolve(
+            peers
+              .filter((p) => !/^(ios|android|tvos)$/i.test(p.OS || ''))
+              .map((p) => ({ host: (p.DNSName || '').replace(/\.$/, '') || p.TailscaleIPs?.[0] || '', name: p.HostName || '', os: p.OS || '', online: !!p.Online }))
+              .filter((p) => p.host && TARGET.test(p.host)),
+          );
+        } catch {
+          resolve([]);
+        }
+      });
+    });
+  return run(0);
+}
+
+// Every host this computer already knows how to reach, for "Found on this computer" in Machines.
+// One entry per target: ~/.ssh/config first (your own names), then the tailnet, then known_hosts.
+export async function discoverHosts({ sshDir = path.join(os.homedir(), '.ssh'), tailscale } = {}) {
+  const out = new Map();
+  const put = (x) => {
+    if (x.target && !out.has(x.target)) out.set(x.target, x);
+  };
+  for (const h of sshHosts(path.join(sshDir, 'config'))) put({ target: h.host, name: h.host, source: 'ssh-config', detail: [h.user, h.hostname].filter(Boolean).join('@') });
+  for (const p of await tailscalePeers(tailscale)) put({ target: p.host, name: p.name || p.host.split('.')[0], source: 'tailscale', detail: [p.os, p.online ? 'online' : 'offline'].filter(Boolean).join(' · '), online: p.online });
+  for (const h of knownHosts(path.join(sshDir, 'known_hosts'))) put({ target: h.host, name: /^[\d.]+$/.test(h.host) ? h.host : h.host.split('.')[0], source: 'known-hosts', detail: h.hostname });
+  return [...out.values()].sort((a, b) => (b.online === false ? 0 : 1) - (a.online === false ? 0 : 1));
 }
 
 const freePort = () =>
