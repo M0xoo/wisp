@@ -23,6 +23,7 @@ const MODE_ARGS = {
   opencode: { plan: ['--agent', 'plan'], edits: [], auto: ['--auto'] },
   cursor: { plan: ['--mode', 'plan'], edits: [], auto: ['--force'] },
 };
+const EFFORT_ARGS = { claude: ['--effort', 'high'], codex: ['-c', 'model_reasoning_effort="high"'], opencode: ['--variant', 'high'], cursor: null };
 const RESUME_ARGS = { claude: ['--resume', 'prev-1'], codex: ['resume', 'prev-1'], opencode: ['--session', 'prev-1'], cursor: ['--resume', 'prev-1'] };
 
 const hasSeq = (arr, seq) => seq.length === 0 || arr.some((_, i) => seq.every((s, j) => arr[i + j] === s));
@@ -47,7 +48,10 @@ for (const id of Object.keys(BIN)) {
     assert.match(found.version, /9\.9\.9/);
     const models = (found.models || adapters[id].models).map((m) => m.id);
     assert.equal(models[0], '', 'Default comes first');
-    if (id === 'opencode') assert.deepEqual(models.slice(1), ['fake/model-a', 'fake/model-b']);
+    if (id === 'opencode') {
+      assert.deepEqual(models.slice(1), ['fake/model-a', 'fake/model-b']);
+      assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'high'], []], 'per-model reasoning variants');
+    }
     if (id === 'cursor') assert.deepEqual(models.slice(1), ['fast-1', 'big-2']);
   });
 
@@ -95,6 +99,16 @@ for (const id of Object.keys(BIN)) {
       assert.ok(argv.includes('m-1'), 'model passed');
     });
   }
+
+  test(`${id}: thinking level on the command line`, async () => {
+    await run(id, { model: 'm-1', effort: 'high' }).done;
+    const { argv } = records(RECORD, BIN[id]).at(-1);
+    const want = EFFORT_ARGS[id];
+    if (want) assert.ok(hasSeq(argv, want), `${argv.join(' ')} lacks ${want.join(' ')}`);
+    else assert.ok(!argv.includes('high'), 'no effort flag for a harness without one');
+    await run(id, { model: 'm-1', effort: '' }).done;
+    assert.ok(!records(RECORD, BIN[id]).at(-1).argv.includes('high'), 'no flag when unset');
+  });
 
   test(`${id}: follow-ups resume the session without re-sending the protocol`, async () => {
     const events = await run(id, { resumeId: 'prev-1', prompt: 'and add a test' }).done;

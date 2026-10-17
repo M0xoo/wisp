@@ -36,6 +36,7 @@ export function summarize(s, store) {
     color: project?.color || 'slate',
     mode: s.mode,
     model: s.model,
+    effort: s.effort || '',
     state: s.state,
     unread: s.unread,
     archived: !!s.archived,
@@ -74,7 +75,7 @@ export class Runner extends EventEmitter {
     }
   }
 
-  create({ prompt, cwd, agent = 'claude', mode = 'edits', model = '', attachments = [] }) {
+  create({ prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [] }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -85,6 +86,7 @@ export class Runner extends EventEmitter {
       cwd,
       mode,
       model,
+      effort,
       state: 'running',
       unread: false,
       createdAt: now,
@@ -203,6 +205,7 @@ export class Runner extends EventEmitter {
       prompt,
       agent: session.agent,
       model: session.model,
+      effort: session.effort || '',
       attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })),
       startedAt: Date.now(),
       endedAt: null,
@@ -217,6 +220,7 @@ export class Runner extends EventEmitter {
     session.unread = false;
     delete session.archived;
     this.#touch(session, { turn: turn.id });
+    this.emit('started', { session, turn });
 
     let released = false;
     let linger;
@@ -228,6 +232,7 @@ export class Runner extends EventEmitter {
       resumeId: session.agentSessionId,
       mode: session.mode,
       model: session.model,
+      effort: session.effort || '',
       systemPrompt: systemPrompt({ askTool: adapter.askTool }),
       mcpServers: this.bridge && adapter.askTool !== null
         ? {
@@ -337,6 +342,7 @@ export class Runner extends EventEmitter {
     session.unread = !interrupted;
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
+    this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
     // The follow-up starts right away; don't notify for the run it replaced.
     if (!interrupted) this.emit('finished', { session: summarize(session, this.store) });
   }

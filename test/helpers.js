@@ -7,6 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+process.env.WISP_TELEMETRY = '0'; // tests never report to PostHog
+
 const FAKE = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta.url));
 export const BINS = ['claude', 'codex', 'opencode', 'cursor-agent'];
 export const win = process.platform === 'win32';
@@ -77,12 +79,19 @@ export function records(dir, bin) {
 
 export const same = (a, b) => fs.realpathSync.native(a).toLowerCase() === fs.realpathSync.native(b).toLowerCase();
 
+// Poll fn until it returns something truthy. Errors count as "not yet" (a polled local HTTP
+// request can be reset under load, notably on Windows CI); the last one is reported on timeout.
 export async function until(fn, { timeout = 20_000, every = 50 } = {}) {
   const end = Date.now() + timeout;
+  let last;
   for (;;) {
-    const v = await fn();
-    if (v) return v;
-    if (Date.now() > end) throw new Error('timed out waiting');
+    try {
+      const v = await fn();
+      if (v) return v;
+    } catch (err) {
+      last = err;
+    }
+    if (Date.now() > end) throw new Error(`timed out waiting${last ? `: ${last.cause?.code || last.message}` : ''}`);
     await new Promise((r) => setTimeout(r, every));
   }
 }

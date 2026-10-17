@@ -23,10 +23,11 @@ export default {
     { id: 'sonnet', label: 'Sonnet', hint: 'Fast and smart, everyday work' },
     { id: 'haiku', label: 'Haiku', hint: 'Fastest, for quick tasks' },
   ],
+  efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 
   // Interactive command to take over a session in a terminal.
-  resumeCommand({ resumeId, model }) {
-    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : [])];
+  resumeCommand({ resumeId, model, effort }) {
+    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : [])];
   },
 
   detect() {
@@ -34,7 +35,7 @@ export default {
   },
 
   // Returns { stop(), done: Promise<void> }. Everything else is reported through onEvent.
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, systemPrompt, mcpServers = {}, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
     const args = [
       '-p',
       '--output-format', 'stream-json',
@@ -42,6 +43,7 @@ export default {
       '--permission-mode', PERMISSION_MODES[mode] || 'acceptEdits',
     ];
     if (model) args.push('--model', model);
+    if (effort) args.push('--effort', effort);
     if (resumeId) args.push('--resume', resumeId);
     if (Object.keys(mcpServers).length) {
       args.push('--mcp-config', JSON.stringify({ mcpServers }));

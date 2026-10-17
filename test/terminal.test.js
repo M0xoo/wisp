@@ -25,6 +25,24 @@ test('auto-detect', () => {
   assert.equal(detectTerminal({ platform: 'linux', env: {}, has: () => false }), 'xterm');
 });
 
+test('cmux: detected inside cmux (before Ghostty) and opens a workspace, with a fallback', () => {
+  const env = { TERM_PROGRAM: 'ghostty', CMUX_WORKSPACE_ID: 'abc' };
+  assert.equal(detectTerminal({ platform: 'darwin', env, exists: () => true }), 'cmux');
+  assert.equal(detectTerminal({ platform: 'darwin', env, exists: (p) => p !== '/Applications/cmux.app' }), 'ghostty');
+  assert.ok(terminalsFor('darwin').some((t) => t.id === 'cmux') && !terminalsFor('linux').some((t) => t.id === 'cmux'));
+
+  const [step] = plan('cmux', 'darwin');
+  assert.equal(step.command, '/bin/sh');
+  const [, script, , cli, dir, cmd, osa] = step.args;
+  assert.equal(cli, '/Applications/cmux.app/Contents/Resources/bin/cmux', 'falls back to the bundled CLI');
+  assert.match(script, /"\$1" new-workspace --cwd "\$2" --command "\$3"/);
+  assert.match(script, /\|\| \{ open -a cmux "\$2"/);
+  assert.equal(dir, cwd);
+  assert.equal(cmd, `'codex' 'resume' 'it'\\''s-1'`);
+  assert.match(osa, /keystroke ".*" & return/);
+  assert.equal(plan('cmux', 'darwin', { has: (b) => b === 'cmux' })[0].args[3], 'cmux');
+});
+
 test('macOS Terminal.app gets a quoted cd && command', () => {
   const [step] = plan('terminal', 'darwin');
   assert.match(step.osa, /do script "cd '\/home\/me\/my project' && 'codex' 'resume' 'it'\\\\''s-1'"/);
