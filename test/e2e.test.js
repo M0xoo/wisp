@@ -51,7 +51,7 @@ after(() => {
 
 test('every fake harness is detected through /api/agents', async () => {
   const agents = await api('/agents');
-  assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true], ['antigravity', true]]);
+  assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true], ['antigravity', true], ['grok', true]]);
 });
 
 test('/api/update reports the current version; a git checkout refuses to self-update', async () => {
@@ -64,7 +64,7 @@ test('/api/update reports the current version; a git checkout refuses to self-up
   assert.equal(r.status, 400);
 });
 
-for (const agent of ['claude', 'codex', 'opencode']) {
+for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
   test(`${agent}: ask_user round trip, then a follow-up resumes the same agent session`, async () => {
     const cwd = makeRepo();
     const s = await api('/sessions', { prompt: 'ASK before fixing add()', cwd, agent, mode: 'edits' });
@@ -86,7 +86,7 @@ for (const agent of ['claude', 'codex', 'opencode']) {
     assert.equal(turn.status, 'done');
     const hero = turn.presentation.blocks[0];
     assert.equal(hero.type, 'hero');
-    assert.equal(hero.title, `Fake ${agent === 'opencode' || agent === 'codex' ? agent : 'claude'} finished`);
+    assert.equal(hero.title, `Fake ${agent} finished`);
     assert.match(hero.summary, /The user answered: Yes, go ahead/);
     assert.ok(turn.changes.some((c) => c.file === 'math.js'), 'diff recorded');
     assert.ok(turn.activity.some((a) => a.kind === 'answer'), 'answer shown in the trail');

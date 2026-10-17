@@ -9,12 +9,15 @@ import { alive, installFakeBins, makeRepo, records, same, tmp, until } from './h
 
 const RECORD = tmp('record');
 process.env.FAKE_RECORD = RECORD;
+// grok's model catalog cache, where detect() reads each model's reasoning levels.
+process.env.GROK_HOME = tmp('grok-home');
+fs.writeFileSync(path.join(process.env.GROK_HOME, 'models_cache.json'), JSON.stringify({ models: { 'grok-9': { info: { name: 'Grok 9', description: 'Big', supports_reasoning_effort: true, reasoning_efforts: [{ id: 'xhigh' }, { id: 'high' }, { id: 'low' }] } } } }));
 installFakeBins();
 
 const { adapters } = await import('../server/adapters/index.js');
 const { systemPrompt } = await import('../server/protocol.js');
 
-const BIN = { claude: 'claude', codex: 'codex', opencode: 'opencode', cursor: 'cursor-agent', antigravity: 'agy' };
+const BIN = { claude: 'claude', codex: 'codex', opencode: 'opencode', cursor: 'cursor-agent', antigravity: 'agy', grok: 'grok' };
 
 // What each permission mode must put on the command line.
 const MODE_ARGS = {
@@ -23,9 +26,10 @@ const MODE_ARGS = {
   opencode: { plan: ['--agent', 'plan'], edits: [], auto: ['--auto'] },
   cursor: { plan: ['--mode', 'plan'], edits: [], auto: ['--force'] },
   antigravity: { plan: ['--mode', 'plan'], edits: ['--mode', 'accept-edits'], auto: ['--dangerously-skip-permissions'] },
+  grok: { plan: ['--permission-mode', 'plan'], edits: ['--permission-mode', 'acceptEdits'], auto: ['--permission-mode', 'bypassPermissions'] },
 };
-const EFFORT_ARGS = { claude: ['--effort', 'high'], codex: ['-c', 'model_reasoning_effort="high"'], opencode: ['--variant', 'high'], cursor: null, antigravity: ['--effort', 'high'] };
-const RESUME_ARGS = { claude: ['--resume', 'prev-1'], codex: ['resume', 'prev-1'], opencode: ['--session', 'prev-1'], cursor: ['--resume', 'prev-1'], antigravity: ['--conversation', 'prev-1'] };
+const EFFORT_ARGS = { claude: ['--effort', 'high'], codex: ['-c', 'model_reasoning_effort="high"'], opencode: ['--variant', 'high'], cursor: null, antigravity: ['--effort', 'high'], grok: ['--reasoning-effort', 'high'] };
+const RESUME_ARGS = { claude: ['--resume', 'prev-1'], codex: ['resume', 'prev-1'], opencode: ['--session', 'prev-1'], cursor: ['--resume', 'prev-1'], antigravity: ['--conversation', 'prev-1'], grok: ['--resume', 'prev-1'] };
 
 // agy takes the prompt as a stream-json `user` event; the rest read it raw.
 const promptOf = (id, stdin) => (id === 'antigravity' ? JSON.parse(stdin.split('\n')[0]).message.content : stdin);
@@ -60,6 +64,11 @@ for (const id of Object.keys(BIN)) {
       assert.deepEqual(models.slice(1), ['gemini-9-pro-high', 'gemini-9-flash']);
       assert.deepEqual(found.models.map((m) => m.efforts), [undefined, [], undefined], 'effort baked into the slug means no selector');
     }
+    if (id === 'grok') {
+      assert.deepEqual(models.slice(1), ['grok-9', 'grok-9-fast']);
+      assert.deepEqual(found.models.map((m) => m.label), ['Default', 'Grok 9', 'grok-9-fast'], 'names from the catalog cache');
+      assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'high', 'xhigh'], undefined], 'cached levels, low to high');
+    }
   });
 
   test(`${id}: a turn yields session, tools, real diffs and the final presentation`, async () => {
@@ -71,7 +80,8 @@ for (const id of Object.keys(BIN)) {
     if (id !== 'claude') assert.ok(same(rec.pwd, cwd), `PWD was ${rec.pwd}`);
 
     // wisp's protocol reaches the agent: as a system prompt flag, or in front of the prompt.
-    if (id === 'claude') assert.match(rec.argv[rec.argv.indexOf('--append-system-prompt') + 1], /running inside wisp/);
+    const PROMPT_FLAG = { claude: '--append-system-prompt', grok: '--rules' };
+    if (PROMPT_FLAG[id]) assert.match(rec.argv[rec.argv.indexOf(PROMPT_FLAG[id]) + 1], /running inside wisp/);
     else assert.match(promptOf(id, rec.stdin), /running inside wisp[\s\S]*# Task\n\nfix the add bug/);
 
     assert.deepEqual(events.find((e) => e.type === 'session'), { type: 'session', id: `${BIN[id]}-session-1` });
@@ -85,6 +95,8 @@ for (const id of Object.keys(BIN)) {
     if (id === 'codex') {
       // Only told "math.js changed": the before side must include the uncommitted line.
       assert.match(change.edits[0].before, /\/\/ uncommitted/);
+    }
+    if (id === 'codex' || id === 'grok') {
       const created = events.find((e) => e.type === 'change' && e.file === 'notes.txt');
       assert.equal(created?.op, 'create');
     }
@@ -177,4 +189,19 @@ test('antigravity: no ask_user tool, denied shell surfaces as a tool error', asy
   assert.deepEqual(events.find((e) => e.type === 'tool_error'), { type: 'tool_error', name: 'run_command', text: 'run_command needs approval' });
   assert.ok(events.some((e) => e.type === 'text' && e.text === 'Fixed it.'), 'text deltas joined per step');
   assert.equal(events.find((e) => e.type === 'result').stats.durationMs, 10);
+});
+
+test('grok: MCP server via a throwaway --agent file, cleaned up after the turn', async () => {
+  const events = await run('grok', { mcpServers: { wisp: { command: process.execPath, args: ['/x/mcp-ask.js'], env: { WISP_SESSION: 's1' } } } }).done;
+  const { argv, stdin } = records(RECORD, 'grok').at(-1);
+  assert.equal(stdin, 'fix the add bug', 'prompt file holds just the prompt; the protocol rides --rules');
+  assert.ok(hasSeq(argv, ['--disallowed-tools', 'ask_user_question']), "grok's own question tool can't be answered headless");
+  const agentFile = argv[argv.indexOf('--agent') + 1];
+  assert.ok(agentFile && !fs.existsSync(agentFile), 'temp agent file removed');
+  assert.ok(!fs.existsSync(argv[argv.indexOf('--prompt-file') + 1]), 'temp prompt file removed');
+  assert.deepEqual(events.find((e) => e.type === 'tool_error'), { type: 'tool_error', name: 'run_terminal_command', text: '1 failing' });
+  assert.equal(events.find((e) => e.type === 'result').stats.costUsd, 0.02);
+
+  await run('grok').done;
+  assert.ok(!records(RECORD, 'grok').at(-1).argv.includes('--agent'), 'no agent file without an MCP server');
 });
