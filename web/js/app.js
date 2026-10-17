@@ -24,6 +24,9 @@ const S = {
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const stage = $('#stage');
+// How much of the feed the sticky top bar and docked launcher cover: the stage's scroll-padding-top,
+// which scrollIntoView already honours, so hand-placed cards line up with scrolled-to ones.
+const topInset = () => parseFloat(getComputedStyle(stage).scrollPaddingTop) || 0;
 
 function load(k, d) {
   try {
@@ -183,6 +186,13 @@ function renderFeed() {
   renderProjects();
 }
 
+// A new project filter swaps the whole list; staying at the old offset would drop the user
+// somewhere arbitrary in it, so bring the top of the feed back into view.
+function feedToTop() {
+  const top = $('#feed').getBoundingClientRect().top;
+  if (top < topInset()) stage.scrollTop += top - topInset();
+}
+
 function renderFeedHead(needs, working) {
   const parts = [];
   if (working.length) parts.push(`<span class="hs working"><i></i>${working.length} working</span>`);
@@ -286,7 +296,9 @@ function setFocus(id, { scroll = true } = {}) {
   S.focus = id;
   const n = S.nodes.get(id);
   n?.card.classList.add('focused');
-  if (scroll) n?.card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  // A card taller than the screen would land with its header out of view ('nearest' aligns
+  // its far edge when moving up), so bring its top in instead.
+  if (scroll && n) n.card.scrollIntoView({ block: n.card.offsetHeight > stage.clientHeight - topInset() ? 'start' : 'nearest', behavior: 'smooth' });
 }
 
 function toggle(id) {
@@ -698,6 +710,7 @@ function renderProjects() {
       S.filter = S.filter === b.dataset.id ? 'all' : b.dataset.id;
       save('wisp.filter', S.filter);
       renderFeed();
+      feedToTop();
       renderLaunchChips();
     }),
   );
@@ -857,12 +870,45 @@ function renderBody(id, { fresh }) {
   for (const [tid, v] of n.turnNodes) if (!keep.has(tid)) (v.node.remove(), n.turnNodes.delete(tid));
 
   updateDock(id);
-  if (firstNew && isInView(n.card)) requestAnimationFrame(() => firstNew.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  if (firstNew && watching(id)) requestAnimationFrame(() => firstNew.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
 
-function isInView(node) {
-  const r = node.getBoundingClientRect();
-  return r.bottom > 0 && r.top < innerHeight;
+// Whether the user is reading a card, not just catching its edge at the top or bottom of the
+// screen: it crosses the middle of the viewport, or it's focused and a fair share of it shows.
+// Anything that moves the page on a card's behalf asks this first.
+function watching(id) {
+  const card = S.nodes.get(id)?.card;
+  if (!card?.isConnected) return false;
+  const r = card.getBoundingClientRect();
+  const mid = innerHeight / 2;
+  if (r.top <= mid && r.bottom >= mid) return true;
+  const shown = Math.min(r.bottom, innerHeight) - Math.max(r.top, 0);
+  return S.focus === id && shown >= Math.min(r.height, innerHeight) / 3;
+}
+
+const sectionOf = (s) => (s.archived ? 'archived' : s.state === 'running' ? 'working' : s.state === 'done' ? 'done' : 'needs');
+
+// Run a DOM change without moving `card` on screen. The browser's own scroll anchoring misses
+// cards that are moved between lists, so feed re-renders do this explicitly.
+function keepInPlace(card, change) {
+  const top = card?.isConnected ? card.getBoundingClientRect().top : null;
+  change();
+  if (top !== null && card.isConnected) stage.scrollTop += card.getBoundingClientRect().top - top;
+}
+
+// The card to hold still while the feed changes around it: the first one showing under the top
+// bar and docked launcher, skipping `id` (the card that's changing). None at the very top of the page, where new
+// cards should push the list down, or when `id` itself is the top card on screen: then the next
+// one should slide up into its place.
+function feedAnchor(id) {
+  if (stage.scrollTop < 1) return null;
+  const moving = id && S.nodes.get(id)?.card;
+  const inset = topInset();
+  for (const card of $$('#feed .item')) {
+    const r = card.getBoundingClientRect();
+    if (r.bottom > inset) return card === moving ? null : card;
+  }
+  return null;
 }
 
 function renderFoldedTurn(t, unfold) {
@@ -1207,11 +1253,10 @@ async function toggleDone(id) {
   if (!s) return;
   if (s.state === 'running' || s.state === 'waiting') return toast('Still working — stop it first or let it finish.');
   const next = s.state === 'done' ? 'review' : 'done';
+  const leave = next === 'done' && handOff(id); // measured before the live update moves the card
   await api(`/sessions/${id}`, { method: 'PATCH', body: { state: next } });
-  if (next === 'done') {
-    const nextUp = groups().needs.find((x) => x.id !== id);
-    collapse(id);
-    if (nextUp) setFocus(nextUp.id);
+  if (leave) {
+    leave(() => S.sessions.set(id, { ...S.sessions.get(id), state: 'done' }));
     toast(`Marked done`, { action: { label: 'Undo', run: () => api(`/sessions/${id}`, { method: 'PATCH', body: { state: 'review' } }) } });
   }
 }
@@ -1534,7 +1579,9 @@ const keyHint = (k) => `<kbd class="menu-kbd">${k}</kbd>`;
 
 async function deleteSession(id) {
   if (!confirm('Delete this session from wisp? (The agent’s own history is kept.)')) return;
-  await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+  const leave = handOff(id);
+  const ok = await api(`/sessions/${id}`, { method: 'DELETE' }).then(() => true, (err) => toast(esc(err.message), { tone: 'bad' }));
+  if (ok) leave(() => S.sessions.delete(id));
 }
 
 // Launch the task again as a new session in the same folder: same prompt and attachments,
@@ -1628,13 +1675,14 @@ async function rerun(id) {
 }
 
 async function setArchived(id, archived) {
+  const leave = archived && handOff(id);
   try {
     await api(`/sessions/${id}`, { method: 'PATCH', body: { archived } });
   } catch (err) {
     return toast(esc(err.message), { tone: 'bad' });
   }
-  if (archived) {
-    if (S.open.has(id)) collapse(id);
+  if (leave) {
+    leave(() => S.sessions.set(id, { ...S.sessions.get(id), archived: true }));
     toast('Archived', { action: { label: 'Undo', run: () => setArchived(id, false) } });
   }
 }
@@ -2150,6 +2198,7 @@ function paletteItems() {
     save('wisp.filter', id);
     renderProjects();
     renderFeed();
+    feedToTop();
     renderLaunchChips();
   };
   items.push({ group: 'Projects', label: 'All projects', sub: S.filter === 'all' ? 'Current filter' : '', dot: 'slate', keywords: 'filter clear', run: filter('all') });
@@ -2180,8 +2229,7 @@ function askNotify() {
 }
 
 function notifyFinished(s) {
-  const n = S.nodes.get(s.id);
-  const viewing = S.open.has(s.id) && n && isInView(n.card) && document.hasFocus();
+  const viewing = S.open.has(s.id) && watching(s.id) && document.hasFocus();
   if (viewing) return;
   const verb = s.state === 'waiting' ? 'has a question' : 'is ready';
   toast(`${icon(s.state === 'waiting' ? 'ask' : 'spark')} <b>${esc(s.title)}</b> ${verb}`, { action: { label: 'Open', run: () => reveal(s.id) }, timeout: 7000 });
@@ -2199,17 +2247,18 @@ function connect() {
     const s = JSON.parse(e.data);
     const prev = S.sessions.get(s.id);
     S.sessions.set(s.id, s);
-    // A card left open while it worked shouldn't land in "Needs you" expanded —
-    // fold it unless the user is actually watching it.
-    const n = S.nodes.get(s.id);
-    if (prev?.state === 'running' && s.state !== 'running' && S.open.has(s.id) && !(n && isInView(n.card) && document.hasFocus())) collapse(s.id);
-    // A state change moves the card to another section (a follow-up sends it from
-    // "Needs you" to "Working"). If the user is looking at it, follow it there
-    // instead of leaving them on whatever slid into its place. (Marking done
-    // moves focus to the next item on purpose, so that case is left alone.)
-    const pin = prev && prev.state !== s.state && s.state !== 'done' && n?.card.isConnected && isInView(n.card) ? n.card.getBoundingClientRect().top : null;
-    renderFeed();
-    if (pin !== null && n.card.isConnected) stage.scrollTop += n.card.getBoundingClientRect().top - pin;
+    // A section change moves the card (a follow-up sends it from "Needs you" to "Working").
+    // If the user is watching it, the view follows it there; otherwise whatever they're
+    // reading stays put. Marking done or archiving is the exception: the card leaves the
+    // list and focus goes to the next one instead.
+    const moved = prev && sectionOf(prev) !== sectionOf(s);
+    const follow = moved && s.state !== 'done' && !s.archived && watching(s.id);
+    keepInPlace(follow ? S.nodes.get(s.id).card : feedAnchor(s.id), () => {
+      // A card left open while it worked shouldn't land in "Needs you" expanded —
+      // fold it unless the user is actually watching it.
+      if (prev?.state === 'running' && s.state !== 'running' && S.open.has(s.id) && !(watching(s.id) && document.hasFocus())) collapse(s.id);
+      renderFeed();
+    });
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
@@ -2221,7 +2270,7 @@ function connect() {
     S.full.delete(id);
     S.open.delete(id);
     saveOpen();
-    renderFeed();
+    keepInPlace(feedAnchor(id), renderFeed);
   });
   es.addEventListener('config', () => loadConfig());
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
@@ -2237,7 +2286,7 @@ async function loadSessions() {
   S.sessions = new Map(list.map((s) => [s.id, s]));
   for (const id of S.open) if (!S.sessions.has(id)) S.open.delete(id);
   saveOpen();
-  renderFeed();
+  keepInPlace(feedAnchor(), renderFeed);
   for (const id of S.open) scheduleRefetch(id);
 }
 
@@ -2292,6 +2341,27 @@ async function installUpdate() {
 // --- keyboard ---------------------------------------------------------------------------
 
 const feedIds = () => $$('#feed .item').map((x) => x.dataset.id);
+// The user takes a card out of its list (done, archive, delete). The next card — the one below,
+// or the one above at the end of the list — gets focus and lands where the old one sat, so
+// triage continues on the same spot. Call before the request, while the card is still laid
+// out; the returned function applies the change locally and places the next card.
+function handOff(id) {
+  const card = S.nodes.get(id)?.card;
+  if (!card?.isConnected) return (apply) => (apply(), renderFeed());
+  const nextUp = (card.nextElementSibling || card.previousElementSibling)?.dataset.id || feedIds().find((x) => x !== id);
+  const r = card.getBoundingClientRect();
+  const inset = topInset();
+  const slot = r.bottom > inset && r.top < innerHeight ? Math.max(inset, r.top) : null;
+  return (apply) => {
+    if (S.open.has(id)) collapse(id);
+    apply(); // don't wait for the live update to drop the card
+    renderFeed();
+    if (!nextUp || !S.nodes.has(nextUp)) return;
+    setFocus(nextUp, { scroll: slot === null });
+    const next = S.nodes.get(nextUp).card;
+    if (slot !== null && next.isConnected) stage.scrollTop += next.getBoundingClientRect().top - slot;
+  };
+}
 
 document.addEventListener('keydown', (e) => {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.

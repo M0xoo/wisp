@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - The launcher stays reachable while you scroll: once it passes under the top bar it docks there as a one-line bar (project chip + draft). Click it, or press `⌘L` / `N`, and the full launcher opens in place over the feed, without scrolling you back to the top. `Esc` or clicking away folds it again. Cards selected with `J` / `K` or opened scroll into view below it.
 
+### Fixed
+
+- Scrolling in the feed stays put. When a card changes section in the background (a task finishes, asks or is removed), the card you're reading no longer jumps; one whose edge just peeks onto the screen no longer drags the view with it. Mark done, Archive and Delete put the next card where the old one was and focus it, so E / A / j triage continues from the same spot. j / k show the header of tall cards, and switching project filters returns to the top of the feed. The rules are written down in [docs/feed.md](docs/feed.md).
+
 ## [0.7.0] - 2026-10-17
 
 ### Added
