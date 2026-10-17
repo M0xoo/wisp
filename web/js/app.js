@@ -2838,32 +2838,112 @@ async function openPhone() {
 
 // --- settings -----------------------------------------------------------------------------
 
-function openSettings() {
+// A sidebar of sections and one pane at a time, like every other app's settings. Big lists
+// (memory, automations, usage history) keep their own views; a pane only summarises and links.
+const SETTINGS_PANES = [
+  { id: 'general', label: 'General', icon: 'settings', lede: 'Where files open, where you take over, and how tasks start.' },
+  { id: 'notifications', label: 'Notifications', icon: 'bolt', lede: 'Hear about questions and finished tasks, here or on your phone.' },
+  { id: 'agents', label: 'Agents', icon: 'agent', lede: 'The harnesses wisp found on this machine. Pick one next to the model in the launcher.' },
+  { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
+  { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
+  { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },
+  { id: 'privacy', label: 'Privacy', icon: 'info', lede: 'What wisp sends about itself. Never prompts, paths or code.' },
+];
+let settingsPane = 'general';
+
+function openSettings(opts) {
+  if (SETTINGS_PANES.some((p) => p.id === opts?.pane)) settingsPane = opts.pane;
   const d = S.config.defaults;
+  // A row: name and a line of explanation on the left, the control on the right.
+  const row = (name, desc, control, cls = '') => `<div class="sx-row ${cls}"><div class="sx-text"><b>${name}</b>${desc ? `<small>${desc}</small>` : ''}</div><div class="sx-ctl">${control}</div></div>`;
+  const missing = S.agents.filter((a) => !a.available).length;
   const node = el(`
-    <div class="modal settings-modal">
-      <header><h2>Settings</h2><button class="icon-btn close">${icon('x')}</button></header>
-      <label><span>Open files in</span>
-        <select name="editor">${[['vscode', 'VS Code'], ['cursor', 'Cursor'], ['windsurf', 'Windsurf'], ['zed', 'Zed'], ['idea', 'JetBrains'], ['none', 'Copy path']]
-          .map(([v, l]) => `<option value="${v}" ${d.editor === v || (!d.editor && v === 'vscode') ? 'selected' : ''}>${l}</option>`)
-          .join('')}</select></label>
-      <label><span>Take over in</span>
-        <select name="terminal">${(S.config.terminals || []).map((t) => `<option value="${t.id}" ${(d.terminal || 'auto') === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}</select></label>
-      <label class="custom-term" ${d.terminal === 'custom' ? '' : 'hidden'}><span>Terminal command</span>
-        <input name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></label>
-      <div class="setting"><span>Desktop notifications</span><span class="notif-hint muted xs"></span><button class="switch" id="notif" role="switch"></button></div>
-      <div class="setting"><span>Anonymous usage stats</span><span class="tele-hint muted xs"></span><button class="switch" id="tele" role="switch"></button></div>
-      <div class="setting"><span>Memory</span><span class="learn-hint muted xs"></span><button class="ghost xs" id="openMemory">Open</button><button class="switch" id="learn" role="switch"></button></div>
-      <div class="setting"><span>Worktree per task</span><span class="muted xs">Own branch from origin/main, in git repos</span><button class="switch" id="wtDefault" role="switch"></button></div>
-      <div class="setting"><span>Automations</span><span class="auto-hint muted xs"></span><button class="ghost xs" id="openAuto">Open</button></div>
-      <div class="setting"><span>Usage</span><span class="usage-hint muted xs"></span><button class="ghost xs" id="openUsage">Open</button></div>
-      <div class="setting"><span>Phone</span><span class="phone-hint muted xs"></span><button class="ghost xs" id="openPhone">Set up</button></div>
-      <div class="agents">${S.agents
-        .map((a) => `<div class="agent-row"><span class="dot ${a.available ? 'ok' : 'bad'}"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.available ? a.version : a.error || 'not found')}</span></div>`)
-        .join('')}<p class="muted xs">Pick the agent next to the model in the launcher. Others plug in via <code>server/adapters</code>.</p></div>
+    <div class="modal settings-modal sx">
+      <nav class="sx-nav" role="tablist" aria-orientation="vertical">
+        <h2>Settings</h2>
+        ${SETTINGS_PANES.map((p) => `<button role="tab" data-pane="${p.id}">${icon(p.icon)}<span>${p.label}</span>${p.id === 'agents' && missing ? `<i class="dot bad" title="${missing} not found"></i>` : ''}</button>`).join('')}
+      </nav>
+      <div class="sx-main">
+        <header><div><h3 class="sx-title"></h3><p class="sx-lede"></p></div><button class="icon-btn close">${icon('x')}</button></header>
+        <section class="sx-pane" data-pane="general">
+          <div class="sx-group">
+            ${row('Open files in', 'File links in cards and diffs', `<select name="editor">${[['vscode', 'VS Code'], ['cursor', 'Cursor'], ['windsurf', 'Windsurf'], ['zed', 'Zed'], ['idea', 'JetBrains'], ['none', 'Copy path']]
+              .map(([v, l]) => `<option value="${v}" ${d.editor === v || (!d.editor && v === 'vscode') ? 'selected' : ''}>${l}</option>`)
+              .join('')}</select>`)}
+            ${row('Take over in', 'The terminal a session opens in when you take it over', `<select name="terminal">${(S.config.terminals || []).map((t) => `<option value="${t.id}" ${(d.terminal || 'auto') === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}</select>`)}
+            <div class="sx-row custom-term" ${d.terminal === 'custom' ? '' : 'hidden'}><div class="sx-text"><b>Terminal command</b><small><code>{cwd}</code> and <code>{cmd}</code> are filled in</small></div>
+              <div class="sx-ctl"><input name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></div></div>
+          </div>
+          <div class="sx-group">
+            ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
+          </div>
+        </section>
+        <section class="sx-pane" data-pane="notifications">
+          <div class="sx-group">
+            ${row('Desktop notifications', '<span class="notif-hint"></span>', '<button class="switch" id="notif" role="switch"></button>')}
+          </div>
+          <div class="sx-group">
+            ${row('Phone', '<span class="phone-hint">ntfy or Telegram: answer questions from your phone</span>', '<button class="ghost sm" id="openPhone">Set up</button>')}
+          </div>
+        </section>
+        <section class="sx-pane" data-pane="agents">
+          <div class="sx-group">${S.agents
+            .map((a) => row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(a.available ? a.version : a.error || 'not found'), `<span class="sx-state ${a.available ? 'ok' : 'bad'}"><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`))
+            .join('')}</div>
+          <p class="hint">Others plug in via <code>server/adapters</code>.</p>
+        </section>
+        <section class="sx-pane" data-pane="memory">
+          <div class="sx-group">
+            ${row('Learn from sessions', 'A short retro after each session keeps preferences and lessons', '<button class="switch" id="learn" role="switch"></button>')}
+            ${row('Remembered', '<span class="learn-hint"></span>', '<button class="ghost sm" id="openMemory">Open memory</button>')}
+          </div>
+        </section>
+        <section class="sx-pane" data-pane="automations">
+          <div class="sx-group">
+            ${row('Recipes', '<span class="recipe-hint"></span>', '<button class="ghost sm" data-auto="recipes">Manage</button>')}
+            ${row('Triggers', '<span class="trigger-hint"></span>', '<button class="ghost sm" data-auto="triggers">Manage</button>')}
+          </div>
+        </section>
+        <section class="sx-pane" data-pane="usage">
+          <div class="us-tiles sx-usage"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
+          <div class="sx-group">${row('Charts and breakdowns', 'Per day, per project and per harness · model', '<button class="ghost sm" id="openUsage">Open usage</button>')}</div>
+        </section>
+        <section class="sx-pane" data-pane="privacy">
+          <div class="sx-group">
+            ${row('Anonymous usage stats', '<span class="tele-hint"></span>', '<button class="switch" id="tele" role="switch"></button>')}
+          </div>
+          <p class="hint">Agent, model, status, timings and scrubbed errors only.</p>
+        </section>
+      </div>
     </div>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
+  const show = (id, focus = false) => {
+    settingsPane = id;
+    const p = SETTINGS_PANES.find((x) => x.id === id);
+    $$('.sx-nav [data-pane]', node).forEach((b) => {
+      const on = b.dataset.pane === id;
+      b.setAttribute('aria-selected', on);
+      b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+    });
+    $$('.sx-pane', node).forEach((s) => (s.hidden = s.dataset.pane !== id));
+    $('.sx-title', node).textContent = p.label;
+    $('.sx-lede', node).textContent = p.lede;
+    $('.sx-main', node).scrollTop = 0;
+  };
+  $('.sx-nav', node).onclick = (e) => {
+    const b = e.target.closest('[data-pane]');
+    if (b) show(b.dataset.pane);
+  };
+  $('.sx-nav', node).onkeydown = (e) => {
+    const step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const i = SETTINGS_PANES.findIndex((p) => p.id === settingsPane);
+    show(SETTINGS_PANES[(i + step + SETTINGS_PANES.length) % SETTINGS_PANES.length].id, true);
+  };
+  show(settingsPane);
   node.addEventListener('change', async (e) => {
     const { name, value } = e.target;
     if (!name) return;
@@ -2928,12 +3008,23 @@ function openSettings() {
   };
   paintWt();
   const r = S.config.recipes?.length || 0;
-  const t = (S.config.triggers || []).filter((x) => x.enabled).length;
-  $('.auto-hint', node).textContent = `${r} recipe${r === 1 ? '' : 's'} · ${t} trigger${t === 1 ? '' : 's'} on`;
-  api('/usage?days=7').then((u) => ($('.usage-hint', node).textContent = usageSummary(u))).catch(() => {});
-  api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x))).catch(() => {});
-  $('#openAuto', node).onclick = () => openAutomations();
-  $('#openUsage', node).onclick = () => openUsage();
+  const all = S.config.triggers || [];
+  const t = all.filter((x) => x.enabled).length;
+  $('.recipe-hint', node).textContent = r ? `${r} saved prompt${r === 1 ? '' : 's'}` : 'None yet · save a prompt you run often';
+  $('.trigger-hint', node).textContent = all.length ? `${t} of ${all.length} on` : 'None yet · run a recipe on a schedule, CI failure or new issue';
+  api('/usage?days=7')
+    .then((u) => {
+      const x = u.total;
+      $('.sx-usage', node).innerHTML = `
+        <div><span>Spend</span><b>${x.priced ? money(x.cost) : '—'}</b></div>
+        <div><span>Turns</span><b>${x.turns}</b></div>
+        <div><span>Worked</span><b>${pct(x.successRate)}</b></div>
+        <div><span>Questions</span><b>${x.questions}</b></div>`;
+    })
+    .catch(() => ($('.sx-usage', node).innerHTML = ''));
+  api('/remote').then((x) => phoneSummary(x) !== 'Off' && ($('.phone-hint', node).textContent = phoneSummary(x))).catch(() => {});
+  $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto })));
+  $('#openUsage', node).onclick = () => openUsage({ days: 7 });
   $('#openPhone', node).onclick = () => openPhone();
 }
 
@@ -3083,7 +3174,7 @@ function telemetryNotice() {
   if (!S.config.telemetry?.enabled || S.config.defaults.telemetryNotice === 'seen') return;
   S.config.defaults.telemetryNotice = 'seen';
   api('/config', { method: 'PATCH', body: { defaults: { telemetryNotice: 'seen' } } }).catch(() => {});
-  toast('wisp sends anonymous usage stats and error reports. No prompts, paths or code.', { timeout: 10_000, action: { label: 'Settings', run: openSettings } });
+  toast('wisp sends anonymous usage stats and error reports. No prompts, paths or code.', { timeout: 10_000, action: { label: 'Settings', run: () => openSettings({ pane: 'privacy' }) } });
 }
 
 function shortcuts() {
