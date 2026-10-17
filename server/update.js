@@ -88,11 +88,15 @@ export class Updater {
       this.set({ status: 'idle', error: err.message });
       throw err;
     }
-    const args = process.versions.electron ? '' : ' --browser --no-open'; // desktop: reopen the app; browser: keep the tab
-    const node = JSON.stringify(process.versions.electron ? 'node' : process.execPath);
-    const relaunch = this.method === 'npx' ? `npx -y ${PKG.name}@latest${args}` : `${node} ${JSON.stringify(path.join(ROOT, 'bin', 'wisp.js'))}${args}`;
-    handOff(this.port, relaunch);
+    handOff(this.port, this.relaunchCommand());
     this.set({ status: 'restarting' });
+  }
+
+  // Same port as now (wisp may have been started with --port), so the open tab finds it again.
+  relaunchCommand(electron = !!process.versions.electron) {
+    const args = `${electron ? '' : ' --browser --no-open'} --port ${this.port}`; // desktop: reopen the app; browser: keep the tab
+    const node = JSON.stringify(electron ? 'node' : process.execPath);
+    return this.method === 'npx' ? `npx -y ${PKG.name}@latest${args}` : `${node} ${JSON.stringify(path.join(ROOT, 'bin', 'wisp.js'))}${args}`;
   }
 }
 

@@ -43,3 +43,12 @@ test('maybeCheck hits the registry at most once a day, on the wall clock', async
   u.maybeCheck();
   assert.equal(calls, 2);
 });
+
+test('relaunchCommand keeps the port wisp is serving on', () => {
+  const u = new Updater({ port: 5123, env: {} });
+  for (const method of ['global', 'npx']) {
+    u.method = method;
+    assert.match(u.relaunchCommand(false), / --browser --no-open --port 5123$/);
+    assert.match(u.relaunchCommand(true), /wisp(-agents@latest|\.js") --port 5123$/);
+  }
+});
