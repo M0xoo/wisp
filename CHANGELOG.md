@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Machines shows **Update to X** next to the version when a connected machine runs an older wisp than this computer. One click restarts wisp there as this version (you're asked first if agents are working on it). Before, reconnecting kept the old wisp running, and you had to find **Restart wisp there** in the ⋯ menu. Machines with a custom start command don't show it, because that command decides the version. Machines carry it as `outdated: "<version>"`.
+
 ## [0.10.0] - 2026-10-18
 
 ### Added
