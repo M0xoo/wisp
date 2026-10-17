@@ -13,6 +13,7 @@ const ALL_TERMINALS = [
   { id: 'terminal', label: 'Terminal.app', os: ['darwin'] },
   { id: 'iterm', label: 'iTerm', os: ['darwin'] },
   { id: 'warp', label: 'Warp', os: ['darwin'] },
+  { id: 'cmux', label: 'cmux', os: ['darwin'] },
   { id: 'wt', label: 'Windows Terminal', os: ['win32'] },
   { id: 'powershell', label: 'PowerShell', os: ['win32'] },
   { id: 'cmd', label: 'Command Prompt', os: ['win32'] },
@@ -34,11 +35,16 @@ export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 const psq = (s) => `'${String(s).replace(/'/g, "''")}'`; // PowerShell single-quoted string
 const asStr = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`; // AppleScript string
 
+const CMUX_APP = '/Applications/cmux.app';
+const CMUX_CLI = `${CMUX_APP}/Contents/Resources/bin/cmux`;
+
 const LINUX_ORDER = ['ghostty', 'kitty', 'wezterm', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'alacritty', 'x-terminal-emulator', 'xterm'];
 
 export function detectTerminal({ platform = process.platform, env = process.env, has = (b) => onPath(b, env), exists = fs.existsSync } = {}) {
   if (platform === 'darwin') {
     if (env.TERM_PROGRAM === 'iTerm.app' && exists('/Applications/iTerm.app')) return 'iterm';
+    // cmux is built on Ghostty and reports TERM_PROGRAM=ghostty, so check it first.
+    if ((env.CMUX_WORKSPACE_ID || env.__CFBundleIdentifier === 'com.cmuxterm.app') && exists(CMUX_APP)) return 'cmux';
     if (env.TERM_PROGRAM === 'ghostty' && exists('/Applications/Ghostty.app')) return 'ghostty';
     return 'terminal';
   }
@@ -69,6 +75,15 @@ export function terminalPlan({ cwd, argv, terminal = 'auto', custom = '', platfo
     case 'warp':
       // Warp has no scripting API; open a tab in the folder and type via System Events.
       return [{ command: 'open', args: ['-a', 'Warp', cwd] }, { delay: 1200 }, { osa: `tell application "System Events" to keystroke ${asStr(cmd)} & return` }];
+    case 'cmux': {
+      // `cmux new-workspace` talks to cmux's socket, which by default only accepts processes started
+      // inside cmux. When it's refused (or cmux isn't running), open the folder as a new workspace
+      // and type the command, like Warp.
+      const cli = (has || ((b) => onPath(b, env)))('cmux') ? 'cmux' : CMUX_CLI;
+      const typeIt = `tell application "System Events" to keystroke ${asStr(cmd)} & return`;
+      const script = '"$1" new-workspace --cwd "$2" --command "$3" >/dev/null 2>&1 && open -a cmux || { open -a cmux "$2" && sleep 1.5 && osascript -e "$4"; }';
+      return [{ command: '/bin/sh', args: ['-c', script, 'sh', cli, cwd, cmd, typeIt], options: detached }];
+    }
     case 'wt':
       // `;` separates wt subcommands, so it can't appear unescaped in the command line.
       return [{ command: 'wt.exe', args: ['-d', cwd, 'powershell.exe', '-NoExit', '-Command', ps.replace(/;/g, '\\;')], options: detached }];
