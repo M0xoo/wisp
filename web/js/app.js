@@ -1633,7 +1633,6 @@ function renderBody(id, { fresh }) {
     ${s.origin ? `<span class="m" title="Launched by a ${esc(s.origin.kind)}">${icon(s.origin.kind === 'trigger' ? 'replay' : 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
   // Ship sits in the top bar and again next to the composer, so it's there after reading the result.
-  $$('[data-a="ship"]', body).forEach((b) => (b.hidden = !s.worktree || live || s.agent === 'wisp' || s.pr?.state === 'MERGED'));
   renderPrStrip(id);
   $$('[data-a="done"]', body).forEach((b) => {
     b.classList.toggle('on', s.state === 'done');
@@ -2438,7 +2437,7 @@ function taskMenu(id, e) {
       ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
-      ${s.branch && !busy && s.pr?.state !== 'MERGED' ? `<button data-a="ship">${icon('send')}${s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.number}` : 'Ship it…'}${keyHint('S')}</button>` : ''}
+      ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
       ${s.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${s.pr.number}…</button>` : ''}
       ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('spark')}Save as recipe…</button>
@@ -2837,6 +2836,15 @@ function prLine(pr) {
   const state = pr.state === 'MERGED' ? 'Merged' : pr.state === 'CLOSED' ? 'Closed' : pr.draft ? 'Draft' : 'Open';
   return [state, pr.state === 'OPEN' ? checks : '', pr.state === 'OPEN' ? REVIEW[pr.review] : ''].filter(Boolean).join(' · ');
 }
+// Ship it only makes sense on a finished worktree task with something to ship: uncommitted
+// changes, or commits its open PR (or a new one) doesn't have yet. Unchecked yet: assume it might.
+function shippable(s) {
+  if (!s?.branch || s.agent === 'wisp' || s.state === 'running' || s.state === 'waiting' || s.pr?.state === 'MERGED') return false;
+  const t = s.toShip;
+  return !t || !!(t.dirty || (s.pr?.state === 'OPEN' ? t.unpushed : t.ahead));
+}
+const shipLabel = (s) => (s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.number}` : 'Ship it…');
+
 const prPill = (pr) => `<span class="pill pr pr-${prTone(pr)}" title="PR #${pr.number}: ${esc(prLine(pr))}"><i></i>#${pr.number}</span>`;
 
 // The PR row under a card's bar; reads the live summary, so polled check results show up.
@@ -2846,7 +2854,10 @@ function renderPrStrip(id) {
   const s = S.sessions.get(id);
   if (!node || !s) return;
   const pr = s.pr;
-  $$('[data-a="ship"] span', n.body).forEach((b) => (b.textContent = pr?.state === 'OPEN' ? `Push to #${pr.number}` : pr ? 'Ship again' : 'Ship it'));
+  $$('[data-a="ship"]', n.body).forEach((b) => {
+    b.hidden = !shippable(s);
+    $('span', b).textContent = pr?.state === 'OPEN' ? `Push to #${pr.number}` : pr ? 'Ship again' : 'Ship it';
+  });
   node.hidden = !pr;
   if (!pr) return;
   const tone = prTone(pr);
@@ -4230,7 +4241,7 @@ function paletteItems() {
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
     items.push({ group: g, label: 'Take over in terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
-    if (cur.branch && !live && cur.pr?.state !== 'MERGED') items.push({ group: g, label: cur.pr?.state === 'OPEN' ? `Push to PR #${cur.pr.number}` : 'Ship it…', sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
+    if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (cur.pr?.state === 'OPEN') items.push({ group: g, label: `Merge PR #${cur.pr.number}…`, sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'spark', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
@@ -4353,7 +4364,7 @@ function connect() {
       renderFeed();
     });
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
-    if (JSON.stringify(prev?.pr) !== JSON.stringify(s.pr)) renderPrStrip(s.id);
+    if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state]) !== JSON.stringify([s.pr, s.toShip, s.state])) renderPrStrip(s.id);
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
@@ -4515,7 +4526,7 @@ document.addEventListener('keydown', (e) => {
     deleteSession(id);
   } else if (k === 't' && id) takeOver(id);
   else if (k === 'r' && e.shiftKey && id) rerun(id);
-  else if (k === 's' && id && S.sessions.get(id)?.branch) shipDialog(id);
+  else if (k === 's' && id && shippable(S.sessions.get(id))) shipDialog(id);
   else if (k === 'r' && id) replay(id);
   else if (k === '/' && id) {
     e.preventDefault();

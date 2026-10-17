@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Machines finds hosts for you. **Found on this computer** lists the hosts this computer already reaches: `Host` entries in `~/.ssh/config`, your Tailscale peers (`tailscale status --json`, with an online dot; phones and tablets are skipped) and hosts in `~/.ssh/known_hosts` (code hosts such as github.com, hashed entries and non-default ports are skipped). Hosts you've already added aren't listed. Click one to fill in the form, then press Connect. The SSH host field suggests the same hosts. API: `GET /api/machines/discover`.
 
+### Changed
+
+- Ship it only shows when there is something to ship. It used to sit on every finished worktree task, even one that changed nothing or whose work was already on its PR. Now it appears (on the card bar, next to the composer, in the right-click menu, in ⌘K and on `S`) only if the worktree has uncommitted changes or commits its PR doesn't have yet. **Push to PR #N** shows only when there are new changes to push. wisp checks the worktree when a turn ends, after Ship it, a revert, a rollback or an action command, and at startup. Summaries carry it as `toShip: { dirty, ahead, unpushed }`.
+
 ### Fixed
 
 - Updating from the top-bar Update button now restarts wisp on the port it was running on. Before, a wisp started with `--port` came back on 4477 and the open tab said "wisp did not come back".

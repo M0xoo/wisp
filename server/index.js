@@ -54,6 +54,7 @@ export const API_VERSION = 1;
 const settled = (s) => s.state === 'waiting' || (s.state !== 'running' && !s.queue?.length);
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 const PR_POLL_MS = 60_000;
+const SHIP_RECHECK_MS = 5_000;
 const MAX_COMPARE = 4;
 const MODES = new Set(['plan', 'edits', 'auto']);
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
@@ -303,6 +304,38 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     const live = s && (s.state === 'running' || s.state === 'waiting');
     return s && { s: machines.session(at.machine, s), answer: (a) => call('POST', '/answer', { text: a }), reply: (t) => call('POST', '/reply', { text: t }), done: async () => !live && !!(await call('PATCH', '', { state: 'done' })) };
   }
+
+  // Ship it shows only when the worktree has something to ship: uncommitted changes, or commits
+  // not yet pushed. Rechecked whenever wisp might have changed the worktree.
+  const checkShip = async (s) => {
+    if (!s?.worktree || s.parentId) return;
+    const { dirty, ahead, unpushed } = await worktreeStatus(s.worktree);
+    const next = { dirty, ahead, unpushed };
+    if (JSON.stringify(next) === JSON.stringify(s.toShip)) return;
+    s.toShip = next;
+    store.save(s);
+    broadcast('summary', summarize(s, store));
+  };
+  // One check at a time per session (one asked for meanwhile runs right after); `lazy` (a card
+  // fetching its session) skips running sessions and runs at most every few seconds.
+  const shipChecks = new Map(); // id → true while checking, 'again' if another check is due
+  const shipCheckedAt = new Map();
+  const recheckShip = (s, { lazy = false } = {}) => {
+    if (!s?.worktree || s.parentId) return;
+    if (lazy && (runner.live.has(s.id) || shipChecks.has(s.id) || Date.now() - (shipCheckedAt.get(s.id) || 0) < SHIP_RECHECK_MS)) return;
+    if (shipChecks.has(s.id)) return void shipChecks.set(s.id, 'again');
+    shipChecks.set(s.id, true);
+    shipCheckedAt.set(s.id, Date.now());
+    checkShip(s)
+      .catch(() => {})
+      .finally(() => {
+        const again = shipChecks.get(s.id) === 'again';
+        shipChecks.delete(s.id);
+        if (again) recheckShip(s);
+      });
+  };
+  runner.on('ended', ({ session }) => recheckShip(store.get(session.id)));
+  for (const s of store.all()) if (s.worktree && !s.archived && s.pr?.state !== 'MERGED') recheckShip(s);
 
   // Ship it: follow open PRs (checks, reviews, merges) so their cards stay current.
   const refreshPr = async (s) => {
@@ -717,6 +750,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
 
       if (!action) {
         // A lead comes with its subagents' sessions, so its cards can show their reports and diffs.
+        if (m === 'GET') recheckShip(s, { lazy: true }); // edits made outside wisp (in an editor) show up too
         if (m === 'GET') return send(res, 200, s.children ? { ...s, childSessions: Object.fromEntries(Object.values(s.children).map((cid) => [cid, store.get(cid)]).filter(([, c]) => c)) } : s);
         if (m === 'PATCH') {
           const body = await readJson(req);
@@ -829,6 +863,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         broadcast('summary', summarize(s, store));
         broadcast('turn', { sessionId: s.id, turnId: turn.id });
         telemetry.track('revert_file', { agent: s.agent, restore: !!restore });
+        recheckShip(s);
         return send(res, 200, { ok: true, turnId: turn.id, ...result });
       }
 
@@ -847,6 +882,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         broadcast('summary', summarize(s, store));
         broadcast('turn', { sessionId: s.id, turnId: turn.id });
         telemetry.track('rollback_turn', { agent: s.agent, restore: !!restore });
+        recheckShip(s);
         return send(res, 200, { ok: true, turnId: turn.id, ...result });
       }
 
@@ -869,6 +905,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           broadcast('turn', { sessionId: s.id, turnId: turn.id });
         }
         telemetry.track('exec_action', { agent: s.agent, exitCode: resExec.exitCode });
+        recheckShip(s);
         return send(res, 200, resExec);
       }
 
@@ -902,7 +939,10 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       // commit, push, open or update the PR.
       if (action === 'ship') {
         if (!s.worktree) return send(res, 400, { error: 'Ship it works on worktree sessions: launch with a worktree to get one.' });
-        if (m === 'GET') return send(res, 200, { branch: s.worktree.branch, base: s.worktree.base, remote: s.worktree.remote, ...(await worktreeStatus(s.worktree)), pr: s.pr || null, ...shipDraft(s) });
+        if (m === 'GET') {
+          recheckShip(s);
+          return send(res, 200, { branch: s.worktree.branch, base: s.worktree.base, remote: s.worktree.remote, ...(await worktreeStatus(s.worktree)), pr: s.pr || null, ...shipDraft(s) });
+        }
         if (m === 'POST') {
           if (runner.live.has(s.id)) return send(res, 409, { error: 'Still working: wait for it to finish, or stop it.' });
           const body = await readJson(req);
@@ -911,6 +951,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           telemetry.track('ship', { agent: s.agent, draft: !!body.draft });
           store.save(s, { now: true });
           broadcast('summary', summarize(s, store));
+          recheckShip(s);
           return send(res, 200, s.pr);
         }
       }

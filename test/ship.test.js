@@ -99,6 +99,10 @@ test('ship it: commit, push, PR; checks are followed; merge syncs local main and
   const s = await api('/sessions', { body: { prompt: 'Fix add() so it adds', cwd: repo.dir, agent: 'claude' } });
   const done = await settled(s.id);
   const wt = done.worktree;
+  // The card learns there is something to ship, so it shows Ship it.
+  const toShip = async () => (await api('/sessions')).find((x) => x.id === s.id).toShip;
+  await until(async () => (await toShip())?.dirty === 1);
+  assert.deepEqual(await toShip(), { dirty: 1, ahead: 0, unpushed: 0 });
 
   const draft = await api(`/sessions/${s.id}/ship`);
   assert.equal(draft.branch, wt.branch);
@@ -118,6 +122,9 @@ test('ship it: commit, push, PR; checks are followed; merge syncs local main and
   const create = records(RECORD, 'gh').find((r) => r.argv[1] === 'create').argv;
   assert.deepEqual([create[create.indexOf('--base') + 1], create[create.indexOf('--head') + 1]], ['main', wt.branch]);
   assert.equal((await api('/sessions')).find((x) => x.id === s.id).pr.number, 1);
+  // Everything is on the PR now: nothing left to push, so Ship it hides.
+  await until(async () => (await toShip())?.dirty === 0);
+  assert.deepEqual(await toShip(), { dirty: 0, ahead: 1, unpushed: 0 });
 
   // CI goes green and the review lands: the card comes back unread.
   await api(`/sessions/${s.id}`, { method: 'PATCH', body: { unread: false } });

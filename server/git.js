@@ -93,12 +93,15 @@ export async function ensureWorktree(wt) {
   await git(wt.root, ['worktree', 'add', '--quiet', wt.path, wt.branch]);
 }
 
-// { dirty: changed paths, ahead: commits past the base, exists }
+// { dirty: changed paths, ahead: commits past the base, unpushed: commits not on the remote branch, exists }
 export async function worktreeStatus(wt) {
-  if (!wt || !fs.existsSync(wt.path)) return { exists: false, dirty: 0, ahead: 0 };
+  if (!wt || !fs.existsSync(wt.path)) return { exists: false, dirty: 0, ahead: 0, unpushed: 0 };
   const porcelain = await quiet(git(wt.path, ['status', '--porcelain']));
   const ahead = Number(await quiet(git(wt.path, ['rev-list', '--count', `${wt.baseRef}..HEAD`]))) || 0;
-  return { exists: true, dirty: porcelain ? porcelain.split('\n').length : 0, ahead };
+  const pushed = wt.remote && `refs/remotes/${wt.remote}/${wt.branch}`;
+  const tracked = pushed && (await quiet(git(wt.path, ['rev-parse', '--verify', '--quiet', pushed])));
+  const unpushed = tracked ? Number(await quiet(git(wt.path, ['rev-list', '--count', `${pushed}..HEAD`]))) || 0 : ahead;
+  return { exists: true, dirty: porcelain ? porcelain.split('\n').length : 0, ahead, unpushed };
 }
 
 // force: drop uncommitted work too. The branch goes only when nothing would be lost with it.
