@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Machines shows **Update to X** next to the version when a connected machine runs an older wisp than this computer. One click restarts wisp there as this version (you're asked first if agents are working on it). Before, reconnecting kept the old wisp running, and you had to find **Restart wisp there** in the ⋯ menu. Machines with a custom start command don't show it, because that command decides the version. Machines carry it as `outdated: "<version>"`.
 
+### Changed
+
+- The app responds right away instead of waiting for the server. A new task clears the prompt box and shows up in **Working** as a "Starting up" card while wisp makes its worktree. A follow-up or an answer clears the composer and moves the card to **Working** with your message as the live turn. **Mark done**, **Reopen**, **Archive**, **Delete**, **Stop**, **Rerun**, recipe runs and **Keep this** in Compare also act immediately. If the server refuses, the change is undone, your text and attachments come back, and an error toast says why.
+
 ## [0.10.0] - 2026-10-18
 
 ### Added

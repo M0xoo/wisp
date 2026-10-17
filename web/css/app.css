@@ -473,6 +473,10 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .item.focused { border-color: var(--line-2); box-shadow: 0 0 0 1px var(--line-2); }
 .item.open { border-color: var(--line-2); box-shadow: var(--shadow-2); }
 .item.st-done:not(.open) { background: transparent; }
+/* a launch the server hasn't confirmed yet: shown at once, can't be opened */
+.item.pending { opacity: 0.75; }
+.item.pending .it-head { cursor: default; }
+.item.pending .chev { visibility: hidden; }
 .item.arrived { animation: arrive 1.4s var(--ease); }
 @keyframes arrive { from { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); } }
 
