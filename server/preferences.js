@@ -19,7 +19,7 @@ export const KINDS = ['preferences', 'lessons'];
 export const MAX_ITEMS = 10; // per list
 export const MAX_LEN = 180; // per item, in characters
 const MAX_DIGEST = 10_000; // characters of session digest handed to the retro agent
-const MAX_HISTORY = 20;
+const MAX_HISTORY = 30; // retro runs kept for Settings, newest last
 const RETRO_TIMEOUT_MS = 3 * 60_000;
 const IDLE_MS = Number(process.env.WISP_RETRO_IDLE_MS ?? 90_000); // quiet time before a retro runs
 
@@ -185,11 +185,12 @@ export function parseRetro(text = '') {
 
 export class Retro {
   // projectOf(cwd) → project path used as the per-project key.
-  constructor({ store, runner, prefs, projectOf, enabled, onDone }) {
-    Object.assign(this, { store, runner, prefs, projectOf, enabled, onDone });
+  constructor({ store, runner, prefs, projectOf, enabled, onStart, onDone }) {
+    Object.assign(this, { store, runner, prefs, projectOf, enabled, onStart, onDone });
     this.timers = new Map(); // sessionId -> pending idle timer
     this.chain = Promise.resolve(); // one retro at a time
     this.current = null; // live adapter handle
+    this.running = null; // { sessionId, title, project, agent, startedAt } while a retro runs
 
     runner.on('started', ({ session }) => this.cancel(session.id));
     runner.on('ended', ({ session, turn, interrupted }) => {
@@ -232,6 +233,8 @@ export class Retro {
       'Return the updated JSON object now.',
     ].join('\n\n');
 
+    this.running = { sessionId: id, title: session.title, project, agent: session.agent, turns: upTo - from, startedAt: Date.now() };
+    this.onStart?.(this.running);
     let text = '';
     let failed = false;
     const handle = adapters[session.agent].run({
@@ -254,9 +257,15 @@ export class Retro {
     await handle.done;
     clearTimeout(timer);
     this.current = null;
+    const run = { ...this.running, at: Date.now() };
+    this.running = null;
 
+    // Every run is logged, so Settings can show what each retro did, including nothing.
     const proposal = !failed && parseRetro(text);
-    if (!proposal) return this.onDone?.({ session, ok: false });
+    if (!proposal) {
+      this.prefs.record({ ...run, status: 'failed', error: clip(failed ? text || 'The agent run failed.' : `Unreadable reply: ${text || '(empty)'}`, 240) });
+      return this.onDone?.({ session, ok: false });
+    }
 
     const added = [];
     const removed = [];
@@ -271,7 +280,7 @@ export class Retro {
         removed.push(...m.removed.map((text) => ({ text, kind, scope })));
       }
     }
-    if (added.length || removed.length) this.prefs.record({ at: Date.now(), sessionId: id, title: session.title, project, added, removed });
+    this.prefs.record({ ...run, status: added.length || removed.length ? 'learned' : 'nothing', added, removed });
     const live = this.store.get(id);
     if (live) {
       live.retroTurns = upTo;

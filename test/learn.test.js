@@ -127,6 +127,7 @@ test('a finished session is retro’d, and the next session starts with what was
   assert.deepEqual(learned.global.preferences, ['Keep reports short']);
   assert.deepEqual(learned.projects[0].lessons, ['Run tests with node --test; npm test needs a build first']);
   assert.equal(learned.history[0].added.length, 2);
+  assert.equal(learned.history[0].status, 'learned');
 
   // The retro saw the failure and the commands, ran read-only on a cheap model, and was told what it already knew.
   const retro = records(RECORD, 'retro').at(-1);
@@ -168,6 +169,17 @@ test('a finished session is retro’d, and the next session starts with what was
   delete process.env.FAKE_RETRO;
   await until(() => records(RECORD, 'retro').length === 4); // one per settled session/follow-up
 
+  // Every run is in the log, including ones that learned nothing, so Settings can show them all.
+  const log = await until(async () => {
+    const p = await api('/preferences');
+    return p.history.length === 4 && !p.running && p;
+  });
+  const bySession = (id) => log.history.find((h) => h.sessionId === id);
+  assert.equal(bySession(s2.id).status, 'nothing', 's2 repeated what was already known');
+  assert.deepEqual(bySession(s2.id).added, []);
+  assert.equal(log.history[0].sessionId, s.id, 'newest first');
+  assert.equal(log.history[0].turns, 1, 'the follow-up retro read one turn');
+
 });
 
 test('settings can edit the lists, and turning learning off stops both learning and applying', async () => {
@@ -186,4 +198,22 @@ test('settings can edit the lists, and turning learning off stops both learning 
   assert.equal(records(RECORD, 'retro').length, retros, 'no retro while off');
   assert.equal((await api('/preferences')).enabled, false);
   await api('/config', { method: 'PATCH', body: { defaults: { learn: 'on' } } });
+});
+
+test('a retro whose reply cannot be read is logged as failed and changes nothing', async () => {
+  const before = await api('/preferences');
+  process.env.FAKE_RETRO = 'Sorry, I cannot help with that.';
+  try {
+    const s = await api('/sessions', { body: { prompt: 'task', cwd: makeRepo(), agent: 'claude' } });
+    await settled(s.id, 1);
+    const after = await until(async () => {
+      const p = await api('/preferences');
+      return p.history[0]?.sessionId === s.id && p;
+    });
+    assert.equal(after.history[0].status, 'failed');
+    assert.match(after.history[0].error, /Unreadable reply: Sorry/);
+    assert.deepEqual(after.global, before.global);
+  } finally {
+    delete process.env.FAKE_RETRO;
+  }
 });

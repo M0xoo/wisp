@@ -1831,8 +1831,7 @@ function openSettings() {
         <input name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></label>
       <div class="setting"><span>Desktop notifications</span><span class="notif-hint muted xs"></span><button class="switch" id="notif" role="switch"></button></div>
       <div class="setting"><span>Anonymous usage stats</span><span class="tele-hint muted xs"></span><button class="switch" id="tele" role="switch"></button></div>
-      <div class="setting"><span>Learn from sessions</span><span class="learn-hint muted xs"></span><button class="switch" id="learn" role="switch"></button></div>
-      <div class="learned" id="learned"></div>
+      <div class="setting"><span>Memory</span><span class="learn-hint muted xs"></span><button class="ghost xs" id="openMemory">Open</button><button class="switch" id="learn" role="switch"></button></div>
       <div class="agents">${S.agents
         .map((a) => `<div class="agent-row"><span class="dot ${a.available ? 'ok' : 'bad'}"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.available ? a.version : a.error || 'not found')}</span></div>`)
         .join('')}<p class="muted xs">Pick the agent next to the model in the launcher. Others plug in via <code>server/adapters</code>.</p></div>
@@ -1879,66 +1878,160 @@ function openSettings() {
     paintTele();
   };
   paintTele();
-  // Learned preferences and lessons: shown, editable, and switchable off as a whole.
+  // Memory: one line here (on/off and a summary); the lists and retros live in their own view.
   const learn = $('#learn', node);
-  const paintLearn = () => {
-    const on = S.config.defaults.learn !== 'off';
-    learn.setAttribute('aria-checked', on);
-    $('.learn-hint', node).textContent = on ? 'A quiet retro after each session' : 'Off — nothing learned or applied';
+  const paintLearn = async () => {
+    learn.setAttribute('aria-checked', S.config.defaults.learn !== 'off');
+    $('.learn-hint', node).textContent = memorySummary(await api('/preferences').catch(() => null));
   };
   learn.onclick = async () => {
-    await api('/config', { method: 'PATCH', body: { defaults: { learn: S.config.defaults.learn === 'off' ? 'on' : 'off' } } });
-    await loadConfig();
+    await setLearning(S.config.defaults.learn === 'off');
     paintLearn();
-    renderLearned($('#learned', node));
   };
+  $('#openMemory', node).onclick = () => openMemory();
+  node.paintLearn = paintLearn;
   paintLearn();
-  renderLearned($('#learned', node));
 }
 
-const LEARN_KINDS = [
-  ['preferences', 'Preferences', 'How you like agents to work'],
-  ['lessons', 'Lessons', 'Mistakes made before, and the way that worked'],
-];
+// --- memory: what the background retros learned ---------------------------------------------
 
-// Settings → what wisp learned, global first, then each project. Every list is editable.
-async function renderLearned(box) {
-  if (!box?.isConnected) return;
-  const data = await api('/preferences').catch(() => null);
-  if (!data || !box.isConnected) return;
-  const scopes = [{ scope: 'global', name: 'Everywhere', ...data.global }, ...data.projects.map((p) => ({ scope: p.path, name: p.name, sub: p.path.replace(S.config.home, '~'), ...p }))];
-  const count = (x) => x.preferences.length + x.lessons.length;
-  const list = (x, [kind, label, hint]) => `
-    <div class="learn-list" data-scope="${esc(x.scope)}" data-kind="${kind}">
-      <h5>${label} <span class="muted xs">${hint}</span></h5>
-      ${x[kind].map((t) => `<div class="learn-item"><input value="${esc(t)}" spellcheck="false"><button class="icon-btn" data-del title="Forget">${icon('x')}</button></div>`).join('')}
-      <div class="learn-item add"><input placeholder="Add one…" spellcheck="false"></div>
-    </div>`;
-  const recent = data.history.slice(0, 4);
-  box.classList.toggle('off', !data.enabled);
-  box.innerHTML = `
-    ${scopes
-      .map((x, i) => `<details ${i === 0 ? 'open' : ''}><summary><b>${esc(x.name)}</b>${x.sub ? `<span class="ppath">${esc(x.sub)}</span>` : ''}<span class="muted xs">${count(x)} item${count(x) === 1 ? '' : 's'}${x.updatedAt ? ` · ${ago(x.updatedAt)}` : ''}</span></summary>${LEARN_KINDS.map((k) => list(x, k)).join('')}</details>`)
-      .join('')}
-    ${recent.length ? `<h5>Recently learned</h5>${recent.map((h) => `<div class="learn-log"><span class="muted xs">${ago(h.at)}</span><span>${esc(h.title || 'session')}</span><span class="add-n">+${h.added.length}</span><span class="del-n">−${h.removed.length}</span></div>`).join('')}` : ''}`;
-  const put = async (listNode) => {
-    const items = $$('.learn-item:not(.add) input', listNode).map((i) => i.value.trim()).filter(Boolean);
-    const add = $('.learn-item.add input', listNode).value.trim();
-    if (add) items.push(add);
-    await api('/preferences', { method: 'PUT', body: { scope: listNode.dataset.scope, kind: listNode.dataset.kind, items } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
-    const open = $$('details', box).map((d) => d.open);
-    await renderLearned(box);
-    $$('details', box).forEach((d, i) => (d.open = open[i] ?? d.open));
+const MEM_KINDS = [
+  { kind: 'preferences', label: 'Preferences', one: 'preference', icon: 'spark', hint: 'How you like agents to work', empty: 'Corrections and “always / never” asks from your sessions land here.' },
+  { kind: 'lessons', label: 'Lessons', one: 'lesson', icon: 'check', hint: 'A mistake an agent made, and the way that worked', empty: 'When an agent hits a wall and finds the fix, the fix lands here.' },
+];
+const MEM_CAP = 10;
+const memCount = (x) => x.preferences.length + x.lessons.length;
+const projectName = (p) => S.config.projects.find((x) => x.path === p)?.name || String(p || '').split(/[\\/]/).pop();
+
+async function setLearning(on) {
+  await api('/config', { method: 'PATCH', body: { defaults: { learn: on ? 'on' : 'off' } } });
+  await loadConfig();
+}
+
+function memorySummary(data) {
+  if (!data) return '';
+  if (!data.enabled) return 'Off · nothing learned or applied';
+  const n = memCount(data.global) + data.projects.reduce((a, p) => a + memCount(p), 0);
+  const last = data.history[0];
+  if (data.running) return `Retro running · ${n} remembered`;
+  return `${n ? `${n} remembered` : 'Nothing yet'}${last ? ` · last retro ${ago(last.at)}` : ''}`;
+}
+
+function openMemory({ tab = 'global' } = {}) {
+  const node = el(`<div class="modal memory-modal">
+      <header><h2>Memory</h2><span class="mem-live"></span><button class="switch" id="memOn" role="switch" title="Learn from sessions"></button><button class="icon-btn close">${icon('x')}</button></header>
+      <p class="mem-lede">Learned from your sessions and added to every agent's prompt. What you ask always wins.</p>
+      <div class="mem-tabs" role="tablist"></div>
+      <div class="mem-body"></div>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  let data;
+  let editing = null; // { scope, kind, index } (index -1 = adding)
+
+  const render = async () => {
+    data = (await api('/preferences').catch(() => null)) || data;
+    if (!data || !node.isConnected) return;
+    // Projects with something learned, plus the one picked in the launcher so you can add to it.
+    const current = projectById(launchProject);
+    const projects = data.projects.filter((p) => memCount(p) || p.path === current?.path);
+    if (current && !projects.some((p) => p.path === current.path)) projects.push({ path: current.path, name: current.name, preferences: [], lessons: [] });
+    const scopes = [{ scope: 'global', name: 'Everywhere', ...data.global }, ...projects.map((p) => ({ scope: p.path, ...p }))];
+    if (tab !== 'retros' && !scopes.some((x) => x.scope === tab)) tab = 'global';
+    $('#memOn', node).setAttribute('aria-checked', data.enabled);
+    $('.mem-live', node).innerHTML = data.running ? `<span class="orb live"></span>Retro running` : data.enabled ? '' : 'Off';
+    $('.mem-tabs', node).innerHTML =
+      scopes.map((x) => `<button role="tab" data-tab="${esc(x.scope)}" class="${tab === x.scope ? 'on' : ''}" title="${esc(x.scope === 'global' ? 'Applies in every project' : x.scope.replace(S.config.home, '~'))}">${esc(x.name)}<span>${memCount(x)}</span></button>`).join('') +
+      `<i></i><button role="tab" data-tab="retros" class="${tab === 'retros' ? 'on' : ''}">Retros<span>${data.history.length}</span></button>`;
+    const body = $('.mem-body', node);
+    body.classList.toggle('off', !data.enabled);
+    const banner = data.enabled ? '' : `<div class="mem-off">${icon('info')}<span>Memory is off: no retros run, and nothing below reaches your agents.</span><button class="ghost xs" data-act="on">Turn on</button></div>`;
+    body.innerHTML = banner + (tab === 'retros' ? retrosView() : scopeView(scopes.find((x) => x.scope === tab)));
+    const input = $('.mem-edit input', body);
+    if (input) input.focus(), input.setSelectionRange(input.value.length, input.value.length);
   };
-  box.onchange = (e) => e.target.matches('input') && put(e.target.closest('.learn-list'));
-  box.onclick = (e) => {
-    const del = e.target.closest('[data-del]');
-    if (!del) return;
-    const listNode = del.closest('.learn-list');
-    del.closest('.learn-item').remove();
-    put(listNode);
+
+  // Which retro added an item, if it's still in the log.
+  const origin = (scope, kind, text) => data.history.find((h) => h.added?.some((a) => a.text === text && a.kind === kind && (a.scope === 'global') === (scope === 'global')));
+
+  const scopeView = (x) => {
+    const chars = [...(x.scope === 'global' ? [] : [...data.global.preferences, ...data.global.lessons]), ...x.preferences, ...x.lessons].reduce((a, t) => a + t.length + 3, 0);
+    const budget = x.scope === 'global' ? `Added to every prompt · about ${Math.ceil(chars / 4)} tokens` : `Added to prompts in ${esc(x.name)}, with Everywhere · about ${Math.ceil(chars / 4)} tokens`;
+    return `<p class="mem-budget muted xs">${budget}</p>` + MEM_KINDS.map((k) => {
+      const items = x[k.kind];
+      const row = (t, i) => {
+        if (editing && editing.scope === x.scope && editing.kind === k.kind && editing.index === i) return editRow(t, k);
+        const o = origin(x.scope, k.kind, t);
+        return `<div class="mem-item" data-i="${i}"><span class="mem-ico">${icon(k.icon)}</span><div class="mem-main"><p>${esc(t)}</p>${o ? `<span class="mem-src">${o.sessionId && S.sessions.has(o.sessionId) ? `<a href="#" data-session="${esc(o.sessionId)}">${esc(o.title || 'session')}</a>` : esc(o.title || 'a session')} · ${ago(o.at)}</span>` : ''}</div>
+          <span class="mem-acts"><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="forget" title="Forget">${icon('trash')}</button></span></div>`;
+      };
+      const adding = editing && editing.scope === x.scope && editing.kind === k.kind && editing.index === -1;
+      return `<section class="mem-sec" data-scope="${esc(x.scope)}" data-kind="${k.kind}">
+        <h4>${k.label}<span class="muted xs">${k.hint}</span><em class="${items.length >= MEM_CAP ? 'full' : ''}" title="At most ${MEM_CAP}; a retro drops the least useful when full">${items.length}/${MEM_CAP}</em></h4>
+        ${items.map(row).join('') || (adding ? '' : `<p class="mem-empty">${k.empty}</p>`)}
+        ${adding ? editRow('', k) : `<button class="mem-add" data-act="add">${icon('plus')}Add a ${k.one}</button>`}
+      </section>`;
+    }).join('');
   };
-  box.onkeydown = (e) => e.key === 'Enter' && e.target.matches('input') && e.target.blur();
+  const editRow = (t, k) => `<div class="mem-item mem-edit"><span class="mem-ico">${icon(k.icon)}</span><input value="${esc(t)}" maxlength="180" spellcheck="false" placeholder="One short sentence, e.g. “Run tests with node --test”"><span class="muted xs">↵ save · esc cancel</span></div>`;
+
+  const retrosView = () => {
+    const live = data.running ? `<div class="tl running"><span class="tl-dot"><span class="orb live"></span></span><div class="tl-main"><div class="tl-head"><b>${esc(data.running.title || 'session')}</b><span class="muted xs">now</span></div><p class="muted xs">Reading ${data.running.turns} turn${data.running.turns === 1 ? '' : 's'} with ${esc(agentName(data.running.agent))}…</p></div></div>` : '';
+    const where = (a) => `<span class="tl-tag">${a.scope === 'global' ? 'everywhere' : 'project'} · ${a.kind === 'lessons' ? 'lesson' : 'preference'}</span>`;
+    const entries = data.history.map((h) => {
+      const status = h.status || 'learned';
+      const lines =
+        status === 'failed' ? `<p class="tl-err">${esc(h.error || 'The retro run failed.')}</p>`
+        : status === 'nothing' ? '<p class="muted xs">Nothing new worth remembering.</p>'
+        : [...h.added.map((a) => `<p class="tl-add">${esc(a.text ?? a)} ${a.kind ? where(a) : ''}</p>`), ...h.removed.map((a) => `<p class="tl-del"><s>${esc(a.text ?? a)}</s> ${a.kind ? where(a) : ''}</p>`)].join('');
+      const title = S.sessions.has(h.sessionId) ? `<a href="#" data-session="${esc(h.sessionId)}">${esc(h.title || 'session')}</a>` : esc(h.title || 'session');
+      return `<div class="tl ${status}"><span class="tl-dot"></span><div class="tl-main"><div class="tl-head"><b>${title}</b>${h.project ? `<span class="muted xs">${esc(projectName(h.project))}</span>` : ''}<span class="muted xs">${ago(h.at)}</span></div>${lines}</div></div>`;
+    });
+    return live + entries.join('') || `<p class="mem-empty">No retros yet. One runs 90 s after a session finishes, or as soon as you mark it done or archive it.</p>`;
+  };
+
+  const save = async (scope, kind, items) => {
+    await api('/preferences', { method: 'PUT', body: { scope, kind, items } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    editing = null;
+    await render();
+  };
+  const commit = (input) => {
+    if (!editing) return;
+    const { scope, kind, index } = editing;
+    editing = null; // Enter then blur must not save twice
+    const list = ((scope === 'global' ? data.global : data.projects.find((p) => p.path === scope)) || { [kind]: [] })[kind].slice();
+    const v = input.value.trim();
+    if (index === -1) v ? list.push(v) : null;
+    else v ? (list[index] = v) : list.splice(index, 1);
+    save(scope, kind, list);
+  };
+
+  node.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-tab],[data-act],[data-session]');
+    if (!t) return;
+    e.preventDefault();
+    if (t.dataset.tab) return (tab = t.dataset.tab), (editing = null), render();
+    if (t.dataset.session) return close(), reveal(t.dataset.session);
+    const act = t.dataset.act;
+    if (act === 'on') return setLearning(true).then(render);
+    const sec = t.closest('.mem-sec');
+    const { scope, kind } = sec.dataset;
+    const index = Number(t.closest('.mem-item')?.dataset.i ?? -1);
+    if (act === 'add' || act === 'edit') return (editing = { scope, kind, index }), render();
+    if (act === 'forget') {
+      const list = (scope === 'global' ? data.global : data.projects.find((p) => p.path === scope))[kind].filter((_, i) => i !== index);
+      return save(scope, kind, list);
+    }
+  });
+  node.addEventListener('keydown', (e) => {
+    if (!e.target.matches('.mem-edit input')) return;
+    if (e.key === 'Enter') e.preventDefault(), commit(e.target);
+    if (e.key === 'Escape') e.preventDefault(), e.stopPropagation(), (editing = null), render();
+  });
+  node.addEventListener('focusout', (e) => e.target.matches('.mem-edit input') && editing && commit(e.target));
+  $('#memOn', node).onclick = async () => (await setLearning(!data?.enabled), render());
+  node.refresh = () => !editing && render();
+  render();
 }
 
 // Say once that anonymous stats are on, with a way out.
@@ -2040,6 +2133,7 @@ function paletteItems() {
   items.push(
     { group: a, label: 'Add project…', icon: 'folder', keywords: 'folder repo directory', run: () => openProjects({ focusAdd: true }) },
     { group: a, label: 'Manage projects', icon: 'folder', keywords: 'rename color remove', run: () => openProjects() },
+    { group: a, label: 'Memory', icon: 'spark', keywords: 'learned preferences lessons retro', run: () => openMemory() },
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
@@ -2124,7 +2218,10 @@ function connect() {
   });
   es.addEventListener('config', () => loadConfig());
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
-  es.addEventListener('preferences', () => renderLearned($('.settings-modal #learned')));
+  es.addEventListener('preferences', () => {
+    $('.memory-modal')?.refresh();
+    $('.settings-modal')?.paintLearn?.();
+  });
   es.addEventListener('hello', () => (loadSessions(), loadUpdate())); // also after sleep/reconnect
 }
 
