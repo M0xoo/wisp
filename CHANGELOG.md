@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- The launcher's Recipes row no longer has a Manage link. Recipes are still one click away from the Automations button in the top bar.
 - Every text field, textarea, select and checkbox now shares one look from a small form kit in `web/css/app.css` (`.input`, `.textarea`, `.field`, `.check`, plus `.mono` / `.sm` / `.lg`): the same border, radius, height, placeholder colour, hover and focus ring across Settings, Phone, Automations, Ship it, Run recipe, Projects, the model picker search, the Subagents editor and question cards. Checkboxes use the accent colour.
 
 ### Fixed

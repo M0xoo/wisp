@@ -1260,9 +1260,7 @@ function renderLaunchRecipes() {
     ${list.map((r) => `<button class="lp-chip rc" data-recipe="${esc(r.id)}" title="${esc(r.prompt.replace(/\s+/g, ' ').slice(0, 200))}">${esc(r.name)}${recipeParams(r.prompt).length ? '<i class="rc-f">…</i>' : ''}</button>`).join('')}
     ${list.length ? '' : `<span class="muted xs lr-empty">${hidden ? `None for this project · ${hidden} elsewhere` : 'Prompts you send again and again, one click away'}</span>`}
     <button class="lp-chip add" id="lrSave" hidden>${icon('plus')}Save as recipe</button>
-    <button class="lp-chip add" id="lrNew">${icon('plus')}New</button>
-    <span class="grow"></span>
-    <button class="link xs" id="lrAll">Manage</button>`;
+    <button class="lp-chip add" id="lrNew">${icon('plus')}New</button>`;
   row.onclick = (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -1273,7 +1271,6 @@ function renderLaunchRecipes() {
     const draft = { name: '', prompt: '', cwd: path || '', mode: $('#launcher').mode?.() };
     if (b.id === 'lrSave') openAutomations({ tab: 'recipes', edit: { type: 'recipe', draft: { ...draft, prompt: $('#prompt').value.trim() } } });
     if (b.id === 'lrNew') openAutomations({ tab: 'recipes', edit: { type: 'recipe', draft } });
-    if (b.id === 'lrAll') openAutomations({ tab: 'recipes' });
   };
   paintSaveRecipe();
 }
