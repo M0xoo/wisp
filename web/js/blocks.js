@@ -274,6 +274,23 @@ R.compare = (b) => {
   return el(`<div class="b-compare">${side(b.before, 'before')}<div class="arrow">${icon('arrow')}</div>${side(b.after, 'after')}</div>`);
 };
 
+// Orthogonal polyline with rounded corners.
+const orthPath = (pts, r = 10) =>
+  pts
+    .map(([x, y], i) => {
+      if (i === 0) return `M${x},${y}`;
+      if (i === pts.length - 1) return `L${x},${y}`;
+      const [px, py] = pts[i - 1];
+      const [nx, ny] = pts[i + 1];
+      const k1 = Math.min(r, Math.hypot(x - px, y - py) / 2);
+      const k2 = Math.min(r, Math.hypot(nx - x, ny - y) / 2);
+      const ux = Math.sign(x - px), uy = Math.sign(y - py), vx = Math.sign(nx - x), vy = Math.sign(ny - y);
+      return `L${x - ux * k1},${y - uy * k1} Q${x},${y} ${x + vx * k2},${y + vy * k2}`;
+    })
+    .join(' ');
+const FLOW_MIN_COL = 150; // px a column needs before the row wraps
+const FLOW_GAP = 46;
+
 R.flow = (b) => {
   const nodes = (b.nodes || []).map((n, i) => (typeof n === 'string' ? { id: String(i), label: n } : { id: String(n.id ?? i), ...n }));
   const ids = nodes.map((n) => n.id);
@@ -314,8 +331,27 @@ R.flow = (b) => {
       const r = stage.querySelector(`.node[data-id="${CSS.escape(id)}"]`).getBoundingClientRect();
       return { l: r.left - box.left, t: r.top - box.top, r: r.right - box.left, b: r.bottom - box.top, cx: r.left - box.left + r.width / 2, cy: r.top - box.top + r.height / 2 };
     };
-    const vertical = getComputedStyle(stage.querySelector('.cols')).flexDirection === 'column';
+    const colsEl = stage.querySelector('.cols');
+    const vertical = getComputedStyle(colsEl).flexDirection === 'column';
+    // Too many columns for the width: wrap into rows that snake (L→R, then R→L, …).
+    const hasBack = edges.some((e) => order[e.to] <= order[e.from]);
+    const room = box.width - 4 - (hasBack ? 70 : 0); // leave the loop gutter either way so the row count is stable
+    const perRow = vertical ? cols.length : Math.max(1, Math.floor((room + FLOW_GAP) / (FLOW_MIN_COL + FLOW_GAP)));
+    const snake = !vertical && cols.length > perRow;
+    if (snake !== colsEl.classList.contains('snake') || (snake && colsEl.style.getPropertyValue('--per-row') !== String(perRow))) {
+      colsEl.classList.toggle('snake', snake);
+      colsEl.style.setProperty('--per-row', snake ? perRow : '');
+      [...colsEl.children].forEach((c, i) => {
+        const row = Math.floor(i / perRow);
+        const pos = i % perRow;
+        c.style.gridRow = snake ? row + 1 : '';
+        c.style.gridColumn = snake ? (row % 2 ? perRow - pos : pos + 1) : '';
+      });
+      return requestAnimationFrame(draw);
+    }
     let out = '';
+    let loopTop = false;
+    let loopBottom = false;
     edges.forEach((e, i) => {
       const a = rect(e.from);
       const z = rect(e.to);
@@ -324,13 +360,22 @@ R.flow = (b) => {
       let lx;
       let ly;
       if (back) {
-        if (vertical) {
+        if (snake && Math.abs(a.cy - z.cy) > 4) {
+          // Out to the right gutter, up, then over the top of the target so it never crosses a card.
+          const x = box.width - 44;
+          const y = z.t - 16;
+          d = orthPath([[a.r, a.cy], [x, a.cy], [x, y], [z.cx, y], [z.cx, z.t]]);
+          lx = x + 6;
+          ly = (a.cy + y) / 2;
+          loopTop ||= y < 0;
+        } else if (vertical) {
           const x = Math.max(a.r, z.r) + 26;
           d = `M${a.r},${a.cy} C${x},${a.cy} ${x},${z.cy} ${z.r},${z.cy}`;
           lx = x + 4;
           ly = (a.cy + z.cy) / 2;
         } else {
           const y = Math.max(a.b, z.b) + 34;
+          loopBottom = true;
           d = `M${a.cx},${a.b} C${a.cx},${y} ${z.cx},${y} ${z.cx},${z.b}`;
           lx = (a.cx + z.cx) / 2;
           ly = y - 4;
@@ -340,6 +385,18 @@ R.flow = (b) => {
         d = `M${a.cx},${a.b} C${a.cx},${m} ${z.cx},${m} ${z.cx},${z.t}`;
         lx = (a.cx + z.cx) / 2 + 8;
         ly = m;
+      } else if (snake && z.t >= a.b) {
+        // Row turn: drop from the end of one row into the start of the next.
+        const m = (a.b + z.t) / 2;
+        d = `M${a.cx},${a.b} C${a.cx},${m} ${z.cx},${m} ${z.cx},${z.t}`;
+        lx = (a.cx + z.cx) / 2 + 8;
+        ly = m;
+      } else if (z.cx < a.cx) {
+        // Right-to-left row.
+        const m = (a.l + z.r) / 2;
+        d = `M${a.l},${a.cy} C${m},${a.cy} ${m},${z.cy} ${z.r},${z.cy}`;
+        lx = m;
+        ly = (a.cy + z.cy) / 2 - 8;
       } else {
         const m = (a.r + z.l) / 2;
         d = `M${a.r},${a.cy} C${m},${a.cy} ${m},${z.cy} ${z.l},${z.cy}`;
@@ -348,11 +405,13 @@ R.flow = (b) => {
       }
       out += `<path class="wire ${back ? 'back' : ''}" d="${d}" pathLength="1" style="--k:${i}"/>`;
       if (!reduced()) out += `<circle r="3" class="spark ${back ? 'back' : ''}"><animateMotion dur="${back ? 3.2 : 2.2}s" begin="${0.8 + i * 0.35}s" repeatCount="indefinite" path="${d}"/></circle>`;
-      if (e.label) out += `<text x="${lx}" y="${ly}" class="wire-label" text-anchor="${vertical ? 'start' : 'middle'}">${esc(e.label)}</text>`;
+      const side = vertical || (snake && (back ? Math.abs(a.cy - z.cy) > 4 : z.t >= a.b));
+      if (e.label) out += `<text x="${lx}" y="${ly}" class="wire-label" text-anchor="${side ? 'start' : 'middle'}">${esc(e.label)}</text>`;
     });
     svg.innerHTML = out;
-    stage.style.paddingBottom = !vertical && edges.some((e) => order[e.to] <= order[e.from]) ? '46px' : '';
-    stage.style.paddingRight = vertical && edges.some((e) => order[e.to] <= order[e.from]) ? '70px' : '';
+    stage.style.paddingBottom = loopBottom ? '46px' : '';
+    stage.style.paddingRight = (vertical || snake) && hasBack ? '70px' : '';
+    stage.style.paddingTop = loopTop || (snake && stage.style.paddingTop && hasBack) ? '22px' : '';
   };
   new ResizeObserver(() => requestAnimationFrame(draw)).observe(node);
   return node;

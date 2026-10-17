@@ -792,6 +792,8 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .wire-label { font: 500 11px var(--sans); fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
 .cols { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 46px; }
 .col { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; max-width: 220px; }
+.cols.snake { display: grid; grid-template-columns: repeat(var(--per-row), minmax(0, 1fr)); column-gap: 46px; row-gap: 40px; align-items: center; }
+.cols.snake .col { width: 100%; max-width: 220px; justify-self: center; }
 .node {
   position: relative; padding: 9px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line-2);
   text-align: center; animation: pop 0.4s var(--ease) calc(200ms + var(--k) * 120ms) both;
