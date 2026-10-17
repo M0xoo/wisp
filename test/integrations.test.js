@@ -56,7 +56,7 @@ test('health, server.json discovery and the OpenAPI document', async () => {
   assert.equal(discover().port, port);
   const spec = await wisp.request('GET', '/openapi.json');
   assert.equal(spec.openapi, '3.1.0');
-  for (const p of ['/sessions', '/sessions/{id}/wait', '/sessions/{id}/presentation', '/sessions/{id}/reply']) assert.ok(spec.paths[p], p);
+  for (const p of ['/sessions', '/sessions/{id}/wait', '/sessions/{id}/presentation', '/sessions/{id}/reply', '/sessions/{id}/revert', '/sessions/{id}/rollback', '/sessions/{id}/exec']) assert.ok(spec.paths[p], p);
 });
 
 test('client: launch → wait → presentation as blocks and markdown; filters', async () => {
@@ -70,12 +70,52 @@ test('client: launch → wait → presentation as blocks and markdown; filters',
   assert.equal(p.blocks[0].title, 'Fake claude finished');
   assert.match(p.markdown, /^## Fake claude finished/);
   assert.ok(p.changes.some((c) => c.file === 'math.js'));
+  assert.ok(p.checkpoint?.commit, 'turn checkpoint captured');
+  assert.equal(p.checkpoint.dirty, true);
   const md = await (await wisp.request('GET', `/sessions/${s.id}/presentation?format=markdown`, undefined, { raw: true })).text();
   assert.equal(md, p.markdown);
 
   assert.ok((await wisp.sessions({ cwd })).every((x) => x.id === s.id));
   assert.equal((await wisp.sessions({ cwd, state: 'running' })).length, 0);
   assert.equal((await wisp.sessions({ limit: 1 })).length, 1);
+});
+
+test('client: file revert/restore, turn checkpoint rollback/restore, and action command execution', async () => {
+  const cwd = makeRepo();
+  const s = await wisp.launch({ prompt: 'fix add()', cwd, agent: 'claude', mode: 'edits' });
+  await wisp.wait(s.id, { timeoutMs: 20_000 });
+  const full = await wisp.session(s.id);
+  const turn = full.turns[0];
+  assert.ok(turn.checkpoint?.commit);
+  assert.match(fs.readFileSync(path.join(cwd, 'math.js'), 'utf8'), /return a \+ b;/);
+
+  // Single-file revert restores pre-turn file content (including uncommitted line)
+  const rev = await wisp.revert(s.id, 'math.js', { turnId: turn.id });
+  assert.equal(rev.reverted, true);
+  assert.equal(fs.readFileSync(path.join(cwd, 'math.js'), 'utf8'), 'export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n');
+  assert.equal((await wisp.presentation(s.id)).changes.find((c) => c.file === 'math.js').reverted, true);
+
+  // Re-apply single file change
+  const reapplied = await wisp.revert(s.id, 'math.js', { turnId: turn.id, restore: true });
+  assert.equal(reapplied.reverted, false);
+  assert.match(fs.readFileSync(path.join(cwd, 'math.js'), 'utf8'), /return a \+ b;/);
+
+  // Simulate an untracked file created during the turn, then roll back the whole turn to checkpoint
+  fs.writeFileSync(path.join(cwd, 'extra-turn-file.txt'), 'created in turn\n');
+  const rb = await wisp.rollback(s.id, { turnId: turn.id });
+  assert.equal(rb.rolledBack, true);
+  assert.equal(fs.readFileSync(path.join(cwd, 'math.js'), 'utf8'), 'export function add(a, b) {\n  return a - b;\n}\n// uncommitted\n');
+  assert.equal(fs.existsSync(path.join(cwd, 'extra-turn-file.txt')), false, 'untracked file created after pre-turn checkpoint is removed');
+
+  // Re-apply the turn changes
+  const unrb = await wisp.rollback(s.id, { turnId: turn.id, restore: true });
+  assert.equal(unrb.rolledBack, false);
+  assert.match(fs.readFileSync(path.join(cwd, 'math.js'), 'utf8'), /return a \+ b;/);
+
+  // Execute an actionable block command in the session's project directory
+  const runOk = await wisp.exec(s.id, 'node -e "console.log(2 + 2)"', { turnId: turn.id });
+  assert.equal(runOk.exitCode, 0);
+  assert.equal(runOk.output.trim(), '4');
 });
 
 test('wait returns when the agent asks; reply answers it', async () => {
@@ -200,9 +240,10 @@ test('render: every block type becomes markdown; diffs come from captured edits'
     { type: 'callout', tone: 'warn', title: 'c', text: 'x' },
     { type: 'image', path: 'p.png' },
     { type: 'question', question: 'q?', options: [{ label: 'y' }] },
+    { type: 'actions', title: 'Verify', items: [{ label: 'Run tests', command: 'npm test', detail: 'suite' }] },
     { type: 'next', items: ['n'] },
     { type: 'unknown', x: 1 },
   ];
   const md = blocksToMarkdown(blocks, turn);
-  for (const s of ['## T', '🟡 Partly done', '```diff\n a\n-b\n+c', '````js\nx ``` y\n````', '1 passed, 1 failed', '`abcdef1` m', '[exit 2]', 'A → B', '- [x] t', '> **⚠️ c**', '1. y', '"type": "unknown"']) assert.ok(md.includes(s), s);
+  for (const s of ['## T', '🟡 Partly done', '```diff\n a\n-b\n+c', '````js\nx ``` y\n````', '1 passed, 1 failed', '`abcdef1` m', '[exit 2]', 'A → B', '- [x] t', '> **⚠️ c**', '1. y', '**Run tests** — `$ npm test` (suite)', '"type": "unknown"']) assert.ok(md.includes(s), s);
 });

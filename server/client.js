@@ -115,6 +115,15 @@ export class WispClient {
   remove = (id) => this.request('DELETE', `/sessions/${id}`);
   stop = (id) => this.request('POST', `/sessions/${id}/stop`, {});
   answer = (id, text) => this.request('POST', `/sessions/${id}/answer`, { text });
+  revert = (id, fileOrOpts, opts = {}) => {
+    const body = typeof fileOrOpts === 'string' ? { file: fileOrOpts, ...opts } : fileOrOpts || {};
+    return this.request('POST', `/sessions/${id}/revert`, body);
+  };
+  rollback = (id, { turnId, restore = false } = {}) => this.request('POST', `/sessions/${id}/rollback`, { turnId, restore });
+  exec = (id, cmdOrOpts, opts = {}) => {
+    const body = typeof cmdOrOpts === 'string' ? { command: cmdOrOpts, ...opts } : cmdOrOpts || {};
+    return this.request('POST', `/sessions/${id}/exec`, body);
+  };
   takeover = (id, { open = false } = {}) => this.request(open ? 'POST' : 'GET', `/sessions/${id}/takeover`, open ? {} : undefined);
 
   // { prompt, cwd, agent, mode, model, effort, attachments: [uploadId] }. Missing agent/mode/model

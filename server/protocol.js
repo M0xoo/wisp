@@ -58,6 +58,8 @@ diff, the test run, the command output — over prose. Use file paths relative t
   A screenshot or generated image on disk.
 - {"type":"question","question":"…","options":[{"label":"Short choice","reply":"full message sent back to you"}]}
   When you need a decision. The user's click resumes you with the reply.
+- {"type":"actions","title":"…","items":[{"label":"Run tests","command":"npm test"},{"label":"Follow up","reply":"…"}]}
+  One-click shell commands (executed in the project root) or follow-up actions the user may want to trigger.
 - {"type":"next","items":["Suggested follow-up the user might send", "…"]}
   Usually last. 2–4 concrete follow-ups.
 

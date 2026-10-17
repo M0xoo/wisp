@@ -114,6 +114,30 @@ export function openapi({ version, port }) {
         },
       },
       '/sessions/{id}/answer': { parameters: [id], post: { summary: 'Answer the pending ask_user question', requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' } } }), responses: { 200: ok } } },
+      '/sessions/{id}/revert': {
+        parameters: [id],
+        post: {
+          summary: 'Revert (or re-apply) a single file’s changes from a turn',
+          requestBody: body({ type: 'object', required: ['file'], properties: { file: { type: 'string' }, turnId: { type: 'string' }, restore: { type: 'boolean' } } }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, turnId: { type: 'string' }, file: { type: 'string' }, reverted: { type: 'boolean' } } }), 400: err[400], 404: err[404] },
+        },
+      },
+      '/sessions/{id}/rollback': {
+        parameters: [id],
+        post: {
+          summary: 'Restore the project working tree to the checkpoint before a turn (or re-apply)',
+          requestBody: body({ type: 'object', properties: { turnId: { type: 'string' }, restore: { type: 'boolean' } } }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, turnId: { type: 'string' }, rolledBack: { type: 'boolean' }, files: { type: 'array', items: { type: 'string' } } } }), 400: err[400], 404: err[404] },
+        },
+      },
+      '/sessions/{id}/exec': {
+        parameters: [id],
+        post: {
+          summary: 'Run a shell command from an actionable presentation block in the session’s project folder',
+          requestBody: body({ type: 'object', required: ['command'], properties: { command: { type: 'string' }, turnId: { type: 'string' }, key: { type: 'string' } } }),
+          responses: { 200: json({ type: 'object', properties: { command: { type: 'string' }, output: { type: 'string' }, exitCode: { type: 'integer' }, durationMs: { type: 'integer' } } }), 400: err[400] },
+        },
+      },
       '/sessions/{id}/stop': { parameters: [id], post: { summary: 'Stop the run and drop queued follow-ups', responses: { 200: ok } } },
       '/sessions/{id}/queue': { parameters: [id, { name: 'item', in: 'query', required: true, schema: { type: 'string' } }], delete: { summary: 'Cancel a queued follow-up', responses: { 200: ok, 404: err[404] } } },
       '/sessions/{id}/takeover': {

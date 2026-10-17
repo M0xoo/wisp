@@ -202,6 +202,7 @@ wisp/
 │   ├── mcp-wisp.js        # `wisp mcp`: wisp as tools for other agents
 │   ├── render.js          # presentation → markdown
 │   ├── runner.js          # session lifecycle, follow-ups, event normalization
+│   ├── checkpoint.js      # per-turn git checkpoints, file revert, rollback, action exec
 │   ├── protocol.js        # system prompt + ```wisp block parser (markdown fallback)
 │   ├── mcp-ask.js         # ask_user MCP server
 │   ├── store.js           # JSON-file persistence in ~/.wisp
@@ -231,7 +232,7 @@ wisp/
 
 ### Presentation blocks
 
-`hero` · `markdown` · `steps` · `stats` · `files` · `tree` · `diff` · `code` · `tests` · `commits` · `terminal` · `compare` · `flow` · `chart` · `checklist` · `callout` · `image` · `question` · `next`
+`hero` · `markdown` · `steps` · `stats` · `files` · `tree` · `diff` · `code` · `tests` · `commits` · `terminal` · `compare` · `flow` · `chart` · `checklist` · `callout` · `image` · `question` · `actions` · `next`
 
 ## Adding a harness
 

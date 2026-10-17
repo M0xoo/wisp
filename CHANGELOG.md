@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Actionable presentation blocks: a new `actions` block (`items: [{label, command, detail, confirm} | {label, reply}]`) renders 1-click command buttons that run in the session's project folder (`POST /api/sessions/:id/exec`), show live exit code, duration and output inline, and offer a **Send failure to agent** follow-up button when a command fails. `terminal` and `tests` blocks with a `command` now have a **Run / Re-run** button, and `diff` and `files` blocks have a per-file **Revert / Re-apply** button (`POST /api/sessions/:id/revert`).
+- Session checkpoints & one-click rollback: before each turn starts, wisp snapshots the git working tree (`git stash create || git rev-parse --verify HEAD`, pinned at `refs/wisp/checkpoints/<session>/<turn>`) along with pre-turn untracked files and per-file before snapshots. Each turn's trail bar, session menu, and command palette include **Restore to before this turn** (and **Re-apply turn** / Undo) via `POST /api/sessions/:id/rollback`.
+
 ### Changed
 
 - The launcher stays reachable while you scroll: once it passes under the top bar it docks there as a one-line bar (project chip + draft). Click it, or press `⌘L` / `N`, and the full launcher opens in place over the feed, without scrolling you back to the top. `Esc` or clicking away folds it again. Cards selected with `J` / `K` or opened scroll into view below it.

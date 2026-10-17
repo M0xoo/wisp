@@ -767,6 +767,8 @@ function ctxFor(s, turn, isLatest) {
     openFile: (p, line) => openInEditor(s, p, line),
     fileUrl: (p) => `/api/sessions/${s.id}/file?path=${encodeURIComponent(p)}`,
     zoom: (src) => overlay(el(`<img class="lightbox" src="${esc(src)}">`)),
+    revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
+    exec: (command, key) => execAction(s.id, turn.id, command, key),
   };
 }
 
@@ -840,7 +842,8 @@ function renderBody(id, { fresh }) {
   turns.forEach((t) => {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
-    const key = `${t.status}|${isLatest}|${folded}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}`;
+    const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
+    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
@@ -872,6 +875,7 @@ function renderFoldedTurn(t, unfold) {
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
         <span class="t-prompt">${esc(t.prompt.replace(/\s+/g, ' '))}</span>
+        ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
       </button>
@@ -882,14 +886,21 @@ function renderFoldedTurn(t, unfold) {
 
 // `fold` is set for older turns the user unfolded, so they can tuck them away again.
 function renderTurn(s, t, isLatest, fold) {
-  const node = el(`<article class="turn" data-turn="${t.id}"></article>`);
+  const node = el(`<article class="turn ${t.rolledBackAt ? 'is-rolled-back' : ''}" data-turn="${t.id}"></article>`);
   const long = t.prompt.length > 360 || t.prompt.split('\n').length > 5;
+  const cp = t.checkpoint;
+  const cpLabel = cp?.head ? `${cp.branch ? `${cp.branch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const ask = el(`
     <div class="ask">
       <div class="ask-text ${long ? 'clamped' : ''}">${esc(t.prompt)}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
-      <div class="ask-foot">${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}<time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time></div>
+      <div class="ask-foot">
+        ${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}
+        <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+        ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
+        ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
+      </div>
       ${fold ? `<button class="ghost xs t-unfold" title="Collapse this exchange">${icon('chevron', 'chev')}</button>` : ''}
     </div>`);
   if (fold) ask.querySelector('.t-unfold').onclick = fold;
@@ -991,6 +1002,8 @@ function renderTrail(s, t) {
     return { add: acc.add + n.add, del: acc.del + n.del };
   }, { add: 0, del: 0 });
   const st = t.stats || {};
+  const canRollback = s.agent !== 'wisp' && s.state !== 'running' && (t.changes?.length || t.checkpoint?.commit);
+  const rolledBack = !!t.rolledBackAt;
   const node = el(`
     <div class="trail">
       <div class="trail-bar">
@@ -998,6 +1011,7 @@ function renderTrail(s, t) {
         ${t.endedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
         ${st.costUsd ? `<span class="tb">$${st.costUsd.toFixed(2)}</span>` : ''}
         <span class="grow"></span>
+        ${canRollback ? `<button class="link xs cp-rollback ${rolledBack ? 'rolled-back' : ''}" data-a="rollback" title="${rolledBack ? 'Re-apply changes from this turn' : `Restore working tree to before this turn${t.checkpoint?.head ? ` (${t.checkpoint.head.slice(0, 7)})` : ''}`}">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply turn' : 'Restore to before this turn'}</button>` : ''}
         ${t.changes?.length ? `<button class="link xs" data-tab="changes">${t.changes.length} file${t.changes.length > 1 ? 's' : ''} <span class="plus">+${totals.add}</span> <span class="minus">−${totals.del}</span></button>` : ''}
         ${acts.length ? `<button class="link xs" data-tab="activity">Activity</button>` : ''}
         ${t.presentation?.notes ? `<button class="link xs" data-tab="notes">Agent notes</button>` : ''}
@@ -1007,6 +1021,9 @@ function renderTrail(s, t) {
   const body = $('.trail-body', node);
   let open = null;
   node.addEventListener('click', (e) => {
+    if (e.target.closest('[data-a="rollback"]')) {
+      return rollbackTurn(s.id, t.id, rolledBack);
+    }
     const b = e.target.closest('[data-tab]');
     if (!b) return;
     const tab = b.dataset.tab;
@@ -1213,6 +1230,45 @@ async function toggleDone(id) {
     collapse(id);
     if (nextUp) setFocus(nextUp.id);
     toast(`Marked done`, { action: { label: 'Undo', run: () => api(`/sessions/${id}`, { method: 'PATCH', body: { state: 'review' } }) } });
+  }
+}
+
+async function revertFile(id, turnId, file, restore = false) {
+  try {
+    await api(`/sessions/${id}/revert`, { method: 'POST', body: { turnId, file, restore } });
+    toast(restore ? `Re-applied ${esc(file)}` : `Reverted ${esc(file)}`, {
+      action: { label: 'Undo', run: () => revertFile(id, turnId, file, !restore) },
+    });
+  } catch (err) {
+    toast(esc(err.message), { tone: 'bad' });
+  }
+}
+
+async function rollbackTurn(id, turnId, restore = false) {
+  const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(() => null));
+  const turn = s?.turns?.find((t) => t.id === turnId) || s?.turns?.at(-1);
+  if (!turn) return;
+  try {
+    const r = await api(`/sessions/${id}/rollback`, { method: 'POST', body: { turnId: turn.id, restore } });
+    toast(
+      restore
+        ? `Re-applied turn changes`
+        : `Restored working tree to before this turn${r.head ? ` (${esc(r.head.slice(0, 7))})` : ''}`,
+      { action: { label: 'Undo', run: () => rollbackTurn(id, turn.id, !restore) } },
+    );
+  } catch (err) {
+    toast(esc(err.message), { tone: 'bad' });
+  }
+}
+
+async function execAction(id, turnId, command, key) {
+  try {
+    const r = await api(`/sessions/${id}/exec`, { method: 'POST', body: { command, turnId } });
+    if (key) S.actionRuns.set(key, r);
+    return r;
+  } catch (err) {
+    toast(esc(err.message), { tone: 'bad' });
+    return null;
   }
 }
 
@@ -1464,12 +1520,16 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort },
 function moreMenu(id, anchor) {
   const s = S.full.get(id);
   if (!s) return;
+  const lastTurn = s.turns?.at(-1);
+  const canRollback = s.agent !== 'wisp' && s.state !== 'running' && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit);
+  const rolledBack = !!lastTurn?.rolledBackAt;
   const r = anchor.getBoundingClientRect();
   const menu = el(`
     <div class="menu" style="top:${r.bottom + 6}px;right:${innerWidth - r.right}px">
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       <button data-a="folder">${icon('folder')}Open project in editor</button>
+      ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
     </div>`);
@@ -1486,6 +1546,7 @@ function moreMenu(id, anchor) {
       toast('Copied resume command');
     }
     if (a === 'folder') openInEditor(s, '.');
+    if (a === 'rollback') rollbackTurn(id, lastTurn?.id, rolledBack);
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
   };
@@ -2102,11 +2163,16 @@ function paletteItems() {
   const cur = S.focus && S.sessions.get(S.focus);
   if (cur) {
     const id = cur.id;
+    const full = S.full.get(id);
+    const lastTurn = full?.turns?.at(-1);
     const live = cur.state === 'running' || cur.state === 'waiting';
+    const canRollback = cur.agent !== 'wisp' && !live && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit || cur.filesChanged);
+    const rolledBack = !!lastTurn?.rolledBackAt;
     const g = 'This wisp';
     const sub = cur.title;
     items.push({ group: g, label: 'Follow up', sub, icon: 'send', kbd: '/', run: () => withCard(id, () => $('.reply', S.nodes.get(id)?.card)?.focus(), { open: true }) });
     if (!live) items.push({ group: g, label: cur.state === 'done' ? 'Move back to review' : 'Mark done', sub, icon: 'done', kbd: 'E', run: () => toggleDone(id) });
+    if (canRollback) items.push({ group: g, label: rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn', sub, icon: rolledBack ? 'rerun' : 'replay', keywords: 'rollback revert undo checkpoint restore', run: () => rollbackTurn(id, lastTurn?.id, rolledBack) });
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
     items.push({ group: g, label: 'Take over in terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
