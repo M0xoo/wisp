@@ -125,7 +125,11 @@ function overlay(node, { onClose } = {}) {
     setTimeout(() => o.firstChild === node && ((o.hidden = true), (o.innerHTML = '')), 200);
     onClose?.();
   };
-  o.onclick = (e) => e.target === o && close();
+  // A block body: an on* handler that returns false cancels the click, which would stop every
+  // submit button inside the dialog from submitting its form.
+  o.onclick = (e) => {
+    if (e.target === o) close();
+  };
   o.close = close;
   return close;
 }
