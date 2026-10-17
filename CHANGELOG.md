@@ -35,6 +35,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Clicking a recipe no longer runs it straight away when it has no fields to fill in. Its dialog now always stays open until you press **Run** (the button has focus, so Enter works too).
 - `flow` blocks that don't fit across the card wrap onto rows that alternate direction (left to right, then right to left), joined by a short line, instead of squeezing every step into a narrow column. Loop-back lines go around the cards instead of crossing them. Phone width still stacks the steps.
 - The launcher no longer flashes its focus ring when you open the harness pickers or switch between them (e.g. opencode, then Claude Code in a compare). The ring stays on while a picker or the mode menu is open; the rerun dialog behaves the same way.
 - Launching a compare no longer freezes wisp for a few seconds. The runs share one `git fetch` and their worktrees are checked out in parallel. A fresh worktree's first checkpoint is its base commit, so it no longer runs blocking `git` calls that stalled the server and the live feed. With fake harnesses, a 2-way launch went from 1.5 s to 0.7 s and a 3-way launch from 2.3 s to 0.9 s. The send button shows a spinner while the launch sets up. If one worktree fails, the ones already created are removed.

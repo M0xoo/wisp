@@ -73,6 +73,8 @@
           "Animated presentations instead of transcripts",
           "Real diffs captured from the agent's own tool calls",
           "ask_user tool so agents can ask questions mid-run",
+          "Subagents: a lead agent delegates to agents on other harnesses",
+          "Recipes and triggers: saved prompts run on a schedule, when CI fails or when an issue is labelled",
           "Take over any session in your own terminal",
           "Plan, Edits and Full auto permission modes",
           "Learns your preferences and its own lessons from past sessions",
@@ -397,6 +399,88 @@
         </div>
       </article>
     </div>
+
+    <!-- subagents -->
+    <article class="card wide c-team reveal spot" id="team">
+      <div class="card-copy">
+        <p class="eyebrow">Subagents</p>
+        <h3>Give the lead a <em>team</em>.</h3>
+        <p>A Claude Code run hands tests to <b>Codex</b>, research to <b>opencode</b> and UI work to <b>Cursor</b>. Each member has its own harness, model and a <b>Use for</b> note that tells the lead when to pick it.</p>
+        <ul class="ticks">
+          <li><b>×N copies</b> — <code>Codex ×3</code> gives the lead three Codex agents that run side by side.</li>
+          <li>One report card per delegated task, each opening into that subagent's own presentation.</li>
+          <li>Subagent edits count as the lead's: same diff, rollback and Ship it.</li>
+          <li><b>Save as preset</b> and reuse the team on the next launch.</li>
+        </ul>
+      </div>
+      <div class="window team-win">
+        <div class="win-bar">
+          <span class="lights"><i></i><i></i><i></i></span>
+          <span class="win-title"><span class="orb xs"></span> Release prep</span>
+          <span class="team-count" id="teamCount">4 agents</span>
+        </div>
+        <div class="team-body" id="teamBody">
+          <svg class="beams" id="teamBeams" aria-hidden="true"></svg>
+          <div class="lead" id="teamLead">
+            <span class="lg-logo"><img src="assets/logos/claudecode-color.svg" alt="" /></span>
+            <b>Claude Code</b>
+            <span class="role">lead</span>
+            <span class="lead-st" id="teamLeadSt">Reading the release checklist</span>
+          </div>
+          <div class="members" id="teamMembers"></div>
+          <div class="team-foot">
+            <span class="stepper" aria-label="Codex copies">
+              <span class="lg-logo sm"><img src="assets/logos/codex-color.svg" alt="" /></span> Codex
+              <button id="teamMinus" aria-label="Fewer Codex copies">−</button><b id="teamN">×1</b><button id="teamPlus" aria-label="More Codex copies">+</button>
+            </span>
+            <code class="team-call" id="teamCall">delegate([…])</code>
+          </div>
+          <div class="reports" id="teamReports"></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- recipes & triggers -->
+    <article class="card wide flip c-auto reveal spot" id="auto">
+      <div class="card-copy">
+        <p class="eyebrow">Recipes &amp; triggers</p>
+        <h3>Prompts that <em>run themselves</em>.</h3>
+        <p>A recipe is a prompt you send again and again; <code>{version}</code> becomes a field to fill in. Run it from the launcher, ⌘K or a terminal. Triggers start sessions while wisp is open: on a <b>schedule</b>, when <b>CI fails</b>, or when an <b>issue gets a label</b>.</p>
+        <ul class="ticks">
+          <li>A recipe can pin a project, harness, model and mode.</li>
+          <li>GitHub triggers poll with your <code>gh</code> login. Nothing has to reach your machine.</li>
+          <li>Issue triggers start in Plan mode: issue text is untrusted.</li>
+        </ul>
+      </div>
+      <div class="window auto-win">
+        <div class="win-bar">
+          <span class="lights"><i></i><i></i><i></i></span>
+          <span class="win-title"><span class="orb xs"></span> Automations</span>
+          <span class="auto-badge" id="autoBadge">3 on</span>
+        </div>
+        <div class="auto-body">
+          <div class="recipe">
+            <div class="rc-head"><span class="rc-name">release</span><span class="rc-pins">api-server · Claude Code · Edits</span></div>
+            <p class="rc-prompt">Prepare release <label class="rc-field"><span class="sr">version</span><input id="rcVer" value="0.8.0" spellcheck="false" autocomplete="off" size="6" /></label>: update CHANGELOG, README and docs/, bump package.json, tag v<span id="rcVer2">0.8.0</span>.</p>
+            <div class="rc-run">
+              <code id="rcCli"><span class="p">$</span> wisp run release 0.8.0</code>
+              <button id="rcRun">Run <kbd>↵</kbd></button>
+            </div>
+          </div>
+          <div class="auto-split">
+            <ul class="triggers" id="triggers">
+              <li data-t="schedule"><span class="tk">⏰</span><span class="tt"><b>Every weekday 09:00</b><small><code>0 9 * * 1-5</code> → recipe <i>deps-audit</i></small></span><button class="switch on" role="switch" aria-checked="true" aria-label="Schedule trigger"></button></li>
+              <li data-t="ci"><span class="tk">✕</span><span class="tt"><b>CI failed on main</b><small><code>{name} {branch} {url}</code></small></span><button class="switch on" role="switch" aria-checked="true" aria-label="CI trigger"></button></li>
+              <li data-t="issue"><span class="tk">#</span><span class="tt"><b>Issue labelled <span class="lbl">agent</span></b><small><code>{number} {title} {body}</code> · Plan</small></span><button class="switch on" role="switch" aria-checked="true" aria-label="Issue trigger"></button></li>
+            </ul>
+            <div class="fired">
+              <h5>Launched</h5>
+              <div class="fired-list" id="firedList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </article>
   </section>
 
   <!-- ───────────── blocks marquee ───────────── -->
