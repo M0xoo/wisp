@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-18
+
 ### Added
 
 - Machines finds hosts for you. **Found on this computer** lists the hosts this computer already reaches: `Host` entries in `~/.ssh/config`, your Tailscale peers (`tailscale status --json`, with an online dot; phones and tablets are skipped) and hosts in `~/.ssh/known_hosts` (code hosts such as github.com, hashed entries and non-default ports are skipped). Hosts you've already added aren't listed. Click one to fill in the form, then press Connect. The SSH host field suggests the same hosts. API: `GET /api/machines/discover`.
@@ -188,7 +190,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/M0xoo/wisp/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/M0xoo/wisp/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/M0xoo/wisp/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/M0xoo/wisp/compare/v0.6.0...v0.7.0
