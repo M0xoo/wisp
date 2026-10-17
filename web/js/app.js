@@ -502,6 +502,12 @@ function renderLauncher() {
   ta.addEventListener('focus', hint);
   ta.addEventListener('blur', hint);
   hint();
+  // Docked and folded to one line, a click anywhere on it opens it up for typing.
+  box.addEventListener('mousedown', (e) => {
+    if (!box.matches('.docked:not(:focus-within)')) return;
+    e.preventDefault();
+    ta.focus();
+  });
   $('#attach', box).onclick = tray.pick;
 
   // Mode is set-and-forget, so it's one small button: just an icon on the default (Edits),
@@ -2079,7 +2085,8 @@ const modKey = (e, k) =>
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
 function focusLauncher() {
-  stage.scrollTo({ top: 0, behavior: 'smooth' });
+  // Docked under the top bar it opens where it is, so you keep your place in the feed.
+  if (!$('#launcher').classList.contains('docked')) stage.scrollTo({ top: 0, behavior: 'smooth' });
   $('#prompt')?.focus({ preventScroll: true });
 }
 
@@ -2380,8 +2387,19 @@ setInterval(() => {
 
 // Sticky top bar gets a hairline once the page scrolls; "back to top" shows after a screen's worth.
 const toTop = $('#toTop');
+// Once the launcher scrolls under the top bar it docks there, folded to one line. The slot keeps
+// its full height in the feed so docking never shifts what you're reading.
+const launchSlot = $('#launchSlot');
+const dockLauncher = () => {
+  const box = $('#launcher');
+  const gone = launchSlot.getBoundingClientRect().bottom < $('#topbar').offsetHeight;
+  if (gone === box.classList.contains('docked')) return;
+  launchSlot.style.height = gone ? `${box.offsetHeight}px` : '';
+  box.classList.toggle('docked', gone);
+};
 stage.addEventListener('scroll', () => {
   $('#topbar').classList.toggle('scrolled', stage.scrollTop > 4);
+  dockLauncher();
   toTop.hidden = stage.scrollTop < stage.clientHeight * 0.75;
 }, { passive: true });
 toTop.onclick = () => stage.scrollTo({ top: 0, behavior: 'smooth' });
