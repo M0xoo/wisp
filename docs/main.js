@@ -518,6 +518,69 @@
     }, 2800));
   })();
 
+  // ───────── machines ─────────
+  (function machines() {
+    const picks = $$('#machPicks .mp'), rows = $('#machRows'), toast = $('#machToast'), go = $('#machGo');
+    const places = {
+      local: { name: 'This Mac', project: '~/api-server', steps: ['Reading package.json', 'Running tests on Node 22', '+3 −2 · 2 files'] },
+      devbox: { name: 'devbox', project: '~/src/api-server', steps: ['Rebuilding native modules', 'Fixing a crypto deprecation', '+11 −6 · 4 files'] },
+      gpu: { name: 'gpu-box', project: '~/work/trainer', steps: ['Updating the Dockerfile', 'Running the smoke test', '+4 −4 · 1 file'] },
+      vm: { name: 'cloud-vm', project: '/srv/worker', connect: true, steps: ['Updating .nvmrc', 'Running the queue tests', '+2 −1 · 1 file'] },
+    };
+    const chosen = () => picks.filter((b) => b.classList.contains('on')).map((b) => b.dataset.m);
+    const sync = () => {
+      const n = chosen().length;
+      $('#machBadge').textContent = `${n} place${n === 1 ? '' : 's'}`;
+      go.disabled = !n;
+    };
+    let run = 0;
+    const launch = () => {
+      const id = ++run, keys = chosen();
+      if (!keys.length) return;
+      rows.textContent = '';
+      toast.classList.remove('on');
+      let left = keys.length;
+      keys.forEach((k, i) => {
+        const p = places[k], r = document.createElement('div');
+        r.className = 'mr';
+        r.dataset.m = k;
+        r.innerHTML = '<span class="mb"></span><span class="mpj"></span><span class="mst"><span class="qd"></span><span></span></span>';
+        $('.mb', r).textContent = p.name;
+        $('.mpj', r).textContent = p.project;
+        const st = $('.mst span:last-child', r);
+        const set = (cls, text) => { r.className = `mr ${cls}`; st.textContent = text; };
+        rows.append(r);
+        if (reduced) return set('done', p.steps[2]);
+        const seq = [...(p.connect ? [['connecting', 'Connecting…']] : []), ['working', p.steps[0]], ['working', p.steps[1]], ['done', p.steps[2]]];
+        seq.forEach(([cls, text], j) => setTimeout(() => {
+          if (id !== run) return;
+          set(cls, text);
+          if (cls === 'done' && !--left) {
+            toast.textContent = keys.length === 1 ? 'ready' : `ready on ${keys.length} machines`;
+            toast.classList.add('on');
+          }
+        }, j * 1300 + i * 350 + Math.random() * 400));
+      });
+      if (reduced) {
+        toast.textContent = keys.length === 1 ? 'ready' : `ready on ${keys.length} machines`;
+        toast.classList.add('on');
+      }
+    };
+    picks.forEach((b) => b.addEventListener('click', () => {
+      const on = b.classList.toggle('on');
+      b.setAttribute('aria-pressed', String(on));
+      sync();
+    }));
+    go.addEventListener('click', launch);
+    sync();
+    // first launch when the card scrolls into view
+    new IntersectionObserver(([e], obs) => {
+      if (!e.isIntersecting) return;
+      obs.disconnect();
+      launch();
+    }, { threshold: 0.35 }).observe($('#machines'));
+  })();
+
   // ───────── blocks marquee ─────────
   (function blocks() {
     const bars = (...cls) => cls.map((c, i) => `<span class="bar ${c}" style="width:${[88, 62, 74, 45][(i + cls.length) % 4]}%"></span>`).join('');
