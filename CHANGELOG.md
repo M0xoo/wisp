@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-17
+
+### Added
+
+- Anonymous usage stats and error reports via [PostHog](https://posthog.com): which agents, models and modes are used, run outcomes and timings, and errors (agent failures, server errors, crashes) with paths scrubbed. Never sends prompts, output, paths or project names. Turn it off in Settings → *Anonymous usage stats*, or with `WISP_TELEMETRY=0` / `DO_NOT_TRACK=1`; always off when `CI` is set. See the Telemetry section of the README.
+
 ## [0.4.0] - 2026-10-17
 
 ### Added
@@ -83,7 +89,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/M0xoo/wisp/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/M0xoo/wisp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/M0xoo/wisp/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/M0xoo/wisp/compare/v0.2.1...v0.2.2
