@@ -11,6 +11,7 @@ import { Runner, summarize, newId } from './runner.js';
 import { adapters, listAgents } from './adapters/index.js';
 import { welcomeSession } from './welcome.js';
 import { openInTerminal, TERMINALS, shq } from './terminal.js';
+import { Telemetry, envDisabled } from './telemetry.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -62,6 +63,29 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   runner.on('finished', (f) => broadcast('finished', f));
   setInterval(() => broadcast('ping', {}), 25_000).unref();
 
+  const telemetry = new Telemetry(store);
+  const run = (s, t) => ({ agent: s.agent, model: s.model || 'default', mode: s.mode, effort: s.effort || 'default', followUp: s.turns.indexOf(t) > 0 });
+  runner.on('started', ({ session, turn }) => telemetry.track('turn_started', { ...run(session, turn), attachments: turn.attachments.length }));
+  runner.on('ended', ({ session, turn, interrupted, errorText }) => {
+    const blocks = turn.presentation?.blocks || [];
+    const st = turn.stats || {};
+    telemetry.track('turn_ended', {
+      ...run(session, turn),
+      status: interrupted ? 'interrupted' : turn.status, // done | error | stopped | interrupted
+      heroStatus: blocks.find((b) => b.type === 'hero')?.status,
+      durationMs: turn.endedAt - turn.startedAt,
+      blockCount: blocks.length,
+      blockTypes: [...new Set(blocks.map((b) => b.type))],
+      presentationFallback: !!turn.presentation?.fallback, // agent ignored or broke the wisp protocol
+      changedFiles: turn.changes.length,
+      inputTokens: st.inputTokens,
+      outputTokens: st.outputTokens,
+      costUsd: st.costUsd,
+    });
+    if (errorText) telemetry.captureError(new Error(errorText), { type: 'AgentError', ...run(session, turn) });
+  });
+  if (!envDisabled()) process.on('uncaughtExceptionMonitor', (err) => telemetry.crashed(err));
+
   const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]);
 
   const server = http.createServer(async (req, res) => {
@@ -81,6 +105,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       return serveStatic(res, url.pathname);
     } catch (err) {
       console.error(err);
+      if (!err.status || err.status >= 500) telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
       send(res, err.status || 500, { error: err.message });
     }
   });
@@ -107,6 +132,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         const body = await readJson(req);
         const s = store.get(body.session);
         if (!s) return send(res, 404, { error: 'no such session' });
+        telemetry.track('ask_user', { agent: s.agent });
         return send(res, 200, { id: runner.ask(s, body) });
       }
       if (id === 'ask' && action && m === 'GET') return send(res, 200, runner.pollAnswer(action));
@@ -148,7 +174,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     }
 
     if (root === 'config') {
-      if (m === 'GET') return send(res, 200, { ...store.config, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS });
+      if (m === 'GET') return send(res, 200, { ...store.config, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled } });
       if (m === 'PATCH') {
         const body = await readJson(req);
         if (body.defaults) Object.assign(store.config.defaults, body.defaults);
@@ -297,6 +323,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           }
           openInTerminal({ cwd: s.cwd, argv, terminal: store.config.defaults.terminal || 'auto', custom: store.config.defaults.terminalCommand });
           s.takenOverAt = Date.now();
+          telemetry.track('takeover', { agent: s.agent, terminal: store.config.defaults.terminal || 'auto' });
           store.save(s);
           return send(res, 200, { command });
         }
@@ -341,6 +368,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   const shutdown = () => {
     for (const s of store.all()) runner.stop(s);
     store.flush();
+    telemetry.persist();
   };
   if (handleSignals) {
     const exit = () => (shutdown(), process.exit(0));
@@ -353,7 +381,14 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     server.listen(port, host, resolve);
   });
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown };
+  if (telemetry.enabled) {
+    if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
+    listAgents()
+      .then((agents) => telemetry.track('app_started', { agentsInstalled: agents.filter((a) => a.available).map((a) => a.id), ...Object.fromEntries(agents.filter((a) => a.available).map((a) => [`${a.id}Version`, a.version])) }))
+      .catch(() => {});
+  }
+
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry };
 }
 
 function send(res, status, body) {

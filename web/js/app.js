@@ -1701,6 +1701,7 @@ function openSettings() {
       <label class="custom-term" ${d.terminal === 'custom' ? '' : 'hidden'}><span>Terminal command</span>
         <input name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></label>
       <div class="setting"><span>Desktop notifications</span><span class="notif-hint muted xs"></span><button class="switch" id="notif" role="switch"></button></div>
+      <div class="setting"><span>Anonymous usage stats</span><span class="tele-hint muted xs"></span><button class="switch" id="tele" role="switch"></button></div>
       <div class="agents">${S.agents
         .map((a) => `<div class="agent-row"><span class="dot ${a.available ? 'ok' : 'bad'}"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.available ? a.version : a.error || 'not found')}</span></div>`)
         .join('')}<p class="muted xs">Pick the agent next to the model in the launcher. Others plug in via <code>server/adapters</code>.</p></div>
@@ -1733,6 +1734,28 @@ function openSettings() {
     paint();
   };
   paint();
+  // Agent, model, status, timings and scrubbed errors only; never prompts, paths or code.
+  const tele = $('#tele', node);
+  const paintTele = () => {
+    const t = S.config.telemetry || {};
+    tele.setAttribute('aria-checked', !!t.enabled);
+    tele.disabled = !t.available;
+    $('.tele-hint', node).textContent = !t.available ? 'Off (DO_NOT_TRACK, WISP_TELEMETRY=0 or CI)' : 'No prompts, paths or code';
+  };
+  tele.onclick = async () => {
+    await api('/config', { method: 'PATCH', body: { defaults: { telemetry: S.config.telemetry?.enabled ? 'off' : 'on' } } });
+    await loadConfig();
+    paintTele();
+  };
+  paintTele();
+}
+
+// Say once that anonymous stats are on, with a way out.
+function telemetryNotice() {
+  if (!S.config.telemetry?.enabled || S.config.defaults.telemetryNotice === 'seen') return;
+  S.config.defaults.telemetryNotice = 'seen';
+  api('/config', { method: 'PATCH', body: { defaults: { telemetryNotice: 'seen' } } }).catch(() => {});
+  toast('wisp sends anonymous usage stats and error reports. No prompts, paths or code.', { timeout: 10_000, action: { label: 'Settings', run: openSettings } });
 }
 
 function shortcuts() {
@@ -2041,4 +2064,5 @@ window.addEventListener('focus', () => {
   connect();
   route();
   $('#prompt')?.focus();
+  telemetryNotice();
 })();

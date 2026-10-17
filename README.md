@@ -202,6 +202,21 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] opencode adapter
 - [x] Cursor CLI adapter
 
+## Telemetry
+
+wisp sends anonymous usage stats and error reports to [PostHog](https://posthog.com) so we can see which agents people use and what breaks. The code is in [`server/telemetry.js`](server/telemetry.js).
+
+**What is sent:** a random install id (not tied to you or your machine), the wisp, OS, Node and agent CLI versions, and per run: agent, model, mode, effort, status, duration, token counts and cost, how many files changed, and which presentation block types came back. Errors include a stack trace and message with your home directory and file paths removed, cut to 500 characters.
+
+**Never sent:** prompts, replies, agent output, file contents, project names, paths or repo URLs.
+
+**Opt out** with any of these:
+- Settings → *Anonymous usage stats*
+- `WISP_TELEMETRY=0`
+- `DO_NOT_TRACK=1`
+
+It is also off whenever `CI` is set.
+
 ## Contributing
 
 Issues and PRs are welcome. wisp has no build step: edit `web/` or `server/`, then run `npm run dev` (or `npm run dev:web`) to see your changes.

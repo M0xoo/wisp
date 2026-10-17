@@ -220,6 +220,7 @@ export class Runner extends EventEmitter {
     session.unread = false;
     delete session.archived;
     this.#touch(session, { turn: turn.id });
+    this.emit('started', { session, turn });
 
     let released = false;
     let linger;
@@ -341,6 +342,7 @@ export class Runner extends EventEmitter {
     session.unread = !interrupted;
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
+    this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
     // The follow-up starts right away; don't notify for the run it replaced.
     if (!interrupted) this.emit('finished', { session: summarize(session, this.store) });
   }
