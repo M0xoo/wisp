@@ -17,6 +17,16 @@ const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-
 
 export const newId = () => randomUUID().replace(/-/g, '').slice(0, 12);
 
+// Where the agent actually works: its own worktree when it has one, else the project folder.
+export const workdir = (s) => s.worktree?.cwd || s.cwd;
+
+// Worktree sessions get told where they are, so they don't go looking for the main checkout.
+function workspaceNote(s) {
+  const wt = s.worktree;
+  if (!wt) return '';
+  return `\n\n## Workspace\n\nYou are in an isolated git worktree (${wt.path}) on branch \`${wt.branch}\`, created from \`${wt.baseRef}\` for this task only. Other agents may be working in the user's main checkout, so make every change here. Dependencies and build output (node_modules, virtualenvs, dist/) are not shared with the main checkout: install them if a command needs them. Leave your changes uncommitted unless the user asks you to commit; the user ships them from wisp (commit, push, pull request).`;
+}
+
 function autoTitle(prompt) {
   const line = prompt.trim().split('\n')[0].replace(/\s+/g, ' ');
   return line.length > 64 ? `${line.slice(0, 63)}…` : line;
@@ -50,6 +60,10 @@ export function summarize(s, store) {
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? lastAct?.label || 'Starting up' : '',
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
+    branch: s.worktree?.branch || '',
+    pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks } : null,
+    groupId: s.groupId || null,
+    origin: s.origin || null, // { kind: 'recipe' | 'trigger', id, name }
   };
 }
 
@@ -77,11 +91,11 @@ export class Runner extends EventEmitter {
     }
   }
 
-  create({ prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [] }) {
+  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
-      id: newId(),
+      id,
       title: autoTitle(prompt),
       titleAuto: true,
       agent,
@@ -96,6 +110,9 @@ export class Runner extends EventEmitter {
       agentSessionId: null,
       queue: [],
       turns: [],
+      ...(worktree && { worktree }),
+      ...(groupId && { groupId }),
+      ...(origin && { origin }),
     };
     this.store.put(session);
     this.store.touchProject(cwd);
@@ -203,7 +220,7 @@ export class Runner extends EventEmitter {
 
   #startTurn(session, prompt, attachments = []) {
     const id = newId();
-    const checkpoint = session.agent === 'wisp' ? null : captureCheckpoint(session.cwd, session.id, id);
+    const checkpoint = session.agent === 'wisp' ? null : captureCheckpoint(workdir(session), session.id, id);
     const turn = {
       id,
       prompt,
@@ -233,12 +250,12 @@ export class Runner extends EventEmitter {
     const handle = adapter.run({
       prompt,
       attachments,
-      cwd: session.cwd,
+      cwd: workdir(session),
       resumeId: session.agentSessionId,
       mode: session.mode,
       model: session.model,
       effort: session.effort || '',
-      systemPrompt: systemPrompt({ askTool: adapter.askTool }) + this.promptExtra(session),
+      systemPrompt: systemPrompt({ askTool: adapter.askTool }) + workspaceNote(session) + this.promptExtra(session),
       mcpServers: this.bridge && adapter.askTool !== null
         ? {
             wisp: {
@@ -301,7 +318,7 @@ export class Runner extends EventEmitter {
         if (!entry) {
           let beforeFile = ev.beforeFile;
           if (turn.checkpoint?.commit && !path.isAbsolute(ev.file)) {
-            const fromGit = readGitFile(session.cwd, turn.checkpoint.commit, ev.file);
+            const fromGit = readGitFile(workdir(session), turn.checkpoint.commit, ev.file);
             if (fromGit !== null) beforeFile = fromGit;
             else if (!(turn.checkpoint.untracked || []).includes(ev.file)) beforeFile = null;
           }

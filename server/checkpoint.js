@@ -112,10 +112,13 @@ function findChangeEntry(turn, file, cwd) {
   );
 }
 
+const sessionDir = (session) => session.worktree?.cwd || session.cwd;
+
 // Revert (or re-apply when restore=true) a single file's changes from `turn`.
 export function revertFileChange(session, turn, file, { restore = false } = {}) {
-  const { abs, relPath } = resolveInsideCwd(session.cwd, file);
-  const entry = findChangeEntry(turn, file, session.cwd);
+  const cwd = sessionDir(session);
+  const { abs, relPath } = resolveInsideCwd(cwd, file);
+  const entry = findChangeEntry(turn, file, cwd);
   const commit = turn.checkpoint?.commit;
   if (!entry && !commit) {
     throw Object.assign(new Error(`No captured changes or checkpoint for ${relPath}`), { status: 404 });
@@ -151,7 +154,7 @@ export function revertFileChange(session, turn, file, { restore = false } = {}) 
     writeDiskSnapshot(abs, entry.op === 'create' ? null : entry.beforeFile);
   } else if (commit) {
     // 2. Otherwise check the turn's git checkpoint commit.
-    const fromGit = readGitFile(session.cwd, commit, entry?.file || relPath);
+    const fromGit = readGitFile(cwd, commit, entry?.file || relPath);
     if (fromGit !== null) {
       writeDiskSnapshot(abs, fromGit);
     } else if (entry?.op === 'create' || !(turn.checkpoint?.untracked || []).includes(entry?.file || relPath)) {
@@ -188,6 +191,7 @@ function reverseEditsOnDisk(abs, entry) {
 
 // Restore the project working tree to the state before `turn` ran (or undo that rollback when restore=true).
 export function rollbackToTurn(session, turn, { restore = false } = {}) {
+  const cwd = sessionDir(session);
   const idx = session.turns.indexOf(turn);
   if (idx < 0) throw Object.assign(new Error('No such turn'), { status: 404 });
   const affected = session.turns.slice(idx);
@@ -205,11 +209,11 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
       return { files: touchedFiles, rolledBack: false };
     }
     if (pre.commit) {
-      tryGit(session.cwd, ['checkout', pre.commit, '--', '.']);
-      tryGit(session.cwd, ['read-tree', 'HEAD']);
+      tryGit(cwd, ['checkout', pre.commit, '--', '.']);
+      tryGit(cwd, ['read-tree', 'HEAD']);
     }
     for (const [relFile, content] of Object.entries(pre.files || {})) {
-      const { abs } = resolveInsideCwd(session.cwd, relFile);
+      const { abs } = resolveInsideCwd(cwd, relFile);
       writeDiskSnapshot(abs, content);
     }
     for (const t of affected) {
@@ -221,7 +225,7 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
 
   const cp = turn.checkpoint;
   const preUntracked = new Set(cp?.untracked || []);
-  const curUntrackedRaw = cp?.commit ? tryGit(session.cwd, ['ls-files', '--others', '--exclude-standard'], { maxBuffer: 2 * 1024 * 1024 }) : null;
+  const curUntrackedRaw = cp?.commit ? tryGit(cwd, ['ls-files', '--others', '--exclude-standard'], { maxBuffer: 2 * 1024 * 1024 }) : null;
   const curUntracked = curUntrackedRaw ? curUntrackedRaw.split('\n').filter(Boolean).slice(0, 500) : [];
   const newUntracked = curUntracked.filter((f) => !preUntracked.has(f));
 
@@ -229,26 +233,26 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
   const preFiles = {};
   for (const f of [...new Set([...touchedFiles, ...newUntracked])]) {
     try {
-      const { abs } = resolveInsideCwd(session.cwd, f);
+      const { abs } = resolveInsideCwd(cwd, f);
       preFiles[f] = readDiskSnapshot(abs);
     } catch {}
   }
-  const preCp = captureCheckpoint(session.cwd, session.id, `${turn.id}-undo`);
+  const preCp = captureCheckpoint(cwd, session.id, `${turn.id}-undo`);
   turn.preRollback = { commit: preCp?.commit || null, files: preFiles };
 
   if (cp?.commit) {
     // Find any tracked files added since the checkpoint commit so we can remove them too.
-    const addedRaw = tryGit(session.cwd, ['diff', '--name-only', '--diff-filter=D', 'HEAD', cp.commit]) || '';
+    const addedRaw = tryGit(cwd, ['diff', '--name-only', '--diff-filter=D', 'HEAD', cp.commit]) || '';
     const addedTracked = addedRaw.split('\n').filter(Boolean);
 
     // Restore tracked files from the checkpoint commit.
-    tryGit(session.cwd, ['checkout', cp.commit, '--', '.']);
+    tryGit(cwd, ['checkout', cp.commit, '--', '.']);
     // Keep the git index aligned with HEAD rather than the stash commit's tree.
-    tryGit(session.cwd, ['read-tree', 'HEAD']);
+    tryGit(cwd, ['read-tree', 'HEAD']);
 
     for (const f of [...addedTracked, ...newUntracked]) {
       try {
-        const { abs } = resolveInsideCwd(session.cwd, f);
+        const { abs } = resolveInsideCwd(cwd, f);
         fs.rmSync(abs, { force: true });
       } catch {}
     }
@@ -257,8 +261,8 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
     for (const t of affected.slice().reverse()) {
       for (const c of t.changes || []) {
         try {
-          const { abs, relPath } = resolveInsideCwd(session.cwd, c.file);
-          const inGit = readGitFile(session.cwd, cp.commit, relPath) !== null;
+          const { abs, relPath } = resolveInsideCwd(cwd, c.file);
+          const inGit = readGitFile(cwd, cp.commit, relPath) !== null;
           if (!inGit) {
             if (c.op === 'create' || (!preUntracked.has(relPath) && c.beforeFile === null)) {
               fs.rmSync(abs, { force: true });

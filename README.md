@@ -48,6 +48,12 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | 🧠 **Learns as you go** | After a session goes quiet, a background retro records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later runs get them in their prompt. See [Learning](#learning). |
+| 🌿 **A worktree per task** | In a git repo each task gets its own worktree and branch from `origin/main`, so parallel agents never collide. |
+| 🚢 **Ship it** | One click commits, pushes and opens the PR. The card follows CI and reviews; **Merge** squash-merges and syncs your local main. |
+| ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
+| 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.8.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
+| 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
+| 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
 | 🔌 **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
 | 🪶 **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
@@ -115,6 +121,11 @@ wisp show <id>                    # state + latest presentation
 wisp wait <id>                    # until it finishes or asks you something
 wisp reply <id> "also do X"       # follow up (answers a pending question)
 wisp stop <id>
+wisp ship <id> [--draft]          # commit, push and open a PR for a worktree task
+wisp merge <id>                   # squash-merge its PR, fast-forward your local main
+wisp run release 0.8.0            # run a recipe; values fill its {params} (or version=0.8.0)
+wisp recipes                      # list recipes
+wisp usage [--days 7]             # spend and outcomes
 wisp mcp                          # MCP server for other agents and editors
 wisp skill install                # install the wisp skill for Claude Code (--agent all for Codex/opencode too)
 ```
@@ -127,6 +138,8 @@ wisp skill install                # install the wisp skill for Claude Code (--ag
 | `--model` · `--effort` | Model id and thinking level for the launch |
 | `--cwd`, `-C DIR` | Project folder (default: the current one) |
 | `--wait`, `-w` | Wait for the run to finish or ask, then print the presentation |
+| `--no-worktree` | Edit the folder in place instead of a fresh worktree (default in git repos: a worktree) |
+| `--compare a[:model],…` | Also run the task on these harnesses, each in its own worktree |
 | `--json` | Machine-readable output |
 | `--browser`, `-b` | Use the browser instead of the desktop app |
 | `--no-open` | Just run the server; open nothing |
@@ -169,6 +182,8 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 | `/` | Reply to the focused session |
 | `1`–`9` | Pick an option in a pending question |
 | `T` | Take over in your terminal |
+| `S` | Ship it: commit, push and open a PR (worktree tasks) |
+| `⇧ R` | Rerun with another harness, model or thinking level |
 | `E` | Mark done and jump to the next session that needs you |
 | `A` | Archive / unarchive |
 | `M` | Rename |
@@ -206,6 +221,11 @@ wisp/
 │   ├── protocol.js        # system prompt + ```wisp block parser (markdown fallback)
 │   ├── mcp-ask.js         # ask_user MCP server
 │   ├── store.js           # JSON-file persistence in ~/.wisp
+│   ├── git.js             # worktrees, Ship it, PR status and merge (git + gh)
+│   ├── recipes.js         # saved prompts with {params}
+│   ├── triggers.js        # cron schedules and GitHub watchers
+│   ├── remote.js          # phone: ntfy and Telegram, out and back
+│   ├── usage.js           # spend and outcomes
 │   ├── terminal.js        # "take over" in your terminal
 │   ├── welcome.js         # the gallery session
 │   └── adapters/
@@ -251,6 +271,49 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] opencode adapter
 - [x] Cursor CLI adapter
 - [x] Antigravity CLI adapter
+
+## Worktrees and shipping
+
+In a git repo, every launch (except Plan mode) runs in its own [git worktree](https://git-scm.com/docs/git-worktree) under `~/.wisp/worktrees/`, on a branch named `wisp/<task>-<id>` made from the remote's default branch (`origin/main`, fetched first; `HEAD` when there is no remote). Uncommitted changes in your own checkout are not carried over, and dependencies aren't shared: the agent is told to install what it needs. The card shows the branch, and **Take over** opens the worktree.
+
+**Ship it** (`S`) commits whatever is uncommitted (the message is drafted from the presentation as a conventional commit; edit it before shipping), pushes the branch and runs `gh pr create`. You need the [GitHub CLI](https://cli.github.com) signed in. From then on the card follows the PR every minute: checks (✓ / running / failing), the review decision, merged or closed. **Merge** runs `gh pr ready` for drafts and `gh pr merge --squash --match-head-commit <sha>`, so a branch that moved since you looked is never merged, then fast-forwards your local base branch (`git merge --ff-only`, or a ref update when it isn't checked out) and removes the worktree and branch. If a ruleset requires a review, Merge waits for the approval like `gh` does.
+
+**Compare** (the **vs** button next to the harness picker) launches the same task on a second harness. Both get their own worktree; **Compare** on either card shows them side by side, and **Keep this** archives the others and deletes their worktrees.
+
+Turn worktrees off in Settings → *Worktree per task*, with the launcher's **Worktree / In place** toggle, or per launch (`--no-worktree`, `"worktree": false`).
+
+## Automations
+
+**Recipes** are prompts you send again and again. `{name}` in a recipe becomes a field you fill in when it runs:
+
+```text
+Prepare release {version}: update CHANGELOG, README and docs/, bump package.json, tag v{version}.
+```
+
+Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe may pin a project, harness, model and mode. Run it from ⌘K (*Run: Release*), from the Recipes view, or from a terminal: `wisp run release 0.8.0` fills the fields in order, `wisp run release version=0.8.0` by name.
+
+**Triggers** launch sessions on their own while wisp is open (⌘K → *Triggers*):
+
+| Kind | Fires when | Prompt fields |
+|---|---|---|
+| Schedule | a cron expression matches (local time), e.g. `0 9 * * 1-5` | your recipe's fields |
+| CI failed | a GitHub Actions run fails (optionally on one branch) | `{name} {branch} {url} {id} {sha}` |
+| Issue labelled | an open issue carries a label | `{number} {title} {body} {url} {author}` |
+
+GitHub triggers poll with your `gh` login (every 2–60 minutes), so nothing has to reach your machine; the first check only records what already exists. Issue triggers start in Plan mode: issue text comes from whoever can open issues, so think twice before giving it Full auto.
+
+## Usage
+
+⌘K → *Usage* shows spend per day and, per project and per harness · model: spend, turns, how often the run worked (finished, not partial or blocked), how often the agent had to ask you, and the average time. Claude Code and opencode report cost; Codex, Cursor and Antigravity only report tokens, so their turns are counted but not priced. Also `wisp usage` and `GET /api/usage?days=30`.
+
+## Phone
+
+Settings → *Phone* sends questions and finished tasks to your phone and takes the answers back. wisp polls both services, so it works from anywhere without opening a port.
+
+- **[ntfy](https://ntfy.sh)**: subscribe to the topic in the ntfy app. Notifications carry up to three buttons (the question's options, or *Mark done*); a tap sends a signed answer back. Use a long random topic (wisp suggests one): anyone who knows it can read the notifications, but only wisp can make answers that count.
+- **Telegram**: create a bot with @BotFather, paste its token, then send `/link <code>` to the bot. Tap a button to answer, or reply to a message to answer in your own words or send a follow-up.
+
+They receive titles, summaries and questions (with their context), never code or diffs.
 
 ## Learning
 

@@ -128,15 +128,29 @@ export class WispClient {
 
   // { prompt, cwd, agent, mode, model, effort, attachments: [uploadId] }. Missing agent/mode/model
   // fall back to the launcher's remembered defaults, like `wisp "…"` does; effort only if given.
-  async launch({ prompt, cwd = process.cwd(), agent, mode, model, effort, attachments } = {}) {
+  // worktree: true/false overrides the default (on in git repos). compare: [{ agent, model, effort }]
+  // runs the same task on more harnesses at once, each in its own worktree.
+  async launch({ prompt, cwd = process.cwd(), agent, mode, model, effort, attachments, worktree, compare } = {}) {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
       agent ||= defaults.agent || 'claude';
       mode ||= defaults.mode || 'edits';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }
-    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), agent, mode, model, effort, attachments });
+    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), agent, mode, model, effort, attachments, worktree, compare });
   }
+
+  // Ship it: commit the session's worktree, push its branch, open (or update) the PR.
+  ship = (id, { title, body, draft } = {}) => this.request('POST', `/sessions/${id}/ship`, { title, body, draft });
+  merge = (id) => this.request('POST', `/sessions/${id}/merge`, {});
+
+  // Recipes: saved prompts with {params}. key is the id or the name.
+  recipes = () => this.request('GET', '/recipes');
+  saveRecipe = (recipe) => this.request(recipe.id ? 'PATCH' : 'POST', `/recipes${recipe.id ? `/${recipe.id}` : ''}`, recipe);
+  runRecipe = (key, { params, words, cwd = process.cwd(), agent, model, effort, mode } = {}) =>
+    this.request('POST', `/recipes/${encodeURIComponent(key)}/run`, { params, words, cwd: path.resolve(cwd), agent, model, effort, mode });
+  triggers = () => this.request('GET', '/triggers');
+  usage = ({ days } = {}) => this.request('GET', `/usage${days ? `?days=${days}` : ''}`);
 
   // A follow-up. If the agent is blocked on ask_user, this answers it. queue: wait for the
   // current run instead of interrupting it (default: the user's setting).

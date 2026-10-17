@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 process.env.WISP_TELEMETRY = '0'; // tests never report to PostHog
 
 const FAKE = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta.url));
+const FAKE_GH = fileURLToPath(new URL('./fixtures/fake-gh.mjs', import.meta.url));
 export const BINS = ['claude', 'codex', 'opencode', 'cursor-agent', 'agy'];
 export const win = process.platform === 'win32';
 
@@ -40,8 +41,9 @@ export function installFakeBins() {
   const dir = tmp('bin');
   const lib = path.join(dir, 'node_modules', 'fake');
   fs.mkdirSync(lib, { recursive: true });
-  for (const bin of BINS) {
-    fs.copyFileSync(FAKE, path.join(lib, `${bin}.mjs`));
+  // The harnesses, plus a fake GitHub CLI (`gh`) for Ship it and the GitHub triggers.
+  for (const bin of [...BINS, 'gh']) {
+    fs.copyFileSync(bin === 'gh' ? FAKE_GH : FAKE, path.join(lib, `${bin}.mjs`));
     if (win) {
       fs.writeFileSync(path.join(dir, `${bin}.cmd`), npmCmdShim(`node_modules/fake/${bin}.mjs`));
     } else {
@@ -103,4 +105,24 @@ export function alive(pid) {
   } catch {
     return false;
   }
+}
+
+// A clean repo on `main` with a bare `origin`, as a real clone looks: worktrees branch from
+// origin/main, Ship it pushes there, and merging fast-forwards the checkout.
+export function makeClone() {
+  const remote = tmp('origin');
+  const dir = tmp('clone');
+  const git = (cwd, ...a) => execFileSync('git', a, { cwd, stdio: 'ignore' });
+  git(remote, 'init', '-q', '--bare', '-b', 'main');
+  git(dir, 'init', '-q', '-b', 'main');
+  git(dir, 'config', 'core.autocrlf', 'false');
+  git(dir, 'config', 'user.email', 'test@example.com');
+  git(dir, 'config', 'user.name', 'wisp test');
+  fs.writeFileSync(path.join(dir, 'math.js'), 'export function add(a, b) {\n  return a - b;\n}\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-qm', 'init');
+  git(dir, 'remote', 'add', 'origin', remote);
+  git(dir, 'push', '-q', '-u', 'origin', 'main');
+  git(dir, 'remote', 'set-head', 'origin', 'main');
+  return { dir, remote, git: (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).trim() };
 }

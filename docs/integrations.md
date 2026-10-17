@@ -96,6 +96,13 @@ wisp show <id> [--json]
 wisp wait <id> [--json]
 wisp reply <id> "also handle the empty list" [--queue] [--wait]
 wisp stop <id>
+wisp "fix it" --compare codex,opencode           # the same task on more harnesses, one worktree each
+wisp "quick edit" --no-worktree                  # edit the folder in place
+wisp ship <id> [--draft]                         # commit, push, open a PR (worktree sessions)
+wisp merge <id>                                  # squash-merge it, fast-forward local main
+wisp run <recipe> [values… | key=value…]         # run a saved recipe
+wisp recipes [--json]
+wisp usage [--days 30] [--json]
 wisp -- show me where auth is configured        # a task whose first word is a command name
 ```
 
@@ -123,7 +130,8 @@ for await (const { event, data } of wisp.events()) {
 
 Methods: `health` · `agents` · `config` · `updateConfig` · `projects` · `addProject` ·
 `removeProject` · `sessions(filter)` · `session` · `presentation` · `launch` · `reply` ·
-`answer` · `wait` · `stop` · `update` · `remove` · `takeover` · `upload` · `events`.
+`answer` · `wait` · `stop` · `update` · `remove` · `takeover` · `upload` · `events` · `ship` ·
+`merge` · `recipes` · `saveRecipe` · `runRecipe` · `triggers` · `usage`.
 Errors throw `WispError` with `status` and the response `body`.
 
 Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
@@ -142,8 +150,20 @@ Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
 | GET · POST | `/api/projects` | list / add a folder |
 | PATCH · DELETE | `/api/projects/:id` | rename, recolor, remove |
 | GET | `/api/sessions` | summaries; `?state=running,waiting&agent=&project=&cwd=&archived=&limit=` |
-| POST | `/api/sessions` | launch: `{ prompt, cwd, agent, mode, model, effort, attachments }` |
-| GET · PATCH · DELETE | `/api/sessions/:id` | full record / `{ title, state, unread, archived }` / delete |
+| POST | `/api/sessions` | launch: `{ prompt, cwd, agent, mode, model, effort, attachments, worktree, compare }` |
+| GET · PATCH · DELETE | `/api/sessions/:id` | full record / `{ title, state, unread, archived, discardWorktree }` / delete |
+| GET · POST | `/api/sessions/:id/ship` | what would ship / `{ title, body, draft }`: commit, push, open or update the PR |
+| POST | `/api/sessions/:id/pr` | refresh PR checks and review now (also polled every minute) |
+| POST | `/api/sessions/:id/merge` | squash-merge the PR, fast-forward the local base branch → `{ pr, sync }` |
+| GET · POST | `/api/recipes` | list / save `{ name, prompt, cwd, agent, model, effort, mode }` |
+| GET · PATCH · DELETE | `/api/recipes/:idOrName` | one recipe |
+| POST | `/api/recipes/:idOrName/run` | `{ params, words, cwd, … }` → session summary |
+| GET · POST | `/api/triggers` | list (with `nextAt`) / add `{ kind: schedule\|ci\|issues, cwd, cron, branch, label, every, prompt \| recipeId, … }` |
+| PATCH · DELETE | `/api/triggers/:id` | edit, enable/disable, delete |
+| POST | `/api/triggers/:id/run` | fire a schedule now, or poll a watcher now |
+| GET · PUT | `/api/remote` | phone channels (ntfy, Telegram); tokens come back masked |
+| POST | `/api/remote/test` | send a test message |
+| GET | `/api/usage?days=30` | spend and outcomes per day, project and harness · model |
 | GET | `/api/sessions/:id/wait?timeout=60` | long-poll (max 290 s) until it finishes or asks; `timedOut` if not |
 | GET | `/api/sessions/:id/presentation` | `{ blocks, markdown, ask, changes, stats, … }`; `?turn=<id\|index>`, `?format=markdown` |
 | POST | `/api/sessions/:id/reply` | `{ text, attachments?, queue? }` |
@@ -156,6 +176,10 @@ Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
 
 Session `state`: `running` → `waiting` (blocked on a question) → `review` (finished, unread) →
 `done` (marked done by the user).
+
+Launches in a git repo run in a fresh worktree by default (see the README). The summary's `branch`
+names it and the presentation markdown ends with the worktree path, since the changes are not in
+your checkout. Pass `"worktree": false` to edit `cwd` in place.
 
 Rules every request must follow (they keep web pages from driving your agents):
 

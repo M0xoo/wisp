@@ -71,7 +71,6 @@ test('client: launch → wait → presentation as blocks and markdown; filters',
   assert.match(p.markdown, /^## Fake claude finished/);
   assert.ok(p.changes.some((c) => c.file === 'math.js'));
   assert.ok(p.checkpoint?.commit, 'turn checkpoint captured');
-  assert.equal(p.checkpoint.dirty, true);
   const md = await (await wisp.request('GET', `/sessions/${s.id}/presentation?format=markdown`, undefined, { raw: true })).text();
   assert.equal(md, p.markdown);
 
@@ -82,11 +81,12 @@ test('client: launch → wait → presentation as blocks and markdown; filters',
 
 test('client: file revert/restore, turn checkpoint rollback/restore, and action command execution', async () => {
   const cwd = makeRepo();
-  const s = await wisp.launch({ prompt: 'fix add()', cwd, agent: 'claude', mode: 'edits' });
+  const s = await wisp.launch({ prompt: 'fix add()', cwd, agent: 'claude', mode: 'edits', worktree: false });
   await wisp.wait(s.id, { timeoutMs: 20_000 });
   const full = await wisp.session(s.id);
   const turn = full.turns[0];
   assert.ok(turn.checkpoint?.commit);
+  assert.equal(turn.checkpoint.dirty, true);
   assert.match(fs.readFileSync(path.join(cwd, 'math.js'), 'utf8'), /return a \+ b;/);
 
   // Single-file revert restores pre-turn file content (including uncommitted line)

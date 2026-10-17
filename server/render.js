@@ -100,5 +100,7 @@ export function sessionToMarkdown(session) {
     out.push(`**❓ The agent is waiting for your answer:** ${session.ask.question}${session.ask.context ? `\n\n${session.ask.context}` : ''}`);
     if (session.ask.options?.length) out.push(session.ask.options.map((o, i) => `${i + 1}. ${o}`).join('\n'));
   }
+  // Worktree sessions: say where the changes are, since they aren't in the caller's checkout.
+  if (session.worktree && turn?.status !== 'running') out.push(`_Changes are on branch \`${session.worktree.branch}\` in the worktree \`${session.worktree.path}\`${session.pr ? ` · PR #${session.pr.number} (${String(session.pr.state).toLowerCase()}): ${session.pr.url}` : ''}._`);
   return out.join('\n\n');
 }

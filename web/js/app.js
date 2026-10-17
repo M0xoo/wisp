@@ -272,6 +272,8 @@ function renderHead(n, s) {
     <span class="it-side">
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
+      ${s.pr ? prPill(s.pr) : ''}
+      ${s.groupId ? `<span class="q-vs" title="Compare run: the same task on several harnesses">vs</span>` : ''}
       ${modelBadge(s.agent, s.model, s.effort)}
       <span class="q-proj">${esc(s.project)}</span>
       <span class="q-time">${ago(s.updatedAt)}</span>
@@ -483,7 +485,10 @@ function renderLauncher() {
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
+      <button class="tog-btn vs" id="compareBtn" title="Compare: run the same task on a second harness, side by side">vs</button>
+      <button class="runner-btn" id="runner2" title="Second harness to compare with" aria-haspopup="dialog" hidden></button>
       <span class="grow"></span>
+      <button class="tog-btn" id="wtBtn"></button>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
     </div>`;
   renderLaunchChips();
@@ -532,11 +537,51 @@ function renderLauncher() {
   let curEffort = savedEffort(agent?.id, curModel);
   const runnerBtn = $('#runner', box);
   const paintRunner = () => {
-    const m = (agent?.models || []).find((x) => x.id === curModel);
-    runnerBtn.innerHTML = `<span class="rb-logo">${harnessLogo(agent?.id)}</span><span class="rb-h">${esc(agent?.name || 'No agent')}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${curEffort ? `<span class="rb-e">${esc(effortLabel(curEffort))}</span>` : ''}${icon('chevron', 'chev')}`;
+    paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort);
     runnerBtn.title = `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
   };
   paintRunner();
+
+  // Worktree: each launch gets a fresh branch from the remote's default branch (git repos only).
+  const wtBtn = $('#wtBtn', box);
+  const paintWt = () => {
+    const on = S.config.defaults.worktree !== 'off';
+    wtBtn.classList.toggle('on', on);
+    wtBtn.innerHTML = `${icon('branch')}<span>${on ? 'Worktree' : 'In place'}</span>`;
+    wtBtn.title = on
+      ? 'Worktree: runs on its own branch from origin/main in a separate checkout, so parallel agents never collide (git repos; not in Plan mode). Click to work in the project folder instead.'
+      : 'In place: edits the project folder directly. Click to give each task its own worktree and branch.';
+  };
+  paintWt();
+  wtBtn.onclick = () => {
+    const worktree = S.config.defaults.worktree === 'off' ? 'on' : 'off';
+    S.config.defaults.worktree = worktree;
+    paintWt();
+    api('/config', { method: 'PATCH', body: { defaults: { worktree } } }).catch(() => {});
+  };
+
+  // Compare: a second harness gets the same task; picks here don't touch the launcher defaults.
+  let compare = null;
+  const vsBtn = $('#compareBtn', box);
+  const runner2 = $('#runner2', box);
+  const paintCompare = () => {
+    vsBtn.classList.toggle('on', !!compare);
+    runner2.hidden = !compare;
+    if (compare) paintRunnerBtn(runner2, compare.agent, compare.model, compare.effort);
+  };
+  vsBtn.onclick = () => {
+    if (compare) compare = null;
+    else {
+      const other = S.agents.find((a) => a.available && a.id !== agent?.id) || agent;
+      compare = { agent: other?.id, model: savedModel(other?.id), effort: savedEffort(other?.id, savedModel(other?.id)) };
+    }
+    paintCompare();
+  };
+  runner2.onclick = () =>
+    runnerPicker(runner2, { ...compare, savedModel, savedEffort }, (id, model, effort) => {
+      compare = { agent: id, model, effort };
+      paintCompare();
+    });
   runnerBtn.onclick = () =>
     runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort }, (id, model, effort) => {
       agent = S.agents.find((a) => a.id === id);
@@ -560,8 +605,12 @@ function renderLauncher() {
     btn.disabled = true;
     try {
       const attachments = await tray.ids();
-      const s = await api('/sessions', { method: 'POST', body: { prompt, cwd: project.path, agent: agent?.id || 'claude', mode: curMode, model: curModel, effort: curEffort, attachments } });
-      S.sessions.set(s.id, s);
+      const s = await api('/sessions', {
+        method: 'POST',
+        body: { prompt, cwd: project.path, agent: agent?.id || 'claude', mode: curMode, model: curModel, effort: curEffort, attachments, worktree: S.config.defaults.worktree === 'off' && !compare ? false : undefined, compare: compare ? [compare] : undefined },
+      });
+      for (const x of s.group || [s]) S.sessions.set(x.id, x);
+      if (compare) (compare = null), paintCompare();
       ta.value = '';
       S.drafts.delete('home');
       tray.clear();
@@ -591,6 +640,15 @@ function renderLauncher() {
       setMode(MODES[(MODES.findIndex((m) => m.id === curMode) + 1) % MODES.length].id);
     }
   });
+}
+
+// The harness · model · thinking button, as in the launcher. agent '' reads "Launcher default".
+function paintRunnerBtn(btn, agentId, model, effort) {
+  const a = S.agents.find((x) => x.id === agentId);
+  const m = (a?.models || []).find((x) => x.id === model);
+  btn.innerHTML = agentId
+    ? `<span class="rb-logo">${harnessLogo(agentId)}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${icon('chevron', 'chev')}`
+    : `<span class="rb-logo">${icon('spark')}</span><span class="rb-h">Launcher default</span>${icon('chevron', 'chev')}`;
 }
 
 function modeMenu(anchor, current, pick) {
@@ -789,11 +847,14 @@ function renderBody(id, { fresh }) {
           <div class="it-meta"></div>
           <div class="it-actions">
             <button class="ghost xs" data-a="replay" title="Replay presentation (R)">${icon('replay')}</button>
+            <button class="ghost xs" data-a="compare" title="Compare the runs side by side" hidden><b class="vs-mark">vs</b><span>Compare</span></button>
+            <button class="ghost xs" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
             <button class="ghost xs" data-a="takeover" title="Take over in your terminal (T)">${icon('terminal')}<span>Take over</span></button>
             <button class="ghost xs" data-a="done" title="Mark done (E)">${icon('done')}<span>Done</span></button>
             <button class="ghost xs" data-a="more" title="More">${icon('dots')}</button>
           </div>
         </div>
+        <div class="pr-strip" hidden></div>
         <button class="link xs earlier" hidden></button>
         <div class="turns"></div>
         <div class="it-dock"></div>
@@ -804,6 +865,8 @@ function renderBody(id, { fresh }) {
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'replay') replay(id);
       if (a === 'takeover') takeOver(id);
+      if (a === 'ship') shipDialog(id);
+      if (a === 'compare') compareView(id);
       if (a === 'done') toggleDone(id);
       if (a === 'more') moreMenu(id, e.target.closest('button'));
     });
@@ -818,7 +881,14 @@ function renderBody(id, { fresh }) {
     <span class="m">${esc(MODES.find((m) => m.id === s.mode)?.label || s.mode)}</span>
     ${s.model ? `<span class="m">${esc(s.model)}</span>` : ''}
     ${s.effort ? `<span class="m">${esc(effortLabel(s.effort))} thinking</span>` : ''}
-    <span class="m path" title="${esc(s.cwd)}">${esc((proj?.path || s.cwd).replace(S.config.home || '', '~'))}</span>`;
+    <span class="m path" title="${esc(s.cwd)}">${esc((proj?.path || s.cwd).replace(S.config.home || '', '~'))}</span>
+    ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
+    ${s.origin ? `<span class="m" title="Launched by a ${esc(s.origin.kind)}">${icon(s.origin.kind === 'trigger' ? 'replay' : 'spark')}${esc(s.origin.name)}</span>` : ''}`;
+  const live = s.state === 'running' || s.state === 'waiting';
+  const ship = $('[data-a="ship"]', body);
+  ship.hidden = !s.worktree || live || s.agent === 'wisp' || s.pr?.state === 'MERGED';
+  $('[data-a="compare"]', body).hidden = !s.groupId;
+  renderPrStrip(id);
   // Done lives both in the top bar and next to the composer, so it's reachable after reading.
   $$('[data-a="done"]', body).forEach((b) => {
     b.classList.toggle('on', s.state === 'done');
@@ -1564,6 +1634,10 @@ function taskMenu(id, e) {
       ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
+      ${s.branch && !busy && s.pr?.state !== 'MERGED' ? `<button data-a="ship">${icon('send')}${s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.number}` : 'Ship it…'}${keyHint('S')}</button>` : ''}
+      ${s.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${s.pr.number}…</button>` : ''}
+      ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
+      <button data-a="recipe">${icon('spark')}Save as recipe…</button>
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
@@ -1579,6 +1653,10 @@ function taskMenu(id, e) {
     if (a === 'collapse') collapse(id);
     if (a === 'rename') rename(id);
     if (a === 'rerun') rerun(id);
+    if (a === 'ship') shipDialog(id);
+    if (a === 'merge') mergePr(id);
+    if (a === 'compare') compareView(id);
+    if (a === 'recipe') saveAsRecipe(id);
     if (a === 'done') toggleDone(id);
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
@@ -1640,11 +1718,7 @@ async function rerun(id) {
     modeBtn.title = m.hint;
   };
   const runnerBtn = $('[data-a="runner"]', node);
-  const paintRunner = () => {
-    const a = S.agents.find((x) => x.id === agent);
-    const m = (a?.models || []).find((x) => x.id === model);
-    runnerBtn.innerHTML = `<span class="rb-logo">${harnessLogo(agent)}</span><span class="rb-h">${esc(a?.name || agentName(agent))}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${icon('chevron', 'chev')}`;
-  };
+  const paintRunner = () => paintRunnerBtn(runnerBtn, agent, model, effort);
   paintMode();
   paintRunner();
   modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode(), ta.focus()));
@@ -1881,6 +1955,641 @@ async function openProjects({ focusAdd = false } = {}) {
   if (focusAdd) setTimeout(() => input.focus(), 60);
 }
 
+// --- ship it: worktree → commit → PR → checks → merge ---------------------------------------
+
+const prTone = (pr) =>
+  pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : pr.checks?.fail ? 'fail' : pr.checks?.pending ? 'pending' : pr.review === 'CHANGES_REQUESTED' ? 'fail' : 'pass';
+const REVIEW = { APPROVED: 'Approved', CHANGES_REQUESTED: 'Changes requested', REVIEW_REQUIRED: 'Review required' };
+function prLine(pr) {
+  const c = pr.checks || {};
+  const checks = c.fail ? `${c.fail} check${c.fail > 1 ? 's' : ''} failing` : c.pending ? `${c.pending} check${c.pending > 1 ? 's' : ''} running` : c.pass ? `${c.pass} check${c.pass > 1 ? 's' : ''} passed` : 'No checks';
+  const state = pr.state === 'MERGED' ? 'Merged' : pr.state === 'CLOSED' ? 'Closed' : pr.draft ? 'Draft' : 'Open';
+  return [state, pr.state === 'OPEN' ? checks : '', pr.state === 'OPEN' ? REVIEW[pr.review] : ''].filter(Boolean).join(' · ');
+}
+const prPill = (pr) => `<span class="pill pr pr-${prTone(pr)}" title="PR #${pr.number}: ${esc(prLine(pr))}"><i></i>#${pr.number}</span>`;
+
+// The PR row under a card's bar; reads the live summary, so polled check results show up.
+function renderPrStrip(id) {
+  const n = S.nodes.get(id);
+  const node = n?.body && $('.pr-strip', n.body);
+  const s = S.sessions.get(id);
+  if (!node || !s) return;
+  const pr = s.pr;
+  const ship = $('[data-a="ship"] span', n.body);
+  if (ship) ship.textContent = pr?.state === 'OPEN' ? `Push to #${pr.number}` : pr ? 'Ship again' : 'Ship it';
+  node.hidden = !pr;
+  if (!pr) return;
+  const tone = prTone(pr);
+  node.className = `pr-strip pr-${tone}`;
+  node.innerHTML = `
+    <span class="pr-dot"></span>
+    <a href="${esc(pr.url)}" target="_blank" class="pr-num">PR #${pr.number}</a>
+    <span class="pr-line">${esc(prLine(pr))}</span>
+    <span class="grow"></span>
+    ${pr.state === 'OPEN' ? `<button class="ghost xs" data-pr="refresh" title="Check now (wisp also checks every minute)">${icon('replay')}</button>` : ''}
+    <a class="ghost xs" href="${esc(pr.url)}" target="_blank">${icon('external')}<span>GitHub</span></a>
+    ${pr.state === 'OPEN' ? `<button class="ghost xs pr-merge" data-pr="merge" title="Squash-merge, then fast-forward your local ${esc(s.branch ? 'base branch' : 'checkout')}">${icon('check')}<span>Merge</span></button>` : ''}`;
+  node.onclick = (e) => {
+    const a = e.target.closest('[data-pr]')?.dataset.pr;
+    if (a === 'refresh') api(`/sessions/${id}/pr`, { method: 'POST', body: {} }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    if (a === 'merge') mergePr(id);
+  };
+}
+
+async function shipDialog(id) {
+  const s = S.sessions.get(id);
+  if (!s) return;
+  if (s.state === 'running' || s.state === 'waiting') return toast('Still working: let it finish first.');
+  let info;
+  try {
+    info = await api(`/sessions/${id}/ship`);
+  } catch (err) {
+    return toast(esc(err.message), { tone: 'bad' });
+  }
+  const open = info.pr?.state === 'OPEN';
+  const nothing = !info.dirty && !info.ahead;
+  const node = el(`
+    <div class="modal ship-modal">
+      <header><h2>${open ? `Push to PR #${info.pr.number}` : 'Ship it'}</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <p class="ship-route">${icon('branch')}<code>${esc(info.branch)}</code>${icon('arrow')}<code>${esc(info.remote || 'no remote')}/${esc(info.base)}</code>
+        <span class="muted">${info.dirty ? `${info.dirty} uncommitted change${info.dirty > 1 ? 's' : ''}` : 'Nothing uncommitted'} · ${info.ahead} commit${info.ahead === 1 ? '' : 's'} on the branch</span></p>
+      ${info.dirty ? `<label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><input name="title" spellcheck="false" maxlength="100"></label>` : ''}
+      ${open ? '' : `<label class="ship-field"><span>Pull request description</span><textarea name="body" rows="9" spellcheck="false"></textarea></label>
+      <label class="ship-check"><input type="checkbox" name="draft"> Open as a draft</label>`}
+      ${!info.remote ? '<p class="hint bad">This repo has no <code>origin</code> remote, so there is nowhere to push.</p>' : nothing ? '<p class="hint">Nothing to ship yet: the branch has no changes.</p>' : ''}
+      <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in the worktree.</span><button class="primary sm" data-a="go" ${nothing || !info.remote ? 'disabled' : ''}>${icon('send')}${open ? 'Commit & push' : 'Commit, push & open PR'}</button></div>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  const title = $('[name="title"]', node);
+  const body = $('[name="body"]', node);
+  if (title) title.value = info.title;
+  if (body) body.value = info.body;
+  const go = async () => {
+    const btn = $('[data-a="go"]', node);
+    btn.disabled = true;
+    btn.lastChild.textContent = 'Shipping…';
+    try {
+      const pr = await api(`/sessions/${id}/ship`, { method: 'POST', body: { title: title?.value || info.title, body: body?.value ?? info.body, draft: !!$('[name="draft"]', node)?.checked } });
+      close();
+      toast(`${icon('branch')} ${open ? 'Pushed to' : 'Opened'} <b>PR #${pr.number}</b>`, { action: { label: 'Open', run: () => window.open(pr.url, '_blank') }, timeout: 8000 });
+    } catch (err) {
+      btn.disabled = false;
+      btn.lastChild.textContent = open ? 'Commit & push' : 'Commit, push & open PR';
+      toast(esc(err.message), { tone: 'bad', timeout: 10_000 });
+    }
+  };
+  $('[data-a="go"]', node).onclick = go;
+  requestAnimationFrame(() => (title || $('[data-a="go"]', node)).focus());
+}
+
+async function mergePr(id) {
+  const s = S.sessions.get(id);
+  const pr = s?.pr;
+  if (!pr || pr.state !== 'OPEN') return;
+  const c = pr.checks || {};
+  const warn = c.fail ? `\n\n⚠ ${c.fail} check${c.fail > 1 ? 's are' : ' is'} failing.` : c.pending ? `\n\n⚠ ${c.pending} check${c.pending > 1 ? 's are' : ' is'} still running.` : '';
+  if (!confirm(`Squash-merge PR #${pr.number}${pr.draft ? ' (marks it ready first)' : ''}, then fast-forward your local base branch and remove the worktree?${warn}`)) return;
+  toast(`Merging PR #${pr.number}…`);
+  try {
+    const r = await api(`/sessions/${id}/merge`, { method: 'POST', body: {} });
+    toast(`${icon('check')} Merged <b>PR #${r.pr.number}</b>. ${esc(r.sync.text)}`, { tone: r.sync.ok ? '' : 'bad', timeout: 10_000 });
+  } catch (err) {
+    toast(esc(err.message), { tone: 'bad', timeout: 12_000 });
+  }
+}
+
+// --- compare: one task, several harnesses, side by side -------------------------------------------
+
+function turnMetrics(t) {
+  const lines = (t?.changes || []).reduce((acc, c) => {
+    const n = countChanges(c.edits);
+    return { add: acc.add + n.add, del: acc.del + n.del };
+  }, { add: 0, del: 0 });
+  const tests = (t?.presentation?.blocks || []).filter((b) => b?.type === 'tests');
+  return {
+    time: t?.endedAt ? t.endedAt - t.startedAt : null,
+    cost: t?.stats?.costUsd,
+    files: t?.changes?.length || 0,
+    ...lines,
+    tests: tests.length ? { passed: tests.reduce((a, b) => a + (Number(b.passed) || 0), 0), failed: tests.reduce((a, b) => a + (Number(b.failed) || 0), 0) } : null,
+    asks: (t?.activity || []).filter((a) => a.kind === 'ask').length,
+  };
+}
+
+async function compareView(id) {
+  const s0 = S.sessions.get(id);
+  if (!s0?.groupId) return;
+  const group = [...S.sessions.values()].filter((x) => x.groupId === s0.groupId).sort((a, b) => a.createdAt - b.createdAt);
+  const fulls = (await Promise.all(group.map((g) => api(`/sessions/${g.id}`).catch(() => null)))).filter(Boolean);
+  const node = el(`
+    <div class="modal compare-modal">
+      <header><h2>Compare</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <p class="cmp-prompt">${esc(fulls[0]?.turns[0]?.prompt || '')}</p>
+      <div class="cmp-grid" style="--n:${fulls.length}"></div>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  const grid = $('.cmp-grid', node);
+  for (const f of fulls) {
+    const sum = S.sessions.get(f.id) || {};
+    const t = f.turns.at(-1);
+    const mx = turnMetrics(t);
+    const live = f.state === 'running' || f.state === 'waiting';
+    const col = el(`
+      <section class="cmp-col" data-id="${f.id}">
+        <div class="cmp-head">
+          <span class="rb-logo">${harnessLogo(f.agent)}</span>
+          <span class="cmp-who"><b>${esc(agentName(f.agent))}</b><small>${esc(f.model || 'Default model')}${f.effort ? ` · ${esc(effortLabel(f.effort))}` : ''}</small></span>
+          ${live ? `<span class="pill st-waiting"><i></i>${f.state === 'waiting' ? 'Asking' : 'Working'}</span>` : `<span class="pill st-${sum.status || 'info'}"><i></i>${STATUS_LABEL[sum.status] || 'Done'}</span>`}
+        </div>
+        <dl class="cmp-stats">
+          <div><dt>Time</dt><dd>${mx.time !== null ? fmtDuration(mx.time) : '—'}</dd></div>
+          <div><dt>Cost</dt><dd>${typeof mx.cost === 'number' ? `$${mx.cost.toFixed(2)}` : '—'}</dd></div>
+          <div><dt>Files</dt><dd>${mx.files} <span class="plus">+${mx.add}</span> <span class="minus">−${mx.del}</span></dd></div>
+          <div><dt>Tests</dt><dd>${mx.tests ? `<span class="${mx.tests.failed ? 'minus' : 'plus'}">${mx.tests.passed} ✓ ${mx.tests.failed ? `${mx.tests.failed} ✗` : ''}</span>` : '—'}</dd></div>
+          <div><dt>Asked</dt><dd>${mx.asks}</dd></div>
+        </dl>
+        <div class="cmp-body"></div>
+        <div class="cmp-foot">
+          <button class="ghost xs" data-a="open">${icon('chevron')}Open card</button>
+          <span class="grow"></span>
+          <button class="primary sm" data-a="keep" ${live ? 'disabled title="Still working"' : ''}>${icon('check')}Keep this</button>
+        </div>
+      </section>`);
+    $('.cmp-body', col).append(live ? el(`<p class="muted xs">${esc(sum.live || 'Working…')}</p>`) : renderPresentation(t?.presentation, ctxFor(f, t, false)));
+    grid.append(col);
+  }
+  grid.onclick = async (e) => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    const keep = e.target.closest('.cmp-col')?.dataset.id;
+    if (!a || !keep) return;
+    if (a === 'open') return close(), reveal(keep);
+    const others = group.filter((g) => g.id !== keep);
+    if (!confirm(`Keep ${agentName(S.sessions.get(keep)?.agent)}'s result?\n\nThe other ${others.length === 1 ? 'run is' : `${others.length} runs are`} archived, and ${others.length === 1 ? 'its worktree is' : 'their worktrees are'} deleted with their changes.`)) return;
+    for (const o of others) {
+      if (o.state === 'running' || o.state === 'waiting') {
+        await api(`/sessions/${o.id}/stop`, { method: 'POST', body: {} }).catch(() => {});
+        await until(() => S.sessions.get(o.id)?.state !== 'running', 5000);
+      }
+      await api(`/sessions/${o.id}`, { method: 'PATCH', body: { archived: true, discardWorktree: true } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    }
+    close();
+    reveal(keep);
+    toast(`Kept ${esc(agentName(S.sessions.get(keep)?.agent))}'s run. Ship it when you're ready.`);
+  };
+}
+
+// Poll a condition for up to `ms` (used after asking the server to stop something).
+async function until(fn, ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end && !fn()) await new Promise((r) => setTimeout(r, 150));
+}
+
+// --- automations: recipes (saved prompts) and triggers (schedules, GitHub watchers) -----------
+
+const TRIGGER_KINDS = [
+  { kind: 'schedule', label: 'Schedule', icon: 'replay', hint: 'On a cron schedule, local time' },
+  { kind: 'ci', label: 'CI failed', icon: 'warn', hint: 'A GitHub Actions run fails (polled with gh)' },
+  { kind: 'issues', label: 'Issue labelled', icon: 'ask', hint: 'An open issue gets a label (polled with gh)' },
+];
+const CRON_PRESETS = [
+  ['Weekdays 9:00', '0 9 * * 1-5'],
+  ['Every hour', '0 * * * *'],
+  ['Daily 18:00', '0 18 * * *'],
+  ['Mondays 8:00', '0 8 * * 1'],
+];
+const recipeParams = (prompt) => [...new Set([...String(prompt || '').matchAll(/\{([a-zA-Z][\w-]{0,30})\}/g)].map((m) => m[1]))];
+const whenLabel = (t) => {
+  if (!t) return '';
+  const d = new Date(t);
+  const today = new Date().toDateString() === d.toDateString();
+  return d.toLocaleString([], today ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+const projectOptions = (selected, { any } = {}) =>
+  (any ? `<option value="">${esc(any)}</option>` : '') +
+  S.config.projects.map((p) => `<option value="${esc(p.path)}" ${p.path === selected ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+const modeOptions = (selected, { inherit } = {}) =>
+  (inherit ? `<option value="">${esc(inherit)}</option>` : '') + MODES.map((m) => `<option value="${m.id}" ${m.id === selected ? 'selected' : ''}>${m.label}</option>`).join('');
+
+function openAutomations({ tab = 'recipes', edit = null } = {}) {
+  const node = el(`<div class="modal auto-modal">
+      <header><h2>Automations</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <p class="mem-lede">Recipes are prompts you send again and again; <code>{name}</code> in one becomes a field to fill in. Triggers start sessions on their own.</p>
+      <div class="mem-tabs" role="tablist"></div>
+      <div class="auto-body"></div>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  let recipes = [];
+  let triggers = [];
+  let editing = edit; // { type: 'recipe' | 'trigger', draft }
+
+  const render = async () => {
+    [recipes, triggers] = await Promise.all([api('/recipes').catch(() => recipes), api('/triggers').catch(() => triggers)]);
+    if (!node.isConnected) return;
+    $('.mem-tabs', node).innerHTML = [
+      ['recipes', 'Recipes', recipes.length],
+      ['triggers', 'Triggers', triggers.length],
+    ].map(([k, l, n]) => `<button role="tab" data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}<span>${n}</span></button>`).join('');
+    const body = $('.auto-body', node);
+    body.innerHTML = '';
+    if (editing?.type === 'recipe') body.append(recipeForm(editing.draft));
+    else if (editing?.type === 'trigger') body.append(triggerForm(editing.draft));
+    else body.innerHTML = tab === 'recipes' ? recipesView() : triggersView();
+  };
+
+  const recipesView = () =>
+    `<div class="au-list">${
+      recipes
+        .map((r) => {
+          const proj = S.config.projects.find((p) => p.path === r.cwd);
+          const tags = [r.params.length ? r.params.map((p) => `{${p}}`).join(' ') : '', proj ? proj.name : 'Any project', r.agent ? agentName(r.agent) : '', r.runs ? `${r.runs} run${r.runs > 1 ? 's' : ''}` : ''].filter(Boolean);
+          return `<div class="au-item" data-id="${r.id}">
+            <span class="mem-ico">${icon('spark')}</span>
+            <div class="au-main"><b>${esc(r.name)}</b><p>${esc(r.prompt.replace(/\s+/g, ' ').slice(0, 140))}</p><span class="au-tags">${tags.map((t) => `<i>${esc(t)}</i>`).join('')}</span></div>
+            <span class="au-acts"><button class="primary sm" data-act="run">Run</button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
+          </div>`;
+        })
+        .join('') || '<p class="mem-empty">No recipes yet. Save a task you repeat, like a release checklist, a PR from a commit, or a dependency bump.</p>'
+    }</div><button class="mem-add" data-act="new">${icon('plus')}New recipe</button>
+    <p class="hint">Also from the terminal: <code>wisp recipes</code>, <code>wisp run &lt;name&gt; [values…]</code>.</p>`;
+
+  const describe = (t) => {
+    const proj = S.config.projects.find((p) => p.path === t.cwd)?.name || t.cwd.split(/[\\/]/).pop();
+    if (t.kind === 'schedule') return `<code>${esc(t.cron)}</code> in ${esc(proj)}${t.nextAt ? ` · next ${esc(whenLabel(t.nextAt))}` : ''}`;
+    const what = t.kind === 'ci' ? `failed CI${t.branch ? ` on <code>${esc(t.branch)}</code>` : ''}` : `issues labelled <code>${esc(t.label)}</code>`;
+    return `Watches ${what} in ${esc(proj)} every ${t.every} min${t.seeded ? '' : ' · first check records what is already there'}`;
+  };
+  const triggersView = () =>
+    `<div class="au-list">${
+      triggers
+        .map((t) => {
+          const k = TRIGGER_KINDS.find((x) => x.kind === t.kind);
+          const last = t.lastSessionId && S.sessions.has(t.lastSessionId) ? `<a href="#" data-session="${esc(t.lastSessionId)}">last run ${ago(t.lastRunAt)} ago</a>` : t.lastRunAt ? `last run ${ago(t.lastRunAt)} ago` : 'not run yet';
+          return `<div class="au-item ${t.enabled ? '' : 'off'}" data-id="${t.id}">
+            <span class="mem-ico">${icon(k.icon)}</span>
+            <div class="au-main"><b>${esc(t.name)}</b><p>${describe(t)}</p><span class="au-tags"><i>${esc(MODES.find((m) => m.id === t.mode)?.label || t.mode)}</i>${t.agent ? `<i>${esc(agentName(t.agent))}</i>` : ''}<i>${last}</i></span>${t.lastError ? `<p class="au-err">${icon('warn')}${esc(t.lastError)}</p>` : ''}</div>
+            <span class="au-acts"><button class="ghost xs" data-act="fire" title="${t.kind === 'schedule' ? 'Run it now' : 'Check GitHub now'}">${icon('replay')}${t.kind === 'schedule' ? 'Run now' : 'Check now'}</button><button class="switch" data-act="toggle" role="switch" aria-checked="${t.enabled}" title="On / off"></button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
+          </div>`;
+        })
+        .join('') || '<p class="mem-empty">No triggers yet. Run a recipe every weekday morning, or send an agent after every red CI run.</p>'
+    }</div><button class="mem-add" data-act="new">${icon('plus')}New trigger</button>
+    <p class="hint">Triggers run while wisp is open. GitHub watchers use your <code>gh</code> login and poll, so nothing has to reach this machine.</p>`;
+
+  // Harness · model button for a form, with "Launcher default" when no agent is set.
+  const runnerField = (draft) => {
+    const wrap = el(`<div class="au-runner"><button type="button" class="runner-btn" aria-haspopup="dialog"></button><button type="button" class="link xs" ${draft.agent ? '' : 'hidden'}>Use launcher default</button></div>`);
+    const [btn, reset] = wrap.children;
+    const paint = () => (paintRunnerBtn(btn, draft.agent, draft.model, draft.effort), (reset.hidden = !draft.agent));
+    btn.onclick = () =>
+      runnerPicker(btn, { agent: draft.agent || S.config.defaults.agent, model: draft.model, effort: draft.effort, savedModel, savedEffort }, (a, m, e) => {
+        Object.assign(draft, { agent: a, model: m, effort: e });
+        paint();
+      });
+    reset.onclick = () => (Object.assign(draft, { agent: '', model: '', effort: '' }), paint());
+    paint();
+    return wrap;
+  };
+
+  const recipeForm = (d) => {
+    const f = el(`<form class="au-form">
+        <label><span>Name</span><input name="name" maxlength="60" placeholder="Release" spellcheck="false"></label>
+        <label class="stack"><span>Prompt <small class="muted">· <code>{version}</code> becomes a field</small></span><textarea name="prompt" rows="7" spellcheck="false" placeholder="Prepare release {version}: update CHANGELOG, README and docs/, bump package.json, tag v{version}…"></textarea></label>
+        <p class="au-params muted xs"></p>
+        <label><span>Project</span><select name="cwd">${projectOptions(d.cwd, { any: 'Any project (picked when run)' })}</select></label>
+        <label><span>Mode</span><select name="mode">${modeOptions(d.mode, { inherit: 'Launcher default' })}</select></label>
+        <div class="au-row"><span>Harness</span></div>
+        <div class="au-foot"><button type="button" class="ghost sm" data-act="cancel">Cancel</button><button class="primary sm">${d.id ? 'Save' : 'Create recipe'}</button></div>
+      </form>`);
+    $('[name="name"]', f).value = d.name || '';
+    $('[name="prompt"]', f).value = d.prompt || '';
+    $('.au-row', f).append(runnerField(d));
+    const params = () => {
+      const p = recipeParams($('[name="prompt"]', f).value);
+      $('.au-params', f).innerHTML = p.length ? `Fields when run: ${p.map((x) => `<code>{${esc(x)}}</code>`).join(' ')}` : 'No fields: it runs as written.';
+    };
+    $('[name="prompt"]', f).oninput = params;
+    params();
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = { name: $('[name="name"]', f).value, prompt: $('[name="prompt"]', f).value, cwd: $('[name="cwd"]', f).value, mode: $('[name="mode"]', f).value, agent: d.agent || '', model: d.model || '', effort: d.effort || '' };
+      try {
+        await api(d.id ? `/recipes/${d.id}` : '/recipes', { method: d.id ? 'PATCH' : 'POST', body });
+        editing = null;
+        tab = 'recipes';
+        render();
+      } catch (err) {
+        toast(esc(err.message), { tone: 'bad' });
+      }
+    };
+    requestAnimationFrame(() => $(d.name ? '[name="prompt"]' : '[name="name"]', f)?.focus());
+    return f;
+  };
+
+  const triggerForm = (d) => {
+    d.kind ||= 'schedule';
+    const f = el(`<form class="au-form">
+        <div class="au-kinds">${TRIGGER_KINDS.map((k) => `<button type="button" data-kind="${k.kind}" class="${k.kind === d.kind ? 'on' : ''}">${icon(k.icon)}<b>${k.label}</b><small>${k.hint}</small></button>`).join('')}</div>
+        <label><span>Name</span><input name="name" maxlength="60" spellcheck="false"></label>
+        <label><span>Project</span><select name="cwd">${projectOptions(d.cwd || projectById(launchProject)?.path)}</select></label>
+        <div class="k-schedule"><label><span>When</span><input name="cron" spellcheck="false" placeholder="0 9 * * 1-5"></label>
+          <p class="au-presets">${CRON_PRESETS.map(([l, c]) => `<button type="button" class="lp-chip" data-cron="${c}">${l}</button>`).join('')}<span class="muted xs">minute hour day month weekday</span></p></div>
+        <div class="k-ci"><label><span>Branch</span><input name="branch" spellcheck="false" placeholder="Any branch (e.g. main)"></label></div>
+        <div class="k-issues"><label><span>Label</span><input name="label" spellcheck="false" placeholder="wisp"></label></div>
+        <div class="k-gh"><label><span>Check every</span><select name="every">${[2, 5, 15, 60].map((m) => `<option value="${m}" ${Number(d.every || 5) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label></div>
+        <label><span>Run</span><select name="recipeId"><option value="">This prompt</option>${recipes.map((r) => `<option value="${r.id}" ${r.id === d.recipeId ? 'selected' : ''}>Recipe: ${esc(r.name)}</option>`).join('')}</select></label>
+        <label class="stack k-prompt"><span>Prompt <small class="muted k-vars"></small></span><textarea name="prompt" rows="6" spellcheck="false"></textarea></label>
+        <label><span>Mode</span><select name="mode">${modeOptions(d.mode || (d.kind === 'issues' ? 'plan' : 'edits'))}</select></label>
+        <div class="au-row"><span>Harness</span></div>
+        <p class="au-warn" hidden>${icon('warn')}<span>Issue text comes from GitHub: anyone who can open and label issues can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.</span></p>
+        <div class="au-foot"><button type="button" class="ghost sm" data-act="cancel">Cancel</button><button class="primary sm">${d.id ? 'Save' : 'Create trigger'}</button></div>
+      </form>`);
+    for (const k of ['name', 'cron', 'branch', 'label']) $(`[name="${k}"]`, f).value = d[k] || '';
+    $('[name="prompt"]', f).value = d.prompt || '';
+    $('.au-row', f).append(runnerField(d));
+    const sync = () => {
+      for (const k of ['schedule', 'ci', 'issues']) $(`.k-${k}`, f).hidden = d.kind !== k;
+      $('.k-gh', f).hidden = d.kind === 'schedule';
+      $('.k-prompt', f).hidden = !!$('[name="recipeId"]', f).value;
+      $('.k-vars', f).innerHTML = d.kind === 'ci' ? '· <code>{name} {branch} {url} {id} {sha}</code> · empty = built-in CI prompt' : d.kind === 'issues' ? '· <code>{number} {title} {body} {url} {author}</code> · empty = built-in issue prompt' : '';
+      $('.au-warn', f).hidden = !(d.kind === 'issues' && $('[name="mode"]', f).value !== 'plan');
+      $$('.au-kinds button', f).forEach((b) => b.classList.toggle('on', b.dataset.kind === d.kind));
+    };
+    f.addEventListener('click', (e) => {
+      const k = e.target.closest('[data-kind]')?.dataset.kind;
+      if (k) {
+        if (k === 'issues' && !d.id) $('[name="mode"]', f).value = 'plan';
+        d.kind = k;
+        sync();
+      }
+      const c = e.target.closest('[data-cron]')?.dataset.cron;
+      if (c) $('[name="cron"]', f).value = c;
+    });
+    f.addEventListener('change', sync);
+    sync();
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const v = (k) => $(`[name="${k}"]`, f).value;
+      const body = { kind: d.kind, name: v('name'), cwd: v('cwd'), cron: v('cron'), branch: v('branch'), label: v('label') || 'wisp', every: Number(v('every')), recipeId: v('recipeId'), prompt: v('recipeId') ? '' : v('prompt'), mode: v('mode'), agent: d.agent || '', model: d.model || '', effort: d.effort || '' };
+      try {
+        await api(d.id ? `/triggers/${d.id}` : '/triggers', { method: d.id ? 'PATCH' : 'POST', body });
+        editing = null;
+        tab = 'triggers';
+        render();
+      } catch (err) {
+        toast(esc(err.message), { tone: 'bad' });
+      }
+    };
+    return f;
+  };
+
+  node.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-tab],[data-act],[data-session]');
+    if (!t || t.closest('.au-form') && !t.dataset.act) return;
+    if (t.dataset.tab) return e.preventDefault(), (tab = t.dataset.tab), (editing = null), render();
+    if (t.dataset.session) return e.preventDefault(), close(), reveal(t.dataset.session);
+    const act = t.dataset.act;
+    if (act === 'cancel') return (editing = null), render();
+    const itemId = t.closest('.au-item')?.dataset.id;
+    if (tab === 'recipes') {
+      const r = recipes.find((x) => x.id === itemId);
+      if (act === 'new') return (editing = { type: 'recipe', draft: { cwd: projectById(launchProject)?.path || '' } }), render();
+      if (act === 'edit') return (editing = { type: 'recipe', draft: { ...r } }), render();
+      if (act === 'run') return close(), runRecipe(r);
+      if (act === 'delete' && confirm(`Delete the recipe “${r.name}”?`)) return api(`/recipes/${r.id}`, { method: 'DELETE' }).then(render);
+    } else {
+      const tr = triggers.find((x) => x.id === itemId);
+      if (act === 'new') return (editing = { type: 'trigger', draft: {} }), render();
+      if (act === 'edit') return (editing = { type: 'trigger', draft: { ...tr } }), render();
+      if (act === 'toggle') return api(`/triggers/${tr.id}`, { method: 'PATCH', body: { enabled: !tr.enabled } }).then(render).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+      if (act === 'delete' && confirm(`Delete the trigger “${tr.name}”?`)) return api(`/triggers/${tr.id}`, { method: 'DELETE' }).then(render);
+      if (act === 'fire') {
+        t.disabled = true;
+        try {
+          const r = await api(`/triggers/${tr.id}/run`, { method: 'POST', body: {} });
+          for (const x of r.started) S.sessions.set(x.id, x);
+          renderFeed();
+          toast(r.started.length ? `Started ${r.started.length} session${r.started.length > 1 ? 's' : ''}` : 'Nothing new to act on.');
+        } catch (err) {
+          toast(esc(err.message), { tone: 'bad' });
+        }
+        render();
+      }
+    }
+  });
+  node.refresh = () => !editing && render();
+  render();
+}
+
+// Run a recipe: ask for its fields (and a project, if it isn't tied to one), then launch.
+function runRecipe(r) {
+  if (!r) return;
+  const needsProject = !r.cwd;
+  const node = el(`
+    <form class="modal run-modal">
+      <header><h2>${esc(r.name)}</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
+      <p class="cmp-prompt">${esc(r.prompt)}</p>
+      ${r.params.map((p) => `<label class="ship-field"><span>${esc(p)}</span><input name="p:${esc(p)}" spellcheck="false" required></label>`).join('')}
+      ${needsProject ? `<label class="ship-field"><span>Project</span><select name="cwd">${projectOptions(projectById(launchProject)?.path)}</select></label>` : ''}
+      <div class="ship-foot"><span class="muted xs">${r.agent ? `${esc(agentName(r.agent))}${r.model ? ` · ${esc(r.model)}` : ''}` : 'Launcher harness'} · ${esc(MODES.find((m) => m.id === r.mode)?.label || 'launcher mode')}</span><button class="primary sm">${icon('enter')}Run</button></div>
+    </form>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  node.onsubmit = async (e) => {
+    e.preventDefault();
+    const params = Object.fromEntries($$('input[name^="p:"]', node).map((i) => [i.name.slice(2), i.value]));
+    const d = S.config.defaults;
+    const agent = r.agent || d.agent;
+    try {
+      const s = await api(`/recipes/${r.id}/run`, {
+        method: 'POST',
+        body: { params, cwd: needsProject ? $('[name="cwd"]', node).value : undefined, agent, model: r.agent ? undefined : savedModel(agent), effort: r.agent ? undefined : savedEffort(agent, savedModel(agent)), mode: r.mode || d.mode },
+      });
+      S.sessions.set(s.id, s);
+      close();
+      renderFeed();
+      setFocus(s.id);
+      toast(`Running “${esc(r.name)}”`);
+    } catch (err) {
+      toast(esc(err.message), { tone: 'bad' });
+    }
+  };
+  if (!r.params.length && !needsProject) return node.requestSubmit();
+  requestAnimationFrame(() => $('input, select', node)?.focus());
+}
+
+// A task worth repeating becomes a recipe, starting from its first prompt.
+async function saveAsRecipe(id) {
+  const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(() => null));
+  if (!s?.turns?.[0]) return;
+  openAutomations({ tab: 'recipes', edit: { type: 'recipe', draft: { name: s.title, prompt: s.turns[0].prompt, cwd: '', mode: s.mode, agent: s.agent, model: s.model, effort: s.effort } } });
+}
+
+// --- usage: spend and outcomes --------------------------------------------------------------------
+
+const money = (v) => (v >= 100 ? `$${Math.round(v)}` : `$${(v || 0).toFixed(2)}`);
+const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
+
+async function openUsage({ days = 30 } = {}) {
+  const node = el(`<div class="modal usage-modal">
+      <header><h2>Usage</h2><div class="mem-tabs us-range">${[7, 30, 90].map((d) => `<button data-days="${d}">${d} days</button>`).join('')}</div><button class="icon-btn close">${icon('x')}</button></header>
+      <div class="us-body"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  const render = async () => {
+    $$('.us-range button', node).forEach((b) => b.classList.toggle('on', Number(b.dataset.days) === days));
+    const u = await api(`/usage?days=${days}`).catch((err) => (toast(esc(err.message), { tone: 'bad' }), null));
+    if (!u || !node.isConnected) return;
+    const t = u.total;
+    const unpriced = t.turns - t.priced;
+    // Cost when any harness reports it, else turns: one measure per chart, never two axes.
+    const byCost = t.priced > 0;
+    const val = (d) => (byCost ? d.cost : d.turns);
+    const max = Math.max(...u.daily.map(val), 0) || 1;
+    const fmtDay = (k) => new Date(`${k}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const table = (rows, label) =>
+      rows.length
+        ? `<table class="us-table"><thead><tr><th></th><th>Spend</th><th>Turns</th><th>Worked</th><th>Asked</th><th>Avg time</th></tr></thead><tbody>${rows
+            .map((r) => `<tr><td>${label(r)}</td><td>${r.priced ? money(r.cost) : '—'}</td><td>${r.turns}</td><td>${pct(r.successRate)}</td><td>${r.questions}</td><td>${fmtDuration(r.avgMs)}</td></tr>`)
+            .join('')}</tbody></table>`
+        : '<p class="mem-empty">Nothing in this range.</p>';
+    $('.us-body', node).innerHTML = `
+      <div class="us-tiles">
+        <div><span>Spend</span><b>${byCost ? money(t.cost) : '—'}</b><small>${unpriced ? `${unpriced} turn${unpriced > 1 ? 's' : ''} without a price` : 'all turns priced'}</small></div>
+        <div><span>Turns</span><b>${t.turns}</b><small>in ${t.sessions} session${t.sessions === 1 ? '' : 's'}</small></div>
+        <div><span>Worked</span><b>${pct(t.successRate)}</b><small>finished, not partial or blocked</small></div>
+        <div><span>Questions</span><b>${t.questions}</b><small>times an agent needed you</small></div>
+      </div>
+      <h4>${byCost ? 'Spend per day' : 'Turns per day'}</h4>
+      <div class="us-chart" role="img" aria-label="${byCost ? 'Spend' : 'Turns'} per day">${u.daily
+        .map((d) => `<div class="us-bar" data-tip="${esc(fmtDay(d.date))}: ${byCost ? money(d.cost) : ''}${byCost ? ' · ' : ''}${d.turns} turn${d.turns === 1 ? '' : 's'}"><i style="height:${val(d) ? Math.max(2, (val(d) / max) * 100) : 0}%"></i></div>`)
+        .join('')}</div>
+      <div class="us-axis"><span>${esc(fmtDay(u.daily[0].date))}</span><span>${byCost ? `max ${money(max)}/day` : `max ${max}/day`}</span><span>today</span></div>
+      <h4>By project</h4>${table(u.projects, (r) => `<span class="us-proj c-${esc(r.color)}"><i class="p-dot"></i>${esc(r.name)}</span>`)}
+      <h4>By harness · model</h4>${table(u.runners, (r) => `<span class="us-runner"><span class="model-logo">${harnessLogo(r.agent)}</span>${esc(agentName(r.agent))} · ${esc(r.model || 'default')}</span>`)}
+      ${unpriced ? '<p class="hint">Codex, Cursor and Antigravity report tokens but not cost, so their turns count in turns and outcomes but not in spend.</p>' : ''}`;
+  };
+  // One floating tooltip for the bars (they are too thin to label).
+  const tip = el('<div class="us-tip" hidden></div>');
+  node.append(tip);
+  node.addEventListener('mousemove', (e) => {
+    const b = e.target.closest('.us-bar');
+    tip.hidden = !b;
+    if (!b) return;
+    tip.textContent = b.dataset.tip;
+    const r = b.getBoundingClientRect();
+    const m = node.getBoundingClientRect();
+    tip.style.left = `${Math.min(r.left - m.left + r.width / 2, m.width - 90)}px`;
+    tip.style.top = `${r.top - m.top + node.scrollTop - 6}px`;
+  });
+  node.addEventListener('mouseleave', () => (tip.hidden = true));
+  $('.us-range', node).onclick = (e) => {
+    const d = Number(e.target.closest('[data-days]')?.dataset.days);
+    if (d) (days = d), render();
+  };
+  render();
+}
+
+function usageSummary(u) {
+  if (!u) return '';
+  return u.total.turns ? `${u.total.priced ? `${money(u.total.cost)} · ` : ''}${u.total.turns} turns · ${pct(u.total.successRate)} worked, last 7 days` : 'Nothing in the last 7 days';
+}
+
+// --- phone: ntfy / Telegram -----------------------------------------------------------------------
+
+function phoneSummary(r) {
+  if (!r) return '';
+  const on = [r.ntfy.enabled && r.ntfy.topic && 'ntfy', r.telegram.enabled && r.telegram.linked && 'Telegram'].filter(Boolean);
+  return on.length ? `${on.join(' + ')} · ${r.events.map((e) => (e === 'waiting' ? 'questions' : 'finished')).join(' & ')}` : 'Off';
+}
+
+async function openPhone() {
+  const node = el(`<div class="modal phone-modal">
+      <header><h2>Phone</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <p class="mem-lede">Get questions and finished tasks on your phone, and answer from there. wisp polls both services, so nothing needs to reach this machine. They receive titles, summaries and questions (with their context), never code or diffs.</p>
+      <div class="ph-body"></div>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  let r;
+  const put = async (patch) => {
+    try {
+      r = await api('/remote', { method: 'PUT', body: patch });
+      paint();
+    } catch (err) {
+      toast(esc(err.message), { tone: 'bad' });
+    }
+  };
+  const status = (st) => (!st ? '' : st.ok ? `<span class="ph-ok">${icon('check')}Working</span>` : `<span class="ph-bad">${icon('warn')}${esc(st.error || 'Failed')}</span>`);
+  const paint = () => {
+    const tg = r.telegram;
+    $('.ph-body', node).innerHTML = `
+      <div class="settings-modal ph-sec">
+        <div class="setting"><span>Send me</span>
+          <label class="ph-check"><input type="checkbox" data-ev="waiting" ${r.events.includes('waiting') ? 'checked' : ''}> Questions</label>
+          <label class="ph-check"><input type="checkbox" data-ev="finished" ${r.events.includes('finished') ? 'checked' : ''}> Finished tasks</label></div>
+      </div>
+      <section class="ph-sec">
+        <h4>ntfy <span class="muted xs">· tap a button on the notification to answer</span>${status(r.status.ntfy)}<button class="switch" data-sw="ntfy" role="switch" aria-checked="${r.ntfy.enabled}"></button></h4>
+        <div class="settings-modal">
+          <label><span>Topic</span><input data-ntfy="topic" value="${esc(r.ntfy.topic)}" placeholder="wisp-…" spellcheck="false"></label>
+          <label><span>Server</span><input data-ntfy="server" value="${esc(r.ntfy.server)}" spellcheck="false"></label>
+          <label><span>Access token</span><input data-ntfy="token" value="${esc(r.ntfy.token)}" placeholder="Only for protected topics" spellcheck="false" type="password"></label>
+        </div>
+        <p class="hint">Install the ntfy app and subscribe to the topic. Anyone who knows the topic name can read it, so keep it long and random; answers are signed, so nobody else can send them.</p>
+      </section>
+      <section class="ph-sec">
+        <h4>Telegram <span class="muted xs">· buttons, or reply to a message in your own words</span>${status(r.status.telegram)}<button class="switch" data-sw="telegram" role="switch" aria-checked="${tg.enabled}"></button></h4>
+        <div class="settings-modal">
+          <label><span>Bot token</span><input data-tg="token" value="${esc(tg.token)}" placeholder="123456:ABC… from @BotFather" spellcheck="false" type="password"></label>
+        </div>
+        <p class="hint">${
+          tg.linked
+            ? `${icon('check')} Linked to <b>${esc(tg.chatName || 'your chat')}</b>. <button class="link xs" data-act="unlink">Unlink</button>`
+            : tg.token && tg.enabled
+              ? `Now send <code>/link ${esc(tg.linkCode)}</code> to your bot. Only the chat that sends this code gets linked.`
+              : 'Create a bot with @BotFather, paste its token here and switch Telegram on.'
+        }</p>
+      </section>
+      <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>`;
+  };
+  node.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.ev) put({ events: $$('[data-ev]', node).filter((x) => x.checked).map((x) => x.dataset.ev) });
+    if (t.dataset.ntfy) put({ ntfy: { ...r.ntfy, [t.dataset.ntfy]: t.value.trim() } });
+    if (t.dataset.tg) put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
+  });
+  node.addEventListener('click', async (e) => {
+    const sw = e.target.closest('[data-sw]')?.dataset.sw;
+    if (sw === 'ntfy') {
+      // A fresh random topic the first time, so it isn't guessable.
+      const topic = r.ntfy.topic || `wisp-${crypto.getRandomValues(new Uint32Array(2)).join('').slice(0, 14)}`;
+      return put({ ntfy: { ...r.ntfy, enabled: !r.ntfy.enabled, topic } });
+    }
+    if (sw === 'telegram') return put({ telegram: { enabled: !r.telegram.enabled, token: r.telegram.token } });
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
+    if (act === 'test') {
+      try {
+        r = await api('/remote/test', { method: 'POST', body: {} });
+        paint();
+        toast('Test sent');
+      } catch (err) {
+        toast(esc(err.message), { tone: 'bad' });
+      }
+    }
+  });
+  node.refresh = async () => {
+    if (node.contains(document.activeElement) && document.activeElement.matches('input')) return; // don't clobber typing
+    r = await api('/remote').catch(() => r);
+    if (r && node.isConnected) paint();
+  };
+  r = await api('/remote').catch((err) => (toast(esc(err.message), { tone: 'bad' }), null));
+  if (r) paint();
+}
+
 // --- settings -----------------------------------------------------------------------------
 
 function openSettings() {
@@ -1899,6 +2608,10 @@ function openSettings() {
       <div class="setting"><span>Desktop notifications</span><span class="notif-hint muted xs"></span><button class="switch" id="notif" role="switch"></button></div>
       <div class="setting"><span>Anonymous usage stats</span><span class="tele-hint muted xs"></span><button class="switch" id="tele" role="switch"></button></div>
       <div class="setting"><span>Memory</span><span class="learn-hint muted xs"></span><button class="ghost xs" id="openMemory">Open</button><button class="switch" id="learn" role="switch"></button></div>
+      <div class="setting"><span>Worktree per task</span><span class="muted xs">Own branch from origin/main, in git repos</span><button class="switch" id="wtDefault" role="switch"></button></div>
+      <div class="setting"><span>Automations</span><span class="auto-hint muted xs"></span><button class="ghost xs" id="openAuto">Open</button></div>
+      <div class="setting"><span>Usage</span><span class="usage-hint muted xs"></span><button class="ghost xs" id="openUsage">Open</button></div>
+      <div class="setting"><span>Phone</span><span class="phone-hint muted xs"></span><button class="ghost xs" id="openPhone">Set up</button></div>
       <div class="agents">${S.agents
         .map((a) => `<div class="agent-row"><span class="dot ${a.available ? 'ok' : 'bad'}"></span><b>${esc(a.name)}</b><span class="muted">${esc(a.available ? a.version : a.error || 'not found')}</span></div>`)
         .join('')}<p class="muted xs">Pick the agent next to the model in the launcher. Others plug in via <code>server/adapters</code>.</p></div>
@@ -1958,6 +2671,24 @@ function openSettings() {
   $('#openMemory', node).onclick = () => openMemory();
   node.paintLearn = paintLearn;
   paintLearn();
+  // One line each; their lists and charts live in their own views.
+  const wt = $('#wtDefault', node);
+  const paintWt = () => wt.setAttribute('aria-checked', S.config.defaults.worktree !== 'off');
+  wt.onclick = async () => {
+    await api('/config', { method: 'PATCH', body: { defaults: { worktree: S.config.defaults.worktree === 'off' ? 'on' : 'off' } } });
+    await loadConfig();
+    paintWt();
+    renderLauncher();
+  };
+  paintWt();
+  const r = S.config.recipes?.length || 0;
+  const t = (S.config.triggers || []).filter((x) => x.enabled).length;
+  $('.auto-hint', node).textContent = `${r} recipe${r === 1 ? '' : 's'} · ${t} trigger${t === 1 ? '' : 's'} on`;
+  api('/usage?days=7').then((u) => ($('.usage-hint', node).textContent = usageSummary(u))).catch(() => {});
+  api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x))).catch(() => {});
+  $('#openAuto', node).onclick = () => openAutomations();
+  $('#openUsage', node).onclick = () => openUsage();
+  $('#openPhone', node).onclick = () => openPhone();
 }
 
 // --- memory: what the background retros learned ---------------------------------------------
@@ -2123,6 +2854,7 @@ function shortcuts() {
     ['T', 'Take over in terminal'],
     ['R', 'Replay presentation'],
     ['⇧R', 'Rerun with another harness, model or thinking level'],
+    ['S', 'Ship it: commit, push and open a PR (worktree tasks)'],
     ['1–9', 'Pick an answer when asked'],
     ['↵', 'Launch / send'],
     ['⇧↵', 'New line'],
@@ -2176,6 +2908,10 @@ function paletteItems() {
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
     items.push({ group: g, label: 'Take over in terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
+    if (cur.branch && !live && cur.pr?.state !== 'MERGED') items.push({ group: g, label: cur.pr?.state === 'OPEN' ? `Push to PR #${cur.pr.number}` : 'Ship it…', sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
+    if (cur.pr?.state === 'OPEN') items.push({ group: g, label: `Merge PR #${cur.pr.number}…`, sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
+    if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
+    items.push({ group: g, label: 'Save as recipe…', sub, icon: 'spark', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
     items.push({ group: g, label: 'Replay presentation', sub, icon: 'replay', kbd: 'R', run: () => withCard(id, () => replay(id), { open: true }) });
     items.push({ group: g, label: 'Rename', sub, icon: 'pen', kbd: 'M', run: () => withCard(id, () => rename(id)) });
     items.push({ group: g, label: 'Delete session', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
@@ -2207,9 +2943,15 @@ function paletteItems() {
     { group: a, label: 'Add project…', icon: 'folder', keywords: 'folder repo directory', run: () => openProjects({ focusAdd: true }) },
     { group: a, label: 'Manage projects', icon: 'folder', keywords: 'rename color remove', run: () => openProjects() },
     { group: a, label: 'Memory', icon: 'spark', keywords: 'learned preferences lessons retro', run: () => openMemory() },
+    { group: a, label: 'Recipes', icon: 'spark', keywords: 'automations saved prompts templates', run: () => openAutomations({ tab: 'recipes' }) },
+    { group: a, label: 'Triggers', icon: 'replay', keywords: 'automations schedule cron ci issues github', run: () => openAutomations({ tab: 'triggers' }) },
+    { group: a, label: 'Usage', icon: 'stats', keywords: 'spend cost tokens outcomes success', run: () => openUsage() },
+    { group: a, label: 'Phone', icon: 'send', keywords: 'ntfy telegram notifications mobile remote', run: () => openPhone() },
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
+
+  for (const r of S.config.recipes || []) items.push({ group: 'Recipes', label: `Run: ${r.name}`, sub: r.prompt.replace(/\s+/g, ' ').slice(0, 80), icon: 'spark', keywords: `recipe ${r.prompt}`, run: () => runRecipe({ ...r, params: recipeParams(r.prompt) }) });
 
   const filter = (id) => () => {
     S.filter = id;
@@ -2277,6 +3019,7 @@ function connect() {
     renderFeed();
     if (pin !== null && n.card.isConnected) stage.scrollTop += n.card.getBoundingClientRect().top - pin;
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
+    if (JSON.stringify(prev?.pr) !== JSON.stringify(s.pr)) renderPrStrip(s.id);
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
@@ -2289,7 +3032,8 @@ function connect() {
     saveOpen();
     renderFeed();
   });
-  es.addEventListener('config', () => loadConfig());
+  es.addEventListener('config', () => (loadConfig(), $('.auto-modal')?.refresh()));
+  es.addEventListener('remote', () => $('.phone-modal')?.refresh());
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
   es.addEventListener('preferences', () => {
     $('.memory-modal')?.refresh();
@@ -2410,6 +3154,7 @@ document.addEventListener('keydown', (e) => {
     deleteSession(id);
   } else if (k === 't' && id) takeOver(id);
   else if (k === 'r' && e.shiftKey && id) rerun(id);
+  else if (k === 's' && id && S.sessions.get(id)?.branch) shipDialog(id);
   else if (k === 'r' && id) replay(id);
   else if (k === '/' && id) {
     e.preventDefault();

@@ -1,0 +1,418 @@
+// The ship loop, through a real wisp server, real git and a fake `gh`: worktree sessions, Ship it
+// (commit → push → PR → checks → merge → local main synced), compare runs, recipes, triggers,
+// usage, and answering from a phone (fake ntfy and Telegram servers).
+
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import http from 'node:http';
+import net from 'node:net';
+import path from 'node:path';
+import { installFakeBins, makeClone, makeRepo, records, tmp, until } from './helpers.js';
+
+const RECORD = tmp('ship-record');
+const GH_STATE = path.join(tmp('gh'), 'state.json');
+process.env.FAKE_RECORD = RECORD;
+process.env.FAKE_GH_STATE = GH_STATE;
+process.env.WISP_HOME = tmp('ship-home');
+process.env.WISP_UPDATE_CHECK = '0';
+installFakeBins();
+
+const { startServer } = await import('../server/index.js');
+const { parseCron, nextRun, cronMatches } = await import('../server/triggers.js');
+const { fill, params, positional } = await import('../server/recipes.js');
+const { usage } = await import('../server/usage.js');
+
+const freePort = () =>
+  new Promise((resolve) => {
+    const s = net.createServer().listen(0, '127.0.0.1', () => {
+      const { port } = s.address();
+      s.close(() => resolve(port));
+    });
+  });
+
+let srv;
+let base;
+async function api(p, { method, body } = {}) {
+  const r = await fetch(`${base}/api${p}`, {
+    method: method || (body ? 'POST' : 'GET'),
+    headers: body || (method && method !== 'GET') ? { 'content-type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : method && method !== 'GET' ? '{}' : undefined,
+  });
+  const j = await r.json();
+  if (!r.ok) throw Object.assign(new Error(`${p}: ${j.error}`), { status: r.status });
+  return j;
+}
+const session = (id) => api(`/sessions/${id}`);
+const settled = (id) => until(async () => ((await session(id)).state === 'review' ? session(id) : null));
+const ghState = () => (fs.existsSync(GH_STATE) ? JSON.parse(fs.readFileSync(GH_STATE, 'utf8')) : {});
+const setGh = (patch) => fs.writeFileSync(GH_STATE, JSON.stringify({ ...ghState(), ...patch }));
+
+before(async () => {
+  const port = await freePort();
+  base = `http://127.0.0.1:${port}`;
+  srv = await startServer({ port, handleSignals: false });
+});
+after(() => {
+  srv.shutdown();
+  srv.server.closeAllConnections?.();
+  srv.server.close();
+});
+
+test('a launch in a git repo runs in its own worktree on a branch from origin/main', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() in math.js', cwd: repo.dir, agent: 'claude' } });
+  assert.match(s.branch, /^wisp\/fix-add-in-math-js-[a-f0-9]{6}$/);
+  const done = await settled(s.id);
+  const wt = done.worktree;
+  assert.equal(wt.base, 'main');
+  assert.equal(wt.baseRef, 'origin/main');
+  assert.equal(wt.cwd, wt.path);
+  // The agent ran (and edited) inside the worktree; the user's checkout is untouched.
+  const run = records(RECORD, 'claude').at(-1);
+  assert.equal(fs.realpathSync(run.cwd), fs.realpathSync(wt.path));
+  assert.match(fs.readFileSync(path.join(wt.path, 'math.js'), 'utf8'), /a \+ b/);
+  assert.match(fs.readFileSync(path.join(repo.dir, 'math.js'), 'utf8'), /a - b/);
+  assert.match(run.argv[run.argv.indexOf('--append-system-prompt') + 1], new RegExp(`isolated git worktree .* branch \`${wt.branch}\``));
+  // Captured diffs are relative to the worktree, and take over opens there.
+  assert.deepEqual(done.turns[0].changes.map((c) => c.file), ['math.js']);
+  const { command } = await api(`/sessions/${s.id}/takeover`);
+  assert.ok(command.includes(wt.path), command);
+  // The presentation tells API callers where the changes are.
+  const p = await api(`/sessions/${s.id}/presentation`);
+  assert.match(p.markdown, new RegExp(`branch \`${wt.branch}\``));
+});
+
+test('worktree: false, plan mode, and folders that are not repos run in place', async () => {
+  const repo = makeClone();
+  const a = await api('/sessions', { body: { prompt: 'in place', cwd: repo.dir, agent: 'claude', worktree: false } });
+  const b = await api('/sessions', { body: { prompt: 'just look', cwd: repo.dir, agent: 'claude', mode: 'plan' } });
+  const plain = tmp('plain');
+  const c = await api('/sessions', { body: { prompt: 'no git here', cwd: plain, agent: 'claude' } });
+  for (const x of [a, b, c]) assert.equal(x.branch, '');
+  await Promise.all([a, b, c].map((x) => settled(x.id)));
+  await assert.rejects(api('/sessions', { body: { prompt: 'x', cwd: plain, agent: 'claude', worktree: true } }), /Not a git repo/);
+});
+
+test('ship it: commit, push, PR; checks are followed; merge syncs local main and cleans up', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() so it adds', cwd: repo.dir, agent: 'claude' } });
+  const done = await settled(s.id);
+  const wt = done.worktree;
+
+  const draft = await api(`/sessions/${s.id}/ship`);
+  assert.equal(draft.branch, wt.branch);
+  assert.equal(draft.dirty, 1);
+  assert.equal(draft.ahead, 0);
+  assert.equal(draft.title, 'fix: fake claude finished'); // conventional, from the hero title
+  assert.match(draft.body, /No question asked/);
+
+  setGh({ checks: [{ __typename: 'CheckRun', status: 'IN_PROGRESS', conclusion: '' }] });
+  const pr = await api(`/sessions/${s.id}/ship`, { body: { title: 'fix(math): add adds', body: 'It subtracted.' } });
+  assert.equal(pr.number, 1);
+  assert.equal(pr.state, 'OPEN');
+  assert.deepEqual(pr.checks, { pass: 0, fail: 0, pending: 1 });
+  // A real commit on the branch, pushed to origin.
+  const remoteLog = repo.git('--git-dir', repo.remote, 'log', '--format=%s%n%b', wt.branch);
+  assert.match(remoteLog, /fix\(math\): add adds\n+It subtracted\./);
+  const create = records(RECORD, 'gh').find((r) => r.argv[1] === 'create').argv;
+  assert.deepEqual([create[create.indexOf('--base') + 1], create[create.indexOf('--head') + 1]], ['main', wt.branch]);
+  assert.equal((await api('/sessions')).find((x) => x.id === s.id).pr.number, 1);
+
+  // CI goes green and the review lands: the card comes back unread.
+  await api(`/sessions/${s.id}`, { method: 'PATCH', body: { unread: false } });
+  setGh({ checks: [{ __typename: 'CheckRun', status: 'COMPLETED', conclusion: 'SUCCESS' }, { __typename: 'StatusContext', state: 'SUCCESS' }], review: 'APPROVED' });
+  const fresh = await api(`/sessions/${s.id}/pr`, { body: {} });
+  assert.deepEqual(fresh.checks, { pass: 2, fail: 0, pending: 0 });
+  assert.equal(fresh.review, 'APPROVED');
+  assert.equal((await api('/sessions')).find((x) => x.id === s.id).unread, true);
+
+  const r = await api(`/sessions/${s.id}/merge`, { body: {} });
+  assert.equal(r.pr.state, 'MERGED');
+  assert.equal(r.sync.ok, true, r.sync.text);
+  const merge = records(RECORD, 'gh').find((x) => x.argv[1] === 'merge').argv;
+  assert.deepEqual(merge.slice(2), ['1', '--squash', '--match-head-commit', fresh.head]);
+  // The user's checkout fast-forwarded to the merged fix; the worktree and branch are gone.
+  assert.match(fs.readFileSync(path.join(repo.dir, 'math.js'), 'utf8'), /a \+ b/);
+  assert.equal(fs.existsSync(wt.path), false);
+  assert.equal(repo.git('branch', '--list', wt.branch), '');
+  assert.equal((await session(s.id)).state, 'done');
+});
+
+test('ship it refuses an empty branch and sessions without a worktree', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'look around', cwd: repo.dir, agent: 'claude' } });
+  const done = await settled(s.id);
+  fs.writeFileSync(path.join(done.worktree.path, 'math.js'), fs.readFileSync(path.join(repo.dir, 'math.js'))); // undo the edit
+  await assert.rejects(api(`/sessions/${s.id}/ship`, { body: { title: 'nothing' } }), /no changes/);
+  const flat = await api('/sessions', { body: { prompt: 'x', cwd: repo.dir, agent: 'claude', worktree: false } });
+  await settled(flat.id);
+  await assert.rejects(api(`/sessions/${flat.id}/ship`), /worktree sessions/);
+});
+
+test('archive drops a clean worktree and a follow-up brings it back; delete removes it', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Tidy math.js', cwd: repo.dir, agent: 'claude' } });
+  const { worktree: wt } = await settled(s.id);
+  // Dirty: archiving keeps it, so nothing is lost.
+  await api(`/sessions/${s.id}`, { method: 'PATCH', body: { archived: true } });
+  assert.equal(fs.existsSync(wt.path), true);
+  // Committed: archiving removes the checkout but keeps the branch.
+  repo.git('-C', wt.path, 'commit', '-qam', 'wip');
+  await api(`/sessions/${s.id}`, { method: 'PATCH', body: { archived: false } });
+  await api(`/sessions/${s.id}`, { method: 'PATCH', body: { archived: true } });
+  assert.equal(fs.existsSync(wt.path), false);
+  assert.notEqual(repo.git('branch', '--list', wt.branch), '');
+  await api(`/sessions/${s.id}/reply`, { body: { text: 'one more thing' } });
+  await until(() => fs.existsSync(wt.path));
+  await settled(s.id);
+  assert.equal(repo.git('-C', wt.path, 'log', '-1', '--format=%s'), 'wip');
+  await api(`/sessions/${s.id}`, { method: 'DELETE' });
+  assert.equal(fs.existsSync(wt.path), false);
+  assert.notEqual(repo.git('branch', '--list', wt.branch), '', 'a branch with commits survives');
+});
+
+test('compare: one task on two harnesses, each in its own worktree; discard the loser', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add()', cwd: repo.dir, agent: 'claude', compare: [{ agent: 'codex' }] } });
+  assert.equal(s.group.length, 2);
+  const [a, b] = s.group;
+  assert.deepEqual([a.agent, b.agent], ['claude', 'codex']);
+  assert.ok(a.groupId && a.groupId === b.groupId);
+  assert.notEqual(a.branch, b.branch);
+  const [fa, fb] = await Promise.all([settled(a.id), settled(b.id)]);
+  for (const f of [fa, fb]) assert.match(fs.readFileSync(path.join(f.worktree.path, 'math.js'), 'utf8'), /a \+ b/);
+  await api(`/sessions/${b.id}`, { method: 'PATCH', body: { archived: true, discardWorktree: true } });
+  assert.equal(fs.existsSync(fb.worktree.path), false);
+  assert.equal(repo.git('branch', '--list', fb.worktree.branch), '');
+  assert.equal(fs.existsSync(fa.worktree.path), true);
+  // Comparing needs worktrees.
+  await assert.rejects(api('/sessions', { body: { prompt: 'x', cwd: tmp('nogit'), agent: 'claude', compare: [{ agent: 'codex' }] } }), /Compare needs a git repo/);
+});
+
+test('recipes: params, CRUD, run by id or name, positional words', async () => {
+  assert.deepEqual(params('Release {version} on {branch}, then {version} again; JSON {"a": 1} and {x y} stay'), ['version', 'branch']);
+  assert.equal(fill('v{version}', { version: '1.2' }), 'v1.2');
+  assert.throws(() => fill('v{version}', {}), /Missing \{version\}/);
+  assert.equal(fill('a{x}b', { x: '{y}' , y: 'no' }), 'a{y}b', 'values are not re-expanded');
+  assert.equal(fill('#{n} {body}', { n: 3 }, { strict: false }), '#3 ');
+  assert.deepEqual(positional('{a} {b}', ['1', '2', '3']), { a: '1', b: '2' });
+
+  const repo = makeRepo();
+  const r = await api('/recipes', { body: { name: 'Release', prompt: 'Prepare release {version}', mode: 'plan', agent: 'codex' } });
+  assert.deepEqual(r.params, ['version']);
+  await assert.rejects(api('/recipes', { body: { name: '', prompt: 'x' } }), /needs a name/);
+  await assert.rejects(api(`/recipes/${r.id}/run`, { body: { cwd: repo } }), /Missing \{version\}/);
+  const s = await api('/recipes/release/run', { body: { words: ['0.8.0'], cwd: repo } });
+  assert.equal(s.agent, 'codex');
+  assert.equal(s.mode, 'plan');
+  assert.deepEqual(s.origin, { kind: 'recipe', id: r.id, name: 'Release' });
+  assert.equal((await session(s.id)).turns[0].prompt, 'Prepare release 0.8.0');
+  await settled(s.id);
+  assert.equal((await api(`/recipes/${r.id}`)).runs, 1);
+  await api(`/recipes/${r.id}`, { method: 'PATCH', body: { prompt: 'Release {version} to {channel}' } });
+  assert.deepEqual((await api('/recipes')).find((x) => x.id === r.id).params, ['version', 'channel']);
+  await api(`/recipes/${r.id}`, { method: 'DELETE' });
+  assert.equal((await api('/recipes')).length, 0);
+});
+
+test('cron: fields, ranges, steps, day-of-week/month OR rule, next run', () => {
+  const at = (s) => new Date(s);
+  const weekdays9 = parseCron('0 9 * * 1-5');
+  assert.equal(cronMatches(weekdays9, at('2026-10-19T09:00:00')), true); // Monday
+  assert.equal(cronMatches(weekdays9, at('2026-10-18T09:00:00')), false); // Sunday
+  assert.equal(new Date(nextRun(weekdays9, at('2026-10-17T10:00:00').getTime())).toString(), at('2026-10-19T09:00:00').toString());
+  assert.equal(new Date(nextRun(parseCron('*/15 * * * *'), at('2026-10-17T10:07:30').getTime())).getMinutes(), 15);
+  const either = parseCron('0 0 1 * 0'); // the 1st, or any Sunday
+  assert.equal(cronMatches(either, at('2026-10-18T00:00:00')), true);
+  assert.equal(cronMatches(either, at('2026-11-01T00:00:00')), true);
+  assert.equal(cronMatches(parseCron('@weekly'), at('2026-10-18T00:00:00')), true);
+  assert.equal(cronMatches(parseCron('0 0 * * 7'), at('2026-10-18T00:00:00')), true, '7 is Sunday');
+  assert.throws(() => parseCron('61 * * * *'), /minute/);
+  assert.throws(() => parseCron('* * *'), /5 fields/);
+});
+
+test('triggers: a schedule fires once per matching minute; CI and issue watchers fire for new items only', async () => {
+  const repo = makeRepo();
+  const t = srv.triggers;
+  const sched = await api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: '30 9 * * *', prompt: 'Morning triage', agent: 'claude' } });
+  assert.ok(sched.nextAt > Date.now());
+  await assert.rejects(api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: 'nope', prompt: 'x' } }), /5 fields/);
+  const realNow = t.now;
+  t.now = () => new Date('2026-10-19T09:30:10').getTime();
+  await t.tick();
+  await t.tick(); // same minute: no second run
+  t.now = realNow;
+  let list = await api('/triggers');
+  const fired = list.find((x) => x.id === sched.id);
+  assert.equal(fired.runs, 1);
+  const s = await session(fired.lastSessionId);
+  assert.equal(s.turns[0].prompt, 'Morning triage');
+  assert.deepEqual(s.origin, { kind: 'trigger', id: sched.id, name: 'Scheduled task' });
+  await settled(s.id);
+
+  // CI: the first poll only records what's already failing.
+  setGh({ runs: [{ databaseId: 11, name: 'test', displayTitle: 'old', headBranch: 'main', headSha: 'aaaaaaa1', url: 'https://x/runs/11' }] });
+  const ci = await api('/triggers', { body: { kind: 'ci', cwd: repo, branch: 'main', agent: 'claude' } });
+  let r = await api(`/triggers/${ci.id}/run`, { body: {} });
+  assert.equal(r.started.length, 1, 'Check now acts on what it finds'); // forced
+  setGh({ runs: [{ databaseId: 12, name: 'lint', headBranch: 'main', headSha: 'bbbbbbb2', url: 'https://x/runs/12' }, ...ghState().runs] });
+  const tr = srv.store.config.triggers.find((x) => x.id === ci.id);
+  tr.lastPolledAt = 0;
+  await t.tick();
+  list = await api('/triggers');
+  assert.equal(list.find((x) => x.id === ci.id).runs, 2);
+  const ciRun = await session(list.find((x) => x.id === ci.id).lastSessionId);
+  assert.match(ciRun.turns[0].prompt, /"lint" failed on main \(https:\/\/x\/runs\/12\)[\s\S]*gh run view 12 --log-failed/);
+  await settled(ciRun.id);
+  tr.lastPolledAt = 0;
+  await t.tick();
+  assert.equal((await api('/triggers')).find((x) => x.id === ci.id).runs, 2, 'nothing new, nothing started');
+  const runList = records(RECORD, 'gh').filter((x) => x.argv[0] === 'run').at(-1).argv;
+  assert.deepEqual(runList.slice(runList.indexOf('--branch')), ['--branch', 'main']);
+
+  // Issues: seeded on the first scheduled poll, then fires for a newly labelled one, in plan mode by default.
+  setGh({ issues: [{ number: 1, title: 'old bug', body: '', url: 'u1', labels: ['wisp'] }] });
+  const iss = await api('/triggers', { body: { kind: 'issues', cwd: repo, label: 'wisp', agent: 'claude' } });
+  assert.equal(iss.mode, 'plan');
+  const it = srv.store.config.triggers.find((x) => x.id === iss.id);
+  await t.tick();
+  assert.equal(it.runs, 0);
+  assert.equal(it.seeded, true);
+  setGh({ issues: [{ number: 2, title: 'Crash on {title}', body: 'Steps: {number}', url: 'u2', labels: ['wisp'], author: { login: 'octo' } }, ...ghState().issues] });
+  it.lastPolledAt = 0;
+  await t.tick();
+  assert.equal(it.runs, 1);
+  const issRun = await session(it.lastSessionId);
+  assert.equal(issRun.mode, 'plan');
+  assert.match(issRun.turns[0].prompt, /^GitHub issue #2: Crash on \{title\}\nu2\n\n<issue>\nSteps: \{number\}\n<\/issue>/);
+  await settled(issRun.id);
+
+  // A failing gh shows up on the trigger instead of throwing.
+  await api(`/triggers/${iss.id}`, { method: 'PATCH', body: { cwd: tmp('elsewhere') } });
+  setGh({ issues: 'not json' });
+  it.lastPolledAt = 0;
+  await t.tick();
+  assert.match((await api('/triggers')).find((x) => x.id === iss.id).lastError, /JSON/);
+  for (const x of await api('/triggers')) await api(`/triggers/${x.id}`, { method: 'DELETE' });
+});
+
+test('usage: spend, outcomes and questions per day, project and harness', () => {
+  const now = new Date('2026-10-17T15:00:00').getTime();
+  const day = 864e5;
+  const turn = (o) => ({ startedAt: now - 1000, endedAt: now, status: 'done', activity: [], presentation: { blocks: [{ type: 'hero', status: 'done' }] }, ...o });
+  const sessions = [
+    { id: 'a', agent: 'claude', model: 'opus', cwd: '/p/one', turns: [turn({ stats: { costUsd: 0.5, inputTokens: 10 } }), turn({ stats: { costUsd: 0.25 }, presentation: { blocks: [{ type: 'hero', status: 'blocked' }] }, activity: [{ kind: 'ask' }] })] },
+    { id: 'b', agent: 'codex', model: '', cwd: '/p/two', turns: [turn({ startedAt: now - 2 * day, stats: { inputTokens: 5 } }), turn({ status: 'error' })] },
+    { id: 'c', agent: 'claude', cwd: '/p/one', turns: [turn({ startedAt: now - 40 * day, stats: { costUsd: 9 } })] }, // out of range
+    { id: 'w', agent: 'wisp', cwd: '', turns: [turn({})] }, // the tour
+  ];
+  const u = usage(sessions, { days: 7, now, project: (s) => ({ id: s.cwd, name: s.cwd.split('/').pop(), color: 'teal' }) });
+  assert.equal(u.total.turns, 4);
+  assert.equal(u.total.sessions, 2);
+  assert.equal(u.total.cost, 0.75);
+  assert.equal(u.total.priced, 2);
+  assert.equal(u.total.successRate, 0.5);
+  assert.equal(u.total.questions, 1);
+  assert.equal(u.daily.length, 7);
+  assert.equal(u.daily.at(-1).turns, 3);
+  assert.equal(u.daily.at(-3).turns, 1);
+  assert.deepEqual(u.projects.map((p) => [p.name, p.turns, p.cost]), [['one', 2, 0.75], ['two', 2, 0]]);
+  assert.deepEqual(u.runners.map((r) => [r.agent, r.model, r.successRate]), [['claude', 'opus', 0.5], ['codex', '', 0.5]]);
+});
+
+test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are ignored', async () => {
+  // One fake server plays both ntfy (publish + poll) and the Telegram Bot API.
+  const ntfy = { published: [], replies: [] };
+  const tg = { sent: [], updates: [], next: 1, msg: 100, calls: [] };
+  const fake = http.createServer(async (req, res) => {
+    let body = '';
+    for await (const c of req) body += c;
+    const u = new URL(req.url, 'http://x');
+    const json = (o) => (res.writeHead(200, { 'content-type': 'application/json' }), res.end(JSON.stringify(o)));
+    if (u.pathname.startsWith('/bot')) {
+      const method = u.pathname.split('/').pop();
+      const b = body ? JSON.parse(body) : {};
+      tg.calls.push(method);
+      if (method === 'getUpdates') {
+        const out = tg.updates.filter((x) => x.update_id >= (b.offset || 0));
+        if (!out.length) await new Promise((r) => setTimeout(r, 100));
+        return json({ ok: true, result: out });
+      }
+      if (method === 'sendMessage') {
+        tg.sent.push(b);
+        return json({ ok: true, result: { message_id: ++tg.msg } });
+      }
+      return json({ ok: true, result: true });
+    }
+    if (req.method === 'POST' && u.pathname === '/') return ntfy.published.push(JSON.parse(body)), json({ id: 'p' });
+    if (req.method === 'POST') return ntfy.replies.push({ id: `r${ntfy.replies.length + 1}`, event: 'message', time: Date.now() / 1000, message: body }), json({});
+    if (u.pathname.endsWith('-reply/json')) {
+      const since = u.searchParams.get('since');
+      const at = ntfy.replies.findIndex((m) => m.id === since);
+      const out = /^\d+$/.test(since) ? ntfy.replies : ntfy.replies.slice(at + 1);
+      res.writeHead(200);
+      return res.end(out.map((m) => JSON.stringify(m)).join('\n'));
+    }
+    res.writeHead(404).end();
+  });
+  await new Promise((r) => fake.listen(0, '127.0.0.1', r));
+  const fakeUrl = `http://127.0.0.1:${fake.address().port}`;
+  process.env.WISP_TELEGRAM_API = fakeUrl;
+  srv.remote.ntfyPollMs = 100;
+  srv.remote.tgLongPoll = 0;
+  const tgUpdate = (o) => tg.updates.push({ update_id: tg.next++, ...o });
+  try {
+    let view = await api('/remote', { method: 'PUT', body: { ntfy: { enabled: true, server: fakeUrl, topic: 'wisp-test-topic' }, telegram: { enabled: true, token: '123:abc' } } });
+    assert.equal(view.telegram.token, '••••:abc');
+    assert.equal(view.telegram.linked, false);
+    assert.match(view.telegram.linkCode, /^\d{6}$/);
+    assert.equal((await api('/config')).remote, undefined, 'secrets stay out of /api/config');
+
+    // Linking: a stranger's message is ignored, the code links the chat.
+    tgUpdate({ message: { message_id: 1, chat: { id: 666 }, text: 'hi' } });
+    tgUpdate({ message: { message_id: 2, chat: { id: 42, first_name: 'Ada' }, text: `/link ${view.telegram.linkCode}` } });
+    view = await until(async () => ((await api('/remote')).telegram.linked ? api('/remote') : null));
+    assert.equal(view.telegram.chatName, 'Ada');
+
+    // A question goes out on both channels with its options as buttons.
+    const repo = makeRepo();
+    const s = await api('/sessions', { body: { prompt: 'ASK before fixing', cwd: repo, agent: 'claude', worktree: false } });
+    await until(async () => (await session(s.id)).state === 'waiting');
+    const note = await until(() => ntfy.published.find((p) => p.title.includes('❓')));
+    assert.equal(note.topic, 'wisp-test-topic');
+    assert.match(note.message, /Proceed with the fix\?/);
+    assert.deepEqual(note.actions.map((a) => a.label), ['Yes', 'No']);
+    const tgQ = await until(() => tg.sent.find((m) => m.text.includes('Proceed with the fix?')));
+    assert.equal(tgQ.chat_id, 42);
+    assert.deepEqual(tgQ.reply_markup.inline_keyboard.map((r) => r[0].text), ['Yes', 'No']);
+
+    // A forged tap (bad signature) does nothing; the real button answers.
+    const yes = JSON.parse(note.actions[0].body);
+    await fetch(note.actions[0].url, { method: 'POST', body: JSON.stringify({ ...yes, i: 1, sig: 'x'.repeat(22) }) });
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal((await session(s.id)).state, 'waiting');
+    await fetch(note.actions[0].url, { method: 'POST', body: note.actions[0].body });
+    const done = await settled(s.id);
+    assert.match(done.turns[0].presentation.blocks[0].summary, /Answer was: .*Yes/);
+
+    // The finished notice offers Mark done; replying to it on Telegram sends a follow-up.
+    const fin = await until(() => tg.sent.find((m) => m.text.startsWith('✅') && /Answer was: .*Yes/.test(m.text)));
+    assert.deepEqual(fin.reply_markup.inline_keyboard.map((r) => r[0].text), ['Mark done']);
+    const finId = tg.msg; // the message id our fake handed out for it
+    tgUpdate({ message: { message_id: 3, chat: { id: 42 }, text: 'also add a test', reply_to_message: { message_id: finId } } });
+    await until(async () => (await session(s.id)).turns.length === 2);
+    assert.equal((await session(s.id)).turns[1].prompt, 'also add a test');
+    await settled(s.id);
+    // The Mark done button on the latest message closes it out.
+    const last = await until(() => tg.sent.filter((m) => m.text.startsWith('✅')).at(1));
+    tgUpdate({ callback_query: { id: 'cb1', data: last.reply_markup.inline_keyboard[0][0].callback_data, message: { message_id: tg.msg, chat: { id: 42 } } } });
+    await until(async () => (await session(s.id)).state === 'done');
+    assert.ok(tg.calls.includes('answerCallbackQuery'));
+  } finally {
+    await api('/remote', { method: 'PUT', body: { ntfy: { enabled: false }, telegram: { enabled: false } } });
+    delete process.env.WISP_TELEGRAM_API;
+    fake.closeAllConnections?.();
+    fake.close();
+  }
+});
