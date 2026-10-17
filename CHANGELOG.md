@@ -11,7 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- Scrolling in the feed stays put. When a card changes section in the background (a task finishes, asks or is removed), the card you're reading no longer jumps; one whose edge just peeks onto the screen no longer drags the view with it. Mark done, Archive and Delete put the next card where the old one was and focus it, so E / A / j triage continues from the same spot. j / k show the header of tall cards, and switching project filters returns to the top of the feed. The rules are written down in [docs/feed.md](docs/feed.md).
+- Scrolling in the feed stays put. When a card changes section in the background (a task finishes, asks or is removed), the card you're reading no longer jumps; one whose edge just peeks onto the screen no longer drags the view with it. Mark done, Archive and Delete put the next card where the old one was and focus it, so E / A / j triage continues from the same spot. j / k show the header of tall cards, switching project filters returns to the top of the feed, and a task launched from the box scrolls into view when its card lands off-screen. The rules are written down in [docs/feed.md](docs/feed.md).
 
 ## [0.7.0] - 2026-10-17
 

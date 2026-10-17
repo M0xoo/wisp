@@ -70,6 +70,9 @@ waiting ──answer──▶ running            review ◀── Reopen / Undo 
 7. **Collapse all (C) and Esc keep your place.** Collapse all centres the card you were reading;
    Esc folds the focused card and keeps its header on screen.
 8. **A new project filter starts at the top of the feed.**
+9. **A task you launch from the box is shown.** Its card lands in Working, usually below
+   everything in Needs you. If it's off-screen, the feed scrolls just enough to show it and the
+   card flashes; if it's already on screen, the wisp flies from the launcher to it.
 
 "Under the top bar" means below the stage's `scroll-padding-top` (top bar + docked launcher),
 read at runtime by `topInset()`.

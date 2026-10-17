@@ -190,7 +190,7 @@ function renderFeed() {
 // somewhere arbitrary in it, so bring the top of the feed back into view.
 function feedToTop() {
   const top = $('#feed').getBoundingClientRect().top;
-  if (top < topInset()) stage.scrollTop += top - topInset();
+  if (top < topInset()) scrollByPx(top - topInset());
 }
 
 function renderFeedHead(needs, working) {
@@ -583,7 +583,7 @@ function renderLauncher() {
         save('wisp.filter', S.filter);
       }
       renderFeed();
-      launchedFx(btn, S.nodes.get(s.id)?.card);
+      showLaunched(btn, S.nodes.get(s.id)?.card);
       askNotify();
     } catch (err) {
       toast(esc(err.message), { tone: 'bad' });
@@ -684,6 +684,18 @@ function launchedFx(from, to) {
     ],
     { duration: 800, easing: 'cubic-bezier(.5,0,.3,1)' },
   ).onfinish = () => w.remove();
+}
+
+// A new card lands in Working, below everything in "Needs you", so it's often off-screen. Scroll
+// it into view (just enough) and flash it; the flying wisp only plays when the card is already
+// on screen, since the launcher it starts from may scroll away or fold into the dock.
+function showLaunched(btn, card) {
+  if (!card) return;
+  const r = card.getBoundingClientRect();
+  if (r.top >= topInset() && r.bottom <= innerHeight) return launchedFx(btn, card);
+  card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  card.classList.add('arrived');
+  setTimeout(() => card.classList.remove('arrived'), 1600);
 }
 
 // --- project filter (top bar) ---------------------------------------------------
@@ -893,7 +905,13 @@ const sectionOf = (s) => (s.archived ? 'archived' : s.state === 'running' ? 'wor
 function keepInPlace(card, change) {
   const top = card?.isConnected ? card.getBoundingClientRect().top : null;
   change();
-  if (top !== null && card.isConnected) stage.scrollTop += card.getBoundingClientRect().top - top;
+  if (top !== null && card.isConnected) scrollByPx(card.getBoundingClientRect().top - top);
+}
+
+// Any write to scrollTop cancels a smooth scroll in flight (j/k, Open, a launch), so only
+// write when there's an actual shift to undo.
+function scrollByPx(dy) {
+  if (Math.abs(dy) >= 1) stage.scrollTop += dy;
 }
 
 // The card to hold still while the feed changes around it: the first one showing under the top
@@ -2359,7 +2377,7 @@ function handOff(id) {
     if (!nextUp || !S.nodes.has(nextUp)) return;
     setFocus(nextUp, { scroll: slot === null });
     const next = S.nodes.get(nextUp).card;
-    if (slot !== null && next.isConnected) stage.scrollTop += next.getBoundingClientRect().top - slot;
+    if (slot !== null && next.isConnected) scrollByPx(next.getBoundingClientRect().top - slot);
   };
 }
 
