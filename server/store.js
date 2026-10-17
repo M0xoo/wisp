@@ -11,6 +11,7 @@ const DEFAULT_CONFIG = {
   defaults: { agent: 'claude', mode: 'edits', model: '', effort: '' },
   recipes: [], // saved prompts with {params}: server/recipes.js
   triggers: [], // schedules and GitHub watchers: server/triggers.js
+  teams: [], // saved subagent presets: server/subagents.js
   remote: {}, // phone channels (ntfy, Telegram): server/remote.js
 };
 
@@ -52,6 +53,7 @@ export class Store {
       cfg.projects ||= [];
       cfg.recipes ||= [];
       cfg.triggers ||= [];
+      cfg.teams ||= [];
       cfg.remote ||= {};
       return cfg;
     } catch {

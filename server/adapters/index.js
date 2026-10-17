@@ -41,7 +41,8 @@ export async function listAgents() {
       const found = await detected.get(a.id);
       // Only a hit is cached: a CLI installed while wisp is running shows up on the next call.
       if (!found.available) detected.delete(a.id);
-      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], ...found };
+      // delegates: can lead a team of subagents (needs wisp's MCP server injected).
+      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], delegates: a.askTool !== null, ...found };
     }),
   );
 }

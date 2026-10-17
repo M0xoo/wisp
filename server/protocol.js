@@ -84,7 +84,8 @@ const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous 
   The user's answer comes back as a follow-up in this same session.`;
 
 // askTool: how the harness names wisp's injected ask_user tool, or null if it can't take one.
-export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user' } = {}) => PROTOCOL.replace('{{ASK}}', askTool ? ASK_TOOL(askTool) : ASK_BLOCK);
+// ask: replaces the ask guidance outright (subagents, who have nobody to ask).
+export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask } = {}) => PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) : ASK_BLOCK));
 export const SYSTEM_PROMPT = systemPrompt();
 
 // Only the opener is matched by regex. The closing fence can't be: the JSON itself often

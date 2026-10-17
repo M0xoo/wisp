@@ -182,6 +182,10 @@ function describeTool(name, input, cwd) {
     }
     case 'mcp__wisp__ask_user':
       return { kind: 'wait', label: 'Waiting for your answer' };
+    case 'mcp__wisp__delegate':
+      return { kind: 'agent', label: `Delegating to ${clip([...new Set((input.tasks || []).map((t) => t.subagent))].join(', ') || 'subagents', 60)}` };
+    case 'mcp__wisp__subagent_results':
+      return { kind: 'agent', label: 'Waiting on subagents' };
     default:
       return { kind: 'tool', label: name.startsWith('mcp__') ? `Using ${name.split('__').slice(1).join(' · ')}` : `Using ${name}` };
   }

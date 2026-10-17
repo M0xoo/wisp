@@ -23,6 +23,7 @@ import { normalizeRecipe, findRecipe, recipeView, fill, positional } from './rec
 import { Triggers, normalizeTrigger, triggerView } from './triggers.js';
 import { Remote } from './remote.js';
 import { usage } from './usage.js';
+import { normalizeTeam, normalizePreset, delegationReport } from './subagents.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -131,7 +132,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   if (!envDisabled()) process.on('uncaughtExceptionMonitor', (err) => telemetry.crashed(err));
 
   // One way in for every launch: the launcher, the CLI, recipes, triggers and compare runs.
-  // body: { prompt, cwd, agent, mode, model, effort, attachments: [uploadId], worktree, compare }
+  // body: { prompt, cwd, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
+  //         subagents: [{ name, agent, model, effort, use }] | preset: teamId }
   async function launch(body, origin = null) {
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
     const cwd = expand(body.cwd || process.cwd());
@@ -150,6 +152,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     const wantTree = body.worktree ?? (comparing || (mode !== 'plan' && d.worktree !== 'off'));
     const groupId = comparing ? newId() : null;
     const attachments = resolveAttachments(body.attachments);
+    const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
+    if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
+    const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
     const ids = runners.map(() => newId());
     let trees = ids.map(() => null);
     if (wantTree) {
@@ -169,7 +174,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       }
       if (failed) console.warn(`wisp: no worktree for ${cwd}: ${failed.message}`);
     }
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin }));
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents }));
   }
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
@@ -339,6 +344,24 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         return send(res, 200, { id: runner.ask(s, body) });
       }
       if (id === 'ask' && action && m === 'GET') return send(res, 200, runner.pollAnswer(action));
+      // delegate: POST starts tasks on the lead's subagents; GET reports on them (done once all finished).
+      if (id === 'delegate' && action) {
+        const lead = store.get(action);
+        if (!lead) return send(res, 404, { error: 'no such session' });
+        if (m === 'POST') {
+          const body = await readJson(req);
+          const delegations = runner.delegate(lead, body.tasks);
+          telemetry.track('delegate', { agent: lead.agent, tasks: delegations.length, harnesses: [...new Set(delegations.filter((d) => d.agent).map((d) => d.agent))] });
+          return send(res, 200, { delegations });
+        }
+        if (m === 'GET') {
+          const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean);
+          const list = runner.delegations(lead, ids);
+          if (!list.length) return send(res, 200, { done: true, text: 'No delegated tasks to report on.' });
+          const running = ({ d, child }) => child?.turns.find((t) => t.id === d.turnId)?.status === 'running';
+          return send(res, 200, { done: !list.some(running), text: list.map(({ d, child }) => delegationReport(d, child, adapters)).join('\n\n---\n\n') });
+        }
+      }
     }
 
     // Attachments: raw body streamed to disk, referenced by id from launches and replies.
@@ -412,6 +435,26 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         prefs.set(scope, body.kind, body.items);
         broadcast('preferences', {});
         return send(res, 200, view());
+      }
+    }
+
+    // Subagent presets: a saved team (members with harness, model, thinking and "use it for").
+    if (root === 'teams') {
+      const list = store.config.teams;
+      const saved = (status, body) => (store.saveConfig(), broadcast('config', {}), send(res, status, body));
+      if (!id && m === 'GET') return send(res, 200, list);
+      if (!id && m === 'POST') {
+        const t = normalizePreset(await readJson(req), adapters);
+        list.push(t);
+        return saved(201, t);
+      }
+      const t = list.find((x) => x.id === id);
+      if (!t) return send(res, 404, { error: 'no such preset' });
+      if (!action && m === 'GET') return send(res, 200, t);
+      if (!action && m === 'PATCH') return saved(200, Object.assign(t, normalizePreset(await readJson(req), adapters, t)));
+      if (!action && m === 'DELETE') {
+        store.config.teams = list.filter((x) => x !== t);
+        return saved(200, { ok: true });
       }
     }
 
@@ -569,7 +612,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         if (m === 'GET') {
           const q = Object.fromEntries(url.searchParams);
           const cwd = q.cwd && path.resolve(q.cwd.replace(/^~(?=$|[\\/])/, os.homedir()));
-          let list = store.all().map((x) => summarize(x, store)).sort((a, b) => b.updatedAt - a.updatedAt);
+          // Subagent sessions belong to their lead; ?children=1 lists them too.
+          let list = store.all().filter((x) => !x.parentId || q.children).map((x) => summarize(x, store)).sort((a, b) => b.updatedAt - a.updatedAt);
           if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
           if (q.agent) list = list.filter((x) => x.agent === q.agent);
           if (q.project) list = list.filter((x) => x.projectId === q.project || x.project === q.project);
@@ -589,13 +633,19 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       if (!s) return send(res, 404, { error: 'no such session' });
 
       if (!action) {
-        if (m === 'GET') return send(res, 200, s);
+        // A lead comes with its subagents' sessions, so its cards can show their reports and diffs.
+        if (m === 'GET') return send(res, 200, s.children ? { ...s, childSessions: Object.fromEntries(Object.values(s.children).map((cid) => [cid, store.get(cid)]).filter(([, c]) => c)) } : s);
         if (m === 'PATCH') {
           const body = await readJson(req);
           if (typeof body.title === 'string' && body.title.trim()) Object.assign(s, { title: body.title.trim(), titleAuto: false });
           if (body.state === 'done' && s.state !== 'running') s.state = 'done';
           if (body.state === 'review' && s.state === 'done') s.state = 'review';
           if (typeof body.unread === 'boolean') s.unread = body.unread;
+          // The team can change between turns; the next turn's lead sees the new roster.
+          if (body.subagents !== undefined && !s.parentId) {
+            s.subagents = normalizeTeam(body.subagents, adapters);
+            s.children ||= {};
+          }
           if (body.archived === true && s.state !== 'running' && s.state !== 'waiting') Object.assign(s, { archived: true, unread: false });
           if (body.archived === false) delete s.archived;
           if (s.state === 'done' || s.archived) retro.schedule(s, 0); // finished with it: learn now
@@ -610,6 +660,10 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           runner.stop(s);
           await runner.live.get(s.id)?.done;
           cleanupCheckpoints(workdir(s), s.id);
+          for (const cid of Object.values(s.children || {})) {
+            await runner.live.get(cid)?.done;
+            if (store.get(cid)) (store.delete(cid), broadcast('removed', { id: cid }));
+          }
           // Its worktree goes with it; the branch only if it holds nothing beyond its base.
           if (s.worktree) await removeWorktree(s.worktree, { force: true, branch: true }).catch(() => {});
           store.delete(id);

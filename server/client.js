@@ -129,15 +129,16 @@ export class WispClient {
   // { prompt, cwd, agent, mode, model, effort, attachments: [uploadId] }. Missing agent/mode/model
   // fall back to the launcher's remembered defaults, like `wisp "…"` does; effort only if given.
   // worktree: true/false overrides the default (on in git repos). compare: [{ agent, model, effort }]
-  // runs the same task on more harnesses at once, each in its own worktree.
-  async launch({ prompt, cwd = process.cwd(), agent, mode, model, effort, attachments, worktree, compare } = {}) {
+  // runs the same task on more harnesses at once, each in its own worktree. subagents:
+  // [{ name, agent, model, effort, use }] (or preset: a saved team's id) the lead can delegate to.
+  async launch({ prompt, cwd = process.cwd(), agent, mode, model, effort, attachments, worktree, compare, subagents, preset } = {}) {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
       agent ||= defaults.agent || 'claude';
       mode ||= defaults.mode || 'edits';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }
-    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), agent, mode, model, effort, attachments, worktree, compare });
+    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), agent, mode, model, effort, attachments, worktree, compare, subagents, preset });
   }
 
   // Ship it: commit the session's worktree, push its branch, open (or update) the PR.
