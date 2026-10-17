@@ -7,7 +7,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { Store } from './store.js';
-import { Runner, summarize, newId } from './runner.js';
+import { Runner, summarize, newId, workdir } from './runner.js';
 import { adapters, listAgents } from './adapters/index.js';
 import { welcomeSession } from './welcome.js';
 import { openInTerminal, TERMINALS, shq } from './terminal.js';
@@ -16,6 +16,11 @@ import { blocksToMarkdown, sessionToMarkdown } from './render.js';
 import { openapi } from './openapi.js';
 import { Updater } from './update.js';
 import { Preferences, Retro, KINDS } from './preferences.js';
+import { createWorktree, ensureWorktree, removeWorktree, worktreeStatus, ship, merge, prView, repoRoot } from './git.js';
+import { normalizeRecipe, findRecipe, recipeView, fill, positional } from './recipes.js';
+import { Triggers, normalizeTrigger, triggerView } from './triggers.js';
+import { Remote } from './remote.js';
+import { usage } from './usage.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -44,6 +49,11 @@ export const API_VERSION = 1;
 // with follow-ups still queued is about to start the next one, so it doesn't count yet.
 const settled = (s) => s.state === 'waiting' || (s.state !== 'running' && !s.queue?.length);
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const PR_POLL_MS = 60_000;
+const MAX_COMPARE = 4;
+const MODES = new Set(['plan', 'edits', 'auto']);
+const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
+const expand = (p) => path.resolve(String(p).replace(/^~(?=$|[\\/])/, os.homedir()));
 
 export async function startServer({ port = 4477, host = '127.0.0.1', handleSignals = true } = {}) {
   const store = new Store();
@@ -73,6 +83,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   runner.on('turn', (t) => broadcast('turn', t));
   runner.on('finished', (f) => broadcast('finished', f));
   runner.on('finished', ({ session }) => notifyWebhooks(store, session));
+  runner.on('finished', ({ session }) => remote.notify(store.get(session.id), session).catch((err) => console.warn(`wisp: phone: ${err.message}`)));
   setInterval(() => broadcast('ping', {}), 25_000).unref();
 
   const telemetry = new Telemetry(store);
@@ -116,6 +127,139 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     if (errorText) telemetry.captureError(new Error(errorText), { type: 'AgentError', ...run(session, turn) });
   });
   if (!envDisabled()) process.on('uncaughtExceptionMonitor', (err) => telemetry.crashed(err));
+
+  // One way in for every launch: the launcher, the CLI, recipes, triggers and compare runs.
+  // body: { prompt, cwd, agent, mode, model, effort, attachments: [uploadId], worktree, compare }
+  async function launch(body, origin = null) {
+    if (!String(body.prompt || '').trim()) throw bad('prompt required');
+    const cwd = expand(body.cwd || process.cwd());
+    if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw bad(`Not a directory: ${cwd}`);
+    const d = store.config.defaults;
+    // compare: more { agent, model, effort } to run the same task on, side by side.
+    const runners = [{ agent: body.agent, model: body.model, effort: body.effort }, ...(Array.isArray(body.compare) ? body.compare : [])].slice(0, MAX_COMPARE).map((r, i) => {
+      const agent = r.agent || (i ? d.agent : '') || 'claude';
+      if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
+      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '' };
+    });
+    const mode = MODES.has(body.mode) ? body.mode : 'edits';
+    // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
+    // runs need one each, or the harnesses would edit the same files.
+    const comparing = runners.length > 1;
+    const wantTree = body.worktree ?? (comparing || (mode !== 'plan' && d.worktree !== 'off'));
+    const groupId = comparing ? newId() : null;
+    const attachments = resolveAttachments(body.attachments);
+    const made = [];
+    for (const r of runners) {
+      const id = newId();
+      let worktree = null;
+      if (wantTree) {
+        worktree = await createWorktree({ cwd, home: store.home, id, title: body.prompt }).catch((err) => {
+          if (body.worktree === true || (comparing && mode !== 'plan')) throw bad(`Could not create a worktree: ${err.message}`);
+          console.warn(`wisp: no worktree for ${cwd}: ${err.message}`);
+          return null;
+        });
+        if (!worktree && (body.worktree === true || (comparing && mode !== 'plan'))) throw bad(comparing ? 'Compare needs a git repo with at least one commit, so each harness gets its own worktree.' : 'Not a git repo with commits, so there is nothing to make a worktree from.');
+      }
+      made.push(runner.create({ id, prompt: body.prompt, cwd, ...r, mode, attachments, worktree, groupId, origin }));
+    }
+    return made;
+  }
+
+  // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
+  async function replyTo(s, text, attachments = [], queue) {
+    await ensureWorktree(s.worktree);
+    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue' });
+  }
+
+  const markDone = (s) => {
+    if (s.state === 'running' || s.state === 'waiting') return false;
+    s.state = 'done';
+    s.unread = false;
+    retro.schedule(s, 0);
+    store.save(s);
+    broadcast('summary', summarize(s, store));
+    return true;
+  };
+
+  // Recipes and triggers.
+  const runRecipe = async (r, { params = {}, words, cwd, agent, model, effort, mode } = {}) => {
+    const values = words ? { ...positional(r.prompt, words), ...params } : params;
+    const [s] = await launch({ prompt: fill(r.prompt, values), cwd: r.cwd || cwd, agent: agent || r.agent || undefined, model: model ?? (r.model || undefined), effort: effort || r.effort || undefined, mode: mode || r.mode || undefined }, { kind: 'recipe', id: r.id, name: r.name });
+    r.runs = (r.runs || 0) + 1;
+    r.lastRunAt = Date.now();
+    store.saveConfig();
+    broadcast('config', {});
+    return s;
+  };
+  const triggers = new Triggers({ store, launch: async (body, origin) => (await launch(body, origin))[0], onChange: () => broadcast('config', {}) });
+
+  // Phone: answers and follow-ups coming back from ntfy / Telegram.
+  const remote = new Remote({
+    store,
+    onChange: () => broadcast('remote', {}),
+    act: async ({ sessionId, kind, ref, index, text }) => {
+      const s = store.get(sessionId);
+      if (!s) return 'That session is gone.';
+      if (kind === 'answer') {
+        if (!s.ask || s.ask.id !== ref) return 'That question was already answered.';
+        const answer = s.ask.options[index];
+        if (answer === undefined) return 'Unknown option.';
+        runner.answer(s, answer);
+        return `✓ Answered: ${answer}`;
+      }
+      if (kind === 'reply') {
+        const turn = s.turns.at(-1);
+        if (!turn || turn.id !== ref || s.state === 'running') return 'That was already answered.';
+        const q = turn.presentation?.blocks?.findLast((b) => b?.type === 'question');
+        const o = q?.options?.[index];
+        const msg = typeof o === 'string' ? o : o?.reply || o?.label;
+        if (!msg) return 'Unknown option.';
+        await replyTo(s, msg);
+        return `✓ Sent: ${typeof o === 'string' ? o : o.label || msg}`;
+      }
+      if (kind === 'done') {
+        if (s.turns.at(-1)?.id !== ref && ref) return 'There is newer work on that session; open wisp to review it.';
+        return markDone(s) ? '✓ Marked done' : 'It is still working.';
+      }
+      if (s.agent === 'wisp') return 'That is the tour; it can’t take follow-ups.';
+      const r = await replyTo(s, String(text || '').trim());
+      return r.answered ? '✓ Answered' : r.interrupted ? '✓ Sent; the agent picked it up mid-run' : r.queued ? '✓ Queued for when it finishes' : '✓ Sent';
+    },
+  });
+
+  // Ship it: follow open PRs (checks, reviews, merges) so their cards stay current.
+  const refreshPr = async (s) => {
+    if (!s.pr || !s.worktree) return s.pr;
+    const prev = s.pr;
+    const dir = fs.existsSync(s.worktree.path) ? s.worktree.path : s.worktree.root;
+    const pr = await prView(dir, prev.number);
+    const changed = (k) => JSON.stringify(k(pr)) !== JSON.stringify(k(prev));
+    s.pr = pr;
+    // Things worth coming back for: CI finished either way, a review landed, it merged or closed.
+    const settledChecks = (x) => (x.checks.pending ? 'pending' : x.checks.fail ? 'fail' : 'pass');
+    if (changed((x) => x.state) || changed((x) => x.review) || (changed(settledChecks) && settledChecks(pr) !== 'pending')) s.unread = true;
+    store.save(s);
+    broadcast('summary', summarize(s, store));
+    return pr;
+  };
+  const prTimer = setInterval(async () => {
+    for (const s of store.all()) if (s.pr?.state === 'OPEN') await refreshPr(s).catch(() => {});
+  }, PR_POLL_MS);
+  prTimer.unref();
+
+  // Default commit message and PR text, from the session's latest presentation.
+  const shipDraft = (s) => {
+    const turn = s.turns.findLast((t) => t.status === 'done') || s.turns.at(-1);
+    const blocks = turn?.presentation?.blocks || [];
+    const hero = blocks.find((b) => b?.type === 'hero');
+    const text = `${hero?.title || s.title}`.trim();
+    const conventional = /^[a-z]+(\([\w./-]+\))?!?: /.test(text);
+    const type = /\b(fix|bug|broken|crash|flaky|regression)/i.test(`${text} ${s.turns[0]?.prompt || ''}`) ? 'fix' : /\b(docs?|readme|changelog)\b/i.test(text) ? 'docs' : /\b(refactor|clean ?up|simplif)/i.test(text) ? 'refactor' : /\btests?\b/i.test(text) ? 'test' : 'feat';
+    const title = conventional ? text : `${type}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+    const keep = blocks.filter((b) => !['hero', 'next', 'question', 'diff', 'code', 'image', 'terminal'].includes(b?.type));
+    const body = [hero?.summary, blocksToMarkdown(keep, turn)].filter(Boolean).join('\n\n').trim();
+    return { title: title.slice(0, 100), body: `${body}\n\n_Shipped from [wisp](https://github.com/M0xoo/wisp)._`.trim() };
+  };
 
   const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]);
 
@@ -226,7 +370,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     }
 
     if (root === 'config') {
-      if (m === 'GET') return send(res, 200, { ...store.config, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled } });
+      if (m === 'GET') return send(res, 200, { ...store.config, remote: undefined, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled } });
       if (m === 'PATCH') {
         const body = await readJson(req);
         if (body.defaults) Object.assign(store.config.defaults, body.defaults);
@@ -238,7 +382,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         }
         store.saveConfig();
         broadcast('config', {});
-        return send(res, 200, store.config);
+        return send(res, 200, { ...store.config, remote: undefined });
       }
     }
 
@@ -262,6 +406,87 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         broadcast('preferences', {});
         return send(res, 200, view());
       }
+    }
+
+    // Recipes: saved prompts with {params}. POST /recipes/:id/run { params | words, cwd, … }.
+    if (root === 'recipes') {
+      const list = store.config.recipes;
+      if (!id && m === 'GET') return send(res, 200, list.map(recipeView));
+      if (!id && m === 'POST') {
+        const r = normalizeRecipe(await readJson(req));
+        list.push(r);
+        store.saveConfig();
+        broadcast('config', {});
+        return send(res, 201, recipeView(r));
+      }
+      const r = findRecipe(list, decodeURIComponent(id || ''));
+      if (!r) return send(res, 404, { error: 'no such recipe' });
+      if (!action && m === 'GET') return send(res, 200, recipeView(r));
+      if (!action && m === 'PATCH') {
+        Object.assign(r, normalizeRecipe(await readJson(req), r));
+        store.saveConfig();
+        broadcast('config', {});
+        return send(res, 200, recipeView(r));
+      }
+      if (!action && m === 'DELETE') {
+        store.config.recipes = list.filter((x) => x !== r);
+        store.saveConfig();
+        broadcast('config', {});
+        return send(res, 200, { ok: true });
+      }
+      if (action === 'run' && m === 'POST') {
+        const body = await readJson(req);
+        const s = await runRecipe(r, { params: body.params || {}, words: Array.isArray(body.words) ? body.words.map(String) : undefined, cwd: body.cwd, agent: body.agent, model: body.model, effort: body.effort, mode: body.mode });
+        return send(res, 201, summarize(s, store));
+      }
+    }
+
+    // Triggers: schedules and GitHub watchers that launch sessions on their own.
+    if (root === 'triggers') {
+      const list = store.config.triggers;
+      if (!id && m === 'GET') return send(res, 200, list.map(triggerView));
+      if (!id && m === 'POST') {
+        const t = normalizeTrigger(await readJson(req), null, { recipes: store.config.recipes });
+        list.push(t);
+        store.saveConfig();
+        broadcast('config', {});
+        return send(res, 201, triggerView(t));
+      }
+      const t = list.find((x) => x.id === id);
+      if (!t) return send(res, 404, { error: 'no such trigger' });
+      if (!action && m === 'PATCH') {
+        Object.assign(t, normalizeTrigger(await readJson(req), t, { recipes: store.config.recipes }));
+        store.saveConfig();
+        broadcast('config', {});
+        return send(res, 200, triggerView(t));
+      }
+      if (!action && m === 'DELETE') {
+        store.config.triggers = list.filter((x) => x !== t);
+        store.saveConfig();
+        broadcast('config', {});
+        return send(res, 200, { ok: true });
+      }
+      if (action === 'run' && m === 'POST') {
+        const r = await triggers.runNow(t);
+        const started = (Array.isArray(r) ? r : r ? [r] : []).map((x) => summarize(x, store));
+        return send(res, 200, { started, trigger: triggerView(t) });
+      }
+    }
+
+    // Phone: ntfy / Telegram settings (secrets masked), and a test message.
+    if (root === 'remote') {
+      if (!id && m === 'GET') return send(res, 200, remote.view());
+      if (!id && m === 'PUT') return send(res, 200, remote.update(await readJson(req)));
+      if (id === 'test' && m === 'POST') {
+        const sent = await remote.send({ title: '✨ wisp', text: 'Test from wisp: questions and finished tasks will show up like this.', actions: [] });
+        if (!sent) return send(res, 400, { error: 'Turn on ntfy or link Telegram first.' });
+        return send(res, 200, remote.view());
+      }
+    }
+
+    // Spend and outcomes. ?days=7|30|90
+    if (root === 'usage' && m === 'GET') {
+      return send(res, 200, usage(store.all(), { days: Number(url.searchParams.get('days')) || 30, project: (s) => store.projectFor(s.cwd) }));
     }
 
     if (root === 'projects') {
@@ -347,13 +572,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           return send(res, 200, list);
         }
         if (m === 'POST') {
-          const body = await readJson(req);
-          if (!body.prompt?.trim()) return send(res, 400, { error: 'prompt required' });
-          const cwd = path.resolve((body.cwd || process.cwd()).replace(/^~(?=$|[\\/])/, os.homedir()));
-          if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) return send(res, 400, { error: `Not a directory: ${cwd}` });
-          if (!adapters[body.agent || 'claude']) return send(res, 400, { error: 'unknown agent' });
-          const s = runner.create({ prompt: body.prompt, cwd, agent: body.agent, mode: body.mode, model: body.model, effort: /^[\w-]{1,20}$/.test(body.effort || '') ? body.effort : '', attachments: resolveAttachments(body.attachments) });
-          return send(res, 201, summarize(s, store));
+          const made = await launch(await readJson(req));
+          const out = made.map((x) => summarize(x, store));
+          return send(res, 201, made.length > 1 ? { ...out[0], group: out } : out[0]);
         }
       }
 
@@ -371,12 +592,18 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
           if (body.archived === true && s.state !== 'running' && s.state !== 'waiting') Object.assign(s, { archived: true, unread: false });
           if (body.archived === false) delete s.archived;
           if (s.state === 'done' || s.archived) retro.schedule(s, 0); // finished with it: learn now
+          // Archived: a clean worktree goes (its branch stays, a follow-up brings it back).
+          // discardWorktree: a compare run you didn't keep; its changes go too.
+          if (s.worktree && !runner.live.has(s.id) && (s.archived || body.discardWorktree)) await removeWorktree(s.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !s.pr && 'force' });
           store.save(s);
           broadcast('summary', summarize(s, store));
           return send(res, 200, summarize(s, store));
         }
         if (m === 'DELETE') {
           runner.stop(s);
+          await runner.live.get(s.id)?.done;
+          // Its worktree goes with it; the branch only if it holds nothing beyond its base.
+          if (s.worktree) await removeWorktree(s.worktree, { force: true, branch: true }).catch(() => {});
           store.delete(id);
           broadcast('removed', { id });
           return send(res, 200, { ok: true });
@@ -426,7 +653,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         const { text, attachments, queue } = await readJson(req);
         if (!text?.trim()) return send(res, 400, { error: 'text required' });
         if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to follow up.' });
-        return send(res, 200, runner.reply(s, text.trim(), resolveAttachments(attachments), { queue: queue ?? store.config.defaults.followUp === 'queue' }));
+        return send(res, 200, await replyTo(s, text.trim(), resolveAttachments(attachments), queue));
       }
 
       if (action === 'queue' && m === 'DELETE') {
@@ -445,14 +672,15 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         const adapter = adapters[s.agent];
         if (!adapter?.resumeCommand || !s.agentSessionId) return send(res, 400, { error: 'This session cannot be resumed in a terminal.' });
         const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort });
-        const command = `cd ${shq(s.cwd)} && ${argv.map(shq).join(' ')}`;
+        await ensureWorktree(s.worktree);
+        const command = `cd ${shq(workdir(s))} && ${argv.map(shq).join(' ')}`;
         if (m === 'GET') return send(res, 200, { command });
         if (m === 'POST') {
           if (runner.live.has(s.id)) {
             runner.stop(s);
             await runner.live.get(s.id)?.done;
           }
-          openInTerminal({ cwd: s.cwd, argv, terminal: store.config.defaults.terminal || 'auto', custom: store.config.defaults.terminalCommand });
+          openInTerminal({ cwd: workdir(s), argv, terminal: store.config.defaults.terminal || 'auto', custom: store.config.defaults.terminalCommand });
           s.takenOverAt = Date.now();
           telemetry.track('takeover', { agent: s.agent, terminal: store.config.defaults.terminal || 'auto' });
           store.save(s);
@@ -465,18 +693,51 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         return send(res, 200, { ok: true });
       }
 
+      // Ship it. GET: what would ship (branch, changes, draft message). POST { title, body, draft }:
+      // commit, push, open or update the PR.
+      if (action === 'ship') {
+        if (!s.worktree) return send(res, 400, { error: 'Ship it works on worktree sessions: launch with a worktree to get one.' });
+        if (m === 'GET') return send(res, 200, { branch: s.worktree.branch, base: s.worktree.base, remote: s.worktree.remote, ...(await worktreeStatus(s.worktree)), pr: s.pr || null, ...shipDraft(s) });
+        if (m === 'POST') {
+          if (runner.live.has(s.id)) return send(res, 409, { error: 'Still working: wait for it to finish, or stop it.' });
+          const body = await readJson(req);
+          const draft = shipDraft(s);
+          s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr });
+          telemetry.track('ship', { agent: s.agent, draft: !!body.draft });
+          store.save(s, { now: true });
+          broadcast('summary', summarize(s, store));
+          return send(res, 200, s.pr);
+        }
+      }
+      if (action === 'pr' && m === 'POST') {
+        if (!s.pr) return send(res, 404, { error: 'No pull request yet.' });
+        return send(res, 200, await refreshPr(s));
+      }
+      // Squash-merge the reviewed head, sync the user's base branch, clean up the worktree.
+      if (action === 'merge' && m === 'POST') {
+        if (!s.pr || !s.worktree) return send(res, 400, { error: 'No pull request to merge.' });
+        const { pr, sync } = await merge(s.worktree, s.pr.number);
+        s.pr = pr;
+        markDone(s);
+        telemetry.track('merge', { agent: s.agent });
+        store.save(s, { now: true });
+        broadcast('summary', summarize(s, store));
+        return send(res, 200, { pr, sync });
+      }
+
       // Images the agent pointed at (screenshots etc.). Served if inside the session's project,
       // or if the agent named that exact path in an image block (screenshots often land in /tmp).
       if (action === 'file' && m === 'GET') {
-        let p = path.resolve(s.cwd, url.searchParams.get('path') || '');
+        const dir = workdir(s);
+        let p = path.resolve(dir, url.searchParams.get('path') || '');
         const ext = path.extname(p).toLowerCase();
         const images = s.turns.flatMap((t) => (t.presentation?.blocks || []).filter((b) => b?.type === 'image'));
-        const at = (v) => typeof v === 'string' && path.resolve(s.cwd, v) === p;
+        const at = (v) => typeof v === 'string' && path.resolve(dir, v) === p;
         const named = images.find((b) => at(b.path || b.src));
         // A page rendered before keepImages() rewrote the block still asks for the original path.
         const kept = !named && images.find((b) => at(b.source) && typeof b.path === 'string');
-        if (kept) p = path.resolve(s.cwd, kept.path);
-        if (!(p.startsWith(s.cwd + path.sep) || named || kept) || !IMAGE_EXT.has(ext) || !fs.existsSync(p)) return send(res, 404, { error: 'not found' });
+        if (kept) p = path.resolve(dir, kept.path);
+        if (!(p.startsWith(dir + path.sep) || named || kept) || !IMAGE_EXT.has(ext) || !fs.existsSync(p)) return send(res, 404, { error: 'not found' });
         res.writeHead(200, { 'content-type': MIME[ext] });
         return fs.createReadStream(p).pipe(res);
       }
@@ -503,6 +764,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       if (JSON.parse(fs.readFileSync(serverFile, 'utf8')).pid === process.pid) fs.rmSync(serverFile, { force: true });
     } catch {}
     retro.stop();
+    triggers.stop();
+    remote.stop();
+    clearInterval(prTimer);
     for (const s of store.all()) runner.stop(s);
     store.flush();
     telemetry.persist();
@@ -519,6 +783,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   });
   fs.writeFileSync(serverFile, JSON.stringify({ url: `http://127.0.0.1:${port}`, port, pid: process.pid, version: VERSION, apiVersion: API_VERSION, startedAt: Date.now() }, null, 2));
   updater.start();
+  triggers.start();
+  remote.start();
 
   if (telemetry.enabled) {
     if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
@@ -527,7 +793,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers, remote };
 }
 
 // POST { event, session, markdown } to each configured webhook (Slack bridges, CI, notifiers).
