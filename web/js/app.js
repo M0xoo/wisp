@@ -504,7 +504,8 @@ function renderLauncher() {
       <span class="grow"></span>
       <button class="tog-btn" id="wtBtn"></button>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
-    </div>`;
+    </div>
+    <div class="l-recipes"></div>`;
   renderLaunchChips();
 
   const ta = $('#prompt', box);
@@ -513,7 +514,7 @@ function renderLauncher() {
   acceptFiles(box, ta, tray);
   autosize(ta);
   ta.value = S.drafts.get('home') || '';
-  ta.addEventListener('input', () => S.drafts.set('home', ta.value));
+  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe()));
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
   const hint = () => (ta.placeholder = document.activeElement === ta
     ? 'What should I go do? Paste screenshots, drop logs or videos…'
@@ -547,6 +548,7 @@ function renderLauncher() {
   };
   paintMode();
   modeBtn.onclick = () => modeMenu(modeBtn, curMode, setMode);
+  box.mode = () => curMode;
   let curModel = savedModel(agent?.id);
   let curEffort = savedEffort(agent?.id, curModel);
   const runnerBtn = $('#runner', box);
@@ -721,9 +723,68 @@ function renderLaunchChips() {
       launchProject = b.dataset.id;
       save('wisp.launchProject', launchProject);
       $$('.lp-chip', box).forEach((x) => x.classList.toggle('on', x === b));
+      renderLaunchRecipes();
     }),
   );
   $('#lpAdd', box).onclick = () => openProjects({ focusAdd: true });
+  renderLaunchRecipes();
+}
+
+// Recipes for the picked project (and the ones tied to none), one click from the launcher.
+// With text in the box, "Save as recipe" turns it into one.
+function renderLaunchRecipes() {
+  const row = $('#launcher .l-recipes');
+  if (!row) return;
+  const path = projectById(launchProject)?.path;
+  const all = S.config.recipes || [];
+  const list = all.filter((r) => !r.cwd || r.cwd === path).sort((a, b) => (b.lastRunAt || 0) - (a.lastRunAt || 0));
+  const hidden = all.length - list.length;
+  row.innerHTML = `
+    <span class="l-in">${icon('spark')}Recipes</span>
+    ${list.map((r) => `<button class="lp-chip rc" data-recipe="${esc(r.id)}" title="${esc(r.prompt.replace(/\s+/g, ' ').slice(0, 200))}">${esc(r.name)}${recipeParams(r.prompt).length ? '<i class="rc-f">…</i>' : ''}</button>`).join('')}
+    ${list.length ? '' : `<span class="muted xs lr-empty">${hidden ? `None for this project · ${hidden} elsewhere` : 'Prompts you send again and again, one click away'}</span>`}
+    <button class="lp-chip add" id="lrSave" hidden>${icon('plus')}Save as recipe</button>
+    <button class="lp-chip add" id="lrNew">${icon('plus')}New</button>
+    <span class="grow"></span>
+    <button class="link xs" id="lrAll">Manage</button>`;
+  row.onclick = (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.recipe) {
+      const r = all.find((x) => x.id === b.dataset.recipe);
+      return r && runRecipe({ ...r, params: recipeParams(r.prompt) });
+    }
+    const draft = { name: '', prompt: '', cwd: path || '', mode: $('#launcher').mode?.() };
+    if (b.id === 'lrSave') openAutomations({ tab: 'recipes', edit: { type: 'recipe', draft: { ...draft, prompt: $('#prompt').value.trim() } } });
+    if (b.id === 'lrNew') openAutomations({ tab: 'recipes', edit: { type: 'recipe', draft } });
+    if (b.id === 'lrAll') openAutomations({ tab: 'recipes' });
+  };
+  paintSaveRecipe();
+}
+function paintSaveRecipe() {
+  const has = !!$('#prompt')?.value.trim();
+  const save = $('#lrSave');
+  if (!save) return;
+  save.hidden = !has;
+  $('#lrNew').hidden = has;
+}
+
+// Top bar: always one click to recipes and triggers. The badge counts triggers that are on;
+// the tooltip says what fires next.
+async function paintAutoBtn() {
+  const btn = $('#autoBtn');
+  const on = (S.config.triggers || []).filter((t) => t.enabled);
+  const n = $('.ab-n', btn);
+  n.hidden = !on.length;
+  n.textContent = on.length;
+  btn.classList.toggle('live', !!on.length);
+  const r = S.config.recipes?.length || 0;
+  let title = `Automations: ${r} recipe${r === 1 ? '' : 's'} · ${on.length} trigger${on.length === 1 ? '' : 's'} on`;
+  if (on.length) {
+    const next = (await api('/triggers').catch(() => [])).filter((t) => t.enabled && t.nextAt).sort((a, b) => a.nextAt - b.nextAt)[0];
+    if (next) title += `\nNext: ${next.name} · ${whenLabel(next.nextAt)}`;
+  }
+  btn.title = title;
 }
 
 // A little wisp flies from the launch button to the new item in the feed.
@@ -2220,7 +2281,7 @@ async function until(fn, ms) {
 // --- automations: recipes (saved prompts) and triggers (schedules, GitHub watchers) -----------
 
 const TRIGGER_KINDS = [
-  { kind: 'schedule', label: 'Schedule', icon: 'replay', hint: 'On a cron schedule, local time' },
+  { kind: 'schedule', label: 'Schedule', icon: 'clock', hint: 'On a cron schedule, local time' },
   { kind: 'ci', label: 'CI failed', icon: 'warn', hint: 'A GitHub Actions run fails (polled with gh)' },
   { kind: 'issues', label: 'Issue labelled', icon: 'ask', hint: 'An open issue gets a label (polled with gh)' },
 ];
@@ -2279,7 +2340,7 @@ function openAutomations({ tab = 'recipes', edit = null } = {}) {
           return `<div class="au-item" data-id="${r.id}">
             <span class="mem-ico">${icon('spark')}</span>
             <div class="au-main"><b>${esc(r.name)}</b><p>${esc(r.prompt.replace(/\s+/g, ' ').slice(0, 140))}</p><span class="au-tags">${tags.map((t) => `<i>${esc(t)}</i>`).join('')}</span></div>
-            <span class="au-acts"><button class="primary sm" data-act="run">Run</button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
+            <span class="au-acts"><button class="primary sm" data-act="run">Run</button><button class="icon-btn" data-act="schedule" title="Run it on a schedule">${icon('clock')}</button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
           </div>`;
         })
         .join('') || '<p class="mem-empty">No recipes yet. Save a task you repeat, like a release checklist, a PR from a commit, or a dependency bump.</p>'
@@ -2428,6 +2489,7 @@ function openAutomations({ tab = 'recipes', edit = null } = {}) {
       if (act === 'new') return (editing = { type: 'recipe', draft: { cwd: projectById(launchProject)?.path || '' } }), render();
       if (act === 'edit') return (editing = { type: 'recipe', draft: { ...r } }), render();
       if (act === 'run') return close(), runRecipe(r);
+      if (act === 'schedule') return (tab = 'triggers'), (editing = { type: 'trigger', draft: { kind: 'schedule', name: r.name, recipeId: r.id, cwd: r.cwd || projectById(launchProject)?.path, mode: r.mode || undefined } }), render();
       if (act === 'delete' && confirm(`Delete the recipe “${r.name}”?`)) return api(`/recipes/${r.id}`, { method: 'DELETE' }).then(render);
     } else {
       const tr = triggers.find((x) => x.id === itemId);
@@ -3127,6 +3189,7 @@ async function loadConfig() {
   S.config = await api('/config');
   renderProjects();
   renderLaunchChips();
+  paintAutoBtn();
 }
 
 // --- updates ----------------------------------------------------------------------------
@@ -3264,6 +3327,7 @@ document.addEventListener('keydown', (e) => {
 
 $('#settingsBtn').onclick = openSettings;
 $('#searchBtn').onclick = openPalette;
+$('#autoBtn').onclick = () => openAutomations({ tab: (S.config.triggers || []).length && !(S.config.recipes || []).length ? 'triggers' : 'recipes' });
 $('#updateBtn').onclick = installUpdate;
 $('#searchBtn').title = `Search (${combo('K')})`;
 $('#searchBtn .mod-k').textContent = combo('K');
