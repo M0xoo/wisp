@@ -408,6 +408,7 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .pk-text b { font-weight: 500; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-text small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-text small:empty { display: none; }
+.pk-text small.warn { color: var(--warn); }
 .pk-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .pk-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .pk-search { flex: none; width: auto; margin: 8px 8px 2px; color: var(--faint); }

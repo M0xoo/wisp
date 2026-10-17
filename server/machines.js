@@ -437,7 +437,7 @@ export class Machines extends EventEmitter {
     this.#step(c, 'tunnel', 'done', `localhost:${c.localPort} → ${m.port}`);
     const [agents, config] = await Promise.all([this.#raw(m, c, 'GET', '/agents').catch(() => []), this.#raw(m, c, 'GET', '/config').catch(() => ({}))]);
     const ready = agents.filter((a) => a.available);
-    c.remote = { ...c.remote, version: health.version, pid: health.pid, home: config.home || '', agents: agents.map(({ id, name, available, version }) => ({ id, name, available, version })) };
+    c.remote = { ...c.remote, version: health.version, pid: health.pid, home: config.home || '', agents: agents.map(({ id, name, available, version, models, efforts, delegates }) => ({ id, name, available, version, models, efforts, delegates })) };
     this.#step(c, 'agents', ready.length ? 'done' : 'warn', ready.length ? ready.map((a) => a.name).join(', ') : 'None found. Install a harness CLI there (claude, codex, opencode…) and sign in.');
     clearTimeout(c.readyTimer);
     Object.assign(c, { state: 'online', error: '', hint: null, attempt: 0, wasOnline: true, since: Date.now() });

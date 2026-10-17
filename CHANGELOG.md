@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Machines shows **Update to X** next to the version when a connected machine runs an older wisp than this computer. One click restarts wisp there as this version (you're asked first if agents are working on it). Before, reconnecting kept the old wisp running, and you had to find **Restart wisp there** in the ⋯ menu. Machines with a custom start command don't show it, because that command decides the version. Machines carry it as `outdated: "<version>"`.
 
+### Fixed
+
+- The launcher's harness picker now lists the harnesses installed on the places picked under **Run on**, not the ones on this computer. Any picked place that has a harness makes it pickable (a union), with its models taken from a place that has it; a harness missing on some of them says **Not on <machine>**, and launching names the place it's missing on. Before, running only on a machine still offered Claude when only this computer had it, and hid a harness only the machine had. Changing the places (or a machine coming online) moves the pick to an installed harness if the current one isn't there. Machines now report each harness's models, thinking levels and whether it can lead subagents.
+
 ## [0.10.0] - 2026-10-18
 
 ### Added

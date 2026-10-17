@@ -206,6 +206,7 @@ test('connect, add a project, launch, follow up and stop wisp over there', { ski
   );
   assert.match(v.steps[2].detail, /^started · /);
   assert.ok(v.remote.agents.some((a) => a.id === 'claude' && a.available));
+  assert.ok(Array.isArray(v.remote.agents.find((a) => a.id === 'claude').models), 'machines report models so the launcher can list them');
   const health = await remoteHealth();
   assert.equal(health.pid, v.remote.pid); // a second, separate wisp
   assert.notEqual(health.pid, process.pid);
