@@ -174,7 +174,7 @@ test('cli: launch --wait --json, ls --json, show, reply', async () => {
 test('cli: skill prints and installs for every harness', async () => {
   const home = tmp('skill-home');
   const env = { HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: '', CODEX_HOME: '' };
-  assert.match((await cli(['skill'], env)).stdout, /^---\nname: wisp/);
+  assert.match((await cli(['skill'], env)).stdout, /^---\r?\nname: wisp/);
   await cli(['skill', 'install', '--agent', 'all'], env);
   for (const p of [['.claude', 'skills'], ['.codex', 'skills'], ['.config', 'opencode', 'skill']]) assert.ok(fs.existsSync(path.join(home, ...p, 'wisp', 'SKILL.md')), p.join('/'));
 });
