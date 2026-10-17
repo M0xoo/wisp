@@ -196,11 +196,12 @@ select {
 .topbar.scrolled { border-bottom-color: var(--line); }
 
 .to-top {
-  position: fixed; top: 116px; left: 0; right: 0; margin-inline: auto; z-index: 20; display: grid; place-items: center;
-  width: 38px; height: 38px; border-radius: 50%; color: var(--ink-2);
+  position: fixed; top: 116px; left: 0; right: 0; margin-inline: auto; z-index: 20; display: flex; align-items: center; gap: 7px;
+  width: max-content; height: 38px; padding: 0 9px 0 12px; border-radius: 19px; color: var(--ink-2);
   background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-2);
   transition: color 0.15s, border-color 0.15s, translate 0.2s var(--ease); animation: to-top-in 0.25s var(--ease);
 }
+.to-top kbd { line-height: 1.3; }
 .to-top:hover { color: var(--ink); border-color: var(--faint); translate: 0 -2px; }
 @keyframes to-top-in { from { opacity: 0; transform: translateY(-10px) scale(0.97); } }
 .to-top:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }

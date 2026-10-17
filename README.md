@@ -190,6 +190,7 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 | `⌫` | Delete |
 | `R` | Replay the presentation |
 | `C` | Collapse all |
+| `U` | Back to top (also `Home`) |
 | `?` | Show all shortcuts |
 | `Esc` | Close, blur, or collapse |
 
