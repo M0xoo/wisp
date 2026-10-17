@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-17
+
 ### Added
 
 - Thinking level in the harness · model picker: Default / Low / Medium / High / X-High / Max under the model list, remembered per harness and shown on the launcher button. Claude Code gets `--effort`, Codex `-c model_reasoning_effort=…`, opencode `--variant` (levels read per model from `opencode models --verbose`). Cursor bakes effort into its model ids, so it has no separate selector.
@@ -81,7 +83,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/M0xoo/wisp/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/M0xoo/wisp/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/M0xoo/wisp/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/M0xoo/wisp/compare/v0.2.0...v0.2.1
