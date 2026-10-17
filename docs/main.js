@@ -351,6 +351,173 @@
     }, { threshold: 0.6 }).observe(el);
   })();
 
+  // ───────── subagents: a lead delegating to a team ─────────
+  (function team() {
+    const body = $('#teamBody'), svg = $('#teamBeams'), lead = $('#teamLead'), mems = $('#teamMembers');
+    const st = $('#teamLeadSt'), reps = $('#teamReports'), call = $('#teamCall');
+    const minus = $('#teamMinus'), plus = $('#teamPlus');
+    const H = { codex: 'codex-color', opencode: 'opencode', cursor: 'cursor' };
+    const logo = (h) => h === 'codex'
+      ? `<span class="lg-logo sm"><img src="assets/logos/${H[h]}.svg" alt="" /></span>`
+      : `<span class="lg-logo sm"><i style="--logo:url(assets/logos/${H[h]}.svg)"></i></span>`;
+    const codex = [
+      ['Tests for RefreshQueue', ['Reading queue.ts', 'Writing 8 tests', 'Running npm test'], '8 tests added'],
+      ['Tests for SessionStore', ['Reading session.ts', 'Faking the clock', 'Running npm test'], '5 tests added'],
+      ['e2e: login → refresh', ['Booting test server', 'Recording flow', 'Running playwright'], 'e2e green'],
+    ];
+    const others = [
+      { h: 'opencode', name: 'opencode', use: 'research', steps: ['Reading RFC 6749 §6', 'Comparing 3 libraries', 'Writing notes'], done: 'Rotate on every use' },
+      { h: 'cursor', name: 'cursor', use: 'UI work', steps: ['Editing Banner.tsx', 'Taking screenshot', 'Polishing copy'], done: 'Expiry banner + screenshot' },
+    ];
+    let n = 1, roster = [], tick = 0, doneAt = 0;
+
+    const draw = () => {
+      const w = body.clientWidth, h = body.clientHeight;
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      const x1 = lead.offsetLeft + lead.offsetWidth, y1 = lead.offsetTop + lead.offsetHeight / 2;
+      svg.innerHTML = roster.map((m) => {
+        const x2 = mems.offsetLeft + m.el.offsetLeft, y2 = mems.offsetTop + m.el.offsetTop + m.el.offsetHeight / 2;
+        const c = (x2 - x1) / 2;
+        const d = `M${x1} ${y1} C${x1 + c} ${y1} ${x2 - c} ${y2} ${x2} ${y2}`;
+        return `<path d="${d}" /><path pathLength="278" d="${d}" />`;
+      }).join('');
+      roster.forEach((m, i) => { m.path = svg.children[i * 2]; m.beam = svg.children[i * 2 + 1]; paint(m); });
+    };
+    const paint = (m) => {
+      m.el.className = `mem ${m.state}`;
+      $('.ms', m.el).textContent = m.text;
+      if (!m.path) return;
+      m.path.setAttribute('class', m.state === 'working' ? 'live' : m.state);
+      m.beam.setAttribute('class', m.state === 'working' ? 'pulse' : 'off');
+    };
+    const set = (m, state, text) => { m.state = state; m.text = text; paint(m); };
+    const build = () => {
+      roster = [
+        ...codex.slice(0, n).map(([task, steps, done], i) => ({ h: 'codex', name: n > 1 ? `codex#${i + 1}` : 'codex', use: 'tests', task, steps, done })),
+        ...others.map((o) => ({ ...o })),
+      ];
+      mems.innerHTML = roster.map((m) => `<div class="mem"><span class="qd"></span>${logo(m.h)}<span class="mt"><b>${m.name}<small>${m.use}</small></b><span class="ms"></span></span></div>`).join('');
+      roster.forEach((m, i) => { m.el = mems.children[i]; m.state = ''; m.text = 'idle'; });
+      $('#teamN').textContent = `×${n}`;
+      minus.disabled = n <= 1;
+      plus.disabled = n >= codex.length;
+      $('#teamCount').textContent = `${roster.length + 1} agents`;
+      call.textContent = `delegate([${roster.map((m) => `"${m.name}"`).join(', ')}])`;
+      draw();
+    };
+    const report = (m) => {
+      const r = document.createElement('span');
+      r.className = 'rep';
+      r.innerHTML = `${logo(m.h)}<span></span>`;
+      r.lastChild.textContent = `${m.name} · ${m.done}`;
+      reps.append(r);
+    };
+    const reset = () => {
+      tick = 0; doneAt = 0;
+      reps.textContent = '';
+      call.classList.remove('on');
+      roster.forEach((m) => set(m, '', 'idle'));
+      st.textContent = 'Reading the release checklist';
+    };
+    const step = () => {
+      const t = tick++;
+      if (t === 2) st.textContent = `Planning ${roster.length} tasks for the team`;
+      else if (t === 3) {
+        call.classList.add('on');
+        st.textContent = `delegate → ${roster.length} subagents, in parallel`;
+        roster.forEach((m) => set(m, 'working', m.steps[0]));
+      } else if (t > 3 && !doneAt) {
+        roster.forEach((m, i) => {
+          if (m.state !== 'working') return;
+          const k = t - 3;
+          if (k >= m.steps.length + (i % 3)) { set(m, 'done', m.done); report(m); }
+          else set(m, 'working', m.steps[Math.min(k, m.steps.length - 1)]);
+        });
+        const left = roster.filter((m) => m.state === 'working').length;
+        if (left) st.textContent = `Waiting on ${left} of ${roster.length}`;
+        else { doneAt = t; call.classList.remove('on'); st.textContent = `Reviewing ${roster.length} reports`; }
+      } else if (doneAt && t === doneAt + 2) st.textContent = 'Done · 14 files, all tests green';
+      else if (doneAt && t >= doneAt + 8) reset();
+    };
+    const change = (d) => { n = clamp(n + d, 1, codex.length); build(); reset(); };
+    minus.addEventListener('click', () => change(-1));
+    plus.addEventListener('click', () => change(1));
+    addEventListener('resize', draw, { passive: true });
+    build();
+    document.fonts?.ready.then(draw);
+    if (reduced) {
+      roster.forEach((m) => { set(m, 'done', m.done); report(m); });
+      st.textContent = 'Done · 14 files, all tests green';
+      return;
+    }
+    reset();
+    whenVisible(body, () => { draw(); return setInterval(step, 800); });
+  })();
+
+  // ───────── recipes & triggers ─────────
+  (function automations() {
+    const input = $('#rcVer'), list = $('#firedList');
+    const items = $$('#triggers li');
+    const ver = () => input.value.trim() || '{version}';
+    const fired = ({ title, src, plan, cls }) => {
+      const d = document.createElement('div');
+      d.className = `fi ${cls || ''}`;
+      d.innerHTML = `<b></b><span><span class="src"></span>${plan ? '<span class="plan">Plan</span>' : ''}</span>`;
+      d.firstChild.textContent = title;
+      $('.src', d).textContent = src;
+      list.prepend(d);
+      while (list.children.length > 3) list.lastElementChild.remove();
+    };
+    const sync = () => {
+      input.value = input.value.replace(/[^\w.\-]/g, '').slice(0, 12);
+      input.size = Math.max(3, input.value.length);
+      $('#rcVer2').textContent = ver();
+      $('#rcCli').lastChild.textContent = ` wisp run release ${ver()}`;
+    };
+    const run = () => fired({ title: `Prepare release ${ver()}`, src: 'recipe · you', cls: 'recipe-run' });
+    input.addEventListener('input', sync);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+    $('#rcRun').addEventListener('click', run);
+
+    const badge = $('#autoBadge');
+    const on = () => items.filter((li) => !li.classList.contains('off'));
+    items.forEach((li) => {
+      const sw = $('.switch', li);
+      sw.addEventListener('click', () => {
+        const off = li.classList.toggle('off');
+        sw.classList.toggle('on', !off);
+        sw.setAttribute('aria-checked', String(!off));
+        badge.textContent = `${on().length} on`;
+      });
+    });
+
+    const pool = {
+      schedule: [{ title: 'Audit dependencies', src: 'schedule · 09:00' }],
+      ci: [{ title: 'Fix CI: test (ubuntu-latest)', src: 'CI failed · main · a1f3c9e' }, { title: 'Fix CI: lint', src: 'CI failed · main · 7be210d' }],
+      issue: [{ title: '#231 Dark mode flickers on load', src: 'issue · agent', plan: true }, { title: '#236 CSV export drops emoji', src: 'issue · agent', plan: true }],
+    };
+    const seen = { schedule: 0, ci: 0, issue: 0 };
+    const fire = (li) => {
+      const k = li.dataset.t, p = pool[k];
+      fired(p[seen[k]++ % p.length]);
+      li.classList.add('fire');
+      setTimeout(() => li.classList.remove('fire'), 1200);
+    };
+    fired(pool.ci[1]);
+    fired(pool.issue[0]); seen.issue = 1;
+    if (reduced) return;
+    let i = 0;
+    whenVisible($('#triggers'), () => setInterval(() => {
+      const live = on();
+      if (!live.length) return;
+      // walk the triggers in order, skipping those switched off
+      for (let k = 0; k < items.length; k++) {
+        const li = items[i++ % items.length];
+        if (live.includes(li)) return fire(li);
+      }
+    }, 2800));
+  })();
+
   // ───────── blocks marquee ─────────
   (function blocks() {
     const bars = (...cls) => cls.map((c, i) => `<span class="bar ${c}" style="width:${[88, 62, 74, 45][(i + cls.length) % 4]}%"></span>`).join('');
