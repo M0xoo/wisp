@@ -38,7 +38,7 @@ export default {
     return { ...found, models: [this.models[0], ...models] };
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     const args = ['run', '--format', 'json'];
     if (mode === 'plan') args.push('--agent', 'plan');
@@ -60,6 +60,8 @@ export default {
         ...inline,
         mcp: { ...inline.mcp, ...mcp },
         experimental: { ...inline.experimental, mcp_timeout: ASK_TIMEOUT_MS },
+        // Its built-in `task` subagents would bypass the user's team.
+        ...(delegating && { permission: { ...(typeof inline.permission === 'object' ? inline.permission : inline.permission && { '*': inline.permission }), task: 'deny' } }),
       });
     }
 

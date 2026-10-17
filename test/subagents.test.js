@@ -67,6 +67,10 @@ for (const lead of ['claude', 'codex', 'opencode', 'grok']) {
     assert.match(told, /## Subagents/);
     assert.match(told, /`codex`: Codex · default model · high thinking\. Use it for: image stuff/);
     assert.match(told, /`researcher`: opencode · fake\/model-a\. Use it for: research/);
+    // ...and to use it instead of its harness's own subagents, which are switched off.
+    assert.match(told, /use `delegate` instead: don't use built-in subagents/);
+    if (lead === 'claude') assert.deepEqual(leadRun.argv.slice(leadRun.argv.indexOf('--disallowedTools') + 1, -1), ['Task', 'Agent', 'Workflow']);
+    if (lead === 'opencode') assert.equal(JSON.parse(leadRun.opencodeConfig).permission.task, 'deny');
 
     // One delegation per member, in this turn, each its own hidden child session.
     assert.deepEqual(turn.delegations.map((d) => d.name), ['codex', 'researcher']);
@@ -158,4 +162,6 @@ test('a lead without a team gets no delegate tool and no team note', async () =>
   const done = await settled(s.id);
   assert.match(done.turns[0].presentation.blocks[0].summary, /no delegate tool/);
   assert.equal(done.team, undefined);
+  const run = records(RECORD, 'claude').find((r) => r.stdin.includes('DELEGATE nothing'));
+  assert.ok(!run.argv.includes('--disallowedTools'), 'built-in subagents stay on without a team');
 });

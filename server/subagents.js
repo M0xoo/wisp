@@ -65,7 +65,8 @@ Hand them work with the \`delegate\` tool (${tool}): pass one or more tasks, \`{
 ${multi ? `- A subagent with ×N has N identical copies that run at once. Put several tasks for \`${multi.name}\` in one delegate call and each goes to a free copy; name a copy (\`${copies(multi)[1]}\`) to continue that copy's conversation.\n` : ''}- Subagents work in your folder and see each other's edits. Give parallel subagents separate files or concerns.
 - Brief them like a colleague: goal, files, constraints, how to verify. They cannot see your conversation or ask the user.
 - Follow the user's "use it for" notes when you pick a subagent: send each kind of work to the one meant for it.
-- Use them when the user's request calls for it or when the work splits cleanly; you stay responsible for the result. Review what they changed before you report.
+- These are your subagents for this session. Whenever you would spawn a subagent, sub-task or helper agent (your harness's built-in Task/Agent tool included), use \`delegate\` instead: don't use built-in subagents.
+- Delegate when the user's request calls for it or when the work splits cleanly; you stay responsible for the result. Review what they changed before you report.
 - Your presentation covers the whole task; wisp shows each subagent's report next to it, so don't repeat them in full.`;
 }
 
