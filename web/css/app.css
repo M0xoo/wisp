@@ -434,13 +434,13 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 }
 
 /* ---------- feed ---------- */
-.feed-head { display: flex; align-items: center; gap: 14px; min-height: 22px; margin: 26px 2px 10px; font-size: 13px; }
-.fh-status { display: flex; gap: 14px; }
+.feed-head { display: flex; align-items: center; gap: 14px; min-height: 22px; margin: 26px 0 10px; padding: 0 4px; font-size: 13px; }
 .feed-head[hidden] + .feed { margin-top: 26px; }
 .hs { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); }
 .hs i { width: 7px; height: 7px; border-radius: 50%; }
 .hs.working i { background: var(--accent); animation: pulse 1.6s infinite; }
 .hs.needs i { background: var(--warn); }
+.hs.calm i { background: var(--good); }
 
 .f-group { margin-bottom: 22px; }
 .f-group h4 {
@@ -462,6 +462,11 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .toggle-done:hover { color: var(--ink-2); }
 .toggle-done .chev { width: 12px; height: 12px; transition: transform 0.2s; }
 .f-group.done:not(.collapsed) .chev { transform: rotate(90deg); }
+/* Folded groups are just a row of headings: stack them tight instead of leaving a section gap each. */
+.f-group.collapsed { margin-bottom: 2px; }
+.f-group.collapsed h4 { margin: 0; }
+.f-group h4.toggle-done { width: fit-content; min-height: 24px; margin-left: -4px; padding: 0 8px; border-radius: 6px; transition: background 0.15s, color 0.15s; }
+.f-group h4.toggle-done:hover { background: var(--bg-2); }
 .f-list { display: flex; flex-direction: column; gap: 6px; }
 .feed-empty { padding: 48px 0; text-align: center; color: var(--faint); font-size: 13.5px; }
 
@@ -1478,6 +1483,12 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .mc-adv summary { cursor: pointer; width: max-content; font-size: 12.5px; color: var(--muted); }
 .mc-adv[open] summary { margin-bottom: 8px; }
 .mc-check { margin-top: 8px; }
+/* Hosted inside Settings: undo its row styling for labels (centred, padded, bordered, input flexed to 0 tall). */
+.mc-form label { padding: 0; border-bottom: 0; }
+.mc-form .mc-field { align-items: stretch; justify-content: flex-start; gap: 5px; }
+.mc-form .mc-field > span { text-align: left; }
+.mc-form .mc-field > .input { flex: none; max-width: none; }
+.mc-form .mc-check { display: inline-flex; justify-content: flex-start; gap: 8px; width: max-content; }
 .mc-foot { display: flex; align-items: center; gap: 10px; }
 .mc-foot .hint { flex: 1; margin: 0 !important; font-size: 12px !important; }
 .mc-foot .primary { flex: none; }

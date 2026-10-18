@@ -9,6 +9,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Settings → Agents → Re-check** looks for harnesses and models again, on this computer and on every online machine. Install a CLI, sign in or add a provider (say a new opencode provider), come back to wisp and click it: the list, the model counts and the launcher's harness picker update without restarting wisp, and a toast says what changed ("opencode +12 models", "Codex found"). Each harness now shows how many models it has, and one that isn't installed says to install its CLI and sign in. Before, wisp kept the first detection until it restarted. API: `POST /api/agents/recheck`, or `GET /api/agents?fresh=1` for this computer only.
 
+### Changed
+
+- The calm feed (nothing needs you) looks tidier. **Nothing needs you** gets a green dot and lines up with the **Done** and **Archived** headings, and folded groups now sit close together instead of a full section gap apart. Folded headings highlight on hover so they read as buttons.
+
+### Fixed
+
+- In **Settings → Machines**, the add/edit machine form lays out properly again: labels sit left above their fields, and the **SSH host** and **Name** inputs are full height instead of squashed and centred. The Settings row style was leaking into it.
+
 ## [0.11.0] - 2026-10-18
 
 ### Added
