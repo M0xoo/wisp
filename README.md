@@ -73,12 +73,17 @@ npx wisp-agents --browser                # or use it in the browser → http://l
 
 The first run downloads Electron for the desktop app; if that isn't possible, wisp opens in the browser instead.
 
-Or install it globally to get the `wisp` command everywhere:
+Or install it globally to get the `wisp` command everywhere. Pick one:
 
 ```sh
-npm install -g wisp-agents
+curl -fsSL https://mokh.xyz/install.sh | bash   # macOS or Linux: checks Node 20+, then npm install -g wisp-agents
+npm install -g wisp-agents                      # any OS with Node 20+
+brew install m0xoo/tap/wisp-agents             # Homebrew: CLI and browser mode, no Electron desktop app
+
 wisp "fix the flaky auth test"
 ```
+
+The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`WISP_VERSION=0.15.0 curl -fsSL …`).
 
 From source:
 
