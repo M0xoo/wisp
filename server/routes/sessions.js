@@ -5,7 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
-import { cleanupCheckpoints, revertFileChange, rollbackToTurn, execCommand } from '../checkpoint.js';
+import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
+import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree } from '../git.js';
 import { MIME } from '../http/static.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';

@@ -1,13 +1,13 @@
 // Helpers shared by the adapters: process plumbing, labels, and diff capture.
 
-import { execFileSync } from 'node:child_process';
 import readline from 'node:readline';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFile, killTree } from '../proc.js';
+import { gitSync } from '../git.js';
+import { MAX_SNAPSHOT, rel } from '../paths.js';
 import { clip } from '../util.js';
 
-export const MAX_SNAPSHOT = 256 * 1024;
 export const ASK_TIMEOUT_MS = 7 * 24 * 3600 * 1000; // ask_user may wait for the human a long time
 
 export function detectVersion(bin, args = ['--version']) {
@@ -26,7 +26,8 @@ export function quietOutput(bin, args, timeout = 15_000) {
 }
 
 // Spawn a CLI that prints one JSON object per line. onJson gets each parsed line;
-// onClose({ code, signal, stderr }) must emit the final `result` if the stream didn't.
+// onClose({ code, signal, stderr, stopped, stopRequested }) must emit the final `result` if the
+// stream didn't. stopped: killed by stop() or a signal; stopRequested: by stop() only.
 export function spawnJsonl({ bin, args, cwd, env, input, onJson, onClose, onEvent }) {
   // Some CLIs (opencode) take their working directory from $PWD rather than the real cwd.
   const child = spawn(bin, args, { cwd, env: { ...env, PWD: cwd }, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -57,7 +58,7 @@ export function spawnJsonl({ bin, args, cwd, env, input, onJson, onClose, onEven
       resolve();
     });
     child.on('close', (code, signal) => {
-      if (!failed) onClose({ code, signal, stderr: stderr.trim(), stopped: stopping || signal === 'SIGTERM' || signal === 'SIGINT' });
+      if (!failed) onClose({ code, signal, stderr: stderr.trim(), stopped: stopping || signal === 'SIGTERM' || signal === 'SIGINT', stopRequested: stopping });
       resolve();
     });
   });
@@ -71,6 +72,9 @@ export function spawnJsonl({ bin, args, cwd, env, input, onJson, onClose, onEven
   };
 }
 
+// The result text for a CLI that ended without saying why.
+export const exitText = (bin, code, signal) => `${bin} exited with ${signal || `code ${code}`}`;
+
 export function attachmentNote(files, how = 'Read images and PDFs with your file-reading tool') {
   if (!files.length) return '';
   const lines = files.map((f) => `- ${f.path}  (${f.mime}, ${Math.max(1, Math.round(f.size / 1024))} KB)`);
@@ -83,31 +87,7 @@ export function withProtocol(prompt, systemPrompt, resumeId) {
   return resumeId ? prompt : `${systemPrompt.trim()}\n\n---\n\n# Task\n\n${prompt}`;
 }
 
-const realDirs = new Map();
-function realDir(dir) {
-  if (!realDirs.has(dir)) {
-    try {
-      realDirs.set(dir, fs.realpathSync(dir));
-    } catch {
-      realDirs.set(dir, dir);
-    }
-  }
-  return realDirs.get(dir);
-}
-
-// Path relative to cwd, or the path as given if it lies outside. Harnesses may report paths
-// through the resolved cwd (/private/tmp vs /tmp on macOS), so both spellings count.
-export function rel(file, cwd) {
-  if (!file) return '';
-  const abs = path.resolve(cwd, file);
-  for (const base of [cwd, realDir(cwd)]) {
-    const r = path.relative(base, abs);
-    if (r && !r.startsWith('..') && !path.isAbsolute(r)) return r;
-  }
-  return file;
-}
-
-export { clip };
+export { clip, MAX_SNAPSHOT, rel };
 
 export function flatten(content) {
   if (typeof content === 'string') return content;
@@ -134,7 +114,7 @@ export function fileTracker(cwd) {
   const known = new Map(); // rel path -> content after our last change() (null = missing)
   const announced = new Map(); // rel path -> content when the harness announced an edit
   let base;
-  const git = (args, opts = {}) => execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, ...opts });
+  const git = (args, opts) => gitSync(cwd, args, opts);
   try {
     // Pinned before the agent starts writing.
     base = git(['stash', 'create']).toString().trim() || git(['rev-parse', '--verify', 'HEAD']).toString().trim();

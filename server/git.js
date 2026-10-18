@@ -3,6 +3,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { execFile } from './proc.js';
 import { bad } from './util.js';
 
@@ -23,6 +24,9 @@ export function run(bin, args, { cwd, timeout = 60_000 } = {}) {
   });
 }
 export const git = (cwd, args, opts) => run(GIT(), args, { cwd, ...opts });
+// Synchronous, for the few places that must not yield (checkpoints taken right before a turn
+// starts, file snapshots while a harness streams). Returns a Buffer; throws on failure.
+export const gitSync = (cwd, args, opts = {}) => execFileSync(GIT(), args, { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, env: { ...process.env, ...QUIET_ENV }, ...opts });
 export const gh = (cwd, args, opts) => run(GH(), args, { cwd, timeout: 120_000, ...opts });
 const quiet = (p) => p.catch(() => '');
 

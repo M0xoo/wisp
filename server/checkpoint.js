@@ -1,23 +1,13 @@
-// Per-turn git checkpoints, single-file revert, turn rollback, and action command execution.
+// Per-turn git checkpoints, single-file revert and turn rollback.
 
-import { execFileSync, spawn as nodeSpawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { killTree } from './proc.js';
-import { MAX_SNAPSHOT, rel } from './adapters/common.js';
+import { gitSync } from './git.js';
+import { MAX_SNAPSHOT, rel } from './paths.js';
 import { bad } from './util.js';
 
-const MAX_EXEC_OUTPUT = 32 * 1024;
-const EXEC_TIMEOUT_MS = 60_000;
 
-function git(cwd, args, opts = {}) {
-  return execFileSync('git', args, {
-    cwd,
-    stdio: ['ignore', 'pipe', 'ignore'],
-    timeout: 5000,
-    ...opts,
-  });
-}
+const git = gitSync;
 
 function tryGit(cwd, args, opts) {
   try {
@@ -298,52 +288,5 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
   return { files: touchedFiles, rolledBack: true, commit: cp?.head || cp?.commit || null };
 }
 
-// Run a shell command from an actionable presentation block inside `cwd`.
-export function execCommand(cwd, command, { timeoutMs = EXEC_TIMEOUT_MS } = {}) {
-  const cmd = String(command || '').trim();
-  if (!cmd) return Promise.reject(bad('command required'));
-  const t0 = Date.now();
-
-  return new Promise((resolve) => {
-    const child = nodeSpawn(cmd, {
-      cwd,
-      env: { ...process.env, PAGER: 'cat', GIT_TERMINAL_PROMPT: '0', CI: '1' },
-      shell: true,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let out = '';
-    const append = (chunk) => {
-      if (out.length < MAX_EXEC_OUTPUT) out += chunk.toString('utf8').slice(0, MAX_EXEC_OUTPUT - out.length);
-    };
-    child.stdout.on('data', append);
-    child.stderr.on('data', append);
-
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killTree(child);
-    }, timeoutMs);
-
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      resolve({
-        command: cmd,
-        output: (out ? `${out}\n` : '') + err.message,
-        exitCode: 1,
-        durationMs: Date.now() - t0,
-      });
-    });
-
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      const suffix = timedOut ? `\n[timed out after ${Math.round(timeoutMs / 1000)}s]` : '';
-      resolve({
-        command: cmd,
-        output: (out.replace(/\s+$/, '') + suffix).trim(),
-        exitCode: timedOut ? 124 : (code ?? 1),
-        durationMs: Date.now() - t0,
-      });
-    });
-  });
-}
+// Moved to proc.js; kept here for anything that still imports it from checkpoint.
+export { execCommand } from './proc.js';
