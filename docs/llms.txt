@@ -2,7 +2,7 @@
 
 > Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build) in the background and hands back a 30-second animated presentation instead of a 4,000-line transcript.
 
-- Website: https://m0xoo.github.io/wisp/
+- Website: https://mokh.xyz/
 - GitHub: https://github.com/M0xoo/wisp
 - npm: https://www.npmjs.com/package/wisp-agents
 - License: MIT
@@ -62,6 +62,6 @@ wisp --mode plan "audit dependencies"
 
 ## Documentation
 
-- [Landing Page](https://m0xoo.github.io/wisp/)
+- [Landing Page](https://mokh.xyz/)
 - [Integrations Guide (MCP, CLI, SDK, HTTP API, Webhooks)](https://github.com/M0xoo/wisp/blob/main/docs/integrations.md)
 - [README](https://github.com/M0xoo/wisp/blob/main/README.md)

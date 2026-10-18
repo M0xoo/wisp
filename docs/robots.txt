@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://m0xoo.github.io/wisp/sitemap.xml
+Sitemap: https://mokh.xyz/sitemap.xml
