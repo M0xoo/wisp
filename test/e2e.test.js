@@ -54,6 +54,20 @@ test('every fake harness is detected through /api/agents', async () => {
   assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true], ['antigravity', true], ['grok', true]]);
 });
 
+test('re-check finds models added after wisp cached the detection', async () => {
+  const ids = (agents) => agents.find((a) => a.id === 'opencode').models.map((m) => m.id);
+  assert.deepEqual(ids(await api('/agents')), ['', 'fake/model-a', 'fake/model-b']);
+  process.env.FAKE_OPENCODE_EXTRA = 'other/model-c';
+  try {
+    assert.deepEqual(ids(await api('/agents')), ['', 'fake/model-a', 'fake/model-b'], 'a hit stays cached');
+    assert.deepEqual(ids(await api('/agents/recheck', {})), ['', 'fake/model-a', 'fake/model-b', 'other/model-c']);
+    assert.deepEqual(ids(await api('/agents')), ['', 'fake/model-a', 'fake/model-b', 'other/model-c']);
+  } finally {
+    delete process.env.FAKE_OPENCODE_EXTRA;
+    await api('/agents?fresh=1');
+  }
+});
+
 test('/api/update reports the current version; a git checkout refuses to self-update', async () => {
   const u = await api('/update');
   assert.equal(u.current, JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);

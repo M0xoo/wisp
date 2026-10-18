@@ -156,6 +156,9 @@ export function sshHosts(file = path.join(os.homedir(), '.ssh', 'config'), seen 
   return [...uniq.values()];
 }
 
+// What the UI needs of a machine's harness list.
+const remoteAgent = ({ id, name, available, version, models, efforts, delegates }) => ({ id, name, available, version, models, efforts, delegates });
+
 // Code hosts you push to, not computers to run agents on.
 const FORGE = /(^|\.)(github\.com|gitlab\.com|bitbucket\.org|ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com|heroku\.com|codeberg\.org|sr\.ht)$/i;
 
@@ -437,7 +440,7 @@ export class Machines extends EventEmitter {
     this.#step(c, 'tunnel', 'done', `localhost:${c.localPort} → ${m.port}`);
     const [agents, config] = await Promise.all([this.#raw(m, c, 'GET', '/agents').catch(() => []), this.#raw(m, c, 'GET', '/config').catch(() => ({}))]);
     const ready = agents.filter((a) => a.available);
-    c.remote = { ...c.remote, version: health.version, pid: health.pid, home: config.home || '', agents: agents.map(({ id, name, available, version, models, efforts, delegates }) => ({ id, name, available, version, models, efforts, delegates })) };
+    c.remote = { ...c.remote, version: health.version, pid: health.pid, home: config.home || '', agents: agents.map(remoteAgent) };
     this.#step(c, 'agents', ready.length ? 'done' : 'warn', ready.length ? ready.map((a) => a.name).join(', ') : 'None found. Install a harness CLI there (claude, codex, opencode…) and sign in.');
     clearTimeout(c.readyTimer);
     Object.assign(c, { state: 'online', error: '', hint: null, attempt: 0, wasOnline: true, since: Date.now() });
@@ -445,6 +448,20 @@ export class Machines extends EventEmitter {
     await this.sessions({}, { only: m.id }).catch(() => {});
     this.onChange();
     this.emit('online', m);
+  }
+
+  // Detect harnesses and models again on every online machine (after installing or signing in
+  // to something there). A machine that doesn't answer keeps what it had.
+  async recheckAgents() {
+    const online = this.list.map((m) => [m, this.conns.get(m.id)]).filter(([, c]) => c?.state === 'online');
+    await Promise.all(
+      online.map(async ([m, c]) => {
+        const agents = await this.#raw(m, c, 'GET', '/agents?fresh=1').catch(() => null);
+        if (!Array.isArray(agents) || this.conns.get(m.id) !== c) return;
+        c.remote = { ...c.remote, agents: agents.map(remoteAgent) };
+      }),
+    );
+    if (online.length) this.onChange();
   }
 
   #fail(c, msg, hint, { keep = false } = {}) {

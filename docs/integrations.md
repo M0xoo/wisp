@@ -145,7 +145,8 @@ Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
 | Method | Path | |
 |---|---|---|
 | GET | `/api/health` | `{ ok, version, apiVersion, pid, url }` |
-| GET | `/api/agents` | installed harnesses, models, thinking levels |
+| GET | `/api/agents` | installed harnesses, models, thinking levels (`?fresh=1` detects again) |
+| POST | `/api/agents/recheck` | detect harnesses and models again, here and on online machines |
 | GET · PATCH | `/api/config` | launcher defaults, projects, webhooks |
 | GET · POST | `/api/projects` | list / add a folder |
 | PATCH · DELETE | `/api/projects/:id` | rename, recolor, remove |

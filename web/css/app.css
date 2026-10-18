@@ -1205,6 +1205,8 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .sx-ctl .input { width: 300px; }
 .sx-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .sx-state.bad { color: var(--bad); }
+#recheck.busy { cursor: progress; }
+#recheck.busy .i { animation: spin 0.8s linear infinite reverse; }
 .sx-usage .it-loading { grid-column: 1 / -1; }
 /* a view (Memory, Automations, Usage, Phone) opened inside Settings: no dialog chrome of its own */
 .modal.embedded { width: auto; max-height: none; overflow: visible; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; transform: none; }

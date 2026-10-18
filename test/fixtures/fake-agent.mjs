@@ -33,7 +33,9 @@ if (name === 'opencode' && argv[0] === 'models') {
   // --verbose follows each id with pretty-printed metadata, including reasoning variants.
   if (argv.includes('--verbose')) {
     const meta = (variants) => JSON.stringify({ id: 'x', variants }, null, 2);
-    console.log(`fake/model-a\n${meta({ low: {}, high: {} })}\nfake/model-b\n${meta(undefined)}`);
+    // FAKE_OPENCODE_EXTRA: a provider signed in to after wisp started (Settings → Re-check).
+    const extra = process.env.FAKE_OPENCODE_EXTRA ? `\n${process.env.FAKE_OPENCODE_EXTRA}\n${meta(undefined)}` : '';
+    console.log(`fake/model-a\n${meta({ low: {}, high: {} })}\nfake/model-b\n${meta(undefined)}${extra}`);
   } else console.log('fake/model-a\nfake/model-b');
   process.exit(0);
 }

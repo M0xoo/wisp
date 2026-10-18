@@ -35,7 +35,10 @@ export const adapters = Object.fromEntries([claude, codex, opencode, cursor, ant
 
 const detected = new Map();
 
-export async function listAgents() {
+// fresh: detect again even where a hit is cached (Settings → Agents → Re-check), so a newly
+// signed-in provider's models or an upgraded CLI show up without restarting wisp.
+export async function listAgents({ fresh = false } = {}) {
+  if (fresh) detected.clear();
   return Promise.all(
     Object.values(adapters).map(async (a) => {
       if (!detected.has(a.id)) detected.set(a.id, a.detect());

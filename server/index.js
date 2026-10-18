@@ -429,7 +429,12 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     }
     if (root === 'openapi.json' && m === 'GET') return send(res, 200, openapi({ version: VERSION, port }));
 
-    if (root === 'agents' && m === 'GET') return send(res, 200, await listAgents());
+    if (root === 'agents' && m === 'GET') return send(res, 200, await listAgents({ fresh: url.searchParams.has('fresh') }));
+    // Re-check: detect harnesses and models again, here and on every online machine.
+    if (root === 'agents' && id === 'recheck' && m === 'POST') {
+      const [agents] = await Promise.all([listAgents({ fresh: true }), machines.recheckAgents()]);
+      return send(res, 200, agents);
+    }
 
     // Bridge for the ask_user MCP server running inside an agent process.
     if (root === 'internal') {
