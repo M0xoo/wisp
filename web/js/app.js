@@ -1,61 +1,23 @@
-import { renderPresentation, icon, el, fmtDuration, copy, countChanges } from './blocks.js';
+import { renderPresentation, fmtDuration, copy, countChanges } from './blocks.js';
 import { esc, md } from './md.js';
 import { palette } from './palette.js';
+import { S, save, saveOpen, launch, saveLaunch } from './core/state.js';
+import { $, $$, el, icon } from './core/dom.js';
+import { api, upload } from './core/api.js';
+import * as bus from './core/bus.js';
+import { toast, toastError, tryApi } from './ui/toast.js';
+import { overlay, closeOverlay, present } from './ui/overlay.js';
+import { popover } from './ui/popover.js';
 
 // One page: the launcher on top, every session in a feed under it. Sessions
 // expand in place; nothing navigates away.
 
 // --- state -------------------------------------------------------------------
 
-const S = {
-  sessions: new Map(), // id -> summary
-  full: new Map(), // id -> full session, for expanded items
-  open: new Set(load('wisp.open', [])), // expanded item ids
-  nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll, unfolded, latestTurn }
-  tasks: new Map(), // compare task key -> { card, head, runs, lead }
-  focus: null, // id of the keyboard-focused item
-  config: { defaults: {}, projects: [] },
-  agents: [],
-  machines: [], // other computers over SSH: GET /api/machines, kept fresh by the 'machines' event
-  filter: load('wisp.filter', 'all'),
-  showDone: load('wisp.showDone', false),
-  showArchived: false,
-  drafts: new Map(),
-  replyModes: new Map(), // session id → the mode its next follow-up switches to
-};
-
-const $ = (s, root = document) => root.querySelector(s);
-const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 const stage = $('#stage');
 // How much of the feed the sticky top bar and docked launcher cover: the stage's scroll-padding-top,
 // which scrollIntoView already honours, so hand-placed cards line up with scrolled-to ones.
 const topInset = () => parseFloat(getComputedStyle(stage).scrollPaddingTop) || 0;
-
-function load(k, d) {
-  try {
-    return JSON.parse(localStorage.getItem(k)) ?? d;
-  } catch {
-    return d;
-  }
-}
-function save(k, v) {
-  try {
-    localStorage.setItem(k, JSON.stringify(v));
-  } catch {}
-}
-const saveOpen = () => save('wisp.open', [...S.open]);
-
-async function api(path, { method = 'GET', body } = {}) {
-  const r = await fetch(`/api${path}`, {
-    method,
-    // The server only accepts JSON on non-GET requests (CSRF guard), even body-less DELETEs.
-    headers: method !== 'GET' ? { 'content-type': 'application/json' } : {},
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
-  return j;
-}
 
 const MODES = [
   { id: 'plan', label: 'Plan', icon: 'plan', hint: 'Read-only. The agent investigates and proposes.' },
@@ -144,46 +106,6 @@ function ago(t) {
   if (s < 3600) return `${Math.round(s / 60)}m`;
   if (s < 86400) return `${Math.round(s / 3600)}h`;
   return `${Math.round(s / 86400)}d`;
-}
-
-// --- toasts & overlays -------------------------------------------------------
-
-function toast(html, { tone = '', action, timeout = 4200 } = {}) {
-  const t = el(`<div class="toast ${tone}"><span>${html}</span>${action ? `<button class="link">${esc(action.label)}</button>` : ''}</div>`);
-  if (action) t.querySelector('button').onclick = () => (action.run(), t.remove());
-  $('#toasts').append(t);
-  setTimeout(() => t.classList.add('out'), timeout);
-  setTimeout(() => t.remove(), timeout + 400);
-}
-
-function overlay(node, { onClose } = {}) {
-  const o = $('#overlay');
-  o.innerHTML = '';
-  o.append(node);
-  o.hidden = false;
-  requestAnimationFrame(() => o.classList.add('on'));
-  const close = () => {
-    o.classList.remove('on');
-    // Another overlay may have replaced this one while it faded (palette → settings): leave that alone.
-    setTimeout(() => o.firstChild === node && ((o.hidden = true), (o.innerHTML = '')), 200);
-    onClose?.();
-  };
-  // A block body: an on* handler that returns false cancels the click, which would stop every
-  // submit button inside the dialog from submitting its form.
-  o.onclick = (e) => {
-    if (e.target === o) close();
-  };
-  o.close = close;
-  return close;
-}
-const closeOverlay = () => !$('#overlay').hidden && $('#overlay').close?.();
-// A view opens as its own dialog, or inside another one (Settings) that hands it a host.
-// Returns what closes it for good: the whole overlay either way.
-function present(node, host) {
-  if (host) return host(node);
-  const close = overlay(node);
-  $('.close', node).onclick = close;
-  return close;
 }
 
 // --- feed ----------------------------------------------------------------------
@@ -550,12 +472,7 @@ function attachTray() {
     for (const f of files) {
       const it = { name: f.name || 'pasted', size: f.size, mime: f.type || '', status: 'uploading', thumb: f.type.startsWith('image/') ? URL.createObjectURL(f) : null };
       items.push(it);
-      it.promise = fetch(`/api/uploads?name=${encodeURIComponent(it.name)}&type=${encodeURIComponent(it.mime)}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/octet-stream' },
-        body: f,
-      })
-        .then((r) => r.json().then((j) => (r.ok ? j : Promise.reject(new Error(j.error)))))
+      it.promise = upload(f, { name: it.name, type: it.mime })
         .then((j) => ((it.id = j.id), (it.status = 'ready'), render()))
         .catch((err) => ((it.status = 'failed'), render(), toast(`Upload failed: ${esc(err.message)}`, { tone: 'bad' })));
     }
@@ -641,27 +558,21 @@ function autosize(ta, max = 340) {
 
 // --- launcher ----------------------------------------------------------------------
 
-let launchProject = load('wisp.launchProject', null); // the project picked in the first place below
-// Where the launcher sends a prompt: '' = this computer, else machine ids. Several run in parallel,
-// each in the project picked for it (launchPicks[place]), and show up as one task.
-let launchWhere = load('wisp.launchWhere', ['']);
-let launchPicks = load('wisp.launchPicks', {});
 const placeOf = (p) => p?.machine || '';
 const placeName = (k) => (k ? machineById(k)?.name || 'machine' : 'This computer');
 const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
 const projectsAt = (k) => S.config.projects.filter((p) => placeOf(p) === k).sort(recentFirst);
-const saveWhere = () => (save('wisp.launchWhere', launchWhere), save('wisp.launchPicks', launchPicks), save('wisp.launchProject', launchProject));
 function syncWhere() {
-  launchWhere = launchWhere.filter((k, i) => (!k || machineById(k)) && launchWhere.indexOf(k) === i);
-  if (!launchWhere.length) launchWhere = [''];
+  launch.where = launch.where.filter((k, i) => (!k || machineById(k)) && launch.where.indexOf(k) === i);
+  if (!launch.where.length) launch.where = [''];
   // Filtering the feed to a project points the launcher at it (its machine joins if it wasn't picked).
   const f = S.filter !== 'all' && projectById(S.filter);
   if (f) {
-    if (!launchWhere.includes(placeOf(f))) launchWhere = [placeOf(f)];
-    launchPicks[placeOf(f)] = f.id;
-  } else if (projectById(launchProject) && !Object.values(launchPicks).includes(launchProject)) launchPicks[placeOf(projectById(launchProject))] ??= launchProject;
-  for (const k of launchWhere) if (!projectsAt(k).some((p) => p.id === launchPicks[k])) launchPicks[k] = projectsAt(k)[0]?.id || null;
-  launchProject = launchPicks[launchWhere[0]] || null;
+    if (!launch.where.includes(placeOf(f))) launch.where = [placeOf(f)];
+    launch.picks[placeOf(f)] = f.id;
+  } else if (projectById(launch.project) && !Object.values(launch.picks).includes(launch.project)) launch.picks[placeOf(projectById(launch.project))] ??= launch.project;
+  for (const k of launch.where) if (!projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
+  launch.project = launch.picks[launch.where[0]] || null;
 }
 
 // The model is remembered per harness (ids aren't portable between them).
@@ -682,7 +593,7 @@ function savedEffort(id, model) {
 function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || 'edits';
-  const here = harnessesAt(launchWhere, { auto: true });
+  const here = harnessesAt(launch.where, { auto: true });
   const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'auto'));
   let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
   box.innerHTML = `
@@ -781,7 +692,7 @@ function renderLauncher() {
   const paintTeam = () => paintTeamBtn(teamBtn, team, teamPreset, agent?.id);
   paintTeam();
   teamBtn.onclick = () =>
-    teamEditor(teamBtn, { lead: agent?.id, team, presetId: teamPreset, places: launchWhere }, (members, preset) => {
+    teamEditor(teamBtn, { lead: agent?.id, team, presetId: teamPreset, places: launch.where }, (members, preset) => {
       if (JSON.stringify([members, preset]) === JSON.stringify([team, teamPreset])) return;
       team = members;
       teamPreset = preset;
@@ -816,7 +727,7 @@ function renderLauncher() {
   vsBtn.onclick = () => {
     // The next harness nobody in the pill uses yet; once they're all in, another copy of the lead.
     const used = new Set([agent?.id, ...compare.map((c) => c.agent)]);
-    const here = harnessesAt(launchWhere).filter((a) => a.available);
+    const here = harnessesAt(launch.where).filter((a) => a.available);
     const next = here.find((a) => !used.has(a.id)) || agent;
     const model = savedModel(next?.id);
     compare = [...compare, { agent: next?.id, model, effort: savedEffort(next?.id, model) }];
@@ -839,15 +750,15 @@ function renderLauncher() {
       (compare.length ? $$('.vs-del', runners)[Math.min(i, compare.length - 1)] : vsBtn).focus();
       return;
     }
-    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
+    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launch.where }, (id, model, effort) => {
       compare = compare.map((c, k) => (k === i ? { agent: id, model, effort } : c));
       paintCompare();
     });
   });
   paintCompare();
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launchWhere, auto: true }, (id, model, effort) => {
-      agent = harnessesAt(launchWhere, { auto: true }).find((a) => a.id === id);
+    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launch.where, auto: true }, (id, model, effort) => {
+      agent = harnessesAt(launch.where, { auto: true }).find((a) => a.id === id);
       curModel = model;
       curEffort = effort;
       paintRunner();
@@ -860,7 +771,7 @@ function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models, effort, efforts } } }).catch(() => {});
     });
 
-  const launch = async () => {
+  const go = async () => {
     const prompt = ta.value.trim();
     if (!prompt) return ta.focus();
     if (isFeedback(prompt)) {
@@ -869,7 +780,7 @@ function renderLauncher() {
       return feedbackCommand(prompt, { restore: () => !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input'))) });
     }
     // One run per place picked under "Run on", each in the project picked for it.
-    const targets = launchWhere.map((k) => ({ k, m: k ? machineById(k) : null, project: projectById(launchPicks[k]) }));
+    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectById(launch.picks[k]) }));
     const unset = targets.find((t) => !t.project);
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
@@ -929,14 +840,14 @@ function renderLauncher() {
     } catch (err) {
       for (const id of pending) S.sessions.delete(id);
       renderFeed();
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     }
   };
-  $('#launch', box).onclick = launch;
+  $('#launch', box).onclick = go;
   // Picking other places (or a machine coming online) changes which harnesses exist: keep the
   // pick if one of them still has it, else move to one that's installed there.
   box.placesChanged = () => {
-    const here = harnessesAt(launchWhere, { auto: true }); // Auto works anywhere: it picks from what's there
+    const here = harnessesAt(launch.where, { auto: true }); // Auto works anywhere: it picks from what's there
     if (!agent || here.find((a) => a.id === agent.id)?.available) return paintRunner();
     const next = here.find((a) => a.id === S.config.defaults.agent && a.available) || here.find((a) => a.available);
     if (!next) return paintRunner();
@@ -949,7 +860,7 @@ function renderLauncher() {
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      launch();
+      go();
     }
     if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
@@ -1129,7 +1040,7 @@ function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
         paintFoot();
         toast(`${same ? 'Updated' : 'Saved'} preset <b>${esc(p.name)}</b>`);
       } catch (err) {
-        toast(esc(err.message), { tone: 'bad' });
+        toastError(err);
       }
     };
   };
@@ -1153,16 +1064,12 @@ function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
               .join('')
           : `<div class="tp-mempty">No presets yet. Set up a team, then <b>Save as preset</b>.</div>`}
       </div>`);
-    const close = () => (menu.remove(), document.removeEventListener('mousedown', outsideMenu, true));
-    const outsideMenu = (ev) => !menu.contains(ev.target) && !btn.contains(ev.target) && close();
-    menu.close = close;
-    setTimeout(() => document.addEventListener('mousedown', outsideMenu, true));
     menu.onclick = async (ev) => {
       const del = ev.target.closest('[data-del]');
       if (del) {
         ev.stopPropagation();
         const t = teams.find((x) => x.id === del.dataset.del);
-        await api(`/teams/${t.id}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+        await api(`/teams/${t.id}`, { method: 'DELETE' }).catch(toastError);
         S.config.teams = (S.config.teams || []).filter((x) => x.id !== t.id);
         if (preset === t.id) (preset = ''), commit();
         close();
@@ -1177,7 +1084,7 @@ function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
       paintList();
       commit();
     };
-    document.body.append(menu);
+    const close = popover(menu, { anchor: btn, capture: true });
   };
 
   list.addEventListener('click', (e) => {
@@ -1229,22 +1136,20 @@ function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
   });
   $('.tp-presets', node).onclick = (e) => presetMenu(e.currentTarget);
 
-  const close = () => {
-    clearTimeout(typing);
-    commit();
-    node.remove();
-    $('.menu.tp-menu')?.close();
-    anchor.classList.remove('open');
-    document.removeEventListener('mousedown', outside);
-  };
-  node.close = close;
-  // The harness picker and preset menu float outside the popover; clicks there keep it open.
-  const outside = (e) => !node.contains(e.target) && !anchor.contains(e.target) && !e.target.closest('.picker, .tp-menu') && close();
-  node.addEventListener('keydown', (e) => e.key === 'Escape' && (e.stopPropagation(), close(), anchor.focus()));
-  setTimeout(() => document.addEventListener('mousedown', outside));
   paintWarn();
   paintList();
-  document.body.append(node);
+  // The harness picker and preset menu float outside the popover; clicks there keep it open.
+  const close = popover(node, {
+    anchor,
+    keep: '.picker, .tp-menu',
+    onClose: () => {
+      clearTimeout(typing);
+      commit();
+      $('.menu.tp-menu')?.close();
+      anchor.classList.remove('open');
+    },
+  });
+  node.addEventListener('keydown', (e) => e.key === 'Escape' && (e.stopPropagation(), close(), anchor.focus()));
   anchor.classList.add('open');
   if (!members.length) $('.tp-add', node)?.focus();
 }
@@ -1374,10 +1279,6 @@ function modeMenu(anchor, current, pick) {
         ${icon(m.icon)}<span class="mm-text"><b>${m.label}</b><small>${esc(m.hint)}</small></span>${icon('check', 'mm-check')}
       </button>`).join('')}
     </div>`);
-  const close = () => (menu.remove(), anchor.classList.remove('open'), document.removeEventListener('mousedown', outside));
-  const outside = (ev) => !menu.contains(ev.target) && !anchor.contains(ev.target) && close();
-  menu.close = close;
-  setTimeout(() => document.addEventListener('mousedown', outside));
   menu.onclick = (ev) => {
     const b = ev.target.closest('button');
     if (!b) return;
@@ -1394,7 +1295,7 @@ function modeMenu(anchor, current, pick) {
       items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
     }
   });
-  document.body.append(menu);
+  const close = popover(menu, { anchor, onClose: () => anchor.classList.remove('open') });
   anchor.classList.add('open');
   const r = anchor.getBoundingClientRect();
   const h = menu.offsetHeight;
@@ -1407,26 +1308,26 @@ function renderLaunchChips() {
   const box = $('#launcher .l-projects');
   if (!box) return;
   syncWhere();
-  const multi = launchWhere.length > 1;
+  const multi = launch.where.length > 1;
   // One group per place: its name (unless it's only this computer), its projects, a way to add one.
   const group = (k) => {
     const m = k && machineById(k);
     const list = projectsAt(k);
     const off = m && m.state !== 'online';
     const label = k || multi ? `<span class="lp-gl ${off ? 'off' : ''}" title="${esc(k ? `${m?.target} · ${MACHINE_STATE[m?.state] || ''}` : 'This computer')}">${icon(k ? 'server' : 'laptop')}${esc(placeName(k))}${off ? `<button class="link xs" data-connect="${k}">${m.state === 'connecting' || m.state === 'reconnecting' ? 'connecting…' : 'Connect'}</button>` : ''}</span>` : '';
-    const chips = list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launchPicks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
+    const chips = list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
     const add = list.length
       ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi ? '' : 'Other folder…'}</button>`
       : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a project folder…'}</button>`;
     return `<span class="lp-group">${label}${chips}${add}</span>`;
   };
-  box.innerHTML = `<span class="l-in">in</span>${launchWhere.map(group).join('')}`;
+  box.innerHTML = `<span class="l-in">in</span>${launch.where.map(group).join('')}`;
   box.onclick = (e) => {
     const chip = e.target.closest('.lp-chip[data-id]');
     if (chip) {
-      launchPicks[chip.dataset.k] = chip.dataset.id;
-      if (chip.dataset.k === launchWhere[0]) launchProject = chip.dataset.id;
-      saveWhere();
+      launch.picks[chip.dataset.k] = chip.dataset.id;
+      if (chip.dataset.k === launch.where[0]) launch.project = chip.dataset.id;
+      saveLaunch();
       $$(`.lp-chip[data-k="${chip.dataset.k}"]`, box).forEach((x) => x.classList.toggle('on', x === chip));
       renderLaunchRecipes();
       return;
@@ -1444,12 +1345,12 @@ function renderLaunchChips() {
 function paintWhereBtn() {
   const b = $('#whereBtn');
   if (!b) return;
-  const n = launchWhere.length;
-  const remote = n > 1 || !!launchWhere[0];
+  const n = launch.where.length;
+  const remote = n > 1 || !!launch.where[0];
   b.classList.toggle('on', remote);
   b.classList.toggle('bare', !S.machines.length && !remote);
-  b.innerHTML = `${icon(remote ? 'server' : 'laptop')}<span>${esc(n > 1 ? `${n} places` : placeName(launchWhere[0]))}</span>${icon('chevron', 'chev')}`;
-  b.title = n > 1 ? `Runs in parallel on ${launchWhere.map(placeName).join(', ')}` : S.machines.length ? `Runs on ${placeName(launchWhere[0])}. Pick several to run in parallel.` : 'Runs on this computer. Add a machine to run on other computers too.';
+  b.innerHTML = `${icon(remote ? 'server' : 'laptop')}<span>${esc(n > 1 ? `${n} places` : placeName(launch.where[0]))}</span>${icon('chevron', 'chev')}`;
+  b.title = n > 1 ? `Runs in parallel on ${launch.where.map(placeName).join(', ')}` : S.machines.length ? `Runs on ${placeName(launch.where[0])}. Pick several to run in parallel.` : 'Runs on this computer. Add a machine to run on other computers too.';
 }
 
 function whereMenu(anchor) {
@@ -1457,7 +1358,7 @@ function whereMenu(anchor) {
   const box = el(`<div class="menu where-menu" role="menu"></div>`);
   const paint = () => {
     const row = (k, m) => {
-      const on = launchWhere.includes(k);
+      const on = launch.where.includes(k);
       const st = m ? m.state : 'online';
       const ready = m ? (m.remote?.agents || []).filter((a) => a.available) : [];
       return `<button class="wm-row ${on ? 'on' : ''}" data-k="${k}" role="menuitemcheckbox" aria-checked="${on}">
@@ -1475,13 +1376,13 @@ function whereMenu(anchor) {
       ${S.machines.length ? `<button data-a="manage">${icon('settings')}Manage machines</button>` : ''}`;
   };
   const set = (list) => {
-    launchWhere = list.length ? list : [''];
+    launch.where = list.length ? list : [''];
     // A machine picked while disconnected starts connecting; you asked to run there.
-    for (const k of launchWhere) if (k && machineById(k)?.state === 'off') connectMachine(k);
+    for (const k of launch.where) if (k && machineById(k)?.state === 'off') connectMachine(k);
     renderLaunchChips();
     $('#launcher')?.placesChanged?.();
     paint();
-    saveWhere();
+    saveLaunch();
   };
   box.onclick = (e) => {
     const only = e.target.closest('[data-only]');
@@ -1489,36 +1390,21 @@ function whereMenu(anchor) {
     const r = e.target.closest('.wm-row');
     if (r) {
       const k = r.dataset.k;
-      return set(launchWhere.includes(k) ? launchWhere.filter((x) => x !== k) : [...launchWhere, k]);
+      return set(launch.where.includes(k) ? launch.where.filter((x) => x !== k) : [...launch.where, k]);
     }
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (!a) return;
     shut();
     openMachines({ focusAdd: a === 'add' });
   };
-  const shut = () => {
-    box.remove();
-    anchor.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('mousedown', outside);
-    document.removeEventListener('keydown', esc_, true);
-  };
-  const outside = (ev) => {
-    if (!box.contains(ev.target) && !anchor.contains(ev.target)) shut();
-  };
-  const esc_ = (ev) => {
-    if (ev.key === 'Escape') (ev.stopPropagation(), shut());
-  };
-  box.close = shut;
-  box.refresh = paint;
   paint();
-  document.body.append(box);
+  const shut = popover(box, { anchor, escape: true, onClose: () => anchor.setAttribute('aria-expanded', 'false') });
+  bus.on('machines', paint, { node: box });
   anchor.setAttribute('aria-expanded', 'true');
   const r = anchor.getBoundingClientRect();
   const h = box.offsetHeight;
   box.style.left = `${Math.min(r.left, innerWidth - box.offsetWidth - 8)}px`;
   box.style.top = `${r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6}px`;
-  setTimeout(() => document.addEventListener('mousedown', outside));
-  document.addEventListener('keydown', esc_, true);
 }
 
 // Recipes for the picked project (and the ones tied to none), one click from the launcher.
@@ -1526,7 +1412,7 @@ function whereMenu(anchor) {
 function renderLaunchRecipes() {
   const row = $('#launcher .l-recipes');
   if (!row) return;
-  const path = projectById(launchProject)?.path;
+  const path = projectById(launch.project)?.path;
   const all = S.config.recipes || [];
   const list = all.filter((r) => !r.cwd || r.cwd === path).sort((a, b) => (b.lastRunAt || 0) - (a.lastRunAt || 0));
   const hidden = all.length - list.length;
@@ -1715,10 +1601,6 @@ function projectMenu(id, e) {
       <button data-a="manage">${icon('pen')}Manage projects…</button>
       <button data-a="delete" class="danger">${icon('trash')}Remove project</button>
     </div>`);
-  const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
-  const outside = (ev) => !menu.contains(ev.target) && close();
-  menu.close = close;
-  setTimeout(() => document.addEventListener('mousedown', outside));
   menu.onclick = async (ev) => {
     const a = ev.target.closest('button')?.dataset.a;
     close();
@@ -1727,7 +1609,7 @@ function projectMenu(id, e) {
       try {
         await api(`/projects/${id}`, { method: 'DELETE' });
       } catch (err) {
-        return toast(esc(err.message), { tone: 'bad' });
+        return toastError(err);
       }
       if (S.filter === id) {
         S.filter = 'all';
@@ -1737,7 +1619,7 @@ function projectMenu(id, e) {
       renderFeed();
     }
   };
-  document.body.append(menu);
+  const close = popover(menu);
   // Keep the menu on-screen when right-clicking near the window edge.
   const r = menu.getBoundingClientRect();
   if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
@@ -1752,14 +1634,7 @@ function ctxFor(s, turn, isLatest) {
     turn,
     isLatest,
     reply: (text) => sendReply(s.id, text),
-    draft: (text) => {
-      const ta = $('.reply', S.nodes.get(s.id)?.card);
-      if (!ta) return;
-      ta.value = text;
-      ta.dispatchEvent(new Event('input'));
-      ta.focus();
-      ta.setSelectionRange(text.length, text.length);
-    },
+    draft: (text) => draftInto(s.id, text),
     openFile: (p, line) => openInEditor(s, p, line),
     fileUrl: (p) => `/api/sessions/${s.id}/file?path=${encodeURIComponent(p)}`,
     zoom: (src) => overlay(el(`<img class="lightbox" src="${esc(src)}">`)),
@@ -2026,7 +1901,7 @@ function renderWorking(s, t) {
       btn.disabled = false;
       btn.lastChild.textContent = 'Stop';
       $('.w-status b', node).textContent = `${agentName(s.agent)} is working`;
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     });
   };
   $('.peek', node).onclick = (e) => {
@@ -2062,7 +1937,7 @@ function renderAskCard(s) {
     } catch (e) {
       node.classList.remove('sent');
       undo?.();
-      toast(esc(e.message), { tone: 'bad' });
+      toastError(e);
     }
   };
   node.addEventListener('click', (e) => {
@@ -2289,7 +2164,7 @@ function renderQueued(s, list, name) {
       if (!q.id) return toast('Restart wisp to cancel this follow-up.', { tone: 'bad' });
       const short = q.text.length > 80 ? `${q.text.slice(0, 80)}…` : q.text;
       if (!confirm(`Cancel this queued follow-up?\n\n“${short}”`)) return;
-      api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+      api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch(toastError);
     };
     $('.att-x', li).onclick = cancel;
     li.addEventListener('contextmenu', (e) => {
@@ -2308,16 +2183,12 @@ function queuedMenu(e, cancel) {
     <div class="menu queued" style="top:${e.clientY}px;left:${e.clientX}px">
       <button data-a="cancel" class="danger">${icon('x')}Cancel follow-up</button>
     </div>`);
-  const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
-  const outside = (ev) => !menu.contains(ev.target) && close();
-  menu.close = close;
-  setTimeout(() => document.addEventListener('mousedown', outside));
   menu.onclick = (ev) => {
     const a = ev.target.closest('button')?.dataset.a;
     close();
     if (a === 'cancel') cancel();
   };
-  document.body.append(menu);
+  const close = popover(menu);
   const r = menu.getBoundingClientRect();
   if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
   if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
@@ -2330,7 +2201,7 @@ async function toggleQueue() {
   const followUp = queueing() ? 'now' : 'queue';
   S.config.defaults.followUp = followUp;
   S.nodes.forEach((_, id) => updateDock(id));
-  await api('/config', { method: 'PATCH', body: { defaults: { followUp } } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+  await api('/config', { method: 'PATCH', body: { defaults: { followUp } } }).catch(toastError);
 }
 
 async function sendReply(id, text) {
@@ -2369,7 +2240,7 @@ async function sendReply(id, text) {
     if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
     if (mode && !S.replyModes.has(id)) setReplyMode(id, mode);
     n?.tray?.restore(files);
-    toast(esc(err.message), { tone: 'bad' });
+    toastError(err);
   }
 }
 
@@ -2416,7 +2287,7 @@ async function toggleDone(id) {
     await api(`/sessions/${id}`, { method: 'PATCH', body: { state: next } });
   } catch (err) {
     revertSummary(id, s);
-    toast(esc(err.message), { tone: 'bad' });
+    toastError(err);
   }
 }
 
@@ -2447,7 +2318,7 @@ async function taskDone(ids) {
     renderFeed();
     Promise.all(ids.map((id) => api(`/sessions/${id}`, { method: 'PATCH', body: { state } }))).catch((err) => {
       prev.forEach((p, i) => p && revertSummary(ids[i], p));
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     });
   };
   set('done');
@@ -2455,22 +2326,20 @@ async function taskDone(ids) {
   toast(`Marked ${ids.length} runs done`, { action: { label: 'Undo', run: () => set('review') } });
 }
 
-async function revertFile(id, turnId, file, restore = false) {
-  try {
+function revertFile(id, turnId, file, restore = false) {
+  return tryApi(async () => {
     await api(`/sessions/${id}/revert`, { method: 'POST', body: { turnId, file, restore } });
     toast(restore ? `Re-applied ${esc(file)}` : `Reverted ${esc(file)}`, {
       action: { label: 'Undo', run: () => revertFile(id, turnId, file, !restore) },
     });
-  } catch (err) {
-    toast(esc(err.message), { tone: 'bad' });
-  }
+  });
 }
 
 async function rollbackTurn(id, turnId, restore = false) {
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(() => null));
   const turn = s?.turns?.find((t) => t.id === turnId) || s?.turns?.at(-1);
   if (!turn) return;
-  try {
+  await tryApi(async () => {
     const r = await api(`/sessions/${id}/rollback`, { method: 'POST', body: { turnId: turn.id, restore } });
     toast(
       restore
@@ -2478,32 +2347,23 @@ async function rollbackTurn(id, turnId, restore = false) {
         : `Restored working tree to before this turn${r.head ? ` (${esc(r.head.slice(0, 7))})` : ''}`,
       { action: { label: 'Undo', run: () => rollbackTurn(id, turn.id, !restore) } },
     );
-  } catch (err) {
-    toast(esc(err.message), { tone: 'bad' });
-  }
+  });
 }
 
 // The server keeps the result on the turn under `key` (turn.actionRuns), where the block that
 // ran it looks for it when the card renders again.
 async function execAction(id, turnId, command, key) {
-  try {
-    return await api(`/sessions/${id}/exec`, { method: 'POST', body: { command, turnId, key } });
-  } catch (err) {
-    toast(esc(err.message), { tone: 'bad' });
-    return null;
-  }
+  return (await tryApi(() => api(`/sessions/${id}/exec`, { method: 'POST', body: { command, turnId, key } }))) ?? null;
 }
 
 async function takeOver(id) {
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(() => null));
   if (!s?.agentSessionId) return;
   if (s.state === 'running' && !confirm(`${agentName(s.agent)} is still running. Stop it and take over in your terminal?`)) return;
-  try {
+  await tryApi(async () => {
     const { command } = await api(`/sessions/${id}/takeover`, { method: 'POST', body: {} });
     toast(`${icon('terminal')} Opened in your terminal`, { action: { label: 'Copy command', run: () => copy(command) } });
-  } catch (err) {
-    toast(esc(err.message), { tone: 'bad' });
-  }
+  });
 }
 
 function rename(id) {
@@ -2517,7 +2377,7 @@ function rename(id) {
     title.contentEditable = 'false';
     const s = S.sessions.get(id);
     const t = title.textContent.trim();
-    if (commit && t && t !== s.title) api(`/sessions/${id}`, { method: 'PATCH', body: { title: t } }).catch((e) => toast(esc(e.message), { tone: 'bad' }));
+    if (commit && t && t !== s.title) api(`/sessions/${id}`, { method: 'PATCH', body: { title: t } }).catch((e) => toastError(e));
     else title.textContent = s.title;
   };
   title.onkeydown = (e) => {
@@ -2675,13 +2535,6 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, p
     pick(agent, model, effort);
   };
 
-  const close = () => {
-    node.remove();
-    anchor.classList.remove('open');
-    document.removeEventListener('mousedown', outside);
-    document.removeEventListener('keydown', keys, true);
-  };
-  node.close = close;
   const choose = (m) => {
     close();
     anchor.focus();
@@ -2690,7 +2543,6 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, p
     const e = effortsFor(focusAgent, m).includes(cur) ? cur : savedEffort(focusAgent, m);
     if (focusAgent !== agent || m !== model || e !== effort) pick(focusAgent, m, e);
   };
-  const outside = (e) => !node.contains(e.target) && !anchor.contains(e.target) && close();
   const step = (items, d) => {
     if (!items.length) return;
     const i = items.indexOf(document.activeElement);
@@ -2750,9 +2602,14 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, p
   };
 
   paintModels();
-  setTimeout(() => document.addEventListener('mousedown', outside));
+  const close = popover(node, {
+    anchor,
+    onClose: () => {
+      anchor.classList.remove('open');
+      document.removeEventListener('keydown', keys, true);
+    },
+  });
   document.addEventListener('keydown', keys, true);
-  document.body.append(node);
   anchor.classList.add('open');
   focusModels(); // scrolls the current model into view…
   if (!$('.pk-search', node).hidden) input.focus({ preventScroll: true }); // …then search is ready to type
@@ -2774,9 +2631,6 @@ function moreMenu(id, anchor) {
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
     </div>`);
-  const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
-  const outside = (e) => !menu.contains(e.target) && close();
-  setTimeout(() => document.addEventListener('mousedown', outside));
   menu.onclick = async (e) => {
     const a = e.target.closest('button')?.dataset.a;
     close();
@@ -2791,7 +2645,7 @@ function moreMenu(id, anchor) {
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
   };
-  document.body.append(menu);
+  const close = popover(menu);
 }
 
 // Right-click on a feed item.
@@ -2813,10 +2667,6 @@ function taskMenu(id, e) {
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
     </div>`);
-  const close = () => (menu.remove(), document.removeEventListener('mousedown', outside));
-  const outside = (ev) => !menu.contains(ev.target) && close();
-  menu.close = close;
-  setTimeout(() => document.addEventListener('mousedown', outside));
   menu.onclick = async (ev) => {
     const a = ev.target.closest('button')?.dataset.a;
     close();
@@ -2832,7 +2682,7 @@ function taskMenu(id, e) {
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
   };
-  document.body.append(menu);
+  const close = popover(menu);
   const r = menu.getBoundingClientRect();
   if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
   if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
@@ -2848,14 +2698,14 @@ async function deleteSession(id) {
   handOff(id)(() => S.sessions.delete(id));
   await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => {
     if (prev && !S.sessions.has(id)) (S.sessions.set(id, prev), keepInPlace(feedAnchor(id), renderFeed));
-    toast(esc(err.message), { tone: 'bad' });
+    toastError(err);
   });
 }
 
 // Launch the task again as a new session in the same folder: same prompt and attachments,
 // optionally edited, on whichever harness, model and thinking level you pick. The original stays.
 async function rerun(id) {
-  const s = S.full.get(id) || (await api(`/sessions/${id}`).catch((err) => toast(esc(err.message), { tone: 'bad' })));
+  const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(toastError));
   const first = s?.turns?.[0];
   if (!first?.prompt) return toast('Nothing to rerun — this session has no prompt.', { tone: 'bad' });
   const has = (a) => S.agents.some((x) => x.id === a && x.available);
@@ -2939,7 +2789,7 @@ async function setArchived(id, archived) {
     await api(`/sessions/${id}`, { method: 'PATCH', body: { archived } });
   } catch (err) {
     revertSummary(id, prev);
-    toast(esc(err.message), { tone: 'bad' });
+    toastError(err);
   }
 }
 
@@ -3063,10 +2913,10 @@ async function openProjects({ focusAdd = false, machine = null, host } = {}) {
     try {
       const proj = await api('/projects', { method: 'POST', body: { path: p, ...(where && { machine: where }) } });
       await loadConfig();
-      launchPicks[placeOf(proj)] = proj.id;
-      if (!launchWhere.includes(placeOf(proj))) launchWhere = [placeOf(proj)];
-      if (placeOf(proj) === launchWhere[0]) launchProject = proj.id;
-      saveWhere();
+      launch.picks[placeOf(proj)] = proj.id;
+      if (!launch.where.includes(placeOf(proj))) launch.where = [placeOf(proj)];
+      if (placeOf(proj) === launch.where[0]) launch.project = proj.id;
+      saveLaunch();
       renderLaunchChips();
       toast(`Added <b>${esc(proj.name)}</b>${where ? ` on ${esc(here()?.name || '')}` : ''}`);
       input.value = '';
@@ -3074,7 +2924,7 @@ async function openProjects({ focusAdd = false, machine = null, host } = {}) {
       list();
       discover();
     } catch (err) {
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     }
   };
   $('#padd', node).onclick = () => {
@@ -3175,12 +3025,16 @@ async function openProjects({ focusAdd = false, machine = null, host } = {}) {
       : '';
   };
   let wasOnline = here()?.state === 'online';
-  node.refresh = () => {
-    paintWhere();
-    const on = here()?.state === 'online';
-    if (on !== wasOnline) discover();
-    wasOnline = on;
-  };
+  bus.on(
+    'machines',
+    () => {
+      paintWhere();
+      const online = here()?.state === 'online';
+      if (online !== wasOnline) discover();
+      wasOnline = online;
+    },
+    { node },
+  );
 
   paintWhere();
   list();
@@ -3235,7 +3089,7 @@ function renderPrStrip(id) {
     ${pr.state === 'OPEN' ? `<button class="ghost xs pr-merge" data-pr="merge" title="Squash-merge, then fast-forward your local ${esc(s.branch ? 'base branch' : 'checkout')}">${icon('check')}<span>Merge</span></button>` : ''}`;
   node.onclick = (e) => {
     const a = e.target.closest('[data-pr]')?.dataset.pr;
-    if (a === 'refresh') api(`/sessions/${id}/pr`, { method: 'POST', body: {} }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    if (a === 'refresh') api(`/sessions/${id}/pr`, { method: 'POST', body: {} }).catch(toastError);
     if (a === 'merge') mergePr(id);
   };
 }
@@ -3248,7 +3102,7 @@ async function shipDialog(id) {
   try {
     info = await api(`/sessions/${id}/ship`);
   } catch (err) {
-    return toast(esc(err.message), { tone: 'bad' });
+    return toastError(err);
   }
   const open = info.pr?.state === 'OPEN';
   const nothing = !info.dirty && !info.ahead;
@@ -3280,7 +3134,7 @@ async function shipDialog(id) {
     } catch (err) {
       btn.disabled = false;
       btn.lastChild.textContent = open ? 'Commit & push' : 'Commit, push & open PR';
-      toast(esc(err.message), { tone: 'bad', timeout: 10_000 });
+      toastError(err, { timeout: 10_000 });
     }
   };
   $('[data-a="go"]', node).onclick = go;
@@ -3299,7 +3153,7 @@ async function mergePr(id) {
     const r = await api(`/sessions/${id}/merge`, { method: 'POST', body: {} });
     toast(`${icon('check')} Merged <b>PR #${r.pr.number}</b>. ${esc(r.sync.text)}`, { tone: r.sync.ok ? '' : 'bad', timeout: 10_000 });
   } catch (err) {
-    toast(esc(err.message), { tone: 'bad', timeout: 12_000 });
+    toastError(err, { timeout: 12_000 });
   }
 }
 
@@ -3383,7 +3237,7 @@ async function compareView(id) {
         await api(`/sessions/${o.id}/stop`, { method: 'POST', body: {} }).catch(() => {});
         await until(() => S.sessions.get(o.id)?.state !== 'running', 5000);
       }
-      await api(`/sessions/${o.id}`, { method: 'PATCH', body: { archived: true, discardWorktree: true } }).catch((err) => ((failed = true), toast(esc(err.message), { tone: 'bad' })));
+      await api(`/sessions/${o.id}`, { method: 'PATCH', body: { archived: true, discardWorktree: true } }).catch((err) => ((failed = true), toastError(err)));
     }
     if (failed) loadSessions(); // show what really got archived
   };
@@ -3528,7 +3382,7 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         tab = 'recipes';
         render();
       } catch (err) {
-        toast(esc(err.message), { tone: 'bad' });
+        toastError(err);
       }
     };
     requestAnimationFrame(() => $(d.name ? '[name="prompt"]' : '[name="name"]', f)?.focus());
@@ -3540,7 +3394,7 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
     const f = el(`<form class="au-form">
         <div class="au-kinds">${TRIGGER_KINDS.map((k) => `<button type="button" data-kind="${k.kind}" class="${k.kind === d.kind ? 'on' : ''}">${icon(k.icon)}<b>${k.label}</b><small>${k.hint}</small></button>`).join('')}</div>
         <label><span>Name</span><input class="input" name="name" maxlength="60" spellcheck="false"></label>
-        <label><span>Project</span><select name="cwd">${projectOptions(d.cwd || projectById(launchProject)?.path)}</select></label>
+        <label><span>Project</span><select name="cwd">${projectOptions(d.cwd || projectById(launch.project)?.path)}</select></label>
         <div class="k-schedule"><label><span>When</span><input class="input mono" name="cron" spellcheck="false" placeholder="0 9 * * 1-5"></label>
           <p class="au-presets">${CRON_PRESETS.map(([l, c]) => `<button type="button" class="lp-chip" data-cron="${c}">${l}</button>`).join('')}<span class="muted xs">minute hour day month weekday</span></p></div>
         <div class="k-ci"><label><span>Branch</span><input class="input mono" name="branch" spellcheck="false" placeholder="Any branch (e.g. main)"></label></div>
@@ -3586,7 +3440,7 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         tab = 'triggers';
         render();
       } catch (err) {
-        toast(esc(err.message), { tone: 'bad' });
+        toastError(err);
       }
     };
     return f;
@@ -3602,16 +3456,16 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
     const itemId = t.closest('.au-item')?.dataset.id;
     if (tab === 'recipes') {
       const r = recipes.find((x) => x.id === itemId);
-      if (act === 'new') return (editing = { type: 'recipe', draft: { cwd: projectById(launchProject)?.path || '' } }), render();
+      if (act === 'new') return (editing = { type: 'recipe', draft: { cwd: projectById(launch.project)?.path || '' } }), render();
       if (act === 'edit') return (editing = { type: 'recipe', draft: { ...r } }), render();
       if (act === 'run') return close(), runRecipe(r);
-      if (act === 'schedule') return (tab = 'triggers'), (editing = { type: 'trigger', draft: { kind: 'schedule', name: r.name, recipeId: r.id, cwd: r.cwd || projectById(launchProject)?.path, mode: r.mode || undefined } }), render();
+      if (act === 'schedule') return (tab = 'triggers'), (editing = { type: 'trigger', draft: { kind: 'schedule', name: r.name, recipeId: r.id, cwd: r.cwd || projectById(launch.project)?.path, mode: r.mode || undefined } }), render();
       if (act === 'delete' && confirm(`Delete the recipe “${r.name}”?`)) return api(`/recipes/${r.id}`, { method: 'DELETE' }).then(render);
     } else {
       const tr = triggers.find((x) => x.id === itemId);
       if (act === 'new') return (editing = { type: 'trigger', draft: {} }), render();
       if (act === 'edit') return (editing = { type: 'trigger', draft: { ...tr } }), render();
-      if (act === 'toggle') return api(`/triggers/${tr.id}`, { method: 'PATCH', body: { enabled: !tr.enabled } }).then(render).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+      if (act === 'toggle') return api(`/triggers/${tr.id}`, { method: 'PATCH', body: { enabled: !tr.enabled } }).then(render).catch(toastError);
       if (act === 'delete' && confirm(`Delete the trigger “${tr.name}”?`)) return api(`/triggers/${tr.id}`, { method: 'DELETE' }).then(render);
       if (act === 'fire') {
         t.disabled = true;
@@ -3621,13 +3475,13 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
           renderFeed();
           toast(r.started.length ? `Started ${r.started.length} session${r.started.length > 1 ? 's' : ''}` : 'Nothing new to act on.');
         } catch (err) {
-          toast(esc(err.message), { tone: 'bad' });
+          toastError(err);
         }
         render();
       }
     }
   });
-  node.refresh = () => !editing && render();
+  bus.on('config', () => !editing && render(), { node });
   render();
 }
 
@@ -3640,7 +3494,7 @@ function runRecipe(r) {
       <header><h2>${esc(r.name)}</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
       <p class="cmp-prompt">${esc(r.prompt)}</p>
       ${r.params.map((p) => `<label class="ship-field"><span>${esc(p)}</span><input class="input" name="p:${esc(p)}" spellcheck="false" required></label>`).join('')}
-      ${needsProject ? `<label class="ship-field"><span>Project</span><select name="cwd">${projectOptions(projectById(launchProject)?.path)}</select></label>` : ''}
+      ${needsProject ? `<label class="ship-field"><span>Project</span><select name="cwd">${projectOptions(projectById(launch.project)?.path)}</select></label>` : ''}
       <div class="ship-foot"><span class="muted xs">${r.agent ? `${esc(agentName(r.agent))}${r.model ? ` · ${esc(r.model)}` : ''}` : 'Launcher harness'} · ${esc(MODES.find((m) => m.id === r.mode)?.label || 'launcher mode')}</span><button class="primary sm">${icon('enter')}Run</button></div>
     </form>`);
   const close = overlay(node);
@@ -3687,7 +3541,7 @@ async function openUsage({ days = 30, host } = {}) {
   const close = present(node, host);
   const render = async () => {
     $$('.us-range button', node).forEach((b) => b.classList.toggle('on', Number(b.dataset.days) === days));
-    const u = await api(`/usage?days=${days}`).catch((err) => (toast(esc(err.message), { tone: 'bad' }), null));
+    const u = await api(`/usage?days=${days}`).catch((err) => (toastError(err), null));
     if (!u || !node.isConnected) return;
     const t = u.total;
     const unpriced = t.turns - t.priced;
@@ -3765,7 +3619,7 @@ async function openPhone({ host } = {}) {
       r = await api('/remote', { method: 'PUT', body: patch });
       paint();
     } catch (err) {
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     }
   };
   const status = (st) => (!st ? '' : st.ok ? `<span class="ph-ok">${icon('check')}Working</span>` : `<span class="ph-bad">${icon('warn')}${esc(st.error || 'Failed')}</span>`);
@@ -3843,16 +3697,20 @@ async function openPhone({ host } = {}) {
         paint();
         toast('Test sent');
       } catch (err) {
-        toast(esc(err.message), { tone: 'bad' });
+        toastError(err);
       }
     }
   });
-  node.refresh = async () => {
-    if (node.contains(document.activeElement) && document.activeElement.matches('input')) return; // don't clobber typing
-    r = await api('/remote').catch(() => r);
-    if (r && node.isConnected) paint();
-  };
-  r = await api('/remote').catch((err) => (toast(esc(err.message), { tone: 'bad' }), null));
+  bus.on(
+    'remote',
+    async () => {
+      if (node.contains(document.activeElement) && document.activeElement.matches('input')) return; // don't clobber typing
+      r = await api('/remote').catch(() => r);
+      if (r && node.isConnected) paint();
+    },
+    { node },
+  );
+  r = await api('/remote').catch((err) => (toastError(err), null));
   if (r) paint();
 }
 
@@ -3889,10 +3747,7 @@ function setMachines(list) {
   renderLaunchChips();
   $('#launcher')?.placesChanged?.();
   renderProjects();
-  $('.machines-modal')?.refresh();
-  $('.projects-modal')?.refresh?.();
-  $('.menu.where-menu')?.refresh();
-  $('.settings-modal .machines-hint') && ($('.settings-modal .machines-hint').textContent = machinesSummary());
+  bus.emit('machines');
   // Coming online lists its sessions; going offline greys their cards.
   if (list.some((m) => (was.get(m.id) || false) !== (m.state === 'online'))) loadSessions();
 }
@@ -3910,12 +3765,8 @@ function paintMachinesBtn() {
   b.title = S.machines.length ? `Machines: ${machinesSummary()}` : 'Machines: run agents on another computer over SSH';
 }
 
-async function connectMachine(id) {
-  try {
-    await api(`/machines/${id}/connect`, { method: 'POST', body: {} });
-  } catch (err) {
-    toast(esc(err.message), { tone: 'bad' });
-  }
+function connectMachine(id) {
+  return tryApi(() => api(`/machines/${id}/connect`, { method: 'POST', body: {} }));
 }
 
 function offlineToast(id) {
@@ -4061,18 +3912,12 @@ function openMachines({ host, focusAdd = false } = {}) {
         ${m.state === 'online' ? `<button data-m="restart">${icon('rerun')}Restart wisp there</button><button data-m="stop" class="danger">${icon('stop')}Stop wisp there</button>` : ''}
         <button data-m="remove" class="danger">${icon('trash')}Remove machine</button>
       </div>`);
-    const shut = () => (box.remove(), document.removeEventListener('mousedown', outside));
-    const outside = (ev) => {
-      if (!box.contains(ev.target)) shut();
-    };
-    box.close = shut;
-    setTimeout(() => document.addEventListener('mousedown', outside));
     box.onclick = (ev) => {
       const a = ev.target.closest('button')?.dataset.m;
       shut();
       if (a) act(a, m);
     };
-    document.body.append(box);
+    const shut = popover(box);
   };
 
   const act = async (a, m) => {
@@ -4102,7 +3947,7 @@ function openMachines({ host, focusAdd = false } = {}) {
         await loadMachines();
       }
     } catch (err) {
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     }
   };
 
@@ -4165,18 +4010,22 @@ function openMachines({ host, focusAdd = false } = {}) {
       await loadMachines();
       paint();
     } catch (err) {
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     } finally {
       btn.disabled = false;
     }
   });
-  node.refresh = () => {
-    // Don't clobber a half-typed form: repaint the cards only.
-    const typing = node.contains(document.activeElement) && document.activeElement.matches('input, select');
-    if (typing && editing !== null && editing !== '') return;
-    if (typing) $('.mc-list', node).innerHTML = S.machines.map(card).join('');
-    else paint();
-  };
+  bus.on(
+    'machines',
+    () => {
+      // Don't clobber a half-typed form: repaint the cards only.
+      const typing = node.contains(document.activeElement) && document.activeElement.matches('input, select');
+      if (typing && editing !== null && editing !== '') return;
+      if (typing) $('.mc-list', node).innerHTML = S.machines.map(card).join('');
+      else paint();
+    },
+    { node },
+  );
   paint();
   if (focusAdd && S.machines.length) {
     editing = '';
@@ -4317,7 +4166,7 @@ function openSettings(opts) {
     $('.recheck-hint', node).textContent = `After installing a CLI, signing in or adding a provider, look for harnesses and models again${online ? `, here and on ${online} machine${online === 1 ? '' : 's'}` : ''}`;
   };
   paintAgents();
-  node.paintAgents = paintAgents;
+  bus.on('agents', paintAgents, { node });
   $('#recheck', node).onclick = async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
@@ -4330,7 +4179,7 @@ function openSettings(opts) {
       $('#launcher')?.placesChanged?.();
       toast(recheckSummary(before, S.agents));
     } catch (err) {
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     } finally {
       btn.disabled = false;
       btn.classList.remove('busy');
@@ -4436,7 +4285,7 @@ function openSettings(opts) {
     await setLearning(S.config.defaults.learn === 'off');
     paintLearn();
   };
-  node.paintLearn = paintLearn;
+  bus.on('preferences', paintLearn, { node });
   // One line each; their lists and charts live in their own views.
   const wt = $('#wtDefault', node);
   const paintWt = () => wt.setAttribute('aria-checked', S.config.defaults.worktree !== 'off');
@@ -4468,7 +4317,7 @@ function openSettings(opts) {
       await loadConfig();
       renderLauncher();
     } catch (err) {
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     }
     paintAuto();
   };
@@ -4491,7 +4340,7 @@ function openSettings(opts) {
     b.setAttribute('aria-pressed', b.classList.contains('on'));
     patchAuto({ allowed: $$('.ro-allowed .on', node).map((x) => x.dataset.id) });
   };
-  node.paintAuto = paintAuto;
+  bus.on('router', paintAuto, { node });
 
   // The one-line summaries; painted again on the way back from a view that may have changed them.
   const paintHints = () => {
@@ -4516,6 +4365,7 @@ function openSettings(opts) {
     paintAuto();
   };
   paintHints();
+  bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
   $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
@@ -4536,7 +4386,7 @@ async function openRouter({ host } = {}) {
   const pctOf = (x) => `${Math.round(x * 100)}%`;
   const outcome = (r) => (r === null ? '<span class="dim">waiting</span>' : r >= 0.9 ? '<span class="ok">worked</span>' : r >= 0.5 ? '<span>finished</span>' : r >= 0.25 ? '<span class="warn">partly</span>' : '<span class="bad">didn’t work</span>');
   const render = async () => {
-    const r = await api('/router').catch((err) => (toast(esc(err.message), { tone: 'bad' }), null));
+    const r = await api('/router').catch((err) => (toastError(err), null));
     if (!r || !node.isConnected) return;
     const arms = r.arms.filter((a) => a.state !== 'gone' || a.n);
     $('.ro-body', node).innerHTML = `
@@ -4561,11 +4411,11 @@ async function openRouter({ host } = {}) {
       <div class="ro-foot"><button class="ghost sm danger" id="roReset">Forget what Auto learned</button><span class="hint">The wisp-bench starting point stays.</span></div>`;
     $('#roReset', node).onclick = async () => {
       if (!confirm('Forget what Auto learned from your tasks?')) return;
-      await api('/router/reset', { method: 'POST', body: {} }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+      await api('/router/reset', { method: 'POST', body: {} }).catch(toastError);
       render();
     };
   };
-  node.refresh = render;
+  bus.on('router', render, { node });
   render();
   return close;
 }
@@ -4609,7 +4459,7 @@ function openMemory({ tab = 'global', host } = {}) {
     data = (await api('/preferences').catch(() => null)) || data;
     if (!data || !node.isConnected) return;
     // Projects with something learned, plus the one picked in the launcher so you can add to it.
-    const current = projectById(launchProject);
+    const current = projectById(launch.project);
     const projects = data.projects.filter((p) => memCount(p) || p.path === current?.path);
     if (current && !projects.some((p) => p.path === current.path)) projects.push({ path: current.path, name: current.name, preferences: [], lessons: [] });
     const scopes = [{ scope: 'global', name: 'Everywhere', ...data.global }, ...projects.map((p) => ({ scope: p.path, ...p }))];
@@ -4667,7 +4517,7 @@ function openMemory({ tab = 'global', host } = {}) {
   };
 
   const save = async (scope, kind, items) => {
-    await api('/preferences', { method: 'PUT', body: { scope, kind, items } }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+    await api('/preferences', { method: 'PUT', body: { scope, kind, items } }).catch(toastError);
     editing = null;
     await render();
   };
@@ -4706,7 +4556,7 @@ function openMemory({ tab = 'global', host } = {}) {
   });
   node.addEventListener('focusout', (e) => e.target.matches('.mem-edit input') && editing && commit(e.target));
   $('#memOn', node).onclick = async () => (await setLearning(!data?.enabled), render());
-  node.refresh = () => !editing && render();
+  bus.on('preferences', () => !editing && render(), { node });
   render();
 }
 
@@ -4772,7 +4622,7 @@ function postFeedback(body, { onFail, quiet = false } = {}) {
     })
     .catch((err) => {
       onFail?.();
-      toast(esc(err.message), { tone: 'bad' });
+      toastError(err);
     });
 }
 
@@ -5049,21 +4899,17 @@ function connect() {
     saveOpen();
     keepInPlace(feedAnchor(id), renderFeed);
   });
-  es.addEventListener('config', () => (loadConfig(), $('.auto-modal')?.refresh()));
-  es.addEventListener('remote', () => $('.phone-modal')?.refresh());
+  es.addEventListener('config', () => (loadConfig(), bus.emit('config')));
+  es.addEventListener('remote', () => bus.emit('remote'));
   es.addEventListener('machines', (e) => setMachines(JSON.parse(e.data)));
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
   // A new harness or model Auto can use: it gets a few tasks before Auto relies on it.
   es.addEventListener('router', (e) => {
     const { added = [] } = JSON.parse(e.data || '{}');
-    $('.router-modal')?.refresh();
-    $('.settings-modal')?.paintAuto?.();
+    bus.emit('router');
     if (added.length) toast(`New for Auto: <b>${added.map((a) => esc(a.label)).join('</b>, <b>')}</b>${added.some((a) => a.state === 'new') ? ' · it will try it on a few tasks' : ''}`, { action: { label: 'Auto settings', run: () => openSettings({ pane: 'auto' }) }, timeout: 8000 });
   });
-  es.addEventListener('preferences', () => {
-    $('.memory-modal')?.refresh();
-    $('.settings-modal')?.paintLearn?.();
-  });
+  es.addEventListener('preferences', () => bus.emit('preferences'));
   es.addEventListener('hello', () => (loadSessions(), loadUpdate(), loadMachines())); // also after sleep/reconnect
 }
 
@@ -5119,7 +4965,7 @@ async function installUpdate() {
   const from = update.current;
   const t0 = Date.now();
   const poll = setInterval(async () => {
-    const h = await fetch('/api/health').then((r) => r.json()).catch(() => null);
+    const h = await api('/health').catch(() => null);
     if (h?.version && h.version !== from) return clearInterval(poll), location.reload();
     if (Date.now() - t0 > 120_000) clearInterval(poll), toast('wisp did not come back. Start it again from your terminal.', { tone: 'bad', timeout: 15_000 });
   }, 1000);
@@ -5290,7 +5136,7 @@ window.addEventListener('focus', () => {
 (async () => {
   [S.agents] = await Promise.all([api('/agents').catch(() => []), loadConfig(), loadSessions(), loadMachines()]);
   renderLauncher();
-  $('.settings-modal')?.paintAgents?.();
+  bus.emit('agents');
   connect();
   route();
   $('#prompt')?.focus();
