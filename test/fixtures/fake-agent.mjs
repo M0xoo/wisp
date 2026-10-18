@@ -13,6 +13,8 @@
 //                once it has finished"), then report again <ms> later the way the real CLI does;
 //                `exit` quits instead, `hang` never finishes the task; FAKE_BACKGROUND_DONE=1 makes
 //                the first reply a full presentation (a finished task that left a dev server up)
+//   FAKE_ORPHANS=1  claude: on --resume, first answer the last run's stopped background tasks with
+//                an empty zero-turn result, as the real CLI does
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 
@@ -167,6 +169,11 @@ const ask = async () => {
 };
 
 if (name === 'claude') {
+  if (process.env.FAKE_ORPHANS && resumeId) {
+    out({ type: 'system', subtype: 'task_notification', session_id: session });
+    out({ type: 'system', subtype: 'init', session_id: session });
+    out({ type: 'result', subtype: 'success', is_error: false, result: '', session_id: session, duration_ms: 74, num_turns: 0, total_cost_usd: 0.01 });
+  }
   out({ type: 'system', subtype: 'init', session_id: session });
   out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: target } }] } });
   if (process.env.FAKE_HANG) hang();
