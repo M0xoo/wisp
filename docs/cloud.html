@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>wisp Cloud — agents that keep working when your laptop closes</title>
+  <meta name="description" content="wisp Cloud (preview): managed remote machines, persistent queues and team dashboards for wisp. The local CLI stays free and open source." />
+  <link rel="canonical" href="https://m0xoo.github.io/wisp/cloud.html" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="wisp" />
+  <meta property="og:url" content="https://m0xoo.github.io/wisp/cloud.html" />
+  <meta property="og:title" content="wisp Cloud — close the laptop, the agents keep going" />
+  <meta property="og:description" content="Managed remote machines, persistent queues and team dashboards for wisp. The local CLI stays free and open source." />
+  <meta property="og:image" content="https://m0xoo.github.io/wisp/assets/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css?v=15" />
+  <style>
+    /* ---------- cloud page: same paper, ink and one blue as the main site ---------- */
+    :root { --ok: #18794e; --ok-soft: rgba(24, 121, 78, 0.12); --sleep: #8d8c86; }
+    @media (prefers-color-scheme: dark) { :root { --ok: #3fb67b; --ok-soft: rgba(63, 182, 123, 0.14); } }
+    section { scroll-margin-top: 72px; }
+    .sec { padding: 120px 0 0; }
+    .sec-head { max-width: 760px; margin-bottom: 48px; }
+    .sec-head p { margin-top: 18px; font-size: 17.5px; line-height: 1.55; color: var(--ink-2); max-width: 60ch; }
+    .card { background: var(--surface); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 24px 60px -36px rgba(30,28,20,.35); }
+    .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font: 500 11.5px/1 var(--mono); border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+    .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); background: var(--ok-soft); }
+    .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+    .pill.acc { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-soft); }
+    .nav-cta { margin-left: auto; display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap; }
+    .nav-cta + .gh { margin-left: 0; }
+
+    /* ---------- hero ---------- */
+    .c-hero { position: relative; padding: 56px 0 0; }
+    .c-hero::before {
+      content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+      background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1.2px);
+      background-size: 22px 22px; mask-image: radial-gradient(ellipse 50% 60% at 72% 40%, #000 30%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 50% 60% at 72% 40%, #000 30%, transparent 75%);
+    }
+    .c-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6.4fr); gap: 64px; align-items: start; }
+    .c-hero .kicker .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .wait { display: flex; gap: 8px; margin-top: 30px; max-width: 440px; }
+    .wait input { flex: 1; min-width: 0; height: 50px; padding: 0 16px; font: 15px var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); border-radius: 11px; outline: 0; }
+    .wait.flash input { animation: join-flash 1.2s ease-out; }
+    @keyframes join-flash { 0%, 40% { border-color: var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); } }
+    .wait input:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .wait button { height: 50px; padding: 0 20px; border: 0; border-radius: 11px; background: var(--ink); color: var(--bg); font: 500 15px var(--sans); cursor: pointer; }
+    .wait-note { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+    .wait-note a { color: var(--accent); }
+    .free-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 26px; font-size: 14px; color: var(--muted); }
+    .free-line .cmd.sm { height: 36px; padding-left: 12px; }
+
+    /* the lid demo */
+    .lid { padding: 18px; }
+    .lid-top { display: flex; align-items: center; gap: 12px; padding: 2px 4px 14px; border-bottom: 1px solid var(--line); }
+    .lid-top b { font-size: 14px; font-weight: 600; }
+    .lid-clock { margin-left: auto; font: 500 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; font-size: 13.5px; color: var(--ink-2); background: none; border: 0; padding: 0; }
+    .switch .track { position: relative; width: 38px; height: 22px; border-radius: 999px; background: var(--line-2); transition: background .2s; }
+    .switch .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: translate .2s cubic-bezier(.2,.8,.2,1); }
+    .switch[aria-pressed='true'] .track { background: var(--ink); }
+    .switch[aria-pressed='true'] .track::after { translate: 16px 0; }
+    .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    .lane { border-radius: 12px; padding: 12px; background: var(--bg-2); border: 1px solid var(--line); transition: opacity .35s, filter .35s; }
+    .lane h4 { display: flex; align-items: center; gap: 8px; margin: 0 2px 10px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+    .lane h4 svg { width: 15px; height: 15px; }
+    .lane h4 .st { margin-left: auto; }
+    .lane.asleep { filter: grayscale(1); opacity: .55; }
+    .task { position: relative; overflow: hidden; display: grid; grid-template-columns: 14px minmax(0,1fr); gap: 4px 10px; align-items: center; padding: 9px 11px; margin-top: 7px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
+    .task:first-of-type { margin-top: 0; }
+    .task .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task .s { grid-column: 2; font: 11.5px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); transition: width .5s linear; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; justify-self: center; background: var(--faint); }
+    .task[data-s='run'] .dot { width: 12px; height: 12px; background: none; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+    .task[data-s='paused'] .dot { background: var(--sleep); }
+    .task[data-s='paused'] .bar { background: var(--sleep); }
+    .task[data-s='done'] .dot { background: var(--ok); }
+    .task[data-s='done'] .bar { background: var(--ok); }
+    .task[data-s='done'] .s { color: var(--ok); }
+    .lid-foot { margin: 14px 4px 0; font-size: 13px; color: var(--muted); min-height: 1.5em; }
+    .lid-foot b { color: var(--ink); font-weight: 600; }
+
+    /* ---------- managed machines ---------- */
+    .fleet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); }
+    .seg button { height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--muted); font: 500 13px var(--sans); cursor: pointer; }
+    .seg button[aria-pressed='true'] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    .add { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: 500 13.5px var(--sans); cursor: pointer; }
+    .add:hover { border-color: var(--faint); }
+    .add:disabled { opacity: .45; cursor: default; }
+    .fleet-sum { margin-left: auto; font: 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .fleet { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; padding: 16px; }
+    .mach { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
+    .mach.boot { animation: row-in .45s cubic-bezier(.2,.8,.2,1) both; }
+    .mach-h { display: flex; align-items: center; gap: 8px; }
+    .mach-h b { font: 600 13.5px var(--mono); }
+    .mach-h .pill { margin-left: auto; }
+    .mach-m { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+    .mach-logos { display: flex; gap: 6px; margin-top: 12px; }
+    .mach-logos img { width: 16px; height: 16px; }
+    .mach-job { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mach-job .muted { font-size: 12px; }
+    .load { display: flex; gap: 2px; align-items: flex-end; height: 22px; margin-top: 10px; }
+    .load i { flex: 1; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--accent) 55%, transparent); transition: height .5s; }
+    .mach.idle .load i { background: var(--line-2); }
+    .provisioning .load i { background: var(--line-2); animation: boot-pulse 1s ease-in-out infinite; }
+    @keyframes boot-pulse { 50% { opacity: .35; } }
+    .feat3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 36px; }
+    .feat3 h3 { font-size: 17px; letter-spacing: -0.02em; }
+    .feat3 p { margin-top: 8px; font-size: 15px; color: var(--muted); }
+
+    /* ---------- persistent queues ---------- */
+    .night { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: start; }
+    .tl { padding: 20px; }
+    .tl-head { display: flex; align-items: baseline; gap: 12px; }
+    .tl-time { font: 700 44px/1 var(--mono); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+    .tl-where { font-size: 13.5px; color: var(--muted); }
+    .scrub { position: relative; margin: 26px 0 8px; }
+    .scrub input { width: 100%; accent-color: var(--accent); }
+    .ticks { display: flex; justify-content: space-between; font: 11.5px var(--mono); color: var(--faint); }
+    .events { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 7px; }
+    .events li { display: grid; grid-template-columns: 50px 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 13.5px; transition: opacity .25s; }
+    .events li.future { opacity: .32; }
+    .events li .tm { font: 12px var(--mono); color: var(--muted); }
+    .events li .ic { font-size: 13px; text-align: center; }
+    .events li .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .morning-shot { position: sticky; top: 90px; }
+    .morning-shot .cap { margin-top: 12px; font-size: 13px; color: var(--muted); }
+
+    /* ---------- team dashboard ---------- */
+    .dash { overflow: hidden; }
+    .dash-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .dash-bar b { font-size: 14px; }
+    .who { display: flex; gap: 6px; flex-wrap: wrap; }
+    .who button { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px 0 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font: 500 13px var(--sans); cursor: pointer; }
+    .who button[aria-pressed='true'] { border-color: var(--ink); color: var(--ink); }
+    .av { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg-2); border: 1px solid var(--line-2); font: 600 10px var(--sans); color: var(--ink-2); }
+    .who button[data-m='all'] { padding-left: 11px; }
+    .dash-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+    .tiles { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); grid-column: 1 / -1; }
+    .tile { padding: 18px 18px 16px; border-right: 1px solid var(--line); }
+    .tile:last-child { border-right: 0; }
+    .tile .lbl { font-size: 12.5px; color: var(--muted); }
+    .tile .val { margin-top: 6px; font: 650 30px/1 var(--display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    .tile .val small { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+    .chart { position: relative; padding: 18px 18px 14px; border-right: 1px solid var(--line); }
+    .chart h5, .feed h5 { margin: 0 0 14px; font-size: 13px; font-weight: 500; color: var(--muted); }
+    .bars { position: relative; display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; align-items: end; height: 170px; border-bottom: 1px solid var(--line-2); }
+    .bars .gl { position: absolute; z-index: 0; left: 0; right: 0; border-top: 1px dashed var(--line); pointer-events: none; }
+    .bars .gl span { position: absolute; right: 0; top: -16px; font: 10.5px var(--mono); color: var(--faint); }
+    .bcol { position: relative; z-index: 1; height: 100%; display: flex; align-items: flex-end; cursor: default; }
+    .bcol i { display: block; width: 100%; max-width: 22px; margin: 0 auto; border-radius: 4px 4px 0 0; background: var(--accent); transition: height .45s cubic-bezier(.2,.8,.2,1), opacity .15s; }
+    .bars:hover .bcol i { opacity: .45; }
+    .bars .bcol:hover i { opacity: 1; }
+    .xl { display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; margin-top: 6px; font: 10.5px var(--mono); color: var(--faint); text-align: center; }
+    .tip { position: absolute; z-index: 3; pointer-events: none; padding: 7px 10px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 12.5px; white-space: nowrap; translate: -50% -100%; opacity: 0; transition: opacity .12s; }
+    .tip.on { opacity: 1; }
+    .tip b { font-variant-numeric: tabular-nums; }
+    .feed { padding: 18px; }
+    .feed ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    .feed li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+    .feed li .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .feed li .tx .muted { font-size: 12px; }
+    .tbl-toggle { margin-top: 12px; font-size: 12.5px; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    .tbl { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    .tbl th, .tbl td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); }
+    .tbl th:first-child, .tbl td:first-child { text-align: left; }
+
+    /* ---------- free vs cloud ---------- */
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .plan { padding: 28px; }
+    .plan.cloud { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); }
+    .plan h3 { display: flex; align-items: center; gap: 10px; font-size: 22px; }
+    .price { margin-top: 14px; font: 650 40px/1 var(--display); letter-spacing: -0.04em; }
+    .price small { font: 400 15px var(--sans); color: var(--muted); letter-spacing: 0; }
+    .plan > p { margin-top: 10px; color: var(--muted); font-size: 15px; }
+    .plan ul { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 10px; font-size: 15px; }
+    .plan li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; }
+    .plan li::before { content: '✓'; color: var(--ok); font-weight: 600; }
+    .plan.cloud li::before { content: '+'; color: var(--accent); }
+    .plan .foot-cta { margin-top: 26px; }
+    .draft { margin-top: 14px; font-size: 12.5px; color: var(--faint); }
+
+    /* ---------- faq ---------- */
+    .qa { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; }
+    .qa details { border-top: 1px solid var(--line); padding: 18px 0; }
+    .qa summary { cursor: pointer; font-weight: 600; font-size: 16px; list-style: none; }
+    .qa summary::-webkit-details-marker { display: none; }
+    .qa summary::after { content: '+'; float: right; color: var(--faint); font-weight: 400; }
+    .qa details[open] summary::after { content: '–'; }
+    .qa details p { margin-top: 10px; color: var(--ink-2); font-size: 15px; }
+
+    @media (max-width: 960px) {
+      .c-grid, .night, .split, .qa, .dash-body { grid-template-columns: 1fr; }
+      .c-grid { gap: 40px; }
+      .feat3 { grid-template-columns: 1fr; gap: 18px; }
+      .tiles { grid-template-columns: repeat(2, 1fr); }
+      .tile:nth-child(2) { border-right: 0; }
+      .tile:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .chart { border-right: 0; border-bottom: 1px solid var(--line); }
+      .morning-shot { position: static; }
+      .links { display: none; }
+      .sec { padding-top: 88px; }
+    }
+    @media (max-width: 560px) {
+      .lanes { grid-template-columns: 1fr; }
+      .gh span:not(.stars) { display: none; }
+      .wait { flex-direction: column; }
+      .wait input { flex: none; }
+      .gh { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  </style>
+  <!-- Same PostHog project as the main site; the waitlist is a PostHog event plus an identified person. -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_wowwZkbP8e4zYuwT67JtX6oxdPwkMWL5kKnrUmYYXhcD', {
+      api_host: 'https://us.i.posthog.com',
+      defaults: '2026-05-30',
+      person_profiles: 'identified_only',
+    });
+  </script>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="./" aria-label="wisp home"><span class="mark" aria-hidden="true"></span>wisp <span class="pill acc" style="margin-left:2px">Cloud</span></a>
+      <nav class="links" aria-label="Cloud">
+        <a href="#machines">Machines</a>
+        <a href="#queues">Queues</a>
+        <a href="#team">Team</a>
+        <a href="#pricing">Free vs Cloud</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="nav-cta" href="#join" data-join>Join the waitlist</a>
+      <a class="gh" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ───────── hero: close the lid ───────── -->
+    <section class="c-hero">
+      <div class="wrap c-grid">
+        <div>
+          <p class="kicker"><span class="dot"></span>wisp Cloud · early preview</p>
+          <h1>Close the laptop. <span class="soft">The agents keep going.</span></h1>
+          <p class="lede">wisp Cloud runs your agents on managed machines, keeps every queue alive overnight, and gives your team one dashboard for what shipped. The wisp you run locally doesn't change and stays free.</p>
+          <form class="wait" id="join" novalidate>
+            <label class="sr" for="email">Work email</label>
+            <input id="email" type="email" placeholder="you@company.com" autocomplete="email" required />
+            <button type="submit">Join the waitlist</button>
+          </form>
+          <p class="wait-note" id="waitNote" aria-live="polite">No card. We'll write once, when your team's seats are ready.</p>
+          <div class="free-line">
+            <span>Just want wisp?</span>
+            <button class="cmd sm" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
+            <span>MIT, free forever.</span>
+          </div>
+        </div>
+
+        <div class="card lid" id="lid">
+          <div class="lid-top">
+            <button class="switch" id="lidSwitch" aria-pressed="false" type="button"><span class="track"></span><span id="lidLabel">Close the laptop</span></button>
+            <span class="lid-clock" id="lidClock">18:40</span>
+          </div>
+          <div class="lanes">
+            <div class="lane" id="laneLocal">
+              <h4><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1 12.5h14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>This laptop<span class="st pill" id="localSt">awake</span></h4>
+              <div id="localTasks"></div>
+            </div>
+            <div class="lane" id="laneCloud">
+              <h4><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 12.5h7a3 3 0 0 0 .4-5.97A4 4 0 0 0 4.2 7.6 2.5 2.5 0 0 0 4.5 12.5z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>wisp Cloud<span class="st pill ok">3 machines</span></h4>
+              <div id="cloudTasks"></div>
+            </div>
+          </div>
+          <p class="lid-foot" id="lidFoot">Flip the switch. Local runs stop with the lid; the cloud runs don't.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── strip ───────── -->
+    <section class="strip wrap" aria-label="Supported agents">
+      <span class="strip-lbl">Same six harnesses, signed in with your own accounts</span>
+      <ul>
+        <li><img src="assets/logos/claudecode-color.svg" alt="" width="18" height="18" />Claude Code</li>
+        <li><img src="assets/logos/codex-color.svg" alt="" width="18" height="18" />Codex</li>
+        <li><img src="assets/logos/cursor.svg" alt="" width="18" height="18" class="mono" />Cursor</li>
+        <li><img src="assets/logos/opencode.svg" alt="" width="18" height="18" class="mono" />opencode</li>
+        <li><img src="assets/logos/antigravity-color.svg" alt="" width="18" height="18" />Antigravity</li>
+        <li><img src="assets/logos/grok.svg" alt="" width="18" height="18" class="mono" />Grok</li>
+      </ul>
+    </section>
+
+    <!-- ───────── managed machines ───────── -->
+    <section class="sec wrap" id="machines">
+      <div class="sec-head">
+        <p class="eyebrow">01 · Managed machines</p>
+        <h2>Machines, without the SSH.</h2>
+        <p>wisp already runs agents on your own boxes over SSH. Cloud machines show up in the same <b>Run on</b> menu, except we boot them, keep the harness CLIs current and take them down when the queue is empty. Every task still gets its own worktree, diffs, rollback and Ship it.</p>
+      </div>
+
+      <div class="card">
+        <div class="fleet-bar">
+          <div class="seg" role="group" aria-label="Machine size" id="sizeSeg">
+            <button type="button" data-size="s" aria-pressed="false">2 vCPU</button>
+            <button type="button" data-size="m" aria-pressed="true">8 vCPU</button>
+            <button type="button" data-size="l" aria-pressed="false">16 vCPU · GPU</button>
+          </div>
+          <button class="add" id="addMach" type="button">+ Add machine</button>
+          <span class="fleet-sum" id="fleetSum"></span>
+        </div>
+        <div class="fleet" id="fleet"></div>
+      </div>
+
+      <div class="feat3">
+        <div><h3>Ready in seconds</h3><p>Warm images with Node, git, <code>gh</code> and all six harness CLIs. A machine boots, clones and starts the task before you've switched tabs.</p></div>
+        <div><h3>Scale to zero</h3><p>Machines sleep when the queue is empty and wake on the next task, a schedule or a CI failure. You pay for minutes that ran agents.</p></div>
+        <div><h3>Your keys, your repos</h3><p>Harnesses sign in with your own Claude, OpenAI or Cursor accounts. Repos come in through a GitHub App scoped to the ones you pick.</p></div>
+      </div>
+    </section>
+
+    <!-- ───────── persistent queues ───────── -->
+    <section class="sec wrap" id="queues">
+      <div class="sec-head">
+        <p class="eyebrow">02 · Persistent queues</p>
+        <h2>A queue that works the night shift.</h2>
+        <p>Your queue lives in the cloud, not in a process on your laptop. Tasks you queue from your phone, recipes on a schedule and CI-failure triggers keep landing and running while you're away. Drag through one night.</p>
+      </div>
+
+      <div class="night">
+        <div class="card tl">
+          <div class="tl-head"><span class="tl-time" id="tlTime">18:00</span><span class="tl-where" id="tlWhere">Laptop closed. 0 done, 0 running.</span></div>
+          <div class="scrub">
+            <label class="sr" for="scrub">Time of night</label>
+            <input id="scrub" type="range" min="0" max="900" step="5" value="0" />
+            <div class="ticks"><span>18:00</span><span>21:00</span><span>00:00</span><span>03:00</span><span>06:00</span><span>09:00</span></div>
+          </div>
+          <ul class="events" id="events"></ul>
+        </div>
+        <div class="morning-shot">
+          <div class="window">
+            <div class="win-bar"><div class="lights"><i></i><i></i><i></i></div><span class="win-title">wisp · 09:00</span></div>
+            <picture>
+              <source srcset="assets/shots/dark-app.webp" media="(prefers-color-scheme: dark)" />
+              <img src="assets/shots/light-app.webp" alt="The wisp queue: finished tasks with their reports, and one task waiting for an answer" loading="lazy" />
+            </picture>
+          </div>
+          <p class="cap">What's waiting at 09:00: the real wisp queue, synced from the cloud. Finished reports, open PRs, and the one question that needed you.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── team dashboard ───────── -->
+    <section class="sec wrap" id="team">
+      <div class="sec-head">
+        <p class="eyebrow">03 · Team dashboards</p>
+        <h2>One view of what every agent shipped.</h2>
+        <p>See tasks, merged PRs, success rate and spend for the whole team or one person, across every harness. Share recipes and Auto's routing data, so the team's agents learn from each other's merges.</p>
+      </div>
+
+      <div class="card dash">
+        <div class="dash-bar">
+          <b>acme / platform</b><span class="pill">last 14 days</span>
+          <span class="grow"></span>
+          <div class="who" role="group" aria-label="Filter by member" id="who"></div>
+        </div>
+        <div class="dash-body">
+          <div class="tiles" id="tiles"></div>
+          <div class="chart" id="chart">
+            <h5 id="chartTitle">Tasks per day, whole team</h5>
+            <div class="bars" id="bars"></div>
+            <div class="xl" id="xl"></div>
+            <div class="tip" id="tip" role="status"></div>
+            <button class="tbl-toggle" id="tblToggle" type="button" aria-expanded="false">Show as table</button>
+            <table class="tbl" id="tbl" hidden></table>
+          </div>
+          <div class="feed">
+            <h5>Latest</h5>
+            <ul id="feed"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── free vs cloud ───────── -->
+    <section class="sec wrap" id="pricing">
+      <div class="sec-head">
+        <p class="eyebrow">04 · Free vs Cloud</p>
+        <h2>The CLI stays free. Cloud is for when you're not there.</h2>
+        <p>Everything wisp does on your computer today stays MIT-licensed and free, with no account. Cloud only adds what needs a server: machines that keep running, queues that outlive your laptop, and a shared view for teams.</p>
+      </div>
+      <div class="split">
+        <div class="card plan">
+          <h3>wisp <span class="pill ok">free forever</span></h3>
+          <p class="price">$0 <small>MIT · no account</small></p>
+          <p>Everything on your own computers.</p>
+          <ul>
+            <li>All six harnesses, Auto, Compare and subagents</li>
+            <li>Worktrees, presentations, checkpoints and rollback</li>
+            <li>Ship it, PR tracking and Merge</li>
+            <li>Recipes, schedules and CI / issue triggers</li>
+            <li>Your own machines over SSH</li>
+            <li>Phone questions on ntfy or Telegram</li>
+          </ul>
+          <div class="foot-cta"><button class="cmd sm" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button></div>
+        </div>
+        <div class="card plan cloud">
+          <h3>wisp Cloud <span class="pill acc">preview</span></h3>
+          <p class="price">$20 <small>per seat / month + machine minutes</small></p>
+          <p>Everything in wisp, plus:</p>
+          <ul>
+            <li>Managed machines that boot on demand and scale to zero</li>
+            <li>Persistent queues that run while your laptop sleeps</li>
+            <li>Team dashboard: tasks, merges, success rate and spend</li>
+            <li>Shared recipes, triggers and Auto routing</li>
+            <li>SSO, audit log, per-repo access</li>
+            <li>Same app: Cloud shows up as places in <b>Run on</b></li>
+          </ul>
+          <div class="foot-cta"><a class="btn" href="#join" data-join style="height:40px">Join the waitlist</a></div>
+          <p class="draft">Pricing is a draft and may change before launch. Model usage is billed by your own providers, not us.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── faq ───────── -->
+    <section class="sec wrap" id="faq">
+      <div class="sec-head"><p class="eyebrow">FAQ</p><h2>Questions</h2></div>
+      <div class="qa">
+        <details open><summary>Will the local CLI ever need an account?</summary><p>No. <code>npx wisp-agents</code> keeps working with no sign-in, no telemetry you haven't turned on, and no feature moved behind Cloud. Cloud is opt-in from Settings, like every integration.</p></details>
+        <details><summary>Do you resell model usage?</summary><p>No. Harness CLIs on cloud machines sign in with your own Claude, OpenAI, Cursor or xAI accounts. You pay us for seats and machine time only.</p></details>
+        <details><summary>How is this different from Machines?</summary><p>Machines connects wisp to computers you already run, over SSH, and stays free. Cloud machines are ones we run for you: booted on demand, kept current, and asleep when nothing is queued.</p></details>
+        <details><summary>Where does my code live?</summary><p>On the machine running the task, in its worktree, for as long as the task is open. Machines are single-tenant; disks are wiped when a machine is removed.</p></details>
+        <details><summary>Can I answer questions from my phone?</summary><p>Yes, as today: <code>ask_user</code> questions reach ntfy or Telegram, and your answer goes straight back to the agent on its cloud machine.</p></details>
+        <details><summary>Can I mix local and cloud?</summary><p>Yes. <b>Run on</b> lists this computer, your SSH machines and cloud machines together. Pick one, or several at once.</p></details>
+      </div>
+    </section>
+
+    <section class="final" style="margin-top:120px">
+      <div class="wrap">
+        <p class="final-clock" aria-hidden="true">03:12</p>
+        <h2>Let it run while you sleep.</h2>
+        <div class="cta">
+          <a class="cmd" href="#join" data-join style="text-decoration:none;padding:0 22px"><span>Join the Cloud waitlist</span></a>
+          <a class="btn" href="./">Or start free with wisp</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot wrap">
+    <span class="brand"><span class="mark" aria-hidden="true"></span>wisp</span>
+    <span class="muted">MIT © M0xoo · wisp Cloud is in early preview. Dashboard numbers are demo data.</span>
+    <span class="grow"></span>
+    <a href="./">wisp</a>
+    <a href="https://github.com/M0xoo/wisp/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+    <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+
+  <script>
+  (() => {
+    const $ = (s, r = document) => r.querySelector(s);
+    const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ---------- copy buttons ----------
+    for (const btn of document.querySelectorAll('[data-copy]')) {
+      btn.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(btn.dataset.copy); } catch {}
+        const c = btn.querySelector('.copy');
+        btn.classList.add('copied'); if (c) c.textContent = 'Copied';
+        setTimeout(() => { btn.classList.remove('copied'); if (c) c.textContent = 'Copy'; }, 1400);
+      });
+    }
+
+    // ---------- nav border ----------
+    const nav = $('.nav');
+    addEventListener('scroll', () => { nav.classList.toggle('scrolled', scrollY > 8); }, { passive: true });
+
+    // ---------- waitlist ----------
+    // Each signup lands in PostHog: the email becomes an identified person (email, source)
+    // and a `cloud_waitlist_joined` event. Find them under People, or filter on that event.
+    $('#join').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = $('#email'), note = $('#waitNote');
+      const email = input.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { note.textContent = 'That email looks off. Try again?'; input.focus(); return; }
+      const ph = window.posthog;
+      // An ad blocker stops PostHog's script, so the stub never loads and nothing would be sent.
+      if (!ph?.__loaded) {
+        note.innerHTML = 'Your browser blocked the signup (an ad blocker, probably). Allow this page, or <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">watch releases on GitHub</a>.';
+        return;
+      }
+      ph.identify(email, { email, waitlist: 'cloud' }, { cloud_waitlist_since: new Date().toISOString() });
+      ph.capture('cloud_waitlist_joined', { email, $set: { email } }, { send_instantly: true });
+      input.value = '';
+      note.textContent = "You're on the list. We'll write when seats open.";
+    });
+
+    // Every "Join the waitlist" link brings the form into view and puts the cursor in the email field.
+    for (const a of document.querySelectorAll('[data-join]')) {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const form = $('#join'), input = $('#email');
+        form.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+        input.focus({ preventScroll: true });
+        form.classList.remove('flash'); void form.offsetWidth; form.classList.add('flash');
+      });
+    }
+
+    // Arriving from the main site's "Join the Cloud waitlist" (cloud.html#join): put the cursor in the field.
+    // Wait for load: the browser's own jump to #join runs after this script and would take focus back.
+    if (location.hash === '#join') {
+      addEventListener('load', () => {
+        $('#join').scrollIntoView({ block: 'center' });
+        $('#email').focus({ preventScroll: true });
+        $('#join').classList.add('flash');
+      }, { once: true });
+    }
+
+    // ---------- hero: close the lid ----------
+    const LOCAL = [
+      { t: 'Fix the flaky auth test', p: 0.35 },
+      { t: 'Bump Stripe SDK to v18', p: 0.6 },
+    ];
+    const CLOUD = [
+      { t: 'Migrate billing to the new API', p: 0.2, m: 'cloud-1' },
+      { t: 'Add e2e tests for checkout', p: 0.45, m: 'cloud-2' },
+      { t: 'Upgrade to React 20', p: 0.1, m: 'cloud-3' },
+    ];
+    const STEPS = ['reading the code', 'editing files', 'running the tests', 'fixing a failing test', 'opening the PR'];
+    const mkTask = (task, host) => {
+      const n = el('div', 'task', `<span class="dot"></span><span class="t">${esc(task.t)}</span><span class="s"></span><span class="bar"></span>`);
+      host.append(n); task.n = n; return task;
+    };
+    LOCAL.forEach((t) => mkTask(t, $('#localTasks')));
+    CLOUD.forEach((t) => mkTask(t, $('#cloudTasks')));
+    let closed = false, minutes = 18 * 60 + 40, prs = 0;
+    const paint = (task, where, asleep) => {
+      const s = task.p >= 1 ? 'done' : asleep ? 'paused' : 'run';
+      task.n.dataset.s = s;
+      task.n.querySelector('.bar').style.width = `${Math.min(task.p, 1) * 100}%`;
+      task.n.querySelector('.s').textContent =
+        s === 'done' ? `PR #${task.pr} opened · tests pass` :
+        s === 'paused' ? 'paused, laptop asleep' :
+        `${where} · ${STEPS[Math.min(STEPS.length - 1, Math.floor(task.p * STEPS.length))]}`;
+    };
+    const lidTick = () => {
+      if (closed) minutes += 7;
+      const hh = Math.floor(minutes / 60) % 24, mm = minutes % 60;
+      $('#lidClock').textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      for (const t of LOCAL) { if (!closed && t.p < 1) t.p = Math.min(1, t.p + 0.012); if (t.p >= 1 && !t.pr) t.pr = 412 + ++prs; paint(t, 'here', closed); }
+      for (const t of CLOUD) { if (t.p < 1) t.p = Math.min(1, t.p + (closed ? 0.05 : 0.012)); if (t.p >= 1 && !t.pr) t.pr = 412 + ++prs; paint(t, t.m, false); }
+      const cloudDone = CLOUD.filter((t) => t.p >= 1).length;
+      if (closed) {
+        $('#lidFoot').innerHTML = cloudDone === CLOUD.length
+          ? `<b>${cloudDone} PRs ready</b> by the time you're back. The laptop's 2 tasks pick up where they stopped.`
+          : `Laptop asleep. Cloud machines: <b>${cloudDone} of ${CLOUD.length}</b> done.`;
+      }
+    };
+    $('#lidSwitch').addEventListener('click', (e) => {
+      closed = !closed;
+      e.currentTarget.setAttribute('aria-pressed', String(closed));
+      $('#lidLabel').textContent = closed ? 'Open the laptop' : 'Close the laptop';
+      $('#laneLocal').classList.toggle('asleep', closed);
+      const st = $('#localSt'); st.textContent = closed ? 'asleep' : 'awake';
+      if (!closed) $('#lidFoot').textContent = 'Laptop awake. Local runs resume; the cloud ones never stopped.';
+      lidTick();
+    });
+    lidTick();
+    setInterval(lidTick, reduced ? 1500 : 500);
+
+    // ---------- managed machines ----------
+    const LOGOS = ['claudecode-color.svg', 'codex-color.svg', 'cursor.svg', 'opencode.svg'];
+    const SIZES = { s: { cpu: 2, rate: 0.04, lbl: '2 vCPU · 4 GB' }, m: { cpu: 8, rate: 0.16, lbl: '8 vCPU · 16 GB' }, l: { cpu: 16, rate: 0.9, lbl: '16 vCPU · 64 GB · L4' } };
+    const JOBS = ['Migrate billing to the new API', 'Add e2e tests for checkout', 'Upgrade to React 20', 'Port the CLI to Bun', 'Split the monolith router', 'Write docs for the SDK'];
+    const REGIONS = ['us-east', 'eu-west', 'us-west', 'ap-south'];
+    let size = 'm';
+    const fleet = [
+      { name: 'cloud-1', region: 'us-east', size: 'm', job: JOBS[0], harness: 'Claude Code', state: 'busy' },
+      { name: 'cloud-2', region: 'eu-west', size: 'm', job: JOBS[1], harness: 'Codex', state: 'busy' },
+      { name: 'cloud-3', region: 'us-east', size: 'm', job: null, state: 'idle' },
+    ];
+    const machCard = (m) => {
+      const n = el('div', `mach ${m.state === 'idle' ? 'idle' : ''} ${m.state === 'boot' ? 'provisioning' : ''}`);
+      const pill = m.state === 'boot' ? '<span class="pill">booting</span>' : m.state === 'idle' ? '<span class="pill">asleep · $0</span>' : '<span class="pill ok">running</span>';
+      n.innerHTML = `<div class="mach-h"><b>${m.name}</b>${pill}</div>
+        <div class="mach-m">${m.region} · ${SIZES[m.size].lbl}</div>
+        <div class="mach-logos">${LOGOS.map((l) => `<img src="assets/logos/${l}" alt="" class="${l.includes('color') ? '' : 'mono'}" />`).join('')}</div>
+        <div class="load">${Array.from({ length: 16 }, () => '<i style="height:15%"></i>').join('')}</div>
+        <div class="mach-job">${m.state === 'busy' ? `${esc(m.job)} <span class="muted">· ${m.harness}</span>` : m.state === 'boot' ? '<span class="muted">pulling image, cloning api-server…</span>' : '<span class="muted">No task. Wakes on the next one.</span>'}</div>`;
+      m.n = n; return n;
+    };
+    const renderFleet = () => {
+      const host = $('#fleet');
+      // Update in place: only new machines get the entry animation.
+      for (const m of fleet) {
+        const fresh = !m.n;
+        const n = machCard(m);
+        if (fresh) { n.classList.add('boot'); host.append(n); } else host.replaceChild(n, host.children[fleet.indexOf(m)]);
+      }
+      const busy = fleet.filter((m) => m.state === 'busy');
+      const rate = busy.reduce((s, m) => s + SIZES[m.size].rate, 0);
+      $('#fleetSum').textContent = `${fleet.length} machines · ${busy.length} running · $${rate.toFixed(2)}/h`;
+      $('#addMach').disabled = fleet.length >= 6;
+      wiggle();
+    };
+    const wiggle = () => {
+      for (const m of fleet) {
+        if (!m.n) continue;
+        const bars = m.n.querySelectorAll('.load i');
+        bars.forEach((b) => { b.style.height = m.state === 'busy' ? `${20 + Math.round(Math.random() * 75)}%` : '12%'; });
+      }
+    };
+    $('#sizeSeg').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      size = b.dataset.size;
+      for (const x of $('#sizeSeg').children) x.setAttribute('aria-pressed', String(x === b));
+    });
+    $('#addMach').addEventListener('click', () => {
+      if (fleet.length >= 6) return;
+      const i = fleet.length;
+      const m = { name: `cloud-${i + 1}`, region: REGIONS[i % REGIONS.length], size, job: JOBS[i % JOBS.length], harness: ['Cursor', 'opencode', 'Claude Code'][i % 3], state: 'boot' };
+      fleet.push(m); renderFleet();
+      setTimeout(() => { m.state = 'busy'; renderFleet(); }, 2200);
+    });
+    renderFleet();
+    setInterval(wiggle, 1200);
+
+    // ---------- persistent queues ----------
+    // t = minutes since 18:00. Each event: when it happens, icon, text, where, and the badge it ends with.
+    const EVENTS = [
+      { t: 10, ic: '⏾', tx: 'Laptop closed', tag: '' },
+      { t: 35, ic: '✦', tx: '“Fix the flaky auth test” · queued from your phone', tag: 'cloud-1', done: 110 },
+      { t: 120, ic: '↻', tx: 'Schedule · nightly dependency bumps', tag: 'cloud-2', done: 210 },
+      { t: 260, ic: '✕', tx: 'CI failed on main → fix-ci recipe started', tag: 'cloud-1', done: 330 },
+      { t: 360, ic: '#', tx: 'Issue labelled “agent” → plan written', tag: 'cloud-3', done: 400 },
+      { t: 450, ic: '?', tx: 'Migration agent asks: keep v1 webhooks?', tag: 'needs you', ask: true },
+      { t: 560, ic: '✓', tx: 'Release recipe 0.16.0 drafted', tag: 'cloud-2', done: 620 },
+      { t: 880, ic: '☕', tx: 'You open wisp', tag: '' },
+    ];
+    const evHost = $('#events');
+    const fmt = (t) => { const m = (18 * 60 + t) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+    for (const ev of EVENTS) {
+      ev.n = el('li', '', `<span class="tm">${fmt(ev.t)}</span><span class="ic" aria-hidden="true">${ev.ic}</span><span class="tx">${esc(ev.tx)}</span><span class="tag"></span>`);
+      evHost.append(ev.n);
+    }
+    const scrub = $('#scrub');
+    const renderNight = () => {
+      const now = +scrub.value;
+      let done = 0, running = 0, asks = 0;
+      for (const ev of EVENTS) {
+        const past = now >= ev.t;
+        ev.n.classList.toggle('future', !past);
+        const tag = ev.n.querySelector('.tag');
+        if (!ev.tag || !past) { tag.innerHTML = ''; continue; }
+        if (ev.ask) { asks++; tag.innerHTML = '<span class="pill warn">needs you</span>'; }
+        else if (now >= ev.done) { done++; tag.innerHTML = `<span class="pill ok">done · ${ev.tag}</span>`; }
+        else { running++; tag.innerHTML = `<span class="pill acc">running · ${ev.tag}</span>`; }
+      }
+      $('#tlTime').textContent = fmt(now);
+      $('#tlWhere').textContent = now < 10 ? 'Laptop open.'
+        : now >= 880 ? `Morning. ${done} done, ${asks} question waiting.`
+        : `Laptop closed. ${done} done, ${running} running${asks ? `, ${asks} waiting on you` : ''}.`;
+    };
+    scrub.addEventListener('input', renderNight);
+    renderNight();
+    // Play the night once when the section scrolls into view, until the user grabs the slider.
+    let grabbed = false;
+    scrub.addEventListener('pointerdown', () => { grabbed = true; });
+    scrub.addEventListener('keydown', () => { grabbed = true; });
+    new IntersectionObserver((entries, io) => {
+      if (!entries[0].isIntersecting) return;
+      io.disconnect();
+      if (reduced) { scrub.value = 880; renderNight(); return; }
+      const t0 = performance.now();
+      const step = (now) => {
+        if (grabbed) return;
+        scrub.value = Math.min(880, Math.round(((now - t0) / 6000) * 880));
+        renderNight();
+        if (+scrub.value < 880) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }, { threshold: 0.4 }).observe($('#queues .night'));
+
+    // ---------- team dashboard (demo data) ----------
+    const DAYS = Array.from({ length: 14 }, (_, i) => { const d = new Date(2026, 9, 5 + i); return d; });
+    const MEMBERS = [
+      { id: 'lena', name: 'Lena', ini: 'LE', tasks: [3,5,4,6,2,0,1,5,7,6,4,8,1,0], merged: 31, rate: 0.84, spend: 118 },
+      { id: 'sam', name: 'Sam', ini: 'SA', tasks: [2,2,3,1,4,0,0,3,2,5,3,2,0,1], merged: 18, rate: 0.79, spend: 64 },
+      { id: 'priya', name: 'Priya', ini: 'PR', tasks: [5,6,4,7,6,1,0,6,8,5,7,9,2,0], merged: 52, rate: 0.88, spend: 171 },
+      { id: 'jo', name: 'Jo', ini: 'JO', tasks: [1,0,2,3,1,0,0,2,1,3,2,1,0,0], merged: 9, rate: 0.71, spend: 22 },
+    ];
+    const FEED = [
+      { who: 'priya', ok: true, tx: 'Merged #431 · Split the monolith router', h: 'Claude Code' },
+      { who: 'lena', ok: true, tx: 'Merged #429 · Add e2e tests for checkout', h: 'Codex' },
+      { who: 'sam', ok: false, tx: 'Asking · keep v1 webhooks?', h: 'Claude Code' },
+      { who: 'priya', ok: true, tx: 'Merged #427 · Fix flaky auth test', h: 'Auto → Cursor' },
+      { who: 'jo', ok: true, tx: 'Merged #426 · Docs for the SDK', h: 'opencode' },
+      { who: 'lena', ok: true, tx: 'Merged #424 · Bump Stripe SDK to v18', h: 'Auto → Codex' },
+    ];
+    let member = 'all';
+    const whoHost = $('#who');
+    whoHost.append(el('button', '', 'Team'));
+    whoHost.lastChild.dataset.m = 'all';
+    for (const m of MEMBERS) { const b = el('button', '', `<span class="av">${m.ini}</span>${m.name}`); b.dataset.m = m.id; whoHost.append(b); }
+    for (const b of whoHost.children) b.type = 'button';
+
+    const fmtDay = (d) => d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+    const barsHost = $('#bars');
+    const cols = DAYS.map((d, i) => {
+      const c = el('div', 'bcol', '<i style="height:0"></i>');
+      c.tabIndex = 0; c.dataset.i = i; barsHost.append(c); return c;
+    });
+    const MAX = 25;
+    for (const v of [10, 20]) { const g = el('div', 'gl', `<span>${v}</span>`); g.style.bottom = `${(v / MAX) * 100}%`; barsHost.append(g); }
+    $('#xl').innerHTML = DAYS.map((d, i) => `<span>${i % 2 === 0 ? d.getDate() : ''}</span>`).join('');
+
+    const series = () => member === 'all'
+      ? DAYS.map((_, i) => MEMBERS.reduce((s, m) => s + m.tasks[i], 0))
+      : MEMBERS.find((m) => m.id === member).tasks;
+
+    const renderDash = () => {
+      for (const b of whoHost.children) b.setAttribute('aria-pressed', String(b.dataset.m === member));
+      const pick = member === 'all' ? MEMBERS : MEMBERS.filter((m) => m.id === member);
+      const s = series();
+      const total = s.reduce((a, b) => a + b, 0);
+      const merged = pick.reduce((a, m) => a + m.merged, 0);
+      const rate = pick.reduce((a, m) => a + m.rate * m.merged, 0) / merged;
+      const spend = pick.reduce((a, m) => a + m.spend, 0);
+      $('#tiles').innerHTML = [
+        ['Tasks', total, ''], ['PRs merged', merged, ''], ['Success rate', Math.round(rate * 100), '%'], ['Machine spend', `$${spend}`, ''],
+      ].map(([l, v, u]) => `<div class="tile"><div class="lbl">${l}</div><div class="val">${v}<small>${u}</small></div></div>`).join('');
+      s.forEach((v, i) => { cols[i].firstChild.style.height = `${(v / MAX) * 100}%`; cols[i].setAttribute('aria-label', `${fmtDay(DAYS[i])}: ${v} tasks`); });
+      $('#chartTitle').textContent = `Tasks per day, ${member === 'all' ? 'whole team' : MEMBERS.find((m) => m.id === member).name}`;
+      $('#tbl').innerHTML = `<tr><th>Day</th><th>Tasks</th></tr>` + s.map((v, i) => `<tr><td>${fmtDay(DAYS[i])}</td><td>${v}</td></tr>`).join('');
+      const items = FEED.filter((f) => member === 'all' || f.who === member);
+      $('#feed').innerHTML = items.map((f) => {
+        const m = MEMBERS.find((x) => x.id === f.who);
+        return `<li><span class="av">${m.ini}</span><span class="tx">${esc(f.tx)} <span class="muted">· ${esc(f.h)}</span></span>${f.ok ? '<span class="pill ok">merged</span>' : '<span class="pill warn">asking</span>'}</li>`;
+      }).join('') || '<li class="muted">Nothing yet.</li>';
+    };
+    whoHost.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; member = b.dataset.m; renderDash(); });
+
+    const tip = $('#tip'), chart = $('#chart');
+    const showTip = (c) => {
+      const i = +c.dataset.i, v = series()[i];
+      const r = c.getBoundingClientRect(), cr = chart.getBoundingClientRect(), bar = c.firstChild.getBoundingClientRect();
+      tip.innerHTML = `${fmtDay(DAYS[i])} · <b>${v}</b> task${v === 1 ? '' : 's'}`;
+      tip.style.left = `${r.left - cr.left + r.width / 2}px`;
+      tip.style.top = `${bar.top - cr.top - 8}px`;
+      tip.classList.add('on');
+    };
+    for (const c of cols) {
+      c.addEventListener('mouseenter', () => { showTip(c); });
+      c.addEventListener('focus', () => { showTip(c); });
+      c.addEventListener('mouseleave', () => { tip.classList.remove('on'); });
+      c.addEventListener('blur', () => { tip.classList.remove('on'); });
+    }
+    $('#tblToggle').addEventListener('click', (e) => {
+      const t = $('#tbl'); t.hidden = !t.hidden;
+      e.currentTarget.setAttribute('aria-expanded', String(!t.hidden));
+      e.currentTarget.textContent = t.hidden ? 'Show as table' : 'Hide table';
+    });
+    renderDash();
+  })();
+  </script>
+</body>
+</html>
