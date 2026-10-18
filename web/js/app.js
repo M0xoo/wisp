@@ -2475,11 +2475,11 @@ async function rollbackTurn(id, turnId, restore = false) {
   }
 }
 
+// The server keeps the result on the turn under `key` (turn.actionRuns), where the block that
+// ran it looks for it when the card renders again.
 async function execAction(id, turnId, command, key) {
   try {
-    const r = await api(`/sessions/${id}/exec`, { method: 'POST', body: { command, turnId } });
-    if (key) S.actionRuns.set(key, r);
-    return r;
+    return await api(`/sessions/${id}/exec`, { method: 'POST', body: { command, turnId, key } });
   } catch (err) {
     toast(esc(err.message), { tone: 'bad' });
     return null;
