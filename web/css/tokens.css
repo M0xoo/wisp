@@ -1,0 +1,115 @@
+/* wisp — quiet, neutral, out of the way. One accent, hairlines, native type. */
+
+:root {
+  --bg: #ffffff;
+  --bg-2: #f3f3f2;
+  --rail: #f7f7f6;
+  --surface: #ffffff;
+  --surface-2: #f9f9f8;
+  --ink: #171717;
+  --ink-2: #3d3d3d;
+  --muted: #6e6e6e;
+  --faint: #a3a3a3;
+  --line: #ebebea;
+  --line-2: #dcdcda;
+  --accent: #2f5bea;
+  --accent-ink: #2149cc;
+  --accent-soft: rgba(47, 91, 234, 0.08);
+  --good: #18794e;
+  --warn: #a35c00;
+  --bad: #cd2b31;
+  --info: #2f5bea;
+  --add: #18794e;
+  --del: #cd2b31;
+  --add-bg: rgba(24, 121, 78, 0.07);
+  --del-bg: rgba(205, 43, 49, 0.06);
+  --add-strong: rgba(24, 121, 78, 0.14);
+  --term-bg: #141414;
+  --term-ink: #e8e8e6;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px -12px rgba(0, 0, 0, 0.14);
+  --radius: 10px;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.25, 0.8, 0.25, 1);
+  --tk-k: #cf222e;
+  --tk-s: #0a3069;
+  --tk-c: #8c8c8c;
+  --tk-n: #0550ae;
+  --tk-t: #8250df;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #111111;
+    --bg-2: #1e1e1e;
+    --rail: #151515;
+    --surface: #171717;
+    --surface-2: #1a1a1a;
+    --ink: #ededed;
+    --ink-2: #c7c7c7;
+    --muted: #8f8f8f;
+    --faint: #5e5e5e;
+    --line: #262626;
+    --line-2: #333333;
+    --accent: #6d8dff;
+    --accent-ink: #94adff;
+    --accent-soft: rgba(109, 141, 255, 0.12);
+    --good: #4cc38a;
+    --warn: #f0a33a;
+    --bad: #ff6369;
+    --info: #6d8dff;
+    --add: #4cc38a;
+    --del: #ff6369;
+    --add-bg: rgba(76, 195, 138, 0.08);
+    --del-bg: rgba(255, 99, 105, 0.08);
+    --add-strong: rgba(76, 195, 138, 0.16);
+    --term-bg: #0c0c0c;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+    --tk-k: #ff7b72;
+    --tk-s: #a5d6ff;
+    --tk-c: #6e7681;
+    --tk-n: #79c0ff;
+    --tk-t: #d2a8ff;
+    color-scheme: dark;
+  }
+}
+
+/* project colours — muted, distinguishable, never neon */
+.c-violet { --pc: #7c6bd6; }
+.c-teal { --pc: #2b9a8a; }
+.c-amber { --pc: #c9932a; }
+.c-rose { --pc: #c9586f; }
+.c-sky { --pc: #3f8fd2; }
+.c-lime { --pc: #5f9a3a; }
+.c-orange { --pc: #d27637; }
+.c-indigo { --pc: #5262c9; }
+.c-slate { --pc: #8a8a8a; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.003em;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+a { color: inherit; text-decoration: none; }
+code, kbd, pre { font-family: var(--mono); }
+kbd {
+  font-size: 10.5px; padding: 1px 5px; border-radius: 5px; border: 1px solid var(--line-2);
+  border-bottom-width: 2px; color: var(--muted); background: var(--surface); line-height: 1.4;
+}
+.i { width: 16px; height: 16px; flex: none; vertical-align: -3px; }
+.muted { color: var(--muted); }
+.xs { font-size: 12px; }
+.grow { flex: 1; }
+[hidden] { display: none !important; }
+::selection { background: var(--accent-soft); }
+

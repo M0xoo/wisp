@@ -1,0 +1,29 @@
+/* Auto: wisp's router as a harness (picker, card badge, Settings → Auto) */
+.auto-mark { display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }
+.auto-mark .i { width: 100%; height: 100%; }
+.model-logo.routed::before { content: ''; position: absolute; right: -3px; bottom: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); }
+.pk-note { margin: 8px 10px 4px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.pk-note a { color: var(--accent-ink); }
+.ro-goal { flex: none; }
+.ro-allowed { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 360px; }
+.chip-tog { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.chip-tog:hover { color: var(--ink); }
+.chip-tog.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.router-modal { width: min(720px, 100%); position: relative; padding-bottom: 20px; }
+.router-modal .hint { margin: 0 0 12px; }
+.router-modal h4 { margin: 16px 0 6px; }
+.ro-table td small.ro-types { display: block; margin: 2px 0 0 19px; font-size: 11px; color: var(--faint); }
+.ro-table .sx-state { justify-content: flex-end; }
+.sx-state.ok { color: var(--good); }
+.sx-state.warn { color: var(--warn); }
+.dot.warn { background: var(--warn); }
+.ro-recent { list-style: none; margin: 0; padding: 0; }
+.ro-recent li { display: flex; align-items: center; gap: 8px; padding: 6px 2px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.ro-recent .ro-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.ro-recent small { flex: none; color: var(--faint); }
+.ro-recent .ok { color: var(--good); }
+.ro-recent .warn { color: var(--warn); }
+.ro-recent .bad { color: var(--bad); }
+.ro-recent .dim { color: var(--faint); }
+.ro-foot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+.ro-foot .hint { margin: 0; }

@@ -1,0 +1,35 @@
+/* ---------- responsive ---------- */
+@media (max-width: 720px) {
+  .topbar { padding: 0 12px; gap: 10px; }
+  .search-btn span, .search-btn kbd, .update-btn span, .auto-btn span { display: none; }
+  .auto-btn { padding: 0 8px; border-color: transparent; background: none; }
+  .search-btn { padding: 0 8px; border-color: transparent; background: none; }
+  .feed-wrap { padding: 14px 16px 80px; }
+  .launcher.docked { width: calc(100% - 32px); }
+  .it-side .q-proj, .it-actions span, .c-done span, .q-machine span { display: none; }
+  .mc-row { flex-direction: column; }
+  .mc-field { width: auto; }
+  .mc-meta, .mc-steps, .mc-hint, .mc-projects, .mc-edit { margin-left: 0; }
+  .turns { padding: 6px 14px 8px; }
+  .it-dock { padding: 4px 10px 10px; }
+  .b-hero h2 { font-size: 22px; }
+  .b-compare { grid-template-columns: 1fr; gap: 8px; }
+  .b-compare .arrow { transform: rotate(90deg); height: 20px; }
+  .cols { flex-direction: column; gap: 30px; align-items: stretch; }
+  .col { max-width: none; flex-direction: row; justify-content: center; }
+  .col .node { flex: 1; max-width: 260px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ---------- desktop (Electron) ---------- */
+/* Drag regions swallow clicks even under overlays: only the top bar drags,
+   and everything clickable in it (or floating above it) opts out. */
+.drag-strip { display: none; }
+body.electron .topbar { -webkit-app-region: drag; }
+body.electron .topbar button, body.electron .topbar a, body.electron .topbar .projects { -webkit-app-region: no-drag; }
+body.electron .overlay, body.electron .overlay *, body.electron .menu, body.electron .menu *, body.electron .toasts, body.electron .toast * { -webkit-app-region: no-drag; }
+body.electron.mac .topbar { padding-left: 88px; }
+
