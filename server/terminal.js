@@ -6,6 +6,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { escapeCmdArgument, escapeCmdCommand, onPath } from './proc.js';
+import { shq } from './util.js';
 
 // os: which platforms list the entry (all if omitted).
 const ALL_TERMINALS = [
@@ -31,7 +32,7 @@ const ALL_TERMINALS = [
 export const terminalsFor = (platform = process.platform) => ALL_TERMINALS.filter((t) => !t.os || t.os.includes(platform === 'darwin' || platform === 'win32' ? platform : 'linux')).map(({ id, label }) => ({ id, label }));
 export const TERMINALS = terminalsFor();
 
-export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+export { shq };
 const psq = (s) => `'${String(s).replace(/'/g, "''")}'`; // PowerShell single-quoted string
 const asStr = (s) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`; // AppleScript string
 

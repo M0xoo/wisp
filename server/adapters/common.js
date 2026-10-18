@@ -5,6 +5,7 @@ import readline from 'node:readline';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFile, killTree } from '../proc.js';
+import { clip } from '../util.js';
 
 export const MAX_SNAPSHOT = 256 * 1024;
 export const ASK_TIMEOUT_MS = 7 * 24 * 3600 * 1000; // ask_user may wait for the human a long time
@@ -106,10 +107,7 @@ export function rel(file, cwd) {
   return file;
 }
 
-export function clip(s, n = 80) {
-  s = String(s ?? '').replace(/\s+/g, ' ').trim();
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
-}
+export { clip };
 
 export function flatten(content) {
   if (typeof content === 'string') return content;

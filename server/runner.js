@@ -4,23 +4,22 @@
 // setting they wait until the run finishes.
 
 import { EventEmitter } from 'node:events';
-import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
+import { bad, MODES, newId } from './util.js';
 
 const MAX_ACTIVITY = 400;
-const MODES = new Set(['plan', 'edits', 'auto']);
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
 const BACKGROUND_MAX_MS = 60 * 60_000; // how long a turn may wait on its background tasks
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
 // The delegate tool lives on the same injected server, so harnesses name it like ask_user.
 const delegateTool = (askTool) => askTool && askTool.replace(/ask_user$/, 'delegate');
 
-export const newId = () => randomUUID().replace(/-/g, '').slice(0, 12);
+export { newId };
 
 // Where the agent actually works: its own worktree when it has one, else the project folder.
 export const workdir = (s) => s.worktree?.cwd || s.cwd;
@@ -234,9 +233,9 @@ export class Runner extends EventEmitter {
   // created on first use and resumed after that. Returns one record (or { error }) per task.
   delegate(lead, tasks) {
     const turn = lead.turns.at(-1);
-    if (turn?.status !== 'running') throw Object.assign(new Error('The lead agent is not running.'), { status: 409 });
+    if (turn?.status !== 'running') throw bad('The lead agent is not running.', 409);
     const team = lead.subagents || [];
-    if (!team.length) throw Object.assign(new Error('This session has no subagents. The user can add them when launching.'), { status: 400 });
+    if (!team.length) throw bad('This session has no subagents. The user can add them when launching.');
     const out = [];
     const claimed = new Set(); // copies handed a task in this call
     const busy = (name) => claimed.has(name) || this.live.has(lead.children?.[name]);

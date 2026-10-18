@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { VERSION } from './util.js';
 
 // PostHog project API key: write-only, safe to ship in the client.
 const KEY = process.env.WISP_POSTHOG_KEY ?? 'phc_wowwZkbP8e4zYuwT67JtX6oxdPwkMWL5kKnrUmYYXhcD';
@@ -23,7 +24,6 @@ const FLUSH_MS = 15_000;
 const MAX_QUEUE = 50;
 const TIMEOUT_MS = 3000;
 
-const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const truthy = (v) => !!v && !/^(0|false|no|off)$/i.test(v);
 
 const falsy = (v) => /^(0|false|no|off)$/i.test(v || '');

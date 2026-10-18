@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from './adapters/index.js';
 import { heroOf } from './protocol.js';
+import { clip } from './util.js';
 
 export const KINDS = ['preferences', 'lessons'];
 export const MAX_ITEMS = 10; // per list
@@ -23,10 +24,6 @@ const MAX_HISTORY = 30; // retro runs kept for Settings, newest last
 const RETRO_TIMEOUT_MS = 3 * 60_000;
 const IDLE_MS = Number(process.env.WISP_RETRO_IDLE_MS ?? 90_000); // quiet time before a retro runs
 
-const clip = (s, n) => {
-  s = String(s ?? '').replace(/\s+/g, ' ').trim();
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
-};
 const emptyScope = () => ({ preferences: [], lessons: [], updatedAt: 0 });
 
 // Trim, dedupe (case-insensitively), cap length and count. Newest items win the cap.

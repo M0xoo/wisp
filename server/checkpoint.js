@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { killTree } from './proc.js';
 import { MAX_SNAPSHOT, rel } from './adapters/common.js';
+import { bad } from './util.js';
 
 const MAX_EXEC_OUTPUT = 32 * 1024;
 const EXEC_TIMEOUT_MS = 60_000;
@@ -100,12 +101,12 @@ function writeDiskSnapshot(abs, content) {
 
 function resolveInsideCwd(cwd, file) {
   if (!file || typeof file !== 'string') {
-    throw Object.assign(new Error('file path required'), { status: 400 });
+    throw bad('file path required');
   }
   const abs = path.resolve(cwd, file);
   const relPath = path.relative(cwd, abs);
   if (!relPath || relPath.startsWith('..') || path.isAbsolute(relPath)) {
-    throw Object.assign(new Error(`File lies outside the project folder: ${file}`), { status: 400 });
+    throw bad(`File lies outside the project folder: ${file}`);
   }
   return { abs, relPath: rel(file, cwd) || relPath };
 }
@@ -128,7 +129,7 @@ export function revertFileChange(session, turn, file, { restore = false } = {}) 
   const entry = findChangeEntry(turn, file, cwd);
   const commit = turn.checkpoint?.commit;
   if (!entry && !commit) {
-    throw Object.assign(new Error(`No captured changes or checkpoint for ${relPath}`), { status: 404 });
+    throw bad(`No captured changes or checkpoint for ${relPath}`, 404);
   }
 
   if (restore) {
@@ -145,7 +146,7 @@ export function revertFileChange(session, turn, file, { restore = false } = {}) 
         writeDiskSnapshot(abs, cur);
       }
     } else {
-      throw Object.assign(new Error(`Nothing to re-apply for ${relPath}`), { status: 400 });
+      throw bad(`Nothing to re-apply for ${relPath}`);
     }
     if (entry) entry.reverted = false;
     if (turn.changes?.every((c) => !c.reverted)) delete turn.rolledBackAt;
@@ -200,7 +201,7 @@ function reverseEditsOnDisk(abs, entry) {
 export function rollbackToTurn(session, turn, { restore = false } = {}) {
   const cwd = sessionDir(session);
   const idx = session.turns.indexOf(turn);
-  if (idx < 0) throw Object.assign(new Error('No such turn'), { status: 404 });
+  if (idx < 0) throw bad('No such turn', 404);
   const affected = session.turns.slice(idx);
   const touchedFiles = [...new Set(affected.flatMap((t) => (t.changes || []).map((c) => c.file)))];
 
@@ -300,7 +301,7 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
 // Run a shell command from an actionable presentation block inside `cwd`.
 export function execCommand(cwd, command, { timeoutMs = EXEC_TIMEOUT_MS } = {}) {
   const cmd = String(command || '').trim();
-  if (!cmd) return Promise.reject(Object.assign(new Error('command required'), { status: 400 }));
+  if (!cmd) return Promise.reject(bad('command required'));
   const t0 = Date.now();
 
   return new Promise((resolve) => {

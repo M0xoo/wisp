@@ -5,10 +5,9 @@
 //   claude mcp add wisp -- npx -y wisp-agents mcp
 
 import readline from 'node:readline';
-import fs from 'node:fs';
 import { WispClient } from './client.js';
+import { VERSION } from './util.js';
 
-const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const AGENTS = ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'];
 const DEFAULT_WAIT_S = 240; // stay under typical MCP client tool-call timeouts; call wisp_wait again for more
 

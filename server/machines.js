@@ -21,8 +21,9 @@ import readline from 'node:readline';
 import { randomBytes } from 'node:crypto';
 import { spawn, execFile, killTree } from './proc.js';
 import { newer } from './update.js';
+import { bad, DEFAULT_PORT, shq } from './util.js';
 
-export const DEFAULT_PORT = 4477;
+export { DEFAULT_PORT };
 const READY_TIMEOUT_MS = 6 * 60_000; // the first `npx` download can take a while
 const RETRY_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 const LIST_TIMEOUT_MS = 5_000;
@@ -36,8 +37,7 @@ export const STEPS = [
 ];
 
 const sshBin = () => process.env.WISP_SSH || 'ssh';
-export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
+export { shq };
 
 // Session ids: <remote id>@<machine id> here. Local ids never contain '@'.
 export const qualify = (id, mid) => (id ? `${id}@${mid}` : id);
@@ -572,7 +572,7 @@ export class Machines extends EventEmitter {
   #request(m, c, method, p, { body, headers = {}, timeout = 120_000 } = {}) {
     return new Promise((resolve, reject) => {
       const req = http.request({ host: '127.0.0.1', port: c.localPort, path: `/api${p}`, method, headers: { ...headers, host: `127.0.0.1:${m.port}` }, timeout }, resolve);
-      req.on('timeout', () => req.destroy(Object.assign(new Error(`${m.name} didn’t answer in time.`), { status: 504 })));
+      req.on('timeout', () => req.destroy(bad(`${m.name} didn’t answer in time.`, 504)));
       req.on('error', (err) => reject(Object.assign(err, { status: err.status || 502 })));
       if (body && typeof body.pipe === 'function') body.pipe(req);
       else req.end(body);
