@@ -1069,7 +1069,7 @@ function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
       if (del) {
         ev.stopPropagation();
         const t = teams.find((x) => x.id === del.dataset.del);
-        await api(`/teams/${t.id}`, { method: 'DELETE' }).catch(toastError);
+        if (!(await tryApi(() => api(`/teams/${t.id}`, { method: 'DELETE' })))) return close();
         S.config.teams = (S.config.teams || []).filter((x) => x.id !== t.id);
         if (preset === t.id) (preset = ''), commit();
         close();
@@ -2633,9 +2633,11 @@ function moreMenu(id, anchor) {
     close();
     if (a === 'rename') rename(id);
     if (a === 'copy') {
-      const { command } = await api(`/sessions/${id}/takeover`);
-      copy(command);
-      toast('Copied resume command');
+      await tryApi(async () => {
+        const { command } = await api(`/sessions/${id}/takeover`);
+        copy(command);
+        toast('Copied resume command');
+      });
     }
     if (a === 'folder') openInEditor(s, '.');
     if (a === 'rollback') rollbackTurn(id, lastTurn?.id, rolledBack);
@@ -2985,16 +2987,27 @@ async function openProjects({ focusAdd = false, machine = null, host } = {}) {
     $$('.prow', box).forEach((row) => {
       const id = row.dataset.id;
       const p = projectById(id);
-      $('.pname', row).onchange = (e) => api(`/projects/${id}`, { method: 'PATCH', body: { name: e.target.value } }).then(loadConfig);
+      $('.pname', row).onchange = (e) => {
+        tryApi(async () => {
+          await api(`/projects/${id}`, { method: 'PATCH', body: { name: e.target.value } });
+          await loadConfig();
+        });
+      };
       $('.swatch', row).onclick = () => {
         const color = COLORS[(COLORS.indexOf(p.color) + 1) % COLORS.length];
-        api(`/projects/${id}`, { method: 'PATCH', body: { color } }).then(async () => (await loadConfig(), list()));
+        tryApi(async () => {
+          await api(`/projects/${id}`, { method: 'PATCH', body: { color } });
+          await loadConfig();
+          list();
+        });
       };
       $('.premove', row).onclick = async () => {
         if (!confirm(`Remove “${p.name}” from wisp? Sessions and files are kept.`)) return;
-        await api(`/projects/${id}`, { method: 'DELETE' });
-        await loadConfig();
-        list();
+        await tryApi(async () => {
+          await api(`/projects/${id}`, { method: 'DELETE' });
+          await loadConfig();
+          list();
+        });
       };
     });
   };
@@ -3457,13 +3470,13 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
       if (act === 'edit') return (editing = { type: 'recipe', draft: { ...r } }), render();
       if (act === 'run') return close(), runRecipe(r);
       if (act === 'schedule') return (tab = 'triggers'), (editing = { type: 'trigger', draft: { kind: 'schedule', name: r.name, recipeId: r.id, cwd: r.cwd || projectById(launch.project)?.path, mode: r.mode || undefined } }), render();
-      if (act === 'delete' && confirm(`Delete the recipe “${r.name}”?`)) return api(`/recipes/${r.id}`, { method: 'DELETE' }).then(render);
+      if (act === 'delete' && confirm(`Delete the recipe “${r.name}”?`)) return api(`/recipes/${r.id}`, { method: 'DELETE' }).then(render).catch(toastError);
     } else {
       const tr = triggers.find((x) => x.id === itemId);
       if (act === 'new') return (editing = { type: 'trigger', draft: {} }), render();
       if (act === 'edit') return (editing = { type: 'trigger', draft: { ...tr } }), render();
       if (act === 'toggle') return api(`/triggers/${tr.id}`, { method: 'PATCH', body: { enabled: !tr.enabled } }).then(render).catch(toastError);
-      if (act === 'delete' && confirm(`Delete the trigger “${tr.name}”?`)) return api(`/triggers/${tr.id}`, { method: 'DELETE' }).then(render);
+      if (act === 'delete' && confirm(`Delete the trigger “${tr.name}”?`)) return api(`/triggers/${tr.id}`, { method: 'DELETE' }).then(render).catch(toastError);
       if (act === 'fire') {
         t.disabled = true;
         try {
@@ -4236,8 +4249,10 @@ function openSettings(opts) {
     const { name, value } = e.target;
     if (!name || e.target.closest('.embedded')) return; // a nested view's own form
     if (name === 'terminal') $('.custom-term', node).hidden = value !== 'custom';
-    await api('/config', { method: 'PATCH', body: { defaults: { [name]: value } } });
-    await loadConfig();
+    await tryApi(async () => {
+      await api('/config', { method: 'PATCH', body: { defaults: { [name]: value } } });
+      await loadConfig();
+    });
   });
   // The switch shows wisp's own on/off preference; the browser permission can only be
   // granted from here, never revoked, so it surfaces as a hint when it blocks the switch.
@@ -4253,8 +4268,10 @@ function openSettings(opts) {
   sw.onclick = async () => {
     let want = !notifyOn();
     if (want && Notification.permission !== 'granted') want = (await Notification.requestPermission()) === 'granted';
-    await api('/config', { method: 'PATCH', body: { defaults: { notify: want ? 'on' : 'off' } } });
-    await loadConfig();
+    await tryApi(async () => {
+      await api('/config', { method: 'PATCH', body: { defaults: { notify: want ? 'on' : 'off' } } });
+      await loadConfig();
+    });
     paint();
   };
   paint();
@@ -4267,8 +4284,10 @@ function openSettings(opts) {
     $('.tele-hint', node).textContent = !t.available ? 'Off (DO_NOT_TRACK, WISP_TELEMETRY=0 or CI)' : 'No prompts, paths or code';
   };
   tele.onclick = async () => {
-    await api('/config', { method: 'PATCH', body: { defaults: { telemetry: S.config.telemetry?.enabled ? 'off' : 'on' } } });
-    await loadConfig();
+    await tryApi(async () => {
+      await api('/config', { method: 'PATCH', body: { defaults: { telemetry: S.config.telemetry?.enabled ? 'off' : 'on' } } });
+      await loadConfig();
+    });
     paintTele();
   };
   paintTele();
@@ -4279,7 +4298,7 @@ function openSettings(opts) {
     $('.learn-hint', node).textContent = memorySummary(await api('/preferences').catch(() => null));
   };
   learn.onclick = async () => {
-    await setLearning(S.config.defaults.learn === 'off');
+    await tryApi(() => setLearning(S.config.defaults.learn === 'off'));
     paintLearn();
   };
   bus.on('preferences', paintLearn, { node });
@@ -4287,8 +4306,12 @@ function openSettings(opts) {
   const wt = $('#wtDefault', node);
   const paintWt = () => wt.setAttribute('aria-checked', S.config.defaults.worktree !== 'off');
   wt.onclick = async () => {
-    await api('/config', { method: 'PATCH', body: { defaults: { worktree: S.config.defaults.worktree === 'off' ? 'on' : 'off' } } });
-    await loadConfig();
+    const saved = await tryApi(async () => {
+      await api('/config', { method: 'PATCH', body: { defaults: { worktree: S.config.defaults.worktree === 'off' ? 'on' : 'off' } } });
+      await loadConfig();
+      return true;
+    });
+    if (!saved) return;
     paintWt();
     renderLauncher();
   };
@@ -4536,7 +4559,7 @@ function openMemory({ tab = 'global', host } = {}) {
     if (t.dataset.tab) return (tab = t.dataset.tab), (editing = null), render();
     if (t.dataset.session) return close(), reveal(t.dataset.session);
     const act = t.dataset.act;
-    if (act === 'on') return setLearning(true).then(render);
+    if (act === 'on') return tryApi(() => setLearning(true)).then(render);
     const sec = t.closest('.mem-sec');
     const { scope, kind } = sec.dataset;
     const index = Number(t.closest('.mem-item')?.dataset.i ?? -1);
@@ -4552,7 +4575,10 @@ function openMemory({ tab = 'global', host } = {}) {
     if (e.key === 'Escape') e.preventDefault(), e.stopPropagation(), (editing = null), render();
   });
   node.addEventListener('focusout', (e) => e.target.matches('.mem-edit input') && editing && commit(e.target));
-  $('#memOn', node).onclick = async () => (await setLearning(!data?.enabled), render());
+  $('#memOn', node).onclick = async () => {
+    await tryApi(() => setLearning(!data?.enabled));
+    render();
+  };
   bus.on('preferences', () => !editing && render(), { node });
   render();
 }
