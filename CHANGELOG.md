@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-18
+
 ### Changed
 
 - **Calmer turn bar.** The bar under each turn now fits on one line: the read / edited / ran / searched counts open the activity log themselves (no separate **Activity** link), and **Restore to before this turn** and **Agent notes** are icon buttons next to 👍 / 👎 that stay faint until you hover the turn. After a restore, **Re-apply** shows as text so the rolled-back state stays visible.
@@ -260,7 +262,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/M0xoo/wisp/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/M0xoo/wisp/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/M0xoo/wisp/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/M0xoo/wisp/compare/v0.11.0...v0.12.0
