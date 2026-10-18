@@ -4,26 +4,37 @@
 //   ntfy      notification with up to 3 buttons. A tap makes the ntfy app POST a signed answer to
 //             <topic>-reply, which wisp polls. No free text (ntfy has no reply box).
 //   Telegram  a bot message with buttons; reply to the message to answer in your own words or
-//             send a follow-up. Linked to one chat with a one-time code.
+//             send a follow-up. Linked to one chat with a one-time code. With allowStart on,
+//             /new [@project] <task> starts a task and /projects lists where it can run.
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 const KIND = { a: 'answer', r: 'reply', d: 'done' };
 const CODE = { answer: 'a', reply: 'r', done: 'd' };
 const MAX_TG_IDS = 20;
+const STALE_S = 10 * 60;
 const sleep = (ms, signal) => new Promise((r) => (signal?.aborted ? r() : (setTimeout(r, ms).unref?.(), signal?.addEventListener('abort', r, { once: true }))));
 const clip = (s, n) => (String(s || '').length > n ? `${String(s).slice(0, n - 1)}…` : String(s || ''));
+// /new @name: exact name, then name prefix, then anywhere in the name or path.
+export function findProject(projects, q) {
+  const n = String(q || '').toLowerCase();
+  if (!n) return null;
+  const name = (p) => String(p.name || '').toLowerCase();
+  return projects.find((p) => name(p) === n) || projects.find((p) => name(p).startsWith(n)) || projects.find((p) => name(p).includes(n) || String(p.path || '').toLowerCase().includes(n)) || null;
+}
 export const mask = (t) => (t ? `••••${String(t).slice(-4)}` : '');
 
 export class Remote {
   // act({ sessionId, kind: answer|reply|done|text, ref, index, text }) → a short result line.
-  constructor({ store, act, onChange = () => {} }) {
-    Object.assign(this, { store, act, onChange });
+  // launch({ project, prompt }) → the new session's summary (a task started with /new).
+  constructor({ store, act, launch = async () => null, onChange = () => {} }) {
+    Object.assign(this, { store, act, launch, onChange });
     this.status = { ntfy: null, telegram: null };
     this.tgElsewhere = new Map(); // Telegram message id -> session id, for sessions on a machine (server/machines.js)
     this.ac = null;
     this.ntfyPollMs = 4000;
     this.tgLongPoll = 25;
+    this.tgOffset = 0;
   }
 
   get cfg() {
@@ -189,23 +200,19 @@ export class Remote {
       text: clip(`${msg.title}\n\n${msg.text}${s ? '\n\n↩ Reply to this message to answer or follow up.' : ''}`, 4000),
       ...(buttons.length && { reply_markup: { inline_keyboard: buttons } }),
     });
-    if (s && sent?.message_id && this.store.get(s.id) === s) {
-      s.remote = { ...s.remote, tg: [...(s.remote?.tg || []), sent.message_id].slice(-MAX_TG_IDS) };
-      this.store.save(s);
-    } else if (s && sent?.message_id) {
-      this.tgElsewhere.set(sent.message_id, s.id);
-      if (this.tgElsewhere.size > 200) this.tgElsewhere.delete(this.tgElsewhere.keys().next().value);
-    }
+    if (s && sent?.message_id) this.#tgLink(s.id, sent.message_id);
   }
 
+  // The offset outlives restarts (every settings change restarts the loop), or Telegram would
+  // hand back updates already handled and a /new would start its task twice.
   async #tgLoop(signal) {
-    let offset = 0;
     while (!signal.aborted) {
       try {
-        const updates = await this.#tg('getUpdates', { offset, timeout: this.tgLongPoll, allowed_updates: ['message', 'callback_query'] }, signal);
+        const updates = await this.#tg('getUpdates', { offset: this.tgOffset, timeout: this.tgLongPoll, allowed_updates: ['message', 'callback_query'] }, signal);
         if (this.status.telegram?.error) this.#mark('telegram', { ok: true, error: '' });
         for (const u of updates) {
-          offset = u.update_id + 1;
+          if (u.update_id < this.tgOffset) continue;
+          this.tgOffset = u.update_id + 1;
           await this.#fromTelegram(u).catch((err) => console.warn(`wisp: telegram: ${err.message}`));
         }
       } catch (err) {
@@ -241,10 +248,71 @@ export class Remote {
       return;
     }
     if (String(m.chat.id) !== String(t.chatId)) return;
+    const cmd = m.text.match(/^\/(\w+)(?:@\w+)?\s*([\s\S]*)$/);
+    if (cmd && ['new', 'projects', 'help', 'start'].includes(cmd[1].toLowerCase())) return this.#tgCommand(cmd[1].toLowerCase(), cmd[2].trim(), m, say);
     const replyTo = m.reply_to_message?.message_id;
     const sessionId = replyTo && (this.store.all().find((x) => x.remote?.tg?.includes(replyTo))?.id || this.tgElsewhere.get(replyTo));
-    if (!sessionId) return say('Reply to one of wisp’s messages to answer it or send a follow-up.');
+    if (!sessionId) return say(t.allowStart ? 'Reply to one of wisp’s messages to answer it or follow up, or send /new <task> to start one.' : 'Reply to one of wisp’s messages to answer it or send a follow-up.');
     await say(await this.act({ sessionId, kind: 'text', text: m.text }), { reply_to_message_id: m.message_id });
+  }
+
+  async #tgCommand(name, arg, m, say) {
+    const t = this.cfg.telegram;
+    const off = 'Starting tasks from Telegram is off. Turn it on in wisp → Phone → Telegram.';
+    const projects = this.store.config.projects;
+    if (name === 'help' || name === 'start')
+      return say(
+        t.allowStart
+          ? 'Send /new <task> to start a task in your default project, or /new @project <task> to pick one (/projects lists them). Reply to wisp’s messages to answer or follow up.'
+          : `Reply to wisp’s messages to answer or follow up. ${off}`,
+      );
+    if (!t.allowStart) return say(off);
+    // Telegram keeps updates for a day: don't start what was sent while wisp was off.
+    if (name === 'new' && m.date && Date.now() / 1000 - m.date > STALE_S) return say('That /new arrived while wisp was offline, so it didn’t start. Send it again to run it now.', { reply_to_message_id: m.message_id });
+    if (name === 'projects') {
+      if (!projects.length) return say('No projects yet. Open a folder in wisp first.');
+      const def = this.defaultProject();
+      const where = (id) => (this.store.config.machines || []).find((x) => x.id === id)?.name || id;
+      const lines = projects.map((p) => `• ${p.name}${p.machine ? ` (on ${where(p.machine)})` : ''}${p === def ? '  ← default' : ''}`);
+      return say(clip(`Projects:\n${lines.join('\n')}\n\n/new @name <task> runs in one of them.`, 4000));
+    }
+    let prompt = arg;
+    let project = this.defaultProject();
+    const at = arg.match(/^@(\S+)\s*([\s\S]*)$/);
+    if (at) {
+      project = findProject(projects, at[1]);
+      if (!project) return say(`No project matches “${clip(at[1], 60)}”. Send /projects to see them.`);
+      prompt = at[2].trim();
+    }
+    if (!prompt) return say('What should it do? Send /new <task>, or /new @project <task>.');
+    if (!project) return say('No projects yet. Open a folder in wisp first.');
+    let s;
+    try {
+      s = await this.launch({ project, prompt });
+    } catch (err) {
+      return say(`Couldn’t start it: ${clip(err.message, 300)}`, { reply_to_message_id: m.message_id });
+    }
+    const sent = await say(clip(`▶ Started in ${project.name}: ${s?.title || prompt}\n\nwisp will message you when it needs you or is done. Reply to this message to follow up.`, 4000), { reply_to_message_id: m.message_id });
+    if (s?.id && sent?.message_id) this.#tgLink(s.id, sent.message_id);
+  }
+
+  // The project /new uses without an @name: the one picked in settings, else the last used.
+  defaultProject() {
+    const projects = this.store.config.projects;
+    const id = this.cfg.telegram?.project;
+    return (id && projects.find((p) => p.id === id)) || [...projects].sort((a, b) => (b.lastUsedAt || b.addedAt || 0) - (a.lastUsedAt || a.addedAt || 0))[0] || null;
+  }
+
+  // Replies to a Telegram message reach the session it belongs to.
+  #tgLink(sessionId, messageId) {
+    const s = this.store.get(sessionId);
+    if (s) {
+      s.remote = { ...s.remote, tg: [...(s.remote?.tg || []), messageId].slice(-MAX_TG_IDS) };
+      this.store.save(s);
+      return;
+    }
+    this.tgElsewhere.set(messageId, sessionId);
+    if (this.tgElsewhere.size > 200) this.tgElsewhere.delete(this.tgElsewhere.keys().next().value);
   }
 
   // For the settings view: config with secrets masked, plus channel health.
@@ -253,7 +321,15 @@ export class Remote {
     return {
       events: c.events || ['waiting', 'finished'],
       ntfy: { enabled: !!c.ntfy?.enabled, server: c.ntfy?.server || 'https://ntfy.sh', topic: c.ntfy?.topic || '', token: mask(c.ntfy?.token) },
-      telegram: { enabled: !!c.telegram?.enabled, token: mask(c.telegram?.token), linked: !!c.telegram?.chatId, chatName: c.telegram?.chatName || '', linkCode: c.telegram?.chatId ? '' : c.telegram?.linkCode || '' },
+      telegram: {
+        enabled: !!c.telegram?.enabled,
+        token: mask(c.telegram?.token),
+        linked: !!c.telegram?.chatId,
+        chatName: c.telegram?.chatName || '',
+        linkCode: c.telegram?.chatId ? '' : c.telegram?.linkCode || '',
+        allowStart: !!c.telegram?.allowStart,
+        project: c.telegram?.project || '',
+      },
       status: this.status,
     };
   }
@@ -272,9 +348,19 @@ export class Remote {
     }
     if (body.telegram) {
       const prev = c.telegram || {};
-      const token = keep(body.telegram.token, prev.token) || '';
+      const token = (body.telegram.token === undefined ? prev.token : keep(body.telegram.token, prev.token)) || ''; // missing = unchanged
       const relink = body.telegram.unlink || token !== prev.token;
-      c.telegram = { ...prev, enabled: !!(body.telegram.enabled ?? prev.enabled), token, ...(relink && { chatId: null, chatName: '', linkCode: token ? String(randomInt(100000, 999999)) : '' }) };
+      if (token !== prev.token) this.tgOffset = 0; // another bot, another update counter
+      const project = body.telegram.project ?? prev.project ?? '';
+      if (project && !this.store.config.projects.some((p) => p.id === project)) throw Object.assign(new Error('Unknown project'), { status: 400 });
+      c.telegram = {
+        ...prev,
+        enabled: !!(body.telegram.enabled ?? prev.enabled),
+        token,
+        allowStart: !!(body.telegram.allowStart ?? prev.allowStart),
+        project,
+        ...(relink && { chatId: null, chatName: '', linkCode: token ? String(randomInt(100000, 999999)) : '' }),
+      };
     }
     this.store.saveConfig();
     this.start();

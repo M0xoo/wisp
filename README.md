@@ -55,7 +55,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
 | 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.12.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
-| 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there. |
+| 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there, or start a task with `/new`. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
 | 🔌 **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
 | 🪶 **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
@@ -327,6 +327,7 @@ Settings → *Phone* sends questions and finished tasks to your phone and takes 
 
 - **[ntfy](https://ntfy.sh)**: subscribe to the topic in the ntfy app. Notifications carry up to three buttons (the question's options, or *Mark done*); a tap sends a signed answer back. Use a long random topic (wisp suggests one): anyone who knows it can read the notifications, but only wisp can make answers that count.
 - **Telegram**: create a bot with @BotFather, paste its token, then send `/link <code>` to the bot. Tap a button to answer, or reply to a message to answer in your own words or send a follow-up.
+  Switch on **Start tasks from Telegram** to launch from the chat: `/new <task>` runs in the default project (the last used, or the one you pick), `/new @project <task>` picks one by name and `/projects` lists them. Tasks use the launcher's harness, model and mode. It's off by default, and only the linked chat can start tasks.
 
 They receive titles, summaries and questions (with their context), never code or diffs.
 

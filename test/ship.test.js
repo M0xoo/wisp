@@ -339,7 +339,7 @@ test('usage: spend, outcomes and questions per day, project and harness', () => 
   assert.deepEqual(u.runners.map((r) => [r.agent, r.model, r.successRate]), [['claude', 'opus', 0.5], ['codex', '', 0.5]]);
 });
 
-test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are ignored', async () => {
+test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are ignored; /new starts tasks', async () => {
   // One fake server plays both ntfy (publish + poll) and the Telegram Bot API.
   const ntfy = { published: [], replies: [] };
   const tg = { sent: [], updates: [], next: 1, msg: 100, calls: [] };
@@ -427,6 +427,61 @@ test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are
     tgUpdate({ callback_query: { id: 'cb1', data: last.reply_markup.inline_keyboard[0][0].callback_data, message: { message_id: tg.msg, chat: { id: 42 } } } });
     await until(async () => (await session(s.id)).state === 'done');
     assert.ok(tg.calls.includes('answerCallbackQuery'));
+
+    // Starting tasks: off by default, so /new is refused and nothing launches.
+    assert.equal(view.telegram.allowStart, false);
+    const count = (await api('/sessions')).length;
+    tgUpdate({ message: { message_id: 10, chat: { id: 42 }, text: '/new add a README' } });
+    await until(() => tg.sent.find((m) => /Starting tasks from Telegram is off/.test(m.text)));
+    assert.equal((await api('/sessions')).length, count);
+
+    // Switched on: /projects lists them, /new @name picks one, plain /new uses the default.
+    const other = makeRepo();
+    await api('/projects', { body: { path: other } });
+    const projects = (await api('/config')).projects;
+    const otherP = projects.find((p) => p.path === other);
+    view = await api('/remote', { method: 'PUT', body: { telegram: { allowStart: true } } });
+    assert.equal(view.telegram.allowStart, true);
+    assert.equal(view.telegram.linked, true, 'switching it on keeps the chat linked');
+    await assert.rejects(api('/remote', { method: 'PUT', body: { telegram: { project: 'nope' } } }), /Unknown project/);
+
+    tgUpdate({ message: { message_id: 11, chat: { id: 42 }, text: '/projects' } });
+    const list = await until(() => tg.sent.find((m) => m.text.startsWith('Projects:')));
+    assert.match(list.text, new RegExp(`• ${otherP.name}`));
+
+    tgUpdate({ message: { message_id: 12, chat: { id: 42 }, text: '/new@wispbot @nosuchproject do it' } });
+    await until(() => tg.sent.find((m) => /No project matches “nosuchproject”/.test(m.text)));
+    tgUpdate({ message: { message_id: 13, chat: { id: 666 }, text: '/new from a stranger' } });
+    tgUpdate({ message: { message_id: 17, chat: { id: 42 }, date: Math.floor(Date.now() / 1000) - 3600, text: '/new sent while offline' } });
+    await until(() => tg.sent.find((m) => m.reply_to_message_id === 17 && /arrived while wisp was offline/.test(m.text)));
+
+    tgUpdate({ message: { message_id: 14, chat: { id: 42 }, text: `/new @${otherP.name.toUpperCase()} write the docs` } });
+    const started = await until(() => tg.sent.find((m) => m.text.startsWith(`▶ Started in ${otherP.name}`)));
+    assert.equal(started.reply_to_message_id, 14);
+    const startedId = tg.msg;
+    const byPrompt = async (text) => {
+      for (const x of await api('/sessions')) if ((await session(x.id)).turns[0]?.prompt === text) return x;
+      return null;
+    };
+    const t1 = await until(() => byPrompt('write the docs'));
+    assert.equal(t1.projectId, otherP.id);
+    assert.deepEqual(t1.origin, { kind: 'telegram', name: 'Telegram' });
+    await settled(t1.id);
+    // Replying to the Started message follows up on that task.
+    tgUpdate({ message: { message_id: 15, chat: { id: 42 }, text: 'and a changelog', reply_to_message: { message_id: startedId } } });
+    await until(async () => (await session(t1.id)).turns.length === 2);
+    await settled(t1.id);
+
+    // The default project from settings, for /new without @.
+    await api('/remote', { method: 'PUT', body: { telegram: { project: otherP.id } } });
+    tgUpdate({ message: { message_id: 16, chat: { id: 42 }, text: '/new tidy up' } });
+    const t2 = await until(() => byPrompt('tidy up'));
+    assert.equal(t2.projectId, otherP.id);
+    await settled(t2.id);
+    assert.equal(await byPrompt('from a stranger'), null);
+    assert.equal(await byPrompt('sent while offline'), null);
+    // Settings changes restart the poll; updates already handled don't run again.
+    assert.equal((await api('/sessions')).length, count + 2);
   } finally {
     await api('/remote', { method: 'PUT', body: { ntfy: { enabled: false }, telegram: { enabled: false } } });
     delete process.env.WISP_TELEGRAM_API;
