@@ -9,6 +9,8 @@
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
+//   FAKE_ORPHANS=1  claude: on --resume, first answer the last run's stopped background tasks with
+//                an empty zero-turn result, as the real CLI does
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 
@@ -163,6 +165,11 @@ const ask = async () => {
 };
 
 if (name === 'claude') {
+  if (process.env.FAKE_ORPHANS && resumeId) {
+    out({ type: 'system', subtype: 'task_notification', session_id: session });
+    out({ type: 'system', subtype: 'init', session_id: session });
+    out({ type: 'result', subtype: 'success', is_error: false, result: '', session_id: session, duration_ms: 74, num_turns: 0, total_cost_usd: 0.01 });
+  }
   out({ type: 'system', subtype: 'init', session_id: session });
   out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: target } }] } });
   if (process.env.FAKE_HANG) hang();
