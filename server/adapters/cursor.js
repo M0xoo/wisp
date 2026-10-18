@@ -3,7 +3,7 @@
 // cursor-agent has no flag to inject an MCP server (it only reads .cursor/mcp.json), so wisp's
 // ask_user tool isn't available here; the protocol tells the agent to end with a question block.
 
-import { attachmentNote, clip, detectVersion, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 
 const BIN = process.env.WISP_CURSOR_BIN || 'cursor-agent';
 
@@ -91,7 +91,7 @@ export default {
       },
       onClose({ code, signal, stderr, stopped }) {
         if (sawResult) return;
-        onEvent({ type: 'result', isError: true, stopped, text: stderr || `cursor-agent exited with ${signal || `code ${code}`}` });
+        onEvent({ type: 'result', isError: true, stopped, text: stderr || exitText('cursor-agent', code, signal) });
       },
     });
   },

@@ -31,7 +31,22 @@ import cursor from './cursor.js';
 import antigravity from './antigravity.js';
 import grok from './grok.js';
 
-export const adapters = Object.fromEntries([claude, codex, opencode, cursor, antigravity, grok].map((a) => [a.id, a]));
+// The shape above, checked when wisp starts: a missing piece fails loudly here, not mid-run.
+function checked(a) {
+  const missing = [
+    typeof a.id !== 'string' && 'id',
+    typeof a.name !== 'string' && 'name',
+    !Array.isArray(a.models) && 'models',
+    a.askTool !== null && a.askTool !== undefined && typeof a.askTool !== 'string' && 'askTool',
+    typeof a.detect !== 'function' && 'detect()',
+    typeof a.run !== 'function' && 'run()',
+    a.resumeCommand !== undefined && typeof a.resumeCommand !== 'function' && 'resumeCommand()',
+  ].filter(Boolean);
+  if (missing.length) throw new Error(`adapter ${a.id || '?'}: missing or wrong ${missing.join(', ')}`);
+  return a;
+}
+
+export const adapters = Object.fromEntries([claude, codex, opencode, cursor, antigravity, grok].map((a) => [a.id, checked(a)]));
 
 const detected = new Map();
 

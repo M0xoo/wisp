@@ -7,7 +7,7 @@
 // first message.
 
 import path from 'node:path';
-import { attachmentNote, clip, detectVersion, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 
 const BIN = process.env.WISP_ANTIGRAVITY_BIN || 'agy';
 
@@ -125,7 +125,7 @@ export default {
       },
       onClose({ code, signal, stderr, stopped }) {
         if (sawResult) return;
-        onEvent({ type: 'result', isError: true, stopped, text: stderr || `agy exited with ${signal || `code ${code}`}` });
+        onEvent({ type: 'result', isError: true, stopped, text: stderr || exitText('agy', code, signal) });
       },
     });
   },

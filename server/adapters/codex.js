@@ -1,7 +1,7 @@
 // Codex CLI adapter — drives `codex exec --json` (JSONL thread/turn/item events).
 
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, fileTracker, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, rel, spawnJsonl, withProtocol } from './common.js';
 
 const BIN = process.env.WISP_CODEX_BIN || 'codex';
 const IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
@@ -157,7 +157,7 @@ export default {
           type: 'result',
           isError: !ok,
           stopped,
-          text: ok ? lastMessage : failure || lastError || stderr || `codex exited with ${signal || `code ${code}`}`,
+          text: ok ? lastMessage : failure || lastError || stderr || exitText('codex', code, signal),
           stats: {
             durationMs: Date.now() - started,
             inputTokens: usage?.input_tokens,
