@@ -1,715 +1,516 @@
-// wisp — landing page interactions. No dependencies.
-(() => {
-  const $ = (s, r = document) => r.querySelector(s);
-  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// wisp site: the morning story, the transcript/report switch, the terminal, and small things.
 
-  // ───────── count-up ─────────
-  function countUp(el, dur = 1400) {
-    const to = parseFloat(el.dataset.count);
-    const dec = +(el.dataset.dec || 0);
-    const fmt = (v) => v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
-    if (reduced) return (el.textContent = fmt(to));
-    const t0 = performance.now();
-    const tick = (t) => {
-      const p = clamp((t - t0) / dur);
-      el.textContent = fmt(to * (1 - Math.pow(1 - p, 4)));
-      if (p < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const small = () => matchMedia('(max-width: 960px)').matches;
 
-  // ───────── reveal on scroll ─────────
-  const io = new IntersectionObserver((entries) => {
+// ---------- copy buttons ----------
+for (const btn of $$('[data-copy]')) {
+  btn.addEventListener('click', async () => {
+    const label = $('.copy', btn);
+    try {
+      await navigator.clipboard.writeText(btn.dataset.copy);
+      btn.classList.add('copied');
+      if (label) label.textContent = 'Copied';
+      window.posthog?.capture?.('install_copied');
+    } catch {
+      if (label) label.textContent = 'Select';
+    }
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      if (label) label.textContent = 'Copy';
+    }, 1600);
+  });
+}
+
+// ---------- reveal once ----------
+const io = new IntersectionObserver(
+  (entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
       e.target.classList.add('in');
-      $$('[data-count]', e.target).forEach((n) => countUp(n));
       io.unobserve(e.target);
     }
-  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-  // stagger siblings
-  $$('.reveal').forEach((el) => {
-    const sibs = $$(':scope > .reveal', el.parentElement);
-    el.style.setProperty('--d', `${sibs.indexOf(el) * 0.08}s`);
-    io.observe(el);
+  },
+  { rootMargin: '0px 0px -10% 0px' },
+);
+$$('.hero-top > *, .desk, .strip, .m-intro, .r-head, .c-head, .cmp-shot, .sec-head, .tile, .modes, .takeover, .cli-text, .term-win, .more, .install h2, .install .sub, .steps li, .faq, .final h2, .final .cta').forEach((el, i) => {
+  el.classList.add('rise');
+  if (el.closest('.hero')) el.style.transitionDelay = `${i * 80}ms`;
+  if (el.matches('.steps li, .tile')) el.style.transitionDelay = `${[...el.parentElement.children].indexOf(el) * 90}ms`;
+  io.observe(el);
+});
+
+// ---------- hero: a working copy of the launcher ----------
+// It types three tasks and sends them off; their rows move from Working to Asking to Done the
+// way the app's do. Type your own and you get the command that runs it for real.
+const desk = $('#desk');
+if (desk) {
+  const form = $('#launch');
+  const input = $('#task');
+  const hint = $('#hint');
+  const send = $('.l-send', form);
+  const lists = { needs: $('[data-g="needs"] .q-list', desk), working: $('[data-g="working"] .q-list', desk) };
+  const cta = $('#deskCta');
+  const cmd = $('#heroCmd');
+  const LOGO = { claude: 'assets/logos/claudecode-color.svg', codex: 'assets/logos/codex-color.svg' };
+  const PROJ = { 'api-server': 'c-violet', 'web-app': 'c-teal', 'your-repo': 'c-sky' };
+  const wait = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
+  let demo = true; // false once the visitor starts typing
+  let sent = 0;
+  const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  const counts = () => {
+    for (const [g, list] of Object.entries(lists)) $(`[data-g="${g}"] .n`, desk).textContent = list.children.length;
+  };
+  // Move a row between groups without a jump: measure, move, play the difference (FLIP).
+  const move = (row, group, first = true) => {
+    const rows = $$('.q-row', desk);
+    const before = new Map(rows.map((r) => [r, r.getBoundingClientRect().top]));
+    const list = lists[group];
+    first ? list.prepend(row) : list.append(row);
+    counts();
+    if (calm) return;
+    for (const r of rows) {
+      const dy = before.get(r) - r.getBoundingClientRect().top;
+      if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+  };
+
+  const trim = () => {
+    const rows = $$('.q-row', desk);
+    if (rows.length <= 4) return;
+    const old = $$('.q-row[data-s="done"]', desk).at(-1);
+    if (!old) return;
+    old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: calm ? 0 : 250 }).finished.then(() => (old.remove(), counts()));
+  };
+
+  function row({ title, agent, project, mine }) {
+    const el = document.createElement('div');
+    el.className = `q-row new${mine ? ' mine' : ''}`;
+    el.dataset.s = 'working';
+    const logo = agent === 'auto' ? '<span class="q-logo auto">✦</span>' : `<img class="q-logo" src="${LOGO[agent]}" alt="" width="16" height="16" />`;
+    el.innerHTML = `<span class="q-dot"></span><span class="q-main"><span class="q-title">${esc(title)}</span><span class="q-sub">Starting up</span></span>
+      <span class="q-side"><span class="pill working"></span>${logo}<span class="q-proj"><i class="${PROJ[project]}"></i>${project}</span><span class="q-time">now</span></span>`;
+    let min = 0;
+    el._clock = setInterval(() => ($('.q-time', el).textContent = `${++min}m`), 1100);
+    return el;
+  }
+  const status = (el, text) => {
+    const sub = $('.q-sub', el);
+    sub.textContent = text;
+    sub.classList.remove('swap');
+    void sub.offsetWidth;
+    sub.classList.add('swap');
+  };
+  const state = (el, s, pill) => {
+    el.dataset.s = s;
+    const p = $('.pill', el);
+    p.className = `pill ${s}`;
+    p.textContent = pill || '';
+  };
+
+  // Type into the launcher, press send, and fly the words down into a new row.
+  async function launch(text, opts) {
+    if (!demo && !opts.mine) return null;
+    if (!opts.mine) {
+      form.classList.add('typing');
+      for (const ch of text) {
+        if (!demo) return (form.classList.remove('typing'), null);
+        input.value += ch;
+        await wait(28 + Math.random() * 45);
+      }
+      await wait(380);
+      form.classList.remove('typing');
+    }
+    // "off" leaves the headline, once, as the first task is sent.
+    if (!sent++ && !calm) $('h1 .off')?.classList.add('fly');
+    send.classList.add('press');
+    setTimeout(() => send.classList.remove('press'), 140);
+    trim();
+    const el = row({ title: text, ...opts });
+    const from = input.getBoundingClientRect();
+    move(el, 'working');
+    if (!calm) {
+      const to = $('.q-title', el).getBoundingClientRect();
+      const fly = document.createElement('span');
+      fly.className = 'flyer';
+      fly.textContent = text;
+      const pad = parseFloat(getComputedStyle(input).paddingLeft);
+      Object.assign(fly.style, { left: `${from.left + pad}px`, top: `${from.top + parseFloat(getComputedStyle(input).paddingTop)}px` });
+      document.body.append(fly);
+      const scale = 14.5 / parseFloat(getComputedStyle(fly).fontSize);
+      $('.q-title', el).style.opacity = 0;
+      fly.animate(
+        [{ transform: 'none', opacity: 1 }, { transform: `translate(${to.left - from.left - pad}px, ${to.top - from.top - 16}px) scale(${scale})`, opacity: 1, fontWeight: 600 }],
+        { duration: 620, easing: 'cubic-bezier(.5,0,.2,1)' },
+      ).finished.then(() => {
+        fly.remove();
+        $('.q-title', el).style.opacity = '';
+      });
+    }
+    input.value = '';
+    return el;
+  }
+
+  async function script() {
+    await wait(900);
+    const a = await launch('Fix the flaky session-expiry test', { agent: 'claude', project: 'api-server' });
+    if (!a) return;
+    await wait(700);
+    status(a, 'Reading test/auth.test.ts');
+    const b = await launch('Upgrade to Node 22 and fix whatever breaks', { agent: 'codex', project: 'web-app' });
+    if (!b) return;
+    status(a, 'Searching for “Date.now”');
+    await wait(600);
+    status(b, 'Reading package.json');
+    const c = await launch('Migrate billing webhooks to the new Stripe API', { agent: 'claude', project: 'api-server' });
+    if (!c) return;
+    status(a, 'Running npm test -- --repeat 200 auth');
+    await wait(900);
+    status(c, 'Reading src/billing/webhooks.ts');
+    status(b, 'Editing .nvmrc');
+    await wait(1600);
+    // The Stripe task needs a decision: it jumps to Needs you with its options.
+    ask(c);
+    await wait(1400);
+    status(b, 'Running npm test · 3 failing in date-fns adapter');
+    await wait(1200);
+    done(a, 'Session-expiry test no longer flakes · 212 passed');
+    if (demo) hint.classList.add('on');
+    await wait(2600);
+    done(b, 'Node 22: builds and tests pass, one dependency pinned');
+  }
+
+  function ask(el) {
+    state(el, 'asking', 'Asking');
+    status(el, 'Asks: Keep a v1 handler alongside v2?');
+    const opts = document.createElement('div');
+    opts.className = 'q-opts';
+    opts.innerHTML = '<button type="button"><kbd>1</kbd>Keep both until the cutover</button><button type="button"><kbd>2</kbd>v2 only</button>';
+    $('.q-main', el).append(opts);
+    move(el, 'needs');
+    let answered = false;
+    const answer = (txt) => {
+      if (answered) return;
+      answered = true;
+      opts.remove();
+      state(el, 'working');
+      status(el, `↳ ${txt} · delivered to the running agent`);
+      move(el, 'working');
+      setTimeout(() => status(el, 'Editing src/billing/verify.ts'), 1800);
+      setTimeout(() => done(el, 'Webhooks on thin events, v1 kept until the cutover'), 5200);
+    };
+    $$('button', opts).forEach((btn) => btn.addEventListener('click', () => answer(btn.textContent.slice(1))));
+    setTimeout(() => answer('Keep both until the cutover'), demo ? 6500 : 60000);
+  }
+
+  function done(el, text) {
+    clearInterval(el._clock);
+    state(el, 'done', 'Done');
+    status(el, text);
+    move(el, 'needs', false);
+  }
+
+  // The visitor's turn.
+  input.addEventListener('focus', () => {
+    if (!demo) return;
+    demo = false;
+    input.value = '';
+    form.classList.remove('typing');
+    hint.classList.add('on');
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return input.focus();
+    hint.classList.remove('on');
+    const el = await launch(text, { agent: 'auto', project: 'your-repo', mine: true });
+    const steps = ['Auto is picking a harness and model', 'Auto picked Claude Code · Balanced', 'Reading the codebase'];
+    steps.forEach((t, i) => setTimeout(() => status(el, t), 900 + i * 1300));
+    setTimeout(() => status(el, 'A web page can’t reach your code. Copy the command to run it for real.'), 900 + steps.length * 1300 + 600);
+    // Hand back the real command, with their task in it.
+    const quoted = `npx wisp-agents "${text.replace(/["\\$`]/g, '\\$&')}"`;
+    cmd.dataset.copy = quoted;
+    $('code', cmd).textContent = quoted;
+    cta.classList.add('mine');
+    $('#deskFine').innerHTML = '<b>Run it in your project folder.</b> It opens wisp and starts this task.';
+    window.posthog?.capture?.('hero_task_typed');
   });
 
-  // ───────── nav ─────────
-  const nav = $('#nav');
-  addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 30), { passive: true });
-
-  // ───────── copy ─────────
-  async function copy(text, btn, labelEl = btn) {
-    try { await navigator.clipboard.writeText(text); } catch { return; }
-    const prev = labelEl.textContent;
-    btn.classList.add('copied');
-    labelEl.textContent = 'Copied';
-    setTimeout(() => { btn.classList.remove('copied'); labelEl.textContent = prev; }, 1600);
+  counts();
+  if (calm) {
+    // No motion: show the finished state.
+    const a = row({ title: 'Fix the flaky session-expiry test', agent: 'claude', project: 'api-server' });
+    const c = row({ title: 'Migrate billing webhooks to the new Stripe API', agent: 'claude', project: 'api-server' });
+    const b = row({ title: 'Upgrade to Node 22 and fix whatever breaks', agent: 'codex', project: 'web-app' });
+    move(b, 'working');
+    status(b, 'Running npm test · 3 failing in date-fns adapter');
+    ask(c);
+    done(a, 'Session-expiry test no longer flakes · 212 passed');
+    hint.classList.add('on');
+  } else {
+    script();
   }
-  $$('.copy-cmd').forEach((b) => b.addEventListener('click', () => copy(b.dataset.copy, b, $('.copy-label', b))));
+}
 
-  // ───────── spotlight cards ─────────
-  $$('.spot').forEach((c) => c.addEventListener('pointermove', (e) => {
-    const r = c.getBoundingClientRect();
-    c.style.setProperty('--mx', `${e.clientX - r.left}px`);
-    c.style.setProperty('--my', `${e.clientY - r.top}px`);
-  }));
+// ---------- scroll-driven bits ----------
+const nav = $('.nav');
+const track = $('#mTrack');
+const scenes = $$('.scene');
+const chapters = $$('#chapters li');
+const ring = $('#ring');
+const note = $('#note');
+const clock = $('#clock');
+const rail = $('#railFill');
+// Where to look in each scene, as % of the 1280×800 app window.
+const zoom = $('#zoom');
+// [x, y, w, h, zoom] per scene
+const RINGS = [
+  [20.4, 40.0, 59.2, 27.0, 1.25], // three tasks working
+  [25.6, 74.4, 51.4, 26.4, 1.35], // the question
+  [21.8, 63.4, 56.4, 28.4, 1.3], // report headline and stats
+  [56.2, 73.4, 17.2, 5.8, 1.45], // commit, push & open PR
+  [20.4, 63.2, 59.2, 18.8, 1.3], // merged
+];
+let scene = -1;
+let shownTime = 9 * 60 + 2;
+let clockTimer = 0;
 
-  // ───────── hero: drifting wisps ─────────
-  (function wisps() {
-    const cv = $('#wisps');
-    const ctx = cv.getContext('2d');
-    const hero = $('.hero');
-    let w, h, dpr, parts = [], visible = true, t = 0;
-    const COLORS = ['143,132,255', '47,208,180', '217,255,246', '106,92,255'];
-    const resize = () => {
-      dpr = Math.min(2, devicePixelRatio || 1);
-      w = cv.clientWidth; h = cv.clientHeight;
-      cv.width = w * dpr; cv.height = h * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#07070a'; ctx.fillRect(0, 0, w, h);
-      const n = Math.round(clamp((w * h) / 9000, 60, 180));
-      parts = Array.from({ length: n }, spawn);
-    };
-    function spawn() {
-      return { x: Math.random() * w, y: Math.random() * h, life: 0, max: 200 + Math.random() * 400, c: COLORS[(Math.random() * COLORS.length) | 0], s: 0.4 + Math.random() * 0.9 };
-    }
-    function frame() {
-      if (visible) {
-        t += 0.0025;
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = 'rgba(7,7,10,0.07)';
-        ctx.fillRect(0, 0, w, h);
-        ctx.globalCompositeOperation = 'lighter';
-        const cx = w / 2, cy = h * 0.42;
-        for (const p of parts) {
-          const a = Math.sin(p.x * 0.0021 + t * 3) * 2.2 + Math.cos(p.y * 0.0026 - t * 2) * 2.2 + Math.sin((p.x + p.y) * 0.0009 + t);
-          // gentle swirl around the orb
-          const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) + 1;
-          const swirl = clamp(260 / d, 0, 1.2);
-          const vx = Math.cos(a) * p.s + (-dy / d) * swirl * 0.9;
-          const vy = Math.sin(a) * p.s * 0.7 - 0.25 * p.s + (dx / d) * swirl * 0.9;
-          const nx = p.x + vx, ny = p.y + vy;
-          const k = Math.sin((p.life / p.max) * Math.PI);
-          ctx.strokeStyle = `rgba(${p.c},${0.35 * k})`;
-          ctx.lineWidth = 1.1;
-          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
-          p.x = nx; p.y = ny; p.life++;
-          if (p.life > p.max || p.x < -20 || p.x > w + 20 || p.y < -20 || p.y > h + 20) Object.assign(p, spawn());
-        }
-      }
-      requestAnimationFrame(frame);
-    }
-    new IntersectionObserver(([e]) => (visible = e.isIntersecting)).observe(hero);
-    addEventListener('resize', resize);
-    resize();
-    if (!reduced) frame();
-  })();
+const toMin = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
+const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-  // ───────── distill: transcript → presentation ─────────
-  (function distill() {
-    const sec = $('.distill');
-    const tScroll = $('#tScroll');
-    const transcript = $('#transcript');
-    const lineCount = $('#lineCount');
-    const orb = $('#collapseOrb');
-    const caps = $$('.caps li');
-    const blks = $$('.present .blk');
-    const meter = $('#meterFill');
-    const status = $('#winStatus');
-    const statusText = $('#statusText');
-    const statusLbl = $('#statusLbl');
-    const TOTAL = 3417;
+function tickClock(to) {
+  cancelAnimationFrame(clockTimer);
+  const from = shownTime;
+  if (calm || from === to) return void ((shownTime = to), (clock.textContent = fmt(to)));
+  const t0 = performance.now();
+  const dur = Math.min(900, 120 + Math.abs(to - from) * 14);
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / dur);
+    shownTime = Math.round(from + (to - from) * (1 - (1 - k) ** 3));
+    clock.textContent = fmt(shownTime);
+    if (k < 1) clockTimer = requestAnimationFrame(step);
+  };
+  clockTimer = requestAnimationFrame(step);
+}
 
-    const files = ['src/auth/session.ts', 'src/auth/refresh.ts', 'test/auth.test.ts', 'src/lib/clock.ts', 'src/auth/token.ts', 'package.json', 'test/helpers/fake-clock.ts', 'src/server.ts'];
-    const thoughts = [
-      'The failure only happens when the test crosses a second boundary…',
-      'setTimeout(50) is racing Date.now() — classic.',
-      'Let me check whether RefreshQueue also reads the wall clock.',
-      'I should inject the clock rather than mocking Date globally.',
-      'Running the suite 200× to make sure the flake is actually gone.',
-      'v1 tokens use a different exp format; keep that path intact.',
-    ];
-    const pick = (a, i) => a[(i * 7 + 3) % a.length];
-    const rows = [];
-    for (let i = 0; i < 160; i++) {
-      const f = pick(files, i);
-      switch (i % 9) {
-        case 0: rows.push(`<div class="tool">● <b>Read</b> ${f}</div><div class="sub">⎿ ${80 + ((i * 37) % 300)} lines</div>`); break;
-        case 1: rows.push(`<div class="think">✻ ${pick(thoughts, i)}</div>`); break;
-        case 2: rows.push(`<div class="tool">● <b>Grep</b> "${['Date.now', 'setTimeout', 'isExpired', 'clock'][i % 4]}" src/</div><div class="sub">⎿ ${1 + (i % 7)} matches</div>`); break;
-        case 3: rows.push(`<div class="tool">● <b>Bash</b> npm test -- auth</div><div class="${i < 90 ? 'fail' : 'pass'}">  ${i < 90 ? '✗ auth › rejects expired token (flaky, 3/10)' : '✓ 48 passed'}</div>`); break;
-        case 4: rows.push(`<div class="tool">● <b>Edit</b> ${f}</div><div class="sub">⎿ +${1 + (i % 6)} −${i % 4}</div>`); break;
-        case 5: rows.push(`<div class="sub">  at SessionStore.isExpired (${f}:${12 + (i % 40)})</div><div class="sub">  at Object.&lt;anonymous&gt; (test/auth.test.ts:${30 + (i % 20)})</div>`); break;
-        case 6: rows.push(`<div class="tool">● <b>Read</b> node_modules/jest-environment/build/index.js</div><div class="sub">⎿ 612 lines</div>`); break;
-        case 7: rows.push(`<div class="think">✻ ${pick(thoughts, i + 2)}</div>`); break;
-        default: rows.push(`<div class="tool">● <b>Glob</b> **/*.test.ts</div><div class="sub">⎿ ${20 + (i % 9)} files</div>`);
-      }
-    }
-    tScroll.innerHTML = rows.join('');
+function setScene(i) {
+  if (i === scene) return;
+  scene = i;
+  scenes.forEach((s, k) => s.classList.toggle('on', k === i));
+  chapters.forEach((c, k) => c.classList.toggle('on', k === i));
+  const [x, y, w, h, z] = RINGS[i];
+  Object.assign(ring.style, { left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` });
+  // Lean in toward what matters in this scene; the ring scales with the picture.
+  zoom.style.transformOrigin = `${x + w / 2}% ${y + h / 2}%`;
+  zoom.style.transform = calm ? '' : `scale(${z})`;
+  note.classList.toggle('on', i === 1);
+  tickClock(toMin(chapters[i].dataset.t));
+}
 
-    const statuses = ['Reading session.ts', 'Grepping for Date.now', 'Running npm test', 'Editing refresh.ts', 'Thinking…', 'Running suite 200×', 'Writing presentation'];
-    let lastP = -1;
-    const counted = new WeakSet();
-
-    function render() {
-      const r = sec.getBoundingClientRect();
-      const p = reduced ? 1 : clamp(-r.top / (r.height - innerHeight));
-      if (Math.abs(p - lastP) < 0.0005) return;
-      lastP = p;
-
-      caps.forEach((li, i) => {
-        const next = caps[i + 1];
-        li.classList.toggle('on', p >= +li.dataset.at && (!next || p < +next.dataset.at));
-      });
-      meter.style.width = `${p * 100}%`;
-
-      // transcript scrolls + counts
-      const tp = clamp(p / 0.5);
-      const maxScroll = Math.max(0, tScroll.scrollHeight - transcript.clientHeight);
-      tScroll.style.transform = `translateY(${-tp * maxScroll}px)`;
-      lineCount.textContent = Math.round(tp * TOTAL).toLocaleString('en-US');
-
-      // collapse into the orb
-      const c = clamp((p - 0.44) / 0.12);
-      transcript.style.transform = `scale(${1 - c * 0.85})`;
-      transcript.style.opacity = 1 - c;
-      transcript.style.filter = `blur(${c * 10}px)`;
-      const o = clamp((p - 0.46) / 0.08) * (1 - clamp((p - 0.58) / 0.06));
-      orb.style.opacity = o;
-      orb.style.transform = `translate(-50%, -50%) scale(${0.2 + o * 0.8 + clamp((p - 0.58) / 0.06) * 1.5})`;
-
-      // presentation blocks
-      blks.forEach((b) => {
-        const on = p >= +b.dataset.at;
-        b.classList.toggle('in', on);
-        if (on && !counted.has(b)) {
-          counted.add(b);
-          $$('[data-count]', b).forEach((n) => countUp(n, 1000));
-        }
-        if (!on && counted.has(b) && p < +b.dataset.at - 0.05) counted.delete(b);
-      });
-
-      const done = p >= 0.56;
-      status.classList.toggle('done', done);
-      statusLbl.textContent = done ? 'Needs you' : 'Working';
-      statusText.textContent = done ? 'ready in 47 min' : statuses[Math.min(statuses.length - 1, Math.floor(tp * statuses.length))];
-    }
-
-    addEventListener('scroll', () => requestAnimationFrame(render), { passive: true });
-    addEventListener('resize', () => { lastP = -1; render(); });
-    render();
-  })();
-
-  // ───────── manifesto words ─────────
-  (function words() {
-    const el = $('.reveal-words');
-    const walk = (node) => {
-      for (const n of [...node.childNodes]) {
-        if (n.nodeType === 3) {
-          const frag = document.createDocumentFragment();
-          n.textContent.split(/(\s+)/).forEach((part) => {
-            if (!part.trim()) return frag.append(part);
-            const s = document.createElement('span'); s.className = 'w'; s.textContent = part; frag.append(s);
-          });
-          n.replaceWith(frag);
-        } else walk(n);
-      }
-    };
-    walk(el);
-    const ws = $$('.w', el);
-    const upd = () => {
-      const r = el.getBoundingClientRect();
-      const p = reduced ? 1 : clamp((innerHeight * 0.85 - r.top) / (r.height + innerHeight * 0.35));
-      const k = Math.round(p * ws.length);
-      ws.forEach((w, i) => w.classList.toggle('on', i < k));
-    };
-    addEventListener('scroll', () => requestAnimationFrame(upd), { passive: true });
-    upd();
-  })();
-
-  // only run looping demos while on screen
-  function whenVisible(el, start) {
-    let timer = null;
-    new IntersectionObserver(([e]) => {
-      if (e.isIntersecting && !timer) timer = start();
-      else if (!e.isIntersecting && timer) { clearInterval(timer); timer = null; }
-    }, { threshold: 0.2 }).observe(el);
+const heroCmd = $('#heroCmd');
+function onScroll() {
+  nav.classList.toggle('scrolled', scrollY > 8);
+  if (heroCmd) nav.classList.toggle('cmd-away', heroCmd.getBoundingClientRect().bottom < 64);
+  if (track && !small()) {
+    const r = track.getBoundingClientRect();
+    const p = Math.max(0, Math.min(0.9999, -r.top / (r.height - innerHeight)));
+    setScene(Math.floor(p * chapters.length));
+    rail.style.height = `${p * 100}%`;
   }
+}
+addEventListener('scroll', onScroll, { passive: true });
+addEventListener('resize', onScroll);
+setScene(0);
+onScroll();
 
-  // ───────── queue ─────────
-  (function queue() {
-    const root = $('#queue');
-    const lists = { needs: $('[data-col="needs"] .q-list', root), working: $('[data-col="working"] .q-list', root), done: $('[data-col="done"] .q-list', root) };
-    const pool = [
-      ['Fix flaky auth test', ['Reading session.ts', 'Running npm test', 'Editing clock.ts']],
-      ['Dark mode for settings', ['Grepping tokens.css', 'Taking screenshot', 'Editing Settings.tsx']],
-      ['Bump to Node 22', ['Reading .nvmrc', 'Running CI matrix', 'Updating lockfile']],
-      ['Audit deps', ['npm outdated', 'Reading advisories', 'Writing report']],
-      ['Paginate /orders', ['Reading routes.ts', 'Writing migration', 'Running e2e']],
-      ['Kill dead feature flags', ['Grepping flags', 'Editing 14 files', 'Running tsc']],
-    ];
-    const needsCopy = ['Ready · 6 blocks', 'Asks: keep v1 compat?', 'Ready · 3 files changed'];
-    let n = 0;
-    const item = (title, sub) => {
-      const d = document.createElement('div');
-      d.className = 'q-item';
-      d.innerHTML = `<span class="qt"></span><span class="qs"></span>`;
-      d.firstChild.textContent = title; d.lastChild.textContent = sub;
-      return d;
-    };
-    const counts = () => $$('.q-col', root).forEach((c) => ($('.qn', c).textContent = $('.q-list', c).children.length));
-    const add = (col) => { const [t, s] = pool[n++ % pool.length]; const el = item(t, s[0]); el._s = s; el._i = 0; lists[col].prepend(el); return el; };
-    add('done').lastChild.textContent = 'Done'; add('done').lastChild.textContent = 'Done'; add('working'); add('working'); const nd = add('needs'); nd.lastChild.textContent = needsCopy[0];
-    counts();
-    let tick = 0;
-    whenVisible(root, () => setInterval(() => {
-      tick++;
-      $$('.q-item', lists.working).forEach((el) => { el._i = (el._i + 1) % el._s.length; el.lastChild.textContent = el._s[el._i]; });
-      if (tick % 2) return;
-      // needs → done, working → needs, new → working
-      const nlast = lists.needs.lastElementChild;
-      if (nlast) { lists.done.prepend(nlast); nlast.lastChild.textContent = 'Done'; nlast.style.animation = 'none'; void nlast.offsetWidth; nlast.style.animation = ''; }
-      while (lists.done.children.length > 2) lists.done.lastElementChild.remove();
-      const w = lists.working.lastElementChild;
-      if (w) { lists.needs.prepend(w); w.lastChild.textContent = needsCopy[tick % needsCopy.length]; w.style.animation = 'none'; void w.offsetWidth; w.style.animation = ''; }
-      add('working');
-      counts();
-    }, 1500));
-  })();
+// On small screens the story is a list: give each chapter its own screenshot.
+if (small()) {
+  chapters.forEach((li, i) => {
+    const pic = scenes[i]?.cloneNode(true);
+    if (!pic) return;
+    pic.className = 'ch-shot';
+    $('img', pic).loading = 'lazy';
+    li.append(pic);
+  });
+}
 
-  // ───────── ask_user ─────────
-  (function ask() {
-    const btns = $$('#ask .ask-opts button');
-    const sent = $('#askSent');
-    const txt = $('#askText');
-    btns.forEach((b) => b.addEventListener('click', () => {
-      btns.forEach((x) => { x.disabled = true; x.classList.toggle('picked', x === b); });
-      txt.textContent = `“${b.dataset.r}”`;
-      sent.classList.add('on');
-      setTimeout(() => {
-        sent.classList.remove('on');
-        btns.forEach((x) => { x.disabled = false; x.classList.remove('picked'); });
-      }, 3800);
-    }));
-  })();
-
-  // ───────── take over terminal ─────────
-  (function term() {
-    const el = $('#term .typed');
-    const text = el.dataset.type;
-    const line = el.parentNode, ghost = line.cloneNode(true);
-    ghost.classList.add('t-ghost');
-    ghost.setAttribute('aria-hidden', 'true');
-    ghost.querySelector('.typed').textContent = text;
-    line.before(ghost);
-    if (reduced) return (el.textContent = text);
-    let i = 0, hold = 0;
-    whenVisible($('#term'), () => setInterval(() => {
-      if (i <= text.length) el.textContent = text.slice(0, i++);
-      else if (++hold > 30) { i = 0; hold = 0; }
-    }, 70));
-  })();
-
-  // ───────── permission modes ─────────
-  (function modes() {
-    const btns = $$('#modes .seg button');
-    const ind = $('#modes .seg-ind');
-    const desc = $('#modeDesc');
-    const D = [
-      ['Read-only. The agent investigates and proposes a plan — nothing on disk changes.', 'linear-gradient(180deg,#1f3a36,#16262a)'],
-      ['File edits are auto-accepted. Everything else asks.', 'linear-gradient(180deg,#2a2a38,#1e1e28)'],
-      ['Full auto. It runs commands, edits, and tests without stopping.', 'linear-gradient(180deg,#3a2550,#251a35)'],
-    ];
-    const set = (i) => {
-      btns.forEach((b, j) => b.classList.toggle('on', i === j));
-      ind.style.transform = `translateX(${i * 100}%)`;
-      ind.style.background = D[i][1];
-      desc.textContent = D[i][0];
-    };
-    btns.forEach((b, i) => b.addEventListener('click', () => set(i)));
-    set(1);
-  })();
-
-  // ───────── zero deps ─────────
-  (function zero() {
-    const el = $('#zeroCount');
-    let ran = false;
-    new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting || ran) return;
-      ran = true;
-      if (reduced) return (el.textContent = '0');
-      const from = 1284, t0 = performance.now(), dur = 1800;
-      const tick = (t) => {
-        const p = clamp((t - t0) / dur);
-        el.textContent = Math.round(from * Math.pow(1 - p, 3)).toLocaleString('en-US');
-        if (p < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    }, { threshold: 0.6 }).observe(el);
-  })();
-
-  // ───────── subagents: a lead delegating to a team ─────────
-  (function team() {
-    const body = $('#teamBody'), svg = $('#teamBeams'), lead = $('#teamLead'), mems = $('#teamMembers');
-    const st = $('#teamLeadSt'), reps = $('#teamReports'), call = $('#teamCall');
-    const minus = $('#teamMinus'), plus = $('#teamPlus');
-    const H = { codex: 'codex-color', opencode: 'opencode', cursor: 'cursor' };
-    const logo = (h) => h === 'codex'
-      ? `<span class="lg-logo sm"><img src="assets/logos/${H[h]}.svg" alt="" /></span>`
-      : `<span class="lg-logo sm"><i style="--logo:url(assets/logos/${H[h]}.svg)"></i></span>`;
-    const codex = [
-      ['Tests for RefreshQueue', ['Reading queue.ts', 'Writing 8 tests', 'Running npm test'], '8 tests added'],
-      ['Tests for SessionStore', ['Reading session.ts', 'Faking the clock', 'Running npm test'], '5 tests added'],
-      ['e2e: login → refresh', ['Booting test server', 'Recording flow', 'Running playwright'], 'e2e green'],
-    ];
-    const others = [
-      { h: 'opencode', name: 'opencode', use: 'research', steps: ['Reading RFC 6749 §6', 'Comparing 3 libraries', 'Writing notes'], done: 'Rotate on every use' },
-      { h: 'cursor', name: 'cursor', use: 'UI work', steps: ['Editing Banner.tsx', 'Taking screenshot', 'Polishing copy'], done: 'Expiry banner + screenshot' },
-    ];
-    let n = 1, roster = [], tick = 0, doneAt = 0;
-
-    const draw = () => {
-      const w = body.clientWidth, h = body.clientHeight;
-      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      const x1 = lead.offsetLeft + lead.offsetWidth, y1 = lead.offsetTop + lead.offsetHeight / 2;
-      svg.innerHTML = roster.map((m) => {
-        const x2 = mems.offsetLeft + m.el.offsetLeft, y2 = mems.offsetTop + m.el.offsetTop + m.el.offsetHeight / 2;
-        const c = (x2 - x1) / 2;
-        const d = `M${x1} ${y1} C${x1 + c} ${y1} ${x2 - c} ${y2} ${x2} ${y2}`;
-        return `<path d="${d}" /><path pathLength="278" d="${d}" />`;
-      }).join('');
-      roster.forEach((m, i) => { m.path = svg.children[i * 2]; m.beam = svg.children[i * 2 + 1]; paint(m); });
-    };
-    const paint = (m) => {
-      m.el.className = `mem ${m.state}`;
-      $('.ms', m.el).textContent = m.text;
-      if (!m.path) return;
-      m.path.setAttribute('class', m.state === 'working' ? 'live' : m.state);
-      m.beam.setAttribute('class', m.state === 'working' ? 'pulse' : 'off');
-    };
-    const set = (m, state, text) => { m.state = state; m.text = text; paint(m); };
-    const build = () => {
-      roster = [
-        ...codex.slice(0, n).map(([task, steps, done], i) => ({ h: 'codex', name: n > 1 ? `codex#${i + 1}` : 'codex', use: 'tests', task, steps, done })),
-        ...others.map((o) => ({ ...o })),
-      ];
-      mems.innerHTML = roster.map((m) => `<div class="mem"><span class="qd"></span>${logo(m.h)}<span class="mt"><b>${m.name}<small>${m.use}</small></b><span class="ms"></span></span></div>`).join('');
-      roster.forEach((m, i) => { m.el = mems.children[i]; m.state = ''; m.text = 'idle'; });
-      $('#teamN').textContent = `×${n}`;
-      minus.disabled = n <= 1;
-      plus.disabled = n >= codex.length;
-      $('#teamCount').textContent = `${roster.length + 1} agents`;
-      call.textContent = `delegate([${roster.map((m) => `"${m.name}"`).join(', ')}])`;
-      draw();
-    };
-    const report = (m) => {
-      const r = document.createElement('span');
-      r.className = 'rep';
-      r.innerHTML = `${logo(m.h)}<span></span>`;
-      r.lastChild.textContent = `${m.name} · ${m.done}`;
-      reps.append(r);
-    };
-    const reset = () => {
-      tick = 0; doneAt = 0;
-      reps.textContent = '';
-      call.classList.remove('on');
-      roster.forEach((m) => set(m, '', 'idle'));
-      st.textContent = 'Reading the release checklist';
-    };
-    const step = () => {
-      const t = tick++;
-      if (t === 2) st.textContent = `Planning ${roster.length} tasks for the team`;
-      else if (t === 3) {
-        call.classList.add('on');
-        st.textContent = `delegate → ${roster.length} subagents, in parallel`;
-        roster.forEach((m) => set(m, 'working', m.steps[0]));
-      } else if (t > 3 && !doneAt) {
-        roster.forEach((m, i) => {
-          if (m.state !== 'working') return;
-          const k = t - 3;
-          if (k >= m.steps.length + (i % 3)) { set(m, 'done', m.done); report(m); }
-          else set(m, 'working', m.steps[Math.min(k, m.steps.length - 1)]);
-        });
-        const left = roster.filter((m) => m.state === 'working').length;
-        if (left) st.textContent = `Waiting on ${left} of ${roster.length}`;
-        else { doneAt = t; call.classList.remove('on'); st.textContent = `Reviewing ${roster.length} reports`; }
-      } else if (doneAt && t === doneAt + 2) st.textContent = 'Done · 14 files, all tests green';
-      else if (doneAt && t >= doneAt + 8) reset();
-    };
-    const change = (d) => { n = clamp(n + d, 1, codex.length); build(); reset(); };
-    minus.addEventListener('click', () => change(-1));
-    plus.addEventListener('click', () => change(1));
-    addEventListener('resize', draw, { passive: true });
-    build();
-    document.fonts?.ready.then(draw);
-    if (reduced) {
-      roster.forEach((m) => { set(m, 'done', m.done); report(m); });
-      st.textContent = 'Done · 14 files, all tests green';
-      return;
+// ---------- transcript vs report ----------
+// A stand-in for what the same run streams: the tool calls and output you'd scroll past.
+function transcript() {
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const files = ['src/auth/session.ts', 'src/auth/token.ts', 'test/auth.test.ts', 'src/auth/refresh-queue.ts', 'src/lib/time.ts', 'test/helpers/clock.ts', 'src/middleware/auth.ts', 'jest.config.ts', 'package.json', 'src/auth/index.ts', '.github/workflows/ci.yml', 'src/lib/rate-limit.ts'];
+  const thoughts = [
+    'The failure is intermittent, so this is probably timing rather than logic.',
+    'Let me look at how SessionStore decides a token is expired.',
+    'isExpired compares Date.now() with exp using >, so a token is still valid at exactly exp.',
+    'The test sleeps 50 ms and the TTL is 50 ms. On a loaded CI box that race goes either way.',
+    'I could raise the sleep, but that only hides it. Injecting a clock makes it deterministic.',
+    'RefreshQueue also calls Date.now() directly. Out of scope; I will mention it.',
+    'Running the auth suite 200 times to make sure the flake is actually gone.',
+    'Checking whether anything else constructs SessionStore with positional arguments.',
+  ];
+  const out = [];
+  const push = (s, c = '') => out.push(c ? `<span class="${c}">${s}</span>` : s);
+  for (let i = 0; out.length < 640; i++) {
+    const r = rnd();
+    if (r < 0.18) {
+      push(`⏺ ${pick(thoughts)}`, 't');
+    } else if (r < 0.42) {
+      const f = pick(files);
+      push(`⏺ Read(${f})`, 't');
+      push(`  ⎿  Read ${20 + Math.floor(rnd() * 180)} lines`, 'dim');
+      const n = 2 + Math.floor(rnd() * 6);
+      for (let k = 0; k < n; k++) push(`     ${String(10 + k).padStart(3)}  ${pick(['export class SessionStore {', '  constructor(private ttl: number) {}', '  isExpired(t: Token) {', '    return Date.now() > t.exp;', '  }', "import { Token } from './token';", '  refresh(t: Token) {', "describe('SessionStore', () => {", '  await sleep(50);', '  expect(store.isExpired(t)).toBe(true);'])}`, 'dim');
+    } else if (r < 0.55) {
+      push(`⏺ Search(pattern: "${pick(['Date.now', 'isExpired', 'new SessionStore', 'sleep(', 'ttl'])}", path: "src")`, 't');
+      push(`  ⎿  Found ${1 + Math.floor(rnd() * 30)} files`, 'dim');
+      for (let k = 0; k < 3; k++) push(`     ${pick(files)}:${1 + Math.floor(rnd() * 120)}`, 'dim');
+    } else if (r < 0.78) {
+      push(`⏺ Bash(npm test -- auth${rnd() < 0.5 ? ' --repeat 20' : ''})`, 't');
+      const fail = rnd() < 0.4;
+      push(`  ⎿  > api-server@3.4.1 test`, 'dim');
+      push(`     ${fail ? 'FAIL' : 'PASS'} test/auth.test.ts (${(1 + rnd() * 3).toFixed(2)} s)`, fail ? 'bad' : 'ok');
+      if (fail) {
+        push('       ● SessionStore › expires tokens after ttl', 'bad');
+        push('         expect(received).toBe(expected) // Object.is equality');
+        push('         Expected: true');
+        push('         Received: false');
+        push(`           at Object.<anonymous> (test/auth.test.ts:${40 + Math.floor(rnd() * 20)}:31)`, 'dim');
+      }
+      push(`     Tests: ${fail ? '1 failed, ' : ''}${200 + Math.floor(rnd() * 12)} passed`, fail ? '' : 'ok');
+    } else {
+      const f = pick(files);
+      push(`⏺ Update(${f})`, 't');
+      push(`  ⎿  Updated ${f} with ${1 + Math.floor(rnd() * 6)} additions and ${Math.floor(rnd() * 4)} removals`, 'dim');
+      push(`     - ${pick(['    return Date.now() > t.exp;', '  await sleep(50);', '  constructor(private ttl: number) {}'])}`, 'bad');
+      push(`     + ${pick(['    return this.clock.now() >= t.exp;', '  clock.tick(50);', '  constructor(private ttl: number, private clock = systemClock) {}'])}`, 'ok');
     }
-    reset();
-    whenVisible(body, () => { draw(); return setInterval(step, 800); });
-  })();
-
-  // ───────── recipes & triggers ─────────
-  (function automations() {
-    const input = $('#rcVer'), list = $('#firedList');
-    const items = $$('#triggers li');
-    const ver = () => input.value.trim() || '{version}';
-    const fired = ({ title, src, plan, cls }) => {
-      const d = document.createElement('div');
-      d.className = `fi ${cls || ''}`;
-      d.innerHTML = `<b></b><span><span class="src"></span>${plan ? '<span class="plan">Plan</span>' : ''}</span>`;
-      d.firstChild.textContent = title;
-      $('.src', d).textContent = src;
-      list.prepend(d);
-      while (list.children.length > 3) list.lastElementChild.remove();
-    };
-    const sync = () => {
-      input.value = input.value.replace(/[^\w.\-]/g, '').slice(0, 12);
-      input.size = Math.max(3, input.value.length);
-      $('#rcVer2').textContent = ver();
-      $('#rcCli').lastChild.textContent = ` wisp run release ${ver()}`;
-    };
-    const run = () => fired({ title: `Prepare release ${ver()}`, src: 'recipe · you', cls: 'recipe-run' });
-    input.addEventListener('input', sync);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
-    $('#rcRun').addEventListener('click', run);
-
-    const badge = $('#autoBadge');
-    const on = () => items.filter((li) => !li.classList.contains('off'));
-    items.forEach((li) => {
-      const sw = $('.switch', li);
-      sw.addEventListener('click', () => {
-        const off = li.classList.toggle('off');
-        sw.classList.toggle('on', !off);
-        sw.setAttribute('aria-checked', String(!off));
-        badge.textContent = `${on().length} on`;
-      });
+    if (rnd() < 0.3) push('');
+  }
+  return out;
+}
+const log = $('#log');
+const rBody = $('#rBody');
+const seg = $('.seg');
+if (log && rBody && seg) {
+  const lines = transcript();
+  log.innerHTML = lines.join('\n');
+  $('#logCount').textContent = `${lines.length} lines`;
+  let y = 0;
+  let raf = 0;
+  const scroll = () => {
+    y += 0.9;
+    if (y > log.scrollHeight - 600) y = 0;
+    log.style.transform = `translateY(${-y}px)`;
+    raf = requestAnimationFrame(scroll);
+  };
+  const ind = $('.seg-ind', seg);
+  let touched = false;
+  const show = (v) => {
+    rBody.dataset.view = v;
+    $$('button', seg).forEach((b) => {
+      const on = b.dataset.v === v;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on);
+      if (on) Object.assign(ind.style, { left: `${b.offsetLeft}px`, width: `${b.offsetWidth}px` });
     });
+    cancelAnimationFrame(raf);
+    if (v === 'log' && !calm) raf = requestAnimationFrame(scroll);
+  };
+  $$('button', seg).forEach((b) => b.addEventListener('click', () => ((touched = true), show(b.dataset.v))));
+  // Arrive on the wall of text, then let the report take over.
+  if (small()) show('report');
+  else {
+    show('log');
+    new IntersectionObserver(
+      ([e], obs) => {
+        if (!e.isIntersecting) return;
+        obs.disconnect();
+        setTimeout(() => touched || show('report'), 2600);
+      },
+      { threshold: 0.5 },
+    ).observe(rBody);
+  }
+}
 
-    const pool = {
-      schedule: [{ title: 'Audit dependencies', src: 'schedule · 09:00' }],
-      ci: [{ title: 'Fix CI: test (ubuntu-latest)', src: 'CI failed · main · a1f3c9e' }, { title: 'Fix CI: lint', src: 'CI failed · main · 7be210d' }],
-      issue: [{ title: '#231 Dark mode flickers on load', src: 'issue · agent', plan: true }, { title: '#236 CSV export drops emoji', src: 'issue · agent', plan: true }],
-    };
-    const seen = { schedule: 0, ci: 0, issue: 0 };
-    const fire = (li) => {
-      const k = li.dataset.t, p = pool[k];
-      fired(p[seen[k]++ % p.length]);
-      li.classList.add('fire');
-      setTimeout(() => li.classList.remove('fire'), 1200);
-    };
-    fired(pool.ci[1]);
-    fired(pool.issue[0]); seen.issue = 1;
-    if (reduced) return;
-    let i = 0;
-    whenVisible($('#triggers'), () => setInterval(() => {
-      const live = on();
-      if (!live.length) return;
-      // walk the triggers in order, skipping those switched off
-      for (let k = 0; k < items.length; k++) {
-        const li = items[i++ % items.length];
-        if (live.includes(li)) return fire(li);
+// ---------- terminal ----------
+// Commands and output in the real CLI's formats (bin/wisp.js), against the demo projects.
+const SCRIPT = [
+  { cmd: 'wisp "fix the flaky session-expiry test" --wait' },
+  { out: '<span class="c">  ◌ launched: Fix the flaky session-expiry test  (7f3ac21b9e04) — waiting…</span>', wait: 1400 },
+  { out: '◌ Fix the flaky session-expiry test  [review]  7f3ac21b9e04\n' },
+  { out: '<span class="h">## Session-expiry test no longer flakes</span>\n' },
+  { out: '<span class="ok">**✅ Done**</span> — The test slept 50 ms and raced the token TTL. SessionStore now takes an injectable clock; the test ticks it instead of sleeping.\n' },
+  { out: '- **flaky runs / 200:** 0 <span class="ok">(−34)</span>\n- **tests passing:** 212 <span class="ok">(+2)</span>\n' },
+  { out: '```diff\n<span class="del">-    return Date.now() > t.exp;</span>\n<span class="add">+    return this.clock.now() >= t.exp;</span>\n```\n' },
+  { cmd: 'wisp ls --state waiting', wait: 600 },
+  { out: '9c21e07d4a18  waiting  claude    api-server        Migrate billing webhooks to the new Stripe API  <span class="warn">— asks: Keep a v1 handler alongside v2?</span>\n' },
+  { cmd: 'wisp reply 9c21e07d4a18 "keep both until the cutover"' },
+  { out: '<span class="ok">  ✓ answered</span>\n' },
+  { cmd: 'wisp ship 7f3ac21b9e04' },
+  { out: '<span class="ok">  ✓ PR #186: https://github.com/acme/api-server/pull/186</span>\n' },
+];
+const term = $('#term');
+let termRun = 0;
+async function playTerm() {
+  const run = ++termRun;
+  const live = () => run === termRun;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
+  term.innerHTML = '';
+  const caret = '<span class="caret"></span>';
+  let html = '';
+  for (const step of SCRIPT) {
+    if (!live()) return;
+    if (step.cmd) {
+      await sleep(step.wait || 500);
+      html += '<span class="p">$</span> ';
+      for (const ch of step.cmd) {
+        if (!live()) return;
+        html += ch.replace('<', '&lt;');
+        term.innerHTML = html + caret;
+        await sleep(18 + Math.random() * 40);
       }
-    }, 2800));
-  })();
-
-  // ───────── machines ─────────
-  (function machines() {
-    const picks = $$('#machPicks .mp'), rows = $('#machRows'), toast = $('#machToast'), go = $('#machGo');
-    const places = {
-      local: { name: 'This Mac', project: '~/api-server', steps: ['Reading package.json', 'Running tests on Node 22', '+3 −2 · 2 files'] },
-      devbox: { name: 'devbox', project: '~/src/api-server', steps: ['Rebuilding native modules', 'Fixing a crypto deprecation', '+11 −6 · 4 files'] },
-      gpu: { name: 'gpu-box', project: '~/work/trainer', steps: ['Updating the Dockerfile', 'Running the smoke test', '+4 −4 · 1 file'] },
-      vm: { name: 'cloud-vm', project: '/srv/worker', connect: true, steps: ['Updating .nvmrc', 'Running the queue tests', '+2 −1 · 1 file'] },
-    };
-    const chosen = () => picks.filter((b) => b.classList.contains('on')).map((b) => b.dataset.m);
-    const sync = () => {
-      const n = chosen().length;
-      $('#machBadge').textContent = `${n} place${n === 1 ? '' : 's'}`;
-      go.disabled = !n;
-    };
-    let run = 0;
-    const launch = () => {
-      const id = ++run, keys = chosen();
-      if (!keys.length) return;
-      rows.textContent = '';
-      toast.classList.remove('on');
-      let left = keys.length;
-      keys.forEach((k, i) => {
-        const p = places[k], r = document.createElement('div');
-        r.className = 'mr';
-        r.dataset.m = k;
-        r.innerHTML = '<span class="mb"></span><span class="mpj"></span><span class="mst"><span class="qd"></span><span></span></span>';
-        $('.mb', r).textContent = p.name;
-        $('.mpj', r).textContent = p.project;
-        const st = $('.mst span:last-child', r);
-        const set = (cls, text) => { r.className = `mr ${cls}`; st.textContent = text; };
-        rows.append(r);
-        if (reduced) return set('done', p.steps[2]);
-        const seq = [...(p.connect ? [['connecting', 'Connecting…']] : []), ['working', p.steps[0]], ['working', p.steps[1]], ['done', p.steps[2]]];
-        seq.forEach(([cls, text], j) => setTimeout(() => {
-          if (id !== run) return;
-          set(cls, text);
-          if (cls === 'done' && !--left) {
-            toast.textContent = keys.length === 1 ? 'ready' : `ready on ${keys.length} machines`;
-            toast.classList.add('on');
-          }
-        }, j * 1300 + i * 350 + Math.random() * 400));
-      });
-      if (reduced) {
-        toast.textContent = keys.length === 1 ? 'ready' : `ready on ${keys.length} machines`;
-        toast.classList.add('on');
-      }
-    };
-    picks.forEach((b) => b.addEventListener('click', () => {
-      const on = b.classList.toggle('on');
-      b.setAttribute('aria-pressed', String(on));
-      sync();
-    }));
-    go.addEventListener('click', launch);
-    sync();
-    // first launch when the card scrolls into view
-    new IntersectionObserver(([e], obs) => {
+      html += '\n';
+      term.innerHTML = html + caret;
+      await sleep(350);
+    } else {
+      await sleep(step.wait || 160);
+      html += step.out + '\n';
+      term.innerHTML = html + caret;
+      term.scrollTop = term.scrollHeight;
+    }
+  }
+}
+if (term) {
+  new IntersectionObserver(
+    ([e], obs) => {
       if (!e.isIntersecting) return;
       obs.disconnect();
-      launch();
-    }, { threshold: 0.35 }).observe($('#machines'));
-  })();
+      playTerm();
+    },
+    { threshold: 0.4 },
+  ).observe(term);
+  $('#termReplay')?.addEventListener('click', playTerm);
+}
 
-  // ───────── blocks marquee ─────────
-  (function blocks() {
-    const bars = (...cls) => cls.map((c, i) => `<span class="bar ${c}" style="width:${[88, 62, 74, 45][(i + cls.length) % 4]}%"></span>`).join('');
-    const B = [
-      ['hero', '#8f84ff', `<span class="big">Fixed.</span>${bars('')}`],
-      ['diff', '#4cc38a', bars('r', 'g', 'g')],
-      ['tests', '#4cc38a', `<span class="bar g" style="width:100%"></span><span class="bar" style="width:40%"></span>`],
-      ['stats', '#2fd0b4', `<span class="big">48<small style="font-size:12px;color:#4cc38a"> +6</small></span>`],
-      ['chart', '#8f84ff', '', 'row', [70, 40, 90, 25, 60, 35]],
-      ['flow', '#8f84ff', '<i></i><s></s><i></i><s></s><i></i>', 'nodes'],
-      ['steps', '#2fd0b4', bars('t', 't', '')],
-      ['files', '#f0a33a', bars('v', '', 'v')],
-      ['commits', '#f0a33a', bars('v', 'v')],
-      ['question', '#8f84ff', bars('v', '', '')],
-      ['callout', '#f0a33a', bars('', 't')],
-      ['compare', '#2fd0b4', bars('r', 'g')],
-      ['terminal', '#d9fff6', bars('t', '', '')],
-      ['code', '#8f84ff', bars('v', '', 't')],
-      ['tree', '#2fd0b4', bars('', 't', '')],
-      ['checklist', '#4cc38a', bars('g', 'g', '')],
-      ['markdown', '#c9c8d3', bars('', '', '')],
-      ['image', '#ff8a8e', `<span class="bar v" style="height:100%;width:100%;border-radius:6px;background:linear-gradient(135deg,#6a5cff55,#2fd0b455)"></span>`],
-      ['next', '#8f84ff', bars('v', 'v')],
-    ];
-    const chip = ([name, c, art, mode, cols]) => {
-      const inner = cols ? cols.map((h) => `<span class="col" style="height:${h}%"></span>`).join('') : art;
-      return `<div class="chip" style="--c:${c}"><span class="cn">${name}</span><div class="art ${mode || ''}">${inner}</div></div>`;
-    };
-    const a = B.slice(0, 10).map(chip).join('');
-    const b = B.slice(10).concat(B.slice(0, 1)).map(chip).join('');
-    $('#trackA').innerHTML = a + a;
-    $('#trackB').innerHTML = b + b;
-  })();
+// ---------- modes: hover shows each; leaving returns to the default ----------
+const modes = $$('.mode');
+modes.forEach((m) => m.addEventListener('mouseenter', () => modes.forEach((x) => x.classList.toggle('on', x === m))));
+$('.modes')?.addEventListener('mouseleave', () => modes.forEach((x, i) => x.classList.toggle('on', i === 1)));
 
-  // ───────── keyboard demo ─────────
-  (function keyboard() {
-    const list = $('#kbList');
-    const toastEl = $('#kbToast');
-    const sec = $('#keys');
-    const ITEMS = [
-      ['Flaky auth test fixed', 'api-server · 47 min · 6 blocks', 'Fake clock injected into SessionStore. 48 tests passing, 0 flakes in 200 runs.'],
-      ['Drop Node 18 from CI?', 'cli · waiting on you', 'The matrix still runs 18. Drop it now, or keep it for one more release?'],
-      ['Dark mode for settings', 'web · 12 min · 2 screenshots', '4 files changed. Contrast checked against WCAG AA in both themes.'],
-      ['Audit dependencies', 'monorepo · plan mode · 6 min', '3 outdated majors, 1 low-severity advisory. Plan only — nothing changed.'],
-    ];
-    let items = [], focus = 0, active = false, toastT;
-
-    const draw = () => {
-      if (!items.length) {
-        list.innerHTML = `<li class="empty"><b>Inbox zero.</b>Your agents are all caught up.</li>`;
-        setTimeout(reset, 2200);
-        return;
-      }
-      list.innerHTML = items.map((it, i) => `<li class="${i === focus ? 'focus' : ''} ${it.open ? 'open' : ''}" data-i="${i}"><div class="t">${it.t}</div><div class="s">${it.s}</div><div class="x"><div><p>${it.x}</p></div></div></li>`).join('');
-    };
-    const reset = () => { items = ITEMS.map(([t, s, x]) => ({ t, s, x, open: false })); focus = 0; draw(); };
-    const toast = (m) => { toastEl.textContent = m; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 1600); };
-    const press = (k) => {
-      const key = $(`.key[data-k="${CSS.escape(k)}"]`);
-      if (key) { key.classList.add('down'); setTimeout(() => key.classList.remove('down'), 160); }
-      if (!items.length) return;
-      const cur = items[focus];
-      switch (k) {
-        case 'j': focus = Math.min(items.length - 1, focus + 1); draw(); break;
-        case 'k': focus = Math.max(0, focus - 1); draw(); break;
-        case 'o': cur.open = !cur.open; draw(); break;
-        case 'e': {
-          const li = $(`li[data-i="${focus}"]`, list);
-          li.classList.add('done', 'gone');
-          toast('✓ marked done → next');
-          setTimeout(() => { items.splice(focus, 1); focus = Math.min(focus, items.length - 1); if (items[focus]) items[focus].open = true; draw(); }, 350);
-          break;
-        }
-        case 't': toast('↗ claude --resume · Ghostty'); break;
-        case 'r': cur.open = false; draw(); setTimeout(() => { cur.open = true; draw(); }, 250); toast('▶ replaying presentation'); break;
-        case 'n': toast('✎ launcher focused'); break;
-        case '/': toast(`↩ replying to “${cur.t}”`); break;
-      }
-    };
-    $$('.key').forEach((b) => b.addEventListener('click', () => press(b.dataset.k)));
-    list.addEventListener('click', (e) => {
-      const li = e.target.closest('li[data-i]');
-      if (!li) return;
-      focus = +li.dataset.i; items[focus].open = !items[focus].open; draw();
-    });
-    new IntersectionObserver(([e]) => (active = e.isIntersecting), { threshold: 0.35 }).observe(sec);
-    addEventListener('keydown', (e) => {
-      if (!active || e.metaKey || e.ctrlKey || e.altKey || /input|textarea/i.test(e.target.tagName)) return;
-      const k = e.key.toLowerCase();
-      if (!'njko/ter'.includes(k) || k.length !== 1) return;
-      e.preventDefault();
-      press(k);
-    });
-    reset();
-  })();
-
-  // ───────── install tabs ─────────
-  (function install() {
-    const code = $('#installCode');
-    const T = {
-      desktop: [
-        ['c', '# Opens the wisp desktop app. Electron downloads on first run.'],
-        ['p', 'npx wisp-agents'],
-        ['c', '# or launch a task in the current folder:'],
-        ['c', '# npx wisp-agents "fix the flaky auth test"'],
-      ],
-      browser: [
-        ['c', '# Same wisp in a browser tab. Node built-ins only.'],
-        ['p', 'npx wisp-agents --browser'],
-        ['o', '→ wisp running at http://localhost:4477'],
-      ],
-      cli: [
-        ['c', '# Put wisp on your PATH, then use it from any folder.'],
-        ['p', 'npm install -g wisp-agents'],
-        ['p', 'wisp "fix the flaky auth test"'],
-        ['p', 'wisp --mode plan "audit deps"'],
-        ['p', 'wisp add ~/code/api-server'],
-      ],
-    };
-    let cur = 'desktop';
-    const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
-    const show = (k) => {
-      cur = k;
-      $$('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === k));
-      code.innerHTML = T[k].map(([t, s]) => t === 'p' ? `<span class="p">$ </span>${esc(s)}` : `<span class="${t}">${esc(s)}</span>`).join('\n');
-    };
-    $$('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
-    const btn = $('#copyInstall');
-    btn.addEventListener('click', () => copy(T[cur].filter(([t]) => t === 'p').map(([, s]) => s).join('\n'), btn));
-    show('desktop');
-  })();
-})();
+// ---------- star count: nice to have, silent if GitHub says no ----------
+const stars = $('[data-stars]');
+fetch('https://api.github.com/repos/M0xoo/wisp')
+  .then((r) => (r.ok ? r.json() : null))
+  .then((repo) => {
+    const n = repo?.stargazers_count;
+    if (!stars || typeof n !== 'number' || n < 50) return; // a tiny count reads worse than none
+    stars.textContent = n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+    stars.hidden = false;
+  })
+  .catch(() => {});

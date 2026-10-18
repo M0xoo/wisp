@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **New website.** The site opens on a working copy of the launcher: it types three tasks and sends them off, and their rows move from Working to Asking (answer it right there) to Done. Type your own task and press ↵ to get the `npx wisp-agents "…"` command that runs it for real. Further down it shows the real app instead of animated mock-ups. A scroll-driven "morning with wisp" walks through five real screens with a ticking clock: three tasks launched, a mid-run question with its desktop notification, a report, Ship it, and the merged PR. A Transcript / wisp report switch shows the same run both ways. Also new: a Compare section, a take-over table with each harness's resume command, and a terminal that replays real `wisp` CLI output. Screenshots follow your light or dark theme, and on phones the story becomes a simple timeline.
+
 ## [0.15.0] - 2026-10-18
 
 ### Changed
