@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-18
+
 ### Added
 
 - **Auto: wisp picks the harness and model for you, and it's now the default.** Choose **Auto** in the harness picker (existing setups are switched to it once) and set a goal in the model slot: **Balanced**, **Cheap** or **Best**. For each task, Auto estimates how likely each harness · model you have installed is to do that kind of task (bug, UI, docs, tests…) well. It starts from a wisp-bench pilot that ships with wisp, then learns from your own outcomes: merged or closed PRs, 👍 / 👎, rollbacks, follow-ups and how the run ended. It weighs that against cost and time, and now and then tries an alternative so the estimates stay honest. Hover a card's harness logo to see why Auto picked it. **Settings → Auto** sets the goal, whether new models get tried, and which harnesses Auto may use; **Open** shows what it learned. A harness or model that shows up later (a new CLI, a new version) gets a few tasks that aren't marked important before Auto relies on it, and a new version starts from its family's record. Auto works for compare runs (a different pick each), for subagents (a team member set to Auto is picked on its first task), on machines (picked here from what the machine has, and that machine's outcomes feed the same router), and from the CLI, recipes, triggers and Telegram. Everything it learns stays in `~/.wisp/router.json`. API: `agent: "auto"` on launch, `GET`/`PATCH /api/router`, `POST /api/router/reset`.
@@ -250,7 +252,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/M0xoo/wisp/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/M0xoo/wisp/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/M0xoo/wisp/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/M0xoo/wisp/compare/v0.10.0...v0.11.0
