@@ -319,7 +319,8 @@ export class Runner extends EventEmitter {
     this.live.get(session.id).stop();
   }
 
-  #startTurn(session, prompt, attachments = []) {
+  // The record of a new turn, with the checkpoint taken before the agent touches anything.
+  #newTurn(session, prompt, attachments) {
     const id = newId();
     // A subagent's edits land in the lead's turn, whose checkpoint already covers them.
     const checkpoint =
@@ -328,7 +329,7 @@ export class Runner extends EventEmitter {
         : !session.turns.length && session.worktree?.head
           ? freshCheckpoint(session.worktree)
           : captureCheckpoint(workdir(session), session.id, id);
-    const turn = {
+    return {
       id,
       prompt,
       agent: session.agent,
@@ -345,6 +346,38 @@ export class Runner extends EventEmitter {
       presentation: null,
       stats: null,
     };
+  }
+
+  // The wisp protocol for this run: a lead hears about its team, a subagent that it can't ask.
+  #systemPrompt(session, adapter, team) {
+    const base = session.parentId
+      ? systemPrompt({ ask: SUBAGENT_ASK })
+      : systemPrompt({ askTool: adapter.askTool }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
+    return base + workspaceNote(session) + this.promptExtra(session);
+  }
+
+  // wisp's own MCP server (ask_user, delegate), for harnesses that take one. Subagents get none.
+  #mcpServers(session, adapter, team) {
+    if (!this.bridge || adapter.askTool === null || session.parentId) return {};
+    return {
+      wisp: {
+        command: process.execPath,
+        args: [ASK_SERVER],
+        // Inside the desktop app execPath is the Electron binary; without
+        // ELECTRON_RUN_AS_NODE it boots a second app (extra Dock icon) per turn.
+        env: {
+          ELECTRON_RUN_AS_NODE: '1',
+          WISP_URL: this.bridge.url,
+          WISP_TOKEN: this.bridge.token,
+          WISP_SESSION: session.id,
+          ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m) }))) }),
+        },
+      },
+    };
+  }
+
+  #startTurn(session, prompt, attachments = []) {
+    const turn = this.#newTurn(session, prompt, attachments);
     session.turns.push(turn);
     session.state = 'running';
     session.unread = false;
@@ -358,9 +391,6 @@ export class Runner extends EventEmitter {
     const adapter = adapters[session.agent];
     // Leads get the delegate tool next to ask_user; subagents get neither (nobody to ask).
     const team = adapter.askTool !== null ? session.subagents || [] : [];
-    const prompt0 = session.parentId
-      ? systemPrompt({ ask: SUBAGENT_ASK })
-      : systemPrompt({ askTool: adapter.askTool }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const handle = adapter.run({
       prompt,
       attachments,
@@ -369,26 +399,10 @@ export class Runner extends EventEmitter {
       mode: session.mode,
       model: session.model,
       effort: session.effort || '',
-      systemPrompt: prompt0 + workspaceNote(session) + this.promptExtra(session),
+      systemPrompt: this.#systemPrompt(session, adapter, team),
       // A lead with a team delegates through wisp, so the harness's own subagent tool is switched off.
       delegating: team.length > 0 && !!this.bridge,
-      mcpServers: this.bridge && adapter.askTool !== null && !session.parentId
-        ? {
-            wisp: {
-              command: process.execPath,
-              args: [ASK_SERVER],
-              // Inside the desktop app execPath is the Electron binary; without
-              // ELECTRON_RUN_AS_NODE it boots a second app (extra Dock icon) per turn.
-              env: {
-                ELECTRON_RUN_AS_NODE: '1',
-                WISP_URL: this.bridge.url,
-                WISP_TOKEN: this.bridge.token,
-                WISP_SESSION: session.id,
-                ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m) }))) }),
-              },
-            },
-          }
-        : {},
+      mcpServers: this.#mcpServers(session, adapter, team),
       onEvent: (ev) => {
         if (released) return; // a lingering process we already let go of
         const waiting = this.#onEvent(session, turn, ev) === 'waiting';
