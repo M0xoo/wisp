@@ -663,13 +663,13 @@ function renderLauncher() {
     <textarea id="prompt" rows="2" spellcheck="false"></textarea>
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
+      <button class="tog-btn where-btn" id="whereBtn" aria-haspopup="menu"></button>
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <div class="runners">
         <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
         <button class="vs-btn" id="compareBtn" aria-pressed="false"><span>vs</span>${icon('x')}</button>
         <button class="runner-btn" id="runner2" title="Second harness to compare with" aria-haspopup="dialog" hidden></button>
       </div>
-      <button class="tog-btn where-btn" id="whereBtn" aria-haspopup="menu"></button>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       <span class="grow"></span>
       <button class="tog-btn" id="wtBtn"></button>
