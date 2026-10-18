@@ -520,11 +520,13 @@ function scheduleRefetch(id) {
 
 // --- attachments ---------------------------------------------------------------
 
+// One file picker for every tray: the tray that opened it gets the files.
+const fileInput = el(`<input type="file" multiple hidden>`);
+document.body.append(fileInput);
+
 function attachTray() {
   const items = [];
   const node = el(`<div class="tray" hidden></div>`);
-  const fileInput = el(`<input type="file" multiple hidden>`);
-  document.body.append(fileInput);
   const render = () => {
     node.hidden = !items.length;
     node.innerHTML = items
@@ -559,11 +561,16 @@ function attachTray() {
     }
     render();
   };
-  fileInput.onchange = () => (add(fileInput.files), (fileInput.value = ''));
   return {
     node,
     add,
-    pick: () => fileInput.click(),
+    pick: () => {
+      fileInput.onchange = () => {
+        add(fileInput.files);
+        fileInput.value = '';
+      };
+      fileInput.click();
+    },
     async ids() {
       await Promise.allSettled(items.map((i) => i.promise));
       return items.filter((i) => i.id).map((i) => i.id);
@@ -711,12 +718,13 @@ function renderLauncher() {
   ta.addEventListener('focus', hint);
   ta.addEventListener('blur', hint);
   hint();
-  // Docked and folded to one line, a click anywhere on it opens it up for typing.
-  box.addEventListener('mousedown', (e) => {
+  // Docked and folded to one line, a click anywhere on it opens it up for typing. A property, not
+  // a listener: the launcher re-renders in place, and each render would add another.
+  box.onmousedown = (e) => {
     if (!box.matches('.docked:not(:focus-within)')) return;
     e.preventDefault();
     ta.focus();
-  });
+  };
   $('#attach', box).onclick = tray.pick;
   $('#whereBtn', box).onclick = (e) => whereMenu(e.currentTarget);
   paintWhereBtn();
