@@ -7,6 +7,8 @@
 //   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid, opencodeConfig } to <name>.jsonl
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
+//   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
+//                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
 //   FAKE_BACKGROUND  claude only: end the turn with a background task still running ("I'll report
@@ -85,6 +87,14 @@ if (retro) {
 if (process.env.FAKE_FAIL) {
   process.stderr.write('fake: not logged in (401)\n');
   process.exit(1);
+}
+
+if (process.env.FAKE_RATE_LIMIT && name === 'opencode') {
+  process.stderr.write('timestamp=2026-10-18T22:48:58.147Z level=ERROR run=df7c9c30 message="stream error" providerID=opencode modelID=big-pickle small=false agent=build mode=primary error.error="AI_APICallError: Rate limit exceeded. Please try again later."\n');
+  if (process.env.FAKE_RATE_LIMIT !== 'recover') {
+    setInterval(() => {}, 60_000); // alive until killed, saying nothing
+    await new Promise(() => {});
+  }
 }
 
 // --- the MCP servers wisp injected, per harness ---------------------------------------------

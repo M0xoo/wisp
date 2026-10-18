@@ -71,3 +71,9 @@ test('a JSON body over the size cap is refused with 413', async () => {
   const r = await fetch(`${base}/api/feedback`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'x'.repeat(2_100_000) }) });
   assert.equal(r.status, 413);
 });
+
+test('POST /agents/install refuses a harness wisp cannot install, before touching npm', async () => {
+  const r = await fetch(`${base}/api/agents/install`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'claude' }) });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /can’t install claude/);
+});

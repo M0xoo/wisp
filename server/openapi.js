@@ -50,6 +50,13 @@ export function openapi({ version, port }) {
         patch: { summary: 'Auto settings', requestBody: body({ type: 'object', properties: { goal: { enum: ['cheap', 'balanced', 'best'] }, explore: { type: 'boolean', description: 'Let Auto try new models on a few tasks' }, allowed: { type: 'array', items: { type: 'string' }, description: 'Harness ids Auto may pick; empty or null = all' } } }), responses: { 200: json({ type: 'object' }) } },
       },
       '/router/reset': { post: { summary: 'Forget what Auto learned here (the shipped starting point stays)', responses: { 200: json({ type: 'object' }) } } },
+      '/agents/install': {
+        post: {
+          summary: 'Install a harness into ~/.wisp/tools with npm (only opencode: its free models need no account), then detect again',
+          requestBody: body({ type: 'object', required: ['id'], properties: { id: { type: 'string', enum: ['opencode'] } } }),
+          responses: { 200: json({ type: 'array', items: ref('Agent') }), 400: err[400] },
+        },
+      },
       '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/feedback': {
         post: {
@@ -265,7 +272,7 @@ export function openapi({ version, port }) {
       },
       '/events': {
         get: {
-          summary: 'Server-sent events: summary, activity, turn, finished, removed, config, preferences, ping',
+          summary: 'Server-sent events: summary, activity, turn, finished, removed, config, preferences, agents, ping',
           responses: { 200: { description: 'text/event-stream', content: { 'text/event-stream': { schema: { type: 'string' } } } } },
         },
       },

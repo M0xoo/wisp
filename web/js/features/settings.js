@@ -19,6 +19,7 @@ import { notifyOn } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
 import { machinesSummary } from './places.js';
 import { AUTO_GOALS, harnessLogo } from './runners.js';
+import { INSTALLABLE, installHarness, isInstalling } from './setup.js';
 import { openUsage } from './usage.js';
 
 // A sidebar of sections and one pane at a time, like every other app's settings. Big lists
@@ -139,8 +140,14 @@ export function openSettings(opts) {
     $('.sx-agents', node).innerHTML = S.agents.length
       ? S.agents.map((a) => {
         const n = (a.models || []).filter((m) => m.id).length;
-        const desc = a.available ? [a.version, n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · ') : `Install the ${a.name} CLI and sign in, then re-check`;
-        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(desc), `<span class="sx-state ${a.available ? 'ok' : 'bad'}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`);
+        // opencode: wisp can install it (free models, no account), so its row offers that.
+        const canInstall = !a.available && INSTALLABLE.has(a.id);
+        const busy = isInstalling(a.id);
+        const desc = a.available
+          ? [a.version, n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
+          : busy ? 'Installing into ~/.wisp/tools…' : canInstall ? 'Install it here: free models, no account needed' : `Install the ${a.name} CLI and sign in, then re-check`;
+        const install = canInstall ? `<button class="ghost sm" data-install="${esc(a.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Installing…' : 'Install'}</button>` : '';
+        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(desc), `${install}<span class="sx-state ${a.available ? 'ok' : 'bad'}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`);
       }).join('')
       : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>';
     const missing = S.agents.filter((a) => !a.available).length;
@@ -152,6 +159,11 @@ export function openSettings(opts) {
   };
   paintAgents();
   bus.on('agents', paintAgents, { node });
+  bus.on('install', paintAgents, { node });
+  $('.sx-agents', node).onclick = (e) => {
+    const b = e.target.closest('[data-install]');
+    if (b) installHarness(b.dataset.install);
+  };
   $('#recheck', node).onclick = async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;

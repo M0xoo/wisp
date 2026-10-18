@@ -2,7 +2,7 @@
 // subscribe instead of being looked up in the DOM and poked. A subscription tied to a node ends
 // once that node has left the page, so a closed dialog stops listening.
 //
-// Events: agents, config, machines, preferences, remote, router.
+// Events: agents, config, install, machines, preferences, remote, router.
 
 const subs = new Map(); // type -> Set<{ fn, node }>
 

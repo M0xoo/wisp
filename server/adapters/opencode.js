@@ -1,8 +1,22 @@
 // opencode adapter — drives `opencode run --format json` (one JSON event per line).
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { toolsDir } from '../util.js';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 
-const BIN = process.env.WISP_OPENCODE_BIN || 'opencode';
+const exe = process.platform === 'win32' ? 'opencode.cmd' : 'opencode';
+// Where opencode lives when it isn't on PATH: the copy wisp installs (POST /agents/install),
+// and the official install script's folder (it edits your shell profile, which an app started
+// from the Dock or a service never reads).
+export const fallbackBins = () => [path.join(toolsDir(), 'node_modules', '.bin', exe), path.join(os.homedir(), '.opencode', 'bin', process.platform === 'win32' ? 'opencode.exe' : 'opencode')];
+let BIN = process.env.WISP_OPENCODE_BIN || 'opencode';
+// Rate-limited (the free models, mostly), `opencode run` keeps retrying and prints nothing, so
+// the task would sit at "Starting up" for good. Its error log says so: give it this long to get
+// through, then stop and tell the user what to do.
+const rateLimitGrace = () => Number(process.env.WISP_RATE_LIMIT_GRACE_MS) || 60_000;
+const RATE_LIMITED = /Rate limit exceeded|Too Many Requests|status(?:Code)?[=: ]+429\b/i;
 
 export default {
   id: 'opencode',
@@ -16,7 +30,16 @@ export default {
   },
 
   async detect() {
-    const found = await detectVersion(BIN);
+    let found = await detectVersion(BIN);
+    if (!found.available && !process.env.WISP_OPENCODE_BIN) {
+      for (const bin of fallbackBins().filter((b) => fs.existsSync(b))) {
+        const there = await detectVersion(bin);
+        if (!there.available) continue;
+        BIN = bin;
+        found = there;
+        break;
+      }
+    }
     if (!found.available) return found;
     // `opencode models --verbose` prints each provider/model id followed by its JSON metadata;
     // the metadata's `variants` are the reasoning efforts `run --variant` accepts for that model.
@@ -40,7 +63,8 @@ export default {
 
   run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
-    const args = ['run', '--format', 'json'];
+    // Errors to stderr: the only place a rate limit shows up (see RATE_LIMITED).
+    const args = ['run', '--format', 'json', '--print-logs', '--log-level', 'ERROR'];
     if (mode === 'plan') args.push('--agent', 'plan');
     if (mode === 'auto') args.push('--auto');
     if (model) args.push('--model', model);
@@ -75,14 +99,22 @@ export default {
     const tokens = { input: 0, output: 0 };
     let cost = 0;
 
-    return spawnJsonl({
+    let limitTimer = null;
+    let limited = false;
+    const proc = spawnJsonl({
       bin: BIN,
       args,
       cwd,
       env,
       input,
       onEvent,
+      onStderr(chunk) {
+        if (limitTimer || limited || !RATE_LIMITED.test(chunk)) return;
+        limitTimer = setTimeout(() => ((limited = true), proc.stop()), rateLimitGrace());
+      },
       onJson(msg) {
+        // Anything coming through means a retry got an answer.
+        if (limitTimer && msg.type !== 'error') (clearTimeout(limitTimer), (limitTimer = null));
         if (msg.sessionID && msg.sessionID !== session) onEvent({ type: 'session', id: (session = msg.sessionID) });
         const part = msg.part || {};
         switch (msg.type) {
@@ -118,18 +150,27 @@ export default {
         }
       },
       onClose({ code, signal, stderr, stopped }) {
+        clearTimeout(limitTimer);
+        if (limited) {
+          const which = model ? `\`${model}\`` : 'opencode’s default model';
+          return onEvent({ type: 'result', isError: true, text: `${which} is rate-limited right now: opencode kept retrying for ${Math.round(rateLimitGrace() / 1000)}s without an answer. Try again in a few minutes, pick another model, or connect your own provider with \`opencode auth login\`.`, stats: { durationMs: Date.now() - started } });
+        }
         const ok = code === 0 && !error;
         onEvent({
           type: 'result',
           isError: !ok,
           stopped,
-          text: ok ? text.join('\n') : error || stderr || exitText('opencode', code, signal),
+          text: ok ? text.join('\n') : error || lastLoggedError(stderr) || exitText('opencode', code, signal),
           stats: { durationMs: Date.now() - started, costUsd: cost || undefined, inputTokens: tokens.input, outputTokens: tokens.output },
         });
       },
     });
+    return proc;
   },
 };
+
+// stderr with --print-logs: the last logged error's message, else stderr as it is.
+const lastLoggedError = (stderr) => [...stderr.matchAll(/error\.error="((?:[^"\\]|\\.)*)"/g)].at(-1)?.[1] || stderr;
 
 function safeJson(s) {
   try {

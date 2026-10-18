@@ -20,6 +20,9 @@ export const bad = (msg, status = 400) => Object.assign(new Error(msg), { status
 export const expandHome = (p) => String(p).replace(/^~(?=$|[\\/])/, os.homedir());
 export const expand = (p) => path.resolve(expandHome(p));
 
+// wisp's own copies of harness CLIs, installed from the app when there's none (~/.wisp/tools).
+export const toolsDir = () => path.join(process.env.WISP_HOME || path.join(os.homedir(), '.wisp'), 'tools');
+
 // Single-quote for a POSIX shell.
 export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 

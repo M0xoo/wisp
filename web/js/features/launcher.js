@@ -18,6 +18,7 @@ import { askNotify } from './notify.js';
 import { MACHINE_STATE, machineById, placeName, placeOf, projectById, projectsAt, projectTitle } from './places.js';
 import { openProjects } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
+import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
 import { agentName, agentsAt, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
@@ -43,6 +44,7 @@ export function renderLauncher() {
   let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
   box.innerHTML = `
     <div class="l-projects"></div>
+    <div class="l-setup" hidden></div>
     <textarea id="prompt" rows="2" spellcheck="false"></textarea>
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
@@ -59,6 +61,7 @@ export function renderLauncher() {
     </div>
     <div class="l-recipes"></div>`;
   renderLaunchChips();
+  renderSetup();
 
   const ta = $('#prompt', box);
   const tray = attachTray();
@@ -230,6 +233,7 @@ export function renderLauncher() {
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
     if (off) return offlineToast(off.k);
+    if (needsSetup()) return nudgeSetup();
     const wanted = [agent?.id, ...compare.map((c) => c.agent)].filter((id) => id !== 'auto'); // Auto picks from what's there
     for (const t of targets) {
       const list = agentsAt(t.k);
@@ -292,6 +296,7 @@ export function renderLauncher() {
   // Picking other places (or a machine coming online) changes which harnesses exist: keep the
   // pick if one of them still has it, else move to one that's installed there.
   box.placesChanged = () => {
+    renderSetup();
     const here = harnessesAt(launch.where, { auto: true }); // Auto works anywhere: it picks from what's there
     if (!agent || here.find((a) => a.id === agent.id)?.available) return paintRunner();
     const next = here.find((a) => a.id === S.config.defaults.agent && a.available) || here.find((a) => a.available);

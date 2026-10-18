@@ -3,6 +3,7 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
+import { $ } from '../core/dom.js';
 import { S, saveOpen } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { paintAutoBtn } from './automations.js';
@@ -62,6 +63,12 @@ export function connect() {
     const { added = [] } = JSON.parse(e.data || '{}');
     bus.emit('router');
     if (added.length) toast(`New for Auto: <b>${added.map((a) => esc(a.label)).join('</b>, <b>')}</b>${added.some((a) => a.state === 'new') ? ' · it will try it on a few tasks' : ''}`, { action: { label: 'Auto settings', run: () => openSettings({ pane: 'auto' }) }, timeout: 8000 });
+  });
+  // A harness was installed from wisp (maybe in another tab): fetch the new list.
+  es.addEventListener('agents', async () => {
+    S.agents = await api('/agents').catch(() => S.agents);
+    $('#launcher')?.placesChanged?.();
+    bus.emit('agents');
   });
   es.addEventListener('preferences', () => bus.emit('preferences'));
   es.addEventListener('hello', () => (loadSessions(), loadUpdate(), loadMachines())); // also after sleep/reconnect
