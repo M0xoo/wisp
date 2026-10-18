@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- In **Settings → Machines**, the add/edit machine form lays out properly again: labels sit left above their fields, and the **SSH host** and **Name** inputs are full height instead of squashed and centred. The Settings row style was leaking into it.
+
 ## [0.11.0] - 2026-10-18
 
 ### Added
