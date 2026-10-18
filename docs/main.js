@@ -24,6 +24,39 @@ for (const btn of $$('[data-copy]')) {
   });
 }
 
+// ---------- install tabs ----------
+for (const box of $$('[data-tabs]')) {
+  const tabs = $$('[role="tab"]', box);
+  const code = $('[data-tab-code]', box);
+  const copy = $('.copy-ico', box);
+  const note = $('[data-tab-note]', box.parentElement);
+  const panel = $('[role="tabpanel"]', box);
+  const pick = (tab, focus) => {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute('aria-selected', on);
+      t.tabIndex = on ? 0 : -1;
+    }
+    code.textContent = tab.dataset.cmd;
+    copy.dataset.copy = tab.dataset.cmd;
+    if (note) note.textContent = tab.dataset.note;
+    panel.setAttribute('aria-labelledby', tab.id);
+    if (focus) tab.focus();
+  };
+  tabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => {
+      pick(tab);
+    });
+    tab.addEventListener('keydown', (e) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!step && e.key !== 'Home' && e.key !== 'End') return;
+      e.preventDefault();
+      const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + step + tabs.length) % tabs.length;
+      pick(tabs[n], true);
+    });
+  });
+}
+
 // ---------- reveal once ----------
 const io = new IntersectionObserver(
   (entries) => {
