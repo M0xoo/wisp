@@ -1,10 +1,8 @@
 // Claude Code adapter — drives `claude -p --output-format stream-json`.
 
-import readline from 'node:readline';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, killTree } from '../proc.js';
-import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectVersion, flatten, rel } from './common.js';
+import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectVersion, exitText, flatten, rel, spawnJsonl } from './common.js';
 
 const BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 
@@ -61,12 +59,8 @@ export default {
     delete env.CLAUDE_CODE_ENTRYPOINT;
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
-    const child = spawn(BIN, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
-    child.stdin.end(prompt);
-
     let sawResult = false;
     let early = null; // an empty result that came before our prompt was answered (see below)
-    let stderr = '';
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
     // Background tasks (run_in_background shells, background subagents) still running. While any
     // are, the CLI stays up after its result and starts another turn when they finish.
@@ -77,18 +71,7 @@ export default {
       if ([...next.keys()].join(' ') !== was) onEvent({ type: 'background', tasks: [...next.values()] });
     };
 
-    child.stderr.on('data', (d) => {
-      stderr = (stderr + d).slice(-8000);
-    });
-
-    readline.createInterface({ input: child.stdout }).on('line', (line) => {
-      if (!line.trim()) return;
-      let msg;
-      try {
-        msg = JSON.parse(line);
-      } catch {
-        return;
-      }
+    const onJson = (msg) => {
       if (msg.session_id) onEvent({ type: 'session', id: msg.session_id });
 
       if (msg.type === 'assistant') {
@@ -136,39 +119,22 @@ export default {
         sawResult = true;
         onEvent({ ...ev, background: background.size }); // > 0: another turn and result follow when they finish
       }
-    });
-
-    let stopping = false;
-    const done = new Promise((resolve) => {
-      child.on('error', (err) => {
-        onEvent({ type: 'result', isError: true, text: `Could not start \`${BIN}\`: ${err.message}` });
-        sawResult = true;
-        resolve();
-      });
-      child.on('close', (code, signal) => {
-        if (!sawResult && early && !stopping) {
-          sawResult = true;
-          onEvent(early);
-        }
-        if (!sawResult) {
-          onEvent({
-            type: 'result',
-            isError: true,
-            stopped: stopping || signal === 'SIGTERM' || signal === 'SIGINT',
-            text: stderr.trim() || `claude exited with ${signal || `code ${code}`}`,
-          });
-        }
-        resolve();
-      });
-    });
-
-    return {
-      done,
-      stop() {
-        stopping = true;
-        killTree(child);
-      },
     };
+
+    return spawnJsonl({
+      bin: BIN,
+      args,
+      cwd,
+      env,
+      input: prompt,
+      onEvent,
+      onJson,
+      onClose: ({ code, signal, stderr, stopped, stopRequested }) => {
+        if (sawResult) return;
+        if (early && !stopRequested) return onEvent(early);
+        onEvent({ type: 'result', isError: true, stopped, text: stderr || exitText('claude', code, signal) });
+      },
+    });
   },
 };
 
