@@ -48,3 +48,15 @@
 .att.uploading::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 3px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 200% 100%; animation: shimmer 1.1s linear infinite; }
 .att.failed { border-color: var(--bad); }
 
+
+/* harness · model for the next follow-up: a quiet logo, spelled out once it's switched */
+.c-runner {
+  display: inline-flex; align-items: center; height: 30px; min-width: 30px; padding: 0 4px; border-radius: 8px; gap: 0;
+  font-size: 12px; color: var(--muted); transition: background 0.15s, color 0.15s;
+}
+.c-runner .rb-logo { margin-right: 0; background: transparent; }
+.c-runner:hover, .c-runner.open, .c-runner.changed { background: var(--bg-2); color: var(--ink); }
+.c-runner.changed { padding-right: 8px; }
+.c-runner.changed .rb-logo { margin-right: 4px; }
+.c-runner:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+.cr-label { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }

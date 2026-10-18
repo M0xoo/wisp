@@ -44,6 +44,8 @@ test('reward: the strongest signal wins, follow-ups count against the run', () =
   assert.equal(reward({ hero: 'blocked', merged: true }), 1);
   assert.equal(reward({ hero: 'done', rolledBack: true }), 0.1);
   assert.equal(reward({ error: true }), 0);
+  // Moved to another harness or model in a follow-up: a merge after that isn't this pick's.
+  assert.equal(reward({ hero: 'done', switched: true, merged: true }), 0.1);
   const rng = seeded(42);
   const xs = Array.from({ length: 4000 }, () => betaSample(8, 2, rng));
   assert.ok(Math.abs(xs.reduce((a, b) => a + b) / xs.length - 0.8) < 0.02, 'Beta(8,2) averages 0.8');

@@ -37,7 +37,7 @@ if none answers. Opening the desktop app later attaches to that server.
 | `wisp_launch` | Start a task (`prompt`, `cwd`, `agent`, `mode`, `model`, `effort`). `wait: true` blocks until it finishes or asks. |
 | `wisp_wait` | Block until a session finishes or asks (`timeout_seconds`, default 240), then return it. |
 | `wisp_get` | State + latest presentation as markdown, plus any pending question. |
-| `wisp_reply` | Follow up; answers a pending `ask_user` question if there is one. |
+| `wisp_reply` | Follow up; answers a pending `ask_user` question if there is one. `agent` / `model` / `effort` move the task to another harness or model, and the new harness gets the conversation so far. |
 | `wisp_list` | Sessions, newest first (`state`, `cwd`, `limit`). |
 | `wisp_stop` | Stop a run. |
 | `wisp_agents` | Installed harnesses and their models. |
@@ -94,7 +94,7 @@ wisp "bump deps and run the tests" --wait        # block, then print the present
 wisp ls [--state running,waiting] [--cwd DIR] [--limit N] [--json]
 wisp show <id> [--json]
 wisp wait <id> [--json]
-wisp reply <id> "also handle the empty list" [--queue] [--wait] [--mode plan|edits|auto]
+wisp reply <id> "also handle the empty list" [--queue] [--wait] [--mode plan|edits|auto] [--agent ID --model ID --effort LEVEL]
 wisp stop <id>
 wisp "fix it" --compare codex,opencode           # the same task on more harnesses, one worktree each
 wisp "quick edit" --no-worktree                  # edit the folder in place
@@ -171,7 +171,7 @@ Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
 | GET | `/api/usage?days=30` | spend and outcomes per day, project and harness · model |
 | GET | `/api/sessions/:id/wait?timeout=60` | long-poll (max 290 s) until it finishes or asks; `timedOut` if not |
 | GET | `/api/sessions/:id/presentation` | `{ blocks, markdown, ask, changes, stats, … }`; `?turn=<id\|index>`, `?format=markdown` |
-| POST | `/api/sessions/:id/reply` | `{ text, attachments?, queue? }` |
+| POST | `/api/sessions/:id/reply` | `{ text, attachments?, queue?, mode?, agent?, model?, effort? }` |
 | POST | `/api/sessions/:id/answer` | `{ text }` for a pending `ask_user` |
 | POST | `/api/sessions/:id/stop` | |
 | DELETE | `/api/sessions/:id/queue?item=` | cancel a queued follow-up |

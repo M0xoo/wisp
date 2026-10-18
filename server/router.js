@@ -7,7 +7,8 @@
 // sampling: arms with little data sometimes draw high and get tried) and picks the best value
 // for the goal: value × chance − expected $ − a price on your waiting time.
 //
-// What happened afterwards is the reward, strongest signal first: merged (1) / PR closed (0.2),
+// What happened afterwards is the reward, strongest signal first: switched to another harness or
+// model in a follow-up (0.1), merged (1) / PR closed (0.2),
 // 👍 (1) / 👎 (0), rolled back (0.1), else the presentation's hero (done 0.6, partial 0.3,
 // blocked 0.1, error 0) less 0.1 per follow-up. A later, stronger signal replaces an earlier one.
 //
@@ -227,7 +228,7 @@ export class Router {
   }
 
   // Something happened to a routed session: { hero, error, followups, feedback, merged, closed,
-  // rolledBack, costUsd, ms }. The reward is recomputed and the stats move by the difference.
+  // rolledBack, switched, costUsd, ms }. The reward is recomputed and the stats move by the difference.
   signal(id, patch) {
     const route = this.state.routes[id];
     if (!route) return null;
@@ -292,6 +293,8 @@ export class Router {
 }
 
 export function reward(sig) {
+  // The user moved the task to another harness or model: whatever happens next isn't this arm's.
+  if (sig.switched) return 0.1;
   if (sig.merged) return 1;
   if (sig.feedback === 'up') return 1;
   if (sig.feedback === 'down') return 0;

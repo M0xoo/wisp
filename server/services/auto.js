@@ -30,7 +30,8 @@ export function createAuto(app) {
   app.runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf(), ...opts() });
 
   // A routed session's outcome so far, from its summary: works the same for sessions on machines.
-  // Follow-ups after the first turn count as corrections; a merged or closed PR settles it.
+  // Follow-ups after the first turn count as corrections; a merged or closed PR settles it, unless
+  // the user moved the task to another harness or model first.
   const signals = (sum) => {
     if (!sum?.id || !router.route(sum.id) || sum.status === 'running' || sum.state === 'running') return;
     const pr = sum.pr?.state;
@@ -39,6 +40,7 @@ export function createAuto(app) {
       followups: Math.max(0, (sum.turnCount || 1) - 1),
       merged: pr === 'MERGED' || undefined,
       closed: pr === 'CLOSED' || undefined,
+      switched: sum.route?.switched || undefined,
     });
   };
 

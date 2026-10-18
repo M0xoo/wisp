@@ -155,8 +155,9 @@ export class WispClient {
   usage = ({ days } = {}) => this.request('GET', `/usage${days ? `?days=${days}` : ''}`);
 
   // A follow-up. If the agent is blocked on ask_user, this answers it. queue: wait for the
-  // current run instead of interrupting it (default: the user's setting).
-  reply = (id, text, { attachments, queue, mode } = {}) => this.request('POST', `/sessions/${id}/reply`, { text, attachments, queue, mode });
+  // current run instead of interrupting it (default: the user's setting). agent / model / effort:
+  // run it, and the follow-ups after it, on another harness, model or thinking level.
+  reply = (id, text, { attachments, queue, mode, agent, model, effort } = {}) => this.request('POST', `/sessions/${id}/reply`, { text, attachments, queue, mode, agent, model, effort });
 
   // Upload a file (path, Buffer or Uint8Array) to attach to a launch or reply. Returns { id, … }.
   async upload(file, { name, type } = {}) {

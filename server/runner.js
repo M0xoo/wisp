@@ -10,6 +10,7 @@ import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
+import { handoffNote } from './handoff.js';
 import { bad, MODES, newId } from './util.js';
 
 const MAX_ACTIVITY = 400;
@@ -29,6 +30,16 @@ function workspaceNote(s) {
   const wt = s.worktree;
   if (!wt) return '';
   return `\n\n## Workspace\n\nYou are in an isolated git worktree (${wt.path}) on branch \`${wt.branch}\`, created from \`${wt.baseRef}\` for this task only. Other agents may be working in the user's main checkout, so make every change here. Dependencies and build output (node_modules, virtualenvs, dist/) are not shared with the main checkout: install them if a command needs them. Leave your changes uncommitted unless the user asks you to commit; the user ships them from wisp (commit, push, pull request).`;
+}
+
+// A follow-up's { agent, model, effort }, or null when it's what the session already runs on.
+// Fields left out keep the session's; a new harness without a model gets its default.
+function changedRun(session, run) {
+  if (!run || typeof run !== 'object') return null;
+  const agent = run.agent || session.agent;
+  const same = agent === session.agent;
+  const next = { agent, model: String(run.model ?? (same ? session.model : '') ?? ''), effort: String(run.effort ?? (same ? session.effort : '') ?? '') };
+  return same && next.model === (session.model || '') && next.effort === (session.effort || '') ? null : next;
 }
 
 function autoTitle(prompt) {
@@ -81,7 +92,7 @@ export function summarize(s, store) {
     ),
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
     // Auto: what it picked and why, for the card's tooltip.
-    route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives } : null,
+    route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives, ...(s.route.switched && { switched: true }) } : null,
   };
 }
 
@@ -128,6 +139,7 @@ export class Runner extends EventEmitter {
       createdAt: now,
       updatedAt: now,
       agentSessionId: null,
+      agentSessions: {}, // harness -> its own conversation id, so switching back resumes it
       queue: [],
       turns: [],
       ...(worktree && { worktree }),
@@ -144,10 +156,13 @@ export class Runner extends EventEmitter {
   }
 
   // mode: switch the permission mode (plan / edits / auto) from this follow-up on. A queued
-  // follow-up keeps its own, so the run before it isn't affected.
-  reply(session, text, attachments = [], { queue = false, mode } = {}) {
+  // follow-up keeps its own, so the run before it isn't affected. run: { agent, model, effort }
+  // switches the harness, model and thinking level the same way (see #switchRun).
+  reply(session, text, attachments = [], { queue = false, mode, run } = {}) {
     if (!MODES.has(mode) || mode === session.mode) mode = undefined;
-    if (session.ask && !mode) {
+    run = changedRun(session, run);
+    const extra = { ...(mode && { mode }), ...(run && { run }) };
+    if (session.ask && !mode && !run) {
       this.answer(session, text);
       return { answered: true };
     }
@@ -157,25 +172,44 @@ export class Runner extends EventEmitter {
       // The run already produced its result and the CLI is only lingering on its way out:
       // there's nothing to wait for, so let it go and start the follow-up now.
       if (turn?.status !== 'running') {
-        session.queue.push({ id: newId(), text, attachments, ...(mode && { mode }) });
+        session.queue.push({ id: newId(), text, attachments, ...extra });
         handle.release();
         return { queued: session.queue.length > 0 };
       }
       // Interrupting needs an agent session to resume; before the agent reports one, queue.
       if (queue || !session.agentSessionId) {
-        session.queue.push({ id: newId(), text, attachments, ...(mode && { mode }) });
+        session.queue.push({ id: newId(), text, attachments, ...extra });
         this.#touch(session);
         return { queued: true, ahead: session.queue.length - 1 };
       }
       // Ahead of anything queued, but after earlier interrupting follow-ups, so they keep their order.
       const at = session.queue.findIndex((q) => !q.now);
-      session.queue.splice(at < 0 ? session.queue.length : at, 0, { id: newId(), text, attachments, now: true, ...(mode && { mode }) });
+      session.queue.splice(at < 0 ? session.queue.length : at, 0, { id: newId(), text, attachments, now: true, ...extra });
       this.#interrupt(session);
       return { interrupted: true };
     }
     if (mode) session.mode = mode;
+    if (run) this.#switchRun(session, run);
     this.#startTurn(session, text, attachments);
     return { queued: false };
+  }
+
+  // A follow-up on another harness, model or thinking level. A model or level change resumes the
+  // same conversation; a harness change resumes that harness's own one (if it ran earlier in this
+  // task) or starts it fresh, and #startTurn hands it the turns it missed.
+  #switchRun(session, { agent, model, effort }) {
+    session.agentSessions ||= {};
+    // Sessions from before agentSessions: their conversation belongs to the harness they ran on.
+    if (session.agentSessionId) session.agentSessions[session.agent] = session.agentSessionId;
+    for (const t of session.turns) t.agent ||= session.agent;
+    // Auto's pick was overruled: the card stops crediting it, and the router learns (services/auto.js).
+    if (session.route && (agent !== session.agent || model !== session.model)) session.route.switched = true;
+    if (agent !== session.agent) {
+      session.agent = agent;
+      session.agentSessionId = session.agentSessions[agent] || null;
+    }
+    session.model = model;
+    session.effort = effort;
   }
 
   // Drop a follow-up that hasn't gone out yet.
@@ -391,8 +425,10 @@ export class Runner extends EventEmitter {
     const adapter = adapters[session.agent];
     // Leads get the delegate tool next to ask_user; subagents get neither (nobody to ask).
     const team = adapter.askTool !== null ? session.subagents || [] : [];
+    // A harness that hasn't seen every earlier turn (the user switched to it) gets them first.
+    const handoff = session.parentId ? '' : handoffNote(session, session.agent, session.agentSessionId, (t) => adapters[t.agent]?.name || t.agent);
     const handle = adapter.run({
-      prompt,
+      prompt: handoff ? `${handoff}\n\n${prompt}` : prompt,
       attachments,
       cwd: workdir(session),
       resumeId: session.agentSessionId,
@@ -430,6 +466,7 @@ export class Runner extends EventEmitter {
       this.stopping.delete(session.id); // a stop that landed after the result has nothing left to stop
       const next = session.queue.shift();
       if (next?.mode) session.mode = next.mode;
+      if (next?.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
       if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments);
       else this.#touch(session);
     };
@@ -442,6 +479,7 @@ export class Runner extends EventEmitter {
     switch (ev.type) {
       case 'session':
         session.agentSessionId = ev.id;
+        (session.agentSessions ||= {})[session.agent] = ev.id;
         return;
       case 'tool':
       case 'tool_error':

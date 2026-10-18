@@ -127,7 +127,7 @@ wisp "add a test" --wait          # block until it finishes, print the presentat
 wisp ls --state running,waiting   # list sessions
 wisp show <id>                    # state + latest presentation
 wisp wait <id>                    # until it finishes or asks you something
-wisp reply <id> "also do X"       # follow up (answers a pending question; --mode to switch)
+wisp reply <id> "also do X"       # follow up (answers a pending question; --mode, --agent, --model to switch)
 wisp stop <id>
 wisp ship <id> [--draft]          # commit, push and open a PR for a worktree task
 wisp merge <id>                   # squash-merge its PR, fast-forward your local main
