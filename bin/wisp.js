@@ -24,7 +24,7 @@ const HELP = `usage:
   wisp ls                       list sessions        (--state running,waiting  --limit N)
   wisp show <id>                state + latest presentation as markdown
   wisp wait <id>                block until it finishes or asks you something
-  wisp reply <id> "text"        follow up (answers a pending question)   (--queue)
+  wisp reply <id> "text"        follow up (answers a pending question)   (--queue  --mode plan|edits|auto)
   wisp stop <id>                stop a run
   wisp ship <id>                commit, push and open a PR for a worktree session   (--draft)
   wisp merge <id>               squash-merge its PR and sync your local base branch
@@ -132,7 +132,7 @@ async function scripted(cmd, args) {
     }
     case 'reply': {
       const id = need(args[0], 'session id');
-      const r = await wisp.reply(id, need(args.slice(1).join(' ').trim(), 'text'), { queue: flags.queue });
+      const r = await wisp.reply(id, need(args.slice(1).join(' ').trim(), 'text'), { queue: flags.queue, mode: flags.mode || undefined });
       if (!flags.wait) return out(r, r.answered ? '  ✓ answered' : r.interrupted ? '  ✓ interrupted; resuming with your message' : r.queued ? '  ✓ queued' : '  ✓ sent');
       return show(id, await wisp.wait(id));
     }

@@ -13,6 +13,7 @@ import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js
 import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
 
 const MAX_ACTIVITY = 400;
+const MODES = new Set(['plan', 'edits', 'auto']);
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
 // The delegate tool lives on the same injected server, so harnesses name it like ask_user.
@@ -138,8 +139,11 @@ export class Runner extends EventEmitter {
     return session;
   }
 
-  reply(session, text, attachments = [], { queue = false } = {}) {
-    if (session.ask) {
+  // mode: switch the permission mode (plan / edits / auto) from this follow-up on. A queued
+  // follow-up keeps its own, so the run before it isn't affected.
+  reply(session, text, attachments = [], { queue = false, mode } = {}) {
+    if (!MODES.has(mode) || mode === session.mode) mode = undefined;
+    if (session.ask && !mode) {
       this.answer(session, text);
       return { answered: true };
     }
@@ -149,22 +153,23 @@ export class Runner extends EventEmitter {
       // The run already produced its result and the CLI is only lingering on its way out:
       // there's nothing to wait for, so let it go and start the follow-up now.
       if (turn?.status !== 'running') {
-        session.queue.push({ id: newId(), text, attachments });
+        session.queue.push({ id: newId(), text, attachments, ...(mode && { mode }) });
         handle.release();
         return { queued: session.queue.length > 0 };
       }
       // Interrupting needs an agent session to resume; before the agent reports one, queue.
       if (queue || !session.agentSessionId) {
-        session.queue.push({ id: newId(), text, attachments });
+        session.queue.push({ id: newId(), text, attachments, ...(mode && { mode }) });
         this.#touch(session);
         return { queued: true, ahead: session.queue.length - 1 };
       }
       // Ahead of anything queued, but after earlier interrupting follow-ups, so they keep their order.
       const at = session.queue.findIndex((q) => !q.now);
-      session.queue.splice(at < 0 ? session.queue.length : at, 0, { id: newId(), text, attachments, now: true });
+      session.queue.splice(at < 0 ? session.queue.length : at, 0, { id: newId(), text, attachments, now: true, ...(mode && { mode }) });
       this.#interrupt(session);
       return { interrupted: true };
     }
+    if (mode) session.mode = mode;
     this.#startTurn(session, text, attachments);
     return { queued: false };
   }
@@ -252,6 +257,7 @@ export class Runner extends EventEmitter {
       let child = this.store.get(lead.children?.[slot]);
       if (child) {
         child.cwd = workdir(lead); // follows the lead if its worktree moved
+        child.mode = lead.mode; // and its mode, if a follow-up switched it
         this.#startTurn(child, prompt);
       } else {
         child = this.create({ prompt, cwd: workdir(lead), agent: m.agent, mode: lead.mode, model: m.model, effort: m.effort, parentId: lead.id, member: slot });
@@ -317,6 +323,7 @@ export class Runner extends EventEmitter {
       agent: session.agent,
       model: session.model,
       effort: session.effort || '',
+      mode: session.mode,
       attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })),
       startedAt: Date.now(),
       endedAt: null,
@@ -391,6 +398,7 @@ export class Runner extends EventEmitter {
       this.interrupting.delete(session.id);
       this.stopping.delete(session.id); // a stop that landed after the result has nothing left to stop
       const next = session.queue.shift();
+      if (next?.mode) session.mode = next.mode;
       if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments);
       else this.#touch(session);
     };

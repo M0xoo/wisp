@@ -200,7 +200,7 @@ export function openapi({ version, port }) {
         parameters: [id],
         post: {
           summary: 'Follow up (answers a pending ask_user question if there is one)',
-          requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, queue: { type: 'boolean', description: 'Wait for the current run instead of interrupting it' } } }),
+          requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, queue: { type: 'boolean', description: 'Wait for the current run instead of interrupting it' }, mode: { enum: ['plan', 'edits', 'auto'], description: 'Switch the session to this mode from this follow-up on' } } }),
           responses: { 200: json({ type: 'object', properties: { answered: { type: 'boolean' }, queued: { type: 'boolean' }, interrupted: { type: 'boolean' }, ahead: { type: 'integer' } } }), 400: err[400] },
         },
       },

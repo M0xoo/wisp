@@ -66,8 +66,8 @@ const TOOLS = [
     name: 'wisp_reply',
     description:
       'Send a follow-up to a session; it resumes the same agent conversation. If the agent is waiting on a question, this answers it. ' +
-      'A follow-up sent while it runs interrupts it (queue=true waits for the run to finish instead).',
-    inputSchema: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, queue: { type: 'boolean' } }, required: ['id', 'text'] },
+      'A follow-up sent while it runs interrupts it (queue=true waits for the run to finish instead). mode switches the session’s mode from this follow-up on.',
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, queue: { type: 'boolean' }, mode: { type: 'string', enum: ['plan', 'edits', 'auto'] } }, required: ['id', 'text'] },
   },
   {
     name: 'wisp_stop',
@@ -118,7 +118,7 @@ async function callTool(name, a = {}) {
       return waitFor(a.id);
     case 'wisp_reply': {
       if (!a.text?.trim()) throw new Error('text is required');
-      const r = await c.reply(a.id, a.text.trim(), { queue: a.queue });
+      const r = await c.reply(a.id, a.text.trim(), { queue: a.queue, mode: a.mode });
       return r.answered ? 'Answered the agent’s question; it is continuing.' : r.interrupted ? 'Interrupted the run; it resumes with your message.' : r.queued ? 'Queued; it goes out when the current run finishes.' : 'Sent; the agent is working on it.';
     }
     case 'wisp_stop':
