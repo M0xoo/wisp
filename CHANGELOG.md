@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-18
+
 ### Added
 
 - **Start tasks from Telegram.** In **Phone → Telegram**, switch on **Start tasks from Telegram**, then send your bot `/new fix the flaky login test`. The task runs in your default project (the last used, or the one you pick in that section) with the launcher's harness, model and mode. `/new @api add rate limiting` picks a project by name, and `/projects` lists them. The bot replies **▶ Started**, and replying to that message sends a follow-up. Its card shows **Telegram** as where it came from. It's off by default, only the linked chat can start tasks, and a `/new` sent while wisp was offline is not run later. API: `PUT /api/remote` with `telegram.allowStart` and `telegram.project`.
@@ -238,7 +240,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/M0xoo/wisp/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/M0xoo/wisp/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/M0xoo/wisp/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/M0xoo/wisp/compare/v0.9.0...v0.10.0
