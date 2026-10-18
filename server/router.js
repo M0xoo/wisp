@@ -17,6 +17,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic } from './util.js';
 
 const PRIORS = JSON.parse(fs.readFileSync(new URL('./router-priors.json', import.meta.url), 'utf8'));
 
@@ -97,7 +98,7 @@ export class Router {
 
   save() {
     try {
-      fs.writeFileSync(this.file, JSON.stringify(this.state));
+      writeJsonAtomic(this.file, this.state); // a cut-off file would load as nothing learned
     } catch (err) {
       console.warn(`wisp: router: ${err.message}`);
     }

@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from './adapters/index.js';
 import { heroOf } from './protocol.js';
-import { clip } from './util.js';
+import { clip, writeJsonAtomic } from './util.js';
 
 export const KINDS = ['preferences', 'lessons'];
 export const MAX_ITEMS = 10; // per list
@@ -63,8 +63,7 @@ export class Preferences {
   }
 
   #save() {
-    fs.writeFileSync(`${this.file}.tmp`, JSON.stringify(this.data, null, 2));
-    fs.renameSync(`${this.file}.tmp`, this.file);
+    writeJsonAtomic(this.file, this.data, 2);
   }
 
   // scope: 'global' or a project path; kind: 'preferences' | 'lessons'.

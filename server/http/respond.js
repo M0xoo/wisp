@@ -10,11 +10,19 @@ export function send(res, status, body) {
 export function readJson(req) {
   return new Promise((resolve, reject) => {
     let data = '';
+    let tooLarge = false;
     req.on('data', (c) => {
+      if (tooLarge) return;
       data += c;
-      if (data.length > MAX_BODY) reject(Object.assign(new Error('body too large'), { status: 413 }));
+      if (data.length > MAX_BODY) {
+        // Stop buffering: the rest of the body is dropped, not held in memory.
+        tooLarge = true;
+        data = '';
+        reject(Object.assign(new Error('body too large'), { status: 413 }));
+      }
     });
     req.on('end', () => {
+      if (tooLarge) return;
       try {
         resolve(data ? JSON.parse(data) : {});
       } catch {

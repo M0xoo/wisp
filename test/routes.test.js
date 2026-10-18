@@ -54,9 +54,20 @@ test('unknown API paths and methods are 404s with a JSON error', async () => {
   }
 });
 
-test('the web UI is served, and paths outside web/ fall back to the app', async () => {
+test('the web UI is served', async () => {
   const html = await (await fetch(`${base}/`)).text();
   assert.match(html, /<!doctype html>/i);
   const r = await fetch(`${base}/js/blocks.js`);
   assert.match(r.headers.get('content-type'), /javascript/);
+});
+
+test('idle connections outlive the client keep-alive, so reused sockets are not reset mid-request', () => {
+  // Node's fetch drops idle sockets after 4s; the server must not close them first.
+  assert.ok(srv.server.keepAliveTimeout > 10_000);
+  assert.ok(srv.server.headersTimeout > srv.server.keepAliveTimeout);
+});
+
+test('a JSON body over the size cap is refused with 413', async () => {
+  const r = await fetch(`${base}/api/feedback`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'x'.repeat(2_100_000) }) });
+  assert.equal(r.status, 413);
 });

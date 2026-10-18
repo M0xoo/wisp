@@ -49,6 +49,11 @@ export { API_VERSION };
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
 const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, proxyRoutes, sessionRoutes, shipRoutes];
 
+// Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
+// but they retry). With Node's 5s default the two raced, and a request sent on a socket the
+// server was closing failed with ECONNRESET.
+const KEEP_ALIVE_MS = 65_000;
+
 // `app` is what every route and service shares. Services reach each other through it at call
 // time, so the order they are created in only matters for what runs right away.
 export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', handleSignals = true } = {}) {
@@ -169,11 +174,18 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
       if (!(await routes.handle(req, res, url))) send(res, 404, { error: 'not found' });
     } catch (err) {
-      console.error(err);
-      if (!err.status || err.status >= 500) app.telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
-      send(res, err.status || 500, { error: err.message });
+      // A refusal (bad input, not found, conflict) is an answer, not a server error.
+      const expected = err.status && err.status < 500;
+      if (!expected) {
+        console.error(err);
+        app.telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
+      }
+      if (!res.headersSent) send(res, err.status || 500, { error: err.message });
+      else res.end();
     }
   });
+  server.keepAliveTimeout = KEEP_ALIVE_MS;
+  server.headersTimeout = KEEP_ALIVE_MS + 1000;
 
   // Advertise this server so integrations (CLI, MCP, editors) can find it without knowing the port.
   const serverFile = path.join(store.home, 'server.json');

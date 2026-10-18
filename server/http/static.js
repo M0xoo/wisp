@@ -25,7 +25,8 @@ export const MIME = {
 
 export function serveStatic(res, pathname) {
   const p = path.normalize(path.join(WEB, pathname === '/' ? 'index.html' : pathname));
-  if (!p.startsWith(WEB) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) {
+  // Inside web/ only: a sibling folder whose name starts with "web" doesn't count.
+  if (!p.startsWith(WEB + path.sep) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) {
     // SPA fallback
     res.writeHead(200, { 'content-type': MIME['.html'] });
     return fs.createReadStream(path.join(WEB, 'index.html')).pipe(res);
