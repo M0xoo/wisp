@@ -19,6 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Changing a Telegram setting through the API without a `token` no longer clears the bot token and unlinks the chat. After a settings change, Telegram no longer re-delivers messages wisp already handled.
 
+- Following up on a task now keeps it on screen as it moves to **Working**, and again when it lands back in **Needs you**. On a long card, the previous answer folding away used to pull the whole card off the top of the screen, so you lost the task you had just replied to. The composer now holds still and the new exchange appears where you were typing.
+
 ## [0.12.0] - 2026-10-18
 
 ### Added

@@ -1812,7 +1812,14 @@ function renderBody(id, { fresh }) {
   earlier.textContent = `Show ${hiddenCount} earlier turn${hiddenCount === 1 ? '' : 's'}`;
   // A new turn re-folds everything older, so the latest exchange is what's open by default.
   const latestId = s.turns.at(-1)?.id;
-  if (n.latestTurn !== latestId) (n.unfolded.clear(), (n.latestTurn = latestId));
+  const newTurn = n.latestTurn !== latestId;
+  if (newTurn) (n.unfolded.clear(), (n.latestTurn = latestId));
+  // Folding the last answer when a follow-up starts can take a screen or more out of the card
+  // above the composer. Hold the composer still, so the new exchange lands where the user was
+  // typing instead of the whole card sliding off the top of the screen.
+  const watched = watching(id);
+  const dock = watched && newTurn && !fresh ? $('.it-dock', body) : null;
+  const dockTop = dock?.getBoundingClientRect().top;
   const keep = new Set();
   let firstNew = null;
   turns.forEach((t) => {
@@ -1836,7 +1843,8 @@ function renderBody(id, { fresh }) {
   for (const [tid, v] of n.turnNodes) if (!keep.has(tid)) (v.node.remove(), n.turnNodes.delete(tid));
 
   updateDock(id);
-  if (firstNew && watching(id)) requestAnimationFrame(() => firstNew.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  if (dock?.isConnected) scrollByPx(dock.getBoundingClientRect().top - dockTop);
+  if (firstNew && watched) requestAnimationFrame(() => firstNew.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
 
 // Whether the user is reading a card, not just catching its edge at the top or bottom of the
