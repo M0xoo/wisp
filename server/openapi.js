@@ -45,6 +45,11 @@ export function openapi({ version, port }) {
         },
       },
       '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels (?fresh=1 detects again)', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
+      '/router': {
+        get: { summary: 'Auto: the goal, settings, every harness · model with its learned chance of success and cost, and recent routes', responses: { 200: json({ type: 'object' }) } },
+        patch: { summary: 'Auto settings', requestBody: body({ type: 'object', properties: { goal: { enum: ['cheap', 'balanced', 'best'] }, explore: { type: 'boolean', description: 'Let Auto try new models on a few tasks' }, allowed: { type: 'array', items: { type: 'string' }, description: 'Harness ids Auto may pick; empty or null = all' } } }), responses: { 200: json({ type: 'object' }) } },
+      },
+      '/router/reset': { post: { summary: 'Forget what Auto learned here (the shipped starting point stays)', responses: { 200: json({ type: 'object' }) } } },
       '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/feedback': {
         post: {
@@ -264,7 +269,8 @@ export function openapi({ version, port }) {
           properties: {
             prompt: { type: 'string' },
             cwd: { type: 'string', description: 'Project folder (absolute; ~ allowed). Default: the server’s cwd' },
-            agent: { enum: ['claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'claude' },
+            agent: { enum: ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'auto', description: 'auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)' },
+            important: { type: 'boolean', description: 'With agent auto: no exploring, take the pick with the best record' },
             mode: { enum: ['plan', 'edits', 'auto'], default: 'edits' },
             model: { type: 'string' },
             effort: { type: 'string', description: 'Thinking level: low, medium, high, xhigh, max (per harness)' },

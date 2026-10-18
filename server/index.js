@@ -25,6 +25,7 @@ import { Remote } from './remote.js';
 import { Machines, splitId, qualify, sshHosts, discoverHosts } from './machines.js';
 import { usage } from './usage.js';
 import { normalizeTeam, normalizePreset, delegationReport } from './subagents.js';
+import { Router, GOALS } from './router.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -99,6 +100,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     onChange: () => broadcast('machines', machines.view()),
     onEvent: (event, data) => {
       broadcast(event, data);
+      if ((event === 'finished' || event === 'summary') && data?.session) routeSignals(data.session);
+      else if (event === 'summary' && data?.id) routeSignals(data);
       if (event === 'finished' && remote.on) notifyFromMachine(data.session).catch((err) => console.warn(`wisp: phone: ${err.message}`));
     },
   });
@@ -135,13 +138,55 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       broadcast('preferences', { added: added.length, removed: removed.length });
     },
   });
+  // Auto: wisp picks harness and model per task and learns from outcomes (server/router.js).
+  const router = new Router(store.home);
+  let agentsHere = [];
+  const detect = async (opts) => {
+    const agents = await listAgents(opts);
+    agentsHere = agents;
+    const added = router.sync(agents);
+    if (added.length) broadcast('router', { added });
+    return agents;
+  };
+  const autoOpts = () => {
+    const r = store.config.defaults.router || {};
+    return { explore: r.explore !== 'off', allowed: Array.isArray(r.allowed) && r.allowed.length ? r.allowed : null };
+  };
+  const goalOf = (model) => (GOALS[model] ? model : GOALS[store.config.defaults.models?.auto] ? store.config.defaults.models.auto : 'balanced');
+  // Subagents set to Auto are routed on their first task, from this computer's harnesses.
+  runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf(), ...autoOpts() });
+  // A routed session's outcome so far, from its summary: works the same for sessions on machines.
+  // Follow-ups after the first turn count as corrections; a merged or closed PR settles it.
+  const routeSignals = (sum) => {
+    if (!sum?.id || !router.route(sum.id) || sum.status === 'running' || sum.state === 'running') return;
+    const pr = sum.pr?.state;
+    router.signal(sum.id, {
+      hero: ['done', 'partial', 'blocked', 'info'].includes(sum.status) ? sum.status : undefined,
+      followups: Math.max(0, (sum.turnCount || 1) - 1),
+      merged: pr === 'MERGED' || undefined,
+      closed: pr === 'CLOSED' || undefined,
+    });
+  };
+  runner.on('started', ({ session }) => {
+    if (session.route && !router.route(session.id)) router.record(session.id, session.route);
+  });
+  runner.on('ended', ({ session, turn, interrupted }) => {
+    if (!session.route || interrupted) return;
+    if (session.turns.indexOf(turn) === 0) router.signal(session.id, { error: turn.status === 'error' || undefined, costUsd: turn.stats?.costUsd, ms: turn.endedAt - turn.startedAt });
+    routeSignals(summarize(session, store));
+  });
+
   const run = (s, t) => ({ agent: s.agent, model: s.model || 'default', mode: s.mode, effort: s.effort || 'default', followUp: s.turns.indexOf(t) > 0 });
+  // Auto's choice, as fixed values only: never the prompt.
+  const routeProps = (s) =>
+    s.route ? { routed: true, routeGoal: s.route.goal, routeType: s.route.type, routeSize: s.route.size, routeExplored: !!s.route.explored, routeTrying: !!s.route.trying, routePropensity: s.route.propensity } : {};
   runner.on('started', ({ session, turn }) => telemetry.track('turn_started', { ...run(session, turn), attachments: turn.attachments.length }));
   runner.on('ended', ({ session, turn, interrupted, errorText }) => {
     const blocks = turn.presentation?.blocks || [];
     const st = turn.stats || {};
     telemetry.track('turn_ended', {
       ...run(session, turn),
+      ...routeProps(session),
       status: interrupted ? 'interrupted' : turn.status, // done | error | stopped | interrupted
       heroStatus: blocks.find((b) => b.type === 'hero')?.status,
       durationMs: turn.endedAt - turn.startedAt,
@@ -165,11 +210,16 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     const cwd = expand(body.cwd || process.cwd());
     if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw bad(`Not a directory: ${cwd}`);
     const d = store.config.defaults;
-    // compare: more { agent, model, effort } to run the same task on, side by side.
-    const runners = [{ agent: body.agent, model: body.model, effort: body.effort }, ...(Array.isArray(body.compare) ? body.compare : [])].slice(0, MAX_COMPARE).map((r, i) => {
+    const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
+    if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
+    const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
+    // compare: more { agent, model, effort } to run the same task on, side by side. 'auto' is
+    // resolved here: the router picks a harness and model (a different one per compare run).
+    const resolved = await resolveAuto(body, agentsHere.length ? agentsHere : await detect(), { team: subagents.length > 0 });
+    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
       const agent = r.agent || (i ? d.agent : '') || 'claude';
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
-      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '' };
+      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(r.route && { route: r.route }) };
     });
     const mode = MODES.has(body.mode) ? body.mode : 'edits';
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
@@ -179,9 +229,6 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     // groupId: one launch sent to several machines (or here and there) shows as one task.
     const groupId = /^[a-f0-9]{12}$/.test(body.groupId || '') ? body.groupId : comparing ? newId() : null;
     const attachments = resolveAttachments(body.attachments);
-    const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
-    if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
-    const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
     const ids = runners.map(() => newId());
     let trees = ids.map(() => null);
     if (wantTree) {
@@ -204,6 +251,22 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents }));
   }
 
+  // agent 'auto' (and compare entries set to it) → a harness and model picked by the router from
+  // `agents`: this computer's, or the machine's the launch goes to. Model is the goal for Auto.
+  async function resolveAuto(body, agents, { team = false } = {}) {
+    const want = [{ agent: body.agent, model: body.model, effort: body.effort }, ...(Array.isArray(body.compare) ? body.compare : [])];
+    if (!want.some((r) => r.agent === 'auto')) return body;
+    const taken = [];
+    const out = want.map((r, i) => {
+      if (r.agent !== 'auto') return r;
+      const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important, exclude: taken, needDelegate: i === 0 && team, ...autoOpts() });
+      if (!pick) throw bad('Auto found no installed harness to run this on.');
+      taken.push(pick.key);
+      return { agent: pick.agent, model: pick.model, effort: '', route: pick.route };
+    });
+    return { ...body, ...out[0], compare: out.slice(1) };
+  }
+
   // Where a launch runs: body.machine, else a project folder that only exists on a machine
   // (recipes and schedules keep just the path). null = here.
   function machineFor(body) {
@@ -217,7 +280,15 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   async function launchAny(body, origin = null) {
     const mid = machineFor(body);
     if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));
-    const out = await machines.launch(mid, { ...body, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
+    // Auto for a machine: routed here, with the harnesses that machine has; its outcomes come
+    // back through the summaries it streams (routeSignals), so one router learns from every place.
+    const routed = await resolveAuto(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset) });
+    const routes = [routed.route, ...(routed.compare || []).map((c) => c.route)];
+    const sendBody = { ...routed, compare: routed.compare?.map(({ route, ...c }) => c) };
+    delete sendBody.route;
+    if (!sendBody.compare?.length && !body.compare) delete sendBody.compare;
+    const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
+    (out.group || [out]).forEach((x, i) => routes[i] && router.record(qualify(x.id, mid), routes[i]));
     const known = store.projectFor(out.cwd, mid);
     (known || store.addProject(out.cwd, { machine: mid })).lastUsedAt = Date.now();
     store.saveConfig();
@@ -354,6 +425,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     const pr = await prView(dir, prev.number);
     const changed = (k) => JSON.stringify(k(pr)) !== JSON.stringify(k(prev));
     s.pr = pr;
+    if (pr.state !== prev.state) routeSignals(summarize(s, store));
     // Things worth coming back for: CI finished either way, a review landed, it merged or closed.
     const settledChecks = (x) => (x.checks.pending ? 'pending' : x.checks.fail ? 'fail' : 'pass');
     if (changed((x) => x.state) || changed((x) => x.review) || (changed(settledChecks) && settledChecks(pr) !== 'pending')) s.unread = true;
@@ -438,11 +510,37 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     }
     if (root === 'openapi.json' && m === 'GET') return send(res, 200, openapi({ version: VERSION, port }));
 
-    if (root === 'agents' && m === 'GET') return send(res, 200, await listAgents({ fresh: url.searchParams.has('fresh') }));
+    if (root === 'agents' && m === 'GET') return send(res, 200, await detect({ fresh: url.searchParams.has('fresh') }));
     // Re-check: detect harnesses and models again, here and on every online machine.
     if (root === 'agents' && id === 'recheck' && m === 'POST') {
-      const [agents] = await Promise.all([listAgents({ fresh: true }), machines.recheckAgents()]);
+      const [agents] = await Promise.all([detect({ fresh: true }), machines.recheckAgents()]);
       return send(res, 200, agents);
+    }
+
+    // Auto: what the router learned, and its settings (goal, trying new models, allowed harnesses).
+    if (root === 'router') {
+      const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { explore: autoOpts().explore, allowed: autoOpts().allowed }, ...router.report(agentsHere.length ? agentsHere : await detect()) });
+      if (!id && m === 'GET') return send(res, 200, await view());
+      if (!id && m === 'PATCH') {
+        const body = await readJson(req);
+        const d = store.config.defaults;
+        if (body.goal !== undefined) {
+          if (!GOALS[body.goal]) return send(res, 400, { error: `goal must be one of ${Object.keys(GOALS).join(', ')}` });
+          d.models = { ...d.models, auto: body.goal };
+          if (d.agent === 'auto') d.model = body.goal;
+        }
+        d.router = { ...d.router };
+        if (body.explore !== undefined) d.router.explore = body.explore ? 'on' : 'off';
+        if (body.allowed !== undefined) d.router.allowed = Array.isArray(body.allowed) ? body.allowed.filter((a) => adapters[a]) : null;
+        store.saveConfig();
+        broadcast('config', {});
+        return send(res, 200, await view());
+      }
+      if (id === 'reset' && m === 'POST') {
+        router.reset();
+        broadcast('router', {});
+        return send(res, 200, await view());
+      }
     }
 
     // Bridge for the ask_user MCP server running inside an agent process.
@@ -900,6 +998,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         broadcast('summary', summarize(s, store));
         broadcast('turn', { sessionId: s.id, turnId: turn.id });
         telemetry.track('rollback_turn', { agent: s.agent, restore: !!restore });
+        router.signal(s.id, { rolledBack: restore ? null : true });
         recheckShip(s);
         return send(res, 200, { ok: true, turnId: turn.id, ...result });
       }
@@ -1051,6 +1150,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     if (rating === undefined && !text) throw Object.assign(new Error('Write something, or pick 👍 / 👎.'), { status: 400 });
     // A session on a machine: that wisp keeps the rating on its turn and sends it.
     const at = sessionId && splitId(sessionId);
+    if (sessionId && turnId && rating !== undefined) router.signal(sessionId, { feedback: rating });
     if (at) {
       try {
         return await machines.json(at.machine, 'POST', '/feedback', { rating, text, sessionId: at.id, turnId, source });
@@ -1153,6 +1253,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   remote.start();
   machines.start();
 
+  detect().catch(() => {});
   if (telemetry.enabled) {
     if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
     listAgents()

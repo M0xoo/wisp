@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import { WispClient } from './client.js';
 
 const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
-const AGENTS = ['claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'];
+const AGENTS = ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'];
 const DEFAULT_WAIT_S = 240; // stay under typical MCP client tool-call timeouts; call wisp_wait again for more
 
 const TOOLS = [
@@ -24,7 +24,7 @@ const TOOLS = [
       properties: {
         prompt: { type: 'string', description: 'The task, written as you would brief a colleague: goal, constraints, how to verify.' },
         cwd: { type: 'string', description: 'Absolute path of the project folder. Default: this MCP server’s working directory.' },
-        agent: { type: 'string', enum: AGENTS, description: 'Harness to run. Default: the user’s last pick in wisp.' },
+        agent: { type: 'string', enum: AGENTS, description: 'Harness to run; auto lets wisp pick harness and model from what worked before. Default: the user’s last pick in wisp.' },
         mode: { type: 'string', enum: ['plan', 'edits', 'auto'], description: 'plan = read-only, edits = auto-accept file edits, auto = no permission prompts. Default: the user’s pick.' },
         model: { type: 'string', description: 'Model id for that harness. Default: the user’s pick.' },
         effort: { type: 'string', description: 'Thinking level, e.g. low | medium | high.' },

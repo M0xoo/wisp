@@ -1,0 +1,54 @@
+{
+  "version": "pilot-2026-10-18",
+  "source": "wisp-bench pilot: 121 runs on SWE-bench Verified, Harness-Bench and replayed wisp PRs, graded by hidden tests (first attempt). Thin: treat as a starting point.",
+  "arms": {
+    "opencode:opencode/deepseek-v4.1-flash-free": {
+      "a": 10,
+      "b": 0,
+      "usd": 0.0,
+      "min": 3.1
+    },
+    "claude:haiku": {
+      "a": 18,
+      "b": 3,
+      "usd": 0.017,
+      "min": 1.5
+    },
+    "claude:sonnet": {
+      "a": 18,
+      "b": 3,
+      "usd": 0.137,
+      "min": 0.7
+    },
+    "grok:grok-4.7": {
+      "a": 10,
+      "b": 2,
+      "usd": 0.984,
+      "min": 5.2
+    },
+    "claude:opus": {
+      "a": 17,
+      "b": 4,
+      "usd": 0.344,
+      "min": 1.3
+    },
+    "antigravity:gemini-3.8-flash-medium": {
+      "a": 4,
+      "b": 1,
+      "usd": 0.054,
+      "min": 4.4
+    },
+    "codex:": {
+      "a": 19,
+      "b": 5,
+      "usd": 0.129,
+      "min": 0.6
+    },
+    "antigravity:gemini-4-argon-medium": {
+      "a": 5,
+      "b": 2,
+      "usd": 0.677,
+      "min": 4.7
+    }
+  }
+}

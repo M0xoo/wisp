@@ -19,7 +19,8 @@ export function normalizeTeam(list, adapters) {
   const taken = new Set();
   const team = list.slice(0, MAX_SUBAGENTS).map((m) => {
     const agent = String(m?.agent || '');
-    if (!adapters[agent] || agent === 'wisp') throw Object.assign(new Error(`unknown subagent harness: ${agent}`), { status: 400 });
+    // auto: wisp picks the harness and model when this member gets its first task.
+    if ((!adapters[agent] && agent !== 'auto') || agent === 'wisp') throw Object.assign(new Error(`unknown subagent harness: ${agent}`), { status: 400 });
     let base = slug(m.name) || agent;
     let name = base;
     for (let i = 2; taken.has(name); i++) name = `${base}-${i}`;
@@ -45,7 +46,10 @@ export function normalizePreset(body, adapters, prev = {}) {
   return { id: prev.id || slug(name) + '-' + Math.random().toString(36).slice(2, 6), name, members, updatedAt: Date.now() };
 }
 
-const who = (m, adapters) => [adapters[m.agent]?.name || m.agent, m.model || 'default model', m.effort && `${m.effort} thinking`].filter(Boolean).join(' · ');
+const who = (m, adapters) =>
+  m.agent === 'auto'
+    ? 'Auto (wisp picks the harness and model for the first task you give it)'
+    : [adapters[m.agent]?.name || m.agent, m.model || 'default model', m.effort && `${m.effort} thinking`].filter(Boolean).join(' · ');
 
 // Appended to the lead's system prompt. `tool` is how its harness names the delegate tool.
 export function teamNote(team, adapters, tool) {

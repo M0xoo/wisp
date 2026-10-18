@@ -81,6 +81,8 @@ export function summarize(s, store) {
       }),
     ),
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
+    // Auto: what it picked and why, for the card's tooltip.
+    route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives } : null,
   };
 }
 
@@ -95,6 +97,7 @@ export class Runner extends EventEmitter {
     this.interrupting = new Set();
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
     this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
+    this.routeAuto = null; // (prompt, { cwd }) => { agent, model, route } for subagents set to Auto
 
     // Anything that was mid-flight when wisp last died is now orphaned.
     for (const s of store.all()) {
@@ -109,7 +112,7 @@ export class Runner extends EventEmitter {
   }
 
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
-  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '' }) {
+  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -133,6 +136,7 @@ export class Runner extends EventEmitter {
       ...(origin && { origin }),
       ...(subagents.length && { subagents, children: {} }),
       ...(parentId && { parentId, member }),
+      ...(route && { route }), // how Auto picked agent and model (server/router.js)
     };
     this.store.put(session);
     if (!parentId) this.store.touchProject(cwd); // a subagent's cwd may be the lead's worktree
@@ -261,10 +265,17 @@ export class Runner extends EventEmitter {
         child.mode = lead.mode; // and its mode, if a follow-up switched it
         this.#startTurn(child, prompt);
       } else {
-        child = this.create({ prompt, cwd: workdir(lead), agent: m.agent, mode: lead.mode, model: m.model, effort: m.effort, parentId: lead.id, member: slot });
+        // An Auto member is routed on its first task and keeps that pick, so later tasks resume it.
+        const pick = m.agent === 'auto' ? this.routeAuto?.(prompt, { cwd: workdir(lead) }) : null;
+        if (m.agent === 'auto' && !pick) {
+          out.push({ subagent: want, error: 'Auto found no harness to run this on.' });
+          continue;
+        }
+        const run = pick ? { agent: pick.agent, model: pick.model, effort: '', route: pick.route } : { agent: m.agent, model: m.model, effort: m.effort };
+        child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot });
         (lead.children ||= {})[slot] = child.id;
       }
-      const d = { id: newId(), name: slot, member: m.name, agent: m.agent, model: m.model, effort: m.effort, sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now() };
+      const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now() };
       (turn.delegations ||= []).push(d);
       out.push(d);
     }

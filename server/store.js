@@ -8,7 +8,7 @@ import { parsePresentation } from './protocol.js';
 
 const DEFAULT_CONFIG = {
   projects: [], // [{ id, name, path, color, addedAt, machine? }]; machine: the server/machines.js id it lives on
-  defaults: { agent: 'claude', mode: 'edits', model: '', effort: '' },
+  defaults: { agent: 'auto', mode: 'edits', model: '', effort: '' }, // auto: wisp picks harness and model (server/router.js)
   recipes: [], // saved prompts with {params}: server/recipes.js
   triggers: [], // schedules and GitHub watchers: server/triggers.js
   teams: [], // saved subagent presets: server/subagents.js
@@ -57,9 +57,17 @@ export class Store {
       cfg.teams ||= [];
       cfg.remote ||= {};
       cfg.machines ||= [];
+      // Auto became the default harness: switch once, after that the user's pick sticks.
+      if (!cfg.autoIntroduced) {
+        if (cfg.defaults.agent !== 'auto') cfg.defaults.agentBeforeAuto = cfg.defaults.agent;
+        cfg.defaults.agent = 'auto';
+        cfg.defaults.model = cfg.defaults.models?.auto || '';
+        cfg.defaults.effort = '';
+        cfg.autoIntroduced = true;
+      }
       return cfg;
     } catch {
-      return structuredClone(DEFAULT_CONFIG);
+      return { ...structuredClone(DEFAULT_CONFIG), autoIntroduced: true };
     }
   }
 

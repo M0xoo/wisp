@@ -64,18 +64,28 @@ const MODES = [
 ];
 const KIND_ICON = { read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock' };
 const STATUS_LABEL = { done: 'Done', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
-const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id === 'wisp' ? 'wisp' : id);
+const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id === 'auto' ? 'Auto' : id === 'wisp' ? 'wisp' : id);
+// Auto: not a CLI but wisp's router (server/router.js), which picks harness and model per task.
+// Its "models" are the goal it optimises for; there are no thinking levels to pick.
+const AUTO_GOALS = [
+  { id: 'balanced', label: 'Balanced', hint: 'Best result per dollar' },
+  { id: 'cheap', label: 'Cheap', hint: 'Lowest cost that still gets it done' },
+  { id: 'best', label: 'Best', hint: 'Best result; cost only breaks ties' },
+];
+const AUTO = { id: 'auto', name: 'Auto', available: true, delegates: true, models: AUTO_GOALS, efforts: [], hint: 'wisp picks the harness and model from what worked before' };
 // Harness lists per place: '' is this computer, else a machine (what it reported when it came online).
 const agentsAt = (k) => (k ? (machineById(k)?.state === 'online' && machineById(k).remote?.agents) || null : S.agents);
 // A harness's models and levels: this computer's if it's installed here, else the first machine's that has it.
 function agentById(id) {
+  if (id === 'auto') return AUTO;
   const local = S.agents.find((a) => a.id === id);
   if (local?.available) return local;
   return S.machines.map((m) => agentsAt(m.id)?.find((a) => a.id === id && a.available)).find(Boolean) || local;
 }
 // The harnesses you can pick for the places under "Run on": installed on any of them counts (a union).
 // `missing` names the picked places that don't have it. Machines not online yet don't count.
-function harnessesAt(places) {
+function harnessesAt(places, { auto = false } = {}) {
+  if (auto) return [AUTO, ...harnessesAt(places)];
   const known = places.map((k) => [k, agentsAt(k)]).filter(([, l]) => l);
   if (!known.length) known.push(['', S.agents]);
   const ids = [...new Set([...S.agents, ...known.flatMap(([, l]) => l)].map((a) => a.id))];
@@ -99,6 +109,7 @@ const HARNESS_LOGO = {
   grok: { file: 'grok', mono: true },
 };
 function harnessLogo(agent) {
+  if (agent === 'auto') return `<i class="auto-mark">${icon('spark')}</i>`;
   const l = HARNESS_LOGO[agent];
   const src = l && `/logos/${l.file}.svg`;
   return !l ? icon('spark') : l.mono ? `<i class="mono" style="--logo:url(${src})"></i>` : `<img src="${src}" alt="">`;
@@ -111,12 +122,19 @@ function effortsFor(agent, model) {
 }
 const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUpperCase() + e.slice(1);
 
-function modelBadge(agent, model, effort) {
+function modelBadge(agent, model, effort, route) {
   if (agent === 'wisp') return '';
   const label = (model && agentById(agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
-  const tip = `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`;
+  const tip = route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`;
   const logo = harnessLogo(agent);
-  return `<span class="model-logo" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}</span>`;
+  return `<span class="model-logo${route ? ' routed' : ''}" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}</span>`;
+}
+// Why Auto picked what it picked, in one line.
+function routeTip(r) {
+  const goal = AUTO_GOALS.find((g) => g.id === r.goal)?.label || 'Balanced';
+  const record = r.n ? `${Math.round(r.chance * 100)}% on your ${r.type} tasks (${r.n})` : `${Math.round(r.chance * 100)}% expected on ${r.type} tasks`;
+  const why = r.trying ? 'new model, trying it out' : r.explored ? 'trying an alternative to learn' : record;
+  return `Auto · ${goal} → ${r.label} · ${why}${r.usd ? ` · ~$${r.usd.toFixed(2)}` : ''}`;
 }
 const projectById = (id) => S.config.projects.find((p) => p.id === id);
 
@@ -359,7 +377,7 @@ function renderHead(n, s) {
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${s.pr ? prPill(s.pr) : ''}
-      ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort)}
+      ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
       <span class="q-proj">${esc(s.project)}</span>
       <span class="q-time">${ago(s.updatedAt)}</span>
@@ -642,6 +660,7 @@ function syncWhere() {
 // The model is remembered per harness (ids aren't portable between them).
 function savedModel(id) {
   const d = S.config.defaults;
+  if (id === 'auto') return AUTO_GOALS.some((g) => g.id === d.models?.auto) ? d.models.auto : 'balanced';
   const want = d.models?.[id] ?? (id === d.agent ? d.model : '');
   const models = agentById(id)?.models || [];
   return models.some((m) => m.id === want) ? want : '';
@@ -656,8 +675,8 @@ function savedEffort(id, model) {
 function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || 'edits';
-  const here = harnessesAt(launchWhere);
-  const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'claude'));
+  const here = harnessesAt(launchWhere, { auto: true });
+  const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'auto'));
   let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
   box.innerHTML = `
     <div class="l-projects"></div>
@@ -819,8 +838,8 @@ function renderLauncher() {
   });
   paintCompare();
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
-      agent = harnessesAt(launchWhere).find((a) => a.id === id);
+    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launchWhere, auto: true }, (id, model, effort) => {
+      agent = harnessesAt(launchWhere, { auto: true }).find((a) => a.id === id);
       curModel = model;
       curEffort = effort;
       paintRunner();
@@ -847,7 +866,7 @@ function renderLauncher() {
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
     if (off) return offlineToast(off.k);
-    const wanted = [agent?.id, ...compare.map((c) => c.agent)];
+    const wanted = [agent?.id, ...compare.map((c) => c.agent)].filter((id) => id !== 'auto'); // Auto picks from what's there
     for (const t of targets) {
       const list = agentsAt(t.k);
       const missing = list && wanted.find((id) => !list.some((x) => x.id === id && x.available));
@@ -909,7 +928,7 @@ function renderLauncher() {
   // Picking other places (or a machine coming online) changes which harnesses exist: keep the
   // pick if one of them still has it, else move to one that's installed there.
   box.placesChanged = () => {
-    const here = harnessesAt(launchWhere);
+    const here = harnessesAt(launchWhere, { auto: true }); // Auto works anywhere: it picks from what's there
     if (!agent || here.find((a) => a.id === agent.id)?.available) return paintRunner();
     const next = here.find((a) => a.id === S.config.defaults.agent && a.available) || here.find((a) => a.available);
     if (!next) return paintRunner();
@@ -1175,7 +1194,7 @@ function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
     const rb = e.target.closest('.tp-runner');
     if (rb) {
       const m = members[i];
-      runnerPicker(rb, { agent: m.agent, model: m.model, effort: m.effort, savedModel, savedEffort, places }, (agent, model, effort) => {
+      runnerPicker(rb, { agent: m.agent, model: m.model, effort: m.effort, savedModel, savedEffort, places, auto: true }, (agent, model, effort) => {
         Object.assign(m, { agent, model, effort });
         paintList();
         commit();
@@ -2500,11 +2519,12 @@ function rename(id) {
 // right, and its thinking levels underneath. Clicking (or arrowing to) a harness previews its
 // models; picking a model commits harness + model, picking a thinking level commits it in place.
 // places: the "Run on" picks, so the list is what's installed there rather than only on this computer.
-function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, places }, pick) {
+function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, places, auto = false }, pick) {
   const open = $('.picker');
   if (open) return open.close();
-  const agents = places ? harnessesAt(places) : S.agents;
+  const agents = places ? harnessesAt(places, { auto }) : auto ? [AUTO, ...S.agents] : S.agents;
   const sub = (a) => {
+    if (a.id === 'auto') return 'Picks harness and model for you';
     if (!a.available) return places?.length > 1 || places?.[0] ? 'Not installed there' : 'Not installed';
     const models = (a.models || []).length > 1 ? `${a.models.length - 1} models` : 'Default model';
     return a.missing?.length ? `Not on ${a.missing.map(placeName).join(', ')}` : models;
@@ -2575,6 +2595,17 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, p
     const models = a?.models || [{ id: '', label: 'Default' }];
     const current = focusAgent === agent ? model : savedModel(focusAgent);
     input.placeholder = `Search ${a?.name || ''} models`;
+    if (a?.id === 'auto') {
+      list.innerHTML = `<div class="pk-group"><div class="pk-ghead">Goal</div>${AUTO_GOALS.map((g) => `<button class="pk-m${g.id === current ? ' on' : ''}" role="option" aria-selected="${g.id === current}" data-id="${g.id}"><span class="pk-text"><b>${g.label}</b><small>${g.hint}</small></span>${icon('check', 'pk-check')}</button>`).join('')}</div><p class="pk-note">wisp picks the harness and model for each task from what worked before, and learns from how it went. ${'<a href="#" class="pk-auto-more">How Auto picks</a>'}</p><div class="pk-empty" hidden>No models match</div>`;
+      $('.pk-search', node).hidden = true;
+      $('.pk-auto-more', list).onclick = (e) => {
+        e.preventDefault();
+        close();
+        openSettings({ pane: 'auto' });
+      };
+      paintEffort();
+      return;
+    }
     $('.pk-search', node).hidden = models.length <= 6;
     // opencode-style ids (provider/model) group by provider.
     const groups = new Map();
@@ -2856,7 +2887,7 @@ async function rerun(id) {
   modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode(), ta.focus()));
   // Picks here only apply to this rerun; the launcher's remembered defaults are left alone.
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort }, (a, m, e) => {
+    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort, auto: true }, (a, m, e) => {
       [agent, model, effort] = [a, m, e];
       paintRunner();
     });
@@ -3447,7 +3478,7 @@ function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
     const [btn, reset] = wrap.children;
     const paint = () => (paintRunnerBtn(btn, draft.agent, draft.model, draft.effort), (reset.hidden = !draft.agent));
     btn.onclick = () =>
-      runnerPicker(btn, { agent: draft.agent || S.config.defaults.agent, model: draft.model, effort: draft.effort, savedModel, savedEffort }, (a, m, e) => {
+      runnerPicker(btn, { agent: draft.agent || S.config.defaults.agent, model: draft.model, effort: draft.effort, savedModel, savedEffort, auto: true }, (a, m, e) => {
         Object.assign(draft, { agent: a, model: m, effort: e });
         paint();
       });
@@ -4149,6 +4180,7 @@ const SETTINGS_PANES = [
   { id: 'general', label: 'General', icon: 'settings', lede: 'Where files open, where you take over, and how tasks start.' },
   { id: 'notifications', label: 'Notifications', icon: 'bolt', lede: 'Hear about questions and finished tasks, here or on your phone.' },
   { id: 'agents', label: 'Agents', icon: 'agent', lede: 'The harnesses wisp found on this machine. Pick one next to the model in the launcher.' },
+  { id: 'auto', label: 'Auto', icon: 'spark', lede: 'wisp picks the harness and model for each task, and learns from how it went.' },
   { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
   { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
@@ -4212,6 +4244,16 @@ function openSettings(opts) {
           <div class="sx-group sx-agents"></div>
           <div class="sx-group">
             ${row('Installed something new?', '<span class="recheck-hint"></span>', `<button class="ghost sm" id="recheck">${icon('replay')}Re-check</button>`)}
+          </div>
+        </section>
+        <section class="sx-pane" data-pane="auto">
+          <div class="sx-group">
+            ${row('Goal', 'What Auto optimises for. Also in the launcher, next to Auto', `<span class="pk-seg ro-goal">${AUTO_GOALS.map((g) => `<button data-goal="${g.id}" title="${esc(g.hint)}">${g.label}</button>`).join('')}</span>`)}
+            ${row('Try new models', 'A new model or harness gets a few tasks that aren’t marked important before Auto relies on it', '<button class="switch" id="roExplore" role="switch"></button>')}
+            ${row('Harnesses it may use', 'Leave all off to let Auto use every one you have', '<span class="ro-allowed"></span>')}
+          </div>
+          <div class="sx-group">
+            ${row('What it learned', '<span class="ro-hint"></span>', '<button class="ghost sm" id="openRouter">Open</button>')}
           </div>
         </section>
         <section class="sx-pane" data-pane="machines">
@@ -4392,6 +4434,52 @@ function openSettings(opts) {
     renderLauncher();
   };
   paintWt();
+  // Auto: goal, exploring and allowed harnesses here; the full record in its own view.
+  const paintAuto = async () => {
+    const r = await api('/router').catch(() => null);
+    if (!r || !node.isConnected) return;
+    $$('.ro-goal button', node).forEach((b) => b.classList.toggle('on', b.dataset.goal === r.goal));
+    $('#roExplore', node).setAttribute('aria-checked', r.settings.explore);
+    const allowed = r.settings.allowed || [];
+    $('.ro-allowed', node).innerHTML = S.agents
+      .filter((a) => a.available)
+      .map((a) => `<button class="chip-tog${allowed.includes(a.id) ? ' on' : ''}" data-id="${esc(a.id)}" aria-pressed="${allowed.includes(a.id)}" title="${esc(a.name)}"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}</button>`)
+      .join('');
+    $('.ro-hint', node).textContent = r.learned
+      ? `${r.learned} task${r.learned === 1 ? '' : 's'} learned from · ${r.arms.filter((a) => a.state !== 'gone').length} harness · model pairs`
+      : `Nothing of yours yet · starting from wisp-bench (${r.priors.version})`;
+  };
+  const patchAuto = async (body) => {
+    try {
+      await api('/router', { method: 'PATCH', body });
+      await loadConfig();
+      renderLauncher();
+    } catch (err) {
+      toast(esc(err.message), { tone: 'bad' });
+    }
+    paintAuto();
+  };
+  $('.ro-goal', node).onclick = (e) => {
+    const b = e.target.closest('[data-goal]');
+    if (b) {
+      $$('.ro-goal button', node).forEach((x) => x.classList.toggle('on', x === b));
+      patchAuto({ goal: b.dataset.goal });
+    }
+  };
+  $('#roExplore', node).onclick = (e) => {
+    const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
+    e.currentTarget.setAttribute('aria-checked', on);
+    patchAuto({ explore: on });
+  };
+  $('.ro-allowed', node).onclick = (e) => {
+    const b = e.target.closest('[data-id]');
+    if (!b) return;
+    b.classList.toggle('on');
+    b.setAttribute('aria-pressed', b.classList.contains('on'));
+    patchAuto({ allowed: $$('.ro-allowed .on', node).map((x) => x.dataset.id) });
+  };
+  node.paintAuto = paintAuto;
+
   // The one-line summaries; painted again on the way back from a view that may have changed them.
   const paintHints = () => {
     const r = S.config.recipes?.length || 0;
@@ -4412,13 +4500,61 @@ function openSettings(opts) {
     $('.machines-hint', node).textContent = machinesSummary();
     api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x) === 'Off' ? 'ntfy or Telegram: answer questions from your phone' : phoneSummary(x))).catch(() => {});
     paintLearn();
+    paintAuto();
   };
   paintHints();
+  $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
   $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
   $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
+}
+
+// --- Auto: what the router learned ---------------------------------------------------------
+
+const ARM_STATE = { ready: ['Ready', 'ok'], new: ['Trying out', 'warn'], untried: ['No data yet', ''], gone: ['Not installed', 'bad'] };
+async function openRouter({ host } = {}) {
+  const node = el(`<div class="modal router-modal">
+      <header><h2>Auto</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <div class="ro-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>
+    </div>`);
+  const close = present(node, host);
+  const pctOf = (x) => `${Math.round(x * 100)}%`;
+  const outcome = (r) => (r === null ? '<span class="dim">waiting</span>' : r >= 0.9 ? '<span class="ok">worked</span>' : r >= 0.5 ? '<span>finished</span>' : r >= 0.25 ? '<span class="warn">partly</span>' : '<span class="bad">didn’t work</span>');
+  const render = async () => {
+    const r = await api('/router').catch((err) => (toast(esc(err.message), { tone: 'bad' }), null));
+    if (!r || !node.isConnected) return;
+    const arms = r.arms.filter((a) => a.state !== 'gone' || a.n);
+    $('.ro-body', node).innerHTML = `
+      <p class="hint">For each task Auto estimates every harness · model’s chance of doing it well, from wisp-bench (${esc(r.priors.version)}) and then more and more from your own tasks: merged PRs, 👍 / 👎, rollbacks, follow-ups and how the run ended. It picks the best value for your goal (<b>${esc(AUTO_GOALS.find((g) => g.id === r.goal)?.label || '')}</b>), now and then trying an alternative so the estimates stay honest.</p>
+      <h4>Harness · model</h4>
+      <table class="us-table ro-table"><thead><tr><th></th><th>Works</th><th>Your tasks</th><th>~Cost</th><th>~Time</th><th></th></tr></thead><tbody>${arms
+        .map((a) => {
+          const [state, tone] = ARM_STATE[a.state] || ARM_STATE.ready;
+          const types = Object.entries(a.byType).map(([t, x]) => `${t} ${pctOf(x.chance)} (${x.n})`).join(' · ');
+          return `<tr><td><span class="us-runner"><span class="model-logo">${harnessLogo(a.agent)}</span>${esc(a.label)}</span>${types ? `<small class="ro-types">${esc(types)}</small>` : ''}</td>${a.state === 'untried' ? '<td>—</td><td>—</td><td>—</td><td>—</td>' : `<td><b>${pctOf(a.chance)}</b></td><td>${a.n || '—'}</td><td>${a.usd ? `$${a.usd.toFixed(2)}` : '$0'}</td><td>${a.minutes}m</td>`}<td><span class="sx-state ${tone}"><i class="dot ${tone}"></i>${state}</span></td></tr>`;
+        })
+        .join('')}</tbody></table>
+      <h4>Recent picks</h4>
+      ${r.recent.length
+        ? `<ul class="ro-recent">${r.recent
+            .map((x) => {
+              const s = S.sessions.get(x.id);
+              return `<li><span class="model-logo">${harnessLogo(x.key.split(':')[0])}</span><span class="ro-title">${esc(s?.title || 'Task')}</span><small>${esc(x.label)} · ${esc(x.type)}${x.trying ? ' · trying' : x.explored ? ' · exploring' : ''}</small>${outcome(x.r)}</li>`;
+            })
+            .join('')}</ul>`
+        : '<p class="mem-empty">Nothing yet. Launch with Auto and its picks show up here.</p>'}
+      <div class="ro-foot"><button class="ghost sm danger" id="roReset">Forget what Auto learned</button><span class="hint">The wisp-bench starting point stays.</span></div>`;
+    $('#roReset', node).onclick = async () => {
+      if (!confirm('Forget what Auto learned from your tasks?')) return;
+      await api('/router/reset', { method: 'POST', body: {} }).catch((err) => toast(esc(err.message), { tone: 'bad' }));
+      render();
+    };
+  };
+  node.refresh = render;
+  render();
+  return close;
 }
 
 // --- memory: what the background retros learned ---------------------------------------------
@@ -4904,6 +5040,13 @@ function connect() {
   es.addEventListener('remote', () => $('.phone-modal')?.refresh());
   es.addEventListener('machines', (e) => setMachines(JSON.parse(e.data)));
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
+  // A new harness or model Auto can use: it gets a few tasks before Auto relies on it.
+  es.addEventListener('router', (e) => {
+    const { added = [] } = JSON.parse(e.data || '{}');
+    $('.router-modal')?.refresh();
+    $('.settings-modal')?.paintAuto?.();
+    if (added.length) toast(`New for Auto: <b>${added.map((a) => esc(a.label)).join('</b>, <b>')}</b>${added.some((a) => a.state === 'new') ? ' · it will try it on a few tasks' : ''}`, { action: { label: 'Auto settings', run: () => openSettings({ pane: 'auto' }) }, timeout: 8000 });
+  });
   es.addEventListener('preferences', () => {
     $('.memory-modal')?.refresh();
     $('.settings-modal')?.paintLearn?.();

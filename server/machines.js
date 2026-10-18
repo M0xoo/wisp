@@ -266,6 +266,11 @@ export class Machines extends EventEmitter {
     return m;
   }
 
+  // The harnesses the machine reported when it came online (Auto routes with these), or null.
+  agentsOf(id) {
+    return this.conns.get(id)?.remote?.agents || null;
+  }
+
   isOnline(id) {
     return this.conns.get(id)?.state === 'online';
   }
