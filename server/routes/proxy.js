@@ -1,0 +1,47 @@
+// /api/sessions/<id>@<machine>/…: passed through to that machine's wisp, ids rewritten.
+// Registered before the session routes, so a qualified id never reaches them.
+
+import os from 'node:os';
+import { pipeFrom } from '../http/respond.js';
+import { splitId, qualify } from '../machines.js';
+import { openInTerminal, shq } from '../terminal.js';
+import { MAX_WAIT_S } from './sessions.js';
+
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+
+export function register(r, app) {
+  const { store, machines, telemetry } = app;
+  const remote = { when: (p) => !!splitId(p.id), doc: false };
+
+  async function proxy(c) {
+    const at = splitId(c.params.id);
+    const { action } = c.params;
+    const m = c.req.method;
+    const mid = at.machine;
+    const sub = `/sessions/${at.id}${action ? `/${action}` : ''}${c.url.search}`;
+    if ((action === 'file' && m === 'GET') || (action === 'presentation' && c.query.get('format') === 'markdown')) return pipeFrom(c.res, await machines.stream(mid, 'GET', sub));
+    // Take over: a terminal here, signed in over there, resuming the agent in its folder.
+    if (action === 'takeover') {
+      const { command } = await machines.json(mid, 'GET', `/sessions/${at.id}/takeover`);
+      const argv = machines.terminalArgv(mid, command);
+      if (m === 'POST') {
+        const s = await machines.json(mid, 'GET', `/sessions/${at.id}`);
+        if (s.state === 'running' || s.state === 'waiting') await machines.json(mid, 'POST', `/sessions/${at.id}/stop`, {});
+        const d = store.config.defaults;
+        openInTerminal({ cwd: os.homedir(), argv, terminal: d.terminal || 'auto', custom: d.terminalCommand });
+        telemetry.track('takeover', { agent: s.agent, terminal: d.terminal || 'auto', machine: true });
+      }
+      return c.send(200, { command: argv.map(shq).join(' ') });
+    }
+    const body = m === 'GET' ? undefined : await c.body();
+    if (action === 'reply' && body?.attachments?.length) body.attachments = await app.launcher.pushUploads(mid, body.attachments);
+    const out = await machines.json(mid, m, sub, body, action === 'wait' ? { timeout: (MAX_WAIT_S + 30) * 1000 } : undefined);
+    if (!action && m === 'GET') return c.send(200, machines.session(mid, out));
+    if ((!action && m === 'PATCH') || action === 'wait') return c.send(200, machines.summary(mid, out));
+    if (out && typeof out === 'object' && out.sessionId) out.sessionId = qualify(out.sessionId, mid);
+    c.send(200, out);
+  }
+
+  r.route(METHODS, '/sessions/:id', proxy, remote);
+  r.route(METHODS, '/sessions/:id/:action', proxy, remote);
+}

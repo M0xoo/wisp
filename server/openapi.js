@@ -129,6 +129,16 @@ export function openapi({ version, port }) {
         parameters: [id],
         post: { summary: 'Mark the PR ready if draft, squash-merge it with --match-head-commit, fast-forward the local base branch, remove the worktree', responses: { 200: json({ type: 'object', properties: { pr: ref('PullRequest'), sync: { type: 'object', properties: { ok: { type: 'boolean' }, text: { type: 'string' } } } } }), 400: err[400] } },
       },
+      '/teams': {
+        get: { summary: 'Saved subagent presets: a team the lead can delegate to', responses: { 200: json({ type: 'array', items: ref('Team') }) } },
+        post: { summary: 'Save a subagent preset', requestBody: body(ref('Team')), responses: { 201: json(ref('Team')), 400: err[400] } },
+      },
+      '/teams/{tid}': {
+        parameters: [{ name: 'tid', in: 'path', required: true, schema: { type: 'string' } }],
+        get: { summary: 'One subagent preset', responses: { 200: json(ref('Team')), 404: err[404] } },
+        patch: { summary: 'Edit a subagent preset', requestBody: body(ref('Team')), responses: { 200: json(ref('Team')), 400: err[400], 404: err[404] } },
+        delete: { summary: 'Delete a subagent preset', responses: { 200: ok, 404: err[404] } },
+      },
       '/recipes': {
         get: { summary: 'Saved recipes, with the {params} found in each prompt', responses: { 200: json({ type: 'array', items: ref('Recipe') }) } },
         post: { summary: 'Save a recipe', requestBody: body(ref('Recipe')), responses: { 201: json(ref('Recipe')), 400: err[400] } },
@@ -249,6 +259,10 @@ export function openapi({ version, port }) {
           responses: { 201: json({ type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, size: { type: 'integer' }, mime: { type: 'string' } } }) },
         },
       },
+      '/uploads/{uid}': {
+        parameters: [{ name: 'uid', in: 'path', required: true, schema: { type: 'string' }, description: 'Upload id (<id>@<machine> for one on a machine)' }],
+        get: { summary: 'The uploaded file, with its MIME type', responses: { 200: { description: 'The file' }, 404: err[404] } },
+      },
       '/events': {
         get: {
           summary: 'Server-sent events: summary, activity, turn, finished, removed, config, preferences, ping',
@@ -292,6 +306,16 @@ export function openapi({ version, port }) {
             checks: { type: 'object', properties: { pass: { type: 'integer' }, fail: { type: 'integer' }, pending: { type: 'integer' } } },
             head: { type: 'string' },
             base: { type: 'string' },
+          },
+        },
+        Team: {
+          type: 'object',
+          required: ['name', 'members'],
+          properties: {
+            id: { type: 'string', readOnly: true },
+            name: { type: 'string' },
+            members: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, agent: { type: 'string', description: 'Harness id, or auto' }, model: { type: 'string' }, effort: { type: 'string' }, use: { type: 'string', description: 'What the lead should use it for' }, count: { type: 'integer', minimum: 1 } } } },
+            updatedAt: { type: 'integer', readOnly: true },
           },
         },
         Recipe: {
