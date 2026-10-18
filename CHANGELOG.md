@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Rating a turn with 👍 / 👎 no longer re-renders the whole card and replays its entrance animation. Every refetch re-inserted the turn nodes, which restarts their CSS animations; unchanged turns are now left in place.
+
 ## [0.14.0] - 2026-10-18
 
 ### Added
