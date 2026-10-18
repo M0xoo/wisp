@@ -269,7 +269,7 @@ function renderFeedHead(needs, working) {
   if (working.length) parts.push(`<span class="hs working"><i></i>${working.length} working</span>`);
   if (needs.length) parts.push(`<span class="hs needs"><i></i>${needs.length} need${needs.length === 1 ? 's' : ''} you</span>`);
   // Group headings already carry the counts; only say something when the feed is calm.
-  $('#feedHead').innerHTML = parts.length ? '' : '<span class="fh-status"><span class="muted">Nothing needs you.</span></span>';
+  $('#feedHead').innerHTML = parts.length ? '' : '<span class="hs calm"><i></i>Nothing needs you</span>';
   $('#feedHead').hidden = !!parts.length;
   placeCollapseAll();
 }

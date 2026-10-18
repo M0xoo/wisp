@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The calm feed (nothing needs you) looks tidier. **Nothing needs you** gets a green dot and lines up with the **Done** and **Archived** headings, and folded groups now sit close together instead of a full section gap apart. Folded headings highlight on hover so they read as buttons.
+
 ### Fixed
 
 - In **Settings → Machines**, the add/edit machine form lays out properly again: labels sit left above their fields, and the **SSH host** and **Name** inputs are full height instead of squashed and centred. The Settings row style was leaking into it.
