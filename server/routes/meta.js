@@ -40,6 +40,11 @@ export function register(r, app) {
     const [agents] = await Promise.all([app.auto.detect({ fresh: true }), machines.recheckAgents()]);
     c.send(200, agents);
   });
+  // No harness yet: install one (opencode) without leaving wisp. Answers once it's ready.
+  r.route('POST', '/agents/install', async (c) => {
+    const { id } = await c.body();
+    c.send(200, await app.installer.run(String(id || '')));
+  });
 
   // Directory suggestions for the launcher's project picker.
   r.route(

@@ -28,7 +28,8 @@ export function quietOutput(bin, args, timeout = 15_000) {
 // Spawn a CLI that prints one JSON object per line. onJson gets each parsed line;
 // onClose({ code, signal, stderr, stopped, stopRequested }) must emit the final `result` if the
 // stream didn't. stopped: killed by stop() or a signal; stopRequested: by stop() only.
-export function spawnJsonl({ bin, args, cwd, env, input, onJson, onClose, onEvent }) {
+// onStderr (optional) sees stderr as it comes, for CLIs that only report trouble there.
+export function spawnJsonl({ bin, args, cwd, env, input, onJson, onClose, onEvent, onStderr }) {
   // Some CLIs (opencode) take their working directory from $PWD rather than the real cwd.
   const child = spawn(bin, args, { cwd, env: { ...env, PWD: cwd }, stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdin.on('error', () => {}); // the CLI may exit before reading stdin
@@ -37,6 +38,7 @@ export function spawnJsonl({ bin, args, cwd, env, input, onJson, onClose, onEven
   let stderr = '';
   child.stderr.on('data', (d) => {
     stderr = (stderr + d).slice(-8000);
+    onStderr?.(String(d));
   });
   readline.createInterface({ input: child.stdout }).on('line', (line) => {
     if (!line.trim()) return;

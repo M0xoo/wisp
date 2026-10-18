@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **No harness yet? Install opencode in one click.** When wisp finds no coding-agent CLI on this computer, the launcher shows one line, *No coding agent here yet*, with an **Install opencode** button. opencode's free models need no account, so a new user can go from `npx wisp-agents` to a running task in a few seconds. wisp installs it with npm into its own folder (`~/.wisp/tools`), so it needs no sudo and leaves your shell profile alone, and finds it there. Pressing Enter with no harness shakes that line and keeps your prompt; before, the launch failed with *Auto found no installed harness*. Settings → Agents has the same **Install** button on the opencode row. API: `POST /api/agents/install {"id":"opencode"}`.
+- wisp also finds opencode in `~/.opencode/bin`, where its official install script puts it, when that folder isn't on PATH (common for the desktop app).
+
 - **wisp Cloud preview page** (`cloud.html`, linked from the site's nav and footer, and from a "Let it run while you sleep" section on the home page, between *Also in the box* and the install steps). It introduces a hosted wisp: managed remote machines, persistent queues that keep running while your laptop sleeps, and team dashboards. The local CLI stays free. You can try each part on the page: close the laptop and watch the cloud runs keep going, add machines, drag through one night of the queue, and filter a team dashboard by person. Signups for the waitlist go to PostHog.
 
 ### Changed
@@ -16,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- An opencode task on a rate-limited model (often a free one) no longer sits at "Starting up" forever. opencode retries without printing anything, so wisp now reads its error log. If the rate limit hasn't cleared after 60s, wisp stops the task and says what to do: try again later, pick another model, or run `opencode auth login`.
 - wisp no longer crashes when the `claude` CLI quits before reading its prompt (a bad flag, an auth error, a crash on start). The task now ends with Claude's error message. Before, the unread prompt raised an unhandled `EPIPE` that took the whole server down.
 - `config.json` (projects, recipes, triggers, machines, settings) is now written atomically. Before, a crash or power loss mid-write could leave a cut-off file, which loaded as the defaults and was then saved over. Auto's learned state and the learned preferences are written the same way.
 - Idle API connections stay open longer than clients keep them, so a request sent on a connection the server was just closing no longer fails with `ECONNRESET`.

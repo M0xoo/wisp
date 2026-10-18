@@ -47,6 +47,8 @@ afterEach(() => {
   delete process.env.FAKE_HANG;
   delete process.env.FAKE_FAIL;
   delete process.env.FAKE_ORPHANS;
+  delete process.env.FAKE_RATE_LIMIT;
+  delete process.env.WISP_RATE_LIMIT_GRACE_MS;
 });
 
 for (const id of Object.keys(BIN)) {
@@ -215,4 +217,28 @@ test('grok: MCP server via a throwaway --agent file, cleaned up after the turn',
 
   await run('grok').done;
   assert.ok(!records(RECORD, 'grok').at(-1).argv.includes('--agent'), 'no agent file without an MCP server');
+});
+
+// A rate-limited free model: opencode retries without a word, so wisp stops it and says why.
+test('opencode: a rate limit that never clears ends the turn with what to do, not a hang', async () => {
+  process.env.FAKE_RATE_LIMIT = '1';
+  process.env.WISP_RATE_LIMIT_GRACE_MS = '300';
+  const { events, done } = run('opencode', { model: 'opencode/big-pickle' });
+  await done;
+  const results = events.filter((e) => e.type === 'result');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].isError, true);
+  assert.ok(!results[0].stopped, 'not shown as stopped by the user');
+  assert.match(results[0].text, /`opencode\/big-pickle` is rate-limited right now.*opencode auth login/);
+  assert.ok(records(RECORD, 'opencode').at(-1).argv.join(' ').includes('--print-logs --log-level ERROR'), 'errors are logged to stderr');
+});
+
+test('opencode: a rate limit that clears on a retry lets the turn finish', async () => {
+  process.env.FAKE_RATE_LIMIT = 'recover';
+  process.env.WISP_RATE_LIMIT_GRACE_MS = '300';
+  const events = await run('opencode').done;
+  await new Promise((r) => setTimeout(r, 400)); // past the grace period: nothing more may arrive
+  const results = events.filter((e) => e.type === 'result');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].isError, false, results[0].text);
 });

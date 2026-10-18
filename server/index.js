@@ -26,6 +26,7 @@ import { send, eventStream } from './http/respond.js';
 import { serveStatic } from './http/static.js';
 import { createAuto } from './services/auto.js';
 import { createFeedback } from './services/feedback.js';
+import { createInstaller } from './services/install.js';
 import { createLaunch } from './services/launch.js';
 import { phoneActions } from './services/phone.js';
 import { createShip } from './services/ship.js';
@@ -135,6 +136,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Auto: the router, and what feeds it outcomes.
   app.router = new Router(store.home);
   app.auto = createAuto(app);
+  app.installer = createInstaller(app);
   runner.on('started', ({ session }) => {
     if (session.route && !app.router.route(session.id)) app.router.record(session.id, session.route);
   });
