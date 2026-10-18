@@ -4020,6 +4020,22 @@ const SETTINGS_PANES = [
 ];
 let settingsPane = 'general';
 
+// What a re-check turned up: harnesses found or gone, and model lists that grew or shrank.
+function recheckSummary(before, after) {
+  const count = (a) => (a?.models || []).filter((m) => m.id).length;
+  const notes = [];
+  for (const a of after) {
+    const was = before.get(a.id);
+    if (a.available && !was?.available) notes.push(`<b>${esc(a.name)}</b> found`);
+    else if (!a.available && was?.available) notes.push(`<b>${esc(a.name)}</b> not found`);
+    else if (a.available && count(a) !== count(was)) {
+      const d = count(a) - count(was);
+      notes.push(`<b>${esc(a.name)}</b> ${d > 0 ? '+' : '−'}${Math.abs(d)} model${Math.abs(d) === 1 ? '' : 's'}`);
+    } else if (a.available && a.version !== was?.version) notes.push(`<b>${esc(a.name)}</b> updated`);
+  }
+  return notes.length ? notes.join(' · ') : 'Up to date: nothing new';
+}
+
 function openSettings(opts) {
   if (SETTINGS_PANES.some((p) => p.id === opts?.pane)) settingsPane = opts.pane;
   const d = S.config.defaults;
@@ -4056,9 +4072,10 @@ function openSettings(opts) {
           </div>
         </section>
         <section class="sx-pane" data-pane="agents">
-          <div class="sx-group">${S.agents
-            .map((a) => row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(a.available ? a.version : a.error || 'not found'), `<span class="sx-state ${a.available ? 'ok' : 'bad'}"><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`))
-            .join('')}</div>
+          <div class="sx-group sx-agents"></div>
+          <div class="sx-group">
+            ${row('Installed something new?', '<span class="recheck-hint"></span>', `<button class="ghost sm" id="recheck">${icon('replay')}Re-check</button>`)}
+          </div>
         </section>
         <section class="sx-pane" data-pane="machines">
           <div class="sx-group">
@@ -4092,6 +4109,41 @@ function openSettings(opts) {
     </div>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
+  const paintAgents = () => {
+    $('.sx-agents', node).innerHTML = S.agents.length
+      ? S.agents.map((a) => {
+        const n = (a.models || []).filter((m) => m.id).length;
+        const desc = a.available ? [a.version, n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · ') : `Install the ${a.name} CLI and sign in, then re-check`;
+        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(desc), `<span class="sx-state ${a.available ? 'ok' : 'bad'}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`);
+      }).join('')
+      : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>';
+    const missing = S.agents.filter((a) => !a.available).length;
+    const dot = $('.sx-nav [data-pane="agents"] .dot', node);
+    if (dot && !missing) dot.remove();
+    if (!dot && missing) $('.sx-nav [data-pane="agents"]', node).insertAdjacentHTML('beforeend', `<i class="dot bad" title="${missing} not found"></i>`);
+    const online = S.machines.filter((m) => m.state === 'online').length;
+    $('.recheck-hint', node).textContent = `After installing a CLI, signing in or adding a provider, look for harnesses and models again${online ? `, here and on ${online} machine${online === 1 ? '' : 's'}` : ''}`;
+  };
+  paintAgents();
+  node.paintAgents = paintAgents;
+  $('#recheck', node).onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.classList.add('busy');
+    const before = new Map(S.agents.map((a) => [a.id, a]));
+    try {
+      S.agents = await api('/agents/recheck', { method: 'POST', body: {} });
+      if (!node.isConnected) return;
+      paintAgents();
+      $('#launcher')?.placesChanged?.();
+      toast(recheckSummary(before, S.agents));
+    } catch (err) {
+      toast(esc(err.message), { tone: 'bad' });
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('busy');
+    }
+  };
   const pick = (id, focus = false) => {
     settingsPane = id;
     const p = SETTINGS_PANES.find((x) => x.id === id);
@@ -4820,6 +4872,7 @@ window.addEventListener('focus', () => {
 (async () => {
   [S.agents] = await Promise.all([api('/agents').catch(() => []), loadConfig(), loadSessions(), loadMachines()]);
   renderLauncher();
+  $('.settings-modal')?.paintAgents?.();
   connect();
   route();
   $('#prompt')?.focus();

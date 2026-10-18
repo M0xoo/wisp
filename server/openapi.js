@@ -44,7 +44,8 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }), 400: err[400] },
         },
       },
-      '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
+      '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels (?fresh=1 detects again)', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
+      '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/config': {
         get: { summary: 'Launcher defaults, projects, webhooks', responses: { 200: json({ type: 'object' }) } },
         patch: {

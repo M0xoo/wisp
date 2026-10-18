@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Settings → Agents → Re-check** looks for harnesses and models again, on this computer and on every online machine. Install a CLI, sign in or add a provider (say a new opencode provider), come back to wisp and click it: the list, the model counts and the launcher's harness picker update without restarting wisp, and a toast says what changed ("opencode +12 models", "Codex found"). Each harness now shows how many models it has, and one that isn't installed says to install its CLI and sign in. Before, wisp kept the first detection until it restarted. API: `POST /api/agents/recheck`, or `GET /api/agents?fresh=1` for this computer only.
+
 ## [0.11.0] - 2026-10-18
 
 ### Added
