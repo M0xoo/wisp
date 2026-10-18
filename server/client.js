@@ -134,7 +134,7 @@ export class WispClient {
   async launch({ prompt, cwd = process.cwd(), agent, mode, model, effort, attachments, worktree, compare, subagents, preset } = {}) {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
-      agent ||= defaults.agent || 'claude';
+      agent ||= defaults.agent || 'auto';
       mode ||= defaults.mode || 'edits';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }

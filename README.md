@@ -44,6 +44,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 📥 **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
 | 💬 **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. |
 | 🔎 **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
+| ✨ **Auto** | The default harness: wisp picks the harness and model per task from what worked before, and learns from merges, 👍 / 👎 and follow-ups. See [Auto](#auto). |
 | 🤖 **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, or Grok Build. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
@@ -278,6 +279,18 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] Cursor CLI adapter
 - [x] Antigravity CLI adapter
 - [x] Grok Build adapter
+
+## Auto
+
+**Auto** is the default harness: wisp picks the harness and model for each task. Its "model" is a goal: **Balanced** (best result per dollar), **Cheap** or **Best**.
+
+How it picks: every harness · model you have installed is an option. For the kind of task (bug, feature, UI, tests, refactor, docs, release, question) Auto keeps an estimate of how often each option does it well. The estimate starts from a small wisp-bench pilot that ships with wisp (`server/router-priors.json`), then counts your own outcomes: merged PR (best), closed PR, 👍 / 👎, rollback, then how the run ended, less a bit for each follow-up you needed. It draws from each estimate (Thompson sampling), so options with little data now and then get a turn, and takes the best value for the goal after expected cost and time. A launch with `important: true` (API, SDK) gets the best-known option, with no trying. Options that keep failing a kind of task are left out of it.
+
+New harnesses and models: when a CLI or model shows up (after an install or a Re-check), it's on probation. It only gets the occasional exploring slot until it has three outcomes, and a new version (say a new Sonnet) starts from its family's record. **Settings → Auto** turns trying new models off, limits which harnesses Auto may use, and shows what it learned; **Forget** clears it.
+
+Compare runs get different picks. A subagent set to Auto is picked on its first task and keeps that harness. A launch on a machine is picked here, from the harnesses that machine reported, and that machine's outcomes come back to the same router. All of it stays in `~/.wisp/router.json`; usage stats only add which goal, kind of task and size were used, and whether the pick was exploring.
+
+The benchmark behind the priors is in [`bench/`](bench/README.md).
 
 ## Worktrees and shipping
 
