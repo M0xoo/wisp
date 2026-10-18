@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Claude Code tasks that say "I'll report once it has finished" now do.** When Claude ends its turn with background work still running (a test run, a build, a background subagent), the task stays in **Working** and shows **Waiting on background task: …**. When the work finishes, Claude's follow-up report becomes the task's answer. Before, wisp stopped Claude 3 seconds after its first reply, which also killed the background work, and the task ended on that "I'll report…" line. **Stop** and follow-ups still work while it waits, and it waits at most an hour. A reply that is already a full answer, for example one that leaves a dev server running, still ends the task right away. All harnesses are now also told to wait for their background work before finishing.
+
 - **Follow-ups no longer end on "The agent finished without a message."** When a Claude Code run left background commands behind, the next follow-up ended right away with an empty answer, and the agent was cut off before it started on your message, so you had to send it again. wisp now waits for the answer to your follow-up.
 
 ## [0.13.0] - 2026-10-18

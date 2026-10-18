@@ -189,6 +189,81 @@ test('antigravity: runs without ask_user and still lands a presentation', async 
   assert.ok(records(RECORD, 'agy').at(-1).argv.includes('--dangerously-skip-permissions'), 'auto mode');
 });
 
+// The CLI ends its turn ("I'll report once it has finished") with a background task still running,
+// then reports again when it finishes. Killing it after the first result killed the task too.
+test('claude: a turn waits on its background tasks and lands the report that follows', async () => {
+  process.env.FAKE_BACKGROUND = '4500'; // longer than the 3 s linger that used to kill it
+  try {
+    const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+    await until(async () => (await session(s.id)).turns[0].activity.some((a) => a.kind === 'background'));
+    const waiting = await session(s.id);
+    assert.equal(waiting.turns[0].status, 'running');
+    assert.equal(waiting.state, 'running');
+    const card = (await api('/sessions')).find((x) => x.id === s.id);
+    assert.equal(card.live, 'Waiting on background task: Run the full test suite');
+    const done = await until(async () => {
+      const x = await session(s.id);
+      return x.turns[0].status !== 'running' && x;
+    });
+    assert.equal(done.turns[0].status, 'done');
+    assert.equal(done.turns[0].presentation.blocks[0].title, 'Fake claude finished');
+    assert.match(done.turns[0].presentation.blocks[0].summary, /background done/);
+    assert.ok(done.turns[0].activity.some((a) => a.label === 'Background work finished, wrapping up'));
+    assert.equal(done.turns[0].interim, undefined);
+  } finally {
+    delete process.env.FAKE_BACKGROUND;
+  }
+});
+
+test('claude: a CLI that exits while waiting on background work keeps its last report', async () => {
+  process.env.FAKE_BACKGROUND = 'exit';
+  try {
+    const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+    const done = await until(async () => {
+      const x = await session(s.id);
+      return x.turns[0].status !== 'running' && x;
+    });
+    assert.equal(done.turns[0].status, 'done');
+    assert.match(JSON.stringify(done.turns[0].presentation), /report once it has finished/);
+  } finally {
+    delete process.env.FAKE_BACKGROUND;
+  }
+});
+
+test('claude: a full presentation with a background task still up (a dev server) ends the turn', async () => {
+  process.env.FAKE_BACKGROUND = 'hang';
+  process.env.FAKE_BACKGROUND_DONE = '1';
+  try {
+    const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+    const done = await until(async () => {
+      const x = await session(s.id);
+      return x.turns[0].status !== 'running' && x;
+    });
+    assert.equal(done.turns[0].status, 'done');
+    assert.match(done.turns[0].presentation.blocks[0].summary, /dev server left running/);
+    assert.ok(!done.turns[0].activity.some((a) => a.kind === 'background'));
+  } finally {
+    delete process.env.FAKE_BACKGROUND;
+    delete process.env.FAKE_BACKGROUND_DONE;
+  }
+});
+
+test('claude: stopping a turn that waits on background work marks it stopped', async () => {
+  process.env.FAKE_BACKGROUND = 'hang';
+  try {
+    const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+    await until(async () => (await session(s.id)).turns[0].activity.some((a) => a.kind === 'background'));
+    await api(`/sessions/${s.id}/stop`, {});
+    const done = await until(async () => {
+      const x = await session(s.id);
+      return x.turns[0].status !== 'running' && x;
+    });
+    assert.equal(done.turns[0].status, 'stopped');
+  } finally {
+    delete process.env.FAKE_BACKGROUND;
+  }
+});
+
 test('stopping a running session marks the turn stopped', async () => {
   process.env.FAKE_HANG = '1';
   try {
