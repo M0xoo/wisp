@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Switch modes in a follow-up.** Each task's follow-up box now has the same mode button as the launcher (Plan, Edits, Full auto; Shift+Tab cycles). Start in Plan, read the plan, then pick **Edits** and say "go ahead": that follow-up and the ones after it run in the new mode. Any mode can switch to any other. The pick only takes effect when you send, and the follow-up shows the new mode next to its model. A follow-up queued while the agent works keeps its own mode, so the run already going isn't affected. A task started in Plan has no worktree, so edits after switching land in the project folder. API: `mode` on `POST /api/sessions/{id}/reply`; CLI: `wisp reply <id> "…" --mode edits`; MCP: `mode` on `wisp_reply`.
+
 - **Compare more than two harnesses.** Clicking **vs** in the launcher adds a second harness as before, and a **+** at the end of the pill now adds a third and a fourth (four side by side, the server's limit). Each one sits behind its own **vs**: hover it for **×** to drop just that harness. A new one starts on a harness that isn't in the pill yet. With three or four, the pill shows logos only (hover a logo for harness, model and thinking level), and the mode and Subagents labels fold to icons so the bar stays on one line.
 
 ### Fixed

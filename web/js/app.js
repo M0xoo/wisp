@@ -21,6 +21,7 @@ const S = {
   showDone: load('wisp.showDone', false),
   showArchived: false,
   drafts: new Map(),
+  replyModes: new Map(), // session id → the mode its next follow-up switches to
 };
 
 const $ = (s, root = document) => root.querySelector(s);
@@ -1355,7 +1356,7 @@ function modeMenu(anchor, current, pick) {
     if (!b) return;
     close();
     pick(b.dataset.mode);
-    $('#prompt')?.focus();
+    if (anchor.id === 'mode') $('#prompt')?.focus();
   };
   menu.addEventListener('keydown', (ev) => {
     const items = $$('button', menu);
@@ -1910,6 +1911,14 @@ function renderFoldedTurn(t, unfold) {
   return node;
 }
 
+// A follow-up that switched the mode says so, next to the model it ran on.
+function modeSwitch(s, t) {
+  const i = s.turns.indexOf(t);
+  const prev = s.turns.slice(0, i).findLast((x) => x.mode)?.mode;
+  const m = t.mode && prev && t.mode !== prev && MODES.find((x) => x.id === t.mode);
+  return m ? `<span class="t-mode m-${m.id}" title="Switched from ${esc(MODES.find((x) => x.id === prev)?.label || prev)} to ${m.label} for this follow-up">${icon(m.icon)}${m.label}</span>` : '';
+}
+
 // `fold` is set for older turns the user unfolded, so they can tuck them away again.
 function renderTurn(s, t, isLatest, fold) {
   const node = el(`<article class="turn ${t.rolledBackAt ? 'is-rolled-back' : ''}" data-turn="${t.id}"></article>`);
@@ -1923,6 +1932,7 @@ function renderTurn(s, t, isLatest, fold) {
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
       <div class="ask-foot">
         ${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}
+        ${modeSwitch(s, t)}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
         ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
@@ -2140,6 +2150,7 @@ function renderDock(id) {
       <textarea class="reply" rows="1" spellcheck="false"></textarea>
       <div class="c-bar">
         <button class="icon-btn c-attach" title="Attach files">${icon('clip')}</button>
+        <button class="mode-btn c-mode" aria-haspopup="menu"></button>
         <span class="c-hint"></span>
         <button class="ghost sm c-ship" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
         <button class="ghost sm c-done" data-a="done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
@@ -2157,6 +2168,8 @@ function renderDock(id) {
   $('.c-done', comp).onclick = () => toggleDone(id);
   $('.c-ship', comp).onclick = () => shipDialog(id);
   $('.c-queue', comp).onclick = toggleQueue;
+  const modeBtn = $('.c-mode', comp);
+  modeBtn.onclick = () => modeMenu(modeBtn, replyMode(id), (m) => (setReplyMode(id, m), ta.focus()));
   ta.value = S.drafts.get(id) || '';
   ta.addEventListener('input', () => S.drafts.set(id, ta.value));
   ta.addEventListener('focus', () => setFocus(id, { scroll: false }));
@@ -2165,8 +2178,35 @@ function renderDock(id) {
       e.preventDefault();
       sendReply(id, ta.value);
     }
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      setReplyMode(id, MODES[(MODES.findIndex((m) => m.id === replyMode(id)) + 1) % MODES.length].id);
+    }
   });
   $('.send', comp).onclick = () => sendReply(id, ta.value);
+}
+
+// The mode the next follow-up runs in: the session's own until the user picks another here.
+// The pick goes out with that follow-up and stays from then on.
+const replyMode = (id) => S.replyModes.get(id) || S.full.get(id)?.mode || 'edits';
+
+function setReplyMode(id, mode) {
+  if (mode === S.full.get(id)?.mode) S.replyModes.delete(id);
+  else S.replyModes.set(id, mode);
+  updateDock(id);
+}
+
+function paintReplyMode(id, btn) {
+  const s = S.full.get(id);
+  const m = MODES.find((x) => x.id === replyMode(id)) || MODES[1];
+  const from = s && S.replyModes.has(id) && MODES.find((x) => x.id === s.mode);
+  btn.className = `mode-btn c-mode m-${m.id}${from ? ' changed' : ''}`;
+  btn.innerHTML = `${icon(m.icon)}${m.id === 'edits' && !from ? '' : `<span>${m.label}</span>`}`;
+  btn.title = from
+    ? `${m.label}: ${m.hint}\nYour next follow-up switches this task from ${from.label} to ${m.label}. Shift+Tab to switch`
+    : `${m.label}: ${m.hint}\nPick another mode for your next follow-up. Shift+Tab to switch`;
+  // Subagents run in their lead's mode; the tour has nothing to run.
+  btn.hidden = !s || s.agent === 'wisp' || !!s.parentId;
 }
 
 function updateDock(id) {
@@ -2189,6 +2229,7 @@ function updateDock(id) {
           ? 'Follow up to reopen…'
           : `Follow up with ${name}…`;
   $('.c-hint', n.card).innerHTML = s.queue?.length ? `${s.queue.length} queued` : '';
+  paintReplyMode(id, $('.c-mode', n.card));
   renderQueued(s, $('.c-queued', n.card), name);
   const q = $('.c-queue', n.card);
   q.hidden = tour || s.state !== 'running';
@@ -2273,17 +2314,20 @@ async function sendReply(id, text) {
   }
   if (n?.tray?.busy) toast('Waiting for uploads…');
   const attachments = n?.tray ? await n.tray.ids() : [];
-  const answering = !!s.ask && !attachments.length;
+  const mode = S.replyModes.get(id);
+  // An answer goes to the run that asked; a new mode needs a new run, so that's a follow-up.
+  const answering = !!s.ask && !attachments.length && !mode;
   // Optimistic: the composer empties and the card goes to Working before the server answers
   // (it may first have to bring back an archived worktree, or reach another machine).
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
   S.drafts.delete(id);
+  S.replyModes.delete(id);
   const files = n?.tray?.take();
-  const undo = startOptimistic(id, text, files, { answering });
+  const undo = startOptimistic(id, text, files, { answering, mode });
   try {
     const r = answering
       ? await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
-      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing() } });
+      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode } });
     if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
     if (r.queued)
       toast(r.ahead ? `Queued behind ${r.ahead} earlier follow-up${r.ahead > 1 ? 's' : ''} — they go out first, in order.` : 'Queued — it goes out as soon as the agent finishes.');
@@ -2291,6 +2335,7 @@ async function sendReply(id, text) {
     undo?.();
     // Give the message back, unless the user has already started typing another one.
     if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+    if (mode && !S.replyModes.has(id)) setReplyMode(id, mode);
     n?.tray?.restore(files);
     toast(esc(err.message), { tone: 'bad' });
   }
@@ -2299,7 +2344,7 @@ async function sendReply(id, text) {
 // Show a follow-up as started right away: the card moves to Working with the prompt as a live
 // turn. Only when it will start now, not when it queues or interrupts a run already working.
 // Returns an undo for a failed send, or null when nothing changed.
-function startOptimistic(id, text, files, { answering }) {
+function startOptimistic(id, text, files, { answering, mode }) {
   const full = S.full.get(id);
   const sum = S.sessions.get(id);
   if (!full || !sum) return null;
@@ -2307,8 +2352,9 @@ function startOptimistic(id, text, files, { answering }) {
   if (live && !answering) return null;
   const now = Date.now();
   const turn = { id: `pending-${now}`, prompt: text, status: 'running', startedAt: now, activity: [], attachments: (files || []).filter((f) => f.id).map((f) => ({ id: f.id, name: f.name, mime: f.mime })) };
-  const nextFull = { ...full, state: 'running', ask: null, turns: answering ? full.turns : [...full.turns, turn] };
-  const nextSum = { ...sum, state: 'running', live: answering ? 'Picking up your answer' : 'Starting up', updatedAt: now };
+  if (mode) turn.mode = mode;
+  const nextFull = { ...full, state: 'running', ask: null, turns: answering ? full.turns : [...full.turns, turn], ...(mode && { mode }) };
+  const nextSum = { ...sum, state: 'running', live: answering ? 'Picking up your answer' : 'Starting up', updatedAt: now, ...(mode && { mode }) };
   const apply = (f, sm) => {
     S.full.set(id, f);
     S.sessions.set(id, sm);

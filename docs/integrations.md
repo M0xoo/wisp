@@ -94,7 +94,7 @@ wisp "bump deps and run the tests" --wait        # block, then print the present
 wisp ls [--state running,waiting] [--cwd DIR] [--limit N] [--json]
 wisp show <id> [--json]
 wisp wait <id> [--json]
-wisp reply <id> "also handle the empty list" [--queue] [--wait]
+wisp reply <id> "also handle the empty list" [--queue] [--wait] [--mode plan|edits|auto]
 wisp stop <id>
 wisp "fix it" --compare codex,opencode           # the same task on more harnesses, one worktree each
 wisp "quick edit" --no-worktree                  # edit the folder in place

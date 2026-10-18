@@ -118,6 +118,51 @@ for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
   });
 }
 
+test('a follow-up can switch the mode: plan → edits → auto, and a queued one keeps its own', async () => {
+  const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', mode: 'plan', worktree: false });
+  const turns = (n) => until(async () => {
+    const x = await session(s.id);
+    return x.turns.length === n && x.state === 'review' && x;
+  });
+  const permission = () => {
+    const argv = records(RECORD, 'claude').at(-1).argv;
+    return argv[argv.indexOf('--permission-mode') + 1];
+  };
+  await turns(1);
+  assert.equal(permission(), 'plan');
+
+  await api(`/sessions/${s.id}/reply`, { text: 'go ahead and fix it', mode: 'edits' });
+  let x = await turns(2);
+  assert.equal(permission(), 'acceptEdits');
+  assert.equal(x.mode, 'edits');
+  assert.deepEqual(x.turns.map((t) => t.mode), ['plan', 'edits']);
+
+  // No mode: the follow-up stays in the session's current one.
+  await api(`/sessions/${s.id}/reply`, { text: 'and once more' });
+  x = await turns(3);
+  assert.equal(permission(), 'acceptEdits');
+
+  // Queued while running: the run already going keeps its mode; the queued one switches.
+  process.env.FAKE_HANG = '1';
+  try {
+    await api(`/sessions/${s.id}/reply`, { text: 'long one' });
+    await until(async () => (await session(s.id)).turns[3]?.activity.length > 0);
+    const r = await api(`/sessions/${s.id}/reply`, { text: 'then run it all', mode: 'auto', queue: true });
+    assert.equal(r.queued, true);
+    assert.equal((await session(s.id)).mode, 'edits');
+  } finally {
+    delete process.env.FAKE_HANG;
+  }
+  // Interrupt: this one goes ahead of the queued one, still in edits; then the queued one runs in auto.
+  await api(`/sessions/${s.id}/reply`, { text: 'actually, first this' });
+  x = await turns(6);
+  assert.deepEqual(x.turns.map((t) => t.mode), ['plan', 'edits', 'edits', 'edits', 'edits', 'auto']);
+  assert.equal(x.mode, 'auto');
+  assert.equal(permission(), 'bypassPermissions');
+  const bad = await fetch(`${base}/api/sessions/${s.id}/reply`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'x', mode: 'yolo' }) });
+  assert.equal(bad.status, 400);
+});
+
 test('cursor: runs without ask_user and still lands a presentation', async () => {
   const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'cursor', mode: 'auto' });
   const done = await until(async () => {

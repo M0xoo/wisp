@@ -226,9 +226,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   }
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
-  async function replyTo(s, text, attachments = [], queue) {
+  async function replyTo(s, text, attachments = [], queue, mode) {
     await ensureWorktree(s.worktree);
-    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue' });
+    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode });
   }
 
   const markDone = (s) => {
@@ -848,10 +848,11 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       }
 
       if (action === 'reply' && m === 'POST') {
-        const { text, attachments, queue } = await readJson(req);
+        const { text, attachments, queue, mode } = await readJson(req);
         if (!text?.trim()) return send(res, 400, { error: 'text required' });
         if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to follow up.' });
-        return send(res, 200, await replyTo(s, text.trim(), resolveAttachments(attachments), queue));
+        if (mode !== undefined && !MODES.has(mode)) return send(res, 400, { error: 'mode must be plan, edits or auto.' });
+        return send(res, 200, await replyTo(s, text.trim(), resolveAttachments(attachments), queue, mode));
       }
 
       if (action === 'queue' && m === 'DELETE') {
