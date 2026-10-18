@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Calmer turn bar.** The bar under each turn now fits on one line: the read / edited / ran / searched counts open the activity log themselves (no separate **Activity** link), and **Restore to before this turn** and **Agent notes** are icon buttons next to 👍 / 👎 that stay faint until you hover the turn. After a restore, **Re-apply** shows as text so the rolled-back state stays visible.
+
 ### Fixed
 
 - Rating a turn with 👍 / 👎 no longer re-renders the whole card and replays its entrance animation. Every refetch re-inserted the turn nodes, which restarts their CSS animations; unchanged turns are now left in place.

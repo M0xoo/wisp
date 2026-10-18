@@ -308,7 +308,7 @@ The launcher's **Subagents** button gives the lead agent a team: up to 6 members
 
 ## Checkpoints and rollback
 
-Before each turn, wisp snapshots the git working tree (pinned at `refs/wisp/checkpoints/<session>/<turn>`). **Restore to before this turn** (turn bar, session menu or ⌘K) rolls back; **Re-apply turn** undoes that. `diff` and `files` blocks have a per-file **Revert / Re-apply**, and `actions`, `terminal` and `tests` blocks run their command in the project folder with one click.
+Before each turn, wisp snapshots the git working tree (pinned at `refs/wisp/checkpoints/<session>/<turn>`). **Restore to before this turn** (the ⏪ icon in the turn bar, session menu or ⌘K) rolls back; **Re-apply** undoes that. `diff` and `files` blocks have a per-file **Revert / Re-apply**, and `actions`, `terminal` and `tests` blocks run their command in the project folder with one click.
 
 ## Automations
 

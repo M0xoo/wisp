@@ -1080,14 +1080,23 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 
 /* trail */
 .trail { margin-top: 18px; }
-.trail-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 8px 2px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--faint); }
+.trail-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; padding: 8px 2px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--faint); }
 .tb { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .tb .i { width: 13px; height: 13px; }
 .trail-bar .link { font-size: 12px; }
+/* Activity counts double as the Activity toggle, so the bar carries no separate "Activity" link. */
+.tb-acts { display: inline-flex; align-items: center; gap: 10px; margin: -3px -6px; padding: 3px 6px; border-radius: 6px; color: inherit; transition: color 0.15s, background 0.15s; }
+.tb-acts:hover, .tb-acts.on { color: var(--ink); background: var(--bg-2); }
+/* Secondary turn actions: icon-only, faint until the turn is hovered (same rule as the thumbs). */
+.tb-tools { display: inline-flex; align-items: center; gap: 1px; margin-left: -8px; }
+.tb-btn { display: inline-grid; place-items: center; width: 24px; height: 22px; border-radius: 6px; color: var(--faint); opacity: 0.5; transition: color 0.15s, background 0.15s, opacity 0.15s; }
+.tb-btn .i { width: 13px; height: 13px; }
+.tb-btn:hover, .tb-btn.on { color: var(--ink); background: var(--bg-2); }
+.turn:hover .tb-btn, .tb-btn:focus-visible, .tb-btn.on { opacity: 1; }
 .trail-body { padding: 8px 0 0; animation: rise 0.4s var(--ease); }
 .trail-body .presentation { gap: 10px; }
 /* Thumbs: faint until the trail is hovered or the turn is rated, so a finished turn reads the same. */
-.rate { display: inline-flex; gap: 1px; margin-left: -6px; opacity: 0.5; transition: opacity 0.15s; }
+.rate { display: inline-flex; gap: 1px; opacity: 0.5; transition: opacity 0.15s; }
 .turn:hover .rate, .rate.rated, .rate:focus-within { opacity: 1; }
 .rate-btn { display: inline-grid; place-items: center; width: 24px; height: 22px; border-radius: 6px; color: var(--faint); transition: color 0.15s, background 0.15s; }
 .rate-btn .i { width: 13px; height: 13px; }

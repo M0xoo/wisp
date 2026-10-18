@@ -2086,15 +2086,18 @@ function renderTrail(s, t) {
   const node = el(`
     <div class="trail">
       <div class="trail-bar">
-        ${parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}</span>`).join('')}
+        ${acts.length ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}</span>`).join('') : 'Activity'}</button>` : ''}
         ${t.endedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
         ${st.costUsd ? `<span class="tb">$${st.costUsd.toFixed(2)}</span>` : ''}
         <span class="grow"></span>
-        ${canRollback ? `<button class="link xs cp-rollback ${rolledBack ? 'rolled-back' : ''}" data-a="rollback" title="${rolledBack ? 'Re-apply changes from this turn' : `Restore working tree to before this turn${t.checkpoint?.head ? ` (${t.checkpoint.head.slice(0, 7)})` : ''}`}">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply turn' : 'Restore to before this turn'}</button>` : ''}
         ${t.changes?.length ? `<button class="link xs" data-tab="changes">${t.changes.length} file${t.changes.length > 1 ? 's' : ''} <span class="plus">+${totals.add}</span> <span class="minus">−${totals.del}</span></button>` : ''}
-        ${acts.length ? `<button class="link xs" data-tab="activity">Activity</button>` : ''}
-        ${t.presentation?.notes ? `<button class="link xs" data-tab="notes">Agent notes</button>` : ''}
-        ${feedbackOn() ? `<span class="rate ${rated ? 'rated' : ''}">${['up', 'down'].map((r) => `<button class="rate-btn ${rated === r ? 'on' : ''}" data-rate="${r}" title="${r === 'up' ? 'Good result' : 'Bad result'}: tell the wisp team" aria-pressed="${rated === r}">${icon(`thumb-${r}`)}</button>`).join('')}</span>` : ''}
+        <span class="tb-tools">
+          ${t.presentation?.notes ? `<button class="tb-btn" data-tab="notes" title="Agent notes" aria-label="Agent notes">${icon('text')}</button>` : ''}
+          ${canRollback ? (rolledBack
+            ? `<button class="link xs cp-rollback rolled-back" data-a="rollback" title="Re-apply changes from this turn">${icon('rerun')}Re-apply</button>`
+            : `<button class="tb-btn cp-rollback" data-a="rollback" title="Restore working tree to before this turn${t.checkpoint?.head ? ` (${t.checkpoint.head.slice(0, 7)})` : ''}" aria-label="Restore to before this turn">${icon('replay')}</button>`) : ''}
+          ${feedbackOn() ? `<span class="rate ${rated ? 'rated' : ''}">${['up', 'down'].map((r) => `<button class="rate-btn ${rated === r ? 'on' : ''}" data-rate="${r}" title="${r === 'up' ? 'Good result' : 'Bad result'}: tell the wisp team" aria-pressed="${rated === r}">${icon(`thumb-${r}`)}</button>`).join('')}</span>` : ''}
+        </span>
       </div>
       <div class="trail-body" hidden></div>
     </div>`);
