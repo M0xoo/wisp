@@ -67,6 +67,14 @@ export default {
     let sawResult = false;
     let stderr = '';
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
+    // Background tasks (run_in_background shells, background subagents) still running. While any
+    // are, the CLI stays up after its result and starts another turn when they finish.
+    let background = new Map(); // task_id -> description
+    const setBackground = (next) => {
+      const was = [...background.keys()].join(' ');
+      background = next;
+      if ([...next.keys()].join(' ') !== was) onEvent({ type: 'background', tasks: [...next.values()] });
+    };
 
     child.stderr.on('data', (d) => {
       stderr = (stderr + d).slice(-8000);
@@ -102,11 +110,24 @@ export default {
             onEvent({ type: 'tool_error', name, text: flatten(part.content).slice(0, 400) });
           }
         }
+      } else if (msg.type === 'system') {
+        // background_tasks_changed carries the full list; task_started/task_notification are the
+        // per-task edges, kept as a fallback in case a CLI version only sends those.
+        if (msg.subtype === 'background_tasks_changed' && Array.isArray(msg.tasks)) {
+          setBackground(new Map(msg.tasks.map((t) => [t.task_id, t.description || 'Background task'])));
+        } else if (msg.subtype === 'task_started' && msg.is_backgrounded && msg.task_id) {
+          setBackground(new Map(background).set(msg.task_id, msg.description || 'Background task'));
+        } else if (msg.subtype === 'task_notification' && background.has(msg.task_id)) {
+          const next = new Map(background);
+          next.delete(msg.task_id);
+          setBackground(next);
+        }
       } else if (msg.type === 'result') {
         sawResult = true;
         onEvent({
           type: 'result',
           text: msg.result ?? '',
+          background: background.size, // > 0: another turn and result follow when they finish
           isError: !!msg.is_error || (msg.subtype && msg.subtype !== 'success'),
           stats: {
             costUsd: msg.total_cost_usd,

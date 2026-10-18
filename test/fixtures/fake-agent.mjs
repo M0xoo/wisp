@@ -9,6 +9,10 @@
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
+//   FAKE_BACKGROUND  claude only: end the turn with a background task still running ("I'll report
+//                once it has finished"), then report again <ms> later the way the real CLI does;
+//                `exit` quits instead, `hang` never finishes the task; FAKE_BACKGROUND_DONE=1 makes
+//                the first reply a full presentation (a finished task that left a dev server up)
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 
@@ -172,7 +176,26 @@ if (name === 'claude') {
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't3', name: 'Bash', input: { command: 'npm test', description: 'Run the tests' } }] } });
     out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't3', is_error: true, content: '1 failing' }] } });
     const answer = await ask();
-    out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 } });
+    const bg = process.env.FAKE_BACKGROUND;
+    if (bg) {
+      // Captured from claude 2.1.302: the result arrives while the task runs, then the task's
+      // notification wakes the agent up for a second turn and a second result.
+      const task = { task_id: 'bg1', task_type: 'local_bash', description: 'Run the full test suite' };
+      out({ type: 'system', subtype: 'background_tasks_changed', tasks: [task], session_id: session });
+      out({ type: 'system', subtype: 'task_started', ...task, is_backgrounded: true, session_id: session });
+      const first = process.env.FAKE_BACKGROUND_DONE ? final('dev server left running') : "I'll report once it has finished.";
+      out({ type: 'assistant', session_id: session, message: { content: [{ type: 'text', text: first }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, result: first, session_id: session });
+      if (bg === 'exit') process.exit(0);
+      if (bg === 'hang') hang();
+      else {
+        await new Promise((r) => setTimeout(r, Number(bg)));
+        out({ type: 'system', subtype: 'task_notification', task_id: 'bg1', status: 'completed', session_id: session });
+        out({ type: 'system', subtype: 'background_tasks_changed', tasks: [], session_id: session });
+        out({ type: 'system', subtype: 'init', session_id: session });
+        out({ type: 'result', subtype: 'success', is_error: false, result: final('background done'), session_id: session });
+      }
+    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 } });
   }
 } else if (name === 'codex') {
   out({ type: 'thread.started', thread_id: session });

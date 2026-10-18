@@ -15,6 +15,7 @@ import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
 const MAX_ACTIVITY = 400;
 const MODES = new Set(['plan', 'edits', 'auto']);
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
+const BACKGROUND_MAX_MS = 60 * 60_000; // how long a turn may wait on its background tasks
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
 // The delegate tool lives on the same injected server, so harnesses name it like ask_user.
 const delegateTool = (askTool) => askTool && askTool.replace(/ask_user$/, 'delegate');
@@ -380,16 +381,22 @@ export class Runner extends EventEmitter {
         : {},
       onEvent: (ev) => {
         if (released) return; // a lingering process we already let go of
-        this.#onEvent(session, turn, ev);
+        const waiting = this.#onEvent(session, turn, ev) === 'waiting';
         // A CLI can outlive its result (flushing, or a background process it spawned holding
-        // stdout open, so 'close' never fires). Don't hold the session hostage to that.
-        if (ev.type === 'result') linger = setTimeout(release, LINGER_MS);
+        // stdout open, so 'close' never fires). Don't hold the session hostage to that. A result
+        // that left background tasks running gets up to BACKGROUND_MAX_MS for its next one.
+        if (ev.type === 'result') {
+          clearTimeout(linger);
+          linger = setTimeout(release, waiting ? BACKGROUND_MAX_MS : LINGER_MS);
+        }
       },
     });
     // Ends the run exactly once: on exit, LINGER_MS after the result, or when a follow-up arrives.
     const release = () => {
       if (released) return;
-      if (turn.status === 'running') this.#finishTurn(session, turn, { isError: true, text: 'The agent exited without a result.' });
+      // Gone while waiting on background work (stopped, interrupted, or it died): the result it
+      // gave before waiting is the best we have.
+      if (turn.status === 'running') this.#finishTurn(session, turn, turn.interim || { isError: true, text: 'The agent exited without a result.' });
       released = true;
       clearTimeout(linger);
       handle.stop();
@@ -447,14 +454,41 @@ export class Runner extends EventEmitter {
         if (leadTurn?.status === 'running') this.#onEvent(lead, leadTurn, { ...ev, by: session.member });
         return;
       }
+      case 'background': {
+        turn.background = ev.tasks;
+        if (turn.interim) this.#waitItem(session, turn);
+        else this.store.save(session);
+        return;
+      }
       case 'result':
+        // It ended its turn in plain text with background tasks still running ("I'll report once
+        // it's done"): the CLI wakes it up when they finish and it reports again, so the turn stays
+        // open. A full presentation is a finished task that left something up (a dev server).
+        if (ev.background > 0 && !ev.isError && parsePresentation(ev.text).fallback) {
+          turn.interim = { text: ev.text, stats: ev.stats };
+          this.#waitItem(session, turn);
+          return 'waiting';
+        }
         this.#finishTurn(session, turn, ev);
         return;
     }
   }
 
+  // The live line while a turn waits on its background tasks.
+  #waitItem(session, turn) {
+    const tasks = turn.background || [];
+    const label = !tasks.length
+      ? 'Background work finished, wrapping up'
+      : tasks.length === 1
+        ? `Waiting on background task: ${tasks[0]}`
+        : `Waiting on ${tasks.length} background tasks`;
+    this.#onEvent(session, turn, { type: 'tool', kind: 'background', label: label.slice(0, 200) });
+  }
+
   #finishTurn(session, turn, ev, reason) {
     turn.endedAt = Date.now();
+    delete turn.interim;
+    delete turn.background;
     turn.stats = ev.stats || null;
     delete session.ask;
     if (this.stopping.delete(session.id)) ev = { ...ev, stopped: true };
