@@ -65,8 +65,21 @@ const TOOLS = [
     name: 'wisp_reply',
     description:
       'Send a follow-up to a session; it resumes the same agent conversation. If the agent is waiting on a question, this answers it. ' +
-      'A follow-up sent while it runs interrupts it (queue=true waits for the run to finish instead). mode switches the session’s mode from this follow-up on.',
-    inputSchema: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, queue: { type: 'boolean' }, mode: { type: 'string', enum: ['plan', 'edits', 'auto'] } }, required: ['id', 'text'] },
+      'A follow-up sent while it runs interrupts it (queue=true waits for the run to finish instead). mode switches the session’s mode from this follow-up on. ' +
+      'agent / model / effort switch the harness, model or thinking level from this follow-up on (see wisp_agents); a new harness is handed the conversation so far.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        text: { type: 'string' },
+        queue: { type: 'boolean' },
+        mode: { type: 'string', enum: ['plan', 'edits', 'auto'] },
+        agent: { type: 'string', description: 'Harness id, e.g. claude, codex, opencode' },
+        model: { type: 'string', description: 'Model id for that harness; empty for its default' },
+        effort: { type: 'string', description: 'Thinking level; empty for the default' },
+      },
+      required: ['id', 'text'],
+    },
   },
   {
     name: 'wisp_stop',
@@ -117,7 +130,7 @@ async function callTool(name, a = {}) {
       return waitFor(a.id);
     case 'wisp_reply': {
       if (!a.text?.trim()) throw new Error('text is required');
-      const r = await c.reply(a.id, a.text.trim(), { queue: a.queue, mode: a.mode });
+      const r = await c.reply(a.id, a.text.trim(), { queue: a.queue, mode: a.mode, agent: a.agent, model: a.model, effort: a.effort });
       return r.answered ? 'Answered the agent’s question; it is continuing.' : r.interrupted ? 'Interrupted the run; it resumes with your message.' : r.queued ? 'Queued; it goes out when the current run finishes.' : 'Sent; the agent is working on it.';
     }
     case 'wisp_stop':

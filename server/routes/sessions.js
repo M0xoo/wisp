@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { adapters } from '../adapters/index.js';
+import { adapters, listAgents } from '../adapters/index.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
 import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree } from '../git.js';
@@ -34,6 +34,17 @@ export function register(r, app) {
   // The welcome tour runs no agent: nothing to follow up, revert or roll back.
   const notTour = (s, what) => {
     if (s.agent === 'wisp') throw bad(`This is the tour — launch a real wisp to ${what}.`);
+  };
+  // A follow-up's harness switch, checked: a harness that's installed here, on a lead (not a subagent).
+  const followUpRun = async (s, { agent, model, effort }) => {
+    agent = agent ? String(agent) : s.agent;
+    if (agent !== s.agent) {
+      if (s.parentId) throw bad('A subagent runs on the harness its lead picked for it.');
+      if (!adapters[agent]) throw bad(`Unknown harness: ${agent}`);
+      const found = (await listAgents()).find((a) => a.id === agent);
+      if (!found?.available) throw bad(`${adapters[agent].name} isn't installed on this computer.`);
+    }
+    return { agent, ...(model !== undefined && { model: String(model || '') }), ...(effort !== undefined && { effort: String(effort || '') }) };
   };
   const turnOf = (s, turnId) => (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
 
@@ -166,11 +177,13 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/reply',
     one(async (c, s) => {
-      const { text, attachments, queue, mode } = await c.body();
+      const { text, attachments, queue, mode, agent, model, effort } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
-      c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode));
+      // agent / model / effort: run this follow-up (and the ones after it) on another harness or model.
+      const run = agent !== undefined || model !== undefined || effort !== undefined ? await followUpRun(s, { agent, model, effort }) : undefined;
+      c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run));
     }),
   );
 

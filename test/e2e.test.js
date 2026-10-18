@@ -118,6 +118,77 @@ for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
   });
 }
 
+test('a follow-up can switch harness and model: the new harness gets the turns it missed, switching back resumes', async () => {
+  const s = await api('/sessions', { prompt: 'look at add() please', cwd: makeRepo(), agent: 'claude', mode: 'edits', worktree: false });
+  const turns = (n) => until(async () => {
+    const x = await session(s.id);
+    return x.turns.length === n && x.state === 'review' && x;
+  });
+  const last = (bin) => records(RECORD, bin).at(-1);
+  await turns(1);
+
+  // Same harness, another model and level: the same conversation, resumed.
+  await api(`/sessions/${s.id}/reply`, { text: 'try a bigger model', model: 'opus', effort: 'high' });
+  let x = await turns(2);
+  assert.ok(last('claude').argv.includes('--resume') && last('claude').argv.includes('claude-session-1'), 'resumed');
+  assert.deepEqual([x.model, x.effort], ['opus', 'high']);
+  assert.doesNotMatch(last('claude').stdin, /Earlier in this task/);
+
+  // Another harness: a fresh conversation there, handed both earlier turns.
+  await api(`/sessions/${s.id}/reply`, { text: 'codex, take it from here', agent: 'codex' });
+  x = await turns(3);
+  const codex = last('codex');
+  assert.ok(!codex.argv.includes('resume'), 'nothing of its own to resume');
+  assert.match(codex.stdin, /## Earlier in this task/);
+  assert.match(codex.stdin, /taking over a task that another coding agent \(Claude Code\)/);
+  assert.match(codex.stdin, /look at add\(\) please/);
+  assert.match(codex.stdin, /try a bigger model/);
+  assert.match(codex.stdin, /Fake claude finished/);
+  assert.match(codex.stdin, /## Follow-up\n\ncodex, take it from here/);
+  assert.equal(x.agent, 'codex');
+  assert.deepEqual([x.model, x.effort], ['', ''], 'a new harness starts on its default');
+  assert.equal(x.agentSessionId, 'codex-session-1');
+  assert.deepEqual(x.agentSessions, { claude: 'claude-session-1', codex: 'codex-session-1' });
+  assert.deepEqual(x.turns.map((t) => [t.agent, t.model]), [['claude', ''], ['claude', 'opus'], ['codex', '']]);
+  assert.equal(x.turns.at(-1).prompt, 'codex, take it from here', 'the turn keeps what the user typed');
+
+  // Back to Claude: its own conversation resumes, told only about the codex turn.
+  await api(`/sessions/${s.id}/reply`, { text: 'back to you, claude', agent: 'claude', model: 'opus' });
+  x = await turns(4);
+  const claude = last('claude');
+  assert.ok(claude.argv.includes('claude-session-1'), 'resumed its own session');
+  assert.match(claude.stdin, /While you were away, this task continued on another coding agent \(Codex\)/);
+  assert.match(claude.stdin, /codex, take it from here/);
+  assert.doesNotMatch(claude.stdin, /look at add\(\) please/, 'it already saw its own turns');
+  assert.equal(x.agentSessionId, 'claude-session-1');
+
+  // No switch: no handoff.
+  await api(`/sessions/${s.id}/reply`, { text: 'one more thing' });
+  await turns(5);
+  assert.doesNotMatch(last('claude').stdin, /Earlier in this task/);
+
+  // Queued with a switch: the run going keeps its harness; the queued one moves.
+  process.env.FAKE_HANG = '1';
+  try {
+    await api(`/sessions/${s.id}/reply`, { text: 'long one' });
+    await until(async () => (await session(s.id)).turns[5]?.activity.length > 0);
+    const r = await api(`/sessions/${s.id}/reply`, { text: 'then opencode', agent: 'opencode', queue: true });
+    assert.equal(r.queued, true);
+    assert.equal((await session(s.id)).agent, 'claude');
+  } finally {
+    delete process.env.FAKE_HANG;
+  }
+  // Interrupt: this one goes ahead on claude, then the queued one runs on opencode.
+  await api(`/sessions/${s.id}/reply`, { text: 'actually, first this' });
+  x = await turns(8);
+  assert.deepEqual(x.turns.slice(5).map((t) => t.agent), ['claude', 'claude', 'opencode']);
+  assert.equal(x.agent, 'opencode');
+  assert.match(last('opencode').stdin, /Claude Code, Codex|Codex, Claude Code/);
+
+  const reply = (body) => fetch(`${base}/api/sessions/${s.id}/reply`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'x', ...body }) });
+  assert.equal((await reply({ agent: 'nope' })).status, 400);
+});
+
 test('a follow-up can switch the mode: plan → edits → auto, and a queued one keeps its own', async () => {
   const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', mode: 'plan', worktree: false });
   const turns = (n) => until(async () => {

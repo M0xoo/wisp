@@ -100,9 +100,9 @@ export function createLaunch(app) {
   }
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
-  async function replyTo(s, text, attachments = [], queue, mode) {
+  async function replyTo(s, text, attachments = [], queue, mode, run) {
     await ensureWorktree(s.worktree);
-    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode });
+    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run });
   }
 
   function markDone(s) {

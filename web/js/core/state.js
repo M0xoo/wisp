@@ -29,6 +29,7 @@ export const S = {
   showArchived: false,
   drafts: new Map(),
   replyModes: new Map(), // session id → the mode its next follow-up switches to
+  replyRunners: new Map(), // session id → { agent, model, effort } its next follow-up switches to
 };
 export const saveOpen = () => save('wisp.open', [...S.open]);
 
