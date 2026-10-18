@@ -1842,7 +1842,7 @@ function renderBody(id, { fresh }) {
   const dockTop = dock?.getBoundingClientRect().top;
   const keep = new Set();
   let firstNew = null;
-  turns.forEach((t) => {
+  turns.forEach((t, i) => {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
@@ -1858,7 +1858,9 @@ function renderBody(id, { fresh }) {
       n.turnNodes.set(t.id, { key, node, status: t.status });
     }
     keep.add(t.id);
-    turnsEl.append(node); // re-append keeps order
+    // Place the turn without re-inserting a node that's already here: re-parenting restarts its
+    // CSS animations, so a refetch would replay the whole card's entrance.
+    if (turnsEl.children[i] !== node) turnsEl.insertBefore(node, turnsEl.children[i] || null);
   });
   for (const [tid, v] of n.turnNodes) if (!keep.has(tid)) (v.node.remove(), n.turnNodes.delete(tid));
 
