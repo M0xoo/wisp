@@ -1,0 +1,125 @@
+/* ---------- machines: other computers over SSH ---------- */
+.machines-btn.trouble .i { color: var(--warn); }
+.q-machine {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 120px; padding: 0 6px; border-radius: 5px; border: 1px solid var(--line);
+  font-size: 11px; font-weight: 500; line-height: 17px; color: var(--ink-2); white-space: nowrap;
+}
+.q-machine span { overflow: hidden; text-overflow: ellipsis; }
+.q-machine .i { flex: none; width: 11px; height: 11px; color: var(--accent); }
+.q-machine.off { color: var(--faint); border-style: dashed; }
+.q-machine.off .i { color: var(--faint); }
+/* the launcher: one group of project chips per place it runs on */
+.l-projects { row-gap: 6px; }
+.lp-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.lp-group + .lp-group { margin-left: 4px; padding-left: 10px; border-left: 1px solid var(--line); }
+.lp-gl { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.lp-gl .i { width: 13px; height: 13px; color: var(--accent); }
+.lp-gl.off { color: var(--faint); }
+.lp-gl.off .i { color: var(--faint); }
+.lp-gl .link { margin-left: 2px; }
+.where-btn .chev { width: 11px; height: 11px; opacity: 0.6; transform: rotate(90deg); }
+.where-btn.bare span, .where-btn.bare .chev { display: none; }
+.where-menu { min-width: 300px; }
+.wm-h { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.wm-h small { font-weight: 400; color: var(--faint); }
+.where-menu .wm-row { gap: 10px; }
+.wm-check { display: grid; place-items: center; width: 16px; height: 16px; flex: none; border-radius: 5px; border: 1.5px solid var(--line-2); color: transparent; }
+.wm-check .i { width: 11px; height: 11px; }
+.wm-row.on .wm-check { background: var(--accent); border-color: var(--accent); color: #fff; }
+.wm-icon { position: relative; display: inline-grid; place-items: center; flex: none; color: var(--muted); }
+.wm-icon .i { width: 16px; height: 16px; }
+.wm-icon .dot { position: absolute; right: -3px; bottom: -2px; width: 7px; height: 7px; border: 1.5px solid var(--surface); box-sizing: content-box; }
+.wm-row.on .wm-icon { color: var(--accent); }
+.wm-name { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
+.wm-name b { font-weight: 500; color: var(--ink); }
+.wm-name small { font: 11px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-agents { display: inline-flex; gap: 5px; }
+.wm-only { padding: 1px 6px; border-radius: 6px; font-size: 11px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
+.wm-row:hover .wm-only { opacity: 1; }
+.wm-only:hover { background: var(--bg-2); color: var(--ink); }
+.wm-sep { height: 1px; margin: 5px 4px; background: var(--line); }
+.p-chip .p-where { width: 11px; height: 11px; color: var(--muted); }
+.projects-modal .where { margin-bottom: 12px; }
+.projects-modal .where .i { width: 13px; height: 13px; color: var(--muted); }
+.projects-modal .where button.on .i { color: var(--accent); }
+.projects-modal .where .dot { width: 6px; height: 6px; }
+.machines-modal { width: min(640px, 100%); }
+.mc-list { display: flex; flex-direction: column; gap: 10px; }
+.mc { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+.mc-head { display: flex; align-items: center; gap: 10px; }
+.mc-icon { position: relative; flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--bg-2); color: var(--muted); }
+.mc-icon .i { width: 17px; height: 17px; }
+.mc-dot { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--faint); border: 2px solid var(--surface); }
+.mc.st-online .mc-icon { color: var(--accent); }
+.mc.st-online .mc-dot { background: var(--good); }
+.mc.st-error .mc-dot { background: var(--bad); }
+.mc:is(.st-connecting, .st-reconnecting) .mc-dot { background: var(--warn); animation: blink 1.2s infinite; }
+.mc-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mc-title b { font-size: 14px; font-weight: 600; }
+.mc-title span { font: 11.5px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mc.st-online .mc-state { color: var(--good); }
+.mc.st-error .mc-state { color: var(--bad); }
+.mc-meta, .mc-steps, .mc-hint, .mc-projects, .mc-edit { margin-left: 42px; }
+.mc-meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.mc-meta .bad { color: var(--bad); }
+.mc-meta .mc-update { margin-left: -6px; color: var(--accent); }
+.mc-agents { display: inline-flex; gap: 7px; }
+.mc-steps { list-style: none; display: flex; flex-direction: column; gap: 5px; margin-top: 10px; margin-bottom: 0; padding: 0; }
+.mc-steps li { display: grid; grid-template-columns: 16px auto 1fr; align-items: center; column-gap: 8px; font-size: 12.5px; color: var(--faint); }
+.mc-steps li b { font-weight: 500; }
+.mc-steps li small { font: 11.5px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-si { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line-2); }
+.mc-si .i { width: 10px; height: 10px; }
+.mc-steps .s-done { color: var(--ink-2); }
+.mc-steps .s-done .mc-si { background: var(--good); border-color: var(--good); color: #fff; animation: check-in 0.25s var(--ease); }
+.mc-steps .s-run { color: var(--ink); }
+.mc-steps .s-run .mc-si { border-color: var(--accent); border-top-color: transparent; animation: spin 0.8s linear infinite; }
+.mc-steps .s-fail { color: var(--bad); }
+.mc-steps .s-fail .mc-si { background: var(--bad); border-color: var(--bad); color: #fff; }
+.mc-steps .s-fail small { color: var(--bad); white-space: normal; }
+.mc-steps .s-warn { color: var(--warn); }
+.mc-steps .s-warn .mc-si { border-color: var(--warn); color: var(--warn); }
+.mc-steps .s-warn small { white-space: normal; }
+.mc-hint { margin-top: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--bad) 25%, var(--line)); background: var(--del-bg); font-size: 12.5px; color: var(--ink-2); }
+.mc-hint.soft { border-color: var(--line); background: var(--surface-2); }
+.mc-hint p { margin: 0 0 6px; }
+.mc-hint > :last-child { margin-bottom: 0; }
+.mc-cmd { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; padding: 3px 3px 3px 10px; border-radius: 8px; background: var(--term-bg); color: var(--term-ink); }
+.mc-cmd code { flex: 1; font: 12px var(--mono); }
+.mc-cmd .ghost { color: var(--term-ink); }
+.mc-cmd .ghost:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.mc-log summary { cursor: pointer; font-size: 12px; color: var(--muted); width: max-content; }
+.mc-log pre { max-height: 180px; overflow: auto; margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font: 11px/1.5 var(--mono); white-space: pre-wrap; }
+.mc-projects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.mc-edit { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.mc-add { margin-top: 12px; }
+.mc-add h4 { margin-top: 18px; }
+.mc-new { height: 32px; }
+.mc-found { margin-bottom: 14px; }
+.mc-found h4 { margin: 0 0 8px; }
+.mc-found-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.mc-found .lp-chip .i { width: 14px; height: 14px; color: var(--muted); }
+.mc-found .lp-chip.off { color: var(--muted); }
+.mc-fdot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); }
+.lp-chip.off .mc-fdot { background: var(--faint); }
+.mc-form { display: flex; flex-direction: column; gap: 10px; }
+.mc-row { display: flex; gap: 10px; }
+.mc-field { display: flex; flex-direction: column; gap: 5px; width: 150px; min-width: 0; }
+.mc-field.grow { flex: 1; width: auto; }
+.mc-field span { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.mc-adv summary { cursor: pointer; width: max-content; font-size: 12.5px; color: var(--muted); }
+.mc-adv[open] summary { margin-bottom: 8px; }
+.mc-check { margin-top: 8px; }
+/* Hosted inside Settings: undo its row styling for labels (centred, padded, bordered, input flexed to 0 tall). */
+.mc-form label { padding: 0; border-bottom: 0; }
+.mc-form .mc-field { align-items: stretch; justify-content: flex-start; gap: 5px; }
+.mc-form .mc-field > span { text-align: left; }
+.mc-form .mc-field > .input { flex: none; max-width: none; }
+.mc-form .mc-check { display: inline-flex; justify-content: flex-start; gap: 8px; width: max-content; }
+.mc-foot { display: flex; align-items: center; gap: 10px; }
+.mc-foot .hint { flex: 1; margin: 0 !important; font-size: 12px !important; }
+.mc-foot .primary { flex: none; }
+.mc-foot .primary .i { width: 14px; height: 14px; }
+.menu button.danger:hover { color: var(--bad); background: var(--del-bg); }
+

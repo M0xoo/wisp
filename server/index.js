@@ -1,456 +1,160 @@
 // HTTP API + SSE + static web UI. No dependencies.
+//
+// This file wires the pieces together; the logic lives next to it:
+//   http/      the route table, responses, static files
+//   routes/    one file per area of the API (sessions, ship, settings, machines, …)
+//   services/  what several routes and background jobs share (launching, Ship it, Auto, …)
 
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { Store } from './store.js';
-import { Runner, summarize, newId, workdir } from './runner.js';
-import { adapters, listAgents } from './adapters/index.js';
+import { Runner, summarize } from './runner.js';
+import { listAgents } from './adapters/index.js';
 import { welcomeSession } from './welcome.js';
-import { openInTerminal, TERMINALS, shq } from './terminal.js';
-import { Telemetry, envDisabled, feedbackAvailable } from './telemetry.js';
-import { blocksToMarkdown, sessionToMarkdown } from './render.js';
-import { openapi } from './openapi.js';
+import { Telemetry } from './telemetry.js';
 import { Updater } from './update.js';
-import { Preferences, Retro, KINDS } from './preferences.js';
-import { cleanupCheckpoints, revertFileChange, rollbackToTurn, execCommand } from './checkpoint.js';
-import { clip } from './adapters/common.js';
-import { createWorktree, worktreeSource, ensureWorktree, removeWorktree, worktreeStatus, ship, merge, prView, repoRoot } from './git.js';
-import { normalizeRecipe, findRecipe, recipeView, fill, positional } from './recipes.js';
-import { Triggers, normalizeTrigger, triggerView } from './triggers.js';
+import { Preferences, Retro } from './preferences.js';
+import { Triggers } from './triggers.js';
 import { Remote } from './remote.js';
-import { Machines, splitId, qualify, sshHosts, discoverHosts } from './machines.js';
-import { usage } from './usage.js';
-import { normalizeTeam, normalizePreset, delegationReport } from './subagents.js';
-import { Router, GOALS } from './router.js';
+import { Machines, splitId } from './machines.js';
+import { Router } from './router.js';
+import { DEFAULT_PORT, VERSION } from './util.js';
+import { Routes } from './http/router.js';
+import { send, eventStream } from './http/respond.js';
+import { serveStatic } from './http/static.js';
+import { createAuto } from './services/auto.js';
+import { createFeedback } from './services/feedback.js';
+import { createLaunch } from './services/launch.js';
+import { phoneActions } from './services/phone.js';
+import { createShip } from './services/ship.js';
+import { trackTurns } from './services/telemetry.js';
+import { Uploads } from './services/uploads.js';
+import { notifyWebhooks } from './services/webhooks.js';
+import { API_VERSION } from './routes/meta.js';
+import * as metaRoutes from './routes/meta.js';
+import * as autoRoutes from './routes/auto.js';
+import * as internalRoutes from './routes/internal.js';
+import * as uploadRoutes from './routes/uploads.js';
+import * as settingsRoutes from './routes/settings.js';
+import * as automationRoutes from './routes/automations.js';
+import * as machineRoutes from './routes/machines.js';
+import * as proxyRoutes from './routes/proxy.js';
+import * as sessionRoutes from './routes/sessions.js';
+import * as shipRoutes from './routes/ship.js';
 
-const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
+export { API_VERSION };
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.ico': 'image/x-icon',
-  '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-  '.mov': 'video/quicktime',
-  '.pdf': 'application/pdf',
-};
-const MAX_UPLOAD = 500 * 1024 * 1024;
-const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
-const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
-export const API_VERSION = 1;
+// Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, proxyRoutes, sessionRoutes, shipRoutes];
 
-// A session "needs you" once it stops running: finished, or blocked on ask_user. A finished run
-// with follow-ups still queued is about to start the next one, so it doesn't count yet.
-const settled = (s) => s.state === 'waiting' || (s.state !== 'running' && !s.queue?.length);
-const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
-const PR_POLL_MS = 60_000;
-const SHIP_RECHECK_MS = 5_000;
-const MAX_COMPARE = 4;
-const MODES = new Set(['plan', 'edits', 'auto']);
-const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
-const expand = (p) => path.resolve(String(p).replace(/^~(?=$|[\\/])/, os.homedir()));
+// Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
+// but they retry). With Node's 5s default the two raced, and a request sent on a socket the
+// server was closing failed with ECONNRESET.
+const KEEP_ALIVE_MS = 65_000;
 
-export async function startServer({ port = 4477, host = '127.0.0.1', handleSignals = true } = {}) {
+// `app` is what every route and service shares. Services reach each other through it at call
+// time, so the order they are created in only matters for what runs right away.
+export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', handleSignals = true } = {}) {
   const store = new Store();
   const token = randomBytes(16).toString('hex');
   const runner = new Runner(store, { url: `http://127.0.0.1:${port}`, token });
-  const uploadsDir = path.join(store.home, 'uploads');
-  fs.mkdirSync(uploadsDir, { recursive: true });
-  const uploads = new Map(); // id -> { id, name, mime, size, path }
-  for (const f of fs.readdirSync(uploadsDir)) {
-    if (!f.endsWith('.json')) continue;
-    try {
-      const u = JSON.parse(fs.readFileSync(path.join(uploadsDir, f), 'utf8'));
-      uploads.set(u.id, u);
-    } catch {}
-  }
-  const resolveAttachments = (ids) => (Array.isArray(ids) ? ids.map((i) => uploads.get(i)).filter(Boolean) : []);
+  const events = eventStream();
+  const app = {
+    port,
+    token,
+    store,
+    runner,
+    events,
+    broadcast: events.broadcast,
+    uploads: new Uploads(path.join(store.home, 'uploads')),
+    // After any change to the config: persist it, and tell the open pages to reload it.
+    configChanged() {
+      store.saveConfig();
+      events.broadcast('config', {});
+    },
+    // After a change to a session's own fields: persist it and send its new summary.
+    sessionChanged(s, opts) {
+      store.save(s, opts);
+      events.broadcast('summary', summarize(s, store));
+    },
+  };
 
   if (store.all().length === 0) store.put(welcomeSession());
 
-  const clients = new Set();
-  const broadcast = (event, data) => {
-    const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-    for (const res of clients) res.write(frame);
-  };
-  runner.on('summary', (s) => broadcast('summary', s));
-  runner.on('activity', (a) => broadcast('activity', a));
-  runner.on('turn', (t) => broadcast('turn', t));
-  runner.on('finished', (f) => broadcast('finished', f));
+  runner.on('summary', (s) => app.broadcast('summary', s));
+  runner.on('activity', (a) => app.broadcast('activity', a));
+  runner.on('turn', (t) => app.broadcast('turn', t));
+  runner.on('finished', (f) => app.broadcast('finished', f));
   runner.on('finished', ({ session }) => notifyWebhooks(store, session));
-  runner.on('finished', ({ session }) => remote.notify(store.get(session.id), session).catch((err) => console.warn(`wisp: phone: ${err.message}`)));
+  runner.on('finished', ({ session }) => app.remote.notify(store.get(session.id), session).catch((err) => console.warn(`wisp: phone: ${err.message}`)));
 
   // Machines: other computers running their own wisp, reached over SSH. Their sessions show up
   // here as <id>@<machine>; their events are relayed into this stream.
-  const machines = new Machines({
+  app.machines = new Machines({
     store,
     version: VERSION,
     apiVersion: API_VERSION,
-    onChange: () => broadcast('machines', machines.view()),
+    onChange: () => app.broadcast('machines', app.machines.view()),
     onEvent: (event, data) => {
-      broadcast(event, data);
-      if ((event === 'finished' || event === 'summary') && data?.session) routeSignals(data.session);
-      else if (event === 'summary' && data?.id) routeSignals(data);
-      if (event === 'finished' && remote.on) notifyFromMachine(data.session).catch((err) => console.warn(`wisp: phone: ${err.message}`));
+      app.broadcast(event, data);
+      if ((event === 'finished' || event === 'summary') && data?.session) app.auto.signals(data.session);
+      else if (event === 'summary' && data?.id) app.auto.signals(data);
+      if (event === 'finished' && app.remote.on) notifyFromMachine(data.session).catch((err) => console.warn(`wisp: phone: ${err.message}`));
     },
   });
   async function notifyFromMachine(summary) {
     const at = splitId(summary.id);
-    const s = machines.session(at.machine, await machines.json(at.machine, 'GET', `/sessions/${at.id}`));
-    await remote.notify(s, summary);
+    const s = app.machines.session(at.machine, await app.machines.json(at.machine, 'GET', `/sessions/${at.id}`));
+    await app.remote.notify(s, summary);
   }
-  // Attachments are uploaded here; a machine gets its own copies before a launch or reply.
-  const pushUploads = async (mid, ids) => {
-    const out = [];
-    for (const u of resolveAttachments(ids)) out.push((await machines.upload(mid, u)).id);
-    return out;
-  };
-  setInterval(() => broadcast('ping', {}), 25_000).unref();
+  setInterval(() => app.broadcast('ping', {}), 25_000).unref();
 
-  const telemetry = new Telemetry(store);
-  const updater = new Updater({ port, onChange: (u) => broadcast('update', u) });
+  app.telemetry = new Telemetry(store);
+  app.updater = new Updater({ port, onChange: (u) => app.broadcast('update', u) });
 
   // Learned preferences: injected into every turn, refreshed by a background retro per session.
-  const prefs = new Preferences(store.home);
-  const learning = () => store.config.defaults.learn !== 'off';
+  app.prefs = new Preferences(store.home);
+  app.learning = () => store.config.defaults.learn !== 'off';
   const projectOf = (cwd) => store.projectFor(cwd)?.path || cwd;
-  runner.promptExtra = (s) => (learning() && s.agent !== 'wisp' ? prefs.prompt(projectOf(s.cwd)) : '');
-  const retro = new Retro({
+  runner.promptExtra = (s) => (app.learning() && s.agent !== 'wisp' ? app.prefs.prompt(projectOf(s.cwd)) : '');
+  app.retro = new Retro({
     store,
     runner,
-    prefs,
+    prefs: app.prefs,
     projectOf,
-    enabled: learning,
-    onStart: () => broadcast('preferences', {}),
+    enabled: app.learning,
+    onStart: () => app.broadcast('preferences', {}),
     onDone: ({ session, ok, added = [], removed = [] }) => {
-      telemetry.track('retro', { agent: session.agent, ok, added: added.length, removed: removed.length });
-      broadcast('preferences', { added: added.length, removed: removed.length });
+      app.telemetry.track('retro', { agent: session.agent, ok, added: added.length, removed: removed.length });
+      app.broadcast('preferences', { added: added.length, removed: removed.length });
     },
   });
-  // Auto: wisp picks harness and model per task and learns from outcomes (server/router.js).
-  const router = new Router(store.home);
-  let agentsHere = [];
-  const detect = async (opts) => {
-    const agents = await listAgents(opts);
-    agentsHere = agents;
-    const added = router.sync(agents);
-    if (added.length) broadcast('router', { added });
-    return agents;
-  };
-  const autoOpts = () => {
-    const r = store.config.defaults.router || {};
-    return { explore: r.explore !== 'off', allowed: Array.isArray(r.allowed) && r.allowed.length ? r.allowed : null };
-  };
-  const goalOf = (model) => (GOALS[model] ? model : GOALS[store.config.defaults.models?.auto] ? store.config.defaults.models.auto : 'balanced');
-  // Subagents set to Auto are routed on their first task, from this computer's harnesses.
-  runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf(), ...autoOpts() });
-  // A routed session's outcome so far, from its summary: works the same for sessions on machines.
-  // Follow-ups after the first turn count as corrections; a merged or closed PR settles it.
-  const routeSignals = (sum) => {
-    if (!sum?.id || !router.route(sum.id) || sum.status === 'running' || sum.state === 'running') return;
-    const pr = sum.pr?.state;
-    router.signal(sum.id, {
-      hero: ['done', 'partial', 'blocked', 'info'].includes(sum.status) ? sum.status : undefined,
-      followups: Math.max(0, (sum.turnCount || 1) - 1),
-      merged: pr === 'MERGED' || undefined,
-      closed: pr === 'CLOSED' || undefined,
-    });
-  };
+
+  // Auto: the router, and what feeds it outcomes.
+  app.router = new Router(store.home);
+  app.auto = createAuto(app);
   runner.on('started', ({ session }) => {
-    if (session.route && !router.route(session.id)) router.record(session.id, session.route);
+    if (session.route && !app.router.route(session.id)) app.router.record(session.id, session.route);
   });
   runner.on('ended', ({ session, turn, interrupted }) => {
     if (!session.route || interrupted) return;
-    if (session.turns.indexOf(turn) === 0) router.signal(session.id, { error: turn.status === 'error' || undefined, costUsd: turn.stats?.costUsd, ms: turn.endedAt - turn.startedAt });
-    routeSignals(summarize(session, store));
+    if (session.turns.indexOf(turn) === 0) app.router.signal(session.id, { error: turn.status === 'error' || undefined, costUsd: turn.stats?.costUsd, ms: turn.endedAt - turn.startedAt });
+    app.auto.signals(summarize(session, store));
   });
+  trackTurns(app);
 
-  const run = (s, t) => ({ agent: s.agent, model: s.model || 'default', mode: s.mode, effort: s.effort || 'default', followUp: s.turns.indexOf(t) > 0 });
-  // Auto's choice, as fixed values only: never the prompt.
-  const routeProps = (s) =>
-    s.route ? { routed: true, routeGoal: s.route.goal, routeType: s.route.type, routeSize: s.route.size, routeExplored: !!s.route.explored, routeTrying: !!s.route.trying, routePropensity: s.route.propensity } : {};
-  runner.on('started', ({ session, turn }) => telemetry.track('turn_started', { ...run(session, turn), attachments: turn.attachments.length }));
-  runner.on('ended', ({ session, turn, interrupted, errorText }) => {
-    const blocks = turn.presentation?.blocks || [];
-    const st = turn.stats || {};
-    telemetry.track('turn_ended', {
-      ...run(session, turn),
-      ...routeProps(session),
-      status: interrupted ? 'interrupted' : turn.status, // done | error | stopped | interrupted
-      heroStatus: blocks.find((b) => b.type === 'hero')?.status,
-      durationMs: turn.endedAt - turn.startedAt,
-      blockCount: blocks.length,
-      blockTypes: [...new Set(blocks.map((b) => b.type))],
-      presentationFallback: !!turn.presentation?.fallback, // agent ignored or broke the wisp protocol
-      changedFiles: turn.changes.length,
-      inputTokens: st.inputTokens,
-      outputTokens: st.outputTokens,
-      costUsd: st.costUsd,
-    });
-    if (errorText) telemetry.captureError(new Error(errorText), { type: 'AgentError', ...run(session, turn) });
-  });
-  if (!envDisabled()) process.on('uncaughtExceptionMonitor', (err) => telemetry.crashed(err));
-
-  // One way in for every launch: the launcher, the CLI, recipes, triggers and compare runs.
-  // body: { prompt, cwd, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
-  //         subagents: [{ name, agent, model, effort, use }] | preset: teamId }
-  async function launch(body, origin = null) {
-    if (!String(body.prompt || '').trim()) throw bad('prompt required');
-    const cwd = expand(body.cwd || process.cwd());
-    if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw bad(`Not a directory: ${cwd}`);
-    const d = store.config.defaults;
-    const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
-    if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
-    const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
-    // compare: more { agent, model, effort } to run the same task on, side by side. 'auto' is
-    // resolved here: the router picks a harness and model (a different one per compare run).
-    const resolved = await resolveAuto(body, agentsHere.length ? agentsHere : await detect(), { team: subagents.length > 0 });
-    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
-      const agent = r.agent || (i ? d.agent : '') || 'claude';
-      if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
-      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(r.route && { route: r.route }) };
-    });
-    const mode = MODES.has(body.mode) ? body.mode : 'edits';
-    // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
-    // runs need one each, or the harnesses would edit the same files.
-    const comparing = runners.length > 1;
-    const wantTree = body.worktree ?? (comparing || (mode !== 'plan' && d.worktree !== 'off'));
-    // groupId: one launch sent to several machines (or here and there) shows as one task.
-    const groupId = /^[a-f0-9]{12}$/.test(body.groupId || '') ? body.groupId : comparing ? newId() : null;
-    const attachments = resolveAttachments(body.attachments);
-    const ids = runners.map(() => newId());
-    let trees = ids.map(() => null);
-    if (wantTree) {
-      const must = body.worktree === true || (comparing && mode !== 'plan');
-      // One fetch for the whole launch, then the checkouts side by side: compare runs used to
-      // fetch and check out one after the other before anything showed up in the feed.
-      const results = await worktreeSource(cwd).then(
-        (source) => source && Promise.allSettled(ids.map((id) => createWorktree({ cwd, home: store.home, id, title: body.prompt, source }))),
-        (err) => [{ status: 'rejected', reason: err }],
-      );
-      const failed = results?.find((x) => x.status === 'rejected')?.reason;
-      trees = ids.map((_, i) => (results?.[i]?.status === 'fulfilled' ? results[i].value : null));
-      if (must && (failed || trees.some((t) => !t))) {
-        await Promise.all(trees.map((t) => t && removeWorktree(t, { force: true, branch: 'force' }).catch(() => {})));
-        if (failed) throw bad(`Could not create a worktree: ${failed.message}`);
-        throw bad(comparing ? 'Compare needs a git repo with at least one commit, so each harness gets its own worktree.' : 'Not a git repo with commits, so there is nothing to make a worktree from.');
-      }
-      if (failed) console.warn(`wisp: no worktree for ${cwd}: ${failed.message}`);
-    }
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents }));
-  }
-
-  // agent 'auto' (and compare entries set to it) → a harness and model picked by the router from
-  // `agents`: this computer's, or the machine's the launch goes to. Model is the goal for Auto.
-  async function resolveAuto(body, agents, { team = false } = {}) {
-    const want = [{ agent: body.agent, model: body.model, effort: body.effort }, ...(Array.isArray(body.compare) ? body.compare : [])];
-    if (!want.some((r) => r.agent === 'auto')) return body;
-    const taken = [];
-    const out = want.map((r, i) => {
-      if (r.agent !== 'auto') return r;
-      const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important, exclude: taken, needDelegate: i === 0 && team, ...autoOpts() });
-      if (!pick) throw bad('Auto found no installed harness to run this on.');
-      taken.push(pick.key);
-      return { agent: pick.agent, model: pick.model, effort: '', route: pick.route };
-    });
-    return { ...body, ...out[0], compare: out.slice(1) };
-  }
-
-  // Where a launch runs: body.machine, else a project folder that only exists on a machine
-  // (recipes and schedules keep just the path). null = here.
-  function machineFor(body) {
-    if (body.machine) return machines.get(String(body.machine)).id;
-    const cwd = String(body.cwd || '');
-    if (!cwd || fs.existsSync(expand(cwd))) return null;
-    return store.config.projects.find((p) => p.machine && (cwd === p.path || cwd.startsWith(`${p.path}/`)))?.machine || null;
-  }
-
-  // launch(), here or on a machine. Resolves with summaries (a compare launch has several).
-  async function launchAny(body, origin = null) {
-    const mid = machineFor(body);
-    if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));
-    // Auto for a machine: routed here, with the harnesses that machine has; its outcomes come
-    // back through the summaries it streams (routeSignals), so one router learns from every place.
-    const routed = await resolveAuto(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset) });
-    const routes = [routed.route, ...(routed.compare || []).map((c) => c.route)];
-    const sendBody = { ...routed, compare: routed.compare?.map(({ route, ...c }) => c) };
-    delete sendBody.route;
-    if (!sendBody.compare?.length && !body.compare) delete sendBody.compare;
-    const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
-    (out.group || [out]).forEach((x, i) => routes[i] && router.record(qualify(x.id, mid), routes[i]));
-    const known = store.projectFor(out.cwd, mid);
-    (known || store.addProject(out.cwd, { machine: mid })).lastUsedAt = Date.now();
-    store.saveConfig();
-    if (!known) broadcast('config', {});
-    return (out.group || [out]).map((x) => machines.summary(mid, x));
-  }
-
-  // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
-  async function replyTo(s, text, attachments = [], queue, mode) {
-    await ensureWorktree(s.worktree);
-    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode });
-  }
-
-  const markDone = (s) => {
-    if (s.state === 'running' || s.state === 'waiting') return false;
-    s.state = 'done';
-    s.unread = false;
-    retro.schedule(s, 0);
-    store.save(s);
-    broadcast('summary', summarize(s, store));
-    return true;
-  };
-
-  // Recipes and triggers.
-  const runRecipe = async (r, { params = {}, words, cwd, machine, agent, model, effort, mode } = {}) => {
-    const values = words ? { ...positional(r.prompt, words), ...params } : params;
-    const [s] = await launchAny({ prompt: fill(r.prompt, values), cwd: r.cwd || cwd, machine, agent: agent || r.agent || undefined, model: model ?? (r.model || undefined), effort: effort || r.effort || undefined, mode: mode || r.mode || undefined }, { kind: 'recipe', id: r.id, name: r.name });
-    r.runs = (r.runs || 0) + 1;
-    r.lastRunAt = Date.now();
-    store.saveConfig();
-    broadcast('config', {});
-    return s;
-  };
-  const triggers = new Triggers({ store, launch: async (body, origin) => (await launchAny(body, origin))[0], onChange: () => broadcast('config', {}) });
-
+  app.launcher = createLaunch(app);
+  app.sendFeedback = createFeedback(app);
+  app.triggers = new Triggers({ store, launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0], onChange: () => app.broadcast('config', {}) });
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
-  const remote = new Remote({
-    store,
-    onChange: () => broadcast('remote', {}),
-    // /new from Telegram: the launcher's remembered harness, model and mode, like `wisp "…"`.
-    launch: async ({ project, prompt }) => {
-      const d = store.config.defaults;
-      const agent = d.agent || 'claude';
-      const model = d.models?.[agent] ?? d.model ?? '';
-      const [s] = await launchAny({ prompt, cwd: project.path, machine: project.machine || undefined, agent, model, mode: d.mode || 'edits' }, { kind: 'telegram', name: 'Telegram' });
-      broadcast('config', {});
-      return s;
-    },
-    act: async ({ sessionId, kind, ref, index, text }) => {
-      const ops = await sessionOps(sessionId).catch((err) => ({ error: err.message }));
-      if (ops?.error) return `Can’t reach it: ${ops.error}`;
-      if (!ops) return 'That session is gone.';
-      const { s } = ops;
-      if (kind === 'answer') {
-        if (!s.ask || s.ask.id !== ref) return 'That question was already answered.';
-        const answer = s.ask.options[index];
-        if (answer === undefined) return 'Unknown option.';
-        await ops.answer(answer);
-        return `✓ Answered: ${answer}`;
-      }
-      if (kind === 'reply') {
-        const turn = s.turns.at(-1);
-        if (!turn || turn.id !== ref || s.state === 'running') return 'That was already answered.';
-        const q = turn.presentation?.blocks?.findLast((b) => b?.type === 'question');
-        const o = q?.options?.[index];
-        const msg = typeof o === 'string' ? o : o?.reply || o?.label;
-        if (!msg) return 'Unknown option.';
-        await ops.reply(msg);
-        return `✓ Sent: ${typeof o === 'string' ? o : o.label || msg}`;
-      }
-      if (kind === 'done') {
-        if (s.turns.at(-1)?.id !== ref && ref) return 'There is newer work on that session; open wisp to review it.';
-        return (await ops.done()) ? '✓ Marked done' : 'It is still working.';
-      }
-      if (s.agent === 'wisp') return 'That is the tour; it can’t take follow-ups.';
-      const r = await ops.reply(String(text || '').trim());
-      return r.answered ? '✓ Answered' : r.interrupted ? '✓ Sent; the agent picked it up mid-run' : r.queued ? '✓ Queued for when it finishes' : '✓ Sent';
-    },
-  });
+  app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
+  app.ship = createShip(app);
 
-  // What the phone can do to a session, here or on a machine: { s, answer, reply, done } or null.
-  async function sessionOps(sessionId) {
-    const at = splitId(sessionId);
-    if (!at) {
-      const s = store.get(sessionId);
-      return s && { s, answer: (a) => runner.answer(s, a), reply: (t) => replyTo(s, t), done: () => markDone(s) };
-    }
-    const call = (method, p, body) => machines.json(at.machine, method, `/sessions/${at.id}${p}`, body);
-    const s = await call('GET', '').catch((err) => {
-      if (err.status === 404) return null;
-      throw err;
-    });
-    const live = s && (s.state === 'running' || s.state === 'waiting');
-    return s && { s: machines.session(at.machine, s), answer: (a) => call('POST', '/answer', { text: a }), reply: (t) => call('POST', '/reply', { text: t }), done: async () => !live && !!(await call('PATCH', '', { state: 'done' })) };
-  }
-
-  // Ship it shows only when the worktree has something to ship: uncommitted changes, or commits
-  // not yet pushed. Rechecked whenever wisp might have changed the worktree.
-  const checkShip = async (s) => {
-    if (!s?.worktree || s.parentId) return;
-    const { dirty, ahead, unpushed } = await worktreeStatus(s.worktree);
-    const next = { dirty, ahead, unpushed };
-    if (JSON.stringify(next) === JSON.stringify(s.toShip)) return;
-    s.toShip = next;
-    store.save(s);
-    broadcast('summary', summarize(s, store));
-  };
-  // One check at a time per session (one asked for meanwhile runs right after); `lazy` (a card
-  // fetching its session) skips running sessions and runs at most every few seconds.
-  const shipChecks = new Map(); // id → true while checking, 'again' if another check is due
-  const shipCheckedAt = new Map();
-  const recheckShip = (s, { lazy = false } = {}) => {
-    if (!s?.worktree || s.parentId) return;
-    if (lazy && (runner.live.has(s.id) || shipChecks.has(s.id) || Date.now() - (shipCheckedAt.get(s.id) || 0) < SHIP_RECHECK_MS)) return;
-    if (shipChecks.has(s.id)) return void shipChecks.set(s.id, 'again');
-    shipChecks.set(s.id, true);
-    shipCheckedAt.set(s.id, Date.now());
-    checkShip(s)
-      .catch(() => {})
-      .finally(() => {
-        const again = shipChecks.get(s.id) === 'again';
-        shipChecks.delete(s.id);
-        if (again) recheckShip(s);
-      });
-  };
-  runner.on('ended', ({ session }) => recheckShip(store.get(session.id)));
-  for (const s of store.all()) if (s.worktree && !s.archived && s.pr?.state !== 'MERGED') recheckShip(s);
-
-  // Ship it: follow open PRs (checks, reviews, merges) so their cards stay current.
-  const refreshPr = async (s) => {
-    if (!s.pr || !s.worktree) return s.pr;
-    const prev = s.pr;
-    const dir = fs.existsSync(s.worktree.path) ? s.worktree.path : s.worktree.root;
-    const pr = await prView(dir, prev.number);
-    const changed = (k) => JSON.stringify(k(pr)) !== JSON.stringify(k(prev));
-    s.pr = pr;
-    if (pr.state !== prev.state) routeSignals(summarize(s, store));
-    // Things worth coming back for: CI finished either way, a review landed, it merged or closed.
-    const settledChecks = (x) => (x.checks.pending ? 'pending' : x.checks.fail ? 'fail' : 'pass');
-    if (changed((x) => x.state) || changed((x) => x.review) || (changed(settledChecks) && settledChecks(pr) !== 'pending')) s.unread = true;
-    store.save(s);
-    broadcast('summary', summarize(s, store));
-    return pr;
-  };
-  const prTimer = setInterval(async () => {
-    for (const s of store.all()) if (s.pr?.state === 'OPEN') await refreshPr(s).catch(() => {});
-  }, PR_POLL_MS);
-  prTimer.unref();
-
-  // Default commit message and PR text, from the session's latest presentation.
-  const shipDraft = (s) => {
-    const turn = s.turns.findLast((t) => t.status === 'done') || s.turns.at(-1);
-    const blocks = turn?.presentation?.blocks || [];
-    const hero = blocks.find((b) => b?.type === 'hero');
-    const text = `${hero?.title || s.title}`.trim();
-    const conventional = /^[a-z]+(\([\w./-]+\))?!?: /.test(text);
-    const type = /\b(fix|bug|broken|crash|flaky|regression)/i.test(`${text} ${s.turns[0]?.prompt || ''}`) ? 'fix' : /\b(docs?|readme|changelog)\b/i.test(text) ? 'docs' : /\b(refactor|clean ?up|simplif)/i.test(text) ? 'refactor' : /\btests?\b/i.test(text) ? 'test' : 'feat';
-    const title = conventional ? text : `${type}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
-    const keep = blocks.filter((b) => !['hero', 'next', 'question', 'diff', 'code', 'image', 'terminal'].includes(b?.type));
-    const body = [hero?.summary, blocksToMarkdown(keep, turn)].filter(Boolean).join('\n\n').trim();
-    return { title: title.slice(0, 100), body: `${body}\n\n_Shipped from [wisp](https://github.com/M0xoo/wisp)._`.trim() };
-  };
+  const routes = new Routes();
+  for (const mod of ROUTES) mod.register(routes, app);
+  app.routes = routes;
 
   const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]);
 
@@ -467,760 +171,21 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     try {
-      if (url.pathname.startsWith('/api/')) return await api(req, res, url);
-      return serveStatic(res, url.pathname);
+      if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
+      if (!(await routes.handle(req, res, url))) send(res, 404, { error: 'not found' });
     } catch (err) {
-      console.error(err);
-      if (!err.status || err.status >= 500) telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
-      send(res, err.status || 500, { error: err.message });
+      // A refusal (bad input, not found, conflict) is an answer, not a server error.
+      const expected = err.status && err.status < 500;
+      if (!expected) {
+        console.error(err);
+        app.telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
+      }
+      if (!res.headersSent) send(res, err.status || 500, { error: err.message });
+      else res.end();
     }
   });
-
-  async function api(req, res, url) {
-    const parts = url.pathname.split('/').filter(Boolean).slice(1); // drop "api"
-    const [root, id, action] = parts;
-    const m = req.method;
-
-    if (root === 'events' && m === 'GET') {
-      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      res.write(`event: hello\ndata: {}\n\n`);
-      clients.add(res);
-      req.on('close', () => clients.delete(res));
-      return;
-    }
-
-    if (root === 'health' && m === 'GET') return send(res, 200, { ok: true, name: 'wisp', version: VERSION, apiVersion: API_VERSION, pid: process.pid, url: `http://127.0.0.1:${port}` });
-    // New wisp-agents on npm? POST installs it and relaunches; running agents are stopped, so the
-    // client must pass force once it has confirmed that with the user.
-    if (root === 'update') {
-      if (m === 'GET') {
-        if (url.searchParams.has('check')) return send(res, 200, await updater.check());
-        updater.maybeCheck(); // the UI asks on focus and reconnect: a day-old check gets refreshed
-        return send(res, 200, updater.view());
-      }
-      if (m === 'POST') {
-        const body = await readJson(req);
-        if (runner.live.size && !body.force) return send(res, 409, { error: 'agents are running', running: runner.live.size });
-        await updater.install();
-        send(res, 202, updater.view());
-        telemetry.track('update', { from: updater.state.current, to: updater.state.latest, method: updater.method });
-        setTimeout(() => (shutdown(), process.exit(0)), 300);
-        return;
-      }
-    }
-    if (root === 'openapi.json' && m === 'GET') return send(res, 200, openapi({ version: VERSION, port }));
-
-    if (root === 'agents' && m === 'GET') return send(res, 200, await detect({ fresh: url.searchParams.has('fresh') }));
-    // Re-check: detect harnesses and models again, here and on every online machine.
-    if (root === 'agents' && id === 'recheck' && m === 'POST') {
-      const [agents] = await Promise.all([detect({ fresh: true }), machines.recheckAgents()]);
-      return send(res, 200, agents);
-    }
-
-    // Auto: what the router learned, and its settings (goal, trying new models, allowed harnesses).
-    if (root === 'router') {
-      const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { explore: autoOpts().explore, allowed: autoOpts().allowed }, ...router.report(agentsHere.length ? agentsHere : await detect()) });
-      if (!id && m === 'GET') return send(res, 200, await view());
-      if (!id && m === 'PATCH') {
-        const body = await readJson(req);
-        const d = store.config.defaults;
-        if (body.goal !== undefined) {
-          if (!GOALS[body.goal]) return send(res, 400, { error: `goal must be one of ${Object.keys(GOALS).join(', ')}` });
-          d.models = { ...d.models, auto: body.goal };
-          if (d.agent === 'auto') d.model = body.goal;
-        }
-        d.router = { ...d.router };
-        if (body.explore !== undefined) d.router.explore = body.explore ? 'on' : 'off';
-        if (body.allowed !== undefined) d.router.allowed = Array.isArray(body.allowed) ? body.allowed.filter((a) => adapters[a]) : null;
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, await view());
-      }
-      if (id === 'reset' && m === 'POST') {
-        router.reset();
-        broadcast('router', {});
-        return send(res, 200, await view());
-      }
-    }
-
-    // Bridge for the ask_user MCP server running inside an agent process.
-    if (root === 'internal') {
-      if (req.headers['x-wisp-token'] !== token) return send(res, 403, { error: 'bad token' });
-      if (id === 'ask' && !action && m === 'POST') {
-        const body = await readJson(req);
-        const s = store.get(body.session);
-        if (!s) return send(res, 404, { error: 'no such session' });
-        telemetry.track('ask_user', { agent: s.agent });
-        return send(res, 200, { id: runner.ask(s, body) });
-      }
-      if (id === 'ask' && action && m === 'GET') return send(res, 200, runner.pollAnswer(action));
-      // delegate: POST starts tasks on the lead's subagents; GET reports on them (done once all finished).
-      if (id === 'delegate' && action) {
-        const lead = store.get(action);
-        if (!lead) return send(res, 404, { error: 'no such session' });
-        if (m === 'POST') {
-          const body = await readJson(req);
-          const delegations = runner.delegate(lead, body.tasks);
-          telemetry.track('delegate', { agent: lead.agent, tasks: delegations.length, harnesses: [...new Set(delegations.filter((d) => d.agent).map((d) => d.agent))] });
-          return send(res, 200, { delegations });
-        }
-        if (m === 'GET') {
-          const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean);
-          const list = runner.delegations(lead, ids);
-          if (!list.length) return send(res, 200, { done: true, text: 'No delegated tasks to report on.' });
-          const running = ({ d, child }) => child?.turns.find((t) => t.id === d.turnId)?.status === 'running';
-          return send(res, 200, { done: !list.some(running), text: list.map(({ d, child }) => delegationReport(d, child, adapters)).join('\n\n---\n\n') });
-        }
-      }
-    }
-
-    // Attachments: raw body streamed to disk, referenced by id from launches and replies.
-    if (root === 'uploads') {
-      if (!id && m === 'POST') {
-        const name = path.basename(url.searchParams.get('name') || 'file').replace(/[^\w.\- ]+/g, '_').slice(-120) || 'file';
-        const uid = newId();
-        const file = path.join(uploadsDir, `${uid}-${name}`);
-        let size = 0;
-        await new Promise((resolve, reject) => {
-          const out = fs.createWriteStream(file);
-          req.on('data', (c) => {
-            size += c.length;
-            if (size > MAX_UPLOAD) {
-              req.destroy();
-              out.destroy();
-              fs.rmSync(file, { force: true });
-              reject(Object.assign(new Error('file too large (500 MB max)'), { status: 413 }));
-            }
-          });
-          req.pipe(out);
-          out.on('finish', resolve);
-          out.on('error', reject);
-        });
-        const meta = { id: uid, name, size, mime: url.searchParams.get('type') || MIME[path.extname(name).toLowerCase()] || 'application/octet-stream', path: file };
-        uploads.set(uid, meta);
-        fs.writeFileSync(path.join(uploadsDir, `${uid}.json`), JSON.stringify(meta));
-        return send(res, 201, meta);
-      }
-      if (id && m === 'GET' && splitId(id)) {
-        const at = splitId(id);
-        return pipeFrom(res, await machines.stream(at.machine, 'GET', `/uploads/${at.id}`));
-      }
-      if (id && m === 'GET') {
-        const u = uploads.get(id);
-        if (!u || !fs.existsSync(u.path)) return send(res, 404, { error: 'not found' });
-        res.writeHead(200, { 'content-type': u.mime, 'content-length': fs.statSync(u.path).size });
-        return fs.createReadStream(u.path).pipe(res);
-      }
-    }
-
-    if (root === 'config') {
-      if (m === 'GET') return send(res, 200, { ...store.config, remote: undefined, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() });
-      if (m === 'PATCH') {
-        const body = await readJson(req);
-        if (body.defaults) Object.assign(store.config.defaults, body.defaults);
-        if (body.webhooks !== undefined) {
-          const hooks = Array.isArray(body.webhooks) ? body.webhooks : [];
-          const bad = hooks.find((h) => !/^https?:\/\/\S+$/.test(String(h?.url ?? h)));
-          if (bad !== undefined) return send(res, 400, { error: `Not an http(s) URL: ${bad?.url ?? bad}` });
-          store.config.webhooks = hooks.map((h) => (typeof h === 'string' ? { url: h } : { url: h.url, events: Array.isArray(h.events) ? h.events : undefined }));
-        }
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, { ...store.config, remote: undefined });
-      }
-    }
-
-    // What wisp learned: preferences and lessons, global and per project (scope = 'global' or a project path).
-    if (root === 'preferences') {
-      const view = () => ({
-        enabled: learning(),
-        global: prefs.data.global,
-        projects: Object.entries(prefs.data.projects).map(([p, v]) => ({ path: p, name: store.projectFor(p)?.name || path.basename(p), ...v })),
-        history: prefs.data.history.slice().reverse(),
-        running: retro.running,
-      });
-      if (m === 'GET') return send(res, 200, view());
-      if (m === 'PUT') {
-        const body = await readJson(req);
-        const scope = String(body.scope || '');
-        if (scope !== 'global' && !path.isAbsolute(scope)) return send(res, 400, { error: 'scope must be "global" or a project path' });
-        if (!KINDS.includes(body.kind)) return send(res, 400, { error: `kind must be one of ${KINDS.join(', ')}` });
-        if (!Array.isArray(body.items)) return send(res, 400, { error: 'items must be an array of strings' });
-        prefs.set(scope, body.kind, body.items);
-        broadcast('preferences', {});
-        return send(res, 200, view());
-      }
-    }
-
-    // Subagent presets: a saved team (members with harness, model, thinking and "use it for").
-    if (root === 'teams') {
-      const list = store.config.teams;
-      const saved = (status, body) => (store.saveConfig(), broadcast('config', {}), send(res, status, body));
-      if (!id && m === 'GET') return send(res, 200, list);
-      if (!id && m === 'POST') {
-        const t = normalizePreset(await readJson(req), adapters);
-        list.push(t);
-        return saved(201, t);
-      }
-      const t = list.find((x) => x.id === id);
-      if (!t) return send(res, 404, { error: 'no such preset' });
-      if (!action && m === 'GET') return send(res, 200, t);
-      if (!action && m === 'PATCH') return saved(200, Object.assign(t, normalizePreset(await readJson(req), adapters, t)));
-      if (!action && m === 'DELETE') {
-        store.config.teams = list.filter((x) => x !== t);
-        return saved(200, { ok: true });
-      }
-    }
-
-    // Recipes: saved prompts with {params}. POST /recipes/:id/run { params | words, cwd, … }.
-    if (root === 'recipes') {
-      const list = store.config.recipes;
-      if (!id && m === 'GET') return send(res, 200, list.map(recipeView));
-      if (!id && m === 'POST') {
-        const r = normalizeRecipe(await readJson(req));
-        list.push(r);
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 201, recipeView(r));
-      }
-      const r = findRecipe(list, decodeURIComponent(id || ''));
-      if (!r) return send(res, 404, { error: 'no such recipe' });
-      if (!action && m === 'GET') return send(res, 200, recipeView(r));
-      if (!action && m === 'PATCH') {
-        Object.assign(r, normalizeRecipe(await readJson(req), r));
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, recipeView(r));
-      }
-      if (!action && m === 'DELETE') {
-        store.config.recipes = list.filter((x) => x !== r);
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, { ok: true });
-      }
-      if (action === 'run' && m === 'POST') {
-        const body = await readJson(req);
-        // machine: run it in a project there (r.cwd empty, or a path on that machine).
-        const s = await runRecipe(r, { params: body.params || {}, words: Array.isArray(body.words) ? body.words.map(String) : undefined, cwd: body.cwd, machine: body.machine || undefined, agent: body.agent, model: body.model, effort: body.effort, mode: body.mode });
-        return send(res, 201, s);
-      }
-    }
-
-    // Triggers: schedules and GitHub watchers that launch sessions on their own.
-    if (root === 'triggers') {
-      const list = store.config.triggers;
-      if (!id && m === 'GET') return send(res, 200, list.map(triggerView));
-      if (!id && m === 'POST') {
-        const t = normalizeTrigger(await readJson(req), null, { recipes: store.config.recipes });
-        list.push(t);
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 201, triggerView(t));
-      }
-      const t = list.find((x) => x.id === id);
-      if (!t) return send(res, 404, { error: 'no such trigger' });
-      if (!action && m === 'PATCH') {
-        Object.assign(t, normalizeTrigger(await readJson(req), t, { recipes: store.config.recipes }));
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, triggerView(t));
-      }
-      if (!action && m === 'DELETE') {
-        store.config.triggers = list.filter((x) => x !== t);
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, { ok: true });
-      }
-      if (action === 'run' && m === 'POST') {
-        const r = await triggers.runNow(t);
-        const started = Array.isArray(r) ? r : r ? [r] : [];
-        return send(res, 200, { started, trigger: triggerView(t) });
-      }
-    }
-
-    // Phone: ntfy / Telegram settings (secrets masked), and a test message.
-    if (root === 'remote') {
-      if (!id && m === 'GET') return send(res, 200, remote.view());
-      if (!id && m === 'PUT') return send(res, 200, remote.update(await readJson(req)));
-      if (id === 'test' && m === 'POST') {
-        const sent = await remote.send({ title: '✨ wisp', text: 'Test from wisp: questions and finished tasks will show up like this.', actions: [] });
-        if (!sent) return send(res, 400, { error: 'Turn on ntfy or link Telegram first.' });
-        return send(res, 200, remote.view());
-      }
-    }
-
-    // Spend and outcomes. ?days=7|30|90
-    if (root === 'usage' && m === 'GET') {
-      return send(res, 200, usage(store.all(), { days: Number(url.searchParams.get('days')) || 30, project: (s) => store.projectFor(s.cwd) }));
-    }
-
-    if (root === 'projects') {
-      if (!id && m === 'GET') return send(res, 200, store.config.projects);
-      if (!id && m === 'POST') {
-        const body = await readJson(req);
-        if (body.machine) {
-          const p = await machines.addProject(String(body.machine), String(body.path || '').trim(), body.name);
-          broadcast('config', {});
-          return send(res, 201, p);
-        }
-        const dir = path.resolve(String(body.path || '').replace(/^~(?=$|[\\/])/, os.homedir()));
-        if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return send(res, 400, { error: `Not a folder: ${dir}` });
-        const p = store.addProject(dir, { name: body.name });
-        broadcast('config', {});
-        return send(res, 201, p);
-      }
-      // Find git repos in the usual places so adding projects is one click.
-      if (id === 'discover' && m === 'GET') {
-        const known = new Set(store.config.projects.map((p) => p.path));
-        const roots = ['code', 'Code', 'dev', 'Developer', 'projects', 'Projects', 'src', 'repos', 'work', 'git', 'GitHub', 'Documents', 'Downloads', 'Desktop'].map((d) => path.join(os.homedir(), d));
-        const found = [];
-        const walk = (dir, depth) => {
-          if (found.length >= 60) return;
-          let entries;
-          try {
-            entries = fs.readdirSync(dir, { withFileTypes: true });
-          } catch {
-            return;
-          }
-          if (entries.some((e) => e.name === '.git')) {
-            if (!known.has(dir)) found.push({ path: dir, name: path.basename(dir), mtime: fs.statSync(dir).mtimeMs });
-            return;
-          }
-          if (depth <= 0) return;
-          for (const e of entries) if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') walk(path.join(dir, e.name), depth - 1);
-        };
-        for (const r of roots) walk(r, 2);
-        return send(res, 200, found.sort((a, b) => b.mtime - a.mtime).slice(0, 24));
-      }
-      const p = store.config.projects.find((x) => x.id === id);
-      if (!p) return send(res, 404, { error: 'no such project' });
-      if (m === 'PATCH') {
-        const body = await readJson(req);
-        if (typeof body.name === 'string' && body.name.trim()) p.name = body.name.trim();
-        if (typeof body.color === 'string') p.color = body.color;
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, p);
-      }
-      if (m === 'DELETE') {
-        store.config.projects = store.config.projects.filter((x) => x.id !== id);
-        store.saveConfig();
-        broadcast('config', {});
-        return send(res, 200, { ok: true });
-      }
-    }
-
-    // Directory suggestions for the launcher's project picker.
-    if (root === 'fs' && m === 'GET') {
-      const raw = (url.searchParams.get('q') || '').replace(/^~(?=$|[\\/])/, os.homedir());
-      const trailing = /[\\/]$/.test(raw); // a trailing backslash counts too (Windows)
-      const dir = trailing ? raw : path.dirname(raw);
-      const prefix = trailing ? '' : path.basename(raw).toLowerCase();
-      let entries = [];
-      try {
-        entries = fs
-          .readdirSync(dir, { withFileTypes: true })
-          .filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name.toLowerCase().startsWith(prefix))
-          .slice(0, 12)
-          .map((e) => path.join(dir, e.name));
-      } catch {}
-      return send(res, 200, entries);
-    }
-
-    if (root === 'machines') return machinesApi(req, res, url, id, action);
-
-    // Feedback for the wisp team: thumbs on a turn and/or a note. { rating?, text?, sessionId?, turnId? }
-    if (root === 'feedback' && m === 'POST') return send(res, 200, await sendFeedback(await readJson(req)));
-
-    if (root === 'sessions') {
-      if (id && splitId(id)) return machineSessionApi(req, res, url, splitId(id), action);
-      if (!id) {
-        if (m === 'GET') {
-          const q = Object.fromEntries(url.searchParams);
-          const cwd = q.cwd && path.resolve(q.cwd.replace(/^~(?=$|[\\/])/, os.homedir()));
-          // Subagent sessions belong to their lead; ?children=1 lists them too.
-          // Sessions on machines too (the last ones seen, for a machine that's offline).
-          const here = store.all().filter((x) => !x.parentId || q.children).map((x) => summarize(x, store));
-          let list = [...here, ...(await machines.sessions(q))].sort((a, b) => b.updatedAt - a.updatedAt);
-          if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
-          if (q.agent) list = list.filter((x) => x.agent === q.agent);
-          if (q.project) list = list.filter((x) => x.projectId === q.project || x.project === q.project);
-          if (cwd) list = list.filter((x) => x.cwd === cwd || x.cwd?.startsWith(cwd + path.sep));
-          if (q.archived !== undefined) list = list.filter((x) => x.archived === (q.archived === 'true' || q.archived === '1'));
-          if (Number(q.limit) > 0) list = list.slice(0, Number(q.limit));
-          return send(res, 200, list);
-        }
-        if (m === 'POST') {
-          const body = await readJson(req);
-          // A machine's wisp hands on where a recipe, trigger or Telegram launch came from.
-          const o = body.origin;
-          const origin = o && ['recipe', 'trigger', 'telegram'].includes(o.kind) ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
-          const out = await launchAny(body, origin);
-          return send(res, 201, out.length > 1 ? { ...out[0], group: out } : out[0]);
-        }
-      }
-
-      const s = store.get(id);
-      if (!s) return send(res, 404, { error: 'no such session' });
-
-      if (!action) {
-        // A lead comes with its subagents' sessions, so its cards can show their reports and diffs.
-        if (m === 'GET') recheckShip(s, { lazy: true }); // edits made outside wisp (in an editor) show up too
-        if (m === 'GET') return send(res, 200, s.children ? { ...s, childSessions: Object.fromEntries(Object.values(s.children).map((cid) => [cid, store.get(cid)]).filter(([, c]) => c)) } : s);
-        if (m === 'PATCH') {
-          const body = await readJson(req);
-          if (typeof body.title === 'string' && body.title.trim()) Object.assign(s, { title: body.title.trim(), titleAuto: false });
-          if (body.state === 'done' && s.state !== 'running') s.state = 'done';
-          if (body.state === 'review' && s.state === 'done') s.state = 'review';
-          if (typeof body.unread === 'boolean') s.unread = body.unread;
-          // The team can change between turns; the next turn's lead sees the new roster.
-          if (body.subagents !== undefined && !s.parentId) {
-            s.subagents = normalizeTeam(body.subagents, adapters);
-            s.children ||= {};
-          }
-          if (body.archived === true && s.state !== 'running' && s.state !== 'waiting') Object.assign(s, { archived: true, unread: false });
-          if (body.archived === false) delete s.archived;
-          if (s.state === 'done' || s.archived) retro.schedule(s, 0); // finished with it: learn now
-          // Archived: a clean worktree goes (its branch stays, a follow-up brings it back).
-          // discardWorktree: a compare run you didn't keep; its changes go too.
-          if (s.worktree && !runner.live.has(s.id) && (s.archived || body.discardWorktree)) await removeWorktree(s.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !s.pr && 'force' });
-          store.save(s);
-          broadcast('summary', summarize(s, store));
-          return send(res, 200, summarize(s, store));
-        }
-        if (m === 'DELETE') {
-          runner.stop(s);
-          await runner.live.get(s.id)?.done;
-          cleanupCheckpoints(workdir(s), s.id);
-          for (const cid of Object.values(s.children || {})) {
-            await runner.live.get(cid)?.done;
-            if (store.get(cid)) (store.delete(cid), broadcast('removed', { id: cid }));
-          }
-          // Its worktree goes with it; the branch only if it holds nothing beyond its base.
-          if (s.worktree) await removeWorktree(s.worktree, { force: true, branch: true }).catch(() => {});
-          store.delete(id);
-          broadcast('removed', { id });
-          return send(res, 200, { ok: true });
-        }
-      }
-
-      // Long-poll until the session needs the user (finished, or asking). ?timeout=seconds.
-      if (action === 'wait' && m === 'GET') {
-        const timeout = Math.min(Math.max(Number(url.searchParams.get('timeout')) || 60, 0), MAX_WAIT_S) * 1000;
-        const end = Date.now() + timeout;
-        let gone = false;
-        req.on('close', () => (gone = true));
-        while (!gone && store.get(id) && !settled(s) && Date.now() < end) await new Promise((r) => setTimeout(r, 200));
-        if (!store.get(id)) return send(res, 404, { error: 'session was deleted' });
-        return send(res, 200, { ...summarize(s, store), timedOut: !settled(s) });
-      }
-
-      // The latest (or ?turn=<id|index>) presentation, as blocks and as markdown.
-      if (action === 'presentation' && m === 'GET') {
-        const q = url.searchParams.get('turn');
-        const turn = q === null ? s.turns.at(-1) : s.turns.find((t) => t.id === q) || s.turns.at(Number(q));
-        if (!turn) return send(res, 404, { error: 'no such turn' });
-        const latest = turn === s.turns.at(-1);
-        const markdown = latest ? sessionToMarkdown(s) : blocksToMarkdown(turn.presentation?.blocks, turn);
-        if (url.searchParams.get('format') === 'markdown') {
-          res.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' });
-          return res.end(markdown);
-        }
-        return send(res, 200, {
-          sessionId: s.id,
-          turnId: turn.id,
-          turnIndex: s.turns.indexOf(turn),
-          state: s.state,
-          status: turn.status,
-          prompt: turn.prompt,
-          blocks: turn.presentation?.blocks || [],
-          notes: turn.presentation?.notes,
-          fallback: !!turn.presentation?.fallback,
-          checkpoint: turn.checkpoint ? { commit: turn.checkpoint.commit, head: turn.checkpoint.head, branch: turn.checkpoint.branch, dirty: turn.checkpoint.dirty, at: turn.checkpoint.at } : null,
-          rolledBackAt: turn.rolledBackAt || null,
-          changes: turn.changes.map((c) => ({ file: c.file, op: c.op, edits: c.edits.length, reverted: !!c.reverted })),
-          stats: turn.stats,
-          ask: latest ? s.ask || null : null,
-          markdown,
-        });
-      }
-
-      if (action === 'reply' && m === 'POST') {
-        const { text, attachments, queue, mode } = await readJson(req);
-        if (!text?.trim()) return send(res, 400, { error: 'text required' });
-        if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to follow up.' });
-        if (mode !== undefined && !MODES.has(mode)) return send(res, 400, { error: 'mode must be plan, edits or auto.' });
-        return send(res, 200, await replyTo(s, text.trim(), resolveAttachments(attachments), queue, mode));
-      }
-
-      if (action === 'queue' && m === 'DELETE') {
-        const ok = runner.unqueue(s, url.searchParams.get('item') || '');
-        return ok ? send(res, 200, { ok }) : send(res, 404, { error: 'Already sent.' });
-      }
-
-      if (action === 'answer' && m === 'POST') {
-        const { text } = await readJson(req);
-        if (!text?.trim()) return send(res, 400, { error: 'text required' });
-        return send(res, 200, { ok: runner.answer(s, text.trim()) });
-      }
-
-      // Revert (or re-apply) a single file's edits from a turn.
-      if (action === 'revert' && m === 'POST') {
-        if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to revert files.' });
-        if (runner.live.has(s.id)) return send(res, 409, { error: 'Stop the running turn before reverting files.' });
-        const { turnId, file, restore } = await readJson(req);
-        const turn = turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1);
-        if (!turn) return send(res, 404, { error: 'no such turn' });
-        await ensureWorktree(s.worktree);
-        const result = revertFileChange(s, turn, file, { restore: !!restore });
-        turn.activity.push({ t: Date.now(), kind: 'edit', label: `${result.reverted ? 'Reverted' : 'Re-applied'} ${result.file}`, file: result.file });
-        s.updatedAt = Date.now();
-        store.save(s);
-        broadcast('summary', summarize(s, store));
-        broadcast('turn', { sessionId: s.id, turnId: turn.id });
-        telemetry.track('revert_file', { agent: s.agent, restore: !!restore });
-        recheckShip(s);
-        return send(res, 200, { ok: true, turnId: turn.id, ...result });
-      }
-
-      // Roll back (or re-apply) the project working tree to the checkpoint before a turn.
-      if (action === 'rollback' && m === 'POST') {
-        if (s.agent === 'wisp') return send(res, 400, { error: 'This is the tour — launch a real wisp to roll back turns.' });
-        if (runner.live.has(s.id)) return send(res, 409, { error: 'Stop the running turn before rolling back.' });
-        const { turnId, restore } = await readJson(req);
-        const turn = turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1);
-        if (!turn) return send(res, 404, { error: 'no such turn' });
-        await ensureWorktree(s.worktree);
-        const result = rollbackToTurn(s, turn, { restore: !!restore });
-        turn.activity.push({ t: Date.now(), kind: 'edit', label: result.rolledBack ? 'Restored checkpoint before this turn' : 'Re-applied turn changes' });
-        s.updatedAt = Date.now();
-        store.save(s);
-        broadcast('summary', summarize(s, store));
-        broadcast('turn', { sessionId: s.id, turnId: turn.id });
-        telemetry.track('rollback_turn', { agent: s.agent, restore: !!restore });
-        router.signal(s.id, { rolledBack: restore ? null : true });
-        recheckShip(s);
-        return send(res, 200, { ok: true, turnId: turn.id, ...result });
-      }
-
-      // Run a command from an actionable presentation block (actions, tests, terminal).
-      if (action === 'exec' && m === 'POST') {
-        const { command, turnId, key } = await readJson(req);
-        const cmd = String(command || '').trim();
-        if (!cmd) return send(res, 400, { error: 'command required' });
-        const turn = (turnId && s.turns.find((t) => t.id === turnId)) || s.turns.at(-1);
-        if (s.agent === 'wisp') {
-          return send(res, 200, { command: cmd, output: '✓ Tour preview — in a real project, wisp runs this command in your repo folder and streams the exit code and output here.', exitCode: 0, durationMs: 18 });
-        }
-        await ensureWorktree(s.worktree);
-        const resExec = await execCommand(workdir(s), cmd);
-        if (turn) {
-          turn.actionRuns ||= {};
-          turn.actionRuns[key || cmd] = { ...resExec, ranAt: Date.now() };
-          turn.activity.push({ t: Date.now(), kind: 'run', label: `Ran ${clip(cmd, 60)}`, detail: cmd });
-          store.save(s);
-          broadcast('turn', { sessionId: s.id, turnId: turn.id });
-        }
-        telemetry.track('exec_action', { agent: s.agent, exitCode: resExec.exitCode });
-        recheckShip(s);
-        return send(res, 200, resExec);
-      }
-
-      // Take over: continue this exact agent session interactively in a terminal.
-      if (action === 'takeover') {
-        const adapter = adapters[s.agent];
-        if (!adapter?.resumeCommand || !s.agentSessionId) return send(res, 400, { error: 'This session cannot be resumed in a terminal.' });
-        const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort });
-        await ensureWorktree(s.worktree);
-        const command = `cd ${shq(workdir(s))} && ${argv.map(shq).join(' ')}`;
-        if (m === 'GET') return send(res, 200, { command });
-        if (m === 'POST') {
-          if (runner.live.has(s.id)) {
-            runner.stop(s);
-            await runner.live.get(s.id)?.done;
-          }
-          openInTerminal({ cwd: workdir(s), argv, terminal: store.config.defaults.terminal || 'auto', custom: store.config.defaults.terminalCommand });
-          s.takenOverAt = Date.now();
-          telemetry.track('takeover', { agent: s.agent, terminal: store.config.defaults.terminal || 'auto' });
-          store.save(s);
-          return send(res, 200, { command });
-        }
-      }
-
-      if (action === 'stop' && m === 'POST') {
-        runner.stop(s);
-        return send(res, 200, { ok: true });
-      }
-
-      // Ship it. GET: what would ship (branch, changes, draft message). POST { title, body, draft }:
-      // commit, push, open or update the PR.
-      if (action === 'ship') {
-        if (!s.worktree) return send(res, 400, { error: 'Ship it works on worktree sessions: launch with a worktree to get one.' });
-        if (m === 'GET') {
-          recheckShip(s);
-          return send(res, 200, { branch: s.worktree.branch, base: s.worktree.base, remote: s.worktree.remote, ...(await worktreeStatus(s.worktree)), pr: s.pr || null, ...shipDraft(s) });
-        }
-        if (m === 'POST') {
-          if (runner.live.has(s.id)) return send(res, 409, { error: 'Still working: wait for it to finish, or stop it.' });
-          const body = await readJson(req);
-          const draft = shipDraft(s);
-          s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr });
-          telemetry.track('ship', { agent: s.agent, draft: !!body.draft });
-          store.save(s, { now: true });
-          broadcast('summary', summarize(s, store));
-          recheckShip(s);
-          return send(res, 200, s.pr);
-        }
-      }
-      if (action === 'pr' && m === 'POST') {
-        if (!s.pr) return send(res, 404, { error: 'No pull request yet.' });
-        return send(res, 200, await refreshPr(s));
-      }
-      // Squash-merge the reviewed head, sync the user's base branch, clean up the worktree.
-      if (action === 'merge' && m === 'POST') {
-        if (!s.pr || !s.worktree) return send(res, 400, { error: 'No pull request to merge.' });
-        const { pr, sync } = await merge(s.worktree, s.pr.number);
-        s.pr = pr;
-        markDone(s);
-        telemetry.track('merge', { agent: s.agent });
-        store.save(s, { now: true });
-        broadcast('summary', summarize(s, store));
-        return send(res, 200, { pr, sync });
-      }
-
-      // Images the agent pointed at (screenshots etc.). Served if inside the session's project,
-      // or if the agent named that exact path in an image block (screenshots often land in /tmp).
-      if (action === 'file' && m === 'GET') {
-        const dir = workdir(s);
-        let p = path.resolve(dir, url.searchParams.get('path') || '');
-        const ext = path.extname(p).toLowerCase();
-        const images = s.turns.flatMap((t) => (t.presentation?.blocks || []).filter((b) => b?.type === 'image'));
-        const at = (v) => typeof v === 'string' && path.resolve(dir, v) === p;
-        const named = images.find((b) => at(b.path || b.src));
-        // A page rendered before keepImages() rewrote the block still asks for the original path.
-        const kept = !named && images.find((b) => at(b.source) && typeof b.path === 'string');
-        if (kept) p = path.resolve(dir, kept.path);
-        if (!(p.startsWith(dir + path.sep) || named || kept) || !IMAGE_EXT.has(ext) || !fs.existsSync(p)) return send(res, 404, { error: 'not found' });
-        res.writeHead(200, { 'content-type': MIME[ext] });
-        return fs.createReadStream(p).pipe(res);
-      }
-    }
-
-    send(res, 404, { error: 'not found' });
-  }
-
-  // /api/machines: add, connect, and browse folders on other computers.
-  async function machinesApi(req, res, url, id, action) {
-    const m = req.method;
-    const one = (mid) => machines.view().find((x) => x.id === mid);
-    if (!id && m === 'GET') return send(res, 200, machines.view());
-    if (!id && m === 'POST') {
-      const body = await readJson(req);
-      const x = machines.add(body);
-      if (body.connect !== false) await machines.connect(x.id);
-      return send(res, 201, one(x.id));
-    }
-    if (id === 'ssh-hosts' && m === 'GET') return send(res, 200, sshHosts());
-    if (id === 'discover' && m === 'GET') return send(res, 200, await discoverHosts());
-    machines.get(id); // 404s
-    if (!action && m === 'PATCH') return send(res, 200, (await machines.update(id, await readJson(req)), one(id)));
-    if (!action && m === 'DELETE') {
-      machines.remove(id);
-      broadcast('config', {});
-      return send(res, 200, { ok: true });
-    }
-    if (action === 'connect' && m === 'POST') return send(res, 200, await machines.connect(id));
-    if (action === 'disconnect' && m === 'POST') return send(res, 200, (machines.disconnect(id), one(id)));
-    // Stop wisp over there (its agents too); restart starts this version in its place.
-    if (action === 'stop' && m === 'POST') return send(res, 200, (await machines.stopRemote(id, { restart: !!(await readJson(req)).restart }), one(id)));
-    if (action === 'fs' && m === 'GET') return send(res, 200, await machines.json(id, 'GET', `/fs?q=${encodeURIComponent(url.searchParams.get('q') || '')}`));
-    if (action === 'discover' && m === 'GET') {
-      const known = new Set(store.config.projects.filter((p) => p.machine === id).map((p) => p.path));
-      return send(res, 200, (await machines.json(id, 'GET', '/projects/discover')).filter((f) => !known.has(f.path)));
-    }
-    send(res, 404, { error: 'not found' });
-  }
-
-  // /api/sessions/<id>@<machine>/…: passed through to that machine's wisp, ids rewritten.
-  // A rating sticks to its turn (it shows on the card and can be taken back). What goes out is
-  // the rating, the user's own words, and how the run was set up — never the prompt or the result.
-  async function sendFeedback({ rating, text, sessionId, turnId, source } = {}) {
-    if (rating !== undefined && rating !== null && rating !== 'up' && rating !== 'down') throw Object.assign(new Error('rating must be up or down'), { status: 400 });
-    text = String(text || '').trim();
-    if (rating === undefined && !text) throw Object.assign(new Error('Write something, or pick 👍 / 👎.'), { status: 400 });
-    // A session on a machine: that wisp keeps the rating on its turn and sends it.
-    const at = sessionId && splitId(sessionId);
-    if (sessionId && turnId && rating !== undefined) router.signal(sessionId, { feedback: rating });
-    if (at) {
-      try {
-        return await machines.json(at.machine, 'POST', '/feedback', { rating, text, sessionId: at.id, turnId, source });
-      } catch (err) {
-        if (err.status === 400) throw err; // offline, or an older wisp there: send it from here, without the run
-      }
-    }
-    const s = sessionId && !at ? store.get(sessionId) : null;
-    if (sessionId && !at && !s) throw Object.assign(new Error('no such session'), { status: 404 });
-    const turn = s && (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
-    if (turnId && s && !turn) throw Object.assign(new Error('no such turn'), { status: 404 });
-    // Only thumbs on a turn stick to it; a rating in the feedback dialog is about wisp as a whole.
-    if (turn && turnId && rating !== undefined) {
-      turn.feedback = rating ? { rating, at: Date.now() } : undefined;
-      store.save(s);
-      broadcast('turn', { sessionId: s.id, turnId: turn.id });
-    }
-    const blocks = turn?.presentation?.blocks || [];
-    const context = turn && {
-      ...run(s, turn),
-      status: turn.status,
-      heroStatus: blocks.find((b) => b.type === 'hero')?.status,
-      blockTypes: [...new Set(blocks.map((b) => b.type))],
-      durationMs: turn.endedAt ? turn.endedAt - turn.startedAt : undefined,
-      tour: s.agent === 'wisp' || undefined,
-    };
-    const props = { ...context, rating: rating || undefined, source: String(source || (turn ? 'turn' : 'app')).slice(0, 20), machine: at ? true : undefined };
-    // Thumbs on a turn count as a rating; anything written, or sent from the dialog, is 'feedback'.
-    const event = text || !turnId ? 'feedback' : 'turn_rated';
-    if (event === 'turn_rated' && rating === null) props.cleared = true;
-    const sent = await telemetry.feedback(event, { ...props, text: text || undefined });
-    return { ok: true, sent, available: feedbackAvailable() };
-  }
-
-  async function machineSessionApi(req, res, url, at, action) {
-    const m = req.method;
-    const mid = at.machine;
-    const sub = `/sessions/${at.id}${action ? `/${action}` : ''}${url.search}`;
-    if ((action === 'file' && m === 'GET') || (action === 'presentation' && url.searchParams.get('format') === 'markdown')) return pipeFrom(res, await machines.stream(mid, 'GET', sub));
-    // Take over: a terminal here, signed in over there, resuming the agent in its folder.
-    if (action === 'takeover') {
-      const { command } = await machines.json(mid, 'GET', `/sessions/${at.id}/takeover`);
-      const argv = machines.terminalArgv(mid, command);
-      if (m === 'POST') {
-        const s = await machines.json(mid, 'GET', `/sessions/${at.id}`);
-        if (s.state === 'running' || s.state === 'waiting') await machines.json(mid, 'POST', `/sessions/${at.id}/stop`, {});
-        openInTerminal({ cwd: os.homedir(), argv, terminal: store.config.defaults.terminal || 'auto', custom: store.config.defaults.terminalCommand });
-        telemetry.track('takeover', { agent: s.agent, terminal: store.config.defaults.terminal || 'auto', machine: true });
-      }
-      return send(res, 200, { command: argv.map(shq).join(' ') });
-    }
-    const body = m === 'GET' ? undefined : await readJson(req);
-    if (action === 'reply' && body?.attachments?.length) body.attachments = await pushUploads(mid, body.attachments);
-    const out = await machines.json(mid, m, sub, body, action === 'wait' ? { timeout: (MAX_WAIT_S + 30) * 1000 } : undefined);
-    if (!action && m === 'GET') return send(res, 200, machines.session(mid, out));
-    if ((!action && m === 'PATCH') || action === 'wait') return send(res, 200, machines.summary(mid, out));
-    if (out && typeof out === 'object' && out.sessionId) out.sessionId = qualify(out.sessionId, mid);
-    return send(res, 200, out);
-  }
-
-  function serveStatic(res, pathname) {
-    const p = path.normalize(path.join(WEB, pathname === '/' ? 'index.html' : pathname));
-    if (!p.startsWith(WEB) || !fs.existsSync(p) || fs.statSync(p).isDirectory()) {
-      // SPA fallback
-      res.writeHead(200, { 'content-type': MIME['.html'] });
-      return fs.createReadStream(path.join(WEB, 'index.html')).pipe(res);
-    }
-    res.writeHead(200, { 'content-type': MIME[path.extname(p)] || 'application/octet-stream', 'cache-control': 'no-cache' });
-    fs.createReadStream(p).pipe(res);
-  }
+  server.keepAliveTimeout = KEEP_ALIVE_MS;
+  server.headersTimeout = KEEP_ALIVE_MS + 1000;
 
   // Advertise this server so integrations (CLI, MCP, editors) can find it without knowing the port.
   const serverFile = path.join(store.home, 'server.json');
@@ -1228,15 +193,16 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     try {
       if (JSON.parse(fs.readFileSync(serverFile, 'utf8')).pid === process.pid) fs.rmSync(serverFile, { force: true });
     } catch {}
-    retro.stop();
-    triggers.stop();
-    remote.stop();
-    machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
-    clearInterval(prTimer);
+    app.retro.stop();
+    app.triggers.stop();
+    app.remote.stop();
+    app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
+    app.ship.stop();
     for (const s of store.all()) runner.stop(s);
     store.flush();
-    telemetry.persist();
+    app.telemetry.persist();
   };
+  app.shutdown = shutdown;
   if (handleSignals) {
     const exit = () => (shutdown(), process.exit(0));
     process.once('SIGINT', exit);
@@ -1248,12 +214,13 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     server.listen(port, host, resolve);
   });
   fs.writeFileSync(serverFile, JSON.stringify({ url: `http://127.0.0.1:${port}`, port, pid: process.pid, version: VERSION, apiVersion: API_VERSION, startedAt: Date.now() }, null, 2));
-  updater.start();
-  triggers.start();
-  remote.start();
-  machines.start();
+  app.updater.start();
+  app.triggers.start();
+  app.remote.start();
+  app.machines.start();
 
-  detect().catch(() => {});
+  app.auto.detect().catch(() => {});
+  const { telemetry } = app;
   if (telemetry.enabled) {
     if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
     listAgents()
@@ -1261,52 +228,5 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers, remote, machines };
-}
-
-// POST { event, session, markdown } to each configured webhook (Slack bridges, CI, notifiers).
-// event: session.waiting (blocked on ask_user) | session.finished. Fire and forget.
-function notifyWebhooks(store, summary) {
-  const hooks = store.config.webhooks || [];
-  if (!hooks.length) return;
-  const s = store.get(summary.id);
-  if (!s) return;
-  const event = s.state === 'waiting' ? 'session.waiting' : 'session.finished';
-  const body = JSON.stringify({ event, session: summary, markdown: sessionToMarkdown(s), at: Date.now() });
-  for (const h of hooks) {
-    if (h.events?.length && !h.events.includes(event)) continue;
-    fetch(h.url, { method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': `wisp/${VERSION}` }, body, signal: AbortSignal.timeout(10_000) }).catch((err) =>
-      console.warn(`wisp: webhook ${h.url} failed: ${err.message}`),
-    );
-  }
-}
-
-// Pass a machine's raw response (images, markdown, uploads) straight through.
-function pipeFrom(res, r) {
-  const headers = { 'content-type': r.headers['content-type'] || 'application/octet-stream' };
-  if (r.headers['content-length']) headers['content-length'] = r.headers['content-length'];
-  res.writeHead(r.statusCode, headers);
-  r.pipe(res);
-}
-
-function send(res, status, body) {
-  res.writeHead(status, { 'content-type': 'application/json' });
-  res.end(JSON.stringify(body));
-}
-
-function readJson(req) {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (c) => {
-      data += c;
-      if (data.length > 2e6) reject(Object.assign(new Error('body too large'), { status: 413 }));
-    });
-    req.on('end', () => {
-      try {
-        resolve(data ? JSON.parse(data) : {});
-      } catch {
-        reject(Object.assign(new Error('invalid json'), { status: 400 }));
-      }
-    });
-  });
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, remote: app.remote, machines: app.machines, routes };
 }

@@ -3,6 +3,7 @@
 // hidden child session working in the lead's folder; delegating to it again resumes it.
 
 import { blocksToMarkdown } from './render.js';
+import { bad } from './util.js';
 
 export const MAX_SUBAGENTS = 6; // rows in the team
 export const MAX_COPIES = 5; // parallel copies of one row
@@ -20,7 +21,7 @@ export function normalizeTeam(list, adapters) {
   const team = list.slice(0, MAX_SUBAGENTS).map((m) => {
     const agent = String(m?.agent || '');
     // auto: wisp picks the harness and model when this member gets its first task.
-    if ((!adapters[agent] && agent !== 'auto') || agent === 'wisp') throw Object.assign(new Error(`unknown subagent harness: ${agent}`), { status: 400 });
+    if ((!adapters[agent] && agent !== 'auto') || agent === 'wisp') throw bad(`unknown subagent harness: ${agent}`);
     let base = slug(m.name) || agent;
     let name = base;
     for (let i = 2; taken.has(name); i++) name = `${base}-${i}`;
@@ -30,7 +31,7 @@ export function normalizeTeam(list, adapters) {
     return { name, agent, model: typeof m.model === 'string' ? m.model.slice(0, 120) : '', effort: EFFORT.test(m.effort || '') ? m.effort : '', use, count };
   });
   const total = team.reduce((n, m) => n + m.count, 0);
-  if (total > MAX_INSTANCES) throw Object.assign(new Error(`At most ${MAX_INSTANCES} subagents in all (this team has ${total}).`), { status: 400 });
+  if (total > MAX_INSTANCES) throw bad(`At most ${MAX_INSTANCES} subagents in all (this team has ${total}).`);
   return team;
 }
 
@@ -40,9 +41,9 @@ export const copies = (m) => ((m.count || 1) > 1 ? Array.from({ length: m.count 
 // Saved teams the user can reuse from the launcher: { id, name, members }.
 export function normalizePreset(body, adapters, prev = {}) {
   const name = String(body?.name ?? prev.name ?? '').trim().slice(0, 60);
-  if (!name) throw Object.assign(new Error('A preset needs a name.'), { status: 400 });
+  if (!name) throw bad('A preset needs a name.');
   const members = body?.members !== undefined ? normalizeTeam(body.members, adapters) : prev.members || [];
-  if (!members.length) throw Object.assign(new Error('A preset needs at least one subagent.'), { status: 400 });
+  if (!members.length) throw bad('A preset needs at least one subagent.');
   return { id: prev.id || slug(name) + '-' + Math.random().toString(36).slice(2, 6), name, members, updatedAt: Date.now() };
 }
 

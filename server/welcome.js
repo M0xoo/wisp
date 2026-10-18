@@ -2,7 +2,7 @@
 // using the same blocks an agent would. Doubles as a living block gallery.
 
 import os from 'node:os';
-import { newId } from './runner.js';
+import { newId } from './util.js';
 
 export function welcomeSession() {
   const now = Date.now();

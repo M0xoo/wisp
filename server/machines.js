@@ -15,14 +15,15 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
-import os from 'node:os';
-import path from 'node:path';
 import readline from 'node:readline';
 import { randomBytes } from 'node:crypto';
-import { spawn, execFile, killTree } from './proc.js';
+import { spawn, killTree } from './proc.js';
 import { newer } from './update.js';
+import { bootstrapScript } from './machines/bootstrap.js';
+import { sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, TARGET } from './machines/hosts.js';
+import { bad, DEFAULT_PORT, shq } from './util.js';
 
-export const DEFAULT_PORT = 4477;
+export { DEFAULT_PORT };
 const READY_TIMEOUT_MS = 6 * 60_000; // the first `npx` download can take a while
 const RETRY_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 const LIST_TIMEOUT_MS = 5_000;
@@ -36,8 +37,7 @@ export const STEPS = [
 ];
 
 const sshBin = () => process.env.WISP_SSH || 'ssh';
-export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
+export { shq, bootstrapScript, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts };
 
 // Session ids: <remote id>@<machine id> here. Local ids never contain '@'.
 export const qualify = (id, mid) => (id ? `${id}@${mid}` : id);
@@ -50,178 +50,8 @@ export function splitId(id) {
 // custom start command decides what runs there.
 export const updateTo = (local, remote, command) => (!command && remote && newer(local, remote) ? local : null);
 
-// What runs on the machine. Sent on stdin, so the login shell there (bash, zsh, fish…) only ever
-// sees `sh -s`. Steps come back as `@@wisp step <id> <run|done> <detail>`, `@@wisp fail <id>
-// <message>`, and finally `@@wisp ready <version> <pid>`; then `cat` holds the session (and the
-// tunnel) open until this side lets go.
-export function bootstrapScript({ port, command, apiVersion }) {
-  return String.raw`say() { printf '@@wisp %s\n' "$*"; }
-PORT=__PORT__
-API=__API__
-CMD=__CMD__
-cd "$HOME" 2>/dev/null # npx would resolve wisp-agents from a package.json in the current folder
-say step ssh done "$(uname -sn 2>/dev/null)"
-# A non-interactive SSH shell skips the profile that puts node (Homebrew, nvm, Volta…) on PATH.
-SH=$SHELL; [ -n "$SH" ] || SH=/bin/sh
-LP=$("$SH" -lc 'printf "%s" "$PATH"' </dev/null 2>/dev/null) && [ -n "$LP" ] && PATH="$LP:$PATH"
-NVM_BIN=
-for d in "$HOME"/.nvm/versions/node/*/bin; do [ -x "$d/node" ] && NVM_BIN=$d; done
-[ -n "$NVM_BIN" ] && PATH="$NVM_BIN:$PATH"
-PATH="$PATH:$HOME/.local/bin:$HOME/.volta/bin:$HOME/.npm-global/bin:/opt/homebrew/bin:/usr/local/bin"
-export PATH
-if ! command -v node >/dev/null 2>&1; then say fail node "Node.js isn't installed there (or isn't on PATH)."; exit 0; fi
-NV=$(node -v 2>/dev/null)
-if ! node -e 'process.exit(+process.versions.node.split(".")[0] >= 20 ? 0 : 1)' 2>/dev/null; then say fail node "Node $NV is too old: wisp needs 20 or newer."; exit 0; fi
-say step node done "$NV"
-health() { node -e 'fetch("http://127.0.0.1:" + process.argv[1] + "/api/health", { signal: AbortSignal.timeout(2500) }).then((r) => r.json().catch(() => ({ name: "other" }))).then((j) => console.log([j.name, j.version, j.apiVersion, j.pid].join(" ")), () => process.exit(1))' "$PORT" 2>/dev/null; }
-H=$(health)
-if [ -n "$H" ]; then
-  set -- $H
-  if [ "$1" != wisp ]; then say fail wisp "Port $PORT is used by another program there. Pick another port under Advanced."; exit 0; fi
-  if [ "$3" != "$API" ]; then say stale "$4"; say fail wisp "wisp $2 is already running there and speaks an older API. Restart it to update."; exit 0; fi
-  say step wisp done "already running · $2"
-else
-  LOG=$WISP_HOME; [ -n "$LOG" ] || LOG=$HOME/.wisp
-  mkdir -p "$LOG"; LOG=$LOG/machine.log
-  say step wisp run "starting $CMD"
-  npm_config_omit=optional nohup sh -c "exec $CMD --no-open --port $PORT" >"$LOG" 2>&1 </dev/null &
-  PID=$!
-  i=0
-  until H=$(health) && [ -n "$H" ]; do
-    if ! kill -0 "$PID" 2>/dev/null; then say fail wisp "wisp stopped while starting: $(tail -n 4 "$LOG" | tr '\n' ' ')"; exit 0; fi
-    i=$((i+1)); if [ "$i" -ge 330 ]; then say fail wisp "wisp didn't answer within 5 minutes: $(tail -n 4 "$LOG" | tr '\n' ' ')"; exit 0; fi
-    sleep 1
-  done
-  set -- $H
-  say step wisp done "started · $2"
-fi
-say ready "$2" "$4"
-exec cat >/dev/null
-`
-    .replace('__PORT__', String(port))
-    .replace('__API__', String(apiVersion))
-    .replace('__CMD__', shq(command));
-}
-
-// What a failed `ssh` most likely needs, from its stderr.
-export function sshHint(stderr, target) {
-  const e = String(stderr || '');
-  if (/Permission denied|Too many authentication failures|publickey/i.test(e))
-    return { text: 'SSH asked for a password or a key wisp can’t use. wisp signs in with keys only: copy yours over once, or load it into ssh-agent.', command: `ssh-copy-id ${target}` };
-  if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(e)) return { text: 'The machine’s host key changed since you last connected. Check it in a terminal before trusting it again.', command: `ssh ${target}` };
-  if (/Could not resolve hostname|Name or service not known|nodename nor servname/i.test(e)) return { text: 'That name doesn’t resolve. Use user@host, an IP address, or a Host from ~/.ssh/config.' };
-  if (/Connection refused/i.test(e)) return { text: 'Nothing accepts SSH there. Turn on its SSH server (Remote Login on macOS, sshd on Linux).' };
-  if (/timed out|No route to host|Network is unreachable|Connection closed|Broken pipe/i.test(e)) return { text: 'Can’t reach that machine right now. Check the network or VPN.' };
-  if (/Address already in use|forwarding failed/i.test(e)) return { text: 'The local end of the tunnel was taken. Connect again to pick another port.' };
-  return null;
-}
-
-// Hosts from ~/.ssh/config (and the files it Includes), for the "SSH host" suggestions.
-export function sshHosts(file = path.join(os.homedir(), '.ssh', 'config'), seen = new Set()) {
-  if (seen.has(file) || seen.size > 20) return [];
-  seen.add(file);
-  let text = '';
-  try {
-    text = fs.readFileSync(file, 'utf8');
-  } catch {
-    return [];
-  }
-  const hosts = [];
-  let current = []; // one Host line may name several hosts; what follows applies to each
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    const [key, ...rest] = line.split(/\s+/);
-    const value = rest.join(' ');
-    if (/^include$/i.test(key)) {
-      for (const pat of value.split(/\s+/)) {
-        const abs = path.resolve(path.join(os.homedir(), '.ssh'), pat.replace(/^~(?=\/)/, os.homedir()));
-        const dir = path.dirname(abs);
-        const re = new RegExp(`^${path.basename(abs).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`);
-        let names = [];
-        try {
-          names = fs.readdirSync(dir).filter((n) => re.test(n));
-        } catch {}
-        for (const n of names) hosts.push(...sshHosts(path.join(dir, n), seen));
-      }
-    } else if (/^host$/i.test(key)) {
-      current = value
-        .split(/\s+/)
-        .filter((h) => h && !/[*?!]/.test(h))
-        .map((host) => ({ host, hostname: '', user: '' }));
-      hosts.push(...current);
-    } else if (/^hostname$/i.test(key)) for (const h of current) h.hostname = value;
-    else if (/^user$/i.test(key)) for (const h of current) h.user = value;
-  }
-  const uniq = new Map(hosts.map((h) => [h.host, h]));
-  return [...uniq.values()];
-}
-
 // What the UI needs of a machine's harness list.
 const remoteAgent = ({ id, name, available, version, models, efforts, delegates }) => ({ id, name, available, version, models, efforts, delegates });
-
-// Code hosts you push to, not computers to run agents on.
-const FORGE = /(^|\.)(github\.com|gitlab\.com|bitbucket\.org|ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com|heroku\.com|codeberg\.org|sr\.ht)$/i;
-
-// Hosts you've already SSHed to, from ~/.ssh/known_hosts. Hashed entries and ones on a
-// non-default port ([host]:2222, which a bare target can't express) are skipped.
-export function knownHosts(file = path.join(os.homedir(), '.ssh', 'known_hosts')) {
-  let text = '';
-  try {
-    text = fs.readFileSync(file, 'utf8');
-  } catch {
-    return [];
-  }
-  const out = new Map();
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#') || line.startsWith('@') || line.startsWith('|')) continue;
-    const names = line.split(/\s+/)[0].split(',').filter((n) => n && !n.startsWith('[') && !/[*?!]/.test(n));
-    // "devbox,10.0.0.5": the name, with the address as a detail.
-    const host = names.find((n) => !/^[\d.]+$|:/.test(n)) || names[0];
-    if (!host || FORGE.test(host) || /^(localhost|127\.|::1$)/.test(host) || !TARGET.test(host)) continue;
-    if (!out.has(host)) out.set(host, { host, hostname: names.find((n) => n !== host) || '' });
-  }
-  return [...out.values()];
-}
-
-const TAILSCALE_BINS = ['tailscale', '/Applications/Tailscale.app/Contents/MacOS/Tailscale'];
-
-// Peers on your tailnet, from `tailscale status --json`. Phones and tablets don't run agents.
-export function tailscalePeers({ bin = process.env.WISP_TAILSCALE, timeout = 3_000 } = {}) {
-  const bins = bin ? [bin] : TAILSCALE_BINS;
-  const run = (i) =>
-    new Promise((resolve) => {
-      if (i >= bins.length) return resolve([]);
-      execFile(bins[i], ['status', '--json'], { timeout, maxBuffer: 8 << 20 }, (err, stdout) => {
-        if (err) return resolve(err.code === 'ENOENT' ? run(i + 1) : []);
-        try {
-          const peers = Object.values(JSON.parse(stdout).Peer || {});
-          resolve(
-            peers
-              .filter((p) => !/^(ios|android|tvos)$/i.test(p.OS || ''))
-              .map((p) => ({ host: (p.DNSName || '').replace(/\.$/, '') || p.TailscaleIPs?.[0] || '', name: p.HostName || '', os: p.OS || '', online: !!p.Online }))
-              .filter((p) => p.host && TARGET.test(p.host)),
-          );
-        } catch {
-          resolve([]);
-        }
-      });
-    });
-  return run(0);
-}
-
-// Every host this computer already knows how to reach, for "Found on this computer" in Machines.
-// One entry per target: ~/.ssh/config first (your own names), then the tailnet, then known_hosts.
-export async function discoverHosts({ sshDir = path.join(os.homedir(), '.ssh'), tailscale } = {}) {
-  const out = new Map();
-  const put = (x) => {
-    if (x.target && !out.has(x.target)) out.set(x.target, x);
-  };
-  for (const h of sshHosts(path.join(sshDir, 'config'))) put({ target: h.host, name: h.host, source: 'ssh-config', detail: [h.user, h.hostname].filter(Boolean).join('@') });
-  for (const p of await tailscalePeers(tailscale)) put({ target: p.host, name: p.name || p.host.split('.')[0], source: 'tailscale', detail: [p.os, p.online ? 'online' : 'offline'].filter(Boolean).join(' · '), online: p.online });
-  for (const h of knownHosts(path.join(sshDir, 'known_hosts'))) put({ target: h.host, name: /^[\d.]+$/.test(h.host) ? h.host : h.host.split('.')[0], source: 'known-hosts', detail: h.hostname });
-  return [...out.values()].sort((a, b) => (b.online === false ? 0 : 1) - (a.online === false ? 0 : 1));
-}
 
 const freePort = () =>
   new Promise((resolve, reject) => {
@@ -240,8 +70,6 @@ const readAll = (res) =>
     res.on('error', reject);
   });
 
-// user@host, host, host:port-less alias, [v6]. Never an option: `-oProxyCommand=…` would run code.
-const TARGET = /^(?!-)[\w.%+-]+(@[\w.%:[\]-]+)?$/;
 
 export class Machines extends EventEmitter {
   // onEvent(event, data): a session event from a machine, ids already rewritten.
@@ -572,7 +400,7 @@ export class Machines extends EventEmitter {
   #request(m, c, method, p, { body, headers = {}, timeout = 120_000 } = {}) {
     return new Promise((resolve, reject) => {
       const req = http.request({ host: '127.0.0.1', port: c.localPort, path: `/api${p}`, method, headers: { ...headers, host: `127.0.0.1:${m.port}` }, timeout }, resolve);
-      req.on('timeout', () => req.destroy(Object.assign(new Error(`${m.name} didn’t answer in time.`), { status: 504 })));
+      req.on('timeout', () => req.destroy(bad(`${m.name} didn’t answer in time.`, 504)));
       req.on('error', (err) => reject(Object.assign(err, { status: err.status || 502 })));
       if (body && typeof body.pipe === 'function') body.pipe(req);
       else req.end(body);

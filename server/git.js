@@ -3,7 +3,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { execFile } from './proc.js';
+import { bad } from './util.js';
 
 const GIT = () => process.env.WISP_GIT_BIN || 'git';
 const GH = () => process.env.WISP_GH_BIN || 'gh';
@@ -22,6 +24,9 @@ export function run(bin, args, { cwd, timeout = 60_000 } = {}) {
   });
 }
 export const git = (cwd, args, opts) => run(GIT(), args, { cwd, ...opts });
+// Synchronous, for the few places that must not yield (checkpoints taken right before a turn
+// starts, file snapshots while a harness streams). Returns a Buffer; throws on failure.
+export const gitSync = (cwd, args, opts = {}) => execFileSync(GIT(), args, { cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000, env: { ...process.env, ...QUIET_ENV }, ...opts });
 export const gh = (cwd, args, opts) => run(GH(), args, { cwd, timeout: 120_000, ...opts });
 const quiet = (p) => p.catch(() => '');
 
@@ -161,13 +166,13 @@ export async function ship(wt, { title, body = '', draft = false, pr }) {
   await ensureWorktree(wt);
   const dir = wt.path;
   if (await quiet(git(dir, ['status', '--porcelain']))) {
-    if (!String(title || '').trim()) throw Object.assign(new Error('A commit message is required.'), { status: 400 });
+    if (!String(title || '').trim()) throw bad('A commit message is required.');
     await git(dir, ['add', '-A']);
     await git(dir, ['commit', '--quiet', '--no-verify', '-m', title.trim(), ...(body.trim() ? ['-m', body.trim()] : [])]);
   }
   const { ahead } = await worktreeStatus(wt);
-  if (!ahead) throw Object.assign(new Error('Nothing to ship: this branch has no changes.'), { status: 400 });
-  if (!wt.remote) throw Object.assign(new Error('This repo has no origin remote to push to.'), { status: 400 });
+  if (!ahead) throw bad('Nothing to ship: this branch has no changes.');
+  if (!wt.remote) throw bad('This repo has no origin remote to push to.');
   await git(dir, ['push', '--quiet', '-u', wt.remote, `HEAD:refs/heads/${wt.branch}`], { timeout: 120_000 });
   if (pr?.state === 'OPEN') return prView(dir, pr.number);
   const url = (await gh(dir, ['pr', 'create', '--base', wt.base, '--head', wt.branch, '--title', title.trim(), '--body', body.trim() || ' ', ...(draft ? ['--draft'] : [])])).split('\n').pop();
@@ -178,7 +183,7 @@ export async function ship(wt, { title, body = '', draft = false, pr }) {
 export async function merge(wt, number) {
   const dir = fs.existsSync(wt.path) ? wt.path : wt.root;
   let pr = await prView(dir, number);
-  if (pr.state !== 'OPEN') throw Object.assign(new Error(`PR #${number} is ${pr.state.toLowerCase()}.`), { status: 400 });
+  if (pr.state !== 'OPEN') throw bad(`PR #${number} is ${pr.state.toLowerCase()}.`);
   if (pr.draft) await gh(dir, ['pr', 'ready', String(number)]);
   await gh(dir, ['pr', 'merge', String(number), '--squash', '--match-head-commit', pr.head]);
   pr = await prView(dir, number);

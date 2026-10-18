@@ -2,10 +2,9 @@
 // parameter, filled in when the recipe runs (the run dialog, `wisp run release 0.8.0`, a trigger).
 
 import path from 'node:path';
-import { newId } from './runner.js';
+import { bad, MODES, newId } from './util.js';
 
 const PARAM = /\{([a-zA-Z][\w-]{0,30})\}/g;
-const MODES = new Set(['plan', 'edits', 'auto']);
 
 export const params = (prompt) => [...new Set([...String(prompt || '').matchAll(PARAM)].map((m) => m[1]))];
 
@@ -14,7 +13,7 @@ export const params = (prompt) => [...new Set([...String(prompt || '').matchAll(
 export function fill(prompt, values = {}, { strict = true } = {}) {
   const has = (k) => values[k] !== undefined && values[k] !== null && String(values[k]).trim() !== '';
   const missing = params(prompt).filter((k) => !has(k));
-  if (strict && missing.length) throw Object.assign(new Error(`Missing ${missing.map((k) => `{${k}}`).join(', ')}`), { status: 400 });
+  if (strict && missing.length) throw bad(`Missing ${missing.map((k) => `{${k}}`).join(', ')}`);
   return String(prompt).replace(PARAM, (_, k) => (has(k) ? String(values[k]) : ''));
 }
 
@@ -25,7 +24,6 @@ export function positional(prompt, words = []) {
   return out;
 }
 
-const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
 
 export function normalizeRecipe(body, prev = null) {
   const name = String(body.name ?? prev?.name ?? '').trim().slice(0, 60);

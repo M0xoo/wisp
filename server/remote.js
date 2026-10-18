@@ -8,13 +8,13 @@
 //             /new [@project] <task> starts a task and /projects lists where it can run.
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { bad, truncate } from './util.js';
 
 const KIND = { a: 'answer', r: 'reply', d: 'done' };
 const CODE = { answer: 'a', reply: 'r', done: 'd' };
 const MAX_TG_IDS = 20;
 const STALE_S = 10 * 60;
 const sleep = (ms, signal) => new Promise((r) => (signal?.aborted ? r() : (setTimeout(r, ms).unref?.(), signal?.addEventListener('abort', r, { once: true }))));
-const clip = (s, n) => (String(s || '').length > n ? `${String(s).slice(0, n - 1)}…` : String(s || ''));
 // /new @name: exact name, then name prefix, then anywhere in the name or path.
 export function findProject(projects, q) {
   const n = String(q || '').toLowerCase();
@@ -76,7 +76,7 @@ export class Remote {
     if (s.ask) {
       return {
         title: `❓ ${where}`,
-        text: [s.ask.question, s.ask.context && clip(s.ask.context, 600)].filter(Boolean).join('\n\n'),
+        text: [s.ask.question, s.ask.context && truncate(s.ask.context, 600)].filter(Boolean).join('\n\n'),
         actions: (s.ask.options || []).map((label, index) => ({ label, kind: 'answer', ref: s.ask.id, index })),
       };
     }
@@ -139,12 +139,12 @@ export class Remote {
     const { server, topic, headers } = this.#ntfy();
     const actions = (s ? msg.actions : []).slice(0, 3).map((a) => {
       const k = CODE[a.kind];
-      return { action: 'http', label: clip(a.label, 40), url: `${server}/${topic}-reply`, method: 'POST', headers, body: JSON.stringify({ s: s.id, k, r: a.ref, i: a.index, sig: this.sign(s.id, a.kind, a.ref, a.index) }), clear: true };
+      return { action: 'http', label: truncate(a.label, 40), url: `${server}/${topic}-reply`, method: 'POST', headers, body: JSON.stringify({ s: s.id, k, r: a.ref, i: a.index, sig: this.sign(s.id, a.kind, a.ref, a.index) }), clear: true };
     });
     const r = await fetch(server, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...headers },
-      body: JSON.stringify({ topic, title: clip(msg.title, 200), message: clip(msg.text, 3000), tags: ['wisp'], ...(actions.length && { actions }) }),
+      body: JSON.stringify({ topic, title: truncate(msg.title, 200), message: truncate(msg.text, 3000), tags: ['wisp'], ...(actions.length && { actions }) }),
       signal: AbortSignal.timeout(10_000),
     });
     if (!r.ok) throw new Error(`ntfy: ${r.status} ${(await r.text().catch(() => '')).slice(0, 120)}`);
@@ -194,10 +194,10 @@ export class Remote {
   }
 
   async #tgPublish(msg, s) {
-    const buttons = (s ? msg.actions : []).map((a) => [{ text: clip(a.label, 60), callback_data: `${CODE[a.kind]}:${s.id}:${a.ref}:${a.index}` }]);
+    const buttons = (s ? msg.actions : []).map((a) => [{ text: truncate(a.label, 60), callback_data: `${CODE[a.kind]}:${s.id}:${a.ref}:${a.index}` }]);
     const sent = await this.#tg('sendMessage', {
       chat_id: this.cfg.telegram.chatId,
-      text: clip(`${msg.title}\n\n${msg.text}${s ? '\n\n↩ Reply to this message to answer or follow up.' : ''}`, 4000),
+      text: truncate(`${msg.title}\n\n${msg.text}${s ? '\n\n↩ Reply to this message to answer or follow up.' : ''}`, 4000),
       ...(buttons.length && { reply_markup: { inline_keyboard: buttons } }),
     });
     if (s && sent?.message_id) this.#tgLink(s.id, sent.message_id);
@@ -231,7 +231,7 @@ export class Remote {
       if (!t.chatId || String(q.message?.chat?.id) !== String(t.chatId)) return;
       const [k, sessionId, ref, i] = String(q.data || '').split(':');
       const result = KIND[k] ? await this.act({ sessionId, kind: KIND[k], ref, index: Number(i) }) : 'Unknown button.';
-      await this.#tg('answerCallbackQuery', { callback_query_id: q.id, text: clip(result, 190) }).catch(() => {});
+      await this.#tg('answerCallbackQuery', { callback_query_id: q.id, text: truncate(result, 190) }).catch(() => {});
       await this.#tg('editMessageReplyMarkup', { chat_id: t.chatId, message_id: q.message.message_id, reply_markup: { inline_keyboard: [] } }).catch(() => {});
       return;
     }
@@ -274,14 +274,14 @@ export class Remote {
       const def = this.defaultProject();
       const where = (id) => (this.store.config.machines || []).find((x) => x.id === id)?.name || id;
       const lines = projects.map((p) => `• ${p.name}${p.machine ? ` (on ${where(p.machine)})` : ''}${p === def ? '  ← default' : ''}`);
-      return say(clip(`Projects:\n${lines.join('\n')}\n\n/new @name <task> runs in one of them.`, 4000));
+      return say(truncate(`Projects:\n${lines.join('\n')}\n\n/new @name <task> runs in one of them.`, 4000));
     }
     let prompt = arg;
     let project = this.defaultProject();
     const at = arg.match(/^@(\S+)\s*([\s\S]*)$/);
     if (at) {
       project = findProject(projects, at[1]);
-      if (!project) return say(`No project matches “${clip(at[1], 60)}”. Send /projects to see them.`);
+      if (!project) return say(`No project matches “${truncate(at[1], 60)}”. Send /projects to see them.`);
       prompt = at[2].trim();
     }
     if (!prompt) return say('What should it do? Send /new <task>, or /new @project <task>.');
@@ -290,9 +290,9 @@ export class Remote {
     try {
       s = await this.launch({ project, prompt });
     } catch (err) {
-      return say(`Couldn’t start it: ${clip(err.message, 300)}`, { reply_to_message_id: m.message_id });
+      return say(`Couldn’t start it: ${truncate(err.message, 300)}`, { reply_to_message_id: m.message_id });
     }
-    const sent = await say(clip(`▶ Started in ${project.name}: ${s?.title || prompt}\n\nwisp will message you when it needs you or is done. Reply to this message to follow up.`, 4000), { reply_to_message_id: m.message_id });
+    const sent = await say(truncate(`▶ Started in ${project.name}: ${s?.title || prompt}\n\nwisp will message you when it needs you or is done. Reply to this message to follow up.`, 4000), { reply_to_message_id: m.message_id });
     if (s?.id && sent?.message_id) this.#tgLink(s.id, sent.message_id);
   }
 
@@ -342,8 +342,8 @@ export class Remote {
     if (body.ntfy) {
       const n = { ...c.ntfy, ...body.ntfy };
       n.token = keep(body.ntfy.token, c.ntfy?.token) || '';
-      if (n.server && !/^https?:\/\/\S+$/.test(n.server)) throw Object.assign(new Error('ntfy server must be an http(s) URL'), { status: 400 });
-      if (n.topic && !/^[\w-]{1,64}$/.test(n.topic)) throw Object.assign(new Error('ntfy topic: letters, digits, - and _ only'), { status: 400 });
+      if (n.server && !/^https?:\/\/\S+$/.test(n.server)) throw bad('ntfy server must be an http(s) URL');
+      if (n.topic && !/^[\w-]{1,64}$/.test(n.topic)) throw bad('ntfy topic: letters, digits, - and _ only');
       c.ntfy = { enabled: !!n.enabled, server: n.server || 'https://ntfy.sh', topic: n.topic || '', token: n.token };
     }
     if (body.telegram) {
@@ -352,7 +352,7 @@ export class Remote {
       const relink = body.telegram.unlink || token !== prev.token;
       if (token !== prev.token) this.tgOffset = 0; // another bot, another update counter
       const project = body.telegram.project ?? prev.project ?? '';
-      if (project && !this.store.config.projects.some((p) => p.id === project)) throw Object.assign(new Error('Unknown project'), { status: 400 });
+      if (project && !this.store.config.projects.some((p) => p.id === project)) throw bad('Unknown project');
       c.telegram = {
         ...prev,
         enabled: !!(body.telegram.enabled ?? prev.enabled),

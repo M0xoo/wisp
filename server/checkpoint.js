@@ -1,22 +1,13 @@
-// Per-turn git checkpoints, single-file revert, turn rollback, and action command execution.
+// Per-turn git checkpoints, single-file revert and turn rollback.
 
-import { execFileSync, spawn as nodeSpawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { killTree } from './proc.js';
-import { MAX_SNAPSHOT, rel } from './adapters/common.js';
+import { gitSync } from './git.js';
+import { MAX_SNAPSHOT, rel } from './paths.js';
+import { bad } from './util.js';
 
-const MAX_EXEC_OUTPUT = 32 * 1024;
-const EXEC_TIMEOUT_MS = 60_000;
 
-function git(cwd, args, opts = {}) {
-  return execFileSync('git', args, {
-    cwd,
-    stdio: ['ignore', 'pipe', 'ignore'],
-    timeout: 5000,
-    ...opts,
-  });
-}
+const git = gitSync;
 
 function tryGit(cwd, args, opts) {
   try {
@@ -100,12 +91,12 @@ function writeDiskSnapshot(abs, content) {
 
 function resolveInsideCwd(cwd, file) {
   if (!file || typeof file !== 'string') {
-    throw Object.assign(new Error('file path required'), { status: 400 });
+    throw bad('file path required');
   }
   const abs = path.resolve(cwd, file);
   const relPath = path.relative(cwd, abs);
   if (!relPath || relPath.startsWith('..') || path.isAbsolute(relPath)) {
-    throw Object.assign(new Error(`File lies outside the project folder: ${file}`), { status: 400 });
+    throw bad(`File lies outside the project folder: ${file}`);
   }
   return { abs, relPath: rel(file, cwd) || relPath };
 }
@@ -128,7 +119,7 @@ export function revertFileChange(session, turn, file, { restore = false } = {}) 
   const entry = findChangeEntry(turn, file, cwd);
   const commit = turn.checkpoint?.commit;
   if (!entry && !commit) {
-    throw Object.assign(new Error(`No captured changes or checkpoint for ${relPath}`), { status: 404 });
+    throw bad(`No captured changes or checkpoint for ${relPath}`, 404);
   }
 
   if (restore) {
@@ -145,7 +136,7 @@ export function revertFileChange(session, turn, file, { restore = false } = {}) 
         writeDiskSnapshot(abs, cur);
       }
     } else {
-      throw Object.assign(new Error(`Nothing to re-apply for ${relPath}`), { status: 400 });
+      throw bad(`Nothing to re-apply for ${relPath}`);
     }
     if (entry) entry.reverted = false;
     if (turn.changes?.every((c) => !c.reverted)) delete turn.rolledBackAt;
@@ -200,7 +191,7 @@ function reverseEditsOnDisk(abs, entry) {
 export function rollbackToTurn(session, turn, { restore = false } = {}) {
   const cwd = sessionDir(session);
   const idx = session.turns.indexOf(turn);
-  if (idx < 0) throw Object.assign(new Error('No such turn'), { status: 404 });
+  if (idx < 0) throw bad('No such turn', 404);
   const affected = session.turns.slice(idx);
   const touchedFiles = [...new Set(affected.flatMap((t) => (t.changes || []).map((c) => c.file)))];
 
@@ -297,52 +288,5 @@ export function rollbackToTurn(session, turn, { restore = false } = {}) {
   return { files: touchedFiles, rolledBack: true, commit: cp?.head || cp?.commit || null };
 }
 
-// Run a shell command from an actionable presentation block inside `cwd`.
-export function execCommand(cwd, command, { timeoutMs = EXEC_TIMEOUT_MS } = {}) {
-  const cmd = String(command || '').trim();
-  if (!cmd) return Promise.reject(Object.assign(new Error('command required'), { status: 400 }));
-  const t0 = Date.now();
-
-  return new Promise((resolve) => {
-    const child = nodeSpawn(cmd, {
-      cwd,
-      env: { ...process.env, PAGER: 'cat', GIT_TERMINAL_PROMPT: '0', CI: '1' },
-      shell: true,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let out = '';
-    const append = (chunk) => {
-      if (out.length < MAX_EXEC_OUTPUT) out += chunk.toString('utf8').slice(0, MAX_EXEC_OUTPUT - out.length);
-    };
-    child.stdout.on('data', append);
-    child.stderr.on('data', append);
-
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killTree(child);
-    }, timeoutMs);
-
-    child.on('error', (err) => {
-      clearTimeout(timer);
-      resolve({
-        command: cmd,
-        output: (out ? `${out}\n` : '') + err.message,
-        exitCode: 1,
-        durationMs: Date.now() - t0,
-      });
-    });
-
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      const suffix = timedOut ? `\n[timed out after ${Math.round(timeoutMs / 1000)}s]` : '';
-      resolve({
-        command: cmd,
-        output: (out.replace(/\s+$/, '') + suffix).trim(),
-        exitCode: timedOut ? 124 : (code ?? 1),
-        durationMs: Date.now() - t0,
-      });
-    });
-  });
-}
+// Moved to proc.js; kept here for anything that still imports it from checkpoint.
+export { execCommand } from './proc.js';

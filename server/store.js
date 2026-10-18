@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { parsePresentation } from './protocol.js';
+import { writeJsonAtomic } from './util.js';
 
 const DEFAULT_CONFIG = {
   projects: [], // [{ id, name, path, color, addedAt, machine? }]; machine: the server/machines.js id it lives on
@@ -72,7 +73,9 @@ export class Store {
   }
 
   saveConfig() {
-    fs.writeFileSync(path.join(this.home, 'config.json'), JSON.stringify(this.config, null, 2));
+    // Atomic: a crash mid-write used to leave a cut-off config.json, which loads as the defaults
+    // (no projects, recipes, triggers or machines) and is then saved over.
+    writeJsonAtomic(path.join(this.home, 'config.json'), this.config, 2);
   }
 
   // --- projects: plain folders, matched to sessions by path prefix ---
@@ -130,8 +133,7 @@ export class Store {
       this.timers.delete(session.id);
       if (!this.sessions.has(session.id)) return;
       const file = path.join(this.dir, `${session.id}.json`);
-      fs.writeFileSync(`${file}.tmp`, JSON.stringify(session));
-      fs.renameSync(`${file}.tmp`, file);
+      writeJsonAtomic(file, session);
     };
     if (now) write();
     else this.timers.set(session.id, setTimeout(write, 400));

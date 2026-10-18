@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bad } from './util.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const PKG = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -79,8 +80,8 @@ export class Updater {
   // Installs (global) then hands off to a detached helper that waits for this server's port to
   // free up and starts the new version. The caller shuts this process down.
   async install() {
-    if (this.method === 'git') throw Object.assign(new Error('This is a git checkout: run `git pull` to update.'), { status: 400 });
-    if (this.state.status === 'installing') throw Object.assign(new Error('Already updating.'), { status: 409 });
+    if (this.method === 'git') throw bad('This is a git checkout: run `git pull` to update.');
+    if (this.state.status === 'installing') throw bad('Already updating.', 409);
     this.set({ status: 'installing', error: null });
     try {
       if (this.method === 'global') await run(`npm install -g ${PKG.name}@latest`);
@@ -109,7 +110,7 @@ function run(cmd) {
     child.on('exit', (code) => {
       if (code === 0) return resolve();
       const hint = /EACCES|permission denied/i.test(err) ? ' (permission denied — run it yourself, maybe with sudo)' : '';
-      reject(Object.assign(new Error(`\`${cmd}\` failed${hint}: ${err.trim().split('\n').slice(-3).join(' ')}`), { status: 400 }));
+      reject(bad(`\`${cmd}\` failed${hint}: ${err.trim().split('\n').slice(-3).join(' ')}`));
     });
   });
 }

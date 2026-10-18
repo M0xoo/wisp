@@ -1,0 +1,50 @@
+/* ---------- per-item composer ---------- */
+.composer {
+  padding: 6px 8px 8px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.composer:focus-within { background: var(--surface); border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.composer textarea { min-height: 26px; font-size: 14px; padding: 6px 2px; }
+.composer textarea:disabled { cursor: not-allowed; }
+.c-bar { display: flex; align-items: center; gap: 8px; }
+.c-queued { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.c-queued:not(:empty) { padding: 4px 0 6px; }
+.cq { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 6px 30px 6px 10px; border-radius: 8px; border: 1px dashed var(--line-2); font-size: 12.5px; animation: pop 0.35s var(--ease); }
+.cq-tag { flex: none; font-size: 11px; font-weight: 600; color: var(--accent-ink); }
+.cq .att-x:hover { color: var(--bad); }
+.cq-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.c-hint { flex: 1; font-size: 11.5px; color: var(--faint); }
+.c-bar .mode-btn { height: 30px; min-width: 30px; padding: 0 8px; }
+.c-bar .mode-btn.changed { background: var(--bg-2); }
+.t-mode { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; font: 500 11px var(--sans); color: var(--muted); border: 1px solid var(--line); }
+.t-mode .i { width: 12px; height: 12px; }
+.t-mode.m-plan { color: var(--accent-ink); }
+.t-mode.m-auto { color: var(--warn); }
+.send { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--ink); color: var(--bg); transition: opacity 0.15s; }
+.send:hover { opacity: 0.86; }
+.send:disabled { opacity: 0.5; }
+.send.busy { opacity: 1; position: relative; color: transparent; }
+.send.busy::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; border: 2px solid var(--bg); border-right-color: transparent; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.c-done { color: var(--muted); }
+.c-ship { color: var(--accent-ink); }
+.c-queue { color: var(--faint); font-size: 12px; }
+.c-queue.on { color: var(--ink); background: var(--bg-2); }
+.c-done:hover { color: var(--good); }
+
+/* attachments tray */
+.tray { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
+.att {
+  position: relative; display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 30px 0 4px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--line); max-width: 240px; animation: pop 0.35s var(--ease);
+}
+.att img { width: 36px; height: 36px; border-radius: 7px; object-fit: cover; }
+.att-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 7px; background: var(--bg-2); color: var(--muted); }
+.att-name { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.att-size { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.att-x { position: absolute; right: 6px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: var(--muted); }
+.att-x:hover { background: var(--bg-2); color: var(--ink); }
+.att-x .i { width: 12px; height: 12px; }
+.att.uploading::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 3px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 200% 100%; animation: shimmer 1.1s linear infinite; }
+.att.failed { border-color: var(--bad); }
+

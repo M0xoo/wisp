@@ -7,12 +7,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { newId } from './runner.js';
+import { bad, MODES, newId } from './util.js';
 import { gh as ghCli } from './git.js';
 import { fill, findRecipe } from './recipes.js';
 
 const KINDS = new Set(['schedule', 'ci', 'issues']);
-const MODES = new Set(['plan', 'edits', 'auto']);
 const TICK_MS = 20_000;
 const MAX_SEEN = 200;
 const MAX_PER_POLL = 3; // a burst of failures shouldn't start a dozen agents
@@ -37,20 +36,20 @@ const ALIASES = { '@hourly': '0 * * * *', '@daily': '0 0 * * *', '@weekly': '0 0
 export function parseCron(expr) {
   const src = ALIASES[String(expr || '').trim()] || String(expr || '').trim();
   const parts = src.split(/\s+/);
-  if (parts.length !== 5) throw Object.assign(new Error('A schedule needs 5 fields: minute hour day-of-month month day-of-week'), { status: 400 });
+  if (parts.length !== 5) throw bad('A schedule needs 5 fields: minute hour day-of-month month day-of-week');
   const out = {};
   parts.forEach((part, i) => {
     const [name, lo, hi] = FIELDS[i];
     const set = new Set();
     for (const piece of part.split(',')) {
       const m = piece.match(/^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/);
-      if (!m) throw Object.assign(new Error(`Bad ${name} field: ${piece}`), { status: 400 });
+      if (!m) throw bad(`Bad ${name} field: ${piece}`);
       let a = m[1] === '*' ? lo : Number(m[2]);
       let b = m[1] === '*' ? hi : m[3] !== undefined ? Number(m[3]) : m[4] ? hi : a;
       const step = m[4] ? Number(m[4]) : 1;
       if (name === 'dow' && b === 7) b = 6, set.add(0); // 7 is Sunday too
       if (name === 'dow' && a === 7) a = 0;
-      if (a < lo || b > hi || a > b || step < 1) throw Object.assign(new Error(`Bad ${name} field: ${piece}`), { status: 400 });
+      if (a < lo || b > hi || a > b || step < 1) throw bad(`Bad ${name} field: ${piece}`);
       for (let v = a; v <= b; v += step) set.add(v);
     }
     out[name] = set;
@@ -86,7 +85,6 @@ export function nextRun(c, from = Date.now()) {
 
 // --- config ----------------------------------------------------------------------------------
 
-const bad = (msg) => Object.assign(new Error(msg), { status: 400 });
 
 export function normalizeTrigger(body, prev = null, { recipes = [] } = {}) {
   const v = (k, d = '') => (body[k] !== undefined ? body[k] : prev?.[k] !== undefined ? prev[k] : d);

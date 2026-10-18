@@ -14,6 +14,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **The website moved to [mokh.xyz](https://mokh.xyz/).** Canonical, Open Graph and structured-data URLs, `sitemap.xml`, `robots.txt`, `llms.txt` and the npm `homepage` now use the new domain. The old `m0xoo.github.io/wisp/` address redirects there.
 - **New website.** The site opens on a working copy of the launcher: it types three tasks and sends them off, and their rows move from Working to Asking (answer it right there) to Done. Type your own task and press ↵ to get the `npx wisp-agents "…"` command that runs it for real. Further down it shows the real app instead of animated mock-ups. A scroll-driven "morning with wisp" walks through five real screens with a ticking clock: three tasks launched, a mid-run question with its desktop notification, a report, Ship it, and the merged PR. A Transcript / wisp report switch shows the same run both ways. Also new: a Compare section, a take-over table with each harness's resume command, and a terminal that replays real `wisp` CLI output. Screenshots follow your light or dark theme, and on phones the story becomes a simple timeline.
 
+### Fixed
+
+- wisp no longer crashes when the `claude` CLI quits before reading its prompt (a bad flag, an auth error, a crash on start). The task now ends with Claude's error message. Before, the unread prompt raised an unhandled `EPIPE` that took the whole server down.
+- `config.json` (projects, recipes, triggers, machines, settings) is now written atomically. Before, a crash or power loss mid-write could leave a cut-off file, which loaded as the defaults and was then saved over. Auto's learned state and the learned preferences are written the same way.
+- Idle API connections stay open longer than clients keep them, so a request sent on a connection the server was just closing no longer fails with `ECONNRESET`.
+- Refused requests (bad input, not found) no longer print a stack trace in the terminal running wisp.
+- **Run** / **Re-run** on a terminal, tests or actions block now shows the new output. Before, the command ran but the block kept its old output and an error toast said it failed.
+- **Escape** closes the menu or popover that is open, wherever focus is, and nothing else. Before, it could collapse the card behind a context menu and leave the menu open.
+- Settings switches, project edits, and deleting a recipe, trigger or subagent preset now show the server's error when it refuses the change, and leave things as they were. Before, nothing happened on screen; deleting a preset even said "Deleted".
+- Expanding cards no longer leaves a hidden file picker behind each time, and the launcher no longer adds another listener on every redraw.
+- `openapi.json` now documents subagent presets (`/teams`) and `GET /uploads/{id}`.
+
+### Internal
+
+- The server is split by area: `server/index.js` only wires things together. Routes live in `server/routes/` behind a small route table (`server/http/`), and shared logic lives in `server/services/` (launch, Ship it, Auto, uploads, phone, feedback). Helpers that were copied across files now come from `server/util.js`, and git always runs through one helper that honours `WISP_GIT_BIN`. Adapters are checked against their contract at startup, and `claude.js` uses the same spawn plumbing as the other harnesses. `test/routes.test.js` keeps the route table and `openapi.json` in sync. The HTTP API, CLI, SDK exports and the `~/.wisp` files are unchanged.
+- The web UI's 5,300-line `app.js` is now about 40 modules under `web/js/` (`core/`, `ui/`, `features/`), and `app.css` is 15 stylesheets that, concatenated in link order, are byte-for-byte the old file. A small event bus replaces the hooks that live updates used to reach open dialogs through, and one popover helper replaces about ten copies of open, outside-click and close code. No build step was added.
+
 ## [0.15.0] - 2026-10-18
 
 ### Changed

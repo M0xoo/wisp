@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, fileTracker, flatten, quietOutput, rel, spawnJsonl } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl } from './common.js';
 
 const BIN = process.env.WISP_GROK_BIN || 'grok';
 
@@ -137,7 +137,7 @@ export default {
       },
       onClose({ code, signal, stderr, stopped }) {
         if (sawResult) return;
-        onEvent({ type: 'result', isError: true, stopped, text: error || stderr || `grok exited with ${signal || `code ${code}`}` });
+        onEvent({ type: 'result', isError: true, stopped, text: error || stderr || exitText('grok', code, signal) });
       },
     });
     handle.done.finally(() => fs.rmSync(tmp, { recursive: true, force: true }));

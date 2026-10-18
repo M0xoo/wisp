@@ -13,8 +13,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_PORT } from './util.js';
 
-export const DEFAULT_PORT = 4477;
+export { DEFAULT_PORT };
 const BIN = fileURLToPath(new URL('../bin/wisp.js', import.meta.url));
 const MAX_WAIT_CALL = 280; // seconds per long-poll; fetch gives up on headers after 300s
 

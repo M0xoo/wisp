@@ -1,0 +1,83 @@
+/* ---------- buttons ---------- */
+.primary {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 16px;
+  border-radius: 8px; background: var(--ink); color: var(--bg); font-weight: 500;
+  transition: opacity 0.15s;
+}
+.primary:hover { opacity: 0.86; }
+.primary:disabled { opacity: 0.5; }
+.primary kbd { background: transparent; color: inherit; border-color: color-mix(in srgb, var(--bg) 35%, transparent); opacity: 0.7; }
+.primary.sm { height: 30px; padding: 0 12px; font-size: 13px; border-radius: 9px; }
+.ghost {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 9px;
+  color: var(--ink-2); transition: background 0.15s, color 0.15s;
+}
+.ghost:hover { background: var(--bg-2); color: var(--ink); }
+.ghost.on { color: var(--good); }
+.ghost.sm { height: 28px; font-size: 13px; }
+.ghost.xs { height: 24px; padding: 0 6px; border-radius: 7px; }
+.ghost.danger:hover { color: var(--bad); background: var(--del-bg); }
+.icon-btn {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--muted);
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover { background: var(--bg-2); color: var(--ink); }
+.link { color: var(--accent-ink); font-weight: 500; }
+.link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.link.on { color: var(--ink); }
+/* ---------- form kit ----------
+   One look for every standalone control. Use these classes, don't restyle controls per component:
+     <input class="input">  <textarea class="textarea">  <select> (styled by default)
+     .mono      code-ish values: paths, cron, tokens, commands
+     .sm / .lg  30px rows in dense panels / the 38px add-project row
+     .field     a box holding an icon / prefix + a bare <input>: <label class="field">icon<input></label>
+     .check     a label wrapping a checkbox and its text
+   Components set only layout (width, flex) on these; a container already tinted surface-2 sets
+   --field-bg: var(--surface) so its fields don't melt into it. Prompt boxes (launcher, composer, rerun) and
+   inline renames (project name, memory edit) are their own, deliberately borderless pattern. */
+:is(.input, .textarea, select, .field) {
+  width: 100%; min-width: 0; height: 32px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line-2);
+  background-color: var(--field-bg, var(--surface-2)); color: var(--ink); font: 13px/1.4 var(--sans); outline: 0;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+:is(.input, .textarea, select, .field):hover { border-color: color-mix(in srgb, var(--ink) 14%, var(--line-2)); }
+:is(.input, .textarea, select):focus, .field:focus-within {
+  border-color: var(--accent); background-color: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+:is(.input, .textarea, .field input)::placeholder { color: var(--faint); }
+:is(.input, .textarea, select):disabled { opacity: 0.55; cursor: not-allowed; }
+:is(.input, .textarea, select):is([aria-invalid='true'], :user-invalid) { border-color: var(--bad); }
+:is(.input, .textarea, select):is([aria-invalid='true'], :user-invalid):focus { box-shadow: 0 0 0 3px var(--del-bg); }
+.textarea { display: block; height: auto; min-height: 64px; padding: 7px 10px; line-height: 1.5; resize: vertical; }
+:is(.input, .textarea, .field).mono { font-family: var(--mono); font-size: 12.5px; }
+:is(.input, .field).sm { height: 30px; padding: 0 8px; }
+:is(.input, .field).lg { height: 38px; padding: 0 12px; border-radius: 11px; }
+select:not([multiple]) {
+  width: auto; padding-right: 28px; appearance: none; cursor: pointer; text-overflow: ellipsis;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 50%, calc(100% - 10px) 50%; background-size: 4px 4px; background-repeat: no-repeat;
+}
+.field { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.field .i { width: 14px; height: 14px; flex: none; }
+.field > input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--ink); }
+input[type='checkbox'] { width: 15px; height: 15px; margin: 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+
+/* ---------- the mark ---------- */
+/* A plain dot. Brand: ink dot with an offset accent dot. Live: a thin spinner ring. */
+.orb { --s: 14px; position: relative; display: inline-block; width: var(--s); height: var(--s); border-radius: 50%; background: var(--ink); flex: none; }
+.orb i { display: none; }
+.orb.tiny { --s: 12px; }
+.orb.tiny::after {
+  content: ''; position: absolute; width: 6px; height: 6px; right: -4px; bottom: -2px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 2px var(--bg);
+}
+.orb.big { display: none; }
+.orb.live {
+  --s: 18px; background: none; border: 2px solid var(--line-2); border-top-color: var(--accent);
+  animation: orb-spin 0.9s linear infinite;
+}
+.waiting .orb.live { border: 0; background: var(--warn); --s: 10px; margin: 4px; animation: pulse 1.6s ease-in-out infinite; }
+
+@keyframes orb-spin { to { rotate: 360deg; } }
+
