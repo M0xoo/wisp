@@ -1149,7 +1149,6 @@ function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
       anchor.classList.remove('open');
     },
   });
-  node.addEventListener('keydown', (e) => e.key === 'Escape' && (e.stopPropagation(), close(), anchor.focus()));
   anchor.classList.add('open');
   if (!members.length) $('.tp-add', node)?.focus();
 }
@@ -1289,8 +1288,7 @@ function modeMenu(anchor, current, pick) {
   menu.addEventListener('keydown', (ev) => {
     const items = $$('button', menu);
     const i = items.indexOf(document.activeElement);
-    if (ev.key === 'Escape') (ev.stopPropagation(), close(), anchor.focus());
-    else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
       ev.preventDefault();
       items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
     }
@@ -1398,7 +1396,7 @@ function whereMenu(anchor) {
     openMachines({ focusAdd: a === 'add' });
   };
   paint();
-  const shut = popover(box, { anchor, escape: true, onClose: () => anchor.setAttribute('aria-expanded', 'false') });
+  const shut = popover(box, { anchor, onClose: () => anchor.setAttribute('aria-expanded', 'false') });
   bus.on('machines', paint, { node: box });
   anchor.setAttribute('aria-expanded', 'true');
   const r = anchor.getBoundingClientRect();
@@ -2556,7 +2554,6 @@ function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, p
     const live = sideRows.filter((b) => !b.disabled);
     const segBtns = $$('button', seg);
     const inSeg = segBtns.includes(document.activeElement);
-    if (e.key === 'Escape') return e.preventDefault(), e.stopPropagation(), close(), anchor.focus();
     // Tab hops from the model list to the thinking levels and back; anywhere else it leaves.
     if (e.key === 'Tab' && !seg.hidden && (inSeg ? e.shiftKey : !e.shiftKey && !inSide)) {
       e.preventDefault();
