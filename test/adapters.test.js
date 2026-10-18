@@ -46,6 +46,7 @@ before(() => fs.rmSync(RECORD, { recursive: true, force: true }));
 afterEach(() => {
   delete process.env.FAKE_HANG;
   delete process.env.FAKE_FAIL;
+  delete process.env.FAKE_ORPHANS;
 });
 
 for (const id of Object.keys(BIN)) {
@@ -159,6 +160,16 @@ for (const id of Object.keys(BIN)) {
     assert.match(result[0].text, /not logged in/);
   });
 }
+
+test('claude: a resume that first reports stopped background tasks still ends on the real answer', async () => {
+  process.env.FAKE_ORPHANS = '1';
+  const events = await run('claude', { resumeId: 'prev-1' }).done;
+  const results = events.filter((e) => e.type === 'result');
+  assert.equal(results.length, 1, 'the empty zero-turn result is not the end of the turn');
+  assert.match(results[0].text, /Fake claude finished/);
+  assert.equal(results[0].stats.turns, 3);
+  assert.ok(events.some((e) => e.type === 'change'), 'the work after it is reported too');
+});
 
 test('codex: MCP server and attachments are passed as config overrides and flags', async () => {
   const img = path.join(tmp('att'), 'shot one.png');

@@ -65,6 +65,7 @@ export default {
     child.stdin.end(prompt);
 
     let sawResult = false;
+    let early = null; // an empty result that came before our prompt was answered (see below)
     let stderr = '';
     const pendingTools = new Map(); // tool_use_id -> name, to flag failed tool results
 
@@ -103,19 +104,17 @@ export default {
           }
         }
       } else if (msg.type === 'result') {
+        const ev = resultEvent(msg);
+        // On --resume, background tasks the last run left behind come back as a task
+        // notification queued ahead of our prompt. The CLI answers it with an empty,
+        // zero-turn result, then goes on to the prompt and reports a second result. Ending the
+        // turn on the first one would drop the real answer, so hold it in case it's all we get.
+        if (!ev.isError && !ev.text.trim() && !msg.num_turns) {
+          early = ev;
+          return;
+        }
         sawResult = true;
-        onEvent({
-          type: 'result',
-          text: msg.result ?? '',
-          isError: !!msg.is_error || (msg.subtype && msg.subtype !== 'success'),
-          stats: {
-            costUsd: msg.total_cost_usd,
-            durationMs: msg.duration_ms,
-            turns: msg.num_turns,
-            inputTokens: msg.usage?.input_tokens,
-            outputTokens: msg.usage?.output_tokens,
-          },
-        });
+        onEvent(ev);
       }
     });
 
@@ -127,6 +126,10 @@ export default {
         resolve();
       });
       child.on('close', (code, signal) => {
+        if (!sawResult && early && !stopping) {
+          sawResult = true;
+          onEvent(early);
+        }
         if (!sawResult) {
           onEvent({
             type: 'result',
@@ -151,6 +154,21 @@ export default {
 
 
 
+
+function resultEvent(msg) {
+  return {
+    type: 'result',
+    text: msg.result ?? '',
+    isError: !!msg.is_error || (msg.subtype && msg.subtype !== 'success'),
+    stats: {
+      costUsd: msg.total_cost_usd,
+      durationMs: msg.duration_ms,
+      turns: msg.num_turns,
+      inputTokens: msg.usage?.input_tokens,
+      outputTokens: msg.usage?.output_tokens,
+    },
+  };
+}
 
 // Human sentence for the live ticker + a coarse kind for the trail summary.
 function describeTool(name, input, cwd) {

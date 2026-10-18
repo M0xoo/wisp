@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Follow-ups no longer end on "The agent finished without a message."** When a Claude Code run left background commands behind, the next follow-up ended right away with an empty answer, and the agent was cut off before it started on your message, so you had to send it again. wisp now waits for the answer to your follow-up.
+
 ## [0.13.0] - 2026-10-18
 
 ### Added
