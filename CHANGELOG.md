@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Feedback for the wisp team.** Each finished turn has a small 👍 / 👎 at the end of its trail. It stays faint until you hover the turn. Click again to take the rating back. 👎 opens one optional line for what went wrong (↵ sends, Esc skips). You can also type `/feedback <note>` in the launcher or any follow-up box, or use `⌘K` → **Send feedback…** for a short dialog. Bare `/feedback` opens the dialog too. It thanks you right away; offline, the feedback is kept and sent later. It goes to PostHog with the harness, model and status of the run, never your prompt, output or code. It's sent even with usage stats off, and `WISP_FEEDBACK=0` turns it off. API: `POST /api/feedback`.
 
+### Changed
+
+- **Compare more than two harnesses.** Clicking **vs** in the launcher adds a second harness as before, and a **+** at the end of the pill now adds a third and a fourth (four side by side, the server's limit). Each one sits behind its own **vs**: hover it for **×** to drop just that harness. A new one starts on a harness that isn't in the pill yet. With three or four, the pill shows logos only (hover a logo for harness, model and thinking level), and the mode and Subagents labels fold to icons so the bar stays on one line.
+
 ## [0.12.0] - 2026-10-18
 
 ### Added

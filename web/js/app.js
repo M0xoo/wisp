@@ -667,8 +667,7 @@ function renderLauncher() {
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <div class="runners">
         <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
-        <button class="vs-btn" id="compareBtn" aria-pressed="false"><span>vs</span>${icon('x')}</button>
-        <button class="runner-btn" id="runner2" title="Second harness to compare with" aria-haspopup="dialog" hidden></button>
+        <button class="vs-btn vs-add" id="compareBtn"><span>vs</span>${icon('plus')}</button>
       </div>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       <span class="grow"></span>
@@ -726,9 +725,8 @@ function renderLauncher() {
   const runnerBtn = $('#runner', box);
   const paintRunner = () => {
     paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort);
-    runnerBtn.title = `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
+    runnerBtn.title = compare.length ? runnerTip(agent?.id, curModel, curEffort) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
   };
-  paintRunner();
 
   // Worktree: each launch gets a fresh branch from the remote's default branch (git repos only).
   const wtBtn = $('#wtBtn', box);
@@ -764,31 +762,61 @@ function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { subagents: team, teamPreset } } }).catch(() => {});
     });
 
-  // Compare: a second harness gets the same task; picks here don't touch the launcher defaults.
-  let compare = null;
+  // Compare: more harnesses get the same task (up to MAX_RUNNERS in all); picks here don't touch
+  // the launcher defaults. Each extra sits behind a "vs" that removes it; the button at the end
+  // adds the next one. Past two, the pill folds the names away and keeps the logos.
+  let compare = [];
   const vsBtn = $('#compareBtn', box);
-  const runner2 = $('#runner2', box);
+  const runners = vsBtn.parentElement;
   const paintCompare = () => {
-    vsBtn.parentElement.classList.toggle('cmp', !!compare);
-    vsBtn.setAttribute('aria-pressed', String(!!compare));
-    vsBtn.title = compare ? 'Stop comparing' : 'Compare: run the same task on a second harness, side by side';
-    runner2.hidden = !compare;
-    if (compare) paintRunnerBtn(runner2, compare.agent, compare.model, compare.effort);
+    const n = compare.length;
+    runners.classList.toggle('cmp', n > 0);
+    runners.classList.toggle('many', n > 1);
+    for (const x of $$('.cmp-x', runners)) x.remove();
+    compare.forEach((c, i) => {
+      const name = agentName(c.agent);
+      const del = el(`<button class="vs-btn vs-del cmp-x" data-i="${i}" title="Remove ${esc(name)} from the comparison" aria-label="Remove ${esc(name)}"><span>vs</span>${icon('x')}</button>`);
+      const btn = el(`<button class="runner-btn cmp-x" data-i="${i}" aria-haspopup="dialog"></button>`);
+      paintRunnerBtn(btn, c.agent, c.model, c.effort);
+      btn.title = runnerTip(c.agent, c.model, c.effort);
+      vsBtn.before(del, btn);
+    });
+    vsBtn.hidden = n >= MAX_RUNNERS - 1;
+    vsBtn.title = n ? `Add another harness (up to ${MAX_RUNNERS} side by side)` : 'Compare: run the same task on another harness, side by side';
+    paintRunner(); // its tooltip spells everything out once the names fold away
   };
-  paintCompare();
   vsBtn.onclick = () => {
-    if (compare) compare = null;
-    else {
-      const other = harnessesAt(launchWhere).find((a) => a.available && a.id !== agent?.id) || agent;
-      compare = { agent: other?.id, model: savedModel(other?.id), effort: savedEffort(other?.id, savedModel(other?.id)) };
-    }
+    // The next harness nobody in the pill uses yet; once they're all in, another copy of the lead.
+    const used = new Set([agent?.id, ...compare.map((c) => c.agent)]);
+    const here = harnessesAt(launchWhere).filter((a) => a.available);
+    const next = here.find((a) => !used.has(a.id)) || agent;
+    const model = savedModel(next?.id);
+    compare = [...compare, { agent: next?.id, model, effort: savedEffort(next?.id, model) }];
     paintCompare();
+    // Its "vs" lands right under the pointer: it can't remove anything until the pointer has left.
+    const fresh = $$('.vs-del', runners).at(-1);
+    fresh?.classList.add('fresh');
+    fresh?.addEventListener('pointerleave', () => fresh.classList.remove('fresh'), { once: true });
+    // Straight into picking it when it's a repeat, since that's rarely the one you want.
+    if (used.has(next?.id)) $$('.runner-btn.cmp-x', runners).at(-1)?.click();
   };
-  runner2.onclick = () =>
-    runnerPicker(runner2, { ...compare, savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
-      compare = { agent: id, model, effort };
+  runners.addEventListener('click', (e) => {
+    const x = e.target.closest('.cmp-x');
+    if (!x) return;
+    const i = Number(x.dataset.i);
+    if (x.classList.contains('vs-del')) {
+      if (x.classList.contains('fresh')) return;
+      compare = compare.filter((_, k) => k !== i);
+      paintCompare();
+      (compare.length ? $$('.vs-del', runners)[Math.min(i, compare.length - 1)] : vsBtn).focus();
+      return;
+    }
+    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
+      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort } : c));
       paintCompare();
     });
+  });
+  paintCompare();
   runnerBtn.onclick = () =>
     runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
       agent = harnessesAt(launchWhere).find((a) => a.id === id);
@@ -818,7 +846,7 @@ function renderLauncher() {
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
     if (off) return offlineToast(off.k);
-    const wanted = [agent?.id, ...(compare ? [compare.agent] : [])];
+    const wanted = [agent?.id, ...compare.map((c) => c.agent)];
     for (const t of targets) {
       const list = agentsAt(t.k);
       const missing = list && wanted.find((id) => !list.some((x) => x.id === id && x.available));
@@ -833,7 +861,7 @@ function renderLauncher() {
     const cmp = compare;
     const runner = { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
     const pending = targets.map((t) => addPending(prompt, t, runner));
-    if (compare) (compare = null), paintCompare();
+    if (cmp.length) (compare = []), paintCompare();
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
@@ -852,7 +880,7 @@ function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp ? false : undefined, compare: cmp ? [cmp] : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -866,7 +894,7 @@ function renderLauncher() {
       if (!started.length) {
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
         tray.restore(files);
-        if (cmp && !compare) (compare = cmp), paintCompare();
+        if (cmp.length && !compare.length) (compare = cmp), paintCompare();
         return;
       }
       askNotify();
@@ -900,6 +928,15 @@ function renderLauncher() {
       setMode(MODES[(MODES.findIndex((m) => m.id === curMode) + 1) % MODES.length].id);
     }
   });
+}
+
+// One launch runs on at most this many harnesses side by side (the server's MAX_COMPARE).
+const MAX_RUNNERS = 4;
+// A runner button's tooltip, for when the pill is too full to show names.
+function runnerTip(agentId, model, effort) {
+  const a = agentById(agentId);
+  const m = (a?.models || []).find((x) => x.id === model);
+  return [a?.name || agentName(agentId), m?.label || model || 'Default model', effort && effortLabel(effort)].filter(Boolean).join(' · ');
 }
 
 // The harness · model · thinking button, as in the launcher. agent '' reads "Launcher default".
