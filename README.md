@@ -216,13 +216,18 @@ wisp/
 ├── bin/
 │   └── wisp.js            # CLI: starts the server or talks to the running one
 ├── server/
-│   ├── index.js           # HTTP API, SSE stream, static UI, uploads
-│   ├── openapi.js         # OpenAPI document for the public API
+│   ├── index.js           # startServer: wires the pieces below together
+│   ├── http/              # route table, JSON responses + SSE, static UI
+│   ├── routes/            # one file per API area: sessions, ship, settings, automations, machines, …
+│   ├── services/          # shared by routes and background jobs: launch, ship, auto, uploads, phone, …
+│   ├── util.js            # small shared helpers (errors, ids, quoting, atomic JSON writes)
+│   ├── openapi.js         # OpenAPI document for the public API (test/routes.test.js keeps it in sync)
 │   ├── client.js          # JS SDK (wisp-agents/client), used by the CLI and MCP server
 │   ├── mcp-wisp.js        # `wisp mcp`: wisp as tools for other agents
 │   ├── render.js          # presentation → markdown
 │   ├── runner.js          # session lifecycle, follow-ups, event normalization
-│   ├── checkpoint.js      # per-turn git checkpoints, file revert, rollback, action exec
+│   ├── checkpoint.js      # per-turn git checkpoints, file revert, rollback
+│   ├── proc.js            # cross-platform spawn, and running a block's command
 │   ├── protocol.js        # system prompt + ```wisp block parser (markdown fallback)
 │   ├── mcp-ask.js         # ask_user MCP server
 │   ├── store.js           # JSON-file persistence in ~/.wisp
@@ -231,6 +236,7 @@ wisp/
 │   ├── triggers.js        # cron schedules and GitHub watchers
 │   ├── remote.js          # phone: ntfy and Telegram, out and back
 │   ├── machines.js        # other computers: SSH, a tunnel to wisp there, relayed sessions
+│   ├── machines/          # known hosts (ssh config, Tailscale) and the bootstrap script
 │   ├── usage.js           # spend and outcomes
 │   ├── terminal.js        # "take over" in your terminal
 │   ├── welcome.js         # the gallery session
@@ -244,10 +250,15 @@ wisp/
 │       ├── antigravity.js # Antigravity CLI adapter
 │       └── grok.js        # Grok Build adapter
 ├── skills/wisp/SKILL.md   # agent skill: how other agents use wisp
-├── web/                   # vanilla JS UI, no build step
+├── web/                   # vanilla JS UI, native ES modules, no build step
 │   ├── index.html
-│   ├── css/app.css
-│   └── js/{app,blocks,diff,md}.js
+│   ├── css/               # one stylesheet per area (tokens, base, feed, blocks, modals, …), linked in order
+│   └── js/
+│       ├── app.js         # boot, top bar, routing
+│       ├── core/          # state, api, event bus, DOM helpers
+│       ├── ui/            # toasts, dialogs, popovers, keyboard hints
+│       ├── features/      # feed, turns, composer, launcher, settings, ship, machines, …
+│       └── {blocks,md,diff,fuzzy,palette}.js   # presentation blocks and their helpers
 └── electron/              # desktop shell
     ├── main.js
     └── preload.cjs

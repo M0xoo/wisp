@@ -1,4 +1,4 @@
-// The wisp HTTP API (server/index.js). A failed request throws with the server's message.
+// The wisp HTTP API (server/routes/). A failed request throws with the server's message.
 
 export async function api(path, { method = 'GET', body } = {}) {
   const r = await fetch(`/api${path}`, {
