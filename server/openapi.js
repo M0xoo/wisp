@@ -46,6 +46,22 @@ export function openapi({ version, port }) {
       },
       '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels (?fresh=1 detects again)', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
+      '/feedback': {
+        post: {
+          summary: 'Send feedback to the wisp team: thumbs on a turn and/or a note. Sent even with usage stats off; WISP_FEEDBACK=0 turns it off',
+          requestBody: body({
+            type: 'object',
+            properties: {
+              rating: { type: ['string', 'null'], enum: ['up', 'down', null], description: 'With turnId: kept on that turn; null takes it back' },
+              text: { type: 'string', maxLength: 4000 },
+              sessionId: { type: 'string', description: 'Adds that run\'s harness, model and status (never the prompt or result)' },
+              turnId: { type: 'string' },
+              source: { type: 'string', description: 'turn | command | dialog' },
+            },
+          }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, sent: { type: 'boolean', description: 'false: kept in ~/.wisp/feedback-outbox.json and retried' }, available: { type: 'boolean' } } }), 400: err[400] },
+        },
+      },
       '/config': {
         get: { summary: 'Launcher defaults, projects, webhooks', responses: { 200: json({ type: 'object' }) } },
         patch: {

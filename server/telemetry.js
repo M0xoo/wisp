@@ -5,6 +5,10 @@
 //
 // Off when any of: no API key, DO_NOT_TRACK=1, WISP_TELEMETRY=0, CI, or "telemetry": "off" in
 // settings. See the Telemetry section of the README.
+//
+// Feedback (thumbs on a result, /feedback, "Send feedback") is different: the user hands it to us
+// on purpose, so it goes out even with usage stats off. Only WISP_FEEDBACK=0 or no key stops it.
+// Offline, it waits in feedback-outbox.json and goes with the next feedback or the next start.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -22,9 +26,15 @@ const TIMEOUT_MS = 3000;
 const VERSION = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 const truthy = (v) => !!v && !/^(0|false|no|off)$/i.test(v);
 
+const falsy = (v) => /^(0|false|no|off)$/i.test(v || '');
+
 export function envDisabled(env = process.env) {
-  return !KEY || truthy(env.DO_NOT_TRACK) || /^(0|false|no|off)$/i.test(env.WISP_TELEMETRY || '') || truthy(env.CI);
+  return !KEY || truthy(env.DO_NOT_TRACK) || falsy(env.WISP_TELEMETRY) || truthy(env.CI);
 }
+
+export const feedbackAvailable = (env = process.env) => !!KEY && !falsy(env.WISP_FEEDBACK);
+const FEEDBACK_MAX = 4000;
+const OUTBOX_MAX = 100;
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -50,10 +60,12 @@ function frames(stack = '') {
 }
 
 export class Telemetry {
-  constructor(store, { shell = process.versions.electron ? 'electron' : 'browser' } = {}) {
+  constructor(store, { shell = process.versions.electron ? 'electron' : 'browser', post } = {}) {
     this.store = store;
     this.queue = [];
     this.pendingFile = path.join(store.home, 'telemetry-pending.json');
+    this.outboxFile = path.join(store.home, 'feedback-outbox.json');
+    if (post) this.post = post;
     this.common = {
       $lib: 'wisp',
       $process_person_profile: false, // anonymous events: no person profiles
@@ -68,6 +80,7 @@ export class Telemetry {
     this.timer = setInterval(() => this.flush(), FLUSH_MS);
     this.timer.unref();
     this.#sendPending();
+    this.#sendOutbox();
   }
 
   get enabled() {
@@ -93,17 +106,49 @@ export class Telemetry {
     });
   }
 
-  async flush() {
-    if (!this.queue.length) return;
-    const batch = this.queue.splice(0);
+  // Thumbs on a turn ('turn_rated') or a written note ('feedback'). Resolves true once PostHog has
+  // it; false means it's kept in the outbox and retried.
+  async feedback(event, props = {}) {
+    if (!feedbackAvailable()) return false;
+    // With usage stats off, a fresh id per message so feedback can't be tied to anything else.
+    const id = (this.enabled && this.store.config.telemetryId) || randomUUID();
+    const text = props.text ? String(props.text).split(os.homedir()).join('~').slice(0, FEEDBACK_MAX) : undefined;
+    const ev = { event, timestamp: new Date().toISOString(), properties: { ...this.common, ...props, text, distinct_id: id } };
+    const batch = [...this.#outbox(), ev].slice(-OUTBOX_MAX);
+    const ok = await this.post(batch);
     try {
-      await fetch(`${HOST}/batch/`, {
+      if (ok) fs.rmSync(this.outboxFile, { force: true });
+      else fs.writeFileSync(this.outboxFile, JSON.stringify(batch));
+    } catch {}
+    return ok;
+  }
+
+  #outbox() {
+    try {
+      const list = JSON.parse(fs.readFileSync(this.outboxFile, 'utf8'));
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async post(batch) {
+    try {
+      const res = await fetch(`${HOST}/batch/`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ api_key: KEY, batch }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-    } catch {} // offline or blocked: drop it, telemetry must never get in the way
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async flush() {
+    if (!this.queue.length) return;
+    await this.post(this.queue.splice(0)); // offline or blocked: drop it, telemetry must never get in the way
   }
 
   // Shutdown and crashes leave no time for a request: write what's queued to disk (sync) and
@@ -120,6 +165,12 @@ export class Telemetry {
     if (!this.enabled) return;
     this.captureError(err, { handled: false, type: err?.name || 'UncaughtException' });
     this.persist();
+  }
+
+  #sendOutbox() {
+    const batch = this.#outbox();
+    if (!batch.length || !feedbackAvailable()) return;
+    this.post(batch).then((ok) => ok && fs.rmSync(this.outboxFile, { force: true }));
   }
 
   #sendPending() {

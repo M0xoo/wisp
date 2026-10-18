@@ -371,6 +371,14 @@ wisp sends anonymous usage stats and error reports to [PostHog](https://posthog.
 
 It is also off whenever `CI` is set.
 
+### Feedback
+
+Rate any result with 👍 / 👎 at the end of the turn (👎 asks for an optional line on what went wrong), type `/feedback <your note>` in any prompt box, or use `⌘K` → *Send feedback*. It goes to the wisp team on PostHog as a `turn_rated` or `feedback` event.
+
+**What is sent:** your rating and note (with your home directory replaced by `~`), the wisp version and OS. For a rated turn it also sends the run's harness, model, mode, status, duration and presentation block types. Your prompt, the agent's output and your code are **never sent**.
+
+You send feedback on purpose, so it goes out even with usage stats off, under a one-off id. Offline, it waits in `~/.wisp/feedback-outbox.json` and is sent later. `WISP_FEEDBACK=0` turns it off and hides the thumbs.
+
 ## Contributing
 
 Issues and PRs are welcome. wisp has no build step: edit `web/` or `server/`, then run `npm run dev` (or `npm run dev:web`) to see your changes.
