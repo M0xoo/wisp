@@ -1,8 +1,9 @@
 # The feed: task states, moves and scrolling
 
 How a task moves through the feed in the web UI, and what the page does with your scroll position
-and focus when it moves. The code is in `web/js/app.js` (`groups()`, the `summary` event handler,
-`watching()`, `keepInPlace()`, `feedAnchor()`, `handOff()`, `taskOf()`).
+and focus when it moves. The code is in `web/js/features/`: `feed.js` (`groups()`, `taskOf()`,
+`handOff()`), `scroll.js` (`watching()`, `keepInPlace()`, `feedAnchor()`) and `live.js` (the `summary`
+event handler).
 
 ## Sections
 
