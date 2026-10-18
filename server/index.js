@@ -11,7 +11,7 @@ import { Runner, summarize, newId, workdir } from './runner.js';
 import { adapters, listAgents } from './adapters/index.js';
 import { welcomeSession } from './welcome.js';
 import { openInTerminal, TERMINALS, shq } from './terminal.js';
-import { Telemetry, envDisabled } from './telemetry.js';
+import { Telemetry, envDisabled, feedbackAvailable } from './telemetry.js';
 import { blocksToMarkdown, sessionToMarkdown } from './render.js';
 import { openapi } from './openapi.js';
 import { Updater } from './update.js';
@@ -257,6 +257,15 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   const remote = new Remote({
     store,
     onChange: () => broadcast('remote', {}),
+    // /new from Telegram: the launcher's remembered harness, model and mode, like `wisp "…"`.
+    launch: async ({ project, prompt }) => {
+      const d = store.config.defaults;
+      const agent = d.agent || 'claude';
+      const model = d.models?.[agent] ?? d.model ?? '';
+      const [s] = await launchAny({ prompt, cwd: project.path, machine: project.machine || undefined, agent, model, mode: d.mode || 'edits' }, { kind: 'telegram', name: 'Telegram' });
+      broadcast('config', {});
+      return s;
+    },
     act: async ({ sessionId, kind, ref, index, text }) => {
       const ops = await sessionOps(sessionId).catch((err) => ({ error: err.message }));
       if (ops?.error) return `Can’t reach it: ${ops.error}`;
@@ -507,7 +516,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     }
 
     if (root === 'config') {
-      if (m === 'GET') return send(res, 200, { ...store.config, remote: undefined, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled } });
+      if (m === 'GET') return send(res, 200, { ...store.config, remote: undefined, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() });
       if (m === 'PATCH') {
         const body = await readJson(req);
         if (body.defaults) Object.assign(store.config.defaults, body.defaults);
@@ -722,6 +731,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
 
     if (root === 'machines') return machinesApi(req, res, url, id, action);
 
+    // Feedback for the wisp team: thumbs on a turn and/or a note. { rating?, text?, sessionId?, turnId? }
+    if (root === 'feedback' && m === 'POST') return send(res, 200, await sendFeedback(await readJson(req)));
+
     if (root === 'sessions') {
       if (id && splitId(id)) return machineSessionApi(req, res, url, splitId(id), action);
       if (!id) {
@@ -742,9 +754,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         }
         if (m === 'POST') {
           const body = await readJson(req);
-          // A machine's wisp hands on where a recipe or trigger launch came from.
+          // A machine's wisp hands on where a recipe, trigger or Telegram launch came from.
           const o = body.origin;
-          const origin = o && (o.kind === 'recipe' || o.kind === 'trigger') ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
+          const origin = o && ['recipe', 'trigger', 'telegram'].includes(o.kind) ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
           const out = await launchAny(body, origin);
           return send(res, 201, out.length > 1 ? { ...out[0], group: out } : out[0]);
         }
@@ -1030,6 +1042,48 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   }
 
   // /api/sessions/<id>@<machine>/…: passed through to that machine's wisp, ids rewritten.
+  // A rating sticks to its turn (it shows on the card and can be taken back). What goes out is
+  // the rating, the user's own words, and how the run was set up — never the prompt or the result.
+  async function sendFeedback({ rating, text, sessionId, turnId, source } = {}) {
+    if (rating !== undefined && rating !== null && rating !== 'up' && rating !== 'down') throw Object.assign(new Error('rating must be up or down'), { status: 400 });
+    text = String(text || '').trim();
+    if (rating === undefined && !text) throw Object.assign(new Error('Write something, or pick 👍 / 👎.'), { status: 400 });
+    // A session on a machine: that wisp keeps the rating on its turn and sends it.
+    const at = sessionId && splitId(sessionId);
+    if (at) {
+      try {
+        return await machines.json(at.machine, 'POST', '/feedback', { rating, text, sessionId: at.id, turnId, source });
+      } catch (err) {
+        if (err.status === 400) throw err; // offline, or an older wisp there: send it from here, without the run
+      }
+    }
+    const s = sessionId && !at ? store.get(sessionId) : null;
+    if (sessionId && !at && !s) throw Object.assign(new Error('no such session'), { status: 404 });
+    const turn = s && (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
+    if (turnId && s && !turn) throw Object.assign(new Error('no such turn'), { status: 404 });
+    // Only thumbs on a turn stick to it; a rating in the feedback dialog is about wisp as a whole.
+    if (turn && turnId && rating !== undefined) {
+      turn.feedback = rating ? { rating, at: Date.now() } : undefined;
+      store.save(s);
+      broadcast('turn', { sessionId: s.id, turnId: turn.id });
+    }
+    const blocks = turn?.presentation?.blocks || [];
+    const context = turn && {
+      ...run(s, turn),
+      status: turn.status,
+      heroStatus: blocks.find((b) => b.type === 'hero')?.status,
+      blockTypes: [...new Set(blocks.map((b) => b.type))],
+      durationMs: turn.endedAt ? turn.endedAt - turn.startedAt : undefined,
+      tour: s.agent === 'wisp' || undefined,
+    };
+    const props = { ...context, rating: rating || undefined, source: String(source || (turn ? 'turn' : 'app')).slice(0, 20), machine: at ? true : undefined };
+    // Thumbs on a turn count as a rating; anything written, or sent from the dialog, is 'feedback'.
+    const event = text || !turnId ? 'feedback' : 'turn_rated';
+    if (event === 'turn_rated' && rating === null) props.cleared = true;
+    const sent = await telemetry.feedback(event, { ...props, text: text || undefined });
+    return { ok: true, sent, available: feedbackAvailable() };
+  }
+
   async function machineSessionApi(req, res, url, at, action) {
     const m = req.method;
     const mid = at.machine;

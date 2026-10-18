@@ -667,8 +667,7 @@ function renderLauncher() {
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <div class="runners">
         <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
-        <button class="vs-btn" id="compareBtn" aria-pressed="false"><span>vs</span>${icon('x')}</button>
-        <button class="runner-btn" id="runner2" title="Second harness to compare with" aria-haspopup="dialog" hidden></button>
+        <button class="vs-btn vs-add" id="compareBtn"><span>vs</span>${icon('plus')}</button>
       </div>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       <span class="grow"></span>
@@ -726,9 +725,8 @@ function renderLauncher() {
   const runnerBtn = $('#runner', box);
   const paintRunner = () => {
     paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort);
-    runnerBtn.title = `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
+    runnerBtn.title = compare.length ? runnerTip(agent?.id, curModel, curEffort) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
   };
-  paintRunner();
 
   // Worktree: each launch gets a fresh branch from the remote's default branch (git repos only).
   const wtBtn = $('#wtBtn', box);
@@ -764,31 +762,61 @@ function renderLauncher() {
       api('/config', { method: 'PATCH', body: { defaults: { subagents: team, teamPreset } } }).catch(() => {});
     });
 
-  // Compare: a second harness gets the same task; picks here don't touch the launcher defaults.
-  let compare = null;
+  // Compare: more harnesses get the same task (up to MAX_RUNNERS in all); picks here don't touch
+  // the launcher defaults. Each extra sits behind a "vs" that removes it; the button at the end
+  // adds the next one. Past two, the pill folds the names away and keeps the logos.
+  let compare = [];
   const vsBtn = $('#compareBtn', box);
-  const runner2 = $('#runner2', box);
+  const runners = vsBtn.parentElement;
   const paintCompare = () => {
-    vsBtn.parentElement.classList.toggle('cmp', !!compare);
-    vsBtn.setAttribute('aria-pressed', String(!!compare));
-    vsBtn.title = compare ? 'Stop comparing' : 'Compare: run the same task on a second harness, side by side';
-    runner2.hidden = !compare;
-    if (compare) paintRunnerBtn(runner2, compare.agent, compare.model, compare.effort);
+    const n = compare.length;
+    runners.classList.toggle('cmp', n > 0);
+    runners.classList.toggle('many', n > 1);
+    for (const x of $$('.cmp-x', runners)) x.remove();
+    compare.forEach((c, i) => {
+      const name = agentName(c.agent);
+      const del = el(`<button class="vs-btn vs-del cmp-x" data-i="${i}" title="Remove ${esc(name)} from the comparison" aria-label="Remove ${esc(name)}"><span>vs</span>${icon('x')}</button>`);
+      const btn = el(`<button class="runner-btn cmp-x" data-i="${i}" aria-haspopup="dialog"></button>`);
+      paintRunnerBtn(btn, c.agent, c.model, c.effort);
+      btn.title = runnerTip(c.agent, c.model, c.effort);
+      vsBtn.before(del, btn);
+    });
+    vsBtn.hidden = n >= MAX_RUNNERS - 1;
+    vsBtn.title = n ? `Add another harness (up to ${MAX_RUNNERS} side by side)` : 'Compare: run the same task on another harness, side by side';
+    paintRunner(); // its tooltip spells everything out once the names fold away
   };
-  paintCompare();
   vsBtn.onclick = () => {
-    if (compare) compare = null;
-    else {
-      const other = harnessesAt(launchWhere).find((a) => a.available && a.id !== agent?.id) || agent;
-      compare = { agent: other?.id, model: savedModel(other?.id), effort: savedEffort(other?.id, savedModel(other?.id)) };
-    }
+    // The next harness nobody in the pill uses yet; once they're all in, another copy of the lead.
+    const used = new Set([agent?.id, ...compare.map((c) => c.agent)]);
+    const here = harnessesAt(launchWhere).filter((a) => a.available);
+    const next = here.find((a) => !used.has(a.id)) || agent;
+    const model = savedModel(next?.id);
+    compare = [...compare, { agent: next?.id, model, effort: savedEffort(next?.id, model) }];
     paintCompare();
+    // Its "vs" lands right under the pointer: it can't remove anything until the pointer has left.
+    const fresh = $$('.vs-del', runners).at(-1);
+    fresh?.classList.add('fresh');
+    fresh?.addEventListener('pointerleave', () => fresh.classList.remove('fresh'), { once: true });
+    // Straight into picking it when it's a repeat, since that's rarely the one you want.
+    if (used.has(next?.id)) $$('.runner-btn.cmp-x', runners).at(-1)?.click();
   };
-  runner2.onclick = () =>
-    runnerPicker(runner2, { ...compare, savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
-      compare = { agent: id, model, effort };
+  runners.addEventListener('click', (e) => {
+    const x = e.target.closest('.cmp-x');
+    if (!x) return;
+    const i = Number(x.dataset.i);
+    if (x.classList.contains('vs-del')) {
+      if (x.classList.contains('fresh')) return;
+      compare = compare.filter((_, k) => k !== i);
+      paintCompare();
+      (compare.length ? $$('.vs-del', runners)[Math.min(i, compare.length - 1)] : vsBtn).focus();
+      return;
+    }
+    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
+      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort } : c));
       paintCompare();
     });
+  });
+  paintCompare();
   runnerBtn.onclick = () =>
     runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launchWhere }, (id, model, effort) => {
       agent = harnessesAt(launchWhere).find((a) => a.id === id);
@@ -807,13 +835,18 @@ function renderLauncher() {
   const launch = async () => {
     const prompt = ta.value.trim();
     if (!prompt) return ta.focus();
+    if (isFeedback(prompt)) {
+      ta.value = '';
+      ta.dispatchEvent(new Event('input'));
+      return feedbackCommand(prompt, { restore: () => !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input'))) });
+    }
     // One run per place picked under "Run on", each in the project picked for it.
     const targets = launchWhere.map((k) => ({ k, m: k ? machineById(k) : null, project: projectById(launchPicks[k]) }));
     const unset = targets.find((t) => !t.project);
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
     if (off) return offlineToast(off.k);
-    const wanted = [agent?.id, ...(compare ? [compare.agent] : [])];
+    const wanted = [agent?.id, ...compare.map((c) => c.agent)];
     for (const t of targets) {
       const list = agentsAt(t.k);
       const missing = list && wanted.find((id) => !list.some((x) => x.id === id && x.available));
@@ -828,7 +861,7 @@ function renderLauncher() {
     const cmp = compare;
     const runner = { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
     const pending = targets.map((t) => addPending(prompt, t, runner));
-    if (compare) (compare = null), paintCompare();
+    if (cmp.length) (compare = []), paintCompare();
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
@@ -847,7 +880,7 @@ function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp ? false : undefined, compare: cmp ? [cmp] : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -861,7 +894,7 @@ function renderLauncher() {
       if (!started.length) {
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
         tray.restore(files);
-        if (cmp && !compare) (compare = cmp), paintCompare();
+        if (cmp.length && !compare.length) (compare = cmp), paintCompare();
         return;
       }
       askNotify();
@@ -895,6 +928,15 @@ function renderLauncher() {
       setMode(MODES[(MODES.findIndex((m) => m.id === curMode) + 1) % MODES.length].id);
     }
   });
+}
+
+// One launch runs on at most this many harnesses side by side (the server's MAX_COMPARE).
+const MAX_RUNNERS = 4;
+// A runner button's tooltip, for when the pill is too full to show names.
+function runnerTip(agentId, model, effort) {
+  const a = agentById(agentId);
+  const m = (a?.models || []).find((x) => x.id === model);
+  return [a?.name || agentName(agentId), m?.label || model || 'Default model', effort && effortLabel(effort)].filter(Boolean).join(' · ');
 }
 
 // The harness · model · thinking button, as in the launcher. agent '' reads "Launcher default".
@@ -1750,7 +1792,7 @@ function renderBody(id, { fresh }) {
     ${mode && mode.id !== 'edits' ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
     ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} subagent${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
-    ${s.origin ? `<span class="m" title="Launched by a ${esc(s.origin.kind)}">${icon(s.origin.kind === 'trigger' ? 'replay' : 'spark')}${esc(s.origin.name)}</span>` : ''}`;
+    ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
   // Ship sits in the top bar and again next to the composer, so it's there after reading the result.
   renderPrStrip(id);
@@ -2009,6 +2051,7 @@ function renderTrail(s, t) {
   const st = t.stats || {};
   const canRollback = s.agent !== 'wisp' && s.state !== 'running' && (t.changes?.length || t.checkpoint?.commit);
   const rolledBack = !!t.rolledBackAt;
+  const rated = t.feedback?.rating;
   const node = el(`
     <div class="trail">
       <div class="trail-bar">
@@ -2020,6 +2063,7 @@ function renderTrail(s, t) {
         ${t.changes?.length ? `<button class="link xs" data-tab="changes">${t.changes.length} file${t.changes.length > 1 ? 's' : ''} <span class="plus">+${totals.add}</span> <span class="minus">−${totals.del}</span></button>` : ''}
         ${acts.length ? `<button class="link xs" data-tab="activity">Activity</button>` : ''}
         ${t.presentation?.notes ? `<button class="link xs" data-tab="notes">Agent notes</button>` : ''}
+        ${feedbackOn() ? `<span class="rate ${rated ? 'rated' : ''}">${['up', 'down'].map((r) => `<button class="rate-btn ${rated === r ? 'on' : ''}" data-rate="${r}" title="${r === 'up' ? 'Good result' : 'Bad result'}: tell the wisp team" aria-pressed="${rated === r}">${icon(`thumb-${r}`)}</button>`).join('')}</span>` : ''}
       </div>
       <div class="trail-body" hidden></div>
     </div>`);
@@ -2028,6 +2072,20 @@ function renderTrail(s, t) {
   node.addEventListener('click', (e) => {
     if (e.target.closest('[data-a="rollback"]')) {
       return rollbackTurn(s.id, t.id, rolledBack);
+    }
+    const rb = e.target.closest('[data-rate]');
+    if (rb) {
+      const next = t.feedback?.rating === rb.dataset.rate ? null : rb.dataset.rate;
+      rateTurn(s, t, node, next);
+      if (next !== 'down' && open === 'rate') ((open = null), (body.hidden = true));
+      if (next === 'down') {
+        open = 'rate';
+        $$('[data-tab]', node).forEach((x) => x.classList.remove('on'));
+        body.hidden = false;
+        body.innerHTML = '';
+        body.append(whyForm(s, t, () => ((open = null), (body.hidden = true))));
+      }
+      return;
     }
     const b = e.target.closest('[data-tab]');
     if (!b) return;
@@ -2207,12 +2265,17 @@ async function sendReply(id, text) {
   const n = S.nodes.get(id);
   text = (text || '').trim();
   if (!s || !text) return;
+  const ta = n && $('.reply', n.card);
+  if (isFeedback(text)) {
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    return feedbackCommand(text, { sessionId: id, restore: () => ta?.isConnected && !ta.value && ((ta.value = text), ta.dispatchEvent(new Event('input'))) });
+  }
   if (n?.tray?.busy) toast('Waiting for uploads…');
   const attachments = n?.tray ? await n.tray.ids() : [];
   const answering = !!s.ask && !attachments.length;
   // Optimistic: the composer empties and the card goes to Working before the server answers
   // (it may first have to bring back an archived worktree, or reach another machine).
-  const ta = n && $('.reply', n.card);
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
   S.drafts.delete(id);
   const files = n?.tray?.take();
@@ -3618,6 +3681,8 @@ async function openPhone({ host } = {}) {
   const status = (st) => (!st ? '' : st.ok ? `<span class="ph-ok">${icon('check')}Working</span>` : `<span class="ph-bad">${icon('warn')}${esc(st.error || 'Failed')}</span>`);
   const paint = () => {
     const tg = r.telegram;
+    const projects = S.config.projects || [];
+    const lastUsed = [...projects].sort(recentFirst)[0];
     $('.ph-body', node).innerHTML = `
       <div class="settings-modal ph-sec">
         <div class="setting"><span>Send me</span>
@@ -3645,6 +3710,22 @@ async function openPhone({ host } = {}) {
               ? `Now send <code>/link ${esc(tg.linkCode)}</code> to your bot. Only the chat that sends this code gets linked.`
               : 'Create a bot with @BotFather, paste its token here and switch Telegram on.'
         }</p>
+        ${
+          tg.linked
+            ? `<div class="ph-start">
+          <div class="ph-row"><span class="grow">Start tasks from Telegram</span><button class="switch" data-sw="tgStart" role="switch" aria-checked="${tg.allowStart}"></button></div>
+          ${
+            tg.allowStart
+              ? `<div class="settings-modal"><label><span>Default project</span><select class="input" data-tg="project">
+              <option value="">Last used${lastUsed ? ` (${esc(lastUsed.name)})` : ''}</option>
+              ${projects.map((p) => `<option value="${esc(p.id)}" ${p.id === tg.project ? 'selected' : ''}>${esc(p.name)}${p.machine ? ` · ${esc(placeName(p.machine))}` : ''}</option>`).join('')}
+            </select></label></div>
+          <p class="hint">Send <code>/new fix the flaky login test</code> to start a task in the default project, or <code>/new @${esc(projects[0]?.name || 'project')} …</code> to pick one; <code>/projects</code> lists them. Tasks use the launcher's harness, model and mode. Only your linked chat can start them.</p>`
+              : '<p class="hint">Off: the bot only answers and follows up on tasks you started here.</p>'
+          }
+        </div>`
+            : ''
+        }
       </section>
       <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>`;
   };
@@ -3652,7 +3733,8 @@ async function openPhone({ host } = {}) {
     const t = e.target;
     if (t.dataset.ev) put({ events: $$('[data-ev]', node).filter((x) => x.checked).map((x) => x.dataset.ev) });
     if (t.dataset.ntfy) put({ ntfy: { ...r.ntfy, [t.dataset.ntfy]: t.value.trim() } });
-    if (t.dataset.tg) put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
+    if (t.dataset.tg === 'token') put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
+    if (t.dataset.tg === 'project') put({ telegram: { project: t.value } });
   });
   node.addEventListener('click', async (e) => {
     const sw = e.target.closest('[data-sw]')?.dataset.sw;
@@ -3662,6 +3744,7 @@ async function openPhone({ host } = {}) {
       return put({ ntfy: { ...r.ntfy, enabled: !r.ntfy.enabled, topic } });
     }
     if (sw === 'telegram') return put({ telegram: { enabled: !r.telegram.enabled, token: r.telegram.token } });
+    if (sw === 'tgStart') return put({ telegram: { allowStart: !r.telegram.allowStart } });
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
     if (act === 'test') {
@@ -4458,12 +4541,136 @@ function shortcuts() {
     ['1–9', 'Pick an answer when asked'],
     ['↵', 'Launch / send'],
     ['⇧↵', 'New line'],
+    ['/feedback', 'Send feedback to the wisp team (in any prompt box)'],
     ['C', 'Collapse all'],
     ['U', 'Back to top'],
     ['Esc', 'Close / collapse'],
   ];
   const node = el(`<div class="modal keys-modal"><header><h2>Shortcuts</h2></header>${rows.map(([k, l]) => `<div class="krow"><kbd>${k}</kbd><span>${l}</span></div>`).join('')}</div>`);
   overlay(node);
+}
+
+// --- feedback ---------------------------------------------------------------------------
+// Three ways in, none of them taking room: thumbs at the end of a turn's trail, "/feedback …" in
+// any prompt box, and "Send feedback" in ⌘K. It all goes to the wisp team (PostHog), with the
+// run's harness, model and status but never the prompt or the result.
+
+const feedbackOn = () => S.config?.feedback !== false;
+const FEEDBACK_CMD = /^\/feedback(?:\s|$)/i;
+const isFeedback = (text) => FEEDBACK_CMD.test(text);
+const THANKS = 'Thanks! Sent to the wisp team.';
+
+// The box is already empty; `restore` puts the text back if the server refuses it.
+function feedbackCommand(text, { sessionId, restore } = {}) {
+  if (!feedbackOn()) return (restore?.(), toast('Feedback is turned off on this install.', { tone: 'bad' }));
+  const note = text.replace(FEEDBACK_CMD, '').trim();
+  if (!note) return openFeedback({ sessionId });
+  postFeedback({ text: note, sessionId, source: 'command' }, { onFail: restore });
+}
+
+// Optimistic: thanks at once. Offline, the server keeps it and sends it later.
+function postFeedback(body, { onFail, quiet = false } = {}) {
+  if (!quiet) toast(THANKS);
+  return api('/feedback', { method: 'POST', body })
+    .then((r) => {
+      if (!r.sent && r.available !== false) toast('Saved: it goes out once wisp is back online.');
+    })
+    .catch((err) => {
+      onFail?.();
+      toast(esc(err.message), { tone: 'bad' });
+    });
+}
+
+function paintRate(node, rating) {
+  $('.rate', node)?.classList.toggle('rated', !!rating);
+  $$('[data-rate]', node).forEach((b) => {
+    b.classList.toggle('on', b.dataset.rate === rating);
+    b.setAttribute('aria-pressed', b.dataset.rate === rating);
+  });
+}
+
+function rateTurn(s, t, node, rating) {
+  const prev = t.feedback;
+  t.feedback = rating ? { rating, at: Date.now() } : undefined;
+  paintRate(node, rating);
+  if (rating === 'up') {
+    const tip = $('.rate', node);
+    tip.classList.remove('thanked');
+    void tip.offsetWidth; // restart the animation
+    tip.classList.add('thanked');
+  }
+  postFeedback({ rating, sessionId: s.id, turnId: t.id, source: 'turn' }, {
+    quiet: true,
+    onFail: () => ((t.feedback = prev), paintRate(node, prev?.rating)),
+  });
+}
+
+// After 👎: one optional line on what went wrong. The rating is already sent.
+function whyForm(s, t, close) {
+  const f = el(`
+    <form class="why">
+      <textarea class="textarea" rows="2" placeholder="What went wrong? Optional, goes to the wisp team" maxlength="4000"></textarea>
+      <div class="why-foot"><span class="muted xs">Sent with the harness and model, not your prompt or code.</span><button type="button" class="link xs" data-a="skip">Skip</button><button class="primary xs">Send</button></div>
+    </form>`);
+  const ta = $('textarea', f);
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const text = ta.value.trim();
+    if (!text) return close();
+    close();
+    postFeedback({ rating: 'down', text, sessionId: s.id, turnId: t.id, source: 'turn' }, { onFail: () => openFeedback({ sessionId: s.id, text, rating: 'down' }) });
+  };
+  ta.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) (e.preventDefault(), f.requestSubmit());
+    if (e.key === 'Escape') (e.stopPropagation(), close());
+  };
+  $('[data-a="skip"]', f).onclick = () => {
+    close();
+    toast(THANKS);
+  };
+  requestAnimationFrame(() => ta.focus());
+  return f;
+}
+
+function openFeedback({ sessionId, text = '', rating = null } = {}) {
+  if (!feedbackOn()) return toast('Feedback is turned off on this install.', { tone: 'bad' });
+  const node = el(`
+    <form class="modal fb-modal">
+      <header><h2>Send feedback</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
+      <div class="fb-rate"><span>How is wisp working for you?</span>
+        ${['up', 'down'].map((r) => `<button type="button" class="rate-btn" data-rate="${r}" aria-pressed="false" title="${r === 'up' ? 'Good' : 'Not good'}">${icon(`thumb-${r}`)}</button>`).join('')}
+      </div>
+      <textarea class="textarea" name="text" rows="5" maxlength="4000" placeholder="What works, what breaks, what you wish it did…"></textarea>
+      <div class="ship-foot"><span class="muted xs">Goes to the wisp team with your wisp version and OS. Not your code or prompts. Tip: type <code>/feedback …</code> in any prompt box.</span><button class="primary sm" data-a="send">${icon('send')}Send</button></div>
+    </form>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  const ta = $('textarea', node);
+  const send = $('[data-a="send"]', node);
+  ta.value = text;
+  const paint = () => {
+    paintRate(node, rating);
+    send.disabled = !rating && !ta.value.trim();
+  };
+  $$('[data-rate]', node).forEach((b) => {
+    b.onclick = () => {
+      rating = rating === b.dataset.rate ? null : b.dataset.rate;
+      paint();
+    };
+  });
+  ta.oninput = paint;
+  ta.onkeydown = (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) (e.preventDefault(), node.requestSubmit());
+  };
+  node.onsubmit = (e) => {
+    e.preventDefault();
+    const note = ta.value.trim();
+    if (!rating && !note) return;
+    close();
+    postFeedback({ rating: rating || undefined, text: note, sessionId, source: 'dialog' }, { onFail: () => openFeedback({ sessionId, text: note, rating }) });
+  };
+  paint();
+  requestAnimationFrame(() => ta.focus());
 }
 
 // --- command palette ------------------------------------------------------------------
@@ -4553,6 +4760,7 @@ function paletteItems() {
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
+  if (feedbackOn()) items.push({ group: a, label: 'Send feedback…', icon: 'thumb-up', keywords: 'feedback bug report idea suggestion thumbs contact team', run: () => openFeedback() });
 
   for (const r of S.config.recipes || []) items.push({ group: 'Recipes', label: `Run: ${r.name}`, sub: r.prompt.replace(/\s+/g, ' ').slice(0, 80), icon: 'spark', keywords: `recipe ${r.prompt}`, run: () => runRecipe({ ...r, params: recipeParams(r.prompt) }) });
 

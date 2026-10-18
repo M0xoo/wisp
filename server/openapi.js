@@ -46,6 +46,22 @@ export function openapi({ version, port }) {
       },
       '/agents': { get: { summary: 'Installed harnesses with their models and thinking levels (?fresh=1 detects again)', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
+      '/feedback': {
+        post: {
+          summary: 'Send feedback to the wisp team: thumbs on a turn and/or a note. Sent even with usage stats off; WISP_FEEDBACK=0 turns it off',
+          requestBody: body({
+            type: 'object',
+            properties: {
+              rating: { type: ['string', 'null'], enum: ['up', 'down', null], description: 'With turnId: kept on that turn; null takes it back' },
+              text: { type: 'string', maxLength: 4000 },
+              sessionId: { type: 'string', description: 'Adds that run\'s harness, model and status (never the prompt or result)' },
+              turnId: { type: 'string' },
+              source: { type: 'string', description: 'turn | command | dialog' },
+            },
+          }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, sent: { type: 'boolean', description: 'false: kept in ~/.wisp/feedback-outbox.json and retried' }, available: { type: 'boolean' } } }), 400: err[400] },
+        },
+      },
       '/config': {
         get: { summary: 'Launcher defaults, projects, webhooks', responses: { 200: json({ type: 'object' }) } },
         patch: {
@@ -140,7 +156,7 @@ export function openapi({ version, port }) {
         get: { summary: 'Phone channels (ntfy, Telegram) with secrets masked, and their status', responses: { 200: json({ type: 'object' }) } },
         put: {
           summary: 'Configure phone channels. A masked token (••••1234) means unchanged',
-          requestBody: body({ type: 'object', properties: { events: { type: 'array', items: { enum: ['waiting', 'finished'] } }, ntfy: { type: 'object', properties: { enabled: { type: 'boolean' }, server: { type: 'string' }, topic: { type: 'string' }, token: { type: 'string' } } }, telegram: { type: 'object', properties: { enabled: { type: 'boolean' }, token: { type: 'string' }, unlink: { type: 'boolean' } } } } }),
+          requestBody: body({ type: 'object', properties: { events: { type: 'array', items: { enum: ['waiting', 'finished'] } }, ntfy: { type: 'object', properties: { enabled: { type: 'boolean' }, server: { type: 'string' }, topic: { type: 'string' }, token: { type: 'string' } } }, telegram: { type: 'object', properties: { enabled: { type: 'boolean' }, token: { type: 'string' }, unlink: { type: 'boolean' }, allowStart: { type: 'boolean', description: '/new in the linked chat starts tasks' }, project: { type: 'string', description: 'Project id /new uses without @name; empty = last used' } } } } }),
           responses: { 200: json({ type: 'object' }), 400: err[400] },
         },
       },

@@ -70,7 +70,7 @@ export function summarize(s, store) {
     toShip: s.toShip || null, // { dirty, ahead, unpushed } of the worktree, null until checked
     pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks } : null,
     groupId: s.groupId || null,
-    origin: s.origin || null, // { kind: 'recipe' | 'trigger', id, name }
+    origin: s.origin || null, // { kind: 'recipe' | 'trigger' | 'telegram', id, name }
     // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.
     team: (s.subagents || []).flatMap((m) =>
       copies(m).map((name) => {

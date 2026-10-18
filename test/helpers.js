@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 process.env.WISP_TELEMETRY = '0'; // tests never report to PostHog
+process.env.WISP_FEEDBACK = '0';
 
 const FAKE = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta.url));
 const FAKE_GH = fileURLToPath(new URL('./fixtures/fake-gh.mjs', import.meta.url));
