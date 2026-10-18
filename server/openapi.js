@@ -140,7 +140,7 @@ export function openapi({ version, port }) {
         get: { summary: 'Phone channels (ntfy, Telegram) with secrets masked, and their status', responses: { 200: json({ type: 'object' }) } },
         put: {
           summary: 'Configure phone channels. A masked token (••••1234) means unchanged',
-          requestBody: body({ type: 'object', properties: { events: { type: 'array', items: { enum: ['waiting', 'finished'] } }, ntfy: { type: 'object', properties: { enabled: { type: 'boolean' }, server: { type: 'string' }, topic: { type: 'string' }, token: { type: 'string' } } }, telegram: { type: 'object', properties: { enabled: { type: 'boolean' }, token: { type: 'string' }, unlink: { type: 'boolean' } } } } }),
+          requestBody: body({ type: 'object', properties: { events: { type: 'array', items: { enum: ['waiting', 'finished'] } }, ntfy: { type: 'object', properties: { enabled: { type: 'boolean' }, server: { type: 'string' }, topic: { type: 'string' }, token: { type: 'string' } } }, telegram: { type: 'object', properties: { enabled: { type: 'boolean' }, token: { type: 'string' }, unlink: { type: 'boolean' }, allowStart: { type: 'boolean', description: '/new in the linked chat starts tasks' }, project: { type: 'string', description: 'Project id /new uses without @name; empty = last used' } } } } }),
           responses: { 200: json({ type: 'object' }), 400: err[400] },
         },
       },

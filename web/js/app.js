@@ -1750,7 +1750,7 @@ function renderBody(id, { fresh }) {
     ${mode && mode.id !== 'edits' ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
     ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} subagent${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
-    ${s.origin ? `<span class="m" title="Launched by a ${esc(s.origin.kind)}">${icon(s.origin.kind === 'trigger' ? 'replay' : 'spark')}${esc(s.origin.name)}</span>` : ''}`;
+    ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
   // Ship sits in the top bar and again next to the composer, so it's there after reading the result.
   renderPrStrip(id);
@@ -3610,6 +3610,8 @@ async function openPhone({ host } = {}) {
   const status = (st) => (!st ? '' : st.ok ? `<span class="ph-ok">${icon('check')}Working</span>` : `<span class="ph-bad">${icon('warn')}${esc(st.error || 'Failed')}</span>`);
   const paint = () => {
     const tg = r.telegram;
+    const projects = S.config.projects || [];
+    const lastUsed = [...projects].sort(recentFirst)[0];
     $('.ph-body', node).innerHTML = `
       <div class="settings-modal ph-sec">
         <div class="setting"><span>Send me</span>
@@ -3637,6 +3639,22 @@ async function openPhone({ host } = {}) {
               ? `Now send <code>/link ${esc(tg.linkCode)}</code> to your bot. Only the chat that sends this code gets linked.`
               : 'Create a bot with @BotFather, paste its token here and switch Telegram on.'
         }</p>
+        ${
+          tg.linked
+            ? `<div class="ph-start">
+          <div class="ph-row"><span class="grow">Start tasks from Telegram</span><button class="switch" data-sw="tgStart" role="switch" aria-checked="${tg.allowStart}"></button></div>
+          ${
+            tg.allowStart
+              ? `<div class="settings-modal"><label><span>Default project</span><select class="input" data-tg="project">
+              <option value="">Last used${lastUsed ? ` (${esc(lastUsed.name)})` : ''}</option>
+              ${projects.map((p) => `<option value="${esc(p.id)}" ${p.id === tg.project ? 'selected' : ''}>${esc(p.name)}${p.machine ? ` · ${esc(placeName(p.machine))}` : ''}</option>`).join('')}
+            </select></label></div>
+          <p class="hint">Send <code>/new fix the flaky login test</code> to start a task in the default project, or <code>/new @${esc(projects[0]?.name || 'project')} …</code> to pick one; <code>/projects</code> lists them. Tasks use the launcher's harness, model and mode. Only your linked chat can start them.</p>`
+              : '<p class="hint">Off: the bot only answers and follows up on tasks you started here.</p>'
+          }
+        </div>`
+            : ''
+        }
       </section>
       <div class="ship-foot"><span class="grow"></span><button class="ghost sm" data-act="test">${icon('send')}Send a test</button></div>`;
   };
@@ -3644,7 +3662,8 @@ async function openPhone({ host } = {}) {
     const t = e.target;
     if (t.dataset.ev) put({ events: $$('[data-ev]', node).filter((x) => x.checked).map((x) => x.dataset.ev) });
     if (t.dataset.ntfy) put({ ntfy: { ...r.ntfy, [t.dataset.ntfy]: t.value.trim() } });
-    if (t.dataset.tg) put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
+    if (t.dataset.tg === 'token') put({ telegram: { enabled: r.telegram.enabled, token: t.value.trim() } });
+    if (t.dataset.tg === 'project') put({ telegram: { project: t.value } });
   });
   node.addEventListener('click', async (e) => {
     const sw = e.target.closest('[data-sw]')?.dataset.sw;
@@ -3654,6 +3673,7 @@ async function openPhone({ host } = {}) {
       return put({ ntfy: { ...r.ntfy, enabled: !r.ntfy.enabled, topic } });
     }
     if (sw === 'telegram') return put({ telegram: { enabled: !r.telegram.enabled, token: r.telegram.token } });
+    if (sw === 'tgStart') return put({ telegram: { allowStart: !r.telegram.allowStart } });
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'unlink') return put({ telegram: { enabled: r.telegram.enabled, token: r.telegram.token, unlink: true } });
     if (act === 'test') {

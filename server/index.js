@@ -257,6 +257,15 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   const remote = new Remote({
     store,
     onChange: () => broadcast('remote', {}),
+    // /new from Telegram: the launcher's remembered harness, model and mode, like `wisp "…"`.
+    launch: async ({ project, prompt }) => {
+      const d = store.config.defaults;
+      const agent = d.agent || 'claude';
+      const model = d.models?.[agent] ?? d.model ?? '';
+      const [s] = await launchAny({ prompt, cwd: project.path, machine: project.machine || undefined, agent, model, mode: d.mode || 'edits' }, { kind: 'telegram', name: 'Telegram' });
+      broadcast('config', {});
+      return s;
+    },
     act: async ({ sessionId, kind, ref, index, text }) => {
       const ops = await sessionOps(sessionId).catch((err) => ({ error: err.message }));
       if (ops?.error) return `Can’t reach it: ${ops.error}`;
@@ -742,9 +751,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         }
         if (m === 'POST') {
           const body = await readJson(req);
-          // A machine's wisp hands on where a recipe or trigger launch came from.
+          // A machine's wisp hands on where a recipe, trigger or Telegram launch came from.
           const o = body.origin;
-          const origin = o && (o.kind === 'recipe' || o.kind === 'trigger') ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
+          const origin = o && ['recipe', 'trigger', 'telegram'].includes(o.kind) ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
           const out = await launchAny(body, origin);
           return send(res, 201, out.length > 1 ? { ...out[0], group: out } : out[0]);
         }

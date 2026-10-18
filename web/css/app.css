@@ -1693,6 +1693,8 @@ body.electron.mac .topbar { padding-left: 88px; }
 .ph-ok { color: var(--good); }
 .ph-bad { color: var(--bad); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ph-ok .i, .ph-bad .i { width: 12px; height: 12px; }
+.ph-start { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ph-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 6px; }
 
 /* ---------- subagents ---------- */
 /* logo stack: the lead in front, its subagents tucked behind; they fan out on hover */

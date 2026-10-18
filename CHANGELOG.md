@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Start tasks from Telegram.** In **Phone → Telegram**, switch on **Start tasks from Telegram**, then send your bot `/new fix the flaky login test`. The task runs in your default project (the last used, or the one you pick in that section) with the launcher's harness, model and mode. `/new @api add rate limiting` picks a project by name, and `/projects` lists them. The bot replies **▶ Started**, and replying to that message sends a follow-up. Its card shows **Telegram** as where it came from. It's off by default, only the linked chat can start tasks, and a `/new` sent while wisp was offline is not run later. API: `PUT /api/remote` with `telegram.allowStart` and `telegram.project`.
+
+### Fixed
+
+- Changing a Telegram setting through the API without a `token` no longer clears the bot token and unlinks the chat. After a settings change, Telegram no longer re-delivers messages wisp already handled.
+
 ## [0.12.0] - 2026-10-18
 
 ### Added
