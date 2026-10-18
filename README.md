@@ -53,7 +53,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🤝 **Subagents** | Give the lead agent a team on other harnesses (e.g. Claude Code hands tests to Codex ×3). It delegates through a `delegate` tool; their edits land in its worktree. See [Subagents](#subagents). |
 | ⏪ **Checkpoints & rollback** | Every turn is snapshotted first. Restore to before any turn, revert a single file, or re-run a command block from the presentation. |
 | ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
-| 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.11.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
+| 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.12.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
 | 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
@@ -125,7 +125,7 @@ wisp reply <id> "also do X"       # follow up (answers a pending question)
 wisp stop <id>
 wisp ship <id> [--draft]          # commit, push and open a PR for a worktree task
 wisp merge <id>                   # squash-merge its PR, fast-forward your local main
-wisp run release 0.11.0            # run a recipe; values fill its {params} (or version=0.11.0)
+wisp run release 0.12.0            # run a recipe; values fill its {params} (or version=0.12.0)
 wisp recipes                      # list recipes
 wisp usage [--days 7]             # spend and outcomes
 wisp mcp                          # MCP server for other agents and editors
@@ -305,7 +305,7 @@ Before each turn, wisp snapshots the git working tree (pinned at `refs/wisp/chec
 Prepare release {version}: update CHANGELOG, README and docs/, bump package.json, tag v{version}.
 ```
 
-Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe may pin a project, harness, model and mode. Run it from ⌘K (*Run: Release*), from the Recipes view, or from a terminal: `wisp run release 0.11.0` fills the fields in order, `wisp run release version=0.11.0` by name.
+Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe may pin a project, harness, model and mode. Run it from ⌘K (*Run: Release*), from the Recipes view, or from a terminal: `wisp run release 0.12.0` fills the fields in order, `wisp run release version=0.12.0` by name.
 
 **Triggers** launch sessions on their own while wisp is open (⌘K → *Triggers*):
 
