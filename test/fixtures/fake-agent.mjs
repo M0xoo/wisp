@@ -11,6 +11,7 @@
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
+//   FAKE_LEAVE_CONFLICTS=1  asked to merge the base in (wisp's conflict fix): leave the conflicts
 //   FAKE_BACKGROUND  claude only: end the turn with a background task still running ("I'll report
 //                once it has finished"), then report again <ms> later the way the real CLI does;
 //                `exit` quits instead, `hang` never finishes the task; FAKE_BACKGROUND_DONE=1 makes
@@ -24,7 +25,7 @@
 // the run allows it (claude --allowedTools Bash(npm publish), or a Full auto run): claude reports
 // it in permission_denials, opencode on stderr, codex in a `blocked` block of its presentation.
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -178,6 +179,16 @@ const final = (answer) => {
 
 const hang = () => setInterval(() => {}, 1 << 30);
 if (process.env.FAKE_DELAY) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_DELAY)));
+// wisp's merge-conflict fix-up: really merge the base in (this side wins each conflict), or with
+// FAKE_LEAVE_CONFLICTS=1 stop halfway, conflicts and all.
+const fixup = stdin.match(/`git merge ([\w.-]+\/[\w./-]+)`/);
+if (fixup) {
+  const g = (...a) => execFileSync('git', a, { cwd, stdio: 'ignore' });
+  g('fetch', '--quiet', fixup[1].split('/')[0]);
+  try {
+    g('merge', '--quiet', '--no-edit', ...(process.env.FAKE_LEAVE_CONFLICTS ? [] : ['-X', 'ours']), fixup[1]);
+  } catch {}
+}
 const ask = async () => {
   const srv = injectedMcp();
   if (stdin.includes('DELEGATE') && srv) {

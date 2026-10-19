@@ -208,7 +208,7 @@ function renderHead(n, s) {
     <span class="it-side">
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
-      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr) : ''}
+      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr, s.conflictFix) : ''}
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
       <span class="q-proj">${esc(s.project)}</span>
@@ -233,7 +233,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}<span class="q-proj">${esc(s.project)}</span>` : ''}
       ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
-      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr) : ''}
+      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr, s.conflictFix) : ''}
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${icon('chevron', 'chev')}
     </span>`;

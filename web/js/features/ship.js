@@ -7,10 +7,16 @@ import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
 
-const prTone = (pr) =>
-  pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : pr.checks?.fail ? 'fail' : pr.checks?.pending ? 'pending' : pr.review === 'CHANGES_REQUESTED' ? 'fail' : 'pass';
+// fix: the session's conflictFix ({ step, why }) while wisp resolves the PR's merge conflicts itself.
+const fixing = (fix) => fix?.step === 'fixing' || fix?.step === 'pushing';
+const prTone = (pr, fix) =>
+  pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : pr.conflict ? (fixing(fix) ? 'pending' : 'fail') : pr.checks?.fail ? 'fail' : pr.checks?.pending ? 'pending' : pr.review === 'CHANGES_REQUESTED' ? 'fail' : 'pass';
 const REVIEW = { APPROVED: 'Approved', CHANGES_REQUESTED: 'Changes requested', REVIEW_REQUIRED: 'Review required' };
-function prLine(pr) {
+function prLine(pr, fix) {
+  if (pr.state === 'OPEN' && (pr.conflict || fixing(fix))) {
+    const what = fix?.step === 'pushing' ? 'Pushing the conflict fix' : fixing(fix) ? 'Fixing merge conflicts' : fix?.step === 'failed' ? `Conflicts not fixed: ${fix.why}` : 'Merge conflicts';
+    return `Open · ${what}`;
+  }
   const c = pr.checks || {};
   const checks = c.fail ? `${c.fail} check${c.fail > 1 ? 's' : ''} failing` : c.pending ? `${c.pending} check${c.pending > 1 ? 's' : ''} running` : c.pass ? `${c.pass} check${c.pass > 1 ? 's' : ''} passed` : 'No checks';
   const state = pr.state === 'MERGED' ? 'Merged' : pr.state === 'CLOSED' ? 'Closed' : pr.draft ? 'Draft' : 'Open';
@@ -36,7 +42,7 @@ export const shipLabel = (s) => (s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.nu
 
 export const shipPill = (s) => (s.shipping ? `<span class="pill ship-pill" title="Shipping: ${esc(STEP_DOING[s.shipping.step] || 'Starting')}…"><i></i>Shipping</span>` : '');
 
-export const prPill = (pr) => `<span class="pill pr pr-${prTone(pr)}" title="PR #${pr.number}: ${esc(prLine(pr))}"><i></i>#${pr.number}</span>`;
+export const prPill = (pr, fix) => `<span class="pill pr pr-${prTone(pr, fix)}" title="PR #${pr.number}: ${esc(prLine(pr, fix))}"><i></i>#${pr.number}</span>`;
 
 // The PR row under a card's bar; reads the live summary, so polled check results show up.
 export function renderPrStrip(id) {
@@ -56,20 +62,22 @@ export function renderPrStrip(id) {
   const landed = node.classList.contains('ship-run') && !node.classList.contains('failed');
   node.hidden = !pr;
   if (!pr) return;
-  const tone = prTone(pr);
+  const tone = prTone(pr, s.conflictFix);
   node.className = `pr-strip pr-${tone}${landed ? ' landed' : ''}`;
   node.innerHTML = `
     <span class="pr-dot"></span>
     <a href="${esc(pr.url)}" target="_blank" class="pr-num">PR #${pr.number}</a>
-    <span class="pr-line">${esc(prLine(pr))}</span>
+    <span class="pr-line">${esc(prLine(pr, s.conflictFix))}</span>
     <span class="grow"></span>
+    ${pr.state === 'OPEN' && pr.conflict && s.conflictFix?.step === 'failed' ? `<button class="ghost xs" data-pr="fix" title="Ask the agent to merge the base in and resolve the conflicts again">${icon('replay')}<span>Fix conflicts</span></button>` : ''}
     ${pr.state === 'OPEN' ? `<button class="ghost xs" data-pr="refresh" title="Check now (wisp also checks every minute)">${icon('replay')}</button>` : ''}
     <a class="ghost xs" href="${esc(pr.url)}" target="_blank">${icon('external')}<span>GitHub</span></a>
-    ${pr.state === 'OPEN' ? `<button class="ghost xs pr-merge" data-pr="merge" title="Squash-merge, then fast-forward your local ${esc(s.branch ? 'base branch' : 'checkout')}">${icon('check')}<span>Merge</span></button>` : ''}`;
+    ${pr.state === 'OPEN' && !pr.conflict ? `<button class="ghost xs pr-merge" data-pr="merge" title="Squash-merge, then fast-forward your local ${esc(s.branch ? 'base branch' : 'checkout')}">${icon('check')}<span>Merge</span></button>` : ''}`;
   node.onclick = (e) => {
     const a = e.target.closest('[data-pr]')?.dataset.pr;
     if (a === 'refresh') api(`/sessions/${id}/pr`, { method: 'POST', body: {} }).catch(toastError);
     if (a === 'merge') mergePr(id);
+    if (a === 'fix') api(`/sessions/${id}/fix-conflicts`, { method: 'POST', body: {} }).catch(toastError);
   };
 }
 
