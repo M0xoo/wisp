@@ -128,7 +128,7 @@
 .pill.ship-pill { --tone: var(--accent); }
 .pill.ship-pill i { animation: pulse 1.1s ease-in-out infinite; }
 @keyframes ship-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
-@keyframes ship-fly { 50% { transform: translate(2px, -2px); } }
+@keyframes ship-fly { 50% { transform: translateY(-2.5px); } }
 @keyframes ship-sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 @keyframes ship-land { from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 30%, transparent); transform: scale(1.015); } }
 @media (max-width: 640px) { .ship-track span { display: none; } }
