@@ -31,6 +31,13 @@
 .lp-chip.cloning .orb.live { --s: 11px; margin: 0; }
 .lp-chip .lp-note { color: var(--faint); font-weight: 400; font-size: 11.5px; }
 .lp-chip.add .i { width: 14px; height: 14px; }
+/* "+N": the projects that didn't get a chip, one search away */
+.lp-chip.more { gap: 5px; padding: 0 9px; color: var(--muted); }
+.lp-chip.more:hover, .lp-chip.more.open { color: var(--ink); border-color: var(--line-2); }
+.lp-chip.more .i { width: 12px; height: 12px; }
+.l-projects .lp-chip[hidden] { display: none; }
+/* narrow, with "+N" (whose list has No folder too): it goes icon-only unless picked */
+@container launcher (max-width: 520px) { .l-projects:has(.more:not([hidden])) .lp-chip.none:not(.on) span { display: none; } }
 /* recipes: one-click prompts under the launch bar */
 .l-recipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px -12px -10px; padding: 7px 14px 8px; border-top: 1px solid var(--line); }
 .l-recipes .l-in { display: inline-flex; align-items: center; gap: 5px; }
