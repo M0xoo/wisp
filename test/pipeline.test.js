@@ -200,7 +200,15 @@ test('your follow-up cancels what Auto was about to do', async () => {
   }
 });
 
+test('Best of two is off by default: the Best goal runs once', async () => {
+  assert.equal((await api('/router')).settings.best2, false);
+  const s = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', model: 'best', mode: 'edits' });
+  assert.equal(s.group, undefined);
+  await settledAll([s.id]);
+});
+
 test('Best goal: two frontier picks side by side, both checked, and wisp marks the better one', async () => {
+  await api('/router', { best2: true }, 'PATCH');
   // Claude alone has one frontier model (Opus): Best runs it alone rather than add Sonnet.
   const solo = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', model: 'best', mode: 'edits' });
   assert.equal(solo.group, undefined);
@@ -222,7 +230,7 @@ test('Best goal: two frontier picks side by side, both checked, and wisp marks t
     assert.equal(done.filter((x) => x.auto.pick.winner).length, 1);
     assert.ok(done[0].auto.pick.why);
   } finally {
-    await api('/router', { allowed: ['claude'] }, 'PATCH');
+    await api('/router', { allowed: ['claude'], best2: false }, 'PATCH');
   }
 });
 
