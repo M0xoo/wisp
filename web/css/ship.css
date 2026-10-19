@@ -63,6 +63,7 @@
 .pr-line { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pr-strip .ghost .i { width: 13px; height: 13px; }
 .pr-strip .pr-merge { color: var(--good); font-weight: 500; }
+.pr-strip .pr-fix { color: var(--bad); font-weight: 500; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 .ship-modal, .run-modal { width: min(620px, 100%); }

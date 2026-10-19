@@ -76,14 +76,15 @@ export function createShip(app) {
   };
 
   // The PR conflicts with its base: send the task a follow-up to merge the base in. Once per PR
-  // head, so a fix that didn't take isn't retried until something changes the branch.
+  // head, so a fix that didn't take isn't retried until something changes the branch. force: the
+  // user asked for it (the PR row's Fix conflicts), so the setting and those limits don't apply.
   const starting = new Set(); // a poll and a refresh at once must not both send it
-  const fixConflicts = async (s) => {
+  const fixConflicts = async (s, { force = false } = {}) => {
     const pr = s.pr;
-    if (store.config.defaults.fixConflicts === 'off' || pr?.state !== 'OPEN' || !pr.conflict || !s.worktree?.remote) return;
+    if ((!force && store.config.defaults.fixConflicts === 'off') || pr?.state !== 'OPEN' || !pr.conflict || !s.worktree?.remote) return;
     if (runner.live.has(s.id) || s.shipping || s.ask || s.archived || starting.has(s.id)) return;
     const tries = s.conflictFix?.tries || 0;
-    if (s.conflictFix?.head === pr.head || tries >= MAX_CONFLICT_FIXES) return;
+    if (!force && (s.conflictFix?.head === pr.head || tries >= MAX_CONFLICT_FIXES)) return;
     starting.add(s.id);
     try {
       if ((await conflictsWithBase(s.worktree)) === false || runner.live.has(s.id)) return;

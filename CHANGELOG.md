@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Fix conflicts button on every conflicting PR.** When a PR has merge conflicts, its row on the card now has a **Fix conflicts** button that sends the task a follow-up to merge the base in and resolve them; wisp pushes the result to the PR, as with the automatic fix. Before, the button only showed after the automatic fix had given up. It now also works with "Fix PR conflicts" off in Settings, or after the automatic retries ran out. The row switches to "Fixing merge conflicts" as soon as you click.
+
 ### Fixed
 
 - **Right-click menus no longer get cut off at the bottom of the window.** The task, project and queued-message menus measured themselves mid pop-in animation, while still scaled down, so near the bottom edge the last item ("Delete session") ended up below the fold. They now measure their real size and stay fully on-screen.

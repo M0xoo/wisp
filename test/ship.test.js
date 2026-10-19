@@ -247,6 +247,10 @@ test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries;
     await api(`/sessions/${other.s.id}/pr`, { body: {} });
     assert.equal((await session(other.s.id)).turns.length, 1);
     assert.equal((await summaryOf(other.s.id)).conflictFix, null);
+    // ...until the user clicks Fix conflicts on its PR row: that sends the follow-up anyway.
+    assert.equal((await api(`/sessions/${other.s.id}/fix-conflicts`, { body: {} })).conflictFix.step, 'fixing');
+    assert.match((await until(async () => ((await session(other.s.id)).turns.length === 2 ? session(other.s.id) : null))).turns[1].prompt, /can no longer merge/);
+    await until(async () => (await summaryOf(other.s.id)).conflictFix?.step === 'done');
   } finally {
     delete process.env.FAKE_LEAVE_CONFLICTS;
     await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'on' } } });
