@@ -118,6 +118,23 @@ for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
   });
 }
 
+test('wisp_stats: an agent reads tool counts across the user\'s sessions through the injected MCP server', async () => {
+  // Earlier tests left finished claude turns with Read / Edit / Bash calls in the store.
+  const s = await api('/sessions', { prompt: 'STATS: which tools do my tasks use?', cwd: makeRepo(), agent: 'claude', mode: 'edits', worktree: false });
+  const done = await until(async () => {
+    const x = await session(s.id);
+    return x.state === 'review' && x;
+  });
+  const summary = done.turns.at(-1).presentation.blocks[0].summary;
+  assert.match(summary, /wisp tool stats — last 7 days \(harness claude\)/);
+  const [, calls, turns] = summary.match(/(\d+) tool calls in (\d+) turns/);
+  assert.ok(Number(turns) >= 1 && Number(calls) >= 3 * Number(turns), summary);
+
+  // The bridge refuses calls without the run's token.
+  const r = await fetch(`${base}/api/internal/stats/${s.id}`);
+  assert.equal(r.status, 403);
+});
+
 test('a follow-up can switch harness and model: the new harness gets the turns it missed, switching back resumes', async () => {
   const s = await api('/sessions', { prompt: 'look at add() please', cwd: makeRepo(), agent: 'claude', mode: 'edits', worktree: false });
   const turns = (n) => until(async () => {

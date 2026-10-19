@@ -77,3 +77,97 @@ export function usage(sessions, { days = 30, now = Date.now(), project = () => n
     runners: sorted(byRunner),
   };
 }
+
+// Tool calls across sessions, for the agent-facing `wisp_stats` tool: how often each kind of
+// action ran (run, read, edit, search, web, …), per harness, project and day. Kinds are wisp's
+// normalized activity kinds, not the harness's own tool names. Spend and success come from usage().
+const NOT_TOOLS = new Set(['text', 'error', 'answer']);
+const tally = () => ({ calls: 0, kinds: {} });
+const count = (b, kind) => {
+  b.calls++;
+  b.kinds[kind] = (b.kinds[kind] || 0) + 1;
+};
+const ranked = (m) => [...m.values()].sort((a, b) => b.calls - a.calls);
+
+// filter: { agent, project } — agent is a harness id, project a project id or folder name.
+export function toolStats(sessions, { days = 30, now = Date.now(), project = () => null, filter = {} } = {}) {
+  const keep = sessions
+    .filter((s) => {
+      if (!filter.project) return true;
+      const p = project(s);
+      return p?.id === filter.project || (p?.name || String(s.cwd || '').split(/[\\/]/).pop()) === filter.project;
+    })
+    .map((s) => (filter.agent ? { ...s, turns: (s.turns || []).filter((t) => (t.agent || s.agent) === filter.agent) } : s));
+  const u = usage(keep, { days, now, project });
+  const since = u.since;
+
+  const total = tally();
+  const byAgent = new Map();
+  const byProject = new Map();
+  const byDay = new Map(u.daily.map((d) => [d.date, { date: d.date, ...tally() }]));
+  for (const s of keep) {
+    if (s.agent === 'wisp') continue;
+    const p = project(s);
+    for (const t of s.turns || []) {
+      if (!t.startedAt || t.startedAt < since || t.status === 'running') continue;
+      const agent = t.agent || s.agent;
+      const pk = p?.id || s.cwd;
+      if (!byAgent.has(agent)) byAgent.set(agent, { agent, ...tally() });
+      if (!byProject.has(pk)) byProject.set(pk, { id: p?.id || null, name: p?.name || String(s.cwd || '').split(/[\\/]/).pop(), ...tally() });
+      for (const a of t.activity || []) {
+        if (!a?.kind || NOT_TOOLS.has(a.kind)) continue;
+        count(total, a.kind);
+        count(byAgent.get(agent), a.kind);
+        count(byProject.get(pk), a.kind);
+        const d = byDay.get(dayKey(a.t || t.startedAt));
+        if (d) count(d, a.kind);
+      }
+    }
+  }
+  const outcome = (b) => ({ turns: b.turns, cost: b.cost, priced: b.priced, successRate: b.successRate });
+  const runs = new Map();
+  for (const r of u.runners) {
+    const b = runs.get(r.agent) || { turns: 0, done: 0, cost: 0, priced: 0 };
+    runs.set(r.agent, { turns: b.turns + r.turns, done: b.done + r.done, cost: b.cost + r.cost, priced: b.priced + r.priced });
+  }
+  const withRuns = (a) => {
+    const r = runs.get(a.agent) || { turns: 0, done: 0, cost: 0, priced: 0 };
+    return { ...a, turns: r.turns, cost: Math.round(r.cost * 10000) / 10000, priced: r.priced, successRate: r.turns ? r.done / r.turns : null };
+  };
+  const projectRuns = new Map(u.projects.map((p) => [p.id || p.name, p]));
+  return {
+    days: u.days,
+    since,
+    filter: { agent: filter.agent || null, project: filter.project || null },
+    total: { ...total, sessions: u.total.sessions, ...outcome(u.total), inputTokens: u.total.inputTokens, outputTokens: u.total.outputTokens, questions: u.total.questions },
+    kinds: Object.entries(total.kinds).map(([kind, calls]) => ({ kind, calls })).sort((a, b) => b.calls - a.calls),
+    agents: ranked(byAgent).map(withRuns),
+    projects: ranked(byProject).map((p) => ({ ...p, ...outcome(projectRuns.get(p.id || p.name) || { turns: 0, cost: 0, priced: 0, successRate: null }) })),
+    daily: [...byDay.values()],
+  };
+}
+
+// toolStats() as markdown for an agent to read.
+export function toolStatsText(st) {
+  const pct = (r) => (r === null || r === undefined ? '—' : `${Math.round(r * 100)}%`);
+  const usd = (b) => (b.priced ? `$${b.cost.toFixed(2)}${b.priced < b.turns ? ` (${b.priced}/${b.turns} turns priced)` : ''}` : '—');
+  const kinds = (k) => Object.entries(k).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} ${c}`).join(', ') || '—';
+  const scope = [st.filter.agent && `harness ${st.filter.agent}`, st.filter.project && `project ${st.filter.project}`].filter(Boolean).join(', ');
+  const t = st.total;
+  const out = [
+    `## wisp tool stats — last ${st.days} day${st.days === 1 ? '' : 's'}${scope ? ` (${scope})` : ''}`,
+    `${t.calls} tool calls in ${t.turns} turns across ${t.sessions} sessions. Success rate ${pct(t.successRate)}, cost ${usd(t)}, ${t.questions} questions to the user, ${t.inputTokens} input / ${t.outputTokens} output tokens.`,
+    '',
+    'Kinds are wisp’s categories, not harness tool names: run = shell commands, read / edit / search = files, web = fetch and search, agent = subagents, tool = other (MCP) tools, ask = questions to the user, wait = waiting on the user or a background task.',
+  ];
+  if (!t.turns) return [...out, '', 'No finished turns in this range.'].join('\n');
+  out.push('', '### By kind', '| kind | calls | share |', '|---|---:|---:|');
+  for (const k of st.kinds) out.push(`| ${k.kind} | ${k.calls} | ${t.calls ? Math.round((k.calls / t.calls) * 100) : 0}% |`);
+  out.push('', '### By harness', '| harness | calls | turns | success | cost | top kinds |', '|---|---:|---:|---:|---:|---|');
+  for (const a of st.agents) out.push(`| ${a.agent} | ${a.calls} | ${a.turns} | ${pct(a.successRate)} | ${usd(a)} | ${kinds(a.kinds)} |`);
+  out.push('', '### By project', '| project | calls | turns | success | cost | top kinds |', '|---|---:|---:|---:|---:|---|');
+  for (const p of st.projects) out.push(`| ${p.name} | ${p.calls} | ${p.turns} | ${pct(p.successRate)} | ${usd(p)} | ${kinds(p.kinds)} |`);
+  out.push('', '### By day (days with activity)', '| day | calls | kinds |', '|---|---:|---|');
+  for (const d of st.daily.filter((d) => d.calls)) out.push(`| ${d.date} | ${d.calls} | ${kinds(d.kinds)} |`);
+  return out.join('\n');
+}

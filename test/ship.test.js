@@ -21,7 +21,7 @@ installFakeBins();
 const { startServer } = await import('../server/index.js');
 const { parseCron, nextRun, cronMatches } = await import('../server/triggers.js');
 const { fill, params, positional } = await import('../server/recipes.js');
-const { usage } = await import('../server/usage.js');
+const { usage, toolStats, toolStatsText } = await import('../server/usage.js');
 
 const freePort = () =>
   new Promise((resolve) => {
@@ -337,6 +337,41 @@ test('usage: spend, outcomes and questions per day, project and harness', () => 
   assert.equal(u.daily.at(-3).turns, 1);
   assert.deepEqual(u.projects.map((p) => [p.name, p.turns, p.cost]), [['one', 2, 0.75], ['two', 2, 0]]);
   assert.deepEqual(u.runners.map((r) => [r.agent, r.model, r.successRate]), [['claude', 'opus', 0.5], ['codex', '', 0.5]]);
+});
+
+test('toolStats: tool calls by kind, harness, project and day, with spend and success; filters by harness and project', () => {
+  const now = new Date('2026-10-17T15:00:00').getTime();
+  const day = 864e5;
+  const turn = (kinds, o) => ({ startedAt: now - 1000, endedAt: now, status: 'done', activity: kinds.map((kind) => ({ t: o?.startedAt ?? now - 500, kind })), presentation: { blocks: [{ type: 'hero', status: 'done' }] }, ...o });
+  const sessions = [
+    { id: 'a', agent: 'claude', cwd: '/p/one', turns: [turn(['read', 'read', 'edit', 'run', 'text', 'error'], { stats: { costUsd: 0.5 } }), turn(['run', 'ask', 'answer'], { agent: 'codex', status: 'error' })] },
+    { id: 'b', agent: 'codex', cwd: '/p/two', turns: [turn(['search', 'run'], { startedAt: now - 2 * day })] },
+    { id: 'c', agent: 'claude', cwd: '/p/one', turns: [turn(['run'], { startedAt: now - 40 * day })] }, // out of range
+    { id: 'r', agent: 'claude', cwd: '/p/one', turns: [turn(['run'], { status: 'running' })] }, // still running
+    { id: 'w', agent: 'wisp', cwd: '', turns: [turn(['read'])] }, // the tour
+  ];
+  const project = (s) => ({ id: `id-${s.cwd}`, name: s.cwd.split('/').pop() });
+  const st = toolStats(sessions, { days: 7, now, project });
+  assert.equal(st.total.calls, 8, 'text, error and answer are not tool calls');
+  assert.deepEqual([st.total.turns, st.total.sessions, st.total.cost], [3, 2, 0.5]);
+  assert.equal(Math.round(st.total.successRate * 100), 67);
+  assert.deepEqual(st.kinds.map((k) => [k.kind, k.calls]), [['run', 3], ['read', 2], ['edit', 1], ['ask', 1], ['search', 1]]);
+  assert.deepEqual(st.agents.map((a) => [a.agent, a.calls, a.turns, a.successRate]), [['claude', 4, 1, 1], ['codex', 4, 2, 0.5]], 'a turn counts for the harness that ran it');
+  assert.deepEqual(st.projects.map((p) => [p.name, p.calls, p.turns, p.cost]), [['one', 6, 2, 0.5], ['two', 2, 1, 0]]);
+  assert.equal(st.daily.length, 7);
+  assert.deepEqual([st.daily.at(-1).calls, st.daily.at(-3).calls], [6, 2]);
+
+  const codex = toolStats(sessions, { days: 7, now, project, filter: { agent: 'codex' } });
+  assert.deepEqual([codex.total.calls, codex.total.turns, codex.agents.map((a) => a.agent)], [4, 2, ['codex']]);
+  const two = toolStats(sessions, { days: 7, now, project, filter: { project: 'two' } });
+  assert.deepEqual([two.total.calls, two.projects.map((p) => p.name)], [2, ['two']]);
+  assert.equal(toolStats(sessions, { days: 7, now, project, filter: { project: 'id-/p/one' } }).total.calls, 6, 'matches a project id too');
+
+  const text = toolStatsText(st);
+  assert.match(text, /^## wisp tool stats — last 7 days\n8 tool calls in 3 turns across 2 sessions\. Success rate 67%, cost \$0\.50 \(1\/3 turns priced\)/);
+  assert.match(text, /\| run \| 3 \| 38% \|/);
+  assert.match(text, /\| codex \| 4 \| 2 \| 50% \| — \| run 2, ask 1, search 1 \|/);
+  assert.match(toolStatsText(toolStats([], { days: 1, now })), /last 1 day\n0 tool calls[\s\S]*No finished turns/);
 });
 
 test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are ignored; /new starts tasks', async () => {

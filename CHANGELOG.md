@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Agents can answer questions about your wisp usage.** Every task now gets a read-only `wisp_stats` tool next to `ask_user`. Ask a task "which tools do my tasks use?" or "what did Codex cost me this week?" and the agent gets a table of tool calls by kind (shell, read, edit, search, web, subagents, other MCP tools, questions), by harness, by project and by day. It also gets turns, cost, tokens and success rate, taken from the same numbers as Settings → Usage. Agents can narrow it with `days` (1–365, default 30), `agent` (a harness id) and `project` (a name or id, or `current` for the task's own project). Before, an agent had no tool for this and would either say it had no access or dig through `~/.wisp/sessions` by hand. Kinds are wisp's categories, not each harness's own tool names. The bridge route (`GET /api/internal/stats/:id`) only takes the per-run token, like `ask_user`. Cursor and Antigravity runs can't take injected MCP tools, so they don't get it.
+
 ### Changed
 
 - **Mark done and the PR row are where you look.** An opened task now has Mark done (or Reopen) in its top bar, next to Ship it, so you can close it out without scrolling to the composer. The PR row (checks, GitHub, Merge) moved from the top of the card to right above the composer, so after reading the result it's in view without scrolling back up.
