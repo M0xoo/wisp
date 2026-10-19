@@ -16,7 +16,7 @@ import { compareView } from './compare.js';
 import { collapse, expand, handOff, renderFeed, setFocus } from './feed.js';
 import { launchBehind } from './launcher.js';
 import { runnerPicker } from './runner-picker.js';
-import { agentName, effortsFor, modeMenu, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
+import { agentName, DEFAULT_MODE, effortsFor, modeMenu, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 
@@ -229,7 +229,7 @@ export async function rerun(id) {
   const models = S.agents.find((x) => x.id === agent)?.models || [];
   let model = agent === s.agent && models.some((m) => m.id === s.model) ? s.model : savedModel(agent);
   let effort = agent === s.agent && effortsFor(agent, model).includes(s.effort) ? s.effort : savedEffort(agent, model);
-  let mode = MODES.some((m) => m.id === s.mode) ? s.mode : S.config.defaults.mode || 'edits';
+  let mode = MODES.some((m) => m.id === s.mode) ? s.mode : S.config.defaults.mode || DEFAULT_MODE.id;
   const files = first.attachments || [];
 
   const node = el(`
@@ -254,7 +254,7 @@ export async function rerun(id) {
   autosize(ta);
   const modeBtn = $('[data-a="mode"]', node);
   const paintMode = () => {
-    const m = MODES.find((x) => x.id === mode) || MODES[1];
+    const m = MODES.find((x) => x.id === mode) || DEFAULT_MODE;
     modeBtn.className = `mode-btn m-${m.id}`;
     modeBtn.innerHTML = `${icon(m.icon)}<span>${m.label}</span>`;
     modeBtn.title = m.hint;

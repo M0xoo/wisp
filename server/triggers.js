@@ -100,7 +100,7 @@ export function normalizeTrigger(body, prev = null, { recipes = [] } = {}) {
   if (kind === 'schedule') parseCron(cron);
   const label = kind === 'issues' ? String(v('label', 'wisp')).trim() : '';
   if (kind === 'issues' && !label) throw bad('Pick the issue label to watch.');
-  const mode = String(v('mode', kind === 'issues' ? 'plan' : 'edits'));
+  const mode = String(v('mode', kind === 'issues' ? 'plan' : 'auto'));
   if (!MODES.has(mode)) throw bad('mode must be plan, edits or auto.');
   const changedSource = prev && (kind !== prev.kind || cwd !== prev.cwd || label !== prev.label || String(v('branch')) !== prev.branch);
   return {

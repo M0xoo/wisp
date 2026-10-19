@@ -193,6 +193,10 @@ const ask = async () => {
     if (stdin.includes('APPROVE TWICE')) answers.push(await once());
     return answers.join(' | ');
   }
+  if (stdin.includes('STATS') && srv) {
+    const text = await mcpCall(srv, 'wisp_stats', { days: 7, agent: 'claude' });
+    return text ? text.split('\n').slice(0, 2).join(' ') : 'no wisp_stats tool';
+  }
   return stdin.includes('ASK') && srv ? askUser(srv, 'Proceed with the fix?') : '';
 };
 // grok's own words (docs/user-guide/14-headless-mode.md), split over two writes as a pipe may.

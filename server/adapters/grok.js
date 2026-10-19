@@ -241,6 +241,8 @@ function describeMcp(tool, input) {
       return { kind: 'agent', label: `Delegating to ${clip([...new Set((input.tasks || []).map((t) => t.subagent))].join(', ') || 'subagents', 60)}` };
     case 'wisp__subagent_results':
       return { kind: 'agent', label: 'Waiting on subagents' };
+    case 'wisp__wisp_stats':
+      return { kind: 'tool', label: 'Reading wisp stats' };
     default:
       return { kind: 'tool', label: `Using ${tool.split('__').join(' · ') || 'an integration'}` };
   }

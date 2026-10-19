@@ -96,6 +96,7 @@
 .it-bar { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; }
 .it-meta { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
 .it-actions { display: flex; gap: 2px; flex: none; }
+.it-done:hover { color: var(--good); }
 .it-body .earlier { display: block; margin: 4px 0 0 18px; }
 .it-dock { padding: 4px 14px 14px; }
 

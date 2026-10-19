@@ -143,7 +143,7 @@ export class Runner extends EventEmitter {
   }
 
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
-  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'edits', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null }) {
+  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {

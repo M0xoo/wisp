@@ -19,7 +19,7 @@ import { MACHINE_STATE, machineById, placeName, placeOf, projectById, projectsAt
 import { openProjects } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
-import { agentName, agentsAt, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedEffort, savedModel } from './runners.js';
+import { agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 
@@ -38,7 +38,7 @@ function syncWhere() {
 
 export function renderLauncher() {
   const box = $('#launcher');
-  const mode = S.config.defaults.mode || 'edits';
+  const mode = S.config.defaults.mode || DEFAULT_MODE.id;
   const here = harnessesAt(launch.where, { auto: true });
   const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'auto'));
   let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
@@ -88,14 +88,14 @@ export function renderLauncher() {
   $('#whereBtn', box).onclick = (e) => whereMenu(e.currentTarget);
   paintWhereBtn();
 
-  // Mode is set-and-forget, so it's one small button: just an icon on the default (Edits),
-  // spelled out when it's Plan or Full auto so you can't miss it.
+  // Mode is set-and-forget, so it's one small button: just an icon on the default (Full auto),
+  // spelled out when it's Plan or Edits so you can't miss it.
   let curMode = mode;
   const modeBtn = $('#mode', box);
   const paintMode = () => {
-    const m = MODES.find((x) => x.id === curMode) || MODES[1];
+    const m = MODES.find((x) => x.id === curMode) || DEFAULT_MODE;
     modeBtn.className = `mode-btn m-${m.id}`;
-    modeBtn.innerHTML = `${icon(m.icon)}${m.id === 'edits' ? '' : `<span>${m.label}</span>`}`;
+    modeBtn.innerHTML = `${icon(m.icon)}${m === DEFAULT_MODE ? '' : `<span>${m.label}</span>`}`;
     modeBtn.title = `${m.label}: ${m.hint}\nShift+Tab to switch`;
   };
   const setMode = (id) => {

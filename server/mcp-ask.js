@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Minimal stdio MCP server exposing `ask_user`, injected into every agent wisp launches.
+// Minimal stdio MCP server exposing `ask_user` and `wisp_stats`, injected into every agent wisp launches.
 // The call is relayed to the wisp server, which surfaces it in the queue and blocks
 // (by polling) until the user answers — so the agent keeps its full context.
 // With a team (WISP_TEAM), it also offers `delegate` and `subagent_results`: tasks for the
 // subagents the user picked, which wisp runs as child sessions while this call waits.
 // With WISP_APPROVE, it offers `approve`: the harness's permission prompt (Claude's
 // --permission-prompt-tool), answered by the user in wisp.
+// `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 
 import readline from 'node:readline';
 
@@ -43,6 +44,27 @@ const APPROVE = {
     required: ['tool_name'],
   },
 };
+
+const STATS = {
+  name: 'wisp_stats',
+  description:
+    'Read-only stats about the user\'s past wisp tasks: how many tool calls each kind of action made (run = shell, read, edit, ' +
+    'search, web, agent, tool = other MCP tools, ask), broken down by harness, project and day, plus turns, cost, tokens and ' +
+    'success rate. Use when the user asks about their wisp usage, which tools or harnesses their tasks use, or what tasks cost.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      days: { type: 'number', description: 'How many days back, 1–365. Default 30.' },
+      agent: { type: 'string', description: 'Only this harness, e.g. claude, codex, opencode.' },
+      project: { type: 'string', description: 'Only this project (name or id); "current" = the project of this task.' },
+    },
+  },
+};
+
+async function stats({ days, agent, project } = {}) {
+  const q = new URLSearchParams(Object.entries({ days, agent, project }).filter(([, v]) => v !== undefined && v !== ''));
+  return (await call(`/api/internal/stats/${WISP_SESSION}?${q}`)).text;
+}
 
 const roster = TEAM.map((m) => `- ${m.name}${m.count > 1 ? ` ×${m.count} (parallel copies ${m.copies.join(', ')})` : ''}: ${[m.agent, m.model || 'default model', m.effort && `${m.effort} thinking`].filter(Boolean).join(' · ')}${m.use ? ` — use for: ${m.use}` : ''}`).join('\n');
 const TEAM_TOOLS = [
@@ -160,13 +182,15 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, STATS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
       send({ id, result: { content: [{ type: 'text', text }] } });
     } else if (method === 'tools/call' && WISP_APPROVE && params?.name === 'approve') {
       send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_stats') {
+      send({ id, result: { content: [{ type: 'text', text: await stats(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'delegate') {
       send({ id, result: { content: [{ type: 'text', text: await delegate(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'subagent_results') {
