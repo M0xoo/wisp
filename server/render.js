@@ -80,6 +80,8 @@ const R = {
   callout: (b) => `> **${b.tone === 'danger' ? '⛔' : b.tone === 'warn' ? '⚠️' : b.tone === 'success' ? '✅' : 'ℹ️'} ${str(b.title)}**\n> ${str(b.text).replace(/\n/g, '\n> ')}`,
   image: (b) => `🖼️ \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
   question: (b) => `**❓ ${str(b.question)}**\n${list(b.options).map((o, i) => `${i + 1}. ${str(o.label || o)}`).join('\n')}`,
+  blocked: (b, turn) =>
+    `**🔒 Blocked by permissions**${turn?.approval ? ` _(${turn.approval})_` : ''}\n${list(b.items).map((i) => `- ${str(i.tool)}${i.detail ? `: \`${str(i.detail)}\`` : ''}${i.why ? ` — ${i.why}` : ''}`).join('\n')}`,
   actions: (b) =>
     `${b.title ? `**${b.title}**\n` : '**Actions**\n'}${list(b.items)
       .map((a) => (typeof a === 'string' ? `- ${a}` : `- **${str(a.label || a.command)}**${a.command ? ` — \`$ ${str(a.command)}\`` : a.reply ? ` — _${str(a.reply)}_` : ''}${a.detail ? ` (${str(a.detail)})` : ''}`))
@@ -109,7 +111,7 @@ export function sessionToMarkdown(session) {
   if (turn?.status === 'running') out.push(`_Working… (${turn.activity?.findLast?.((a) => a.kind !== 'text')?.label || 'starting up'})_`);
   else if (turn?.presentation) out.push(blocksToMarkdown(turn.presentation.blocks, turn));
   if (session.ask) {
-    out.push(`**❓ The agent is waiting for your answer:** ${session.ask.question}${session.ask.context ? `\n\n${session.ask.context}` : ''}`);
+    out.push(`**${session.ask.permission ? '🔒 The agent needs your approval' : '❓ The agent is waiting for your answer'}:** ${session.ask.question}${session.ask.context ? `\n\n${session.ask.context}` : ''}`);
     if (session.ask.options?.length) out.push(session.ask.options.map((o, i) => `${i + 1}. ${o}`).join('\n'));
   }
   // Worktree sessions: say where the changes are, since they aren't in the caller's checkout.

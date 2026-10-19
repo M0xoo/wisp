@@ -19,6 +19,10 @@
 //                an empty zero-turn result, as the real CLI does
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
+// Permissions: with APPROVE, claude asks wisp's `approve` tool (its --permission-prompt-tool)
+// before `npm publish` (twice with APPROVE TWICE). With BLOCKED, `npm publish` is refused unless
+// the run allows it (claude --allowedTools Bash(npm publish), or a Full auto run): claude reports
+// it in permission_denials, opencode on stderr, codex in a `blocked` block of its presentation.
 
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -162,8 +166,15 @@ const before = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
 const after = before.replace('a - b', 'a + b');
 const resumeId = name === 'claude' || name === 'cursor-agent' || name === 'grok' ? flag('--resume') : name === 'opencode' ? flag('--session') : name === 'agy' ? flag('--conversation') : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
 const session = resumeId || `${name}-session-1`;
-const final = (answer) =>
-  'All done.\n```wisp\n' + JSON.stringify({ blocks: [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : 'No question asked.', status: 'done' }] }) + '\n```';
+const fullAuto = argv.includes('--dangerously-bypass-approvals-and-sandbox') || argv.includes('--auto') || flag('--permission-mode') === 'bypassPermissions';
+const allowedPublish = fullAuto || argv.slice(argv.indexOf('--allowedTools') + 1).includes('Bash(npm publish)') || JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || '{}').permission?.bash?.['npm publish'] === 'allow';
+const publishing = /BLOCKED|blocked by your permissions/.test(stdin); // the task, or wisp's retry of it
+const refused = publishing && !allowedPublish;
+const final = (answer) => {
+  const blocks = [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : refused ? 'npm publish was blocked.' : publishing ? 'Published.' : 'No question asked.', status: 'done' }];
+  if (refused && name === 'codex') blocks.push({ type: 'blocked', items: [{ tool: 'shell', detail: 'npm publish', why: 'needs network access' }] });
+  return 'All done.\n```wisp\n' + JSON.stringify({ blocks }) + '\n```';
+};
 
 const hang = () => setInterval(() => {}, 1 << 30);
 if (process.env.FAKE_DELAY) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_DELAY)));
@@ -175,12 +186,22 @@ const ask = async () => {
     const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${i ? ` (${i + 1})` : ''}` }))) }));
     return report ? `delegated (${report.length} chars) ${report.match(/### [\w#-]+/g)?.join(' ')}` : 'no delegate tool';
   }
+  if (stdin.includes('APPROVE') && srv && flag('--permission-prompt-tool')) {
+    const tool = flag('--permission-prompt-tool').replace(/^mcp__wisp__/, '');
+    const once = () => mcpCall(srv, tool, { tool_name: 'Bash', input: { command: 'npm publish', description: 'Publish the package' }, tool_use_id: 'tp' });
+    const answers = [await once()];
+    if (stdin.includes('APPROVE TWICE')) answers.push(await once());
+    return answers.join(' | ');
+  }
   if (stdin.includes('STATS') && srv) {
     const text = await mcpCall(srv, 'wisp_stats', { days: 7, agent: 'claude' });
     return text ? text.split('\n').slice(0, 2).join(' ') : 'no wisp_stats tool';
   }
   return stdin.includes('ASK') && srv ? askUser(srv, 'Proceed with the fix?') : '';
 };
+// grok's own words (docs/user-guide/14-headless-mode.md), split over two writes as a pipe may.
+if (refused && name === 'grok') process.stderr.write('permission required: Edit calc.py was not run, as a headless run ca'), process.stderr.write('nnot ask for approval\n');
+if (refused && name === 'opencode') process.stderr.write('\x1b[93m\x1b[1m! \x1b[0mpermission requested: bash (npm publish); auto-rejecting\n');
 
 if (name === 'claude') {
   if (process.env.FAKE_ORPHANS && resumeId) {
@@ -216,7 +237,7 @@ if (name === 'claude') {
         out({ type: 'system', subtype: 'init', session_id: session });
         out({ type: 'result', subtype: 'success', is_error: false, result: final('background done'), session_id: session });
       }
-    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 } });
+    } else out({ type: 'result', subtype: 'success', is_error: false, result: final(answer), session_id: session, duration_ms: 5, num_turns: 3, total_cost_usd: 0.01, usage: { input_tokens: 10, output_tokens: 5 }, permission_denials: refused ? [{ tool_name: 'Bash', tool_use_id: 't9', tool_input: { command: 'npm publish', description: 'Publish' } }] : [] });
   }
 } else if (name === 'codex') {
   out({ type: 'thread.started', thread_id: session });

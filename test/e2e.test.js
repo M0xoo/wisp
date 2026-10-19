@@ -367,3 +367,102 @@ test('stopping a running session marks the turn stopped', async () => {
     delete process.env.FAKE_HANG;
   }
 });
+
+// --- permissions: live approval (claude) and Allow & retry for what a turn's permissions blocked ---
+
+const settled = (id, turns) =>
+  until(async () => {
+    const x = await session(id);
+    return x.turns.length === turns && x.state === 'review' && x;
+  });
+
+test('claude: a permission prompt waits for the user; "always" lets the same call through after', async () => {
+  const s = await api('/sessions', { prompt: 'APPROVE TWICE then publish', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  const waiting = await until(async () => {
+    const x = await session(s.id);
+    return x.state === 'waiting' && x;
+  });
+  assert.equal(waiting.ask.question, 'Allow Claude Code to run `npm publish`?');
+  assert.equal(waiting.ask.context, 'Publish the package');
+  assert.deepEqual(waiting.ask.permission, { tool: 'Bash', action: 'run `npm publish`', detail: 'npm publish' });
+  assert.deepEqual(waiting.ask.options, ['Allow', 'Always allow in this task', 'Deny']);
+  const list = await api('/sessions');
+  assert.equal(list.find((x) => x.id === s.id).approval, true, 'the card and notification say approval, not question');
+  assert.ok(records(RECORD, 'claude').at(-1).argv.join(' ').includes('--permission-prompt-tool mcp__wisp__approve'));
+
+  await api(`/sessions/${s.id}/answer`, { text: 'Always allow in this task' });
+  const done = await settled(s.id, 1); // the second, identical call never waited
+  const allow = JSON.stringify({ behavior: 'allow', updatedInput: { command: 'npm publish', description: 'Publish the package' } });
+  assert.equal(done.turns[0].presentation.blocks[0].summary, `Answer was: ${allow} | ${allow}`);
+  assert.deepEqual(done.grants, [{ tool: 'Bash', detail: 'npm publish' }]);
+  const labels = done.turns[0].activity.map((a) => a.label);
+  assert.ok(labels.includes('You allowed (always in this task): run `npm publish`'));
+  assert.ok(labels.includes('Allowed (always in this task): run `npm publish`'));
+});
+
+test('claude: answering a permission prompt in your own words denies it and passes them on', async () => {
+  const s = await api('/sessions', { prompt: 'APPROVE then publish', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  await until(async () => (await session(s.id)).state === 'waiting');
+  await api(`/sessions/${s.id}/reply`, { text: 'do a dry run instead' }); // a follow-up while asked = the answer
+  const done = await settled(s.id, 1);
+  const deny = JSON.stringify({ behavior: 'deny', message: 'The user denied this and said: do a dry run instead' });
+  assert.equal(done.turns[0].presentation.blocks[0].summary, `Answer was: ${deny}`);
+  assert.ok(!done.grants);
+});
+
+test('claude: a refused call gets an Allow & retry card; the retry allows exactly that command', async () => {
+  const s = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  const done = await settled(s.id, 1);
+  const turn = done.turns[0];
+  assert.deepEqual(turn.presentation.blocks.map((b) => b.type), ['hero', 'blocked']);
+  assert.deepEqual(turn.presentation.blocks[1].items, [{ tool: 'Bash', detail: 'npm publish' }]);
+  assert.deepEqual(turn.blocked, [{ tool: 'Bash', detail: 'npm publish', rule: 'Bash(npm publish)' }]);
+
+  const r = await api(`/sessions/${s.id}/approve`, { turnId: turn.id });
+  assert.equal(r.scoped, true);
+  const again = await settled(s.id, 2);
+  assert.equal(again.turns[0].approval, 'allowed');
+  assert.equal(again.turns[1].presentation.blocks[0].summary, 'Published.');
+  assert.equal(again.turns[1].mode, 'edits', 'a scoped grant keeps the mode');
+  const { argv, stdin } = records(RECORD, 'claude').at(-1);
+  assert.ok(argv.includes('Bash(npm publish)'));
+  assert.match(stdin, /blocked by your permissions last turn:\n- Bash: `npm publish`/);
+  const twice = await fetch(`${base}/api/sessions/${s.id}/approve`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ turnId: turn.id }) });
+  assert.equal(twice.status, 409);
+});
+
+test('codex: what its sandbox refused (from its blocked block) retries in Full auto for one follow-up', async () => {
+  const s = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'codex', mode: 'edits' });
+  const done = await settled(s.id, 1);
+  const turn = done.turns[0];
+  assert.deepEqual(turn.presentation.blocks.map((b) => b.type), ['hero', 'blocked']);
+  assert.deepEqual(turn.blocked, [{ tool: 'shell', detail: 'npm publish', why: 'needs network access' }]);
+
+  assert.equal((await api(`/sessions/${s.id}/approve`, { turnId: turn.id })).scoped, false);
+  const again = await settled(s.id, 2);
+  assert.equal(again.turns[1].mode, 'auto');
+  assert.equal(again.mode, 'edits', 'only that follow-up ran in Full auto');
+  assert.equal(again.turns[1].presentation.blocks[0].summary, 'Published.');
+  assert.ok(records(RECORD, 'codex').at(-1).argv.includes('--dangerously-bypass-approvals-and-sandbox'));
+
+  await api(`/sessions/${s.id}/reply`, { text: 'and the changelog' });
+  await settled(s.id, 3);
+  assert.ok(!records(RECORD, 'codex').at(-1).argv.includes('--dangerously-bypass-approvals-and-sandbox'));
+});
+
+test('opencode: a rejected permission retries with exactly that pattern allowed; deny just closes the card', async () => {
+  const s = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'opencode', mode: 'edits' });
+  const done = await settled(s.id, 1);
+  assert.deepEqual(done.turns[0].blocked, [{ tool: 'bash', detail: 'npm publish', rule: { permission: 'bash', patterns: ['npm publish'] } }]);
+  await api(`/sessions/${s.id}/approve`, { turnId: done.turns[0].id });
+  const again = await settled(s.id, 2);
+  assert.equal(again.turns[1].presentation.blocks[0].summary, 'Published.');
+  assert.deepEqual(JSON.parse(records(RECORD, 'opencode').at(-1).opencodeConfig).permission, { bash: { 'npm publish': 'allow' } });
+
+  const other = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'opencode', mode: 'edits' });
+  const t = (await settled(other.id, 1)).turns[0];
+  assert.deepEqual(await api(`/sessions/${other.id}/approve`, { turnId: t.id, allow: false }), { denied: true });
+  const after = await session(other.id);
+  assert.equal(after.turns.length, 1);
+  assert.equal(after.turns[0].approval, 'denied');
+});

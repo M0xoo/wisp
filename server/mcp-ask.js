@@ -4,11 +4,13 @@
 // (by polling) until the user answers — so the agent keeps its full context.
 // With a team (WISP_TEAM), it also offers `delegate` and `subagent_results`: tasks for the
 // subagents the user picked, which wisp runs as child sessions while this call waits.
+// With WISP_APPROVE, it offers `approve`: the harness's permission prompt (Claude's
+// --permission-prompt-tool), answered by the user in wisp.
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 
 import readline from 'node:readline';
 
-const { WISP_URL, WISP_TOKEN, WISP_SESSION } = process.env;
+const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_APPROVE } = process.env;
 let TEAM = [];
 try {
   TEAM = JSON.parse(process.env.WISP_TEAM || '[]');
@@ -28,6 +30,18 @@ const TOOL = {
       options: { type: 'array', items: { type: 'string' }, description: 'Optional suggested answers (2–4). The user can always type their own.' },
     },
     required: ['question'],
+  },
+};
+
+// Claude's permission-prompt contract: { tool_name, input, tool_use_id } in, a JSON
+// { behavior: 'allow', updatedInput } or { behavior: 'deny', message } back as text.
+const APPROVE = {
+  name: 'approve',
+  description: 'Internal: wisp asks the user to approve a tool call your permissions do not allow on their own. Never call this yourself.',
+  inputSchema: {
+    type: 'object',
+    properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
+    required: ['tool_name'],
   },
 };
 
@@ -126,8 +140,8 @@ async function call(path, body) {
   return res.json();
 }
 
-async function askUser(args) {
-  const { id } = await call(`/api/internal/ask`, { session: WISP_SESSION, ...args });
+// Poll a question until it's answered ({ answer, … }) or cancelled (null).
+async function waitFor(id) {
   for (;;) {
     await sleep(1500);
     let r;
@@ -136,9 +150,22 @@ async function askUser(args) {
     } catch {
       continue; // wisp restarting — keep waiting
     }
-    if (r.answer !== undefined) return r.answer;
+    if (r.answer !== undefined) return r;
     if (r.cancelled) return null;
   }
+}
+
+async function askUser(args) {
+  const { id } = await call(`/api/internal/ask`, { session: WISP_SESSION, ...args });
+  return (await waitFor(id))?.answer ?? null;
+}
+
+async function approve({ tool_name: tool, input = {} }) {
+  let r = await call(`/api/internal/approve`, { session: WISP_SESSION, tool, input });
+  if (r.id) r = await waitFor(r.id);
+  if (r?.decision === 'allow') return { behavior: 'allow', updatedInput: input };
+  if (!r) return { behavior: 'deny', message: 'The user did not answer (the request was cancelled). Do not retry it; carry on without it and say what was skipped.' };
+  return { behavior: 'deny', message: r.message ? `The user denied this and said: ${r.message}` : 'The user denied this. Do not retry it; carry on without it or ask how to proceed.' };
 }
 
 readline.createInterface({ input: process.stdin }).on('line', async (line) => {
@@ -155,11 +182,13 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: TEAM.length ? [TOOL, STATS, ...TEAM_TOOLS] : [TOOL, STATS] } });
+      send({ id, result: { tools: [TOOL, STATS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
       send({ id, result: { content: [{ type: 'text', text }] } });
+    } else if (method === 'tools/call' && WISP_APPROVE && params?.name === 'approve') {
+      send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_stats') {
       send({ id, result: { content: [{ type: 'text', text: await stats(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'delegate') {
@@ -173,7 +202,9 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, error: { code: -32601, message: `Method not found: ${method}` } });
     }
   } catch (err) {
-    const what = params?.name === 'ask_user' ? 'wisp could not reach the user' : 'wisp';
-    send({ id, result: { isError: true, content: [{ type: 'text', text: `${what}: ${err.message}` }] } });
+    const what = params?.name === 'ask_user' || params?.name === 'approve' ? 'wisp could not reach the user' : 'wisp';
+    // A permission prompt that errors would leave the harness guessing: deny, and say why.
+    if (params?.name === 'approve') send({ id, result: { content: [{ type: 'text', text: JSON.stringify({ behavior: 'deny', message: `${what}: ${err.message}` }) }] } });
+    else send({ id, result: { isError: true, content: [{ type: 'text', text: `${what}: ${err.message}` }] } });
   }
 });

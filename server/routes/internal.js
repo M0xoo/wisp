@@ -1,4 +1,4 @@
-// Bridge for the MCP servers running inside an agent process (ask_user, delegate, wisp_stats). Every call
+// Bridge for the MCP servers running inside an agent process (ask_user, approve, delegate, wisp_stats). Every call
 // carries the per-run token wisp handed the agent; nothing else may use these.
 
 import { adapters } from '../adapters/index.js';
@@ -25,6 +25,22 @@ export function register(r, app) {
     opts,
   );
   r.route('GET', '/internal/ask/:id', guarded((c) => c.send(200, runner.pollAnswer(c.params.id))), opts);
+
+  // A live approval (the harness's permission prompt): { decision } at once, or an { id } to poll
+  // like ask_user, whose answer carries the decision.
+  r.route(
+    'POST',
+    '/internal/approve',
+    guarded(async (c) => {
+      const body = await c.body();
+      const s = store.get(body.session);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const out = runner.requestApproval(s, body);
+      if (out.id) telemetry.track('approval', { agent: s.agent });
+      c.send(200, out);
+    }),
+    opts,
+  );
 
   // delegate: POST starts tasks on the lead's subagents; GET reports on them (done once all finished).
   r.route(

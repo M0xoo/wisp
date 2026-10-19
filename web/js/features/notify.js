@@ -20,7 +20,7 @@ export function askNotify() {
 export function notifyFinished(s) {
   const viewing = S.open.has(s.id) && watching(s.id) && document.hasFocus();
   if (viewing) return;
-  let verb = s.state === 'waiting' ? 'has a question' : 'is ready';
+  let verb = s.state === 'waiting' ? (s.approval ? 'needs your approval' : 'has a question') : 'is ready';
   // A task run in several places (or compared) says so once, when its last run finishes.
   const runs = s.groupId ? [...S.sessions.values()].filter((x) => x.groupId === s.groupId && !x.archived) : [];
   if (runs.length > 1 && s.state !== 'waiting') {

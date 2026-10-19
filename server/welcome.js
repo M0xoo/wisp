@@ -129,7 +129,7 @@ export function welcomeSession() {
               title: 'Permission modes (pick per launch)',
               items: [
                 { text: 'Plan — read-only, the agent proposes', done: true },
-                { text: 'Edits — the agent may change files, no shell prompts', done: true },
+                { text: 'Edits — the agent may change files; anything else it needs, you approve', done: true },
                 { text: 'Full auto — no permission prompts at all; the default, each task in its own worktree', done: true },
               ],
             },
