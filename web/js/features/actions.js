@@ -8,7 +8,7 @@ import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { keyHint } from '../ui/kbd.js';
 import { overlay } from '../ui/overlay.js';
-import { popover } from '../ui/popover.js';
+import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { autosize } from './attachments.js';
 import { saveAsRecipe } from './automations.js';
@@ -208,9 +208,7 @@ export function taskMenu(id, e) {
     if (a === 'delete') deleteSession(id);
   };
   const close = popover(menu);
-  const r = menu.getBoundingClientRect();
-  if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
-  if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
+  clampToViewport(menu, e.clientX, e.clientY);
 }
 
 export async function deleteSession(id) {
