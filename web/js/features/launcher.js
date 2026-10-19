@@ -31,11 +31,15 @@ const NO_FOLDER = 'none';
 const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
 const projectOf = (k) => (launch.picks[k] === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
 
+// Only a change of feed filter moves the launcher, so a "No folder" pick survives re-renders.
+let filterSeen = null;
+
 function syncWhere() {
   launch.where = launch.where.filter((k, i) => (!k || machineById(k)) && launch.where.indexOf(k) === i);
   if (!launch.where.length) launch.where = [''];
   // Filtering the feed to a project points the launcher at it (its machine joins if it wasn't picked).
-  const f = S.filter !== 'all' && projectById(S.filter);
+  const f = S.filter !== 'all' && S.filter !== filterSeen && projectById(S.filter);
+  filterSeen = S.filter;
   if (f) {
     if (!launch.where.includes(placeOf(f))) launch.where = [placeOf(f)];
     launch.picks[placeOf(f)] = f.id;
@@ -338,6 +342,12 @@ export function renderLauncher() {
   });
 }
 
+// No folder everywhere picked: no git repo, so no worktree either; the toggle would only mislead.
+function paintScratch() {
+  const wt = $('#launcher #wtBtn');
+  if (wt) wt.hidden = launch.where.every((k) => launch.picks[k] === NO_FOLDER);
+}
+
 export function renderLaunchChips() {
   const box = $('#launcher .l-projects');
   if (!box) return;
@@ -362,6 +372,7 @@ export function renderLaunchChips() {
     return `<span class="lp-group">${label}${chips}${none}${add}</span>`;
   };
   box.innerHTML = `<span class="l-in">in</span>${launch.where.map(group).join('')}`;
+  paintScratch();
   box.onclick = (e) => {
     const chip = e.target.closest('.lp-chip[data-id]');
     if (chip) {
@@ -369,6 +380,7 @@ export function renderLaunchChips() {
       if (chip.dataset.k === launch.where[0]) launch.project = chip.dataset.id;
       saveLaunch();
       $$(`.lp-chip[data-k="${chip.dataset.k}"]`, box).forEach((x) => x.classList.toggle('on', x === chip));
+      paintScratch();
       renderLaunchRecipes();
       return;
     }

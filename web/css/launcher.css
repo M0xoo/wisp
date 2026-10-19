@@ -24,6 +24,7 @@
 }
 .lp-chip:hover { border-color: var(--line-2); background: var(--surface-2); }
 .lp-chip.on { background: var(--bg-2); border-color: var(--line-2); color: var(--ink); font-weight: 500; }
+#wtBtn[hidden] { display: none; }
 .lp-chip.none .i { width: 13px; height: 13px; color: var(--muted); }
 .lp-chip.none.on .i { color: var(--ink); }
 .lp-chip.add { color: var(--muted); border-style: dashed; }

@@ -160,6 +160,8 @@ export class Store {
 
   delete(id) {
     clearTimeout(this.timers.get(id));
+    const cwd = this.sessions.get(id)?.cwd;
+    if (this.isScratch(cwd)) fs.rmSync(cwd, { recursive: true, force: true }); // a folder-less task's files go with it
     this.sessions.delete(id);
     fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
     fs.rmSync(path.join(this.shots, id), { recursive: true, force: true });

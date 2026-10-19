@@ -3,6 +3,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import net from 'node:net';
 import { installFakeBins, tmp } from './helpers.js';
 
@@ -109,4 +110,12 @@ test('a scratch launch runs in its own empty folder, without a project or worktr
   assert.equal(s.projectId, null);
   const cfg = await (await fetch(`${base}/api/config`)).json();
   assert.ok(!cfg.projects.some((p) => p.path === s.cwd));
+});
+
+test('deleting a scratch task deletes its scratch folder', async () => {
+  const s = await (await fetch(`${base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'draft a haiku', scratch: true }) })).json();
+  assert.ok(fs.existsSync(s.cwd));
+  const r = await fetch(`${base}/api/sessions/${s.id}`, { method: 'DELETE', headers: { 'content-type': 'application/json' } });
+  assert.equal(r.status, 200);
+  assert.ok(!fs.existsSync(s.cwd));
 });
