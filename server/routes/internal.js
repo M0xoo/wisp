@@ -1,8 +1,9 @@
-// Bridge for the MCP servers running inside an agent process (ask_user, delegate). Every call
+// Bridge for the MCP servers running inside an agent process (ask_user, delegate, wisp_stats). Every call
 // carries the per-run token wisp handed the agent; nothing else may use these.
 
 import { adapters } from '../adapters/index.js';
 import { delegationReport } from '../subagents.js';
+import { toolStats, toolStatsText } from '../usage.js';
 
 export function register(r, app) {
   const { store, runner, telemetry } = app;
@@ -50,6 +51,24 @@ export function register(r, app) {
       if (!list.length) return c.send(200, { done: true, text: 'No delegated tasks to report on.' });
       const running = ({ d, child }) => child?.turns.find((t) => t.id === d.turnId)?.status === 'running';
       c.send(200, { done: !list.some(running), text: list.map(({ d, child }) => delegationReport(d, child, adapters)).join('\n\n---\n\n') });
+    }),
+    opts,
+  );
+
+  // wisp_stats: read-only tool counts, spend and success across sessions. project=current is the
+  // asking session's project.
+  r.route(
+    'GET',
+    '/internal/stats/:id',
+    guarded((c) => {
+      const s = lead(c);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const projectFor = (x) => store.projectFor(x.cwd);
+      let project = c.query.get('project') || '';
+      if (project === 'current') project = projectFor(s)?.id || String(s.cwd || '').split(/[\\/]/).pop();
+      const stats = toolStats(store.all(), { days: Number(c.query.get('days')) || 30, project: projectFor, filter: { agent: c.query.get('agent') || '', project } });
+      telemetry.track('wisp_stats', { agent: s.agent });
+      c.send(200, { stats, text: toolStatsText(stats) });
     }),
     opts,
   );

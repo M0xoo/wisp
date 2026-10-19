@@ -216,6 +216,8 @@ function describeTool(name, input, cwd) {
       return { kind: 'agent', label: `Delegated to ${clip([...new Set((input.tasks || []).map((t) => t.subagent))].join(', ') || 'subagents', 60)}` };
     case 'wisp_subagent_results':
       return { kind: 'agent', label: 'Collected subagent reports' };
+    case 'wisp_wisp_stats':
+      return { kind: 'tool', label: 'Reading wisp stats' };
     default:
       return { kind: 'tool', label: `Using ${name.replace(/_/g, ' ')}` };
   }

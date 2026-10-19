@@ -187,5 +187,6 @@ export function unwrapShell(cmd) {
 function describeMcp(item) {
   if (item.server === 'wisp' && item.tool === 'ask_user') return { kind: 'wait', label: 'Waiting for your answer' };
   if (item.server === 'wisp' && (item.tool === 'delegate' || item.tool === 'subagent_results')) return { kind: 'agent', label: 'Waiting on subagents' };
+  if (item.server === 'wisp' && item.tool === 'wisp_stats') return { kind: 'tool', label: 'Reading wisp stats' };
   return { kind: 'tool', label: `Using ${item.server} · ${item.tool}` };
 }
