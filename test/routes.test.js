@@ -103,6 +103,8 @@ test('a scratch launch runs in its own empty folder, without a project or worktr
   assert.equal(s.scratch, true);
   assert.equal(s.project, 'General');
   assert.match(s.cwd, /scratch/);
+  // Even a project that contains the scratch folder (say ~) doesn't claim it.
+  assert.equal(s.projectId, null);
   const cfg = await (await fetch(`${base}/api/config`)).json();
   assert.ok(!cfg.projects.some((p) => p.path === s.cwd));
 });

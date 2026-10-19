@@ -500,7 +500,7 @@ export class Machines extends EventEmitter {
   summary(mid, s) {
     const m = this.get(mid);
     const q = (id) => qualify(id, mid);
-    const p = this.store.projectFor(s.cwd || '', mid);
+    const p = s.scratch ? null : this.store.projectFor(s.cwd || '', mid);
     return {
       ...s,
       id: q(s.id),
