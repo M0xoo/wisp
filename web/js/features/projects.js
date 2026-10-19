@@ -8,11 +8,17 @@ import { launch, S, save, saveLaunch } from '../core/state.js';
 import { present } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
+import { clones, isRepo, repoLabel, repoName, startClone } from './clones.js';
 import { feedToTop, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
 import { connectMachine, openMachines } from './machines.js';
-import { MACHINE_STATE, machineById, placeOf, projectById, projectTitle } from './places.js';
+import { MACHINE_STATE, machineById, placeOf, projectById, projectTitle, recentFirst } from './places.js';
+import { projectList } from './project-list.js';
+
+// Project filter chips in the top bar before the rest fold into "+N".
+const TOP_CHIPS = 6;
+let fitBar; // refits the chips when the bar's width changes
 
 export function renderProjects() {
   const all = [...S.sessions.values()];
@@ -20,26 +26,89 @@ export function renderProjects() {
     const l = pid === 'all' ? all : all.filter((s) => s.projectId === pid);
     return { run: l.filter((s) => s.state === 'running').length, need: l.filter((s) => s.state === 'waiting' || (s.state === 'review' && s.unread)).length };
   };
-  const chip = (id, name, color) => {
+  const badges = (id) => {
     const st = stats(id);
-    return `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectTitle(projectById(id)))}">
-      ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${projectById(id)?.machine ? icon('server', 'p-where') : ''}${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need">${st.need}</span>` : ''}
-    </button>`;
+    return `${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need">${st.need}</span>` : ''}`;
   };
-  $('#projects').innerHTML = `${chip('all', 'All', 'slate')}${S.config.projects
-    .slice()
-    .sort((a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt))
-    .map((p) => chip(p.id, p.name, p.color))
-    .join('')}<button class="p-chip add" id="manageProjects" title="Manage projects">${icon('plus')}</button>`;
-  $$('.p-chip[data-id]').forEach((b) =>
-    b.addEventListener('click', () => {
-      S.filter = S.filter === b.dataset.id ? 'all' : b.dataset.id;
-      save('wisp.filter', S.filter);
-      renderFeed();
-      feedToTop();
-      renderLaunchChips();
-    }),
-  );
+  const chip = (id, name, color) => `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectTitle(projectById(id)))}">
+      ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${projectById(id)?.machine ? icon('server', 'p-where') : ''}${badges(id)}
+    </button>`;
+  const list = S.config.projects.slice().sort(recentFirst);
+  // Tens of projects: the filtered one and those that need you first, then the most recent, up to
+  // TOP_CHIPS, kept in recent order so chips don't shuffle; the rest sit behind "+N".
+  const keep = new Set([
+    ...list.filter((p) => p.id === S.filter),
+    ...list.filter((p) => stats(p.id).need),
+    ...list,
+  ].slice(0, TOP_CHIPS));
+  const shown = list.filter((p) => keep.has(p));
+  $('#projects').innerHTML = `<div class="p-scroll">${chip('all', 'All', 'slate')}${shown.map((p) => chip(p.id, p.name, p.color)).join('')}</div><button class="p-chip more" id="moreProjects" title="All ${list.length} projects" aria-haspopup="dialog"><i class="p-dot" hidden></i><span class="p-more-n"></span><span class="p-need" hidden></span>${icon('chevron', 'chev')}</button><button class="p-chip add" id="manageProjects" title="Manage projects">${icon('plus')}</button>`;
+  // Keep chips whole: drop the least important ones (recent last, the filtered one never) until
+  // the rest fit, and count what's left out on "+N" with what needs you in there.
+  const fit = () => {
+    const box = $('#projects .p-scroll');
+    if (!box) return;
+    const chips = $$('.p-chip[data-id]:not([data-id="all"])', box);
+    chips.forEach((c) => (c.hidden = false));
+    const drop = [...chips].sort((a, b) => (a.dataset.id === S.filter) - (b.dataset.id === S.filter) || stats(a.dataset.id).need - stats(b.dataset.id).need || shown.findIndex((p) => p.id === b.dataset.id) - shown.findIndex((p) => p.id === a.dataset.id));
+    const more = $('#moreProjects');
+    box.hidden = false;
+    $('#manageProjects').hidden = false;
+    $('.p-dot', more).hidden = true;
+    more.classList.remove('solo', ...[...more.classList].filter((c) => c.startsWith('c-')));
+    const paint = () => {
+      const out = list.filter((p) => !chips.some((c) => !c.hidden && c.dataset.id === p.id));
+      more.hidden = !out.length;
+      $('.p-more-n', more).textContent = `+${out.length}`;
+      const need = out.reduce((n, p) => n + stats(p.id).need, 0);
+      $('.p-need', more).hidden = !need;
+      $('.p-need', more).textContent = need;
+    };
+    paint();
+    for (const c of drop) {
+      if (box.scrollWidth <= box.clientWidth) break;
+      c.hidden = true;
+      paint();
+    }
+    // Too narrow for even "All" (a phone): one chip naming the filter opens the whole list, which
+    // also has Manage projects, so + steps aside for it.
+    if (box.scrollWidth > box.clientWidth) {
+      const p = projectById(S.filter);
+      box.hidden = true;
+      $('#manageProjects').hidden = true;
+      more.hidden = false;
+      more.classList.add('solo', ...(p ? [`c-${p.color}`] : []));
+      $('.p-dot', more).hidden = !p;
+      $('.p-more-n', more).textContent = p ? p.name : 'All';
+      const need = stats(p ? p.id : 'all').need;
+      $('.p-need', more).hidden = !need;
+      $('.p-need', more).textContent = need;
+    }
+  };
+  fit();
+  fitBar ??= new ResizeObserver(() => fitBar.fit?.());
+  fitBar.fit = fit;
+  fitBar.observe($('#projects'));
+  const setFilter = (id) => {
+    S.filter = id;
+    save('wisp.filter', S.filter);
+    renderFeed(); // repaints these chips too
+    feedToTop();
+    renderLaunchChips();
+  };
+  $$('.p-chip[data-id]').forEach((b) => b.addEventListener('click', () => setFilter(S.filter === b.dataset.id ? 'all' : b.dataset.id)));
+  $('#moreProjects').onclick = (e) =>
+    projectList(e.currentTarget, {
+      projects: list,
+      current: S.filter,
+      label: 'Filter by project',
+      meta: (p) => badges(p.id),
+      extras: [
+        ...(S.filter === 'all' ? [] : [{ id: 'all', label: 'All projects', icon: 'x' }]),
+        { id: '+manage', label: 'Manage projects…', icon: 'settings' },
+      ],
+      onPick: (id) => (id === '+manage' ? openProjects() : setFilter(id)),
+    });
   $$('.p-chip[data-id]:not([data-id="all"])').forEach((b) =>
     b.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -94,7 +163,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       <div class="add-row">
         <div class="field lg mono path-input">
           ${window.wispDesktop ? `<button class="browse" title="Browse…">${icon('folder')}</button>` : icon('folder')}
-          <input id="ppath" placeholder="~/code/my-app" spellcheck="false" autocomplete="off">
+          <input id="ppath" placeholder="~/code/my-app or a GitHub URL" spellcheck="false" autocomplete="off">
           <div class="suggest" hidden></div>
         </div>
         ${window.wispDesktop ? `<button class="ghost" id="pbrowse">${icon('folder')}Browse…</button>` : ''}
@@ -102,15 +171,17 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       </div>
       <p class="hint"></p>
       <div class="plist" id="plist"></div>
+      <div class="discover" id="ghrepos"></div>
       <div class="discover" id="discover"><h4>Found on this machine</h4><p class="muted">Looking for git repos…</p></div>
     </div>`);
-  present(node, host);
+  const close = present(node, host);
   const input = $('#ppath', node);
   const sug = $('.suggest', node);
   let where = machine && machineById(machine) ? machine : null;
   const here = () => machineById(where);
   const home = () => (where ? here()?.remote?.home : S.config.home) || '';
   const tilde = (p) => (home() && p.startsWith(home()) ? `~${p.slice(home().length)}` : p);
+  let editingCloneDir = false;
 
   const paintWhere = () => {
     const tabs = $('.where', node);
@@ -118,12 +189,59 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       .map((m) => `<button data-w="${m.id}" class="${where === m.id ? 'on' : ''}" title="${esc(m.target)} · ${esc(MACHINE_STATE[m.state] || m.state)}">${icon('server')}${esc(m.name)}<i class="dot ${m.state === 'online' ? 'ok' : m.state === 'error' ? 'bad' : ''}"></i></button>`)
       .join('')}<i></i>${host ? '' : `<button data-w="+" title="Run agents on another computer over SSH">${icon('plus')}Machine</button>`}`;
     const m = here();
-    input.placeholder = m ? `~/code/my-app on ${m.name}` : '~/code/my-app';
+    input.placeholder = m ? `~/code/my-app or a GitHub URL, on ${m.name}` : '~/code/my-app or a GitHub URL';
     $$('#pbrowse, .browse', node).forEach((b) => (b.hidden = !!m));
-    $('.hint', node).innerHTML = m
-      ? `Folders on <b>${esc(m.name)}</b>. Agents run there, in its own worktrees; you follow along here.`
-      : 'Tip: run <code>wisp add</code> inside any folder, or launch from a terminal with <code>wisp "task"</code> — the folder is added automatically.';
+    paintHint();
   };
+  // The hint under the input follows what's typed: a repo URL says where the clone goes.
+  const paintHint = () => {
+    const m = here();
+    const hint = $('.hint', node);
+    const v = input.value.trim();
+    $('#padd', node).textContent = isRepo(v) ? 'Clone' : 'Add';
+    if (editingCloneDir) return;
+    if (isRepo(v))
+      hint.innerHTML = m
+        ? `Clones <b>${esc(repoLabel(v))}</b> on <b>${esc(m.name)}</b>. You can write the task while it clones.`
+        : `Clones <b>${esc(repoLabel(v))}</b> into <button class="link" data-a="clonedir" title="Change where repos are cloned">${esc(tilde(S.config.cloneDir || '~/code'))}/${esc(repoName(v))}</button>. You can write the task while it clones.`;
+    else
+      hint.innerHTML = m
+        ? `Folders on <b>${esc(m.name)}</b>, or a repo URL to clone there. Agents run there, in its own worktrees; you follow along here.`
+        : 'Paste a GitHub URL and wisp clones it for you. Or run <code>wisp add</code> inside any folder: it is added automatically.';
+  };
+  // Change the clone folder in place: the hint turns into a small path field.
+  $('.hint', node).addEventListener('click', (e) => {
+    if (!e.target.closest('[data-a="clonedir"]')) return;
+    editingCloneDir = true;
+    const hint = $('.hint', node);
+    hint.innerHTML = `Clone repos into <input class="clonedir mono" spellcheck="false" value="${esc(tilde(S.config.cloneDir || '~/code'))}"> <button class="link" data-a="savedir">Save</button>`;
+    const f = $('.clonedir', hint);
+    const done = async (keep) => {
+      if (!editingCloneDir) return;
+      editingCloneDir = false;
+      if (keep && f.value.trim() !== tilde(S.config.cloneDir || '')) {
+        S.config.cloneDir = f.value.trim(); // optimistic; the server answers with the resolved folder
+        await tryApi(async () => {
+          await api('/config', { method: 'PATCH', body: { defaults: { cloneDir: f.value.trim() } } });
+          await loadConfig();
+        });
+      }
+      paintHint();
+      input.focus();
+    };
+    f.onkeydown = (ev) => {
+      if (ev.key === 'Enter' || ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation(); // Escape cancels the edit, not the dialog
+        done(ev.key === 'Enter');
+      }
+    };
+    $('[data-a="savedir"]', hint).onclick = () => {
+      done(true);
+    };
+    f.focus();
+    f.select();
+  });
   $('.where', node).addEventListener('click', (e) => {
     const b = e.target.closest('[data-w]');
     if (!b) return;
@@ -135,27 +253,41 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
     sug.hidden = true;
     paintWhere();
     list();
+    github();
     discover();
     input.focus();
   });
 
+  // A new project becomes the launcher's pick for its place.
+  const picked = async (proj) => {
+    await loadConfig();
+    launch.picks[placeOf(proj)] = proj.id;
+    if (!launch.where.includes(placeOf(proj))) launch.where = [placeOf(proj)];
+    if (placeOf(proj) === launch.where[0]) launch.project = proj.id;
+    saveLaunch();
+    renderLaunchChips();
+  };
   const add = async (p) => {
+    if (isRepo(p)) return clone(p);
     try {
       const proj = await api('/projects', { method: 'POST', body: { path: p, ...(where && { machine: where }) } });
-      await loadConfig();
-      launch.picks[placeOf(proj)] = proj.id;
-      if (!launch.where.includes(placeOf(proj))) launch.where = [placeOf(proj)];
-      if (placeOf(proj) === launch.where[0]) launch.project = proj.id;
-      saveLaunch();
-      renderLaunchChips();
+      await picked(proj);
       toast(`Added <b>${esc(proj.name)}</b>${where ? ` on ${esc(here()?.name || '')}` : ''}`);
       input.value = '';
       sug.hidden = true;
+      paintHint();
       list();
       discover();
     } catch (err) {
       toastError(err);
     }
+  };
+  // Clone a repo: the launcher picks it right away (cloning in the background) and the dialog
+  // closes, so the next thing is writing the task. A launch into it waits for the clone.
+  const clone = (url) => {
+    startClone(url, where);
+    close();
+    setTimeout(() => $('#prompt')?.focus(), 60);
   };
   $('#padd', node).onclick = () => {
     if (input.value.trim()) add(input.value.trim());
@@ -169,10 +301,11 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   let sel = -1;
   let t;
   input.addEventListener('input', () => {
+    paintHint();
     clearTimeout(t);
     t = setTimeout(async () => {
       const q = input.value;
-      if (!q) return (sug.hidden = true);
+      if (!q || isRepo(q)) return (sug.hidden = true);
       const dirs = await api(`${where ? `/machines/${where}/fs` : '/fs'}?q=${encodeURIComponent(q)}`).catch(() => []);
       sel = -1;
       sug.hidden = !dirs.length;
@@ -202,8 +335,16 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   const list = () => {
     const box = $('#plist', node);
     const projects = S.config.projects.filter((p) => (p.machine || null) === where);
-    box.innerHTML = projects.length
-      ? projects
+    const pending = clones
+      .filter((j) => j.where === where)
+      .map(
+        (j) => `<div class="prow cloning"><span class="swatch"><span class="orb live"></span></span>
+          <div class="prow-main"><b class="pname">${esc(repoName(j.url))}</b><span class="ppath">Cloning ${esc(repoLabel(j.url))}…</span></div></div>`,
+      )
+      .join('');
+    box.innerHTML = projects.length || pending
+      ? pending +
+        projects
           .map((p) => {
             const n = [...S.sessions.values()].filter((s) => s.projectId === p.id).length;
             return `<div class="prow c-${p.color}" data-id="${p.id}">
@@ -215,7 +356,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
           })
           .join('')
       : `<p class="muted">No projects ${where ? `on ${esc(here()?.name || '')} ` : ''}yet. Add a folder above, or pick one below.</p>`;
-    $$('.prow', box).forEach((row) => {
+    $$('.prow[data-id]', box).forEach((row) => {
       const id = row.dataset.id;
       const p = projectById(id);
       $('.pname', row).onchange = (e) => {
@@ -243,6 +384,40 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
     });
   };
 
+  // The user's own GitHub repos (through gh), one click to clone. Only on this computer, and
+  // hidden when gh isn't installed or signed in.
+  let ghRepos = null;
+  let ghAll = false;
+  const github = async () => {
+    const box = $('#ghrepos', node);
+    if (where) return (box.innerHTML = '');
+    box.onclick = (e) => {
+      const b = e.target.closest('[data-repo]');
+      if (b) clone(b.dataset.repo);
+      if (e.target.closest('[data-a="ghall"]')) {
+        ghAll = !ghAll;
+        github();
+      }
+    };
+    if (!ghRepos) {
+      box.innerHTML = `<h4>${icon('github')}Your GitHub repos</h4><p class="muted">Asking gh…</p>`;
+      ghRepos = await api('/projects/github').catch(() => []);
+      if (where) return (box.innerHTML = '');
+    }
+    const busy = new Set(clones.map((j) => j.label.toLowerCase()));
+    const repos = ghRepos.filter((r) => !busy.has(r.repo.toLowerCase()));
+    const more = repos.length > 6 ? `<button class="link xs" data-a="ghall">${ghAll ? 'Show fewer' : `Show all ${repos.length}`}</button>` : '';
+    box.innerHTML = repos.length
+      ? `<h4>${icon('github')}Your GitHub repos <span class="muted">· click to clone</span>${more}</h4><div class="found">${repos
+          .slice(0, ghAll ? undefined : 6)
+          .map(
+            (r) =>
+              `<button class="found-item" data-repo="${esc(r.url)}" title="${esc(r.description || r.repo)}">${icon('plus')}<b>${esc(r.repo.split('/')[1])}</b><span>${esc(r.repo.split('/')[0])}${r.private ? ' · private' : ''}${r.fork ? ' · fork' : ''}</span></button>`,
+          )
+          .join('')}</div>`
+      : '';
+  };
+
   const discover = async () => {
     const box = $('#discover', node);
     const m = here();
@@ -265,6 +440,14 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
           .join('')}</div>`
       : '';
   };
+  bus.on(
+    'clones',
+    () => {
+      list();
+      github();
+    },
+    { node },
+  );
   let wasOnline = here()?.state === 'online';
   bus.on(
     'machines',
@@ -279,6 +462,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
 
   paintWhere();
   list();
+  github();
   discover();
   if (focusAdd) setTimeout(() => input.focus(), 60);
 }

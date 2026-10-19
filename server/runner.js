@@ -81,7 +81,8 @@ export function summarize(s, store) {
     title: s.title,
     agent: s.agent,
     cwd: s.cwd,
-    project: s.agent === 'wisp' ? 'tour' : project?.name || path.basename(s.cwd || ''),
+    scratch: store?.isScratch?.(s.cwd) || undefined,
+    project: s.agent === 'wisp' ? 'tour' : (store?.isScratch?.(s.cwd) ? 'General' : project?.name) || path.basename(s.cwd || ''),
     projectId: project?.id || null,
     color: project?.color || 'slate',
     mode: s.mode,
@@ -102,7 +103,10 @@ export function summarize(s, store) {
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
     branch: s.worktree?.branch || '',
     toShip: s.toShip || null, // { dirty, ahead, unpushed } of the worktree, null until checked
-    pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks } : null,
+    shipping: s.shipping || null, // { step: 'start' | 'commit' | 'push' | 'pr', update } while Ship it runs
+    pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks, conflict: !!s.pr.conflict } : null,
+    // wisp fixing the PR's merge conflicts on its own: { step: 'fixing' | 'pushing' | 'done' | 'failed', why }
+    conflictFix: s.conflictFix ? { step: s.conflictFix.step, why: s.conflictFix.why || '' } : null,
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger' | 'telegram', id, name }
     // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.

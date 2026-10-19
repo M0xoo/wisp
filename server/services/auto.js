@@ -24,6 +24,17 @@ export function createAuto(app) {
   };
   // This computer's harnesses: the last ones detected, else detected now.
   const agents = async () => (agentsHere.length ? agentsHere : await detect());
+  // What the page asks for on every load: the last detection right away, checked again in the
+  // background (a cold probe takes seconds: opencode lists its models), and an 'agents' event
+  // if that changed anything, so the launcher never waits on it.
+  const listed = async () => {
+    if (!agentsHere.length) return detect();
+    const before = JSON.stringify(agentsHere);
+    detect()
+      .then((now) => JSON.stringify(now) !== before && app.broadcast('agents', {}))
+      .catch(() => {});
+    return agentsHere;
+  };
 
   const opts = () => {
     const r = store.config.defaults.router || {};
@@ -149,5 +160,5 @@ export function createAuto(app) {
   // What the Auto view shows: goals, settings, and what the router learned.
   const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { explore: opts().explore, allowed: opts().allowed, ...autoSettings(store.config.defaults) }, projects: projects(), ...router.report(await agents()) });
 
-  return { detect, agents, opts, goalOf, signals, resolve, view };
+  return { detect, agents, listed, opts, goalOf, signals, resolve, view };
 }

@@ -39,6 +39,7 @@
       <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/></symbol>
       <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
       <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="19" r="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6 7.2v9.6M18 9.2c0 5-12 3-12 7.6" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+      <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 2.5a9.5 9.5 0 00-3 18.52c.48.09.65-.2.65-.46v-1.62c-2.64.57-3.2-1.27-3.2-1.27-.43-1.1-1.05-1.39-1.05-1.39-.86-.59.07-.58.07-.58.95.07 1.45.98 1.45.98.85 1.45 2.22 1.03 2.76.79.09-.61.33-1.03.6-1.27-2.1-.24-4.32-1.05-4.32-4.68 0-1.03.37-1.88.98-2.54-.1-.24-.42-1.2.09-2.5 0 0 .8-.26 2.61.97a9.1 9.1 0 014.76 0c1.81-1.23 2.61-.97 2.61-.97.51 1.3.19 2.26.09 2.5.61.66.98 1.51.98 2.54 0 3.64-2.22 4.44-4.34 4.67.34.3.64.88.64 1.77v2.63c0 .26.17.56.66.46A9.5 9.5 0 0012 2.5z" fill="currentColor"/></symbol>
       <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
       <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19L12 3.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.2v.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
       <symbol id="i-ask" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 016.5 3h11A2.5 2.5 0 0120 5.5v8a2.5 2.5 0 01-2.5 2.5H10l-4.5 4v-4h0A1.5 1.5 0 014 14.5v-9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 8.2a2 2 0 113 1.7c-.7.4-1 .8-1 1.6M12 13.2v.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
@@ -102,13 +103,22 @@
       </button>
     </header>
     <div class="feed-wrap">
-      <div class="launch-slot" id="launchSlot"><section class="launcher card" id="launcher"></section></div>
+      <div class="launch-slot" id="launchSlot">
+        <!-- First paint, before the scripts load: the launcher's shape, and a box you can already type
+             in. renderLauncher() fills in the rest and keeps what was typed. -->
+        <section class="launcher card skel" id="launcher">
+          <div class="l-projects"><span class="l-in">in</span></div>
+          <textarea id="prompt" rows="2" spellcheck="false" autofocus placeholder="What should I go do? Paste screenshots, drop logs or videos…"></textarea>
+          <div class="l-bar"><span class="grow"></span><button class="send" tabindex="-1" aria-hidden="true"><svg class="i"><use href="#i-enter"/></svg></button></div>
+          <div class="l-recipes"></div>
+        </section>
+      </div>
       <div class="feed-head" id="feedHead"></div>
       <div class="feed" id="feed">
-        <section class="f-group needs" id="secNeeds"><h4>Needs you<span class="n"></span></h4><div class="f-list"></div></section>
-        <section class="f-group working" id="secWorking"><h4>Working<span class="n"></span></h4><div class="f-list"></div></section>
-        <section class="f-group done" id="secDone"><h4 class="toggle-done">Done<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
-        <section class="f-group done archived" id="secArchived"><h4 class="toggle-done">Archived<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
+        <section class="f-group needs" id="secNeeds" hidden><h4>Needs you<span class="n"></span></h4><div class="f-list"></div></section>
+        <section class="f-group working" id="secWorking" hidden><h4>Working<span class="n"></span></h4><div class="f-list"></div></section>
+        <section class="f-group done" id="secDone" hidden><h4 class="toggle-done">Done<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
+        <section class="f-group done archived" id="secArchived" hidden><h4 class="toggle-done">Archived<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
       </div>
       <div class="feed-empty" id="feedEmpty" hidden></div>
     </div>

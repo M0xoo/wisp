@@ -12,12 +12,14 @@ import { popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { openAutomations, recipeParams, runRecipe } from './automations.js';
+import { cloneById, clones } from './clones.js';
 import { renderFeed } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { connectMachine, offlineToast, openMachines } from './machines.js';
 import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
 import { MACHINE_STATE, machineById, placeName, placeOf, projectById, projectsAt, projectTitle } from './places.js';
+import { projectList } from './project-list.js';
 import { openProjects } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
@@ -25,16 +27,27 @@ import { agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt
 import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 
+// "No folder": a general ask with no project. The server gives it an empty scratch directory.
+const NO_FOLDER = 'none';
+const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
+const projectOf = (k) => (launch.picks[k] === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
+// Project chips in the "in" row, at most, before the rest fold into "+N".
+const CHIPS = 5;
+
+// Only a change of feed filter moves the launcher, so a "No folder" pick survives re-renders.
+let filterSeen = null;
+
 function syncWhere() {
   launch.where = launch.where.filter((k, i) => (!k || machineById(k)) && launch.where.indexOf(k) === i);
   if (!launch.where.length) launch.where = [''];
   // Filtering the feed to a project points the launcher at it (its machine joins if it wasn't picked).
-  const f = S.filter !== 'all' && projectById(S.filter);
+  const f = S.filter !== 'all' && S.filter !== filterSeen && projectById(S.filter);
+  filterSeen = S.filter;
   if (f) {
     if (!launch.where.includes(placeOf(f))) launch.where = [placeOf(f)];
     launch.picks[placeOf(f)] = f.id;
   } else if (projectById(launch.project) && !Object.values(launch.picks).includes(launch.project)) launch.picks[placeOf(projectById(launch.project))] ??= launch.project;
-  for (const k of launch.where) if (!projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
+  for (const k of launch.where) if (launch.picks[k] !== NO_FOLDER && !cloneById(launch.picks[k]) && !projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
   launch.project = launch.picks[launch.where[0]] || null;
 }
 
@@ -44,6 +57,12 @@ export function renderLauncher() {
   const here = harnessesAt(launch.where, { auto: true });
   const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'auto'));
   let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
+  // Rendered over what's there (index.html's first paint, or fresh settings or harnesses): what
+  // was typed, and the caret if you're typing, carry over.
+  const old = $('#prompt', box);
+  const typing = old && document.activeElement === old && [old.selectionStart, old.selectionEnd];
+  if (old) S.drafts.set('home', old.value);
+  box.classList.remove('skel');
   box.innerHTML = `
     <div class="l-projects"></div>
     <div class="l-setup" hidden></div>
@@ -79,6 +98,7 @@ export function renderLauncher() {
   ta.addEventListener('focus', hint);
   ta.addEventListener('blur', hint);
   hint();
+  if (typing) (ta.focus(), ta.setSelectionRange(...typing));
   // Docked and folded to one line, a click anywhere on it opens it up for typing. A property, not
   // a listener: the launcher re-renders in place, and each render would add another.
   box.onmousedown = (e) => {
@@ -230,8 +250,8 @@ export function renderLauncher() {
       return feedbackCommand(prompt, { restore: () => !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input'))) });
     }
     // One run per place picked under "Run on", each in the project picked for it.
-    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectById(launch.picks[k]) }));
-    const unset = targets.find((t) => !t.project);
+    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(k), clone: cloneById(launch.picks[k]) }));
+    const unset = targets.find((t) => !t.project && !t.clone);
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
     if (off) return offlineToast(off.k);
@@ -250,12 +270,13 @@ export function renderLauncher() {
     const files = tray.take();
     const cmp = compare;
     const runner = { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
-    const pending = targets.map((t) => addPending(prompt, t, runner));
+    // A repo still cloning gets a stand-in project; its card says so until the clone lands.
+    const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone && `Cloning ${t.clone.label}`));
     if (cmp.length) (compare = []), paintCompare();
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
-    if (S.filter !== 'all' && targets.some((t) => t.project.id !== S.filter)) {
+    if (S.filter !== 'all' && targets.some((t) => t.project?.scratch || t.project?.id !== S.filter)) {
       S.filter = 'all';
       save('wisp.filter', S.filter);
     }
@@ -264,13 +285,20 @@ export function renderLauncher() {
     showLaunched(btn, ghost);
     ta.focus();
     try {
+      for (const [i, t] of targets.entries()) {
+        if (!t.clone) continue;
+        const p = (t.project = await t.clone.promise);
+        // Now a real project, so the live session can replace the card (dropPending).
+        const card = S.sessions.get(pending[i]);
+        if (card) Object.assign(card, { projectId: p.id, project: p.name, cwd: p.path, color: p.color, live: 'Starting up' }), renderFeed();
+      }
       // Several places: one shared groupId, so the runs land as one task with a row each.
       const groupId = targets.length > 1 ? [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('') : undefined;
       const results = await Promise.allSettled(
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, scratch: t.project.scratch || undefined, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -291,7 +319,10 @@ export function renderLauncher() {
     } catch (err) {
       for (const id of pending) S.sessions.delete(id);
       renderFeed();
-      toastError(err);
+      if (!err.shown) return toastError(err);
+      // The clone failed (its toast says why): the task goes back in the box.
+      if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
+      tray.restore(files);
     }
   };
   $('#launch', box).onclick = go;
@@ -321,6 +352,12 @@ export function renderLauncher() {
   });
 }
 
+// No folder everywhere picked: no git repo, so no worktree either; the toggle would only mislead.
+function paintScratch() {
+  const wt = $('#launcher #wtBtn');
+  if (wt) wt.hidden = launch.where.every((k) => launch.picks[k] === NO_FOLDER);
+}
+
 export function renderLaunchChips() {
   const box = $('#launcher .l-projects');
   if (!box) return;
@@ -332,22 +369,69 @@ export function renderLaunchChips() {
     const list = projectsAt(k);
     const off = m && m.state !== 'online';
     const label = k || multi ? `<span class="lp-gl ${off ? 'off' : ''}" title="${esc(k ? `${m?.target} · ${MACHINE_STATE[m?.state] || ''}` : 'This computer')}">${icon(k ? 'server' : 'laptop')}${esc(placeName(k))}${off ? `<button class="link xs" data-connect="${k}">${m.state === 'connecting' || m.state === 'reconnecting' ? 'connecting…' : 'Connect'}</button>` : ''}</span>` : '';
-    const chips = list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
-    const add = list.length
-      ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi ? '' : 'Other folder…'}</button>`
-      : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a project folder…'}</button>`;
-    return `<span class="lp-group">${label}${chips}${add}</span>`;
+    // A repo still cloning: picked, with a spinner, until the real project replaces it.
+    const cloning = clones
+      .filter((c) => (c.where || '') === k)
+      .map((c) => `<button class="lp-chip cloning ${c.id === launch.picks[k] ? 'on' : ''}" data-id="${c.id}" data-k="${k}" title="Cloning ${esc(c.label)}…"><span class="orb live"></span>${esc(c.name)}<span class="lp-note">cloning…</span></button>`)
+      .join('');
+    // Tens of projects: the most recent few as chips (the pick always among them), the rest one
+    // search away behind "+N". fitChips() then folds more into it if the row would wrap.
+    const max = multi ? 3 : CHIPS;
+    let shown = list;
+    if (list.length > max) {
+      const top = list.slice(0, max);
+      const picked = list.find((p) => p.id === launch.picks[k]);
+      shown = !picked || top.includes(picked) ? top : [...top.slice(0, -1), picked].sort((a, b) => list.indexOf(a) - list.indexOf(b));
+    }
+    const chips = cloning + shown.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
+    const more = list.length > 1 ? `<button class="lp-chip more" data-more="${k}" data-total="${list.length}" title="All ${list.length} projects${k ? ` on ${esc(placeName(k))}` : ''}" aria-haspopup="dialog"><span class="lp-more-n"></span>${icon('search')}</button>` : '';
+    const add = list.length || cloning
+      ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi || list.length > max ? '' : 'Other folder…'}</button>`
+      : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a folder…'}</button>`;
+    const none = `<button class="lp-chip none ${launch.picks[k] === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" data-k="${k}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}<span>No folder</span></button>`;
+    return `<span class="lp-group">${label}${chips}${more}${none}${add}</span>`;
   };
   box.innerHTML = `<span class="l-in">in</span>${launch.where.map(group).join('')}`;
+  fitChips(box);
+  fitRow ??= new ResizeObserver(([e]) => {
+    if (e.contentRect.width === fitRow.w) return; // its own folding only changes the height
+    fitRow.w = e.contentRect.width;
+    fitChips(e.target);
+  });
+  fitRow.observe(box);
+  paintScratch();
+  const pick = (k, id) => {
+    launch.picks[k] = id;
+    if (k === launch.where[0]) launch.project = id;
+    saveLaunch();
+    paintScratch();
+    renderLaunchRecipes();
+  };
   box.onclick = (e) => {
     const chip = e.target.closest('.lp-chip[data-id]');
     if (chip) {
-      launch.picks[chip.dataset.k] = chip.dataset.id;
-      if (chip.dataset.k === launch.where[0]) launch.project = chip.dataset.id;
-      saveLaunch();
+      pick(chip.dataset.k, chip.dataset.id);
       $$(`.lp-chip[data-k="${chip.dataset.k}"]`, box).forEach((x) => x.classList.toggle('on', x === chip));
-      renderLaunchRecipes();
       return;
+    }
+    const more = e.target.closest('[data-more]');
+    if (more) {
+      const k = more.dataset.more;
+      return projectList(more, {
+        projects: projectsAt(k),
+        current: launch.picks[k],
+        label: `Projects on ${placeName(k)}`,
+        extras: [
+          { id: NO_FOLDER, label: 'No folder', icon: 'spark' },
+          { id: '+add', label: k ? `Another folder on ${placeName(k)}…` : 'Other folder…', icon: 'folder' },
+        ],
+        onPick: (id) => {
+          if (id === '+add') return openProjects({ focusAdd: true, machine: k || null });
+          pick(k, id);
+          renderLaunchChips(); // the pick joins the chips
+          $('#prompt')?.focus();
+        },
+      });
     }
     const add = e.target.closest('[data-add]');
     if (add) openProjects({ focusAdd: true, machine: add.dataset.add || null });
@@ -356,6 +440,41 @@ export function renderLaunchChips() {
   };
   renderLaunchRecipes();
   paintWhereBtn();
+}
+
+// One row, however many projects: on a single place, the least recent chips (never the pick, and
+// at least one) fold into "+N" until the row stops wrapping. "+N" counts what isn't a chip.
+let fitRow;
+function fitChips(box) {
+  for (const g of $$('.lp-group', box)) {
+    const chips = $$('.lp-chip[data-id]:not(.none):not(.cloning)', g);
+    const more = $('.lp-chip.more', g);
+    chips.forEach((c) => (c.hidden = false));
+    const paint = () => {
+      const n = Number(more?.dataset.total) - chips.filter((c) => !c.hidden).length;
+      if (!more) return;
+      more.hidden = !n;
+      $('.lp-more-n', more).textContent = `+${n}`;
+    };
+    paint();
+    if (launch.where.length > 1) continue;
+    const wraps = () => {
+      const kids = [...g.children].filter((x) => !x.hidden && x.offsetParent);
+      const lin = $('.l-in', box); // "in" left alone on a line counts too
+      return kids.some((x) => x.offsetTop >= kids[0].offsetTop + kids[0].offsetHeight) || (lin && kids[0].offsetTop >= lin.offsetTop + lin.offsetHeight);
+    };
+    for (const c of chips.filter((x) => !x.classList.contains('on')).reverse()) {
+      if (!wraps() || chips.filter((x) => !x.hidden).length <= 1) break;
+      c.hidden = true;
+      paint();
+    }
+    // "+1" is no shorter than the one chip it would stand for: keep the chip, let the row wrap.
+    const folded = chips.filter((c) => c.hidden);
+    if (folded.length && Number(more?.dataset.total) - chips.length + folded.length === 1) {
+      folded.forEach((c) => (c.hidden = false));
+      paint();
+    }
+  }
 }
 
 // "Run on": this computer and/or machines. The button says where; its menu picks one or several.
@@ -486,7 +605,7 @@ function launchedFx(from, to) {
 // A launch the server hasn't answered yet: a placeholder summary that shows in Working as a
 // "Starting up" card. It can't be opened; the real card takes its place.
 let pendingSeq = 0;
-function addPending(prompt, { project: p, m }, { agent, model, effort }) {
+function addPending(prompt, { project: p, m }, { agent, model, effort }, live = 'Starting up') {
   const id = `pending-${++pendingSeq}`;
   const line = plain(prompt).split('\n')[0].replace(/\s+/g, ' ');
   const now = Date.now();
@@ -498,11 +617,12 @@ function addPending(prompt, { project: p, m }, { agent, model, effort }) {
     model,
     effort,
     cwd: p.path,
+    scratch: p.scratch,
     project: p.name,
     projectId: p.id,
     color: p.color || 'slate',
     state: 'running',
-    live: 'Starting up',
+    live,
     createdAt: now,
     updatedAt: now,
     machine: m ? { id: m.id, name: m.name, target: m.target } : null,

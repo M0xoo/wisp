@@ -15,11 +15,13 @@ export const MAX_COMPARE = 4;
 export function createLaunch(app) {
   const { store, runner, machines } = app;
 
-  // body: { prompt, cwd, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
+  // body: { prompt, cwd, scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
   //         subagents: [{ name, agent, model, effort, use }] | preset: teamId }
   async function launch(body, origin = null) {
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
-    const cwd = expand(body.cwd || process.cwd());
+    // scratch: no project folder (general questions); the task gets an empty directory of its own.
+    const scratch = body.scratch === true;
+    const cwd = scratch ? store.scratchDir(newId()) : expand(body.cwd || process.cwd());
     if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw bad(`Not a directory: ${cwd}`);
     const d = store.config.defaults;
     const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
@@ -41,7 +43,7 @@ export function createLaunch(app) {
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
     // runs need one each, or the harnesses would edit the same files.
     const comparing = runners.length > 1;
-    const wantTree = body.worktree ?? (comparing || (mode !== 'plan' && d.worktree !== 'off'));
+    const wantTree = !scratch && (body.worktree ?? (comparing || (mode !== 'plan' && d.worktree !== 'off')));
     // groupId: one launch sent to several machines (or here and there) shows as one task.
     const groupId = /^[a-f0-9]{12}$/.test(body.groupId || '') ? body.groupId : comparing ? newId() : null;
     const attachments = app.uploads.resolve(body.attachments);
@@ -97,10 +99,12 @@ export function createLaunch(app) {
     if (!sendBody.compare?.length && !body.compare) delete sendBody.compare;
     const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
     (out.group || [out]).forEach((x, i) => routes[i] && app.router.record(qualify(x.id, mid), routes[i]));
-    const known = store.projectFor(out.cwd, mid);
-    (known || store.addProject(out.cwd, { machine: mid })).lastUsedAt = Date.now();
-    store.saveConfig();
-    if (!known) app.broadcast('config', {});
+    const known = out.scratch || store.projectFor(out.cwd, mid);
+    if (!out.scratch) {
+      (known || store.addProject(out.cwd, { machine: mid })).lastUsedAt = Date.now();
+      store.saveConfig();
+      if (!known) app.broadcast('config', {});
+    }
     return (out.group || [out]).map((x) => machines.summary(mid, x));
   }
 

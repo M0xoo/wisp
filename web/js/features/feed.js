@@ -13,7 +13,7 @@ import { machinePill } from './places.js';
 import { renderProjects } from './projects.js';
 import { agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
 import { scrollByPx, stage, topInset } from './scroll.js';
-import { prPill } from './ship.js';
+import { prPill, shipPill } from './ship.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 
@@ -209,7 +209,7 @@ function renderHead(n, s) {
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}
-      ${s.pr ? prPill(s.pr) : ''}
+      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr, s.conflictFix) : ''}
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
       <span class="q-proj">${esc(s.project)}</span>
@@ -255,7 +255,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}
-      ${s.pr ? prPill(s.pr) : ''}
+      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr, s.conflictFix) : ''}
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${icon('chevron', 'chev')}
     </span>`;

@@ -27,11 +27,20 @@ export function register(r, app) {
     one(async (c, s) => {
       if (!s.worktree) return c.send(400, { error: NO_TREE });
       if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
+      if (s.shipping) return c.send(409, { error: 'Already shipping: wait for it to land.' });
       const body = await c.body();
       const draft = app.ship.draft(s);
-      s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr });
+      // The card follows along: s.shipping names the stage running now, sent with each summary.
+      s.shipping = { step: 'start', update: s.pr?.state === 'OPEN', startedAt: Date.now() };
+      app.sessionChanged(s);
+      const onStep = (step) => ((s.shipping = { ...s.shipping, step }), app.sessionChanged(s));
+      try {
+        s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr, onStep });
+      } finally {
+        delete s.shipping;
+        app.sessionChanged(s, { now: true });
+      }
       telemetry.track('ship', { agent: s.agent, draft: !!body.draft });
-      app.sessionChanged(s, { now: true });
       app.ship.recheck(s);
       c.send(200, s.pr);
     }),
@@ -42,6 +51,19 @@ export function register(r, app) {
     one(async (c, s) => {
       if (!s.pr) return c.send(404, { error: 'No pull request yet.' });
       c.send(200, await app.ship.refreshPr(s));
+    }),
+  );
+  // Try the automatic conflict fix again after it gave up (see services/ship.js).
+  r.route(
+    'POST',
+    '/sessions/:id/fix-conflicts',
+    one(async (c, s) => {
+      if (s.pr?.state !== 'OPEN' || !s.worktree) return c.send(400, { error: 'No open pull request.' });
+      if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
+      s.conflictFix = { tries: 0 };
+      await app.ship.refreshPr(s);
+      if (s.conflictFix?.step !== 'fixing') return c.send(409, { error: s.pr.conflict ? 'It merges cleanly with the latest base here: GitHub may not have caught up yet.' : 'The PR has no merge conflicts now.' });
+      c.send(200, { conflictFix: s.conflictFix });
     }),
   );
   // Squash-merge the reviewed head, sync the user's base branch, clean up the worktree.

@@ -500,7 +500,7 @@ export class Machines extends EventEmitter {
   summary(mid, s) {
     const m = this.get(mid);
     const q = (id) => qualify(id, mid);
-    const p = this.store.projectFor(s.cwd || '', mid);
+    const p = s.scratch ? null : this.store.projectFor(s.cwd || '', mid);
     return {
       ...s,
       id: q(s.id),
@@ -578,7 +578,7 @@ export class Machines extends EventEmitter {
   }
 
   async addProject(mid, dir, name) {
-    const p = await this.json(mid, 'POST', '/projects', { path: dir });
+    const p = await this.json(mid, 'POST', '/projects', { path: dir }, { timeout: 10 * 60_000 }); // dir may be a repo URL to clone
     const local = this.store.addProject(p.path, { name: name || p.name, machine: mid });
     return local;
   }

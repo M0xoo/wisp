@@ -4,7 +4,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $ } from '../core/dom.js';
-import { S, saveOpen } from '../core/state.js';
+import { S, saveOpen, setAgents } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { paintAutoBtn } from './automations.js';
 import { collapse, renderFeed, scheduleRefetch, sectionOf } from './feed.js';
@@ -41,7 +41,7 @@ export function connect() {
       renderFeed();
     });
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
-    if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state]) !== JSON.stringify([s.pr, s.toShip, s.state])) renderPrStrip(s.id);
+    if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
@@ -66,7 +66,7 @@ export function connect() {
   });
   // A harness was installed from wisp (maybe in another tab): fetch the new list.
   es.addEventListener('agents', async () => {
-    S.agents = await api('/agents').catch(() => S.agents);
+    setAgents(await api('/agents').catch(() => S.agents));
     $('#launcher')?.placesChanged?.();
     bus.emit('agents');
   });

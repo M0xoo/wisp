@@ -88,6 +88,7 @@ export class Store {
 
   // machine: a project on another computer (paths there are POSIX); null = this one.
   projectFor(cwd = '', machine = null) {
+    if (!machine && this.isScratch(cwd)) return null; // never inside a project, even one at ~
     const sep = machine ? '/' : path.sep;
     let best = null;
     for (const p of this.config.projects)
@@ -112,7 +113,19 @@ export class Store {
     return project;
   }
 
+  // Folder-less tasks run in a throwaway directory of their own under ~/.wisp/scratch.
+  scratchDir(id) {
+    const dir = path.join(this.home, 'scratch', id);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  }
+
+  isScratch(dir = '') {
+    return String(dir).startsWith(path.join(this.home, 'scratch') + path.sep);
+  }
+
   touchProject(dir) {
+    if (this.isScratch(dir)) return null;
     const p = this.projectFor(dir) || this.addProject(dir);
     p.lastUsedAt = Date.now();
     this.saveConfig();
@@ -147,6 +160,8 @@ export class Store {
 
   delete(id) {
     clearTimeout(this.timers.get(id));
+    const cwd = this.sessions.get(id)?.cwd;
+    if (this.isScratch(cwd)) fs.rmSync(cwd, { recursive: true, force: true }); // a folder-less task's files go with it
     this.sessions.delete(id);
     fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
     fs.rmSync(path.join(this.shots, id), { recursive: true, force: true });

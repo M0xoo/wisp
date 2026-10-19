@@ -2,7 +2,7 @@
 // issue list). Pull requests live in a JSON file; merging really pushes the PR head to the base
 // branch of the repo's origin, so the "sync your local main" step has something to fetch.
 //
-//   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [] } (created if missing)
+//   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [], review, mergeable } (created if missing)
 //   FAKE_RECORD    directory; each call appends { argv, cwd } to gh.jsonl
 
 import { execFileSync } from 'node:child_process';
@@ -50,6 +50,10 @@ if (a === 'pr' && b === 'create') {
   const pr = find(argv[2]) || fail('no pull requests found');
   if (state.checks) pr.statusCheckRollup = state.checks; // tests flip CI results between polls
   if (state.review !== undefined) pr.reviewDecision = state.review;
+  if (state.mergeable !== undefined) pr.mergeable = state.mergeable; // CONFLICTING | MERGEABLE | UNKNOWN
+  try {
+    pr.headRefOid = git('rev-parse', '--verify', '--quiet', `refs/remotes/origin/${pr.headRefName}`) || pr.headRefOid; // pushes move the head
+  } catch {}
   save();
   console.log(JSON.stringify(pr));
 } else if (a === 'pr' && b === 'ready') {

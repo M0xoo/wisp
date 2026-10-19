@@ -6,7 +6,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { money, pct } from '../core/format.js';
-import { S } from '../core/state.js';
+import { S, setAgents } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { openRouter } from './auto.js';
@@ -78,6 +78,7 @@ export function openSettings(opts) {
           </div>
           <div class="sx-group">
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
+            ${row('Fix PR conflicts', 'When a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
           </div>
         </section>
         <section class="sx-pane" data-pane="notifications">
@@ -177,7 +178,7 @@ export function openSettings(opts) {
     btn.classList.add('busy');
     const before = new Map(S.agents.map((a) => [a.id, a]));
     try {
-      S.agents = await api('/agents/recheck', { method: 'POST', body: {} });
+      setAgents(await api('/agents/recheck', { method: 'POST', body: {} }));
       if (!node.isConnected) return;
       paintAgents();
       $('#launcher')?.placesChanged?.();
@@ -307,6 +308,19 @@ export function openSettings(opts) {
     });
     if (!saved) return;
     paintWt();
+  const fc = $('#fixConflicts', node);
+  const paintFc = () => fc.setAttribute('aria-checked', S.config.defaults.fixConflicts !== 'off');
+  fc.onclick = async () => {
+    const was = S.config.defaults.fixConflicts;
+    S.config.defaults.fixConflicts = was === 'off' ? 'on' : 'off';
+    paintFc();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: S.config.defaults.fixConflicts } } }));
+    if (!saved) {
+      S.config.defaults.fixConflicts = was;
+      paintFc();
+    }
+  };
+  paintFc();
     renderLauncher();
   };
   paintWt();

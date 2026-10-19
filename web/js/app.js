@@ -7,7 +7,7 @@ import { api } from './core/api.js';
 import * as bus from './core/bus.js';
 import { $, $$ } from './core/dom.js';
 import { ago } from './core/format.js';
-import { S, save } from './core/state.js';
+import { S, save, setAgents } from './core/state.js';
 import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
@@ -70,12 +70,23 @@ window.addEventListener('focus', () => {
   for (const id of S.open) if (S.sessions.get(id)?.unread) scheduleRefetch(id);
 });
 
+// The launcher paints as soon as config and machines are in (local, fast), from the last harness
+// list seen. Detecting harnesses can take seconds on a cold start: it repaints the launcher when
+// it lands, only if the list changed.
 (async () => {
-  [S.agents] = await Promise.all([api('/agents').catch(() => []), loadConfig(), loadSessions(), loadMachines()]);
+  const agents = api('/agents').catch(() => null);
+  const sessions = loadSessions();
+  await Promise.all([loadConfig(), loadMachines()]);
   renderLauncher();
   bus.emit('agents');
+  $('#prompt')?.focus();
+  await sessions;
   connect();
   route();
-  $('#prompt')?.focus();
   telemetryNotice();
+  const list = await agents;
+  if (!list || JSON.stringify(list) === JSON.stringify(S.agents)) return;
+  setAgents(list);
+  renderLauncher();
+  bus.emit('agents');
 })();
