@@ -578,7 +578,7 @@ export class Machines extends EventEmitter {
   }
 
   async addProject(mid, dir, name) {
-    const p = await this.json(mid, 'POST', '/projects', { path: dir });
+    const p = await this.json(mid, 'POST', '/projects', { path: dir }, { timeout: 10 * 60_000 }); // dir may be a repo URL to clone
     const local = this.store.addProject(p.path, { name: name || p.name, machine: mid });
     return local;
   }

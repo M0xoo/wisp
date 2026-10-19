@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Tasks without a folder.** The launcher has a **No folder** chip next to your projects, for general asks that have nothing to do with a repo (explain a concept, draft a message, research something). The agent runs in an empty scratch directory under `~/.wisp/scratch`, with no worktree, and the task shows under *General*. The folder is not added to your projects. API: `POST /api/sessions {"prompt","scratch":true}`.
 
+- **Add a project from a GitHub URL.** Paste `https://github.com/owner/repo` (or `git@github.com:owner/repo.git`, a link to any page inside the repo, or any other git URL) into Projects and the button turns into **Clone**. wisp clones it and adds the clone as a project, which also becomes the launcher's pick. The row shows up right away with a spinner while the clone runs; if it fails, the URL goes back in the field and a toast says why. GitHub repos go through `gh repo clone` when gh is installed, so private repos work with your gh login; otherwise plain `git clone`. Repos land in `~/code` (or the first of `~/dev`, `~/Developer`, `~/projects`, `~/src`, `~/repos`… that exists). Click the path in the hint to change it (`defaults.cloneDir`). If the folder there already is that repo, wisp reuses it; another folder with that name gets a `-2` suffix. When gh is signed in, the dialog also lists **Your GitHub repos**, newest push first and minus ones already added, so cloning one is a single click. On a machine tab the clone happens on that machine. CLI: `wisp add https://github.com/owner/repo`. API: `POST /api/projects {"repo":"…"}`; a URL in `path` works too.
+
 ## [0.17.0] - 2026-10-19
 
 ### Added
