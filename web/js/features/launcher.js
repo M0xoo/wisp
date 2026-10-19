@@ -25,6 +25,11 @@ import { agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt
 import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 
+// "No folder": a general ask with no project. The server gives it an empty scratch directory.
+const NO_FOLDER = 'none';
+const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
+const projectOf = (k) => (launch.picks[k] === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
+
 function syncWhere() {
   launch.where = launch.where.filter((k, i) => (!k || machineById(k)) && launch.where.indexOf(k) === i);
   if (!launch.where.length) launch.where = [''];
@@ -34,7 +39,7 @@ function syncWhere() {
     if (!launch.where.includes(placeOf(f))) launch.where = [placeOf(f)];
     launch.picks[placeOf(f)] = f.id;
   } else if (projectById(launch.project) && !Object.values(launch.picks).includes(launch.project)) launch.picks[placeOf(projectById(launch.project))] ??= launch.project;
-  for (const k of launch.where) if (!projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
+  for (const k of launch.where) if (launch.picks[k] !== NO_FOLDER && !projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
   launch.project = launch.picks[launch.where[0]] || null;
 }
 
@@ -230,7 +235,7 @@ export function renderLauncher() {
       return feedbackCommand(prompt, { restore: () => !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input'))) });
     }
     // One run per place picked under "Run on", each in the project picked for it.
-    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectById(launch.picks[k]) }));
+    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(k) }));
     const unset = targets.find((t) => !t.project);
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
@@ -255,7 +260,7 @@ export function renderLauncher() {
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
-    if (S.filter !== 'all' && targets.some((t) => t.project.id !== S.filter)) {
+    if (S.filter !== 'all' && targets.some((t) => t.project.scratch || t.project.id !== S.filter)) {
       S.filter = 'all';
       save('wisp.filter', S.filter);
     }
@@ -270,7 +275,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, scratch: t.project.scratch || undefined, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -335,8 +340,9 @@ export function renderLaunchChips() {
     const chips = list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
     const add = list.length
       ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi ? '' : 'Other folder…'}</button>`
-      : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a project folder…'}</button>`;
-    return `<span class="lp-group">${label}${chips}${add}</span>`;
+      : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a folder…'}</button>`;
+    const none = `<button class="lp-chip none ${launch.picks[k] === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" data-k="${k}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}No folder</button>`;
+    return `<span class="lp-group">${label}${chips}${none}${add}</span>`;
   };
   box.innerHTML = `<span class="l-in">in</span>${launch.where.map(group).join('')}`;
   box.onclick = (e) => {
@@ -498,6 +504,7 @@ function addPending(prompt, { project: p, m }, { agent, model, effort }) {
     model,
     effort,
     cwd: p.path,
+    scratch: p.scratch,
     project: p.name,
     projectId: p.id,
     color: p.color || 'slate',

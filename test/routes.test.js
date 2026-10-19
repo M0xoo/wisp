@@ -95,3 +95,14 @@ test('Full auto is the default mode; a saved Edits switches once, Plan sticks', 
   assert.equal(new Store(edits.home).config.defaults.mode, 'edits', 'picked after the switch: kept');
   assert.equal(new Store(home('plan')).config.defaults.mode, 'plan');
 });
+
+test('a scratch launch runs in its own empty folder, without a project or worktree', async () => {
+  const r = await fetch(`${base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'what is a monad?', scratch: true }) });
+  assert.equal(r.status, 201);
+  const s = await r.json();
+  assert.equal(s.scratch, true);
+  assert.equal(s.project, 'General');
+  assert.match(s.cwd, /scratch/);
+  const cfg = await (await fetch(`${base}/api/config`)).json();
+  assert.ok(!cfg.projects.some((p) => p.path === s.cwd));
+});
