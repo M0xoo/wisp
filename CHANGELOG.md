@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Tasks without a folder.** The launcher has a **No folder** chip next to your projects, for general asks that have nothing to do with a repo (explain a concept, draft a message, research something). The agent runs in an empty scratch directory under `~/.wisp/scratch`, with no worktree, and the task shows under *General*. The folder is not added to your projects. API: `POST /api/sessions {"prompt","scratch":true}`.
+
 ## [0.17.0] - 2026-10-19
 
 ### Added
