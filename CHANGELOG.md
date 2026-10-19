@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Right-click menus no longer get cut off at the bottom of the window.** The task, project and queued-message menus measured themselves mid pop-in animation, while still scaled down, so near the bottom edge the last item ("Delete session") ended up below the fold. They now measure their real size and stay fully on-screen.
+
 ### Changed
 
 - **An open card stays open when its task finishes.** It used to fold shut if you had scrolled away or switched windows while it worked; now it lands in "Needs you" still open, with the result ready to read.
