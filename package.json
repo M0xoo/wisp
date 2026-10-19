@@ -1,6 +1,6 @@
 {
   "name": "wisp-agents",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "description": "Launch coding agents, skip the transcript, read the presentation.",
   "type": "module",
   "bin": {
