@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Auto no longer runs Best tasks twice by default.** Best of two (two picks side by side, the better one marked) is now off unless you turn it on in Settings → Auto → Best of two, or with `PATCH /api/router` `{ "best2": true }`. With the Best goal, a task now runs once on the strongest pick. Your manual **vs** Compare in the launcher is unchanged.
+
 ## [0.19.0] - 2026-10-19
 
 ### Added

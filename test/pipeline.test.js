@@ -200,9 +200,18 @@ test('your follow-up cancels what Auto was about to do', async () => {
   }
 });
 
+test('Best of two is off by default: the Best goal runs once', async () => {
+  assert.equal((await api('/router')).settings.best2, false);
+  const s = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', model: 'best', mode: 'edits' });
+  assert.equal(s.group, undefined);
+  await settledAll([s.id]);
+});
+
 test('Best goal: two picks side by side, both checked, and wisp marks the better one', async () => {
+  await api('/router', { best2: true }, 'PATCH');
   const cwd = testRepo();
   const s = await api('/sessions', { prompt: 'fix the add bug', cwd, agent: 'auto', model: 'best', mode: 'edits' });
+  await api('/router', { best2: false }, 'PATCH');
   const runs = s.group;
   assert.equal(runs?.length, 2);
   assert.notEqual(`${runs[0].agent}:${runs[0].model}`, `${runs[1].agent}:${runs[1].model}`);

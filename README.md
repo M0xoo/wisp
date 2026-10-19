@@ -315,7 +315,7 @@ After the run, Auto checks the work before it lands in your queue:
 4. **Hand over**: still failing, or the run errored, so the task runs again on a stronger tier (small → everyday → frontier) in its own worktree, next to the first run.
 
 A harness that says it's at its limit (session or usage limit, rate limit, no credit) isn't failing the task. Auto rests it until the limit resets, doesn't count the run against it, and moves the task to the best pick that can run now. Until Auto has 20 of your own outcomes, Balanced picks only everyday and frontier models and Best only frontier ones. The shipped estimates come from a small pilot, so they count for at most 4 tasks each.
-5. **Best of two** (goal Best): two picks work side by side; tests decide, then a cheap model reads both diffs, and the better run is marked **Pick**.
+5. **Best of two** (goal Best, off by default): two picks work side by side; tests decide, then a cheap model reads both diffs, and the better run is marked **Pick**.
 
 Each step's outcome feeds the router: a test pass counts more than the agent's "done", needing a repair counts less, and losing a best-of-2 a little less again. Your own follow-up stops whatever Auto was about to do next. A launch on a machine is checked on that machine, where the files are. Settings → Auto turns each step on or off and sets the test command per project.
 
