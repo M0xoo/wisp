@@ -7,10 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- **Fix conflicts button on every conflicting PR.** When a PR has merge conflicts, its row on the card now has a **Fix conflicts** button that sends the task a follow-up to merge the base in and resolve them; wisp pushes the result to the PR, as with the automatic fix. Before, the button only showed after the automatic fix had given up. It now also works with "Fix PR conflicts" off in Settings, or after the automatic retries ran out. The row switches to "Fixing merge conflicts" as soon as you click.
+- **Fix conflicts button on every conflicting PR.** When a PR has merge conflicts, its row on the card now has a **Fix conflicts** button (with a merge icon) that sends the task a follow-up to merge the base in and resolve them; wisp pushes the result to the PR. The row switches to "Fixing merge conflicts" as soon as you click, and the follow-up starts without waiting on a fetch first.
 
 ### Changed
 
+- **PR conflicts are no longer fixed without asking.** wisp used to send the merge follow-up on its own as soon as a PR conflicted. Now it waits for your click on Fix conflicts. To get the old behaviour back, turn on Settings → **Auto-fix PR conflicts**.
+- **PR status updates faster.** A PR whose checks are running, whose mergeability GitHub is still working out, or that was just pushed is now checked every 10 seconds instead of every minute, so a passing check or a cleared conflict shows up quickly. The refresh button on the PR row spins while it checks.
 - **Auto's Best goal runs frontier models only.** Best now always picks a frontier model (Claude Opus, Codex's default, Grok 4, Gemini Argon), never an everyday or small one like Sonnet or Haiku, however well those did on your past tasks. Before, that was only true for your first 20 outcomes. If every frontier model is busy or at its limit, Best waits instead of stepping down: best-of-2 runs a single pick, and a move at a usage limit stops with a note. Only when you have no frontier model installed (or allowed) does Best use the strongest one you have.
 
 ### Fixed

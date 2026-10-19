@@ -36,6 +36,7 @@ export function register(r, app) {
       const onStep = (step) => ((s.shipping = { ...s.shipping, step }), app.sessionChanged(s));
       try {
         s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr, onStep });
+        s.pushedAt = Date.now(); // the PR is polled fast for a while, so its checks show up as they start
       } finally {
         delete s.shipping;
         app.sessionChanged(s, { now: true });
@@ -53,17 +54,20 @@ export function register(r, app) {
       c.send(200, await app.ship.refreshPr(s));
     }),
   );
-  // Send the task a follow-up to fix the PR's merge conflicts now: on demand, after the automatic
-  // fix gave up, or with it off in Settings (see services/ship.js).
+  // Fix conflicts on the PR row: send the task a follow-up to merge the base in now (see
+  // services/ship.js). Trusts the conflict wisp last saw, so it starts at once; asks GitHub only if it saw none.
   r.route(
     'POST',
     '/sessions/:id/fix-conflicts',
     one(async (c, s) => {
       if (s.pr?.state !== 'OPEN' || !s.worktree) return c.send(400, { error: 'No open pull request.' });
       if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
-      await app.ship.refreshPr(s);
+      if (!s.pr.conflict) await app.ship.refreshPr(s);
       if (s.conflictFix?.step !== 'fixing') await app.ship.fixConflicts(s, { force: true });
-      if (s.conflictFix?.step !== 'fixing') return c.send(409, { error: s.pr.conflict ? 'It merges cleanly with the latest base here: GitHub may not have caught up yet.' : 'The PR has no merge conflicts now.' });
+      if (s.conflictFix?.step !== 'fixing') {
+        const why = !s.pr.conflict ? 'The PR has no merge conflicts now.' : !s.worktree.remote ? 'This repo has no origin remote to push to.' : s.ask ? 'The task is waiting for your answer first.' : s.shipping ? 'Already shipping: wait for it to land.' : 'Could not start the fix: try again in a moment.';
+        return c.send(409, { error: why });
+      }
       c.send(200, { conflictFix: s.conflictFix });
     }),
   );

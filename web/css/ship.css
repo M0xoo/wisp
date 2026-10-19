@@ -64,6 +64,9 @@
 .pr-strip .ghost .i { width: 13px; height: 13px; }
 .pr-strip .pr-merge { color: var(--good); font-weight: 500; }
 .pr-strip .pr-fix { color: var(--bad); font-weight: 500; }
+.pr-strip > .ghost { flex: none; white-space: nowrap; }
+.pr-strip [data-pr="refresh"].busy .i { animation: pr-spin 0.8s linear infinite; }
+@keyframes pr-spin { to { transform: rotate(-360deg); } }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 .ship-modal, .run-modal { width: min(620px, 100%); }
