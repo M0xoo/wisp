@@ -85,6 +85,15 @@ function projectMenu(id, e) {
 
 const COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
 
+// A pasted repo URL, which the server clones (server/git.js parseRepo has the full rules), vs a path.
+const isRepo = (s) => /^((https?|ssh|git):\/\/|[\w.-]+@[\w.-]+:|(www\.)?github\.com\/)/i.test(String(s).trim());
+const repoLabel = (s) =>
+  String(s)
+    .trim()
+    .replace(/^((https?|ssh):\/\/)?([\w.-]+@)?(www\.)?github\.com[/:]([^/]+\/[^/#?]+).*$/i, '$5')
+    .replace(/\.git$|\/+$/i, '');
+const repoName = (s) => repoLabel(s).split(/[/:]/).pop();
+
 // where: a machine id to add folders on that computer (server/machines.js), else this one.
 export async function openProjects({ focusAdd = false, machine = null, host } = {}) {
   const node = el(`
@@ -94,7 +103,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       <div class="add-row">
         <div class="field lg mono path-input">
           ${window.wispDesktop ? `<button class="browse" title="Browse…">${icon('folder')}</button>` : icon('folder')}
-          <input id="ppath" placeholder="~/code/my-app" spellcheck="false" autocomplete="off">
+          <input id="ppath" placeholder="~/code/my-app or a GitHub URL" spellcheck="false" autocomplete="off">
           <div class="suggest" hidden></div>
         </div>
         ${window.wispDesktop ? `<button class="ghost" id="pbrowse">${icon('folder')}Browse…</button>` : ''}
@@ -102,6 +111,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       </div>
       <p class="hint"></p>
       <div class="plist" id="plist"></div>
+      <div class="discover" id="ghrepos"></div>
       <div class="discover" id="discover"><h4>Found on this machine</h4><p class="muted">Looking for git repos…</p></div>
     </div>`);
   present(node, host);
@@ -111,6 +121,8 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   const here = () => machineById(where);
   const home = () => (where ? here()?.remote?.home : S.config.home) || '';
   const tilde = (p) => (home() && p.startsWith(home()) ? `~${p.slice(home().length)}` : p);
+  const cloning = []; // { url, where } while their clone runs
+  let editingCloneDir = false;
 
   const paintWhere = () => {
     const tabs = $('.where', node);
@@ -118,12 +130,59 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       .map((m) => `<button data-w="${m.id}" class="${where === m.id ? 'on' : ''}" title="${esc(m.target)} · ${esc(MACHINE_STATE[m.state] || m.state)}">${icon('server')}${esc(m.name)}<i class="dot ${m.state === 'online' ? 'ok' : m.state === 'error' ? 'bad' : ''}"></i></button>`)
       .join('')}<i></i>${host ? '' : `<button data-w="+" title="Run agents on another computer over SSH">${icon('plus')}Machine</button>`}`;
     const m = here();
-    input.placeholder = m ? `~/code/my-app on ${m.name}` : '~/code/my-app';
+    input.placeholder = m ? `~/code/my-app or a GitHub URL, on ${m.name}` : '~/code/my-app or a GitHub URL';
     $$('#pbrowse, .browse', node).forEach((b) => (b.hidden = !!m));
-    $('.hint', node).innerHTML = m
-      ? `Folders on <b>${esc(m.name)}</b>. Agents run there, in its own worktrees; you follow along here.`
-      : 'Tip: run <code>wisp add</code> inside any folder, or launch from a terminal with <code>wisp "task"</code> — the folder is added automatically.';
+    paintHint();
   };
+  // The hint under the input follows what's typed: a repo URL says where the clone goes.
+  const paintHint = () => {
+    const m = here();
+    const hint = $('.hint', node);
+    const v = input.value.trim();
+    $('#padd', node).textContent = isRepo(v) ? 'Clone' : 'Add';
+    if (editingCloneDir) return;
+    if (isRepo(v))
+      hint.innerHTML = m
+        ? `Clones <b>${esc(repoLabel(v))}</b> on <b>${esc(m.name)}</b>, then adds it.`
+        : `Clones <b>${esc(repoLabel(v))}</b> into <button class="link" data-a="clonedir" title="Change where repos are cloned">${esc(tilde(S.config.cloneDir || '~/code'))}/${esc(repoName(v))}</button>, then adds it.`;
+    else
+      hint.innerHTML = m
+        ? `Folders on <b>${esc(m.name)}</b>, or a repo URL to clone there. Agents run there, in its own worktrees; you follow along here.`
+        : 'Paste a GitHub URL and wisp clones it for you. Or run <code>wisp add</code> inside any folder: it is added automatically.';
+  };
+  // Change the clone folder in place: the hint turns into a small path field.
+  $('.hint', node).addEventListener('click', (e) => {
+    if (!e.target.closest('[data-a="clonedir"]')) return;
+    editingCloneDir = true;
+    const hint = $('.hint', node);
+    hint.innerHTML = `Clone repos into <input class="clonedir mono" spellcheck="false" value="${esc(tilde(S.config.cloneDir || '~/code'))}"> <button class="link" data-a="savedir">Save</button>`;
+    const f = $('.clonedir', hint);
+    const done = async (keep) => {
+      if (!editingCloneDir) return;
+      editingCloneDir = false;
+      if (keep && f.value.trim() !== tilde(S.config.cloneDir || '')) {
+        S.config.cloneDir = f.value.trim(); // optimistic; the server answers with the resolved folder
+        await tryApi(async () => {
+          await api('/config', { method: 'PATCH', body: { defaults: { cloneDir: f.value.trim() } } });
+          await loadConfig();
+        });
+      }
+      paintHint();
+      input.focus();
+    };
+    f.onkeydown = (ev) => {
+      if (ev.key === 'Enter' || ev.key === 'Escape') {
+        ev.preventDefault();
+        ev.stopPropagation(); // Escape cancels the edit, not the dialog
+        done(ev.key === 'Enter');
+      }
+    };
+    $('[data-a="savedir"]', hint).onclick = () => {
+      done(true);
+    };
+    f.focus();
+    f.select();
+  });
   $('.where', node).addEventListener('click', (e) => {
     const b = e.target.closest('[data-w]');
     if (!b) return;
@@ -135,26 +194,62 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
     sug.hidden = true;
     paintWhere();
     list();
+    github();
     discover();
     input.focus();
   });
 
+  // A new project becomes the launcher's pick for its place.
+  const picked = async (proj) => {
+    await loadConfig();
+    launch.picks[placeOf(proj)] = proj.id;
+    if (!launch.where.includes(placeOf(proj))) launch.where = [placeOf(proj)];
+    if (placeOf(proj) === launch.where[0]) launch.project = proj.id;
+    saveLaunch();
+    renderLaunchChips();
+  };
   const add = async (p) => {
+    if (isRepo(p)) return clone(p);
     try {
       const proj = await api('/projects', { method: 'POST', body: { path: p, ...(where && { machine: where }) } });
-      await loadConfig();
-      launch.picks[placeOf(proj)] = proj.id;
-      if (!launch.where.includes(placeOf(proj))) launch.where = [placeOf(proj)];
-      if (placeOf(proj) === launch.where[0]) launch.project = proj.id;
-      saveLaunch();
-      renderLaunchChips();
+      await picked(proj);
       toast(`Added <b>${esc(proj.name)}</b>${where ? ` on ${esc(here()?.name || '')}` : ''}`);
       input.value = '';
       sug.hidden = true;
+      paintHint();
       list();
       discover();
     } catch (err) {
       toastError(err);
+    }
+  };
+  // Clone a repo, then add it. The row shows up at once with a spinner; on failure the URL goes
+  // back in the input.
+  const clone = async (url) => {
+    const at = where;
+    const job = { url, where: at };
+    cloning.push(job);
+    input.value = '';
+    sug.hidden = true;
+    paintHint();
+    list();
+    github();
+    try {
+      const proj = await api('/projects', { method: 'POST', body: { repo: url, ...(at && { machine: at }) } });
+      await picked(proj);
+      ghRepos = ghRepos?.filter((r) => r.url !== url);
+      const on = at ? ` on ${esc(machineById(at)?.name || '')}` : '';
+      toast(proj.cloned?.existed ? `Added <b>${esc(proj.name)}</b>: already cloned at ${esc(tilde(proj.path))}` : `Cloned <b>${esc(proj.name)}</b>${on}${at ? '' : ` into ${esc(tilde(proj.path))}`}`);
+    } catch (err) {
+      if (!input.value && where === at) {
+        input.value = url;
+        paintHint();
+      }
+      toastError(err);
+    } finally {
+      cloning.splice(cloning.indexOf(job), 1);
+      list();
+      github();
     }
   };
   $('#padd', node).onclick = () => {
@@ -169,10 +264,11 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   let sel = -1;
   let t;
   input.addEventListener('input', () => {
+    paintHint();
     clearTimeout(t);
     t = setTimeout(async () => {
       const q = input.value;
-      if (!q) return (sug.hidden = true);
+      if (!q || isRepo(q)) return (sug.hidden = true);
       const dirs = await api(`${where ? `/machines/${where}/fs` : '/fs'}?q=${encodeURIComponent(q)}`).catch(() => []);
       sel = -1;
       sug.hidden = !dirs.length;
@@ -202,8 +298,16 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   const list = () => {
     const box = $('#plist', node);
     const projects = S.config.projects.filter((p) => (p.machine || null) === where);
-    box.innerHTML = projects.length
-      ? projects
+    const pending = cloning
+      .filter((j) => j.where === where)
+      .map(
+        (j) => `<div class="prow cloning"><span class="swatch"><span class="orb live"></span></span>
+          <div class="prow-main"><b class="pname">${esc(repoName(j.url))}</b><span class="ppath">Cloning ${esc(repoLabel(j.url))}…</span></div></div>`,
+      )
+      .join('');
+    box.innerHTML = projects.length || pending
+      ? pending +
+        projects
           .map((p) => {
             const n = [...S.sessions.values()].filter((s) => s.projectId === p.id).length;
             return `<div class="prow c-${p.color}" data-id="${p.id}">
@@ -215,7 +319,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
           })
           .join('')
       : `<p class="muted">No projects ${where ? `on ${esc(here()?.name || '')} ` : ''}yet. Add a folder above, or pick one below.</p>`;
-    $$('.prow', box).forEach((row) => {
+    $$('.prow[data-id]', box).forEach((row) => {
       const id = row.dataset.id;
       const p = projectById(id);
       $('.pname', row).onchange = (e) => {
@@ -241,6 +345,40 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
         });
       };
     });
+  };
+
+  // The user's own GitHub repos (through gh), one click to clone. Only on this computer, and
+  // hidden when gh isn't installed or signed in.
+  let ghRepos = null;
+  let ghAll = false;
+  const github = async () => {
+    const box = $('#ghrepos', node);
+    if (where) return (box.innerHTML = '');
+    box.onclick = (e) => {
+      const b = e.target.closest('[data-repo]');
+      if (b) clone(b.dataset.repo);
+      if (e.target.closest('[data-a="ghall"]')) {
+        ghAll = !ghAll;
+        github();
+      }
+    };
+    if (!ghRepos) {
+      box.innerHTML = `<h4>${icon('github')}Your GitHub repos</h4><p class="muted">Asking gh…</p>`;
+      ghRepos = await api('/projects/github').catch(() => []);
+      if (where) return (box.innerHTML = '');
+    }
+    const busy = new Set(cloning.map((j) => repoLabel(j.url).toLowerCase()));
+    const repos = ghRepos.filter((r) => !busy.has(r.repo.toLowerCase()));
+    const more = repos.length > 6 ? `<button class="link xs" data-a="ghall">${ghAll ? 'Show fewer' : `Show all ${repos.length}`}</button>` : '';
+    box.innerHTML = repos.length
+      ? `<h4>${icon('github')}Your GitHub repos <span class="muted">· click to clone</span>${more}</h4><div class="found">${repos
+          .slice(0, ghAll ? undefined : 6)
+          .map(
+            (r) =>
+              `<button class="found-item" data-repo="${esc(r.url)}" title="${esc(r.description || r.repo)}">${icon('plus')}<b>${esc(r.repo.split('/')[1])}</b><span>${esc(r.repo.split('/')[0])}${r.private ? ' · private' : ''}${r.fork ? ' · fork' : ''}</span></button>`,
+          )
+          .join('')}</div>`
+      : '';
   };
 
   const discover = async () => {
@@ -279,6 +417,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
 
   paintWhere();
   list();
+  github();
   discover();
   if (focusAdd) setTimeout(() => input.focus(), 60);
 }
