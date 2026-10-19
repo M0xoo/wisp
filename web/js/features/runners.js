@@ -17,14 +17,15 @@ export const DEFAULT_MODE = MODES[2];
 
 export const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id === 'auto' ? 'Auto' : id === 'wisp' ? 'wisp' : id);
 
-// Auto: not a CLI but wisp's router (server/router.js), which picks harness and model per task.
-// Its "models" are the goal it optimises for; there are no thinking levels to pick.
+// Auto: not a CLI but wisp's router (server/router.js), which picks harness, model and thinking
+// level per task. Its "models" are the goal it optimises for, which also sets the level band, so
+// there are no thinking levels to pick here.
 export const AUTO_GOALS = [
-  { id: 'balanced', label: 'Balanced', hint: 'Best result per dollar' },
-  { id: 'cheap', label: 'Cheap', hint: 'Lowest cost that still gets it done' },
-  { id: 'best', label: 'Best', hint: 'Best result; cost only breaks ties' },
+  { id: 'balanced', label: 'Balanced', hint: 'Best result per dollar · default or medium thinking' },
+  { id: 'cheap', label: 'Cheap', hint: 'Lowest cost that still gets it done · low thinking' },
+  { id: 'best', label: 'Best', hint: 'Best result; cost only breaks ties · high thinking' },
 ];
-export const AUTO = { id: 'auto', name: 'Auto', available: true, delegates: true, models: AUTO_GOALS, efforts: [], hint: 'wisp picks the harness and model from what worked before' };
+export const AUTO = { id: 'auto', name: 'Auto', available: true, delegates: true, models: AUTO_GOALS, efforts: [], hint: 'wisp picks the harness, model and thinking level from what worked before' };
 
 // Harness lists per place: '' is this computer, else a machine (what it reported when it came online).
 export const agentsAt = (k) => (k ? (machineById(k)?.state === 'online' && machineById(k).remote?.agents) || null : S.agents);

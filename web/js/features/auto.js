@@ -1,4 +1,4 @@
-// Auto: what the router (server/router.js) learned about which harness and model work for you.
+// Auto: what the router (server/router.js) learned about which harness, model and thinking level work for you.
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
@@ -25,8 +25,8 @@ export async function openRouter({ host } = {}) {
     if (!r || !node.isConnected) return;
     const arms = r.arms.filter((a) => a.state !== 'gone' || a.n);
     $('.ro-body', node).innerHTML = `
-      <p class="hint">For each task Auto estimates every harness · model’s chance of doing it well, from wisp-bench (${esc(r.priors.version)}) and then more and more from your own tasks: merged PRs, 👍 / 👎, rollbacks, follow-ups and how the run ended. It picks the best value for your goal (<b>${esc(AUTO_GOALS.find((g) => g.id === r.goal)?.label || '')}</b>), now and then trying an alternative so the estimates stay honest.${r.coldStart && r.coldStart.have < r.coldStart.needed ? ` Until it has ${r.coldStart.needed} of your own outcomes (${r.coldStart.have} so far), Balanced uses everyday and frontier models only, and Best frontier only.` : ''}</p>
-      <h4>Harness · model</h4>
+      <p class="hint">For each task Auto estimates every harness · model · thinking level’s chance of doing it well, from wisp-bench (${esc(r.priors.version)}) and then more and more from your own tasks: merged PRs, 👍 / 👎, rollbacks, follow-ups and how the run ended. It picks the best value for your goal (<b>${esc(AUTO_GOALS.find((g) => g.id === r.goal)?.label || '')}</b>), which also sets how hard it thinks: Cheap low, Balanced default or medium, Best high. Now and then it tries an alternative so the estimates stay honest.${r.coldStart && r.coldStart.have < r.coldStart.needed ? ` Until it has ${r.coldStart.needed} of your own outcomes (${r.coldStart.have} so far), Balanced uses everyday and frontier models only, and Best frontier only.` : ''}</p>
+      <h4>Harness · model · thinking</h4>
       <table class="us-table ro-table"><thead><tr><th></th><th>Works</th><th>Your tasks</th><th>~Cost</th><th>~Time</th><th></th></tr></thead><tbody>${arms
         .map((a) => {
           const [state, tone] = ARM_STATE[a.state] || ARM_STATE.ready;

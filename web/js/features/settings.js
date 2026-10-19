@@ -341,7 +341,7 @@ export function openSettings(opts) {
       .map((a) => `<button class="chip-tog${allowed.includes(a.id) ? ' on' : ''}" data-id="${esc(a.id)}" aria-pressed="${allowed.includes(a.id)}" title="${esc(a.name)}"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}</button>`)
       .join('');
     $('.ro-hint', node).textContent = r.learned
-      ? `${r.learned} task${r.learned === 1 ? '' : 's'} learned from · ${r.arms.filter((a) => a.state !== 'gone').length} harness · model pairs`
+      ? `${r.learned} task${r.learned === 1 ? '' : 's'} learned from · ${r.arms.filter((a) => a.state !== 'gone').length} harness · model · level options`
       : `Nothing of yours yet · starting from wisp-bench (${r.priors.version})`;
   };
   const patchAuto = async (body) => {

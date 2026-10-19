@@ -1,6 +1,9 @@
-// Auto: wisp picks the harness and model for a task, and learns from how it went.
+// Auto: wisp picks the harness, model and thinking level for a task, and learns from how it went.
 //
-// Every harness × model the user has is an "arm". For each kind of task (bug, ui, docs, …) wisp
+// Every harness × model × thinking level the user has is an "arm" (claude:opus:high; no level is
+// the harness's default). The goal picks the band of levels: Cheap runs low, Balanced the default
+// or medium, Best high. Within the band the levels are learned like models are, and a model's
+// record at its other levels counts half. For each kind of task (bug, ui, docs, …) wisp
 // keeps a Beta(wins, losses) estimate per arm, stacked from three sources: the shipped priors
 // (./router-priors.json, from wisp-bench), the user's history on every kind of task, and the
 // history on this kind. A launch draws a chance of success from each estimate (Thompson
@@ -34,6 +37,7 @@ const COLD_START = 20; // until Auto has this many of your outcomes, Balanced an
 const ALL_WEIGHT = 0.5; // your history on other kinds of task counts half
 const HALF_LIFE_MS = 30 * 864e5; // models change: older outcomes fade
 const NEW_ARM_SHARE = 0.25; // how often a new arm on probation may take an exploring slot
+const LEVEL_WEIGHT = 0.5; // the same model's record at its other thinking levels counts half
 const MAX_ROUTES = 2000;
 
 // --- task features ---------------------------------------------------------------------------
@@ -59,10 +63,39 @@ export function classify(prompt = '', { attachments = 0 } = {}) {
 
 // --- arms ------------------------------------------------------------------------------------
 
-export const armKey = (agent, model = '') => `${agent}:${model || ''}`;
-const splitKey = (k) => {
+// Thinking levels, by how hard they think, against the harness's default (''): a shift in the
+// chance of success and multipliers on cost and time. Only a starting guess; outcomes take over.
+export const EFFORTS = {
+  minimal: { chance: -0.1, usd: 0.55, min: 0.65 },
+  low: { chance: -0.04, usd: 0.6, min: 0.7 },
+  medium: { chance: -0.01, usd: 0.85, min: 0.85 },
+  '': { chance: 0, usd: 1, min: 1 },
+  high: { chance: 0.02, usd: 1.3, min: 1.3 },
+  xhigh: { chance: 0.02, usd: 1.7, min: 1.6 },
+  max: { chance: 0.03, usd: 2.2, min: 2 },
+};
+// The levels each goal may run at, where the harness has them; none of them → the default.
+const BANDS = { cheap: ['minimal', 'low'], balanced: ['', 'medium'], best: ['high', 'xhigh'] };
+export const levelsFor = (efforts = [], goal = 'balanced') => {
+  const have = (BANDS[goal] || BANDS.balanced).filter((e) => e === '' || efforts.includes(e));
+  return have.length ? have : [''];
+};
+const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUpperCase() + e.slice(1);
+
+export const armKey = (agent, model = '', effort = '') => `${agent}:${model || ''}${effort ? `:${effort}` : ''}`;
+// agent:model[:effort]. A trailing segment is a level only if it's one wisp knows, so a model id
+// with a colon in it (ollama's llama3:8b) stays whole.
+export const splitKey = (k) => {
   const i = k.indexOf(':');
-  return { agent: k.slice(0, i), model: k.slice(i + 1) };
+  const rest = k.slice(i + 1);
+  const j = rest.lastIndexOf(':');
+  const effort = j >= 0 && rest.slice(j + 1) && Object.hasOwn(EFFORTS, rest.slice(j + 1)) ? rest.slice(j + 1) : '';
+  return { agent: k.slice(0, i), model: effort ? rest.slice(0, j) : rest, effort };
+};
+// The harness · model an arm runs on, whatever its level: probation, cooling and compare go by it.
+export const baseOf = (k) => {
+  const { agent, model } = splitKey(k);
+  return armKey(agent, model);
 };
 // Versions stripped: claude-sonnet-5-5 and claude-sonnet-5-6 are one family, and a new version
 // starts from what the family already showed.
@@ -112,7 +145,8 @@ function candidates(agents, known) {
     for (const id of models) {
       const k = armKey(a.id, id);
       if (id === '' || PRIORS.arms[k] || known.has(k) || [...known, ...Object.keys(PRIORS.arms)].some((x) => family(x) === family(k) && x !== k && x.startsWith(`${a.id}:`))) {
-        out.push({ key: k, agent: a.id, model: id, label: `${a.name}${id ? ` · ${(a.models || []).find((m) => m.id === id)?.label || id}` : ''}`, delegates: a.delegates !== false });
+        const m = (a.models || []).find((x) => x.id === id);
+        out.push({ key: k, agent: a.id, model: id, label: `${a.name}${id ? ` · ${m?.label || id}` : ''}`, efforts: m?.efforts ?? a.efforts ?? [], delegates: a.delegates !== false });
       }
     }
   }
@@ -163,6 +197,15 @@ export class Router {
   }
 
   #prior(k) {
+    const { agent, model, effort } = splitKey(k);
+    if (effort) {
+      // A level starts from its model's record, shifted by how hard it thinks.
+      const base = this.#prior(armKey(agent, model)) || { a: 1, b: 1 };
+      const e = EFFORTS[effort];
+      const n = base.a + base.b;
+      const mean = Math.min(0.95, Math.max(0.05, base.a / n + e.chance));
+      return { ...base, a: mean * n, b: (1 - mean) * n, usd: (base.usd ?? 0.3) * e.usd, min: (base.min ?? 5) * e.min };
+    }
     const p = PRIORS.arms[k];
     if (p) return p;
     // A new version inherits its family's record, with less weight.
@@ -182,23 +225,41 @@ export class Router {
     return { a: s.a * f, b: s.b * f, n: s.n, usd: s.usdN ? s.usd / s.usdN : null, ms: s.n ? s.ms / s.n : null };
   }
 
+  // The same model at its other thinking levels, on this kind of task.
+  #levels(type, key) {
+    const base = baseOf(key);
+    const out = { a: 0, b: 0 };
+    for (const sk of Object.keys(this.state.stats)) {
+      const i = sk.indexOf('|');
+      const k = sk.slice(i + 1);
+      if (sk.slice(0, i) !== type || k === key || baseOf(k) !== base) continue;
+      const c = this.#counts(type, k);
+      out.a += c.a;
+      out.b += c.b;
+    }
+    return out;
+  }
+
   // Beta posterior for an arm on a kind of task, plus what it usually costs.
   estimate(type, key) {
     const prior = this.#prior(key) || { a: 1, b: 1 };
     const scale = Math.min(1, PRIOR_CAP / Math.max(1, prior.a + prior.b));
     const mine = this.#counts(type, key);
     const all = this.#counts('*', key);
-    const a = 1 + prior.a * scale + (all.a - mine.a) * ALL_WEIGHT + mine.a;
-    const b = 1 + prior.b * scale + (all.b - mine.b) * ALL_WEIGHT + mine.b;
+    const kin = this.#levels(type, key);
+    const a = 1 + prior.a * scale + (all.a - mine.a) * ALL_WEIGHT + kin.a * LEVEL_WEIGHT + mine.a;
+    const b = 1 + prior.b * scale + (all.b - mine.b) * ALL_WEIGHT + kin.b * LEVEL_WEIGHT + mine.b;
     // Cost and time: the prior's guess, pulled toward what this user's runs actually cost as they add up.
     const blend = (own, n, guess) => (own === null ? guess : (guess * 3 + own * n) / (3 + n));
     const usd = blend(all.usd, all.n, prior.usd ?? 0.3);
     const minutes = blend(all.ms === null ? null : all.ms / 60_000, all.n, prior.min ?? 5);
-    return { a, b, mean: a / (a + b), n: mine.n, nAll: all.n, usd: round(usd, 4), minutes, prior: !!PRIORS.arms[key], inherited: !!prior.inherited };
+    return { a, b, mean: a / (a + b), n: mine.n, nAll: all.n, usd: round(usd, 4), minutes, prior: !!PRIORS.arms[baseOf(key)], inherited: !!prior.inherited };
   }
 
-  // Pick an arm. agents: listAgents() of the place it runs. goal: cheap | balanced | best.
-  // important: no exploring. exclude: arm keys already taken (compare). needDelegate: the lead
+  // Pick an arm. agents: listAgents() of the place it runs. goal: cheap | balanced | best, which
+  // also sets the band of thinking levels (levelsFor).
+  // important: no exploring. exclude: arm keys already taken (compare, hand-overs): every level of
+  // that harness · model is out. needDelegate: the lead
   // of a team must be a harness that can delegate. rng: for tests.
   // scouted: { type, size } from the scout, which beats the keyword guess.
   // minTier: only arms at least that strong (a hand-over steps up). Arms cooling down after a usage
@@ -209,9 +270,11 @@ export class Router {
     const type = scouted?.type || guess.type;
     const size = scouted?.size || guess.size;
     const V = (GOALS[goal] || GOALS.balanced).value;
+    const out = new Set(exclude.map(baseOf));
     let arms = candidates(agents, new Set(Object.keys(this.state.arms)))
-      .filter((c) => !exclude.includes(c.key) && (!needDelegate || c.delegates) && (!allowed || allowed.includes(c.agent)))
-      .map((c) => ({ ...c, est: this.estimate(type, c.key), state: this.state.arms[c.key]?.state || 'new' }));
+      .filter((c) => !out.has(c.key) && (!needDelegate || c.delegates) && (!allowed || allowed.includes(c.agent)))
+      .flatMap((c) => levelsFor(c.efforts, goal).map((effort) => ({ ...c, key: armKey(c.agent, c.model, effort), effort, label: `${c.label}${effort ? ` · ${effortLabel(effort)}` : ''}`, base: c.key })))
+      .map((c) => ({ ...c, est: this.estimate(type, c.key), state: this.state.arms[c.base]?.state || 'new' }));
     if (!arms.length) return null;
     const free = arms.filter((x) => !this.cooling(x.key));
     if (!free.length) return null; // everything allowed is at its limit: nothing to route to now
@@ -252,6 +315,7 @@ export class Router {
     return {
       agent: pick.agent,
       model: pick.model,
+      effort: pick.effort,
       key: pick.key,
       label: pick.label,
       route: {
@@ -259,6 +323,7 @@ export class Router {
         type,
         size,
         key: pick.key,
+        effort: pick.effort,
         label: pick.label,
         chance: round(pick.est.mean),
         n: pick.est.n,
@@ -307,9 +372,11 @@ export class Router {
       s.at = this.now();
     }
     route.r = r;
-    // Probation ends once an arm has a few outcomes of its own.
-    const arm = this.state.arms[route.key];
-    if (arm?.state === 'new' && (this.state.stats[`*|${route.key}`]?.n || 0) >= 3) arm.state = 'ready';
+    // Probation ends once a harness · model has a few outcomes of its own, at any level.
+    const base = baseOf(route.key);
+    const arm = this.state.arms[base];
+    const n = Object.entries(this.state.stats).reduce((sum, [k, x]) => sum + (k.startsWith('*|') && baseOf(k.slice(2)) === base ? x.n : 0), 0);
+    if (arm?.state === 'new' && n >= 3) arm.state = 'ready';
     this.save();
     return route;
   }
@@ -323,9 +390,9 @@ export class Router {
     return Object.values(this.state.routes).filter((r) => r.r !== null).length;
   }
 
-  // A harness (or one model) hit a usage or rate limit: skip it until it resets.
+  // A harness (or one model, at every level) hit a usage or rate limit: skip it until it resets.
   cool(key, { scope = 'arm', ms = 10 * 60_000, why = '' } = {}) {
-    const target = scope === 'agent' ? `${splitKey(key).agent}:*` : key;
+    const target = scope === 'agent' ? `${splitKey(key).agent}:*` : baseOf(key);
     (this.state.cooling ||= {})[target] = { until: this.now() + ms, why: String(why).slice(0, 160) };
     this.save();
     return target;
@@ -333,7 +400,7 @@ export class Router {
 
   cooling(key) {
     const c = this.state.cooling || {};
-    const hit = c[key] || c[`${splitKey(key).agent}:*`];
+    const hit = c[key] || c[baseOf(key)] || c[`${splitKey(key).agent}:*`];
     return hit && hit.until > this.now() ? hit : null;
   }
 
@@ -361,15 +428,18 @@ export class Router {
     this.save();
   }
 
-  // Settings → Auto: every arm with its record overall and per kind, and the latest routes.
+  // Settings → Auto: every harness · model, the thinking levels it has a record at, each with its
+  // record overall and per kind, and the latest routes.
   report(agents = []) {
-    const keys = new Set([...Object.keys(this.state.arms), ...candidates(agents, new Set(Object.keys(this.state.arms))).map((c) => c.key)]);
-    const labels = Object.fromEntries(candidates(agents, keys).map((c) => [c.key, c.label]));
+    const levels = Object.keys(this.state.stats).map((sk) => sk.slice(sk.indexOf('|') + 1)).filter((k) => splitKey(k).effort);
+    const keys = new Set([...Object.keys(this.state.arms), ...candidates(agents, new Set(Object.keys(this.state.arms))).map((c) => c.key), ...levels]);
+    const names = Object.fromEntries(candidates(agents, new Set([...keys].map(baseOf))).map((c) => [c.key, c.label]));
+    const labels = Object.fromEntries([...keys].filter((k) => names[baseOf(k)]).map((k) => [k, `${names[baseOf(k)]}${splitKey(k).effort ? ` · ${effortLabel(splitKey(k).effort)}` : ''}`]));
     const arms = [...keys]
       .map((k) => {
         const e = this.estimate('*', k);
         const byType = Object.fromEntries(TYPES.map((t) => [t, this.#counts(t, k)]).filter(([, c]) => c.n).map(([t]) => [t, { n: this.#counts(t, k).n, chance: round(this.estimate(t, k).mean) }]));
-        const state = this.state.arms[k]?.state || (labels[k] ? 'ready' : 'gone');
+        const state = this.state.arms[baseOf(k)]?.state || (labels[k] ? 'ready' : 'gone');
         const cool = this.cooling(k);
         return { key: k, ...splitKey(k), label: labels[k] || k, tier: tierOf(k), ...(cool && { coolingUntil: cool.until, coolingWhy: cool.why }), state: cool && state !== 'gone' ? 'cooling' : state === 'ready' && !e.prior && !e.inherited && !e.nAll ? 'untried' : state, chance: round(e.mean), n: e.n, usd: round(e.usd), minutes: round(e.minutes, 1), prior: e.prior, byType };
       })

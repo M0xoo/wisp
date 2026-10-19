@@ -1,4 +1,4 @@
-// Auto: wisp picks harness and model per task and learns from outcomes (server/router.js).
+// Auto: wisp picks harness, model and thinking level per task and learns from outcomes (server/router.js).
 // This wires the router to the rest of the server: which harnesses are installed here, the
 // user's Auto settings, and the outcome signals that come back from summaries.
 
@@ -61,7 +61,7 @@ export function createAuto(app) {
     });
   };
 
-  // agent 'auto' (and compare entries set to it) → a harness and model picked by the router from
+  // agent 'auto' (and compare entries set to it) → a harness, model and thinking level picked by the router from
   // `agents`: this computer's, or the machine's the launch goes to. Model is the goal for Auto.
   // cwd (launches here only): the scout looks at it first, and best-of-2 needs it to be a repo.
   const resolve = async (body, agents, { team = false, cwd = null } = {}) => {
@@ -94,7 +94,7 @@ export function createAuto(app) {
           throw bad('Auto found no installed harness to run this on.');
         }
         taken.push(pick.key);
-        return { agent: pick.agent, model: pick.model, effort: '', route: pick.route };
+        return { agent: pick.agent, model: pick.model, effort: pick.effort, route: pick.route };
       })
       .filter(Boolean);
     const autoStrategy = best2 && out.length === 2 ? 'best2' : out.length > 1 ? 'compare' : 'single';
@@ -117,6 +117,7 @@ export function createAuto(app) {
       cwd: s.cwd,
       agent: pick.agent,
       model: pick.model,
+      effort: pick.effort || '',
       mode: s.mode,
       attachments: app.uploads.resolve((first.attachments || []).map((a) => a.id)),
       worktree,

@@ -133,7 +133,7 @@ export function summarize(s, store) {
         }
       : null,
     // Auto: what it picked and why, for the card's tooltip.
-    route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives, ...(s.route.switched && { switched: true }) } : null,
+    route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, effort: s.route.effort, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives, ...(s.route.switched && { switched: true }) } : null,
   };
 }
 
@@ -192,7 +192,7 @@ export class Runner extends EventEmitter {
       ...(auto && { auto: { strategy: 'single', busy: false, stage: '', label: '', repairs: 0, checks: [], ...auto } }), // server/pipeline.js
       ...(scout && { scout }), // what the scout found before it started (server/scout.js)
       ...(parentId && { parentId, member }),
-      ...(route && { route }), // how Auto picked agent and model (server/router.js)
+      ...(route && { route }), // how Auto picked agent, model and level (server/router.js)
     };
     this.store.put(session);
     if (!parentId) this.store.touchProject(cwd); // a subagent's cwd may be the lead's worktree
@@ -271,7 +271,7 @@ export class Runner extends EventEmitter {
     if (session.agentSessionId) session.agentSessions[session.agent] = session.agentSessionId;
     for (const t of session.turns) t.agent ||= session.agent;
     // Auto's pick was overruled: the card stops crediting it, and the router learns (services/auto.js).
-    if (session.route && (agent !== session.agent || model !== session.model)) session.route.switched = true;
+    if (session.route && (agent !== session.agent || model !== session.model || effort !== (session.effort || ''))) session.route.switched = true;
     if (agent !== session.agent) {
       session.agent = agent;
       session.agentSessionId = session.agentSessions[agent] || null;
@@ -405,7 +405,7 @@ export class Runner extends EventEmitter {
           out.push({ subagent: want, error: 'Auto found no harness to run this on.' });
           continue;
         }
-        const run = pick ? { agent: pick.agent, model: pick.model, effort: '', route: pick.route } : { agent: m.agent, model: m.model, effort: m.effort };
+        const run = pick ? { agent: pick.agent, model: pick.model, effort: pick.effort || '', route: pick.route } : { agent: m.agent, model: m.model, effort: m.effort };
         child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot });
         (lead.children ||= {})[slot] = child.id;
       }
