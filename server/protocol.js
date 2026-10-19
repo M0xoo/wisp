@@ -69,6 +69,9 @@ diff, the test run, the command output — over prose. Use file paths relative t
   A screenshot or generated image on disk.
 - {"type":"question","question":"…","options":[{"label":"Short choice","reply":"full message sent back to you"}]}
   When you need a decision. The user's click resumes you with the reply.
+- {"type":"blocked","items":[{"tool":"shell","detail":"npm publish","why":"needs network access"}]}
+  Actions your permissions or sandbox refused (a denied tool call, a command that failed for lack of
+  network or write access). wisp shows them with an Allow & retry button. Not for ordinary failures.
 - {"type":"actions","title":"…","items":[{"label":"Run tests","command":"npm test"},{"label":"Follow up","reply":"…"}]}
   One-click shell commands (executed in the project root) or follow-up actions the user may want to trigger.
 - {"type":"next","items":["Suggested follow-up the user might send", "…"]}

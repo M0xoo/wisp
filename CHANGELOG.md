@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Approve what an agent's permissions block, from wisp.** In Edits mode a coding agent used to be refused quietly when it wanted something its permissions don't cover, like `npm publish`, a write outside the project or a network call from Codex's sandbox. You only found out from a half-done report. Now:
+  - **Claude Code waits for you.** wisp sends Claude's permission prompts to its own `approve` tool (`--permission-prompt-tool`). The task card shows *Needs your approval*: *Allow Claude Code to run `npm publish`?*, with **Allow**, **Always allow in this task** and **Deny**. The number keys pick an option. You can also type what to do instead: that denies the call and passes your words to Claude. Claude keeps its context, and the desktop notification says *needs your approval*. *Always allow* lets the same command or file through for the rest of the task without asking again.
+  - **Every other harness gets an Allow & retry card.** When Codex, opencode, Grok, Cursor or Antigravity is refused, the report shows *Blocked by permissions* under its headline, listing each refused action. wisp reads these refusals from the harness itself: opencode's and Grok's stderr, Cursor's rejected tool calls, Antigravity's `PERMISSION_DENIED` steps and Claude's `permission_denials`. A new `blocked` block in the wisp protocol lets an agent report a refusal it can only see in a command's output, such as Codex's sandbox. **Allow & retry** sends a follow-up that runs those actions. For Claude and opencode only the exact actions are allowed (`--allowedTools "Bash(npm publish)"` or an opencode permission rule). Codex, Grok, Cursor and Antigravity can't allow a single action from the command line, so that one follow-up runs in Full auto, and the card says so. The task stays in Edits. **Deny** closes the card. API: `POST /api/sessions/:id/approve {"turnId","allow"}`. A live approval is answered like a question, through `POST /api/sessions/:id/answer {"text":"Allow"}`, `wisp reply` or the phone buttons.
+
 ## [0.16.0] - 2026-10-19
 
 ### Added

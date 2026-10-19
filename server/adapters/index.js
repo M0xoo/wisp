@@ -7,9 +7,14 @@
 //                                                  efforts list wins); omit if the CLI has none
 //     askTool: string | null | undefined           how the agent sees wisp's ask_user MCP tool;
 //                                                  null = can't inject MCP, ask via a question block
+//     approveTool?: string                         its permission prompts go to wisp's `approve` MCP
+//                                                  tool (live approval); omit if it can't route them
+//     permission?(tool, input, cwd): { tool, action, detail, why? }   what a live approval is about
 //     detect(): Promise<{ available, version?, error?, models? }>   models overrides the static list
 //     resumeCommand({ resumeId, model, effort }): string[]   argv to continue the session interactively
-//     run({ prompt, cwd, resumeId, mode, model, effort, systemPrompt, onEvent }): { stop(), done: Promise }
+//     run({ prompt, cwd, resumeId, mode, model, effort, systemPrompt, grants, onEvent }): { stop(), done: Promise }
+//                                                  grants: `rule`s from its own blocked events the
+//                                                  user allowed, for this turn only
 //   }
 //
 // onEvent receives normalized events:
@@ -19,6 +24,8 @@
 //   { type: 'text', text }                          intermediate assistant prose
 //   { type: 'thinking' }
 //   { type: 'change', file, op, edits: [{ before, after }] }
+//   { type: 'blocked', tool, detail, rule? }        a call its permissions refused; rule: what allows
+//                                                  exactly that on a retry (none: retry in Full auto)
 //   { type: 'result', text, isError, stopped?, stats? }   exactly once, at the end
 //
 // mode is one of: plan (read-only), edits (auto-accept file edits), auto (no permission prompts).
@@ -38,6 +45,7 @@ function checked(a) {
     typeof a.name !== 'string' && 'name',
     !Array.isArray(a.models) && 'models',
     a.askTool !== null && a.askTool !== undefined && typeof a.askTool !== 'string' && 'askTool',
+    a.approveTool !== undefined && (typeof a.approveTool !== 'string' || typeof a.permission !== 'function') && 'approveTool + permission()',
     typeof a.detect !== 'function' && 'detect()',
     typeof a.run !== 'function' && 'run()',
     a.resumeCommand !== undefined && typeof a.resumeCommand !== 'function' && 'resumeCommand()',

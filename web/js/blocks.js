@@ -788,6 +788,52 @@ R.question = (b, ctx) => {
   return node;
 };
 
+// What the turn's permissions refused. On the latest turn: Allow & retry (exactly these where the
+// harness can scope a grant, else one follow-up in Full auto) or Deny.
+R.blocked = (b, ctx) => {
+  const items = (b.items || []).filter((i) => i && typeof i === 'object');
+  const t = ctx.turn || {};
+  const scoped = !!t.blocked?.length && t.blocked.every((i) => i.rule !== undefined);
+  const open = ctx.isLatest && !t.approval && !!ctx.approve && ctx.session?.state !== 'running';
+  const state = (a) => (a === 'allowed' ? `${icon('check')}Allowed and retried` : a === 'denied' ? `${icon('x')}Denied` : '');
+  const node = el(`
+    <div class="b-blocked ${open ? '' : 'resolved'}">
+      <div class="q-head">${icon('lock')}<span>Blocked by permissions</span>${t.approval ? `<span class="bl-state">${state(t.approval)}</span>` : ''}</div>
+      <ul class="bl-items">${items
+        .map((i) => `<li><span class="bl-tool">${esc(i.tool || 'tool')}</span>${i.detail ? `<code>${esc(i.detail)}</code>` : ''}${i.why ? `<small>${inlineMd(i.why)}</small>` : ''}</li>`)
+        .join('')}</ul>
+      ${open ? `<div class="bl-foot">
+        <button class="primary sm bl-allow">${icon('check')}Allow &amp; retry</button>
+        <button class="ghost sm bl-deny">Deny</button>
+        <span class="bl-note">${scoped ? 'Allows exactly these, for the retry only.' : 'This harness can’t allow single actions, so the retry runs in Full auto (that follow-up only).'}</span>
+      </div>` : ''}
+    </div>`);
+  if (!open) return node;
+  const decide = async (allow) => {
+    // Instant: the card settles at once and goes back if the server says no.
+    const foot = node.querySelector('.bl-foot');
+    const head = node.querySelector('.q-head');
+    const tag = el(`<span class="bl-state">${state(allow ? 'allowed' : 'denied')}</span>`);
+    node.classList.add('resolved');
+    foot.hidden = true;
+    head.append(tag);
+    try {
+      await ctx.approve(allow);
+    } catch {
+      node.classList.remove('resolved');
+      foot.hidden = false;
+      tag.remove();
+    }
+  };
+  node.querySelector('.bl-allow').onclick = () => {
+    decide(true);
+  };
+  node.querySelector('.bl-deny').onclick = () => {
+    decide(false);
+  };
+  return node;
+};
+
 R.actions = (b, ctx) => {
   const items = (b.items || []).map((it, i) => (typeof it === 'string' ? { label: it, command: it, _i: i } : { ...it, _i: i }));
   const node = el(`

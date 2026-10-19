@@ -9,7 +9,7 @@ import { machineById } from './places.js';
 
 export const MODES = [
   { id: 'plan', label: 'Plan', icon: 'plan', hint: 'Read-only. The agent investigates and proposes.' },
-  { id: 'edits', label: 'Edits', icon: 'pen', hint: 'May edit files. Shell commands that need approval are denied.' },
+  { id: 'edits', label: 'Edits', icon: 'pen', hint: 'May edit files. Anything else that needs approval comes to you to allow.' },
   { id: 'auto', label: 'Full auto', icon: 'spark', hint: 'No permission prompts at all. Trusted repos only.' },
 ];
 

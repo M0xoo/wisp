@@ -206,6 +206,18 @@ export function register(r, app) {
     }),
   );
 
+  // The card under a turn whose permissions blocked something: allow retries it, deny closes it.
+  r.route(
+    'POST',
+    '/sessions/:id/approve',
+    one(async (c, s) => {
+      const { turnId, allow } = await c.body();
+      notTour(s, 'approve');
+      await ensureWorktree(s.worktree);
+      c.send(200, runner.approveBlocked(s, { turnId, allow: allow !== false }));
+    }),
+  );
+
   // Revert (or re-apply) a single file's edits from a turn, or roll back (or re-apply) the
   // project's working tree to the checkpoint before a turn. Both note it on the turn and tell
   // the cards; Ship it may have something new (or nothing left) to ship.

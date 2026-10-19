@@ -105,7 +105,11 @@ export default {
               onEvent({ type: 'tool', ...describeTool(name, params, cwd) });
             }
             if (!done) return;
-            if (info.error) onEvent({ type: 'tool_error', name, text: clip(info.error.message || info.error.type || 'failed', 400) });
+            if (info.error) {
+              onEvent({ type: 'tool_error', name, text: clip(info.error.message || info.error.type || 'failed', 400) });
+              // Refused by its permissions (no --dangerously-skip-permissions): the card offers a retry.
+              if (/PERMISSION/i.test(info.error.type || '')) onEvent({ type: 'blocked', tool: name, detail: String(params.CommandLine ?? fileOf(params) ?? params.Url ?? '') });
+            }
             else if (editing) {
               const change = files.change(file);
               if (change) onEvent({ type: 'change', ...change });

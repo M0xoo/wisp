@@ -19,6 +19,9 @@ const PERMISSION_MODES = {
   auto: 'bypassPermissions',
 };
 const EFFORT_ORDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+// A headless run refuses what would need approval and names it on stderr, once per call:
+// "permission required: Edit calc.py was not run, as a headless run cannot ask for approval".
+const REFUSED = /permission required: (\S+) ?(.*?) was not run\b/g;
 
 export default {
   id: 'grok',
@@ -75,6 +78,7 @@ export default {
     let session = null;
     let sawResult = false;
     let error = null;
+    let carry = ''; // a stderr line still being written
 
     const handle = spawnJsonl({
       bin: BIN,
@@ -82,6 +86,11 @@ export default {
       cwd,
       env: { ...process.env, GROK_DISABLE_AUTOUPDATER: '1' },
       onEvent,
+      onStderr(chunk) {
+        const lines = (carry + chunk).split('\n');
+        carry = lines.pop();
+        for (const [, tool, detail] of lines.join('\n').matchAll(REFUSED)) onEvent({ type: 'blocked', tool, detail: detail.replace(/ \(workflow .*\)$/, '') });
+      },
       onJson(msg) {
         if (msg.session_id && msg.session_id !== session) onEvent({ type: 'session', id: (session = msg.session_id) });
         // Subagent traffic carries its parent's tool id; only the main conversation is shown.

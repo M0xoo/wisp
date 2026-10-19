@@ -17,6 +17,10 @@ let BIN = process.env.WISP_OPENCODE_BIN || 'opencode';
 // through, then stop and tell the user what to do.
 const rateLimitGrace = () => Number(process.env.WISP_RATE_LIMIT_GRACE_MS) || 60_000;
 const RATE_LIMITED = /Rate limit exceeded|Too Many Requests|status(?:Code)?[=: ]+429\b/i;
+// `run` answers every permission prompt itself and says so on stderr (cli/cmd/run.ts):
+// "! permission requested: bash (npm publish); auto-rejecting".
+const REJECTED = /permission requested: ([\w.-]+) \((.*?)\); auto-rejecting/g;
+const ANSI = /\x1b\[[0-9;]*m/g;
 
 export default {
   id: 'opencode',
@@ -61,7 +65,8 @@ export default {
     return { ...found, models: [this.models[0], ...models] };
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, onEvent }) {
+  // grants: { permission, patterns } the user allowed after `run` rejected them, for this turn.
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     // Errors to stderr: the only place a rate limit shows up (see RATE_LIMITED).
     const args = ['run', '--format', 'json', '--print-logs', '--log-level', 'ERROR'];
@@ -78,14 +83,20 @@ export default {
       mcp[name] = { type: 'local', command: [srv.command, ...(srv.args || [])], environment: srv.env || {}, enabled: true, timeout: ASK_TIMEOUT_MS };
     }
     const env = { ...process.env };
-    if (Object.keys(mcp).length) {
+    const allow = grants.filter((g) => g && typeof g.permission === 'string' && Array.isArray(g.patterns));
+    if (Object.keys(mcp).length || allow.length) {
       const inline = env.OPENCODE_CONFIG_CONTENT ? safeJson(env.OPENCODE_CONFIG_CONTENT) : {};
+      const permission = typeof inline.permission === 'object' ? { ...inline.permission } : inline.permission ? { '*': inline.permission } : {};
+      // Its built-in `task` subagents would bypass the user's team.
+      if (delegating) permission.task = 'deny';
+      for (const g of allow) {
+        const was = permission[g.permission];
+        permission[g.permission] = { ...(typeof was === 'object' ? was : was && { '*': was }), ...Object.fromEntries(g.patterns.map((p) => [String(p), 'allow'])) };
+      }
       env.OPENCODE_CONFIG_CONTENT = JSON.stringify({
         ...inline,
-        mcp: { ...inline.mcp, ...mcp },
-        experimental: { ...inline.experimental, mcp_timeout: ASK_TIMEOUT_MS },
-        // Its built-in `task` subagents would bypass the user's team.
-        ...(delegating && { permission: { ...(typeof inline.permission === 'object' ? inline.permission : inline.permission && { '*': inline.permission }), task: 'deny' } }),
+        ...(Object.keys(mcp).length && { mcp: { ...inline.mcp, ...mcp }, experimental: { ...inline.experimental, mcp_timeout: ASK_TIMEOUT_MS } }),
+        ...(Object.keys(permission).length && { permission }),
       });
     }
 
@@ -101,6 +112,7 @@ export default {
 
     let limitTimer = null;
     let limited = false;
+    let carry = ''; // a stderr line still being written
     const proc = spawnJsonl({
       bin: BIN,
       args,
@@ -109,6 +121,13 @@ export default {
       input,
       onEvent,
       onStderr(chunk) {
+        // Whole lines only: a chunk can end mid-line.
+        const lines = (carry + chunk).split('\n');
+        carry = lines.pop();
+        for (const [, permission, list] of lines.join('\n').replace(ANSI, '').matchAll(REJECTED)) {
+          const patterns = list.split(', ').filter(Boolean);
+          onEvent({ type: 'blocked', tool: permission, detail: patterns.join(', '), rule: { permission, patterns } });
+        }
         if (limitTimer || limited || !RATE_LIMITED.test(chunk)) return;
         limitTimer = setTimeout(() => ((limited = true), proc.stop()), rateLimitGrace());
       },
