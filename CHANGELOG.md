@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Right-click menus no longer get cut off at the bottom of the window.** The task, project and queued-message menus measured themselves mid pop-in animation, while still scaled down, so near the bottom edge the last item ("Delete session") ended up below the fold. They now measure their real size and stay fully on-screen.
+
 ## [0.19.0] - 2026-10-19
 
 ### Added
