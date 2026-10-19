@@ -7,7 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- **Auto no longer runs Best tasks twice by default.** Best of two (two picks side by side, the better one marked) is now off unless you turn it on in Settings → Auto → Best of two, or with `PATCH /api/router` `{ "best2": true }`. With the Best goal, a task now runs once on the strongest pick. Your manual **vs** Compare in the launcher is unchanged.
+- **Auto no longer runs Best tasks twice by default.** Best of two (two picks side by side, the better one marked) is now off unless you turn it on in Settings → Auto → Best of two, or with `PATCH /api/router` `{ "best2": true }`. With the Best goal, a task now runs once, on a single pick. Your manual **vs** Compare in the launcher is unchanged.
+- **Auto's Best goal runs frontier models only.** Best now always picks a frontier model (Claude Opus, Codex's default, Grok 4, Gemini Argon), never an everyday or small one like Sonnet or Haiku, however well those did on your past tasks. Before, that was only true for your first 20 outcomes. If every frontier model is busy or at its limit, Best waits instead of stepping down: best-of-2 runs a single pick, and a move at a usage limit stops with a note. Only when you have no frontier model installed (or allowed) does Best use the strongest one you have.
+
+### Fixed
+
+- **Right-click menus no longer get cut off at the bottom of the window.** The task, project and queued-message menus measured themselves mid pop-in animation, while still scaled down, so near the bottom edge the last item ("Delete session") ended up below the fold. They now measure their real size and stay fully on-screen.
 
 ## [0.19.0] - 2026-10-19
 

@@ -5,7 +5,7 @@ import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
-import { popover } from '../ui/popover.js';
+import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
@@ -226,9 +226,7 @@ function queuedMenu(e, cancel) {
     if (a === 'cancel') cancel();
   };
   const close = popover(menu);
-  const r = menu.getBoundingClientRect();
-  if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
-  if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
+  clampToViewport(menu, e.clientX, e.clientY);
 }
 
 // Follow-ups sent while an agent works interrupt it, unless the user flipped this on.

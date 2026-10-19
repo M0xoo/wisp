@@ -96,8 +96,8 @@ export class Pipeline {
         // A step up: a stronger tier than this run's (or the strongest there is, if it was already top).
         const tier = tierOf(session.route?.key || '');
         const pick = this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: 'best', important: true, minTier: Math.min(3, tier + 1), exclude: [session.route?.key, ...(a.tried || [])].filter(Boolean), needDelegate: !!session.subagents?.length });
-        if (pick && tierOf(pick.key) < tier) this.#note(session, turn, 'check', 'No stronger harness · model to hand it to');
-        else if (pick) {
+        if (!pick || tierOf(pick.key) < tier) this.#note(session, turn, 'check', 'No stronger harness · model to hand it to');
+        else {
           this.#stage(session, turn, 'escalating', `Handing it to ${pick.label}`);
           const sib = await this.launchSibling(session, pick, { reason: result.verdict === 'error' ? 'error' : 'tests' });
           if (!live()) return;

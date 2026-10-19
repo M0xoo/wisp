@@ -207,21 +207,31 @@ test('Best of two is off by default: the Best goal runs once', async () => {
   await settledAll([s.id]);
 });
 
-test('Best goal: two picks side by side, both checked, and wisp marks the better one', async () => {
+test('Best goal: two frontier picks side by side, both checked, and wisp marks the better one', async () => {
   await api('/router', { best2: true }, 'PATCH');
-  const cwd = testRepo();
-  const s = await api('/sessions', { prompt: 'fix the add bug', cwd, agent: 'auto', model: 'best', mode: 'edits' });
-  await api('/router', { best2: false }, 'PATCH');
-  const runs = s.group;
-  assert.equal(runs?.length, 2);
-  assert.notEqual(`${runs[0].agent}:${runs[0].model}`, `${runs[1].agent}:${runs[1].model}`);
-  const done = await until(async () => {
-    const all = await Promise.all(runs.map((r) => api(`/sessions/${r.id}`)));
-    return all.every((x) => typeof x.auto.pick?.winner === 'boolean') && all;
-  }, { timeout: 60_000 });
-  assert.deepEqual(done.map((x) => x.auto.strategy), ['best2', 'best2']);
-  assert.equal(done.filter((x) => x.auto.pick.winner).length, 1);
-  assert.ok(done[0].auto.pick.why);
+  // Claude alone has one frontier model (Opus): Best runs it alone rather than add Sonnet.
+  const solo = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', model: 'best', mode: 'edits' });
+  assert.equal(solo.group, undefined);
+  assert.equal(`${solo.agent}:${solo.model}`, 'claude:opus');
+  await settledAll([solo.id]);
+  await api('/router', { allowed: ['claude', 'codex'] }, 'PATCH');
+  try {
+    const cwd = testRepo();
+    const s = await api('/sessions', { prompt: 'fix the add bug', cwd, agent: 'auto', model: 'best', mode: 'edits' });
+    const runs = s.group;
+    assert.equal(runs?.length, 2);
+    assert.notEqual(`${runs[0].agent}:${runs[0].model}`, `${runs[1].agent}:${runs[1].model}`);
+    for (const r of runs) assert.equal(tierOf(`${r.agent}:${r.model}`), 3, `${r.agent}:${r.model} is frontier`);
+    const done = await until(async () => {
+      const all = await Promise.all(runs.map((r) => api(`/sessions/${r.id}`)));
+      return all.every((x) => typeof x.auto.pick?.winner === 'boolean') && all;
+    }, { timeout: 60_000 });
+    assert.deepEqual(done.map((x) => x.auto.strategy), ['best2', 'best2']);
+    assert.equal(done.filter((x) => x.auto.pick.winner).length, 1);
+    assert.ok(done[0].auto.pick.why);
+  } finally {
+    await api('/router', { allowed: ['claude'], best2: false }, 'PATCH');
+  }
 });
 
 test('the scout: the project scan reaches the agent, and settings round-trip', async () => {
