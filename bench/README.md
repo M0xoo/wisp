@@ -69,3 +69,18 @@ quick ones. Two findings already hold:
   of the time, so the gate also passes some broken runs.
 
 The full run (61 tasks × 8 arms) is the next step; its results replace `server/router-priors.json`.
+
+## Auto vs a single harness
+
+`bench/auto.mjs` runs wisp itself (the server in `WISP_SRC`) on each task with `agent: "auto"`: route → agent → check → repair → hand-over or best of two. It grades the run wisp would show you: the best-of-two pick, else the last hand-over, else the first run. `run.mjs --raw` is the baseline: one harness on its own, with no gate and no repair. Runs that hit a usage or rate limit are retried later instead of being counted.
+
+```sh
+WISP_SRC=../wisp node bench/auto.mjs --tasks a,b --trials 2 --jobs 2 --out bench/out/auto.jsonl
+node bench/run.mjs --raw --arms claude-opus --tasks a,b --trials 2 --jobs 2 --out bench/out/opus.jsonl
+```
+
+First comparison (2026-10-19, 8 wisp PRs and 12 Harness-Bench tasks, ×2), against Claude Code on Opus 5.5:
+- On the 21 pairs that no quota touched, both solved 8. Auto's reported cost was ~17× lower, mostly because its picks were free or subscription models, and its median time was ~2× longer because of the test checks.
+- Claude's session limit, a rate-limited free model and an exhausted Grok balance spoiled the other 19 pairs.
+- That run led to three fixes: limits now cool a harness down instead of counting as failures, hand-overs step up a tier, and Balanced/Best stay on stronger tiers until Auto has 20 of your outcomes.
+- A rerun with those fixes was stopped early (6 Opus and 2 Auto runs), so it has no result yet.

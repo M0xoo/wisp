@@ -15,7 +15,9 @@ import { systemPrompt, parsePresentation } from '../server/protocol.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(HERE, 'out');
-const RUNS = path.join(OUT, 'runs.jsonl');
+const RUNS_ARG = process.argv.indexOf('--out');
+const RUNS = RUNS_ARG > 0 ? path.resolve(process.argv[RUNS_ARG + 1]) : path.join(OUT, 'runs.jsonl');
+const INFRA = /session limit|usage limit|rate-limited|rate limit|quota|Payment Required|balance exhausted/i;
 const WORK = '/tmp/wbj'; // one random dir per job: no sibling attempts or answer files next to the agent
 const LEAK = /\/tmp\/wb\b|wisp-bench-private|harness-bench|verified\.jsonl|\/tmp\/wbj\/(?!JOB)/;
 const PY = '/tmp/wb/swe3/bin/python';
@@ -36,7 +38,7 @@ export const ARMS = {
 };
 const PER_HARNESS = { claude: 4, codex: 3, grok: 3, antigravity: 3, opencode: 3 };
 
-const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, all) => (x.startsWith('--') ? [...a, [x.slice(2), all[i + 1]]] : a), []));
+const args = Object.fromEntries(process.argv.slice(2).reduce((a, x, i, all) => (x.startsWith('--') ? [...a, [x.slice(2), all[i + 1] && !all[i + 1].startsWith('--') ? all[i + 1] : true]] : a), []));
 const JOBS = Number(args.jobs || 8);
 const TRIALS = Number(args.trials || 1);
 const armIds = args.arms ? args.arms.split(',') : Object.keys(ARMS);
@@ -153,7 +155,10 @@ async function job(task, armId, trial) {
   for (let round = 0; round < 2; round++) {
     const run = await runAgent(arm, { prompt: round ? repairPrompt(attempts.at(-1).gate) : taskPrompt(task), cwd: dir, resumeId, timeout: round ? REPAIR_TIMEOUT : RUN_TIMEOUT });
     resumeId = run.sessionId;
-    const [diff, gate] = await Promise.all([diffStat(dir), grader(task, 'gate', dir, baseFile)]);
+    // The harness couldn't run at all (usage/rate limit): not a result. Retried later.
+    if (round === 0 && run.isError && INFRA.test(run.text)) return { task: task.id, arm: armId, trial, error: `infra: ${run.text.slice(0, 160)}` };
+    // --raw: the harness alone, as you'd run it yourself: no gate, no repair round.
+    const [diff, gate] = await Promise.all([diffStat(dir), args.raw ? { pass: null, skipped: 'raw' } : grader(task, 'gate', dir, baseFile)]);
     const hidden = await grader(task, 'hidden', dir);
     attempts.push({ round, leaks: run.leaks, wallMs: run.wallMs, timedOut: run.timedOut, isError: run.isError, tools: run.tools, toolErrors: run.toolErrors, stats: run.stats, claims: claims(run.text), diff, gate: { ...gate, output: gate.output?.slice(-3000) }, hidden, text: run.text.slice(-4000) });
     if (gate.pass || gate.pass === null || gate.error || !resumeId || run.timedOut && !diff.files) break;
@@ -173,9 +178,11 @@ async function main() {
   const busy = Object.fromEntries(Object.keys(PER_HARNESS).map((k) => [k, 0]));
   let running = 0;
   let finished = 0;
+  let pending = 0;
+  const retries = {};
   await new Promise((resolveAll) => {
     const pump = () => {
-      if (!queue.length && !running) return resolveAll();
+      if (!queue.length && !running && !pending) return resolveAll();
       for (let i = 0; i < queue.length && running < JOBS; i++) {
         const [t, a, trial] = queue[i];
         const h = ARMS[a].agent;
@@ -186,6 +193,12 @@ async function main() {
         job(t, a, trial)
           .catch((err) => ({ task: t.id, arm: a, trial, error: String(err?.stack || err) }))
           .then((r) => {
+            // Limits reset: an infra failure goes back in the queue (up to 3 times, 15 min apart).
+            const key = `${t.id}|${a}|${trial}`;
+            if (r.error?.startsWith('infra') && (retries[key] = (retries[key] || 0) + 1) <= 3) {
+              pending++;
+              setTimeout(() => (pending--, queue.push([t, a, trial]), pump()), 15 * 60_000);
+            }
             fs.appendFileSync(RUNS, JSON.stringify(r) + '\n');
             busy[h]--;
             running--;

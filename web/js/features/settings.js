@@ -102,6 +102,13 @@ export function openSettings(opts) {
             ${row('Harnesses it may use', 'Leave all off to let Auto use every one you have', '<span class="ro-allowed"></span>')}
           </div>
           <div class="sx-group">
+            ${row('Check with the tests', 'When the agent says it’s done, wisp runs the project’s tests itself. Only failures that are new count', '<button class="switch" id="roCheck" role="switch"></button>')}
+            ${row('Repair rounds', 'Failing tests go back to the same agent this many times', `<span class="pk-seg ro-repairs">${[0, 1, 2].map((n) => `<button data-n="${n}">${n}</button>`).join('')}</span>`)}
+            ${row('Hand over when it still fails', 'The task runs again on a stronger pick, next to the first run', '<button class="switch" id="roEscalate" role="switch"></button>')}
+            ${row('Best of two', 'With the Best goal, two picks work side by side and wisp marks the better one', '<button class="switch" id="roBest2" role="switch"></button>')}
+            ${row('Scout first', 'A cheap model looks around the repo and tells the agent where to start', `<span class="pk-seg ro-scout">${[['off', 'Off'], ['big', 'Bigger tasks'], ['all', 'Every task']].map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('')}</span>`)}
+          </div>
+          <div class="sx-group">
             ${row('What it learned', '<span class="ro-hint"></span>', '<button class="ghost sm" id="openRouter">Open</button>')}
           </div>
         </section>
@@ -323,6 +330,11 @@ export function openSettings(opts) {
     if (!r || !node.isConnected) return;
     $$('.ro-goal button', node).forEach((b) => b.classList.toggle('on', b.dataset.goal === r.goal));
     $('#roExplore', node).setAttribute('aria-checked', r.settings.explore);
+    $('#roCheck', node).setAttribute('aria-checked', r.settings.check);
+    $('#roEscalate', node).setAttribute('aria-checked', r.settings.escalate);
+    $('#roBest2', node).setAttribute('aria-checked', r.settings.best2);
+    $$('.ro-repairs button', node).forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === r.settings.repairs));
+    $$('.ro-scout button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === r.settings.scout));
     const allowed = r.settings.allowed || [];
     $('.ro-allowed', node).innerHTML = S.agents
       .filter((a) => a.available)
@@ -349,10 +361,24 @@ export function openSettings(opts) {
       patchAuto({ goal: b.dataset.goal });
     }
   };
-  $('#roExplore', node).onclick = (e) => {
-    const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
-    e.currentTarget.setAttribute('aria-checked', on);
-    patchAuto({ explore: on });
+  for (const [id, key] of [['#roExplore', 'explore'], ['#roCheck', 'check'], ['#roEscalate', 'escalate'], ['#roBest2', 'best2']]) {
+    $(id, node).onclick = (e) => {
+      const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
+      e.currentTarget.setAttribute('aria-checked', on);
+      patchAuto({ [key]: on });
+    };
+  }
+  $('.ro-repairs', node).onclick = (e) => {
+    const b = e.target.closest('[data-n]');
+    if (!b) return;
+    $$('.ro-repairs button', node).forEach((x) => x.classList.toggle('on', x === b));
+    patchAuto({ repairs: Number(b.dataset.n) });
+  };
+  $('.ro-scout', node).onclick = (e) => {
+    const b = e.target.closest('[data-v]');
+    if (!b) return;
+    $$('.ro-scout button', node).forEach((x) => x.classList.toggle('on', x === b));
+    patchAuto({ scout: b.dataset.v });
   };
   $('.ro-allowed', node).onclick = (e) => {
     const b = e.target.closest('[data-id]');

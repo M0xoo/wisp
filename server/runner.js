@@ -95,9 +95,9 @@ export function summarize(s, store) {
     updatedAt: s.updatedAt,
     turnCount: s.turns.length,
     queued: s.queue?.length || 0,
-    status: last?.status === 'running' ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
+    status: last?.status === 'running' || s.auto?.busy ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
     preview: hero?.summary || '',
-    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : '',
+    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : '',
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
@@ -117,6 +117,21 @@ export function summarize(s, store) {
       }),
     ),
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
+    followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
+    // Auto's steps after the run: the last test check, repairs, a hand-over, the best-of-2 pick.
+    auto: s.auto
+      ? {
+          strategy: s.auto.strategy,
+          busy: !!s.auto.busy,
+          stage: s.auto.stage,
+          repairs: s.auto.repairs,
+          check: s.auto.checks.at(-1) ? (({ verdict, command, passed, failed, newFailures, note }) => ({ verdict, command, passed, failed, newFailures: newFailures?.length || 0, note }))(s.auto.checks.at(-1)) : null,
+          escalatedTo: s.auto.escalatedTo || null,
+          escalatedFrom: s.auto.escalatedFrom || null,
+          reason: s.auto.reason || null, // why it moved on: tests | error | limit
+          pick: s.auto.pick && !s.auto.pick.pending ? s.auto.pick : null,
+        }
+      : null,
     // Auto: what it picked and why, for the card's tooltip.
     route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives, ...(s.route.switched && { switched: true }) } : null,
   };
@@ -134,11 +149,13 @@ export class Runner extends EventEmitter {
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
     this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
     this.routeAuto = null; // (prompt, { cwd }) => { agent, model, route } for subagents set to Auto
+    this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
 
     // Anything that was mid-flight when wisp last died is now orphaned.
     for (const s of store.all()) {
       const t = s.turns.at(-1);
       delete s.ask;
+      if (s.auto?.busy) Object.assign(s.auto, { busy: false, stage: 'cancelled', label: '' }); // Auto's step died with wisp
       if (s.state === 'running' || s.state === 'waiting' || t?.status === 'running') {
         if (t?.status === 'running') this.#finishTurn(s, t, { isError: true, stopped: true, text: '' }, 'wisp was restarted while this was running.');
         s.state = 'review';
@@ -148,7 +165,7 @@ export class Runner extends EventEmitter {
   }
 
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
-  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null }) {
+  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -172,6 +189,8 @@ export class Runner extends EventEmitter {
       ...(groupId && { groupId }),
       ...(origin && { origin }),
       ...(subagents.length && { subagents, children: {} }),
+      ...(auto && { auto: { strategy: 'single', busy: false, stage: '', label: '', repairs: 0, checks: [], ...auto } }), // server/pipeline.js
+      ...(scout && { scout }), // what the scout found before it started (server/scout.js)
       ...(parentId && { parentId, member }),
       ...(route && { route }), // how Auto picked agent and model (server/router.js)
     };
@@ -185,10 +204,13 @@ export class Runner extends EventEmitter {
   // follow-up keeps its own, so the run before it isn't affected. run: { agent, model, effort }
   // switches the harness, model and thinking level the same way (see #switchRun).
   // grants / once: a retry of what the last turn's permissions blocked (see approveBlocked).
-  reply(session, text, attachments = [], { queue = false, mode, run, grants, once } = {}) {
+  // by: 'wisp' for a follow-up wisp sends itself (Auto's repair round). Anything else is the
+  // user's, and cancels whatever Auto was about to do next.
+  reply(session, text, attachments = [], { queue = false, mode, run, grants, once, by } = {}) {
     if (!MODES.has(mode) || mode === session.mode) mode = undefined;
     run = changedRun(session, run);
-    const extra = { ...(mode && { mode }), ...(run && { run }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }) };
+    if (by !== 'wisp') this.pipeline?.cancel(session);
+    const extra = { ...(mode && { mode }), ...(run && { run }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...(by === 'wisp' && { by }) };
     if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
       return { answered: true };
@@ -413,6 +435,7 @@ export class Runner extends EventEmitter {
   }
 
   stop(session) {
+    this.pipeline?.cancel(session);
     session.queue = [];
     delete session.ask;
     for (const cid of Object.values(session.children || {})) {
@@ -492,9 +515,10 @@ export class Runner extends EventEmitter {
 
   // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
   // this turn only (an approved retry the harness can't scope runs in Full auto).
-  #startTurn(session, prompt, attachments = [], { grants = [], once } = {}) {
+  #startTurn(session, prompt, attachments = [], { grants = [], once, by } = {}) {
     const mode = MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
+    if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
     session.turns.push(turn);
     session.state = 'running';
     session.unread = false;
@@ -679,15 +703,37 @@ export class Runner extends EventEmitter {
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
     }
     if (!ev.stopped) blockedCard(turn);
-    session.state = 'review';
-    session.unread = !interrupted;
+    // Auto checks the work before it reaches you: the session stays in Working meanwhile.
+    const holding = !interrupted && !session.queue.length && !!this.pipeline?.wants(session, turn, ev);
+    session.state = holding ? 'running' : 'review';
+    session.unread = !interrupted && !holding;
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
     this.#touchLead(session);
+    if (holding) setImmediate(() => this.pipeline.run(session, turn));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
-    if (!interrupted && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
+    else if (!interrupted && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
+  }
+
+  // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,
+  // which will be the one to notify).
+  settle(session, { quiet = false } = {}) {
+    if (session.state !== 'running' || (this.live.has(session.id) && session.turns.at(-1)?.status === 'running')) return this.#touch(session);
+    session.state = 'review';
+    session.unread = !quiet;
+    this.store.save(session, { now: true });
+    this.#touch(session, { turn: session.turns.at(-1)?.id });
+    if (!quiet && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
+  }
+
+  // A line in a turn's activity from wisp itself (Auto's check, repair, hand-over).
+  note(session, turn, { kind = 'check', label }) {
+    const item = { t: Date.now(), kind, label: String(label).slice(0, 300), by: 'wisp' };
+    turn.activity.push(item);
+    this.emit('activity', { sessionId: session.id, turnId: turn.id, item });
+    this.#touch(session, { turn: turn.id });
   }
 
   #touch(session, { turn, quiet } = {}) {

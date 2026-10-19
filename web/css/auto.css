@@ -27,3 +27,25 @@
 .ro-recent .dim { color: var(--faint); }
 .ro-foot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
 .ro-foot .hint { margin: 0; }
+
+/* Auto's steps after a run: check, repair, hand-over, best of two */
+.pill.auto-ck { gap: 4px; }
+.pill.auto-ck .i, .pill.auto-pick .i { width: 11px; height: 11px; }
+.pill.auto-ck.ck-pass { --tone: var(--good); color: var(--good); }
+.pill.auto-ck.ck-fail { --tone: var(--bad); color: var(--bad); }
+.pill.auto-ck.ck-unknown { color: var(--muted); }
+.pill.auto-pick { gap: 4px; color: var(--accent-ink); }
+.pill.auto-handed { color: var(--muted); }
+.ask.by-wisp { background: color-mix(in srgb, var(--accent) 6%, var(--bg-2)); }
+.ask-by { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; font-size: 11.5px; font-weight: 500; color: var(--accent-ink); }
+.ask-by .i { width: 12px; height: 12px; }
+.t-by { font-weight: 600; color: var(--accent-ink); }
+.tests-by { margin-left: 8px; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 500; vertical-align: middle; color: var(--accent-ink); background: var(--accent-soft); }
+.ro-repairs, .ro-scout { flex: none; }
+.ro-tests { display: flex; flex-direction: column; }
+.ro-test { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.ro-test .us-proj { width: 160px; flex: none; font-size: 12.5px; }
+.ro-test .input { flex: 1; min-width: 0; font-size: 12px; }
+.router-modal .hint code { font-size: 11px; padding: 0 4px; border-radius: 4px; background: var(--bg-2); }
+.ro-tier { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 10.5px; color: var(--faint); background: var(--bg-2); }
+.ro-tier.t3 { color: var(--accent-ink); background: var(--accent-soft); }
