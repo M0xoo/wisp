@@ -27,6 +27,8 @@
 .lp-chip.none .i { width: 13px; height: 13px; color: var(--muted); }
 .lp-chip.none.on .i { color: var(--ink); }
 .lp-chip.add { color: var(--muted); border-style: dashed; }
+.lp-chip.cloning .orb.live { --s: 11px; margin: 0; }
+.lp-chip .lp-note { color: var(--faint); font-weight: 400; font-size: 11.5px; }
 .lp-chip.add .i { width: 14px; height: 14px; }
 /* recipes: one-click prompts under the launch bar */
 .l-recipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px -12px -10px; padding: 7px 14px 8px; border-top: 1px solid var(--line); }

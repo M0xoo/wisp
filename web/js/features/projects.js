@@ -8,6 +8,7 @@ import { launch, S, save, saveLaunch } from '../core/state.js';
 import { present } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
+import { clones, isRepo, repoLabel, repoName, startClone } from './clones.js';
 import { feedToTop, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
@@ -85,15 +86,6 @@ function projectMenu(id, e) {
 
 const COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
 
-// A pasted repo URL, which the server clones (server/git.js parseRepo has the full rules), vs a path.
-const isRepo = (s) => /^((https?|ssh|git):\/\/|[\w.-]+@[\w.-]+:|(www\.)?github\.com\/)/i.test(String(s).trim());
-const repoLabel = (s) =>
-  String(s)
-    .trim()
-    .replace(/^((https?|ssh):\/\/)?([\w.-]+@)?(www\.)?github\.com[/:]([^/]+\/[^/#?]+).*$/i, '$5')
-    .replace(/\.git$|\/+$/i, '');
-const repoName = (s) => repoLabel(s).split(/[/:]/).pop();
-
 // where: a machine id to add folders on that computer (server/machines.js), else this one.
 export async function openProjects({ focusAdd = false, machine = null, host } = {}) {
   const node = el(`
@@ -114,14 +106,13 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       <div class="discover" id="ghrepos"></div>
       <div class="discover" id="discover"><h4>Found on this machine</h4><p class="muted">Looking for git repos…</p></div>
     </div>`);
-  present(node, host);
+  const close = present(node, host);
   const input = $('#ppath', node);
   const sug = $('.suggest', node);
   let where = machine && machineById(machine) ? machine : null;
   const here = () => machineById(where);
   const home = () => (where ? here()?.remote?.home : S.config.home) || '';
   const tilde = (p) => (home() && p.startsWith(home()) ? `~${p.slice(home().length)}` : p);
-  const cloning = []; // { url, where } while their clone runs
   let editingCloneDir = false;
 
   const paintWhere = () => {
@@ -143,8 +134,8 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
     if (editingCloneDir) return;
     if (isRepo(v))
       hint.innerHTML = m
-        ? `Clones <b>${esc(repoLabel(v))}</b> on <b>${esc(m.name)}</b>, then adds it.`
-        : `Clones <b>${esc(repoLabel(v))}</b> into <button class="link" data-a="clonedir" title="Change where repos are cloned">${esc(tilde(S.config.cloneDir || '~/code'))}/${esc(repoName(v))}</button>, then adds it.`;
+        ? `Clones <b>${esc(repoLabel(v))}</b> on <b>${esc(m.name)}</b>. You can write the task while it clones.`
+        : `Clones <b>${esc(repoLabel(v))}</b> into <button class="link" data-a="clonedir" title="Change where repos are cloned">${esc(tilde(S.config.cloneDir || '~/code'))}/${esc(repoName(v))}</button>. You can write the task while it clones.`;
     else
       hint.innerHTML = m
         ? `Folders on <b>${esc(m.name)}</b>, or a repo URL to clone there. Agents run there, in its own worktrees; you follow along here.`
@@ -223,34 +214,12 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       toastError(err);
     }
   };
-  // Clone a repo, then add it. The row shows up at once with a spinner; on failure the URL goes
-  // back in the input.
-  const clone = async (url) => {
-    const at = where;
-    const job = { url, where: at };
-    cloning.push(job);
-    input.value = '';
-    sug.hidden = true;
-    paintHint();
-    list();
-    github();
-    try {
-      const proj = await api('/projects', { method: 'POST', body: { repo: url, ...(at && { machine: at }) } });
-      await picked(proj);
-      ghRepos = ghRepos?.filter((r) => r.url !== url);
-      const on = at ? ` on ${esc(machineById(at)?.name || '')}` : '';
-      toast(proj.cloned?.existed ? `Added <b>${esc(proj.name)}</b>: already cloned at ${esc(tilde(proj.path))}` : `Cloned <b>${esc(proj.name)}</b>${on}${at ? '' : ` into ${esc(tilde(proj.path))}`}`);
-    } catch (err) {
-      if (!input.value && where === at) {
-        input.value = url;
-        paintHint();
-      }
-      toastError(err);
-    } finally {
-      cloning.splice(cloning.indexOf(job), 1);
-      list();
-      github();
-    }
+  // Clone a repo: the launcher picks it right away (cloning in the background) and the dialog
+  // closes, so the next thing is writing the task. A launch into it waits for the clone.
+  const clone = (url) => {
+    startClone(url, where);
+    close();
+    setTimeout(() => $('#prompt')?.focus(), 60);
   };
   $('#padd', node).onclick = () => {
     if (input.value.trim()) add(input.value.trim());
@@ -298,7 +267,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   const list = () => {
     const box = $('#plist', node);
     const projects = S.config.projects.filter((p) => (p.machine || null) === where);
-    const pending = cloning
+    const pending = clones
       .filter((j) => j.where === where)
       .map(
         (j) => `<div class="prow cloning"><span class="swatch"><span class="orb live"></span></span>
@@ -367,7 +336,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       ghRepos = await api('/projects/github').catch(() => []);
       if (where) return (box.innerHTML = '');
     }
-    const busy = new Set(cloning.map((j) => repoLabel(j.url).toLowerCase()));
+    const busy = new Set(clones.map((j) => j.label.toLowerCase()));
     const repos = ghRepos.filter((r) => !busy.has(r.repo.toLowerCase()));
     const more = repos.length > 6 ? `<button class="link xs" data-a="ghall">${ghAll ? 'Show fewer' : `Show all ${repos.length}`}</button>` : '';
     box.innerHTML = repos.length
@@ -403,6 +372,14 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
           .join('')}</div>`
       : '';
   };
+  bus.on(
+    'clones',
+    () => {
+      list();
+      github();
+    },
+    { node },
+  );
   let wasOnline = here()?.state === 'online';
   bus.on(
     'machines',
