@@ -8,7 +8,7 @@ import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toastError } from '../ui/toast.js';
-import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver } from './actions.js';
+import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
 import { scheduleRefetch } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
@@ -54,12 +54,13 @@ export function renderBody(id, { fresh }) {
             <button class="ghost xs" data-a="replay" title="Replay presentation (R)">${icon('replay')}</button>
             <button class="ghost xs" data-a="takeover" title="Take over in your terminal (T)">${icon('terminal')}</button>
             <button class="ghost xs" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
+            <button class="ghost xs it-done" data-a="done" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
             <button class="ghost xs" data-a="more" title="More">${icon('dots')}</button>
           </div>
         </div>
-        <div class="pr-strip" hidden></div>
         <button class="link xs earlier" hidden></button>
         <div class="turns"></div>
+        <div class="pr-strip" hidden></div>
         <div class="it-dock"></div>
       </div>`);
     n.body ? n.body.replaceWith(body) : n.card.append(body);
@@ -69,6 +70,7 @@ export function renderBody(id, { fresh }) {
       if (a === 'replay') replay(id);
       if (a === 'takeover') takeOver(id);
       if (a === 'ship') shipDialog(id);
+      if (a === 'done') toggleDone(id);
       if (a === 'more') moreMenu(id, e.target.closest('button'));
     });
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
@@ -77,9 +79,9 @@ export function renderBody(id, { fresh }) {
 
   const body = n.body;
   const proj = projectById(summary.projectId);
-  // The head already shows the harness, model and project, the task head has Compare, and Done
-  // sits by the composer. This bar only says how the run was set up: a mode worth noticing
-  // (Plan or Edits, as on the launcher), the branch, and what launched it.
+  // The head already shows the harness, model and project, and the task head has Compare. This bar
+  // says how the run was set up: a mode worth noticing (Plan or Edits, as on the launcher), the
+  // branch, and what launched it.
   const mode = MODES.find((m) => m.id === s.mode);
   const where = (proj?.path || s.cwd).replace(S.config.home || '', '~');
   $('.it-meta', body).title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where].filter(Boolean).join(' · ');
@@ -89,7 +91,8 @@ export function renderBody(id, { fresh }) {
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} subagent${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
     ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
-  // Ship sits in the top bar and again next to the composer, so it's there after reading the result.
+  // Ship and Done sit in the top bar and again next to the composer, so they're there on opening the
+  // card and after reading the result. The PR row sits right above the composer for the same reason.
   renderPrStrip(id);
   $$('[data-a="done"]', body).forEach((b) => {
     b.classList.toggle('on', s.state === 'done');
