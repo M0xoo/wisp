@@ -19,6 +19,7 @@ import { connectMachine, offlineToast, openMachines } from './machines.js';
 import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
 import { MACHINE_STATE, machineById, placeName, placeOf, projectById, projectsAt, projectTitle } from './places.js';
+import { projectList } from './project-list.js';
 import { openProjects } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
@@ -30,6 +31,8 @@ import { canLead, paintTeamBtn, teamEditor } from './team.js';
 const NO_FOLDER = 'none';
 const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
 const projectOf = (k) => (launch.picks[k] === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
+// Project chips in the "in" row, at most, before the rest fold into "+N".
+const CHIPS = 5;
 
 // Only a change of feed filter moves the launcher, so a "No folder" pick survives re-renders.
 let filterSeen = null;
@@ -364,25 +367,64 @@ export function renderLaunchChips() {
       .filter((c) => (c.where || '') === k)
       .map((c) => `<button class="lp-chip cloning ${c.id === launch.picks[k] ? 'on' : ''}" data-id="${c.id}" data-k="${k}" title="Cloning ${esc(c.label)}…"><span class="orb live"></span>${esc(c.name)}<span class="lp-note">cloning…</span></button>`)
       .join('');
-    const chips = cloning + list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
+    // Tens of projects: the most recent few as chips (the pick always among them), the rest one
+    // search away behind "+N". fitChips() then folds more into it if the row would wrap.
+    const max = multi ? 3 : CHIPS;
+    let shown = list;
+    if (list.length > max) {
+      const top = list.slice(0, max);
+      const picked = list.find((p) => p.id === launch.picks[k]);
+      shown = !picked || top.includes(picked) ? top : [...top.slice(0, -1), picked].sort((a, b) => list.indexOf(a) - list.indexOf(b));
+    }
+    const chips = cloning + shown.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
+    const more = list.length > 1 ? `<button class="lp-chip more" data-more="${k}" data-total="${list.length}" title="All ${list.length} projects${k ? ` on ${esc(placeName(k))}` : ''}" aria-haspopup="dialog"><span class="lp-more-n"></span>${icon('search')}</button>` : '';
     const add = list.length || cloning
-      ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi ? '' : 'Other folder…'}</button>`
+      ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi || list.length > max ? '' : 'Other folder…'}</button>`
       : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a folder…'}</button>`;
-    const none = `<button class="lp-chip none ${launch.picks[k] === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" data-k="${k}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}No folder</button>`;
-    return `<span class="lp-group">${label}${chips}${none}${add}</span>`;
+    const none = `<button class="lp-chip none ${launch.picks[k] === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" data-k="${k}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}<span>No folder</span></button>`;
+    return `<span class="lp-group">${label}${chips}${more}${none}${add}</span>`;
   };
   box.innerHTML = `<span class="l-in">in</span>${launch.where.map(group).join('')}`;
+  fitChips(box);
+  fitRow ??= new ResizeObserver(([e]) => {
+    if (e.contentRect.width === fitRow.w) return; // its own folding only changes the height
+    fitRow.w = e.contentRect.width;
+    fitChips(e.target);
+  });
+  fitRow.observe(box);
   paintScratch();
+  const pick = (k, id) => {
+    launch.picks[k] = id;
+    if (k === launch.where[0]) launch.project = id;
+    saveLaunch();
+    paintScratch();
+    renderLaunchRecipes();
+  };
   box.onclick = (e) => {
     const chip = e.target.closest('.lp-chip[data-id]');
     if (chip) {
-      launch.picks[chip.dataset.k] = chip.dataset.id;
-      if (chip.dataset.k === launch.where[0]) launch.project = chip.dataset.id;
-      saveLaunch();
+      pick(chip.dataset.k, chip.dataset.id);
       $$(`.lp-chip[data-k="${chip.dataset.k}"]`, box).forEach((x) => x.classList.toggle('on', x === chip));
-      paintScratch();
-      renderLaunchRecipes();
       return;
+    }
+    const more = e.target.closest('[data-more]');
+    if (more) {
+      const k = more.dataset.more;
+      return projectList(more, {
+        projects: projectsAt(k),
+        current: launch.picks[k],
+        label: `Projects on ${placeName(k)}`,
+        extras: [
+          { id: NO_FOLDER, label: 'No folder', icon: 'spark' },
+          { id: '+add', label: k ? `Another folder on ${placeName(k)}…` : 'Other folder…', icon: 'folder' },
+        ],
+        onPick: (id) => {
+          if (id === '+add') return openProjects({ focusAdd: true, machine: k || null });
+          pick(k, id);
+          renderLaunchChips(); // the pick joins the chips
+          $('#prompt')?.focus();
+        },
+      });
     }
     const add = e.target.closest('[data-add]');
     if (add) openProjects({ focusAdd: true, machine: add.dataset.add || null });
@@ -391,6 +433,41 @@ export function renderLaunchChips() {
   };
   renderLaunchRecipes();
   paintWhereBtn();
+}
+
+// One row, however many projects: on a single place, the least recent chips (never the pick, and
+// at least one) fold into "+N" until the row stops wrapping. "+N" counts what isn't a chip.
+let fitRow;
+function fitChips(box) {
+  for (const g of $$('.lp-group', box)) {
+    const chips = $$('.lp-chip[data-id]:not(.none):not(.cloning)', g);
+    const more = $('.lp-chip.more', g);
+    chips.forEach((c) => (c.hidden = false));
+    const paint = () => {
+      const n = Number(more?.dataset.total) - chips.filter((c) => !c.hidden).length;
+      if (!more) return;
+      more.hidden = !n;
+      $('.lp-more-n', more).textContent = `+${n}`;
+    };
+    paint();
+    if (launch.where.length > 1) continue;
+    const wraps = () => {
+      const kids = [...g.children].filter((x) => !x.hidden && x.offsetParent);
+      const lin = $('.l-in', box); // "in" left alone on a line counts too
+      return kids.some((x) => x.offsetTop >= kids[0].offsetTop + kids[0].offsetHeight) || (lin && kids[0].offsetTop >= lin.offsetTop + lin.offsetHeight);
+    };
+    for (const c of chips.filter((x) => !x.classList.contains('on')).reverse()) {
+      if (!wraps() || chips.filter((x) => !x.hidden).length <= 1) break;
+      c.hidden = true;
+      paint();
+    }
+    // "+1" is no shorter than the one chip it would stand for: keep the chip, let the row wrap.
+    const folded = chips.filter((c) => c.hidden);
+    if (folded.length && Number(more?.dataset.total) - chips.length + folded.length === 1) {
+      folded.forEach((c) => (c.hidden = false));
+      paint();
+    }
+  }
 }
 
 // "Run on": this computer and/or machines. The button says where; its menu picks one or several.

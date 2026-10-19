@@ -13,7 +13,12 @@ import { feedToTop, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
 import { connectMachine, openMachines } from './machines.js';
-import { MACHINE_STATE, machineById, placeOf, projectById, projectTitle } from './places.js';
+import { MACHINE_STATE, machineById, placeOf, projectById, projectTitle, recentFirst } from './places.js';
+import { projectList } from './project-list.js';
+
+// Project filter chips in the top bar before the rest fold into "+N".
+const TOP_CHIPS = 6;
+let fitBar; // refits the chips when the bar's width changes
 
 export function renderProjects() {
   const all = [...S.sessions.values()];
@@ -21,26 +26,89 @@ export function renderProjects() {
     const l = pid === 'all' ? all : all.filter((s) => s.projectId === pid);
     return { run: l.filter((s) => s.state === 'running').length, need: l.filter((s) => s.state === 'waiting' || (s.state === 'review' && s.unread)).length };
   };
-  const chip = (id, name, color) => {
+  const badges = (id) => {
     const st = stats(id);
-    return `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectTitle(projectById(id)))}">
-      ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${projectById(id)?.machine ? icon('server', 'p-where') : ''}${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need">${st.need}</span>` : ''}
-    </button>`;
+    return `${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need">${st.need}</span>` : ''}`;
   };
-  $('#projects').innerHTML = `${chip('all', 'All', 'slate')}${S.config.projects
-    .slice()
-    .sort((a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt))
-    .map((p) => chip(p.id, p.name, p.color))
-    .join('')}<button class="p-chip add" id="manageProjects" title="Manage projects">${icon('plus')}</button>`;
-  $$('.p-chip[data-id]').forEach((b) =>
-    b.addEventListener('click', () => {
-      S.filter = S.filter === b.dataset.id ? 'all' : b.dataset.id;
-      save('wisp.filter', S.filter);
-      renderFeed();
-      feedToTop();
-      renderLaunchChips();
-    }),
-  );
+  const chip = (id, name, color) => `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectTitle(projectById(id)))}">
+      ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${projectById(id)?.machine ? icon('server', 'p-where') : ''}${badges(id)}
+    </button>`;
+  const list = S.config.projects.slice().sort(recentFirst);
+  // Tens of projects: the filtered one and those that need you first, then the most recent, up to
+  // TOP_CHIPS, kept in recent order so chips don't shuffle; the rest sit behind "+N".
+  const keep = new Set([
+    ...list.filter((p) => p.id === S.filter),
+    ...list.filter((p) => stats(p.id).need),
+    ...list,
+  ].slice(0, TOP_CHIPS));
+  const shown = list.filter((p) => keep.has(p));
+  $('#projects').innerHTML = `<div class="p-scroll">${chip('all', 'All', 'slate')}${shown.map((p) => chip(p.id, p.name, p.color)).join('')}</div><button class="p-chip more" id="moreProjects" title="All ${list.length} projects" aria-haspopup="dialog"><i class="p-dot" hidden></i><span class="p-more-n"></span><span class="p-need" hidden></span>${icon('chevron', 'chev')}</button><button class="p-chip add" id="manageProjects" title="Manage projects">${icon('plus')}</button>`;
+  // Keep chips whole: drop the least important ones (recent last, the filtered one never) until
+  // the rest fit, and count what's left out on "+N" with what needs you in there.
+  const fit = () => {
+    const box = $('#projects .p-scroll');
+    if (!box) return;
+    const chips = $$('.p-chip[data-id]:not([data-id="all"])', box);
+    chips.forEach((c) => (c.hidden = false));
+    const drop = [...chips].sort((a, b) => (a.dataset.id === S.filter) - (b.dataset.id === S.filter) || stats(a.dataset.id).need - stats(b.dataset.id).need || shown.findIndex((p) => p.id === b.dataset.id) - shown.findIndex((p) => p.id === a.dataset.id));
+    const more = $('#moreProjects');
+    box.hidden = false;
+    $('#manageProjects').hidden = false;
+    $('.p-dot', more).hidden = true;
+    more.classList.remove('solo', ...[...more.classList].filter((c) => c.startsWith('c-')));
+    const paint = () => {
+      const out = list.filter((p) => !chips.some((c) => !c.hidden && c.dataset.id === p.id));
+      more.hidden = !out.length;
+      $('.p-more-n', more).textContent = `+${out.length}`;
+      const need = out.reduce((n, p) => n + stats(p.id).need, 0);
+      $('.p-need', more).hidden = !need;
+      $('.p-need', more).textContent = need;
+    };
+    paint();
+    for (const c of drop) {
+      if (box.scrollWidth <= box.clientWidth) break;
+      c.hidden = true;
+      paint();
+    }
+    // Too narrow for even "All" (a phone): one chip naming the filter opens the whole list, which
+    // also has Manage projects, so + steps aside for it.
+    if (box.scrollWidth > box.clientWidth) {
+      const p = projectById(S.filter);
+      box.hidden = true;
+      $('#manageProjects').hidden = true;
+      more.hidden = false;
+      more.classList.add('solo', ...(p ? [`c-${p.color}`] : []));
+      $('.p-dot', more).hidden = !p;
+      $('.p-more-n', more).textContent = p ? p.name : 'All';
+      const need = stats(p ? p.id : 'all').need;
+      $('.p-need', more).hidden = !need;
+      $('.p-need', more).textContent = need;
+    }
+  };
+  fit();
+  fitBar ??= new ResizeObserver(() => fitBar.fit?.());
+  fitBar.fit = fit;
+  fitBar.observe($('#projects'));
+  const setFilter = (id) => {
+    S.filter = id;
+    save('wisp.filter', S.filter);
+    renderFeed(); // repaints these chips too
+    feedToTop();
+    renderLaunchChips();
+  };
+  $$('.p-chip[data-id]').forEach((b) => b.addEventListener('click', () => setFilter(S.filter === b.dataset.id ? 'all' : b.dataset.id)));
+  $('#moreProjects').onclick = (e) =>
+    projectList(e.currentTarget, {
+      projects: list,
+      current: S.filter,
+      label: 'Filter by project',
+      meta: (p) => badges(p.id),
+      extras: [
+        ...(S.filter === 'all' ? [] : [{ id: 'all', label: 'All projects', icon: 'x' }]),
+        { id: '+manage', label: 'Manage projects…', icon: 'settings' },
+      ],
+      onPick: (id) => (id === '+manage' ? openProjects() : setFilter(id)),
+    });
   $$('.p-chip[data-id]:not([data-id="all"])').forEach((b) =>
     b.addEventListener('contextmenu', (e) => {
       e.preventDefault();
