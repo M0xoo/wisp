@@ -15,16 +15,20 @@ class WispAgents < Formula
   depends_on "node"
 
   def install
-    # --omit=optional skips the Electron desktop shell: Homebrew builds run without network
-    # access, so its binary download would fail. Browser mode (`wisp --browser`) works without it.
-    system "npm", "install", *std_npm_args, "--omit=optional"
+    system "npm", "install", *std_npm_args
     bin.install_symlink Dir["#{libexec}/bin/*"]
+
+    # Drop the optional Electron desktop shell. npm ignores --omit=optional on global installs, and
+    # Electron fetches its ~300 MB binary into the keg on first `require`. Without it, `wisp` serves
+    # the browser UI.
+    electron = libexec/"lib/node_modules/wisp-agents/node_modules/electron"
+    rm_r electron if electron.exist?
   end
 
   def caveats
     <<~EOS
-      The desktop app is not included with the Homebrew install. Use browser mode:
-        wisp --browser     # then open http://localhost:4477
+      The desktop app is not included with the Homebrew install; `wisp` opens in your
+      browser at http://localhost:4477.
       For the desktop app, install from npm instead: npm install -g wisp-agents
     EOS
   end

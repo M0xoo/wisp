@@ -83,7 +83,7 @@ brew install m0xoo/tap/wisp-agents             # Homebrew: CLI and browser mode,
 wisp "fix the flaky auth test"
 ```
 
-The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`WISP_VERSION=0.15.0 curl -fsSL …`).
+The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://mokh.xyz/install.sh | WISP_VERSION=0.15.0 bash`).
 
 From source:
 
