@@ -162,18 +162,22 @@ export async function prView(cwd, ref) {
 }
 
 // Commit whatever the session left uncommitted, push its branch and open (or update) its PR.
-export async function ship(wt, { title, body = '', draft = false, pr }) {
+// `onStep` hears each stage as it starts ('commit', 'push', 'pr'), so the card can follow along.
+export async function ship(wt, { title, body = '', draft = false, pr, onStep = () => {} }) {
   await ensureWorktree(wt);
   const dir = wt.path;
   if (await quiet(git(dir, ['status', '--porcelain']))) {
     if (!String(title || '').trim()) throw bad('A commit message is required.');
+    onStep('commit');
     await git(dir, ['add', '-A']);
     await git(dir, ['commit', '--quiet', '--no-verify', '-m', title.trim(), ...(body.trim() ? ['-m', body.trim()] : [])]);
   }
   const { ahead } = await worktreeStatus(wt);
   if (!ahead) throw bad('Nothing to ship: this branch has no changes.');
   if (!wt.remote) throw bad('This repo has no origin remote to push to.');
+  onStep('push');
   await git(dir, ['push', '--quiet', '-u', wt.remote, `HEAD:refs/heads/${wt.branch}`], { timeout: 120_000 });
+  onStep('pr');
   if (pr?.state === 'OPEN') return prView(dir, pr.number);
   const url = (await gh(dir, ['pr', 'create', '--base', wt.base, '--head', wt.branch, '--title', title.trim(), '--body', body.trim() || ' ', ...(draft ? ['--draft'] : [])])).split('\n').pop();
   return prView(dir, url);

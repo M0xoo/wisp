@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Ship it no longer holds you in its dialog.** Clicking *Commit, push & open PR* used to leave the dialog open with a disabled *Shipping…* button until the push and `gh pr create` were done. Now the dialog closes right away, and the card's PR row (just above the composer) shows a live track: **Commit → Push → Open PR**, with a spinner on the step that's running and a check on each one that's done. The server reports each step as `shipping` on the session summary, so other tabs see it too, and the card head shows a *Shipping* pill while the card is collapsed. When the PR is up, the row turns into the PR row with a short highlight, and a toast links to it. If a step fails, the row turns red and says which step failed and why, with **Retry**, which reopens the dialog with your commit message and description still filled in. A second ship while one is running is refused with 409.
+
 ## [0.17.0] - 2026-10-19
 
 ### Added

@@ -112,7 +112,31 @@ test('ship it: commit, push, PR; checks are followed; merge syncs local main and
   assert.match(draft.body, /No question asked/);
 
   setGh({ checks: [{ __typename: 'CheckRun', status: 'IN_PROGRESS', conclusion: '' }] });
+  // The card follows the ship live: each stage arrives as `shipping` on the session's summary.
+  const events = new AbortController();
+  const stream = await fetch(`${base}/api/events`, { signal: events.signal });
+  const stages = [];
+  const reading = (async () => {
+    const dec = new TextDecoder();
+    let buf = '';
+    try {
+      for await (const chunk of stream.body) {
+        buf += dec.decode(chunk, { stream: true });
+        for (let i; (i = buf.indexOf('\n\n')) >= 0; buf = buf.slice(i + 2)) {
+          const msg = buf.slice(0, i);
+          if (!/^event: summary$/m.test(msg)) continue;
+          const sum = JSON.parse(msg.match(/^data: (.*)$/m)[1]);
+          if (sum.id === s.id && stages.at(-1) !== (sum.shipping?.step || null)) stages.push(sum.shipping?.step || null);
+        }
+      }
+    } catch {}
+  })();
   const pr = await api(`/sessions/${s.id}/ship`, { body: { title: 'fix(math): add adds', body: 'It subtracted.' } });
+  await until(() => stages.at(-1) === null && stages.length > 1);
+  events.abort();
+  await reading;
+  assert.deepEqual(stages.slice(stages.indexOf('start')), ['start', 'commit', 'push', 'pr', null]);
+  assert.equal((await api('/sessions')).find((x) => x.id === s.id).shipping, null);
   assert.equal(pr.number, 1);
   assert.equal(pr.state, 'OPEN');
   assert.deepEqual(pr.checks, { pass: 0, fail: 0, pending: 1 });

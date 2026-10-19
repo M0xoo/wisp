@@ -93,3 +93,43 @@
 .cmp-body { flex: 1; min-height: 160px; max-height: 58vh; overflow: auto; padding: 12px; background: var(--surface); }
 .cmp-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); }
 
+
+/* Ship it in flight: the PR row turns into a track of stages that fills in as they run */
+.pr-strip.ship-run {
+  --tone: var(--accent); position: relative; overflow: hidden; animation: ship-in 0.32s var(--ease);
+  background: color-mix(in srgb, var(--tone) 6%, transparent); border-color: color-mix(in srgb, var(--tone) 22%, transparent);
+}
+.ship-icon { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; flex: none; color: var(--accent-ink); background: color-mix(in srgb, var(--tone) 14%, transparent); }
+.ship-icon .i { width: 12px; height: 12px; animation: ship-fly 1.1s ease-in-out infinite; }
+.ship-what { font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ship-what .dots::after { content: '…'; animation: pulse 1.1s ease-in-out infinite; }
+.ship-track { display: flex; align-items: center; gap: 4px; margin: 0 0 0 4px; padding: 0; list-style: none; font-size: 11.5px; color: var(--faint); flex: none; }
+.ship-track li { display: inline-flex; align-items: center; gap: 4px; transition: color 0.25s; }
+.ship-track li + li::before { content: ''; width: 14px; height: 1.5px; margin-right: 2px; border-radius: 1px; background: var(--line-2); transition: background 0.3s; }
+.ship-track li.done::before, .ship-track li.now::before, .ship-track li.bad::before { background: var(--tone); }
+.ship-track i { display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--line-2); transition: background 0.25s, border-color 0.25s; }
+.ship-track i .i { width: 8px; height: 8px; color: #fff; opacity: 0; transform: scale(0.4); transition: opacity 0.2s, transform 0.25s var(--ease); }
+.ship-track li.done { color: var(--ink-2); }
+.ship-track li.done i { background: var(--good); border-color: var(--good); }
+.ship-track li.done i .i { opacity: 1; transform: none; }
+.ship-track li.now { color: var(--ink); font-weight: 500; }
+.ship-track li.now i { border-color: var(--tone); border-top-color: transparent; animation: spin 0.8s linear infinite; }
+.ship-track li.bad { color: var(--bad); font-weight: 500; }
+.ship-track li.bad i { background: var(--bad); border-color: var(--bad); }
+.ship-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--tone), transparent) 0 0 / 40% 100% no-repeat; animation: ship-sweep 1.3s ease-in-out infinite; }
+.ship-run.failed .ship-bar, .ship-run.failed .ship-icon .i { animation: none; }
+.ship-run.failed .ship-bar { display: none; }
+.ship-run.failed .ship-icon { color: var(--bad); }
+.ship-run.failed { animation: nudge 0.4s ease; }
+.ship-err { font-weight: 400; color: var(--ink-2); }
+.ship-acts { display: inline-flex; gap: 2px; }
+.ship-acts .i { width: 13px; height: 13px; }
+.pr-strip.landed { animation: ship-land 0.9s var(--ease); }
+.pill.ship-pill { --tone: var(--accent); }
+.pill.ship-pill i { animation: pulse 1.1s ease-in-out infinite; }
+@keyframes ship-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
+@keyframes ship-fly { 50% { transform: translate(2px, -2px); } }
+@keyframes ship-sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@keyframes ship-land { from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 30%, transparent); transform: scale(1.015); } }
+@media (max-width: 640px) { .ship-track span { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ship-run, .ship-run *, .pr-strip.landed { animation: none !important; } }

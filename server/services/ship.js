@@ -71,6 +71,7 @@ export function createShip(app) {
   };
 
   runner.on('ended', ({ session }) => recheck(store.get(session.id)));
+  for (const s of store.all()) delete s.shipping; // a ship cut short by a restart isn't running anymore
   for (const s of store.all()) if (s.worktree && !s.archived && s.pr?.state !== 'MERGED') recheck(s);
 
   const timer = setInterval(async () => {

@@ -27,11 +27,20 @@ export function register(r, app) {
     one(async (c, s) => {
       if (!s.worktree) return c.send(400, { error: NO_TREE });
       if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
+      if (s.shipping) return c.send(409, { error: 'Already shipping: wait for it to land.' });
       const body = await c.body();
       const draft = app.ship.draft(s);
-      s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr });
+      // The card follows along: s.shipping names the stage running now, sent with each summary.
+      s.shipping = { step: 'start', update: s.pr?.state === 'OPEN', startedAt: Date.now() };
+      app.sessionChanged(s);
+      const onStep = (step) => ((s.shipping = { ...s.shipping, step }), app.sessionChanged(s));
+      try {
+        s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr, onStep });
+      } finally {
+        delete s.shipping;
+        app.sessionChanged(s, { now: true });
+      }
       telemetry.track('ship', { agent: s.agent, draft: !!body.draft });
-      app.sessionChanged(s, { now: true });
       app.ship.recheck(s);
       c.send(200, s.pr);
     }),
