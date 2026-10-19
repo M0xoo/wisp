@@ -88,6 +88,7 @@ export class Store {
 
   // machine: a project on another computer (paths there are POSIX); null = this one.
   projectFor(cwd = '', machine = null) {
+    if (!machine && this.isScratch(cwd)) return null; // never inside a project, even one at ~
     const sep = machine ? '/' : path.sep;
     let best = null;
     for (const p of this.config.projects)
