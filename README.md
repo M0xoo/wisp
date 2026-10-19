@@ -116,6 +116,7 @@ The CLI talks to a running wisp, or starts one if none is running. It works from
 wisp                              # open wisp (or focus the running one)
 wisp "fix the flaky auth test"    # launch a task in this folder (it becomes a project)
 wisp add [path]                   # add a folder as a project (default: cwd)
+wisp add <repo-url>               # clone a repo (GitHub URL, git@…, any git URL) into ~/code, then add it
 wisp --mode plan "audit deps"     # permission mode: plan | edits | auto
 wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor | antigravity | grok
 ```
