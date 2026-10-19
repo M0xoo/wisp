@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-19
+
 ### Added
 
 - **Switch harness or model in a follow-up.** The follow-up box has a harness button, a small logo next to the mode button. It opens the same harness · model · thinking picker as the launcher. Pick another model and the follow-up resumes the same conversation on it. Pick another harness, say Codex on a task Claude Code started, and Codex starts its own conversation in the same folder. wisp hands it the turns it hasn't seen: each request, the report it got back and the files that were edited. Long histories keep the newest turns, up to about 24k characters. Each harness keeps its own conversation, so switching back to Claude Code resumes its session and only tells it what happened while it was away. Each turn's badge shows the harness that ran it. A queued follow-up keeps its own pick, so the run already going is not affected. On a session that Auto routed, switching counts as a miss for Auto's pick. API: `POST /api/sessions/:id/reply {"text","agent","model","effort"}`; CLI: `wisp reply <id> "…" --agent codex --model …`; MCP: `wisp_reply` takes `agent`, `model` and `effort`.
@@ -297,7 +299,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/M0xoo/wisp/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/M0xoo/wisp/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/M0xoo/wisp/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/M0xoo/wisp/compare/v0.12.0...v0.13.0
