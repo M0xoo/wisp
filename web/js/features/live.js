@@ -7,7 +7,7 @@ import { $ } from '../core/dom.js';
 import { S, saveOpen, setAgents } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { paintAutoBtn } from './automations.js';
-import { collapse, renderFeed, scheduleRefetch, sectionOf } from './feed.js';
+import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
 import { loadMachines, setMachines } from './machines.js';
 import { notifyFinished } from './notify.js';
@@ -34,12 +34,7 @@ export function connect() {
     // list and focus goes to the next one instead.
     const moved = prev && was !== sectionOf(s);
     const follow = moved && s.state !== 'done' && !s.archived && watching(s.id);
-    keepInPlace(follow ? S.nodes.get(s.id).card : feedAnchor(s.id), () => {
-      // A card left open while it worked shouldn't land in "Needs you" expanded —
-      // fold it unless the user is actually watching it.
-      if (prev?.state === 'running' && s.state !== 'running' && S.open.has(s.id) && !(watching(s.id) && document.hasFocus())) collapse(s.id);
-      renderFeed();
-    });
+    keepInPlace(follow ? S.nodes.get(s.id).card : feedAnchor(s.id), renderFeed);
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
     if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
   });

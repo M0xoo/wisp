@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Auto no longer runs Best tasks twice by default.** Best of two (two picks side by side, the better one marked) is now off unless you turn it on in Settings → Auto → Best of two, or with `PATCH /api/router` `{ "best2": true }`. With the Best goal, a task now runs once, on a single pick. Your manual **vs** Compare in the launcher is unchanged.
 - **Auto's Best goal runs frontier models only.** Best now always picks a frontier model (Claude Opus, Codex's default, Grok 4, Gemini Argon), never an everyday or small one like Sonnet or Haiku, however well those did on your past tasks. Before, that was only true for your first 20 outcomes. If every frontier model is busy or at its limit, Best waits instead of stepping down: best-of-2 runs a single pick, and a move at a usage limit stops with a note. Only when you have no frontier model installed (or allowed) does Best use the strongest one you have.
+- **An open card stays open when its task finishes.** It used to fold shut if you had scrolled away or switched windows while it worked; now it lands in "Needs you" still open, with the result ready to read.
 
 ### Fixed
 
