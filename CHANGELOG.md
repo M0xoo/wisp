@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Auto checks the work before it reaches you.** When an Auto run says it's done, wisp runs the project's tests itself: `npm test`, pytest, `go test`, `cargo test`, `make test`, and so on. You can set the command, or turn the check off, per project in **Settings → Auto → Open**. A failure only counts if the test passed before: wisp compares with the base commit and runs a failing suite twice.
+  - **Repair:** tests that used to pass now fail, so they go back to the same agent. One round by default; the turn shows as **Sent by wisp**.
+  - **Hand over:** still failing, so the task runs again on a stronger pick in its own worktree. Both runs show as one task.
+  - **Best of two:** with the **Best** goal, two picks work side by side and wisp marks the better one. Tests decide first, then a cheap model reads both diffs.
+  - **Scout:** before a bigger task starts, a cheap model looks around the repo and tells the agent which files matter and how wisp will test.
+  - Each turn gets wisp's own tests block (**Run by wisp**). If the agent said "done" and wisp's run disagrees, the turn says so and the card shows **Partial**.
+  - Cards show **Tests** / **N failing**, **Pick** and **Handed on**.
+  - Your own follow-up or Stop cancels whatever Auto was about to do next. Settings → Auto turns each step on or off. API: `PATCH /api/router` with `check`, `repairs`, `escalate`, `best2`, `scout`; `PATCH /api/projects/:id` with `testCommand`.
+
 ## [0.17.0] - 2026-10-19
 
 ### Added

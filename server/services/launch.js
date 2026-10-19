@@ -27,12 +27,16 @@ export function createLaunch(app) {
     const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
     // compare: more { agent, model, effort } to run the same task on, side by side. 'auto' is
     // resolved here: the router picks a harness and model (a different one per compare run).
-    const resolved = await app.auto.resolve(body, await app.auto.agents(), { team: subagents.length > 0 });
-    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
+    const resolved = await app.auto.resolve(body, await app.auto.agents(), { team: subagents.length > 0, cwd });
+    // A launch routed by another wisp (this is a machine) arrives with its route: Auto's steps
+    // (check, repair) still run here, where the files are.
+    const isRoute = (x) => x && typeof x === 'object' && typeof x.key === 'string';
+    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
       const agent = r.agent || (i ? d.agent : '') || 'claude';
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
-      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(r.route && { route: r.route }) };
+      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(isRoute(r.route) && { route: r.route }) };
     });
+    const strategy = ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
     const mode = MODES.has(body.mode) ? body.mode : 'auto';
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
     // runs need one each, or the harnesses would edit the same files.
@@ -60,7 +64,7 @@ export function createLaunch(app) {
       }
       if (failed) console.warn(`wisp: no worktree for ${cwd}: ${failed.message}`);
     }
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents }));
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
   // Where a launch runs: body.machine, else a project folder that only exists on a machine
@@ -87,8 +91,9 @@ export function createLaunch(app) {
     // back through the summaries it streams (auto.signals), so one router learns from every place.
     const routed = await app.auto.resolve(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset) });
     const routes = [routed.route, ...(routed.compare || []).map((c) => c.route)];
-    const sendBody = { ...routed, compare: routed.compare?.map(({ route, ...c }) => c) };
-    delete sendBody.route;
+    // The machine runs Auto's check and repair on these picks (an older wisp there ignores them).
+    const sendBody = { ...routed };
+    delete sendBody.scout;
     if (!sendBody.compare?.length && !body.compare) delete sendBody.compare;
     const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
     (out.group || [out]).forEach((x, i) => routes[i] && app.router.record(qualify(x.id, mid), routes[i]));

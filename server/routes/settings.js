@@ -110,6 +110,8 @@ export function register(r, app) {
     const body = await c.body();
     if (typeof body.name === 'string' && body.name.trim()) p.name = body.name.trim();
     if (typeof body.color === 'string') p.color = body.color;
+    // Auto's test check: the command to run, '' to detect it, 'off' for none.
+    if (typeof body.testCommand === 'string') body.testCommand.trim() ? (p.testCommand = body.testCommand.trim().slice(0, 500)) : delete p.testCommand;
     app.configChanged();
     c.send(200, p);
   });

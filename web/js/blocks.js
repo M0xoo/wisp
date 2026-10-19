@@ -512,7 +512,7 @@ R.tests = (b, ctx) => {
         </svg>
         <div class="ring-label">${icon(ok ? 'check' : 'x')}</div>
         <div class="tests-text">
-          <div class="verdict">${ok ? 'All green' : `${failed} failing`}</div>
+          <div class="verdict">${ok ? 'All green' : `${failed} failing`}${b.by === 'wisp' ? `<span class="tests-by" title="wisp ran the project's tests itself after the agent finished${b.note ? `: ${esc(b.note)}` : ''}">Run by wisp</span>` : ''}</div>
           <div class="counts"><span class="pass"><b class="v" data-v="${passed}"></b> passed</span>${failed ? `<span class="fail"><b class="v" data-v="${failed}"></b> failed</span>` : ''}${skipped ? `<span class="skip"><b class="v" data-v="${skipped}"></b> skipped</span>` : ''}${b.durationMs ? `<span class="dur">${fmtDuration(b.durationMs)}</span>` : ''}</div>
           ${cmd ? `<div class="tests-cmd"><code class="cmdline">$ ${esc(cmd)}</code>${ctx.exec ? `<button class="ghost xs run-tests" title="Re-run ${esc(cmd)}">${icon('rerun')}<span>Re-run</span></button>` : ''}</div>` : ''}
         </div>

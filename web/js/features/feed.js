@@ -208,6 +208,7 @@ function renderHead(n, s) {
     <span class="it-side">
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
+      ${autoPill(s)}
       ${s.pr ? prPill(s.pr) : ''}
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
@@ -216,6 +217,26 @@ function renderHead(n, s) {
       ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
       ${icon('chevron', 'chev')}
     </span>`;
+}
+
+// What Auto found after the run: its own test check, the best-of-2 pick, a hand-over.
+function autoPill(s) {
+  const a = s.auto;
+  if (!a || s.pending) return '';
+  const out = [];
+  if (a.pick?.winner) out.push(`<span class="pill auto-pick" title="${esc(`wisp's pick of the two runs: ${a.pick.why}`)}">${icon('spark')}Pick</span>`);
+  if (a.escalatedTo) {
+    const to = S.sessions.get(a.escalatedTo);
+    out.push(`<span class="pill auto-handed" title="${esc(`Tests still failed, so wisp handed the task to ${to ? `${agentName(to.agent)}${to.model ? ` · ${to.model}` : ''}` : 'a stronger pick'}`)}">Handed on</span>`);
+  }
+  const c = a.check;
+  if (c && !a.busy && c.verdict !== 'skip') {
+    const n = c.newFailures || c.failed;
+    const tip = c.verdict === 'pass' ? `wisp ran ${c.command}: no new failures${c.note ? ` (${c.note})` : ''}` : c.verdict === 'fail' ? `wisp ran ${c.command}: ${n} test${n === 1 ? '' : 's'} that passed before now fail${a.repairs ? `, after ${a.repairs} repair round${a.repairs > 1 ? 's' : ''}` : ''}` : `wisp ran ${c.command}: ${c.note || "couldn't tell"}`;
+    const label = c.verdict === 'pass' ? 'Tests' : c.verdict === 'fail' ? `${n} failing` : 'Tests ?';
+    out.push(`<span class="pill auto-ck ck-${c.verdict}" title="${esc(tip)}">${icon(c.verdict === 'pass' ? 'check' : c.verdict === 'fail' ? 'x' : 'info')}${label}</span>`);
+  }
+  return out.join('');
 }
 
 // One run inside a compare task: the harness and model stand in for the title the task shows.
@@ -233,6 +254,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}<span class="q-proj">${esc(s.project)}</span>` : ''}
       ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
+      ${autoPill(s)}
       ${s.pr ? prPill(s.pr) : ''}
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${icon('chevron', 'chev')}
@@ -257,7 +279,12 @@ function taskItem(t) {
   g.lead = t.id;
   const finished = t.runs.filter((r) => r.state === 'review' || r.state === 'done').length;
   const places = new Set(t.runs.map((r) => r.machine?.id || '')).size;
-  const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep';
+  // Auto's groups say what Auto did: which run it picked, or who it handed the task to.
+  const picked = t.runs.find((r) => r.auto?.pick?.winner);
+  const handed = t.runs.find((r) => r.auto?.escalatedFrom);
+  const runName = (r) => `${agentName(r.agent)}${r.model ? ` · ${r.model}` : ''}`;
+  const autoLine = picked ? `wisp's pick: ${picked.auto.pick.why}` : handed ? `Tests failed, so wisp handed it to ${runName(handed)}${handed.auto?.check?.verdict === 'pass' ? ' · tests pass now' : handed.auto?.check?.verdict === 'fail' ? ' · still failing' : ''}` : '';
+  const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : autoLine || (places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep');
   g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
   g.head.innerHTML = `
     <span class="q-dot ${t.state === 'running' ? 'live' : ''} ${t.state === 'waiting' ? 'waiting' : ''}"></span>

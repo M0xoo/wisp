@@ -3,10 +3,10 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, el, icon } from '../core/dom.js';
+import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { present } from '../ui/overlay.js';
-import { toastError } from '../ui/toast.js';
+import { toast, toastError } from '../ui/toast.js';
 import { AUTO_GOALS, harnessLogo } from './runners.js';
 
 const ARM_STATE = { ready: ['Ready', 'ok'], new: ['Trying out', 'warn'], untried: ['No data yet', ''], gone: ['Not installed', 'bad'] };
@@ -32,6 +32,13 @@ export async function openRouter({ host } = {}) {
           return `<tr><td><span class="us-runner"><span class="model-logo">${harnessLogo(a.agent)}</span>${esc(a.label)}</span>${types ? `<small class="ro-types">${esc(types)}</small>` : ''}</td>${a.state === 'untried' ? '<td>—</td><td>—</td><td>—</td><td>—</td>' : `<td><b>${pctOf(a.chance)}</b></td><td>${a.n || '—'}</td><td>${a.usd ? `$${a.usd.toFixed(2)}` : '$0'}</td><td>${a.minutes}m</td>`}<td><span class="sx-state ${tone}"><i class="dot ${tone}"></i>${state}</span></td></tr>`;
         })
         .join('')}</tbody></table>
+      <h4>Tests per project</h4>
+      <p class="hint">What wisp runs to check an Auto task. Leave it empty to use what wisp found, or type <code>off</code> to skip the check in that project.</p>
+      ${r.projects?.length
+        ? `<div class="ro-tests">${r.projects
+            .map((p) => `<label class="ro-test"><span class="us-proj c-${esc(p.color || 'slate')}"><i class="p-dot"></i>${esc(p.name)}</span><input class="input mono" data-id="${esc(p.id)}" value="${esc(p.testCommand)}" placeholder="${esc(p.detected?.command || (p.detected?.skip ? `none: ${p.detected.skip}` : 'none found'))}" spellcheck="false"></label>`)
+            .join('')}</div>`
+        : '<p class="mem-empty">Add a project to set its test command.</p>'}
       <h4>Recent picks</h4>
       ${r.recent.length
         ? `<ul class="ro-recent">${r.recent
@@ -42,6 +49,28 @@ export async function openRouter({ host } = {}) {
             .join('')}</ul>`
         : '<p class="mem-empty">Nothing yet. Launch with Auto and its picks show up here.</p>'}
       <div class="ro-foot"><button class="ghost sm danger" id="roReset">Forget what Auto learned</button><span class="hint">The wisp-bench starting point stays.</span></div>`;
+    for (const input of $$('.ro-test input', node)) {
+      let saved = input.value;
+      const save = async () => {
+        const v = input.value.trim();
+        if (v === saved) return;
+        const prev = saved;
+        saved = v;
+        try {
+          await api(`/projects/${input.dataset.id}`, { method: 'PATCH', body: { testCommand: v } });
+          toast(v ? `Auto will check with <code>${esc(v)}</code>` : 'Back to the test command wisp finds');
+        } catch (err) {
+          saved = input.value = prev;
+          toastError(err);
+        }
+      };
+      input.onblur = () => {
+        save();
+      };
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') input.blur();
+      };
+    }
     $('#roReset', node).onclick = async () => {
       if (!confirm('Forget what Auto learned from your tasks?')) return;
       await api('/router/reset', { method: 'POST', body: {} }).catch(toastError);

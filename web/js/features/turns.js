@@ -19,7 +19,7 @@ import { scrollByPx, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 
-const KIND_ICON = { read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock' };
+const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock' };
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -169,7 +169,7 @@ function renderFoldedTurn(t, unfold) {
     <article class="turn folded" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
-        <span class="t-prompt">${mentionHtml(esc(t.prompt.replace(/\s+/g, ' ')), { link: false })}</span>
+        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${mentionHtml(esc(t.prompt.replace(/\s+/g, ' ')), { link: false })}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
@@ -194,7 +194,8 @@ function renderTurn(s, t, isLatest, fold) {
   const cp = t.checkpoint;
   const cpLabel = cp?.head ? `${cp.branch ? `${cp.branch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const ask = el(`
-    <div class="ask">
+    <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
+      ${t.by === 'wisp' ? `<div class="ask-by">${icon('spark')}Sent by wisp after its test run</div>` : ''}
       <div class="ask-text ${long ? 'clamped' : ''}">${mentionHtml(esc(t.prompt))}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}

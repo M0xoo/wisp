@@ -25,6 +25,7 @@ import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
 import { serveStatic } from './http/static.js';
 import { createAuto } from './services/auto.js';
+import { scoutNote } from './scout.js';
 import { createFeedback } from './services/feedback.js';
 import { createInstaller } from './services/install.js';
 import { createLaunch } from './services/launch.js';
@@ -119,7 +120,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.prefs = new Preferences(store.home);
   app.learning = () => store.config.defaults.learn !== 'off';
   const projectOf = (cwd) => store.projectFor(cwd)?.path || cwd;
-  runner.promptExtra = (s) => (app.learning() && s.agent !== 'wisp' ? app.prefs.prompt(projectOf(s.cwd)) : '');
+  runner.promptExtra = (s) => (app.learning() && s.agent !== 'wisp' ? app.prefs.prompt(projectOf(s.cwd)) : '') + scoutNote(s.scout);
   app.retro = new Retro({
     store,
     runner,
