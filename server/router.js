@@ -28,7 +28,7 @@ const PRIORS = JSON.parse(fs.readFileSync(new URL('./router-priors.json', import
 export const GOALS = {
   cheap: { label: 'Cheap', value: 1, hint: 'Lowest cost that still gets it done' },
   balanced: { label: 'Balanced', value: 5, hint: 'Best result per dollar' },
-  best: { label: 'Best', value: 50, hint: 'Best result; cost only breaks ties' },
+  best: { label: 'Best', value: 50, hint: 'Frontier models only; cost only breaks ties' },
 };
 export const TYPES = ['bug', 'feature', 'ui', 'test', 'refactor', 'docs', 'release', 'question'];
 const MINUTE_USD = 0.05; // what a minute of waiting costs you, in the utility
@@ -101,8 +101,8 @@ export const baseOf = (k) => {
 // starts from what the family already showed.
 const family = (k) => k.replace(/[-.]?\d+([.-]\d+)*/g, '');
 
-// How strong a model is, roughly: 1 small/fast/free, 2 everyday, 3 frontier. Hand-overs step up a
-// tier, and until Auto has your own outcomes, Balanced stays on tier 2+ and Best on tier 3.
+// How strong a model is, roughly: 1 small/fast/free, 2 everyday, 3 frontier. Best runs on tier 3
+// only, hand-overs step up a tier, and until Auto has your own outcomes Balanced stays on tier 2+.
 // The shipped priors come from a small pilot that flattered cheap models; tiers keep them honest.
 const FRONTIER_DEFAULTS = new Set(['codex:']); // a harness whose default model is its frontier one
 export function tierOf(key) {
@@ -264,6 +264,8 @@ export class Router {
   // scouted: { type, size } from the scout, which beats the keyword guess.
   // minTier: only arms at least that strong (a hand-over steps up). Arms cooling down after a usage
   // or rate limit are skipped while any other arm can run.
+  // Best runs frontier models only: if any is installed and allowed, Best never steps down a tier,
+  // even when they're all taken or at their limit (null then). With none installed, the strongest.
   choose({ prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, scouted = null, minTier = 0, rng = Math.random } = {}) {
     if (!this.synced) this.sync(agents);
     const guess = classify(prompt, { attachments });
@@ -271,8 +273,10 @@ export class Router {
     const size = scouted?.size || guess.size;
     const V = (GOALS[goal] || GOALS.balanced).value;
     const out = new Set(exclude.map(baseOf));
-    let arms = candidates(agents, new Set(Object.keys(this.state.arms)))
-      .filter((c) => !out.has(c.key) && (!needDelegate || c.delegates) && (!allowed || allowed.includes(c.agent)))
+    const usable = candidates(agents, new Set(Object.keys(this.state.arms))).filter((c) => (!needDelegate || c.delegates) && (!allowed || allowed.includes(c.agent)));
+    const frontierOnly = goal === 'best' && usable.some((c) => tierOf(c.key) >= 3);
+    let arms = usable
+      .filter((c) => !out.has(c.key) && (!frontierOnly || tierOf(c.key) >= 3))
       .flatMap((c) => levelsFor(c.efforts, goal).map((effort) => ({ ...c, key: armKey(c.agent, c.model, effort), effort, label: `${c.label}${effort ? ` · ${effortLabel(effort)}` : ''}`, base: c.key })))
       .map((c) => ({ ...c, est: this.estimate(type, c.key), state: this.state.arms[c.base]?.state || 'new' }));
     if (!arms.length) return null;
@@ -282,7 +286,7 @@ export class Router {
     // Cold start: until there are enough of your own outcomes, lean to quality (the shipped priors
     // are thin). Cheap is left alone: that goal asked for cheap.
     const cold = this.learned() < COLD_START;
-    const floorTier = Math.max(minTier, cold && goal === 'best' ? 3 : cold && goal !== 'cheap' ? 2 : 0);
+    const floorTier = Math.max(minTier, goal === 'best' ? 3 : cold && goal !== 'cheap' ? 2 : 0);
     for (let t = floorTier; t > 0; t--) {
       const strong = arms.filter((x) => tierOf(x.key) >= t);
       if (strong.length) {
@@ -332,7 +336,7 @@ export class Router {
         explored: byMean[0].key !== pick.key,
         trying: pick.state === 'new',
         tier: tierOf(pick.key),
-        ...(cold && goal !== 'cheap' && { coldStart: true }),
+        ...(cold && goal !== 'cheap' && goal !== 'best' && { coldStart: true }),
         propensity: round(hits / 200),
         alternatives: byMean.filter((x) => x.key !== pick.key).slice(0, 3).map((x) => ({ key: x.key, label: x.label, chance: round(x.est.mean), usd: round(x.est.usd) })),
         at: this.now(),

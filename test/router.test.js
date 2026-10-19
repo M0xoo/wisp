@@ -145,7 +145,7 @@ test('limits: a usage or rate limit is the harness being unavailable, not the mo
   assert.equal(r.choose({ prompt: 'x', agents: AGENTS, allowed: ['claude'], important: true }).agent, 'claude');
 });
 
-test('cold start: Balanced and Best lean to stronger tiers until there are enough of your outcomes', () => {
+test('cold start: Balanced leans to stronger tiers until there are enough of your outcomes', () => {
   const r = new Router(tmp('router-cold'));
   const tiers = (goal) => new Set(Array.from({ length: 40 }, (_, i) => tierOf(r.choose({ prompt: 'fix the bug', agents: AGENTS, goal, rng: seeded(i + 3) }).key)));
   assert.ok(!tiers('balanced').has(1), 'no small models for Balanced yet');
@@ -157,6 +157,29 @@ test('cold start: Balanced and Best lean to stronger tiers until there are enoug
   for (let i = 0; i < 25; i++) (r.record(`h${i}`, { key: 'claude:haiku', type: 'bug', at: Date.now() }), r.signal(`h${i}`, { feedback: 'up' }));
   assert.ok(!r.choose({ prompt: 'fix the bug', agents: AGENTS, goal: 'balanced' }).route.coldStart);
   assert.ok(tiers('balanced').has(1), 'haiku earned its place');
+});
+
+test('Best runs frontier models only, whatever the record of the others', () => {
+  const r = new Router(tmp('router-frontier'));
+  // Sonnet and Haiku win every task, Opus loses them: Best still never picks them.
+  for (let i = 0; i < 30; i++) {
+    for (const key of ['claude:sonnet:high', 'claude:haiku:high']) (r.record(`${key}${i}`, { key, type: 'bug', at: Date.now() }), r.signal(`${key}${i}`, { merged: true }));
+    (r.record(`o${i}`, { key: 'claude:opus:high', type: 'bug', at: Date.now() }), r.signal(`o${i}`, { hero: 'blocked' }));
+  }
+  assert.ok(r.learned() >= 20, 'past the cold start');
+  for (let i = 0; i < 40; i++) {
+    const p = r.choose({ prompt: 'fix the bug', agents: AGENTS, goal: 'best', rng: seeded(i + 1) });
+    assert.equal(tierOf(p.key), 3, p.key);
+    assert.ok(!p.route.coldStart);
+  }
+  assert.equal(r.choose({ prompt: 'fix the bug', agents: AGENTS, goal: 'best', allowed: ['claude'], important: true }).model, 'opus');
+  // Every frontier model taken or at its limit: nothing, not a step down.
+  assert.equal(r.choose({ prompt: 'x', agents: AGENTS, goal: 'best', allowed: ['claude'], exclude: ['claude:opus'] }), null);
+  r.cool('claude:opus', { scope: 'arm', ms: 60_000 });
+  assert.equal(r.choose({ prompt: 'x', agents: AGENTS, goal: 'best', allowed: ['claude'] }), null);
+  // No frontier model installed or allowed: the strongest there is.
+  const everyday = [{ id: 'claude', name: 'Claude Code', available: true, models: [{ id: 'sonnet', label: 'Sonnet' }, { id: 'haiku', label: 'Haiku' }] }];
+  assert.equal(r.choose({ prompt: 'x', agents: everyday, goal: 'best', important: true }).model, 'sonnet');
 });
 
 test('thinking levels: the goal sets the band, levels are learned, a model shares its record across them', () => {
@@ -194,7 +217,8 @@ test('thinking levels: the goal sets the band, levels are learned, a model share
   for (let i = 0; i < 8; i++) (r.record(`h${i}`, { key: 'claude:opus:high', type: 'bug', at: Date.now() }), r.signal(`h${i}`, { hero: 'blocked' }));
   assert.equal(r.choose({ prompt: 'fix the bug', agents: LEVELS, goal: 'best', important: true }).key, 'claude:opus:xhigh');
   // Compare and hand-overs exclude every level of a taken model.
-  for (const p of picks('best', { exclude: ['claude:opus:xhigh'] })) assert.notEqual(p.model, 'opus', p.key);
+  for (const p of picks('balanced', { exclude: ['claude:opus:xhigh'] })) assert.notEqual(p.model, 'opus', p.key);
+  assert.equal(r.choose({ prompt: 'fix the bug', agents: LEVELS, goal: 'best', exclude: ['claude:opus:xhigh'] }), null, 'Best never steps down to Sonnet');
   // A rate limit on one level rests the model at every level.
   r.cool('claude:opus:high', { scope: 'arm', ms: 60_000 });
   assert.ok(r.cooling('claude:opus:xhigh') && r.cooling('claude:opus') && !r.cooling('claude:sonnet:high'));
