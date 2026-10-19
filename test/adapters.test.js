@@ -88,7 +88,7 @@ for (const id of Object.keys(BIN)) {
     else assert.match(promptOf(id, rec.stdin), /running inside wisp[\s\S]*# Task\n\nfix the add bug/);
 
     assert.deepEqual(events.find((e) => e.type === 'session'), { type: 'session', id: `${BIN[id]}-session-1` });
-    assert.ok(events.some((e) => e.type === 'tool' && e.kind === 'run' && /npm test|Run the tests/.test(e.label)), 'shell command shown');
+    assert.ok(events.some((e) => e.type === 'tool' && e.kind === 'run' && /Running tests|Run the tests/.test(e.label)), 'shell command shown');
     assert.ok(events.some((e) => e.type === 'tool' && e.kind === 'edit' && e.file === 'math.js'), 'edit shown with a project-relative path');
 
     const change = events.find((e) => e.type === 'change' && e.file === 'math.js');

@@ -4,6 +4,7 @@
 // ask_user tool isn't available here; the protocol tells the agent to end with a question block.
 
 import { attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { describeCommand } from './commands.js';
 
 const BIN = process.env.WISP_CURSOR_BIN || 'cursor-agent';
 
@@ -130,7 +131,7 @@ function describeTool(name, a, cwd) {
     case 'deleteToolCall':
       return { kind: 'edit', label: `Deleting ${f}`, file: f };
     case 'shellToolCall':
-      return { kind: 'run', label: a.description ? clip(a.description) : `Running ${clip(a.command, 60)}`, detail: a.command };
+      return { kind: 'run', label: a.description ? clip(a.description) : describeCommand(a.command, cwd), detail: a.command };
     case 'grepToolCall':
       return { kind: 'search', label: `Searching for “${clip(a.pattern, 40)}”` };
     case 'globToolCall':

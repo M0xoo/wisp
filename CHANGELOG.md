@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Shell commands read as English in the live ticker.** Instead of `Running sed -n 15,50p server/a.js`, a task now shows "Reading lines 15–50 of server/a.js". wisp knows the common file, search, git, gh, npm/pnpm/yarn, Python, Node, cargo, go, make and docker commands, follows `&&` chains and pipes (`git status && git diff --stat` → "Checking git status, then summarising changes"), and looks inside `bash -lc '…'`. Works for every harness; a command it doesn't know still shows as `Running …`, and the exact command stays in the activity detail.
+
 ## [0.18.1] - 2026-10-19
 
 ### Fixed
