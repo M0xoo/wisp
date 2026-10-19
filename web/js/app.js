@@ -62,7 +62,7 @@ const MODES = [
   { id: 'edits', label: 'Edits', icon: 'pen', hint: 'May edit files. Shell commands that need approval are denied.' },
   { id: 'auto', label: 'Full auto', icon: 'spark', hint: 'No permission prompts at all. Trusted repos only.' },
 ];
-const KIND_ICON = { read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock' };
+const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock' };
 const STATUS_LABEL = { done: 'Done', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
 const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id === 'auto' ? 'Auto' : id === 'wisp' ? 'wisp' : id);
 // Auto: not a CLI but wisp's router (server/router.js), which picks harness and model per task.
@@ -376,6 +376,7 @@ function renderHead(n, s) {
     <span class="it-side">
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
+      ${autoPill(s)}
       ${s.pr ? prPill(s.pr) : ''}
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
@@ -401,6 +402,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}<span class="q-proj">${esc(s.project)}</span>` : ''}
       ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
+      ${autoPill(s)}
       ${s.pr ? prPill(s.pr) : ''}
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${icon('chevron', 'chev')}
@@ -425,7 +427,12 @@ function taskItem(t) {
   g.lead = t.id;
   const finished = t.runs.filter((r) => r.state === 'review' || r.state === 'done').length;
   const places = new Set(t.runs.map((r) => r.machine?.id || '')).size;
-  const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep';
+  // Auto's groups say what Auto did: which run it picked, or who it handed the task to.
+  const picked = t.runs.find((r) => r.auto?.pick?.winner);
+  const handed = t.runs.find((r) => r.auto?.escalatedFrom);
+  const runName = (r) => `${agentName(r.agent)}${r.model ? ` · ${r.model}` : ''}`;
+  const autoLine = picked ? `wisp's pick: ${picked.auto.pick.why}` : handed ? `Tests failed, so wisp handed it to ${runName(handed)}${handed.auto?.check?.verdict === 'pass' ? ' · tests pass now' : handed.auto?.check?.verdict === 'fail' ? ' · still failing' : ''}` : '';
+  const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : autoLine || (places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep');
   g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
   g.head.innerHTML = `
     <span class="q-dot ${t.state === 'running' ? 'live' : ''} ${t.state === 'waiting' ? 'waiting' : ''}"></span>
@@ -1920,7 +1927,7 @@ function renderFoldedTurn(t, unfold) {
     <article class="turn folded" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
-        <span class="t-prompt">${esc(t.prompt.replace(/\s+/g, ' '))}</span>
+        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${esc(t.prompt.replace(/\s+/g, ' '))}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
@@ -1945,7 +1952,8 @@ function renderTurn(s, t, isLatest, fold) {
   const cp = t.checkpoint;
   const cpLabel = cp?.head ? `${cp.branch ? `${cp.branch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const ask = el(`
-    <div class="ask">
+    <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
+      ${t.by === 'wisp' ? `<div class="ask-by">${icon('spark')}Sent by wisp after its test run</div>` : ''}
       <div class="ask-text ${long ? 'clamped' : ''}">${esc(t.prompt)}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
@@ -3195,6 +3203,25 @@ function shippable(s) {
 }
 const shipLabel = (s) => (s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.number}` : 'Ship it…');
 
+// What Auto found after the run: its own test check, the best-of-2 pick, a hand-over.
+function autoPill(s) {
+  const a = s.auto;
+  if (!a || s.pending) return '';
+  const out = [];
+  if (a.pick?.winner) out.push(`<span class="pill auto-pick" title="${esc(`wisp's pick of the two runs: ${a.pick.why}`)}">${icon('spark')}Pick</span>`);
+  if (a.escalatedTo) {
+    const to = S.sessions.get(a.escalatedTo);
+    out.push(`<span class="pill auto-handed" title="${esc(`Tests still failed, so wisp handed the task to ${to ? `${agentName(to.agent)}${to.model ? ` · ${to.model}` : ''}` : 'a stronger pick'}`)}">Handed on</span>`);
+  }
+  const c = a.check;
+  if (c && !a.busy && c.verdict !== 'skip') {
+    const tip = c.verdict === 'pass' ? `wisp ran ${c.command}: no new failures${c.note ? ` (${c.note})` : ''}` : c.verdict === 'fail' ? `wisp ran ${c.command}: ${c.newFailures || c.failed} test${(c.newFailures || c.failed) === 1 ? '' : 's'} that passed before now fail${a.repairs ? `, after ${a.repairs} repair round${a.repairs > 1 ? 's' : ''}` : ''}` : `wisp ran ${c.command}: ${c.note || "couldn't tell"}`;
+    const label = c.verdict === 'pass' ? 'Tests' : c.verdict === 'fail' ? `${c.newFailures || c.failed} failing` : 'Tests ?';
+    out.push(`<span class="pill auto-ck ck-${c.verdict}" title="${esc(tip)}">${icon(c.verdict === 'pass' ? 'check' : c.verdict === 'fail' ? 'x' : 'info')}${label}</span>`);
+  }
+  return out.join('');
+}
+
 const prPill = (pr) => `<span class="pill pr pr-${prTone(pr)}" title="PR #${pr.number}: ${esc(prLine(pr))}"><i></i>#${pr.number}</span>`;
 
 // The PR row under a card's bar; reads the live summary, so polled check results show up.
@@ -4253,6 +4280,13 @@ function openSettings(opts) {
             ${row('Harnesses it may use', 'Leave all off to let Auto use every one you have', '<span class="ro-allowed"></span>')}
           </div>
           <div class="sx-group">
+            ${row('Check with the tests', 'When the agent says it’s done, wisp runs the project’s tests itself. Only failures that are new count', '<button class="switch" id="roCheck" role="switch"></button>')}
+            ${row('Repair rounds', 'Failing tests go back to the same agent this many times', `<span class="pk-seg ro-repairs">${[0, 1, 2].map((n) => `<button data-n="${n}">${n}</button>`).join('')}</span>`)}
+            ${row('Hand over when it still fails', 'The task runs again on a stronger pick, next to the first run', '<button class="switch" id="roEscalate" role="switch"></button>')}
+            ${row('Best of two', 'With the Best goal, two picks work side by side and wisp marks the better one', '<button class="switch" id="roBest2" role="switch"></button>')}
+            ${row('Scout first', 'A cheap model looks around the repo and tells the agent where to start', `<span class="pk-seg ro-scout">${[['off', 'Off'], ['big', 'Bigger tasks'], ['all', 'Every task']].map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('')}</span>`)}
+          </div>
+          <div class="sx-group">
             ${row('What it learned', '<span class="ro-hint"></span>', '<button class="ghost sm" id="openRouter">Open</button>')}
           </div>
         </section>
@@ -4440,6 +4474,11 @@ function openSettings(opts) {
     if (!r || !node.isConnected) return;
     $$('.ro-goal button', node).forEach((b) => b.classList.toggle('on', b.dataset.goal === r.goal));
     $('#roExplore', node).setAttribute('aria-checked', r.settings.explore);
+    $('#roCheck', node).setAttribute('aria-checked', r.settings.check);
+    $('#roEscalate', node).setAttribute('aria-checked', r.settings.escalate);
+    $('#roBest2', node).setAttribute('aria-checked', r.settings.best2);
+    $$('.ro-repairs button', node).forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === r.settings.repairs));
+    $$('.ro-scout button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === r.settings.scout));
     const allowed = r.settings.allowed || [];
     $('.ro-allowed', node).innerHTML = S.agents
       .filter((a) => a.available)
@@ -4466,10 +4505,24 @@ function openSettings(opts) {
       patchAuto({ goal: b.dataset.goal });
     }
   };
-  $('#roExplore', node).onclick = (e) => {
-    const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
-    e.currentTarget.setAttribute('aria-checked', on);
-    patchAuto({ explore: on });
+  for (const [id, key] of [['#roExplore', 'explore'], ['#roCheck', 'check'], ['#roEscalate', 'escalate'], ['#roBest2', 'best2']]) {
+    $(id, node).onclick = (e) => {
+      const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
+      e.currentTarget.setAttribute('aria-checked', on);
+      patchAuto({ [key]: on });
+    };
+  }
+  $('.ro-repairs', node).onclick = (e) => {
+    const b = e.target.closest('[data-n]');
+    if (!b) return;
+    $$('.ro-repairs button', node).forEach((x) => x.classList.toggle('on', x === b));
+    patchAuto({ repairs: Number(b.dataset.n) });
+  };
+  $('.ro-scout', node).onclick = (e) => {
+    const b = e.target.closest('[data-v]');
+    if (!b) return;
+    $$('.ro-scout button', node).forEach((x) => x.classList.toggle('on', x === b));
+    patchAuto({ scout: b.dataset.v });
   };
   $('.ro-allowed', node).onclick = (e) => {
     const b = e.target.closest('[data-id]');
@@ -4536,6 +4589,13 @@ async function openRouter({ host } = {}) {
           return `<tr><td><span class="us-runner"><span class="model-logo">${harnessLogo(a.agent)}</span>${esc(a.label)}</span>${types ? `<small class="ro-types">${esc(types)}</small>` : ''}</td>${a.state === 'untried' ? '<td>—</td><td>—</td><td>—</td><td>—</td>' : `<td><b>${pctOf(a.chance)}</b></td><td>${a.n || '—'}</td><td>${a.usd ? `$${a.usd.toFixed(2)}` : '$0'}</td><td>${a.minutes}m</td>`}<td><span class="sx-state ${tone}"><i class="dot ${tone}"></i>${state}</span></td></tr>`;
         })
         .join('')}</tbody></table>
+      <h4>Tests per project</h4>
+      <p class="hint">What wisp runs to check an Auto task. Leave it empty to use what wisp found, or type <code>off</code> to skip the check in that project.</p>
+      ${r.projects.length
+        ? `<div class="ro-tests">${r.projects
+            .map((p) => `<label class="ro-test"><span class="us-proj c-${esc(p.color || 'slate')}"><i class="p-dot"></i>${esc(p.name)}</span><input class="input mono" data-id="${esc(p.id)}" value="${esc(p.testCommand)}" placeholder="${esc(p.detected?.command || (p.detected?.skip ? `none: ${p.detected.skip}` : 'none found'))}" spellcheck="false"></label>`)
+            .join('')}</div>`
+        : '<p class="mem-empty">Add a project to set its test command.</p>'}
       <h4>Recent picks</h4>
       ${r.recent.length
         ? `<ul class="ro-recent">${r.recent
@@ -4546,6 +4606,28 @@ async function openRouter({ host } = {}) {
             .join('')}</ul>`
         : '<p class="mem-empty">Nothing yet. Launch with Auto and its picks show up here.</p>'}
       <div class="ro-foot"><button class="ghost sm danger" id="roReset">Forget what Auto learned</button><span class="hint">The wisp-bench starting point stays.</span></div>`;
+    for (const input of $$('.ro-test input', node)) {
+      let saved = input.value;
+      const save = async () => {
+        const v = input.value.trim();
+        if (v === saved) return;
+        const prev = saved;
+        saved = v;
+        try {
+          await api(`/projects/${input.dataset.id}`, { method: 'PATCH', body: { testCommand: v } });
+          toast(v ? `Auto will check with <code>${esc(v)}</code>` : 'Back to the test command wisp finds');
+        } catch (err) {
+          saved = input.value = prev;
+          toast(esc(err.message), { tone: 'bad' });
+        }
+      };
+      input.onblur = () => {
+        save();
+      };
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') input.blur();
+      };
+    }
     $('#roReset', node).onclick = async () => {
       if (!confirm('Forget what Auto learned from your tasks?')) return;
       await api('/router/reset', { method: 'POST', body: {} }).catch((err) => toast(esc(err.message), { tone: 'bad' }));

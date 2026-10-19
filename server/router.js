@@ -163,9 +163,12 @@ export class Router {
   // Pick an arm. agents: listAgents() of the place it runs. goal: cheap | balanced | best.
   // important: no exploring. exclude: arm keys already taken (compare). needDelegate: the lead
   // of a team must be a harness that can delegate. rng: for tests.
-  choose({ prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, rng = Math.random } = {}) {
+  // scouted: { type, size } from the scout, which beats the keyword guess.
+  choose({ prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, scouted = null, rng = Math.random } = {}) {
     if (!this.synced) this.sync(agents);
-    const { type, size } = classify(prompt, { attachments });
+    const guess = classify(prompt, { attachments });
+    const type = scouted?.type || guess.type;
+    const size = scouted?.size || guess.size;
     const V = (GOALS[goal] || GOALS.balanced).value;
     let arms = candidates(agents, new Set(Object.keys(this.state.arms)))
       .filter((c) => !exclude.includes(c.key) && (!needDelegate || c.delegates) && (!allowed || allowed.includes(c.agent)))
@@ -296,7 +299,11 @@ export function reward(sig) {
   if (sig.feedback === 'down') return 0;
   if (sig.closed) return 0.2;
   if (sig.rolledBack) return 0.1;
-  if (sig.error) return 0;
+  if (sig.error || sig.check === 'error') return 0;
+  // wisp's own test run beats the agent's word; needing a repair round costs some of the credit,
+  // and losing a best-of-2 to the other run a little more.
+  if (sig.check === 'fail') return 0.1;
+  if (sig.check === 'pass') return round(Math.max(0.3, (sig.repaired ? 0.6 : 0.8) - (sig.picked === false ? 0.15 : 0) - 0.1 * (sig.followups || 0)));
   const base = { done: 0.6, partial: 0.3, blocked: 0.1, info: 0.5 }[sig.hero];
   if (base === undefined) return null;
   return round(Math.max(0.05, base - 0.1 * (sig.followups || 0)));

@@ -290,6 +290,16 @@ New harnesses and models: when a CLI or model shows up (after an install or a Re
 
 Compare runs get different picks. A subagent set to Auto is picked on its first task and keeps that harness. A launch on a machine is picked here, from the harnesses that machine reported, and that machine's outcomes come back to the same router. All of it stays in `~/.wisp/router.json`; usage stats only add which goal, kind of task and size were used, and whether the pick was exploring.
 
+After the run, Auto checks the work before it lands in your queue:
+
+1. **Scout** (bigger tasks): a cheap model looks around the repo, read-only, and the agent gets the files that matter and the test command.
+2. **Check**: wisp runs the project's tests itself. A failure only counts if that test passed on the base commit, and a failing suite runs twice so a flaky test doesn't count. The turn gets a **Run by wisp** tests block. If the agent said "done" and the run disagrees, the turn says so.
+3. **Repair**: new failures go back to the same agent (1 round by default, up to 2).
+4. **Hand over**: still failing, or the run errored, so the task runs again on a stronger pick in its own worktree, next to the first run.
+5. **Best of two** (goal Best): two picks work side by side; tests decide, then a cheap model reads both diffs, and the better run is marked **Pick**.
+
+Each step's outcome feeds the router: a test pass counts more than the agent's "done", needing a repair counts less, and losing a best-of-2 a little less again. Your own follow-up stops whatever Auto was about to do next. Settings → Auto turns each step on or off and sets the test command per project.
+
 The benchmark behind the priors is in [`bench/`](bench/README.md).
 
 ## Worktrees and shipping

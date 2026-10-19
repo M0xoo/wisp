@@ -25,7 +25,9 @@ import { Remote } from './remote.js';
 import { Machines, splitId, qualify, sshHosts, discoverHosts } from './machines.js';
 import { usage } from './usage.js';
 import { normalizeTeam, normalizePreset, delegationReport } from './subagents.js';
-import { Router, GOALS } from './router.js';
+import { Router, GOALS, classify } from './router.js';
+import { Pipeline, autoSettings } from './pipeline.js';
+import { scanProject, scoutTask, scoutNote } from './scout.js';
 
 const WEB = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web');
 
@@ -125,7 +127,7 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
   const prefs = new Preferences(store.home);
   const learning = () => store.config.defaults.learn !== 'off';
   const projectOf = (cwd) => store.projectFor(cwd)?.path || cwd;
-  runner.promptExtra = (s) => (learning() && s.agent !== 'wisp' ? prefs.prompt(projectOf(s.cwd)) : '');
+  runner.promptExtra = (s) => (learning() && s.agent !== 'wisp' ? prefs.prompt(projectOf(s.cwd)) : '') + scoutNote(s.scout);
   const retro = new Retro({
     store,
     runner,
@@ -153,6 +155,25 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     return { explore: r.explore !== 'off', allowed: Array.isArray(r.allowed) && r.allowed.length ? r.allowed : null };
   };
   const goalOf = (model) => (GOALS[model] ? model : GOALS[store.config.defaults.models?.auto] ? store.config.defaults.models.auto : 'balanced');
+  // Auto's steps after a run: check with the tests, repair, escalate, judge best-of-2.
+  const pipeline = new Pipeline({
+    store,
+    runner,
+    router,
+    settings: () => autoSettings(store.config.defaults),
+    agents: () => agentsHere,
+    projectOf: (s) => store.projectFor(s.cwd),
+    launchSibling: (s, pick) => launchSibling(s, pick),
+    broadcast,
+    summarize: (s) => summarize(s, store),
+    onSettled: (s) => {
+      routeSignals(summarize(s, store));
+      const a = s.auto;
+      const c = a.checks.at(-1);
+      telemetry.track('auto_settled', { strategy: a.strategy, verdict: c?.verdict || 'none', repairs: a.repairs, escalated: !!a.escalatedTo, escalation: !!a.escalatedFrom, checkMs: c?.durationMs, routeType: s.route?.type });
+    },
+  });
+  runner.pipeline = pipeline;
   // Subagents set to Auto are routed on their first task, from this computer's harnesses.
   runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf(), ...autoOpts() });
   // A routed session's outcome so far, from its summary: works the same for sessions on machines.
@@ -162,7 +183,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     const pr = sum.pr?.state;
     router.signal(sum.id, {
       hero: ['done', 'partial', 'blocked', 'info'].includes(sum.status) ? sum.status : undefined,
-      followups: Math.max(0, (sum.turnCount || 1) - 1),
+      followups: sum.followups ?? Math.max(0, (sum.turnCount || 1) - 1),
+      check: sum.auto?.check?.verdict && sum.auto.check.verdict !== 'skip' ? sum.auto.check.verdict : undefined,
       merged: pr === 'MERGED' || undefined,
       closed: pr === 'CLOSED' || undefined,
     });
@@ -215,12 +237,16 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     const subagents = normalizeTeam(body.subagents ?? preset?.members, adapters);
     // compare: more { agent, model, effort } to run the same task on, side by side. 'auto' is
     // resolved here: the router picks a harness and model (a different one per compare run).
-    const resolved = await resolveAuto(body, agentsHere.length ? agentsHere : await detect(), { team: subagents.length > 0 });
-    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
+    const resolved = await resolveAuto(body, agentsHere.length ? agentsHere : await detect(), { team: subagents.length > 0, cwd });
+    // A launch routed by another wisp (this is a machine) arrives with its route: Auto's steps
+    // (check, repair) still run here, where the files are.
+    const isRoute = (x) => x && typeof x === 'object' && typeof x.key === 'string';
+    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
       const agent = r.agent || (i ? d.agent : '') || 'claude';
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
-      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(r.route && { route: r.route }) };
+      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(isRoute(r.route) && { route: r.route }) };
     });
+    const strategy = ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
     const mode = MODES.has(body.mode) ? body.mode : 'edits';
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
     // runs need one each, or the harnesses would edit the same files.
@@ -248,23 +274,76 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
       }
       if (failed) console.warn(`wisp: no worktree for ${cwd}: ${failed.message}`);
     }
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents }));
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
   // agent 'auto' (and compare entries set to it) → a harness and model picked by the router from
   // `agents`: this computer's, or the machine's the launch goes to. Model is the goal for Auto.
-  async function resolveAuto(body, agents, { team = false } = {}) {
+  async function resolveAuto(body, agents, { team = false, cwd = null } = {}) {
     const want = [{ agent: body.agent, model: body.model, effort: body.effort }, ...(Array.isArray(body.compare) ? body.compare : [])];
     if (!want.some((r) => r.agent === 'auto')) return body;
+    const set = autoSettings(store.config.defaults);
+    // The scout (here only: a machine's folders aren't on this disk). The scan is free; the
+    // cheap-model look runs for bigger tasks, or every task, or never (Settings → Auto).
+    let scout = null;
+    if (cwd) {
+      const scan = scanProject(cwd, store.projectFor(cwd));
+      scout = { testCommand: scan.tests?.command || '', languages: scan.languages };
+      const big = classify(body.prompt).size !== 'S' || String(body.prompt).length > 400;
+      if (set.scout === 'all' || (set.scout === 'big' && big)) {
+        const found = await scoutTask({ prompt: body.prompt, cwd, agents, scan }).catch(() => null);
+        if (found) Object.assign(scout, found, { by: 'model' });
+      }
+    }
+    // Best-of-2: the Best goal (or an important task) gets two different picks side by side, each
+    // in its own worktree, and wisp marks the better one when both are checked.
+    const goal = goalOf(want[0].model);
+    const best2 = !!cwd && set.best2 && want.length === 1 && want[0].agent === 'auto' && (goal === 'best' || !!body.important) && !team && !!(await repoRoot(cwd).catch(() => null));
+    if (best2) want.push({ agent: 'auto', model: want[0].model });
     const taken = [];
     const out = want.map((r, i) => {
       if (r.agent !== 'auto') return r;
-      const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important, exclude: taken, needDelegate: i === 0 && team, ...autoOpts() });
-      if (!pick) throw bad('Auto found no installed harness to run this on.');
+      const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important || (best2 && i === 0), exclude: taken, needDelegate: i === 0 && team, scouted: scout?.by ? scout : null, ...autoOpts() });
+      if (!pick) {
+        if (best2 && i === 1) return null; // only one option to pick from: a single run then
+        throw bad('Auto found no installed harness to run this on.');
+      }
       taken.push(pick.key);
       return { agent: pick.agent, model: pick.model, effort: '', route: pick.route };
+    }).filter(Boolean);
+    const strategy = best2 && out.length === 2 ? 'best2' : out.length > 1 ? 'compare' : 'single';
+    return { ...body, ...out[0], compare: out.slice(1), scout, autoStrategy: strategy };
+  }
+
+  // Escalation: the same task again on a stronger pick, in its own worktree from the same base,
+  // next to the first run (one task, two rows).
+  async function launchSibling(s, pick) {
+    const first = s.turns[0];
+    const id = newId();
+    if (!s.groupId) s.groupId = newId();
+    const wt = s.worktree;
+    const worktree = wt ? await createWorktree({ cwd: s.cwd, home: store.home, id, title: first.prompt, source: { root: wt.root, base: { ref: wt.head || wt.baseRef, branch: wt.base, remote: wt.remote, sha: wt.head } } }).catch(() => null) : null;
+    const sib = runner.create({
+      id,
+      prompt: first.prompt,
+      cwd: s.cwd,
+      agent: pick.agent,
+      model: pick.model,
+      mode: s.mode,
+      attachments: resolveAttachments((first.attachments || []).map((a) => a.id)),
+      worktree,
+      groupId: s.groupId,
+      origin: s.origin || null,
+      subagents: s.subagents || [],
+      route: { ...pick.route, escalated: true },
+      auto: { strategy: 'escalated', escalatedFrom: s.id, tried: [s.route?.key].filter(Boolean) },
+      scout: s.scout || null,
     });
-    return { ...body, ...out[0], compare: out.slice(1) };
+    // Now one task with two runs: it's named after the prompt, like a compare task.
+    if (s.titleAuto) s.title = sib.title;
+    store.save(s);
+    broadcast('summary', summarize(s, store));
+    return sib;
   }
 
   // Where a launch runs: body.machine, else a project folder that only exists on a machine
@@ -284,8 +363,9 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
     // back through the summaries it streams (routeSignals), so one router learns from every place.
     const routed = await resolveAuto(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset) });
     const routes = [routed.route, ...(routed.compare || []).map((c) => c.route)];
-    const sendBody = { ...routed, compare: routed.compare?.map(({ route, ...c }) => c) };
-    delete sendBody.route;
+    // The machine runs Auto's check and repair on these picks (an older wisp there ignores them).
+    const sendBody = { ...routed };
+    delete sendBody.scout;
     if (!sendBody.compare?.length && !body.compare) delete sendBody.compare;
     const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
     (out.group || [out]).forEach((x, i) => routes[i] && router.record(qualify(x.id, mid), routes[i]));
@@ -519,7 +599,11 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
 
     // Auto: what the router learned, and its settings (goal, trying new models, allowed harnesses).
     if (root === 'router') {
-      const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { explore: autoOpts().explore, allowed: autoOpts().allowed }, ...router.report(agentsHere.length ? agentsHere : await detect()) });
+      const projects = () =>
+        store.config.projects
+          .filter((p) => !p.machine && fs.existsSync(p.path))
+          .map((p) => ({ id: p.id, name: p.name, color: p.color, testCommand: p.testCommand || '', detected: scanProject(p.path, { ...p, testCommand: '' }).tests }));
+      const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { explore: autoOpts().explore, allowed: autoOpts().allowed, ...autoSettings(store.config.defaults) }, projects: projects(), ...router.report(agentsHere.length ? agentsHere : await detect()) });
       if (!id && m === 'GET') return send(res, 200, await view());
       if (!id && m === 'PATCH') {
         const body = await readJson(req);
@@ -532,6 +616,12 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         d.router = { ...d.router };
         if (body.explore !== undefined) d.router.explore = body.explore ? 'on' : 'off';
         if (body.allowed !== undefined) d.router.allowed = Array.isArray(body.allowed) ? body.allowed.filter((a) => adapters[a]) : null;
+        for (const k of ['check', 'escalate', 'best2']) if (body[k] !== undefined) d.router[k] = body[k] ? 'on' : 'off';
+        if (body.repairs !== undefined) d.router.repairs = Math.max(0, Math.min(2, Math.round(Number(body.repairs)) || 0));
+        if (body.scout !== undefined) {
+          if (!['off', 'big', 'all'].includes(body.scout)) return send(res, 400, { error: 'scout must be off, big or all' });
+          d.router.scout = body.scout;
+        }
         store.saveConfig();
         broadcast('config', {});
         return send(res, 200, await view());
@@ -798,6 +888,8 @@ export async function startServer({ port = 4477, host = '127.0.0.1', handleSigna
         const body = await readJson(req);
         if (typeof body.name === 'string' && body.name.trim()) p.name = body.name.trim();
         if (typeof body.color === 'string') p.color = body.color;
+        // Auto's test check: the command to run, '' to detect it, 'off' for none.
+        if (typeof body.testCommand === 'string') body.testCommand.trim() ? (p.testCommand = body.testCommand.trim().slice(0, 500)) : delete p.testCommand;
         store.saveConfig();
         broadcast('config', {});
         return send(res, 200, p);
