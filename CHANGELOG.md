@@ -23,6 +23,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Claude in Chrome now works in Claude Code tasks.** Claude Code only turns the Chrome extension on by itself in interactive sessions; wisp runs it with `-p`, so its `mcp__claude-in-chrome__*` tools were missing. wisp now passes `--chrome` when you have Claude in Chrome enabled by default (`/chrome` in Claude Code, `claudeInChromeDefaultEnabled` in `~/.claude.json`). Set `WISP_CLAUDE_CHROME=1` or `0` to force it on or off.
 - An opencode task on a rate-limited model (often a free one) no longer sits at "Starting up" forever. opencode retries without printing anything, so wisp now reads its error log. If the rate limit hasn't cleared after 60s, wisp stops the task and says what to do: try again later, pick another model, or run `opencode auth login`.
 - wisp no longer crashes when the `claude` CLI quits before reading its prompt (a bad flag, an auth error, a crash on start). The task now ends with Claude's error message. Before, the unread prompt raised an unhandled `EPIPE` that took the whole server down.
 - `config.json` (projects, recipes, triggers, machines, settings) is now written atomically. Before, a crash or power loss mid-write could leave a cut-off file, which loaded as the defaults and was then saved over. Auto's learned state and the learned preferences are written the same way.
