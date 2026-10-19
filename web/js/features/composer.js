@@ -1,6 +1,7 @@
 // The composer at the bottom of an expanded card: follow-ups, answers, queued follow-ups.
 
 import { esc } from '../md.js';
+import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
@@ -10,6 +11,7 @@ import { toggleDone } from './actions.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { renderFeed, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
+import { mentionBox } from './mentions.js';
 import { placeName } from './places.js';
 import { runnerPicker } from './runner-picker.js';
 import { agentById, agentName, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedEffort, savedModel } from './runners.js';
@@ -47,7 +49,7 @@ export function renderDock(id) {
   dock.append(comp);
   n.tray = attachTray();
   comp.prepend(n.tray.node);
-  const ta = $('.reply', comp);
+  const ta = mentionBox($('.reply', comp));
   autosize(ta, 260);
   acceptFiles(comp, ta, n.tray);
   $('.c-attach', comp).onclick = n.tray.pick;
@@ -189,7 +191,7 @@ function renderQueued(s, list, name) {
     const li = el(`
       <li class="cq">
         <span class="cq-tag">${i === 0 ? `Next · after ${esc(name)} finishes` : `Queued #${i + 1}`}${q.run ? ` · on ${esc(runnerTip(q.run.agent, q.run.model, ''))}` : ''}</span>
-        <span class="cq-text">${esc(q.text)}</span>
+        <span class="cq-text">${mentionHtml(esc(q.text), { link: false })}</span>
         <button class="att-x" title="Cancel this follow-up">${icon('x')}</button>
       </li>`);
     const cancel = () => {

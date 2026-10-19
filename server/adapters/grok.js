@@ -234,6 +234,10 @@ function describeMcp(tool, input) {
       return { kind: 'agent', label: 'Waiting on subagents' };
     case 'wisp__wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
+    case 'wisp__wisp_sessions':
+      return { kind: 'tool', label: 'Listing wisp tasks' };
+    case 'wisp__wisp_session':
+      return { kind: 'tool', label: `Reading wisp task ${clip(input?.id || '', 40)}` };
     default:
       return { kind: 'tool', label: `Using ${tool.split('__').join(' · ') || 'an integration'}` };
   }

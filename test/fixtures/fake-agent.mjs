@@ -175,6 +175,12 @@ const ask = async () => {
     const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${i ? ` (${i + 1})` : ''}` }))) }));
     return report ? `delegated (${report.length} chars) ${report.match(/### [\w#-]+/g)?.join(' ')}` : 'no delegate tool';
   }
+  const mention = stdin.match(/\(wisp task ([a-z0-9]+)\)/);
+  if (mention && srv) {
+    const task = await mcpCall(srv, 'wisp_session', { id: mention[1] });
+    const list = await mcpCall(srv, 'wisp_sessions', { limit: 2 });
+    return `read ${task.split('\n')[0]} | listed ${list.split('\n')[0]}`;
+  }
   if (stdin.includes('STATS') && srv) {
     const text = await mcpCall(srv, 'wisp_stats', { days: 7, agent: 'claude' });
     return text ? text.split('\n').slice(0, 2).join(' ') : 'no wisp_stats tool';

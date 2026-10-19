@@ -2,6 +2,7 @@
 // machines, a project in each), on what, and shows a placeholder card until the server answers.
 
 import { esc } from '../md.js';
+import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
@@ -14,6 +15,7 @@ import { openAutomations, recipeParams, runRecipe } from './automations.js';
 import { renderFeed } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { connectMachine, offlineToast, openMachines } from './machines.js';
+import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
 import { MACHINE_STATE, machineById, placeName, placeOf, projectById, projectsAt, projectTitle } from './places.js';
 import { openProjects } from './projects.js';
@@ -63,9 +65,9 @@ export function renderLauncher() {
   renderLaunchChips();
   renderSetup();
 
-  const ta = $('#prompt', box);
+  const ta = mentionBox($('#prompt', box));
   const tray = attachTray();
-  ta.before(tray.node);
+  ta.parentNode.before(tray.node); // before the mention box's wrapper
   acceptFiles(box, ta, tray);
   autosize(ta);
   ta.value = S.drafts.get('home') || '';
@@ -486,7 +488,7 @@ function launchedFx(from, to) {
 let pendingSeq = 0;
 function addPending(prompt, { project: p, m }, { agent, model, effort }) {
   const id = `pending-${++pendingSeq}`;
-  const line = prompt.split('\n')[0].replace(/\s+/g, ' ');
+  const line = plain(prompt).split('\n')[0].replace(/\s+/g, ' ');
   const now = Date.now();
   S.sessions.set(id, {
     id,

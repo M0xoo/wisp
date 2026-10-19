@@ -209,6 +209,10 @@ function describeTool(name, input, cwd) {
       return { kind: 'agent', label: 'Waiting on subagents' };
     case 'mcp__wisp__wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
+    case 'mcp__wisp__wisp_sessions':
+      return { kind: 'tool', label: 'Listing wisp tasks' };
+    case 'mcp__wisp__wisp_session':
+      return { kind: 'tool', label: `Reading wisp task ${clip(input?.id || '', 40)}` };
     default:
       return { kind: 'tool', label: name.startsWith('mcp__') ? `Using ${name.split('__').slice(1).join(' · ')}` : `Using ${name}` };
   }

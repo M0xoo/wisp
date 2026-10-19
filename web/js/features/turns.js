@@ -3,6 +3,7 @@
 
 import { countChanges, fmtDuration, renderPresentation } from '../blocks.js';
 import { esc, md } from '../md.js';
+import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
@@ -153,7 +154,7 @@ function renderFoldedTurn(t, unfold) {
     <article class="turn folded" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
-        <span class="t-prompt">${esc(t.prompt.replace(/\s+/g, ' '))}</span>
+        <span class="t-prompt">${mentionHtml(esc(t.prompt.replace(/\s+/g, ' ')), { link: false })}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
@@ -179,7 +180,7 @@ function renderTurn(s, t, isLatest, fold) {
   const cpLabel = cp?.head ? `${cp.branch ? `${cp.branch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const ask = el(`
     <div class="ask">
-      <div class="ask-text ${long ? 'clamped' : ''}">${esc(t.prompt)}</div>
+      <div class="ask-text ${long ? 'clamped' : ''}">${mentionHtml(esc(t.prompt))}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
       <div class="ask-foot">

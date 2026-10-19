@@ -2,6 +2,7 @@
 
 import { countChanges, fmtDuration, renderPresentation } from '../blocks.js';
 import { esc } from '../md.js';
+import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { STATUS_LABEL } from '../core/format.js';
@@ -37,7 +38,7 @@ export async function compareView(id) {
   const node = el(`
     <div class="modal compare-modal">
       <header><h2>Compare</h2><button class="icon-btn close">${icon('x')}</button></header>
-      <p class="cmp-prompt">${esc(fulls[0]?.turns[0]?.prompt || '')}</p>
+      <p class="cmp-prompt">${mentionHtml(esc(fulls[0]?.turns[0]?.prompt || ''))}</p>
       <div class="cmp-grid" style="--n:${fulls.length}"></div>
     </div>`);
   const close = overlay(node);

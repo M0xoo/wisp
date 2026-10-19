@@ -15,6 +15,7 @@ import { saveAsRecipe } from './automations.js';
 import { compareView } from './compare.js';
 import { collapse, expand, handOff, renderFeed, setFocus } from './feed.js';
 import { launchBehind } from './launcher.js';
+import { copyTaskId, mentionBox } from './mentions.js';
 import { runnerPicker } from './runner-picker.js';
 import { agentName, DEFAULT_MODE, effortsFor, modeMenu, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace } from './scroll.js';
@@ -143,6 +144,7 @@ export function moreMenu(id, anchor) {
   const menu = el(`
     <div class="menu" style="top:${r.bottom + 6}px;right:${innerWidth - r.right}px">
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
+      <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       <button data-a="folder">${icon('folder')}Open project in editor</button>
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
@@ -153,6 +155,7 @@ export function moreMenu(id, anchor) {
     const a = e.target.closest('button')?.dataset.a;
     close();
     if (a === 'rename') rename(id);
+    if (a === 'copy-id') copyTaskId(id);
     if (a === 'copy') {
       await tryApi(async () => {
         const { command } = await api(`/sessions/${id}/takeover`);
@@ -178,6 +181,7 @@ export function taskMenu(id, e) {
     <div class="menu task" style="top:${e.clientY}px;left:${e.clientX}px">
       ${S.open.has(id) ? `<button data-a="collapse">${icon('chevron')}Collapse${keyHint('O')}</button>` : `<button data-a="open">${icon('chevron')}Open${keyHint('O')}</button>`}
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
+      <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
       ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
       ${s.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${s.pr.number}…</button>` : ''}
@@ -193,6 +197,7 @@ export function taskMenu(id, e) {
     if (a === 'open') expand(id);
     if (a === 'collapse') collapse(id);
     if (a === 'rename') rename(id);
+    if (a === 'copy-id') copyTaskId(id);
     if (a === 'rerun') rerun(id);
     if (a === 'ship') shipDialog(id);
     if (a === 'merge') mergePr(id);
@@ -249,7 +254,7 @@ export async function rerun(id) {
     </div>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
-  const ta = $('.rr-prompt', node);
+  const ta = mentionBox($('.rr-prompt', node));
   ta.value = first.prompt;
   autosize(ta);
   const modeBtn = $('[data-a="mode"]', node);
