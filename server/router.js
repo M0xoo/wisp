@@ -29,7 +29,8 @@ export const GOALS = {
 };
 export const TYPES = ['bug', 'feature', 'ui', 'test', 'refactor', 'docs', 'release', 'question'];
 const MINUTE_USD = 0.05; // what a minute of waiting costs you, in the utility
-const PRIOR_CAP = 8; // shipped priors count as at most this many tasks, so your own soon outweigh them
+const PRIOR_CAP = 4; // shipped priors count as at most this many tasks, so your own soon outweigh them
+const COLD_START = 20; // until Auto has this many of your outcomes, Balanced and Best stay on stronger tiers
 const ALL_WEIGHT = 0.5; // your history on other kinds of task counts half
 const HALF_LIFE_MS = 30 * 864e5; // models change: older outcomes fade
 const NEW_ARM_SHARE = 0.25; // how often a new arm on probation may take an exploring slot
@@ -66,6 +67,40 @@ const splitKey = (k) => {
 // Versions stripped: claude-sonnet-5-5 and claude-sonnet-5-6 are one family, and a new version
 // starts from what the family already showed.
 const family = (k) => k.replace(/[-.]?\d+([.-]\d+)*/g, '');
+
+// How strong a model is, roughly: 1 small/fast/free, 2 everyday, 3 frontier. Hand-overs step up a
+// tier, and until Auto has your own outcomes, Balanced stays on tier 2+ and Best on tier 3.
+// The shipped priors come from a small pilot that flattered cheap models; tiers keep them honest.
+const FRONTIER_DEFAULTS = new Set(['codex:']); // a harness whose default model is its frontier one
+export function tierOf(key) {
+  const { agent, model } = splitKey(key);
+  const m = model.toLowerCase();
+  // Whole name segments only: "gemini" is not "mini".
+  const seg = m.split(/[-/.:_]/);
+  if (seg.some((x) => ['haiku', 'flash', 'mini', 'nano', 'lite', 'small', 'free', 'fast', 'low'].includes(x))) return 1;
+  if (seg.some((x) => ['opus', 'argon', 'ultra', 'pro', 'xhigh', 'high', 'max'].includes(x)) || FRONTIER_DEFAULTS.has(key) || (agent === 'grok' && /^grok-\d/.test(m))) return 3;
+  return 2;
+}
+
+// An error that says the harness can't run right now (a usage limit, a rate limit, no credit),
+// not that the model got the task wrong. Returns { scope: 'agent' | 'arm', ms } or null.
+export function infraError(text = '') {
+  const t = String(text);
+  if (/session limit|usage limit|limit reached|resets \d|quota|exceeded your|insufficient (credit|balance|quota)|balance exhausted|payment required|\b402\b|billing/i.test(t)) return { scope: 'agent', ms: resetIn(t) ?? 60 * 60_000 };
+  if (/rate[- ]?limit|too many requests|\b429\b|overloaded|\b529\b|try again in a few minutes/i.test(t)) return { scope: 'arm', ms: 10 * 60_000 };
+  return null;
+}
+// "resets 9pm" / "resets at 21:00" → ms until then (today, else tomorrow), capped at 6 h.
+function resetIn(t) {
+  const m = t.match(/resets?(?: at)? (\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (!m) return null;
+  let h = Number(m[1]) % 12 + (/pm/i.test(m[3] || '') ? 12 : 0);
+  if (!m[3]) h = Number(m[1]);
+  const at = new Date();
+  at.setHours(h, Number(m[2] || 0), 0, 0);
+  if (at <= new Date()) at.setDate(at.getDate() + 1);
+  return Math.min(6 * 3600_000, at - Date.now() + 60_000);
+}
 
 // The arms wisp may route to, from listAgents(): each harness's default model, the models the
 // priors know, models with history here, and new models in a known family (on probation).
@@ -166,7 +201,9 @@ export class Router {
   // important: no exploring. exclude: arm keys already taken (compare). needDelegate: the lead
   // of a team must be a harness that can delegate. rng: for tests.
   // scouted: { type, size } from the scout, which beats the keyword guess.
-  choose({ prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, scouted = null, rng = Math.random } = {}) {
+  // minTier: only arms at least that strong (a hand-over steps up). Arms cooling down after a usage
+  // or rate limit are skipped while any other arm can run.
+  choose({ prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, scouted = null, minTier = 0, rng = Math.random } = {}) {
     if (!this.synced) this.sync(agents);
     const guess = classify(prompt, { attachments });
     const type = scouted?.type || guess.type;
@@ -176,6 +213,20 @@ export class Router {
       .filter((c) => !exclude.includes(c.key) && (!needDelegate || c.delegates) && (!allowed || allowed.includes(c.agent)))
       .map((c) => ({ ...c, est: this.estimate(type, c.key), state: this.state.arms[c.key]?.state || 'new' }));
     if (!arms.length) return null;
+    const free = arms.filter((x) => !this.cooling(x.key));
+    if (!free.length) return null; // everything allowed is at its limit: nothing to route to now
+    arms = free;
+    // Cold start: until there are enough of your own outcomes, lean to quality (the shipped priors
+    // are thin). Cheap is left alone: that goal asked for cheap.
+    const cold = this.learned() < COLD_START;
+    const floorTier = Math.max(minTier, cold && goal === 'best' ? 3 : cold && goal !== 'cheap' ? 2 : 0);
+    for (let t = floorTier; t > 0; t--) {
+      const strong = arms.filter((x) => tierOf(x.key) >= t);
+      if (strong.length) {
+        arms = strong;
+        break;
+      }
+    }
     // Quality floor: an arm that keeps failing this kind of task here is left out.
     const floor = arms.filter((x) => !(x.est.n >= 5 && x.est.mean < 0.35));
     if (floor.length) arms = floor;
@@ -215,6 +266,8 @@ export class Router {
         minutes: round(pick.est.minutes, 1),
         explored: byMean[0].key !== pick.key,
         trying: pick.state === 'new',
+        tier: tierOf(pick.key),
+        ...(cold && goal !== 'cheap' && { coldStart: true }),
         propensity: round(hits / 200),
         alternatives: byMean.filter((x) => x.key !== pick.key).slice(0, 3).map((x) => ({ key: x.key, label: x.label, chance: round(x.est.mean), usd: round(x.est.usd) })),
         at: this.now(),
@@ -234,7 +287,7 @@ export class Router {
   // rolledBack, switched, costUsd, ms }. The reward is recomputed and the stats move by the difference.
   signal(id, patch) {
     const route = this.state.routes[id];
-    if (!route) return null;
+    if (!route || route.void) return route || null;
     Object.assign(route.signals, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
     const r = reward(route.signals);
     if (r === null) return this.save(), route;
@@ -265,6 +318,43 @@ export class Router {
     return this.state.routes[id] || null;
   }
 
+  // Outcomes of your own tasks the router has learned from.
+  learned() {
+    return Object.values(this.state.routes).filter((r) => r.r !== null).length;
+  }
+
+  // A harness (or one model) hit a usage or rate limit: skip it until it resets.
+  cool(key, { scope = 'arm', ms = 10 * 60_000, why = '' } = {}) {
+    const target = scope === 'agent' ? `${splitKey(key).agent}:*` : key;
+    (this.state.cooling ||= {})[target] = { until: this.now() + ms, why: String(why).slice(0, 160) };
+    this.save();
+    return target;
+  }
+
+  cooling(key) {
+    const c = this.state.cooling || {};
+    const hit = c[key] || c[`${splitKey(key).agent}:*`];
+    return hit && hit.until > this.now() ? hit : null;
+  }
+
+  // The run never got to work (the harness was at its limit): forget it ever counted.
+  void(id) {
+    const route = this.state.routes[id];
+    if (!route) return;
+    if (route.r !== null) {
+      for (const type of [route.type, '*']) {
+        const s = this.state.stats[`${type}|${route.key}`];
+        if (!s) continue;
+        s.a -= route.r;
+        s.b -= 1 - route.r;
+        s.n = Math.max(0, s.n - 1);
+      }
+    }
+    route.r = null;
+    route.void = true;
+    this.save();
+  }
+
   reset() {
     this.state.stats = {};
     this.state.routes = {};
@@ -280,7 +370,8 @@ export class Router {
         const e = this.estimate('*', k);
         const byType = Object.fromEntries(TYPES.map((t) => [t, this.#counts(t, k)]).filter(([, c]) => c.n).map(([t]) => [t, { n: this.#counts(t, k).n, chance: round(this.estimate(t, k).mean) }]));
         const state = this.state.arms[k]?.state || (labels[k] ? 'ready' : 'gone');
-        return { key: k, ...splitKey(k), label: labels[k] || k, state: state === 'ready' && !e.prior && !e.inherited && !e.nAll ? 'untried' : state, chance: round(e.mean), n: e.n, usd: round(e.usd), minutes: round(e.minutes, 1), prior: e.prior, byType };
+        const cool = this.cooling(k);
+        return { key: k, ...splitKey(k), label: labels[k] || k, tier: tierOf(k), ...(cool && { coolingUntil: cool.until, coolingWhy: cool.why }), state: cool && state !== 'gone' ? 'cooling' : state === 'ready' && !e.prior && !e.inherited && !e.nAll ? 'untried' : state, chance: round(e.mean), n: e.n, usd: round(e.usd), minutes: round(e.minutes, 1), prior: e.prior, byType };
       })
       .filter((a) => a.state !== 'gone' || a.n)
       .sort((p, q) => q.chance - p.chance);
@@ -288,6 +379,7 @@ export class Router {
     return {
       priors: { version: PRIORS.version, source: PRIORS.source },
       learned: routes.filter((r) => r.r !== null).length,
+      coldStart: { needed: COLD_START, have: this.learned() },
       routed: routes.length,
       arms,
       recent: routes.sort((p, q) => q.at - p.at).slice(0, 30).map((r) => ({ id: r.id, key: r.key, label: r.label, type: r.type, goal: r.goal, chance: r.chance, r: r.r, explored: r.explored, trying: r.trying, at: r.at, signals: r.signals })),

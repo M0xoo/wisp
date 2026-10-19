@@ -47,3 +47,5 @@
 .ro-test .us-proj { width: 160px; flex: none; font-size: 12.5px; }
 .ro-test .input { flex: 1; min-width: 0; font-size: 12px; }
 .router-modal .hint code { font-size: 11px; padding: 0 4px; border-radius: 4px; background: var(--bg-2); }
+.ro-tier { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 10.5px; color: var(--faint); background: var(--bg-2); }
+.ro-tier.t3 { color: var(--accent-ink); background: var(--accent-soft); }

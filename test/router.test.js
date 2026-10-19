@@ -8,7 +8,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
-const { Router, classify, reward, betaSample } = await import('../server/router.js');
+const { Router, classify, reward, betaSample, tierOf, infraError } = await import('../server/router.js');
 
 const AGENTS = [
   { id: 'claude', name: 'Claude Code', available: true, models: [{ id: '' }, { id: 'opus', label: 'Opus' }, { id: 'sonnet', label: 'Sonnet' }, { id: 'haiku', label: 'Haiku' }] },
@@ -113,6 +113,50 @@ test('new harnesses and models: found after the first look, on probation, a new 
   // A harness that goes away is kept, marked gone.
   r.sync(more.map((a) => (a.id === 'grok' ? { ...a, available: false } : a)));
   assert.equal(r.state.arms['grok:'].state, 'gone');
+});
+
+test('tiers: small, everyday, frontier; "gemini" is not "mini"', () => {
+  assert.deepEqual(['claude:haiku', 'claude:sonnet', 'claude:opus', 'codex:', 'grok:grok-4.7', 'grok:grok-4.7-build-fast', 'antigravity:gemini-4-argon-medium', 'antigravity:gemini-3.8-flash-medium', 'opencode:opencode/deepseek-v4.1-flash-free'].map(tierOf), [1, 2, 3, 3, 3, 1, 3, 1, 1]);
+});
+
+test('limits: a usage or rate limit is the harness being unavailable, not the model failing', () => {
+  assert.equal(infraError("You've hit your session limit · resets 9pm (Europe/Zurich)").scope, 'agent');
+  assert.equal(infraError('API error (status 402 Payment Required): Grok Build usage balance exhausted').scope, 'agent');
+  assert.equal(infraError('`opencode/deepseek` is rate-limited right now').scope, 'arm');
+  assert.equal(infraError('TypeError: cannot read properties of undefined'), null);
+  let t = 1_000_000;
+  const r = new Router(tmp('router-cool'), { now: () => t });
+  r.sync(AGENTS);
+  // A run that hit the limit counted as a failure first, then is voided: no trace in the stats.
+  r.record('x', { key: 'claude:opus', type: 'bug', at: t });
+  r.signal('x', { error: true });
+  assert.equal(r.estimate('bug', 'claude:opus').n, 1);
+  r.void('x');
+  assert.equal(r.estimate('bug', 'claude:opus').n, 0);
+  assert.equal(r.route('x').r, null);
+  r.signal('x', { hero: 'done' });
+  assert.equal(r.route('x').r, null, 'a voided route stays out');
+  // Every Claude model cools down until the limit resets; then they're back.
+  r.cool('claude:opus', { scope: 'agent', ms: 60_000, why: 'session limit' });
+  for (let i = 0; i < 30; i++) assert.notEqual(r.choose({ prompt: 'fix it', agents: AGENTS, rng: seeded(i + 1) }).agent, 'claude');
+  assert.equal(r.report(AGENTS).arms.find((a) => a.key === 'claude:sonnet').state, 'cooling');
+  assert.equal(r.choose({ prompt: 'x', agents: AGENTS, allowed: ['claude'] }), null, 'nothing allowed can run now');
+  t += 61_000;
+  assert.equal(r.choose({ prompt: 'x', agents: AGENTS, allowed: ['claude'], important: true }).agent, 'claude');
+});
+
+test('cold start: Balanced and Best lean to stronger tiers until there are enough of your outcomes', () => {
+  const r = new Router(tmp('router-cold'));
+  const tiers = (goal) => new Set(Array.from({ length: 40 }, (_, i) => tierOf(r.choose({ prompt: 'fix the bug', agents: AGENTS, goal, rng: seeded(i + 3) }).key)));
+  assert.ok(!tiers('balanced').has(1), 'no small models for Balanced yet');
+  assert.deepEqual([...tiers('best')], [3], 'Best is frontier only');
+  assert.ok(r.choose({ prompt: 'x', agents: AGENTS, goal: 'balanced' }).route.coldStart);
+  // A hand-over asks for a stronger tier than the run it replaces.
+  for (let i = 0; i < 20; i++) assert.equal(tierOf(r.choose({ prompt: 'x', agents: AGENTS, goal: 'best', important: true, minTier: 3, rng: seeded(i + 1) }).key), 3);
+  // With enough of your outcomes, it's your data that decides, whatever the tier.
+  for (let i = 0; i < 25; i++) (r.record(`h${i}`, { key: 'claude:haiku', type: 'bug', at: Date.now() }), r.signal(`h${i}`, { feedback: 'up' }));
+  assert.ok(!r.choose({ prompt: 'fix the bug', agents: AGENTS, goal: 'balanced' }).route.coldStart);
+  assert.ok(tiers('balanced').has(1), 'haiku earned its place');
 });
 
 // --- through the server --------------------------------------------------------------------

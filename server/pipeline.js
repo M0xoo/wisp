@@ -16,6 +16,11 @@
 import { check as runCheck } from './check.js';
 import { judge, diffOf } from './judge.js';
 import { workdir } from './runner.js';
+import { infraError, tierOf } from './router.js';
+
+// What an errored turn said (the terminal block the runner puts on it).
+const errorText = (turn) => (turn.presentation?.blocks || []).filter((b) => b.type === 'terminal').map((b) => b.output || '').join('\n');
+const MAX_MOVES = 4; // a task moved this many times because harnesses were at their limit stops there
 
 export const AUTO_DEFAULTS = { check: 'on', repairs: 1, escalate: 'on', best2: 'on', scout: 'big' };
 
@@ -45,7 +50,8 @@ export class Pipeline {
     const a = session.auto;
     if (!a || session.parentId || ev.stopped || session.mode === 'plan') return false;
     const s = this.settings();
-    if (ev.isError) return s.escalate && this.#canEscalate(session);
+    // At its limit: not the model's fault, so the task moves on whatever the hand-over setting says.
+    if (ev.isError) return !!infraError(ev.text) || (s.escalate && this.#canEscalate(session));
     return s.check;
   }
 
@@ -64,6 +70,8 @@ export class Pipeline {
     const s = this.settings();
     try {
       let result;
+      const limit = turn.status === 'error' && infraError(errorText(turn));
+      if (limit) return await this.#moveOn(session, turn, limit, live);
       if (turn.status === 'error') result = { verdict: 'error' };
       else {
         this.#stage(session, turn, 'checking', 'Checking with the tests');
@@ -85,12 +93,16 @@ export class Pipeline {
         return; // the repair turn comes back through wants()/run()
       }
       if (failing && s.escalate && this.#canEscalate(session)) {
-        const pick = this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: 'best', important: true, exclude: [session.route?.key, ...(a.tried || [])].filter(Boolean), needDelegate: !!session.subagents?.length });
-        if (pick) {
+        // A step up: a stronger tier than this run's (or the strongest there is, if it was already top).
+        const tier = tierOf(session.route?.key || '');
+        const pick = this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: 'best', important: true, minTier: Math.min(3, tier + 1), exclude: [session.route?.key, ...(a.tried || [])].filter(Boolean), needDelegate: !!session.subagents?.length });
+        if (pick && tierOf(pick.key) < tier) this.#note(session, turn, 'check', 'No stronger harness · model to hand it to');
+        else if (pick) {
           this.#stage(session, turn, 'escalating', `Handing it to ${pick.label}`);
-          const sib = await this.launchSibling(session, pick);
+          const sib = await this.launchSibling(session, pick, { reason: result.verdict === 'error' ? 'error' : 'tests' });
           if (!live()) return;
           a.escalatedTo = sib.id;
+          a.reason = result.verdict === 'error' ? 'error' : 'tests';
           this.#note(session, turn, 'check', `wisp handed this task to ${pick.label}: ${result.verdict === 'error' ? 'the run ended with an error' : 'the tests still fail'}`);
           return this.#settle(session, { quiet: true });
         }
@@ -101,6 +113,28 @@ export class Pipeline {
       console.warn(`wisp: auto pipeline: ${err.stack || err.message}`);
       if (live()) this.#settle(session);
     }
+  }
+
+  // The harness was at a usage or rate limit: the run doesn't count against it, it cools down until
+  // the limit resets, and the task moves to the best pick that can run now.
+  async #moveOn(session, turn, limit, live) {
+    const a = session.auto;
+    const why = errorText(turn).split('\n').find((l) => l.trim())?.trim() || 'at its limit';
+    const cooled = this.router.cool(session.route?.key || `${session.agent}:${session.model || ''}`, { ...limit, why });
+    this.router.void(session.id);
+    const name = cooled.endsWith(':*') ? session.route?.label?.split(' · ')[0] || session.agent : session.route?.label || session.agent;
+    const tried = [...(a.tried || []), session.route?.key].filter(Boolean);
+    const pick = tried.length < MAX_MOVES ? this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: session.route?.goal || 'balanced', exclude: tried, needDelegate: !!session.subagents?.length }) : null;
+    if (!pick) {
+      this.#note(session, turn, 'check', `${name} is at its limit, and nothing else Auto may use can run right now`);
+      return this.#settle(session);
+    }
+    this.#stage(session, turn, 'moving', `${name} is at its limit · moving to ${pick.label}`);
+    const sib = await this.launchSibling(session, pick, { reason: 'limit', tried });
+    if (!live()) return;
+    a.escalatedTo = sib.id;
+    a.reason = 'limit';
+    return this.#settle(session, { quiet: true });
   }
 
   // Escalate once per task, and only while the user hasn't stepped in with follow-ups.

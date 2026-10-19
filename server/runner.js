@@ -128,6 +128,7 @@ export function summarize(s, store) {
           check: s.auto.checks.at(-1) ? (({ verdict, command, passed, failed, newFailures, note }) => ({ verdict, command, passed, failed, newFailures: newFailures?.length || 0, note }))(s.auto.checks.at(-1)) : null,
           escalatedTo: s.auto.escalatedTo || null,
           escalatedFrom: s.auto.escalatedFrom || null,
+          reason: s.auto.reason || null, // why it moved on: tests | error | limit
           pick: s.auto.pick && !s.auto.pick.pending ? s.auto.pick : null,
         }
       : null,

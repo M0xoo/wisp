@@ -103,7 +103,9 @@ export function createAuto(app) {
 
   // Escalation: the same task again on a stronger pick, in its own worktree from the same base,
   // next to the first run (one task, two rows).
-  const launchSibling = async (s, pick) => {
+  // reason: 'tests' | 'error' (a hand-over to a stronger pick) or 'limit' (the harness was at its
+  // usage limit: the new run is a fresh start that may still repair and hand over itself).
+  const launchSibling = async (s, pick, { reason = 'tests', tried = [] } = {}) => {
     const first = s.turns[0];
     const id = newId();
     if (!s.groupId) s.groupId = newId();
@@ -121,8 +123,8 @@ export function createAuto(app) {
       groupId: s.groupId,
       origin: s.origin || null,
       subagents: s.subagents || [],
-      route: { ...pick.route, escalated: true },
-      auto: { strategy: 'escalated', escalatedFrom: s.id, tried: [s.route?.key].filter(Boolean) },
+      route: { ...pick.route, escalated: reason !== 'limit', ...(reason === 'limit' && { moved: true }) },
+      auto: { strategy: reason === 'limit' ? s.auto?.strategy || 'single' : 'escalated', escalatedFrom: s.id, reason, tried: [...new Set([...tried, ...(s.auto?.tried || []), s.route?.key].filter(Boolean))] },
       scout: s.scout || null,
     });
     // Now one task with two runs: it's named after the prompt, like a compare task.

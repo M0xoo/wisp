@@ -11,6 +11,7 @@ import { installFakeBins, records, tmp, until } from './helpers.js';
 
 const { parseResults, detectTests, check } = await import('../server/check.js');
 const { readJson } = await import('../server/quick.js');
+const { tierOf } = await import('../server/router.js');
 const { scoutNote } = await import('../server/scout.js');
 
 test('parseResults reads failing tests and counts from the usual reporters', () => {
@@ -177,6 +178,8 @@ test('tests that passed before break: one repair round, then the task goes to a 
   assert.notEqual(sib.worktree.path, first.worktree.path);
   assert.notEqual(`${sib.agent}:${sib.model}`, `${first.agent}:${first.model}`);
   assert.equal(sib.auto.escalatedTo, undefined, 'escalates once');
+  assert.ok(tierOf(`${sib.agent}:${sib.model}`) > tierOf(`${first.agent}:${first.model}`) || tierOf(`${first.agent}:${first.model}`) === 3, 'a hand-over steps up a tier');
+  assert.equal(first.auto.reason, 'tests');
   const sums = await api('/sessions');
   assert.equal(sums.find((x) => x.id === s.id).followups, 0, "wisp's repair round isn't a follow-up of yours");
   assert.equal((await api('/router')).recent.find((x) => x.id === s.id).r, 0.1);
@@ -228,4 +231,33 @@ test('the scout: the project scan reaches the agent, and settings round-trip', a
   const sys = records(RECORD, 'claude').map((x) => x.argv[x.argv.indexOf('--append-system-prompt') + 1]).filter(Boolean);
   assert.ok(sys.some((x) => /Scouted by wisp[\s\S]*test-name-pattern=adds/.test(x)), 'the agent is told how wisp will test');
   assert.equal(done.auto.checks[0].command, 'npm test -- --test-name-pattern=adds');
+});
+
+test('a usage limit moves the task: the harness cools down, the run is not held against it', async () => {
+  const marker = path.join(tmp('limit'), 'hit');
+  process.env.FAKE_LIMIT_ONCE = marker;
+  await api('/router', { allowed: ['claude', 'codex'], scout: 'off' }, 'PATCH');
+  try {
+    const s = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', mode: 'edits' });
+    const first = await until(async () => {
+      const x = await api(`/sessions/${s.id}`);
+      return x.auto?.escalatedTo && x.state === 'review' && !x.auto.busy && x;
+    }, { timeout: 60_000 });
+    assert.equal(first.auto.reason, 'limit');
+    assert.equal(first.unread, false, 'the moved run settles quietly; the new one will notify');
+    const [moved] = await settledAll([first.auto.escalatedTo]);
+    assert.notEqual(moved.agent, first.agent, 'the whole harness is at its limit, not just one model');
+    assert.equal(moved.auto.reason, 'limit');
+    assert.equal(moved.auto.checks[0].verdict, 'pass');
+    const r = await api('/router');
+    assert.equal(r.recent.find((x) => x.id === s.id).r, null, 'not counted as a failure');
+    assert.ok(r.arms.filter((a) => a.agent === first.agent).every((a) => a.state === 'cooling'));
+    // While it cools down, Auto doesn't pick it.
+    const next = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', mode: 'edits' });
+    assert.notEqual(next.agent, first.agent);
+    await settledAll([next.id]);
+  } finally {
+    delete process.env.FAKE_LIMIT_ONCE;
+    await api('/router', { allowed: ['claude'] }, 'PATCH');
+  }
 });
