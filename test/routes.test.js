@@ -77,3 +77,21 @@ test('POST /agents/install refuses a harness wisp cannot install, before touchin
   assert.equal(r.status, 400);
   assert.match((await r.json()).error, /can’t install claude/);
 });
+
+test('Full auto is the default mode; a saved Edits switches once, Plan sticks', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { Store } = await import('../server/store.js');
+  assert.equal(new Store(tmp('mode-fresh')).config.defaults.mode, 'auto');
+  const home = (mode) => {
+    const h = tmp(`mode-${mode}`);
+    fs.writeFileSync(path.join(h, 'config.json'), JSON.stringify({ autoIntroduced: true, defaults: { agent: 'claude', mode } }));
+    return h;
+  };
+  const edits = new Store(home('edits'));
+  assert.equal(edits.config.defaults.mode, 'auto');
+  edits.config.defaults.mode = 'edits';
+  edits.saveConfig();
+  assert.equal(new Store(edits.home).config.defaults.mode, 'edits', 'picked after the switch: kept');
+  assert.equal(new Store(home('plan')).config.defaults.mode, 'plan');
+});

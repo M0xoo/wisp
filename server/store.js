@@ -9,7 +9,7 @@ import { writeJsonAtomic } from './util.js';
 
 const DEFAULT_CONFIG = {
   projects: [], // [{ id, name, path, color, addedAt, machine? }]; machine: the server/machines.js id it lives on
-  defaults: { agent: 'auto', mode: 'edits', model: '', effort: '' }, // auto: wisp picks harness and model (server/router.js)
+  defaults: { agent: 'auto', mode: 'auto', model: '', effort: '' }, // agent auto: wisp picks harness and model (server/router.js)
   recipes: [], // saved prompts with {params}: server/recipes.js
   triggers: [], // schedules and GitHub watchers: server/triggers.js
   teams: [], // saved subagent presets: server/subagents.js
@@ -66,9 +66,15 @@ export class Store {
         cfg.defaults.effort = '';
         cfg.autoIntroduced = true;
       }
+      // Full auto became the default mode: switch once from Edits (the old default); Plan and
+      // any later pick stick.
+      if (!cfg.fullAutoIntroduced) {
+        if (cfg.defaults.mode === 'edits') cfg.defaults.mode = 'auto';
+        cfg.fullAutoIntroduced = true;
+      }
       return cfg;
     } catch {
-      return { ...structuredClone(DEFAULT_CONFIG), autoIntroduced: true };
+      return { ...structuredClone(DEFAULT_CONFIG), autoIntroduced: true, fullAutoIntroduced: true };
     }
   }
 

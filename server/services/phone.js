@@ -27,7 +27,7 @@ export function phoneActions(app) {
       const d = store.config.defaults;
       const agent = d.agent || 'claude';
       const model = d.models?.[agent] ?? d.model ?? '';
-      const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine: project.machine || undefined, agent, model, mode: d.mode || 'edits' }, { kind: 'telegram', name: 'Telegram' });
+      const [s] = await app.launcher.launchAny({ prompt, cwd: project.path, machine: project.machine || undefined, agent, model, mode: d.mode || 'auto' }, { kind: 'telegram', name: 'Telegram' });
       app.broadcast('config', {});
       return s;
     },

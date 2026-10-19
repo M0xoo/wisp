@@ -12,7 +12,7 @@ import { renderFeed, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { placeName } from './places.js';
 import { runnerPicker } from './runner-picker.js';
-import { agentById, agentName, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedEffort, savedModel } from './runners.js';
+import { agentById, agentName, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace, watching } from './scroll.js';
 import { shipDialog } from './ship.js';
 import { renderBody } from './turns.js';
@@ -78,7 +78,7 @@ export function renderDock(id) {
 
 // The mode the next follow-up runs in: the session's own until the user picks another here.
 // The pick goes out with that follow-up and stays from then on.
-const replyMode = (id) => S.replyModes.get(id) || S.full.get(id)?.mode || 'edits';
+const replyMode = (id) => S.replyModes.get(id) || S.full.get(id)?.mode || DEFAULT_MODE.id;
 
 function setReplyMode(id, mode) {
   if (mode === S.full.get(id)?.mode) S.replyModes.delete(id);
@@ -88,10 +88,10 @@ function setReplyMode(id, mode) {
 
 function paintReplyMode(id, btn) {
   const s = S.full.get(id);
-  const m = MODES.find((x) => x.id === replyMode(id)) || MODES[1];
+  const m = MODES.find((x) => x.id === replyMode(id)) || DEFAULT_MODE;
   const from = s && S.replyModes.has(id) && MODES.find((x) => x.id === s.mode);
   btn.className = `mode-btn c-mode m-${m.id}${from ? ' changed' : ''}`;
-  btn.innerHTML = `${icon(m.icon)}${m.id === 'edits' && !from ? '' : `<span>${m.label}</span>`}`;
+  btn.innerHTML = `${icon(m.icon)}${m === DEFAULT_MODE && !from ? '' : `<span>${m.label}</span>`}`;
   btn.title = from
     ? `${m.label}: ${m.hint}\nYour next follow-up switches this task from ${from.label} to ${m.label}. Shift+Tab to switch`
     : `${m.label}: ${m.hint}\nPick another mode for your next follow-up. Shift+Tab to switch`;

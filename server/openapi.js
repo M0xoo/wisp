@@ -292,7 +292,7 @@ export function openapi({ version, port }) {
             cwd: { type: 'string', description: 'Project folder (absolute; ~ allowed). Default: the server’s cwd' },
             agent: { enum: ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'auto', description: 'auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)' },
             important: { type: 'boolean', description: 'With agent auto: no exploring, take the pick with the best record' },
-            mode: { enum: ['plan', 'edits', 'auto'], default: 'edits' },
+            mode: { enum: ['plan', 'edits', 'auto'], default: 'auto' },
             model: { type: 'string' },
             effort: { type: 'string', description: 'Thinking level: low, medium, high, xhigh, max (per harness)' },
             attachments: { type: 'array', items: { type: 'string' }, description: 'Upload ids' },

@@ -33,7 +33,7 @@ export function createLaunch(app) {
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
       return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(r.route && { route: r.route }) };
     });
-    const mode = MODES.has(body.mode) ? body.mode : 'edits';
+    const mode = MODES.has(body.mode) ? body.mode : 'auto';
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
     // runs need one each, or the harnesses would edit the same files.
     const comparing = runners.length > 1;

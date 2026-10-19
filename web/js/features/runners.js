@@ -12,6 +12,8 @@ export const MODES = [
   { id: 'edits', label: 'Edits', icon: 'pen', hint: 'May edit files. Shell commands that need approval are denied.' },
   { id: 'auto', label: 'Full auto', icon: 'spark', hint: 'No permission prompts at all. Trusted repos only.' },
 ];
+// The default: just an icon on mode buttons; the others are spelled out so you can't miss them.
+export const DEFAULT_MODE = MODES[2];
 
 export const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id === 'auto' ? 'Auto' : id === 'wisp' ? 'wisp' : id);
 
