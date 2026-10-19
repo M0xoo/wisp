@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-19
+
 ### Added
 
 - **Fix conflicts button on every conflicting PR.** When a PR has merge conflicts, its row on the card now has a **Fix conflicts** button (with a merge icon) that sends the task a follow-up to merge the base in and resolve them; wisp pushes the result to the PR. The row switches to "Fixing merge conflicts" as soon as you click, and the follow-up starts without waiting on a fetch first.
@@ -379,7 +381,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/M0xoo/wisp/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/M0xoo/wisp/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/M0xoo/wisp/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/M0xoo/wisp/compare/v0.17.0...v0.18.0
