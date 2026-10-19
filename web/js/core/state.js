@@ -22,7 +22,7 @@ export const S = {
   tasks: new Map(), // compare task key -> { card, head, runs, lead }
   focus: null, // id of the keyboard-focused item
   config: { defaults: {}, projects: [] },
-  agents: [],
+  agents: load('wisp.agents', []), // the last list seen, so the launcher paints before detection answers
   machines: [], // other computers over SSH: GET /api/machines, kept fresh by the 'machines' event
   filter: load('wisp.filter', 'all'),
   showDone: load('wisp.showDone', false),
@@ -32,6 +32,7 @@ export const S = {
   replyRunners: new Map(), // session id → { agent, model, effort } its next follow-up switches to
 };
 export const saveOpen = () => save('wisp.open', [...S.open]);
+export const setAgents = (list) => ((S.agents = list), save('wisp.agents', list));
 
 // Where the launcher sends a prompt: '' = this computer, else machine ids. Several run in parallel,
 // each in the project picked for it (launch.picks[place]), and show up as one task.

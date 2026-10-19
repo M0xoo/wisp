@@ -54,6 +54,12 @@ export function renderLauncher() {
   const here = harnessesAt(launch.where, { auto: true });
   const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'auto'));
   let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
+  // Rendered over what's there (index.html's first paint, or fresh settings or harnesses): what
+  // was typed, and the caret if you're typing, carry over.
+  const old = $('#prompt', box);
+  const typing = old && document.activeElement === old && [old.selectionStart, old.selectionEnd];
+  if (old) S.drafts.set('home', old.value);
+  box.classList.remove('skel');
   box.innerHTML = `
     <div class="l-projects"></div>
     <div class="l-setup" hidden></div>
@@ -89,6 +95,7 @@ export function renderLauncher() {
   ta.addEventListener('focus', hint);
   ta.addEventListener('blur', hint);
   hint();
+  if (typing) (ta.focus(), ta.setSelectionRange(...typing));
   // Docked and folded to one line, a click anywhere on it opens it up for typing. A property, not
   // a listener: the launcher re-renders in place, and each render would add another.
   box.onmousedown = (e) => {

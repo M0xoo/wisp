@@ -103,13 +103,22 @@
       </button>
     </header>
     <div class="feed-wrap">
-      <div class="launch-slot" id="launchSlot"><section class="launcher card" id="launcher"></section></div>
+      <div class="launch-slot" id="launchSlot">
+        <!-- First paint, before the scripts load: the launcher's shape, and a box you can already type
+             in. renderLauncher() fills in the rest and keeps what was typed. -->
+        <section class="launcher card skel" id="launcher">
+          <div class="l-projects"><span class="l-in">in</span></div>
+          <textarea id="prompt" rows="2" spellcheck="false" autofocus placeholder="What should I go do? Paste screenshots, drop logs or videos…"></textarea>
+          <div class="l-bar"><span class="grow"></span><button class="send" tabindex="-1" aria-hidden="true"><svg class="i"><use href="#i-enter"/></svg></button></div>
+          <div class="l-recipes"></div>
+        </section>
+      </div>
       <div class="feed-head" id="feedHead"></div>
       <div class="feed" id="feed">
-        <section class="f-group needs" id="secNeeds"><h4>Needs you<span class="n"></span></h4><div class="f-list"></div></section>
-        <section class="f-group working" id="secWorking"><h4>Working<span class="n"></span></h4><div class="f-list"></div></section>
-        <section class="f-group done" id="secDone"><h4 class="toggle-done">Done<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
-        <section class="f-group done archived" id="secArchived"><h4 class="toggle-done">Archived<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
+        <section class="f-group needs" id="secNeeds" hidden><h4>Needs you<span class="n"></span></h4><div class="f-list"></div></section>
+        <section class="f-group working" id="secWorking" hidden><h4>Working<span class="n"></span></h4><div class="f-list"></div></section>
+        <section class="f-group done" id="secDone" hidden><h4 class="toggle-done">Done<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
+        <section class="f-group done archived" id="secArchived" hidden><h4 class="toggle-done">Archived<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
       </div>
       <div class="feed-empty" id="feedEmpty" hidden></div>
     </div>

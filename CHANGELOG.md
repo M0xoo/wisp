@@ -15,6 +15,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Ship it no longer holds you in its dialog.** Clicking *Commit, push & open PR* used to leave the dialog open with a disabled *Shipping…* button until the push and `gh pr create` were done. Now the dialog closes right away, and the card's PR row (just above the composer) shows a live track: **Commit → Push → Open PR**, with a spinner on the step that's running and a check on each one that's done. The server reports each step as `shipping` on the session summary, so other tabs see it too, and the card head shows a *Shipping* pill while the card is collapsed. When the PR is up, the row turns into the PR row with a short highlight, and a toast links to it. If a step fails, the row turns red and says which step failed and why, with **Retry**, which reopens the dialog with your commit message and description still filled in. A second ship while one is running is refused with 409.
 
+### Fixed
+
+- **The launcher is there from the first frame.** On start, the launcher used to sit as an empty strip for one to five seconds, because the page waited for harness detection (`GET /api/agents` runs every CLI, and opencode lists its models) before drawing it. Now `index.html` draws the launcher's shape with a prompt box that already has focus, so you can start typing before the scripts load. The full launcher fills in about 50 ms later, at the same height, and keeps what you typed. Harnesses come from the last list seen (kept in the browser) and refresh when detection answers. `GET /api/agents` now answers from the last detection right away and checks again in the background, sending an `agents` event if anything changed. Warm calls dropped from about 1.2 s to 2 ms. `?fresh=1` and Re-check still wait for a full detection. Empty feed sections no longer flash their headings before the feed loads.
+
 ## [0.17.0] - 2026-10-19
 
 ### Added
