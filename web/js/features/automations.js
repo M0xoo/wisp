@@ -178,7 +178,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         <div class="k-gh"><label><span>Check every</span><select name="every">${[2, 5, 15, 60].map((m) => `<option value="${m}" ${Number(d.every || 5) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label></div>
         <label><span>Run</span><select name="recipeId"><option value="">This prompt</option>${recipes.map((r) => `<option value="${r.id}" ${r.id === d.recipeId ? 'selected' : ''}>Recipe: ${esc(r.name)}</option>`).join('')}</select></label>
         <label class="stack k-prompt"><span>Prompt <small class="muted k-vars"></small></span><textarea class="textarea mono" name="prompt" rows="6" spellcheck="false"></textarea></label>
-        <label><span>Mode</span><select name="mode">${modeOptions(d.mode || (d.kind === 'issues' ? 'plan' : 'edits'))}</select></label>
+        <label><span>Mode</span><select name="mode">${modeOptions(d.mode || (d.kind === 'issues' ? 'plan' : 'auto'))}</select></label>
         <div class="au-row"><span>Harness</span></div>
         <p class="au-warn" hidden>${icon('warn')}<span>Issue text comes from GitHub: anyone who can open and label issues can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.</span></p>
         <div class="au-foot"><button type="button" class="ghost sm" data-act="cancel">Cancel</button><button class="primary sm">${d.id ? 'Save' : 'Create trigger'}</button></div>

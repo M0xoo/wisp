@@ -13,7 +13,7 @@ import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from '.
 import { scheduleRefetch } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
-import { agentName, effortLabel, modelBadge, MODES } from './runners.js';
+import { agentName, DEFAULT_MODE, effortLabel, modelBadge, MODES } from './runners.js';
 import { scrollByPx, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
@@ -79,12 +79,12 @@ export function renderBody(id, { fresh }) {
   const proj = projectById(summary.projectId);
   // The head already shows the harness, model and project, the task head has Compare, and Done
   // sits by the composer. This bar only says how the run was set up: a mode worth noticing
-  // (Plan or Full auto, as on the launcher), the branch, and what launched it.
+  // (Plan or Edits, as on the launcher), the branch, and what launched it.
   const mode = MODES.find((m) => m.id === s.mode);
   const where = (proj?.path || s.cwd).replace(S.config.home || '', '~');
   $('.it-meta', body).title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where].filter(Boolean).join(' · ');
   $('.it-meta', body).innerHTML = `
-    ${mode && mode.id !== 'edits' ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
+    ${mode && mode !== DEFAULT_MODE ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
     ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} subagent${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
     ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;

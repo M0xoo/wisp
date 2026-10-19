@@ -136,7 +136,7 @@ export class WispClient {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
       agent ||= defaults.agent || 'auto';
-      mode ||= defaults.mode || 'edits';
+      mode ||= defaults.mode || 'auto';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }
     return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), agent, mode, model, effort, attachments, worktree, compare, subagents, preset });

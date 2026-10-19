@@ -57,7 +57,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.16.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
 | 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there, or start a task with `/new`. |
-| 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** for each launch. `Shift+Tab` in the prompt cycles modes. |
+| 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** (no permission prompts, the default) for each launch. `Shift+Tab` in the prompt cycles modes. |
 | 🔌 **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
 | 🪶 **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
 

@@ -130,7 +130,7 @@ export function welcomeSession() {
               items: [
                 { text: 'Plan — read-only, the agent proposes', done: true },
                 { text: 'Edits — the agent may change files, no shell prompts', done: true },
-                { text: 'Full auto — no permission prompts at all; use on trusted repos', done: false },
+                { text: 'Full auto — no permission prompts at all; the default, each task in its own worktree', done: true },
               ],
             },
             {
