@@ -9,7 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Auto picks the thinking level too.** Auto's options are now harness · model · thinking level (`claude:opus:high`), and the goal sets the range of levels: **Cheap** runs low (or minimal), **Balanced** the harness's default or medium, **Best** high or x-high. Within that range Auto learns which level works for each kind of task, the same way it learns models. A model's record at one level counts half at its other levels. Harder thinking starts out a little more likely to work and costs more, and then your outcomes decide. Compare runs and hand-overs use a different model, not just a different level. A rate limit rests the model at every level. A follow-up that changes the level counts as a miss for Auto's pick. Settings → Auto lists the levels it has a record for. Harnesses and models without levels run at their default, as before.
 
-## [0.18.0] - 2026-10-19
+## [0.18.1] - 2026-10-19
+
+### Fixed
+
+- **The published 0.18.0 package was missing the Auto checks.** It was built before they merged, so `npm i -g wisp-agents` got none of the entry below. 0.18.1 ships them.
 
 ### Added
 
@@ -23,6 +27,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - Each turn gets wisp's own tests block (**Run by wisp**). If the agent said "done" and wisp's run disagrees, the turn says so and the card shows **Partial**.
   - Cards show **Tests** / **N failing**, **Pick** and **Handed on**.
   - Your own follow-up or Stop cancels whatever Auto was about to do next. Settings → Auto turns each step on or off. API: `PATCH /api/router` with `check`, `repairs`, `escalate`, `best2`, `scout`; `PATCH /api/projects/:id` with `testCommand`.
+
+## [0.18.0] - 2026-10-19
+
+### Added
+
 - **Merge conflicts on shipped PRs fix themselves.** When something lands on `main` and your shipped PR no longer merges, the task used to sit there until you noticed on GitHub. Now wisp sees it on its PR check (every minute, or when you press refresh): GitHub reports the PR as conflicting, and wisp confirms it locally with `git merge-tree` against a fresh fetch of the base, so a stale GitHub answer can't start a run. The task then gets a follow-up asking it to merge `origin/main` in (no rebase, since the branch is pushed), resolve each conflict keeping both sides' intent, run the cheap checks and commit. When that run ends, wisp checks the merge is complete: no unmerged files, the base is in the branch, no leftover `<<<<<<<` markers. Then it pushes to the PR, and the card shows the usual Push → PR track. While it works, the PR row reads *Fixing merge conflicts* and hides Merge. If the agent stops halfway, nothing is pushed: the card comes back unread with *Conflicts not fixed* and the reason, plus a **Fix conflicts** button to try again. wisp tries once per PR head and at most 3 times per task, so a base that keeps moving can't run up the bill. On by default; turn it off in Settings → General → **Fix PR conflicts** (`defaults.fixConflicts: "off"`). API: `conflict` on the PR, `conflictFix` on the session summary, `POST /api/sessions/:id/fix-conflicts`.
 
 - **Tasks without a folder.** The launcher has a **No folder** chip next to your projects, for general asks that have nothing to do with a repo (explain a concept, draft a message, research something). The agent runs in an empty scratch directory under `~/.wisp/scratch`, with no worktree, and the task shows under *General*. The folder is not added to your projects. The Worktree toggle hides while No folder is picked, and deleting the task deletes its scratch folder. API: `POST /api/sessions {"prompt","scratch":true}`.
@@ -348,7 +357,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.18.1...HEAD
+[0.18.1]: https://github.com/M0xoo/wisp/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/M0xoo/wisp/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/M0xoo/wisp/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/M0xoo/wisp/compare/v0.15.0...v0.16.0
