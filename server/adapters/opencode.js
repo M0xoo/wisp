@@ -237,6 +237,10 @@ function describeTool(name, input, cwd) {
       return { kind: 'agent', label: 'Collected subagent reports' };
     case 'wisp_wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
+    case 'wisp_wisp_sessions':
+      return { kind: 'tool', label: 'Listing wisp tasks' };
+    case 'wisp_wisp_session':
+      return { kind: 'tool', label: `Reading wisp task ${clip(input?.id || '', 40)}` };
     default:
       return { kind: 'tool', label: `Using ${name.replace(/_/g, ' ')}` };
   }

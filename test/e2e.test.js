@@ -135,6 +135,29 @@ test('wisp_stats: an agent reads tool counts across the user\'s sessions through
   assert.equal(r.status, 403);
 });
 
+test('a prompt that mentions another task: the agent reads it with wisp_session and finds it with wisp_sessions', async () => {
+  const cwd = makeRepo();
+  const a = await api('/sessions', { prompt: 'mention target: fix add()', cwd, agent: 'claude', mode: 'edits', worktree: false });
+  await until(async () => (await session(a.id)).state === 'review');
+  const b = await api('/sessions', { prompt: `Carry on from @[mention target: fix add()](wisp:${a.id}) please`, cwd, agent: 'claude', mode: 'edits', worktree: false });
+  assert.equal(b.title, 'Carry on from @mention target: fix add() please', 'titles show the mention, not the token');
+  const done = await until(async () => {
+    const x = await session(b.id);
+    return x.state === 'review' && x;
+  });
+  // The agent saw the title and id, and a note pointing at the tool.
+  const sent = records(RECORD, 'claude').at(-1).stdin;
+  assert.match(sent, new RegExp(`@mention target: fix add\\(\\) \\(wisp task ${a.id}\\)`));
+  assert.match(sent, /<wisp-tasks>[\s\S]*wisp_session` \(mcp__wisp__wisp_session\)/);
+  assert.equal(done.turns[0].prompt, `Carry on from @[mention target: fix add()](wisp:${a.id}) please`, 'stored as typed');
+  const summary = done.turns.at(-1).presentation.blocks[0].summary;
+  assert.match(summary, /read # Fake claude finished/);
+  assert.match(summary, /listed \d+ tasks?(, the newest 2)?\. Read one with wisp_session\./);
+
+  // Both reads need the run's token.
+  for (const p of [`/api/internal/session/${b.id}?of=${a.id}`, `/api/internal/sessions/${b.id}`]) assert.equal((await fetch(`${base}${p}`)).status, 403);
+});
+
 test('a follow-up can switch harness and model: the new harness gets the turns it missed, switching back resumes', async () => {
   const s = await api('/sessions', { prompt: 'look at add() please', cwd: makeRepo(), agent: 'claude', mode: 'edits', worktree: false });
   const turns = (n) => until(async () => {

@@ -3,6 +3,7 @@
 // those turns out (requests, reports, files touched) and goes ahead of the follow-up's prompt.
 // A harness that ran earlier in the task resumes its own session and only hears what it missed.
 
+import { textMentions } from './mentions.js';
 import { blocksToMarkdown } from './render.js';
 import { clip, truncate } from './util.js';
 
@@ -27,7 +28,7 @@ function turnText(t, n, name) {
   return truncate(
     [
       `### Turn ${n} · ${name(t)}${t.model ? ` (${t.model})` : ''}${t.status === 'stopped' ? ' · stopped' : t.status === 'error' ? ' · failed' : ''}${t.rolledBackAt ? ' · rolled back, its edits were undone' : ''}`,
-      `**User:** ${t.prompt}`,
+      `**User:** ${textMentions(t.prompt)}`,
       report && `**Report:**\n\n${report}`,
       files.length && `**Files it edited:** ${files.join(', ')}`,
     ]

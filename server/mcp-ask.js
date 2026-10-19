@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Minimal stdio MCP server exposing `ask_user` and `wisp_stats`, injected into every agent wisp launches.
+// Minimal stdio MCP server exposing `ask_user`, `wisp_stats`, `wisp_sessions` and `wisp_session`, injected into every agent wisp launches.
 // The call is relayed to the wisp server, which surfaces it in the queue and blocks
 // (by polling) until the user answers — so the agent keeps its full context.
 // With a team (WISP_TEAM), it also offers `delegate` and `subagent_results`: tasks for the
@@ -7,6 +7,8 @@
 // With WISP_APPROVE, it offers `approve`: the harness's permission prompt (Claude's
 // --permission-prompt-tool), answered by the user in wisp.
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
+// `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
+// reports, e.g. a task the user mentioned in the prompt.
 
 import readline from 'node:readline';
 
@@ -60,6 +62,50 @@ const STATS = {
     },
   },
 };
+
+const SESSIONS = {
+  name: 'wisp_sessions',
+  description:
+    'List the user\'s other wisp tasks, newest first: id, title, state (running | waiting | review | done), harness, project, ' +
+    'last update and a one-line summary. Read-only. Use it to find a task the user refers to; read one with wisp_session.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Only tasks whose title or summary has all these words.' },
+      state: { type: 'string', description: 'Comma-separated, e.g. "running,waiting".' },
+      project: { type: 'string', description: 'Only this project (name or id); "current" = the project of this task.' },
+      archived: { type: 'boolean', description: 'Include archived tasks. Default false.' },
+      limit: { type: 'number', description: 'Default 20, at most 100.' },
+    },
+  },
+};
+
+const SESSION = {
+  name: 'wisp_session',
+  description:
+    'Read another wisp task by id: its title, state, harness, folder and branch, every request the user made in it, and a ' +
+    'turn\'s report as markdown (summary, diffs, tests, next steps). Read-only. Use it when the prompt mentions a wisp task ' +
+    '("@Title (wisp task <id>)") or the user asks what another task did.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'The task id.' },
+      turn: { type: 'number', description: 'Which turn\'s report, 1 = first. Default: the latest.' },
+    },
+    required: ['id'],
+  },
+};
+
+async function sessions(args = {}) {
+  const q = new URLSearchParams(Object.entries(args).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]));
+  return (await call(`/api/internal/sessions/${WISP_SESSION}?${q}`)).text;
+}
+
+async function session({ id, turn } = {}) {
+  if (!id) throw new Error('id is required');
+  const q = new URLSearchParams({ of: String(id), ...(turn !== undefined && { turn: String(turn) }) });
+  return (await call(`/api/internal/session/${WISP_SESSION}?${q}`)).text;
+}
 
 async function stats({ days, agent, project } = {}) {
   const q = new URLSearchParams(Object.entries({ days, agent, project }).filter(([, v]) => v !== undefined && v !== ''));
@@ -182,7 +228,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, STATS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, STATS, SESSIONS, SESSION, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -191,6 +237,10 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_stats') {
       send({ id, result: { content: [{ type: 'text', text: await stats(params.arguments || {}) }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_sessions') {
+      send({ id, result: { content: [{ type: 'text', text: await sessions(params.arguments || {}) }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_session') {
+      send({ id, result: { content: [{ type: 'text', text: await session(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'delegate') {
       send({ id, result: { content: [{ type: 'text', text: await delegate(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'subagent_results') {

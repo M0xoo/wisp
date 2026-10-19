@@ -60,3 +60,25 @@
 .c-runner.changed .rb-logo { margin-right: 4px; }
 .c-runner:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 .cr-label { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+
+/* ---------- task mentions (features/mentions.js) ---------- */
+/* In a prompt box: the textarea's own text sits over a mirror that paints a chip under each @Title. */
+.mn-wrap { position: relative; }
+.mn-wrap > textarea { position: relative; z-index: 1; }
+.mn-mirror {
+  position: absolute; inset: 0; z-index: 0; margin: 0; overflow: hidden; pointer-events: none;
+  border-style: solid; border-color: transparent; color: transparent;
+}
+.mn-wrap:not(.has-mn) .mn-mirror { display: none; }
+.mn-mirror mark.mn {
+  color: transparent; border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.launcher.docked:not(:focus-within):not(:has(.open)) .mn-wrap { flex: 1; min-width: 0; }
+/* In a sent prompt: the same chip, with the task's title; a link opens that task. */
+:is(a, span).mn {
+  padding: 0 5px; border-radius: 5px; font-weight: 500; color: var(--accent-ink); text-decoration: none;
+  background: color-mix(in srgb, var(--accent) 12%, transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+a.mn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }

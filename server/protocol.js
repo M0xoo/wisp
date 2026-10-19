@@ -94,7 +94,9 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   two very different approaches), call the \`ask_user\` tool (${tool}). It pauses you until
   the user answers in wisp — you keep all your context. Ask one crisp question with 2–4 options.
 - If the user asks about their past wisp tasks (which tools or harnesses they use, cost, success rate),
-  call \`wisp_stats\` (${tool.replace(/ask_user$/, 'wisp_stats')}) instead of digging through files.`;
+  call \`wisp_stats\` (${tool.replace(/ask_user$/, 'wisp_stats')}) instead of digging through files.
+- If the prompt mentions another wisp task ("@Title (wisp task <id>)") or the user asks what another task
+  did, read it with \`wisp_session\` (${tool.replace(/ask_user$/, 'wisp_session')}); \`wisp_sessions\` lists them.`;
 const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
   two very different approaches), stop before acting on it and end with a "question" block (2–4 options).
   The user's answer comes back as a follow-up in this same session.`;

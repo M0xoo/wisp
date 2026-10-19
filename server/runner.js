@@ -11,6 +11,7 @@ import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
 import { handoffNote } from './handoff.js';
+import { agentPrompt, plainMentions } from './mentions.js';
 import { bad, MODES, newId } from './util.js';
 
 const MAX_ACTIVITY = 400;
@@ -63,7 +64,7 @@ function changedRun(session, run) {
 }
 
 function autoTitle(prompt) {
-  const line = prompt.trim().split('\n')[0].replace(/\s+/g, ' ');
+  const line = plainMentions(prompt).trim().split('\n')[0].replace(/\s+/g, ' ');
   return line.length > 64 ? `${line.slice(0, 63)}…` : line;
 }
 
@@ -505,8 +506,11 @@ export class Runner extends EventEmitter {
     const team = adapter.askTool !== null ? session.subagents || [] : [];
     // A harness that hasn't seen every earlier turn (the user switched to it) gets them first.
     const handoff = session.parentId ? '' : handoffNote(session, session.agent, session.agentSessionId, (t) => adapters[t.agent]?.name || t.agent);
+    // Mentioned tasks: a lead reads them with wisp_session; a run without wisp's tools gets their reports.
+    const tools = !session.parentId && adapter.askTool !== null && this.bridge;
+    const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id });
     const handle = adapter.run({
-      prompt: handoff ? `${handoff}\n\n${prompt}` : prompt,
+      prompt: handoff ? `${handoff}\n\n${text}` : text,
       attachments,
       cwd: workdir(session),
       resumeId: session.agentSessionId,
