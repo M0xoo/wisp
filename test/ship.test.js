@@ -194,11 +194,16 @@ async function closePrs(...ids) {
   for (const id of ids) await api(`/sessions/${id}/pr`, { body: {} }).catch(() => {});
 }
 
-test('a PR that conflicts with its base is fixed on its own: a follow-up merges main in, wisp pushes it', async () => {
+test('a conflicting PR is left alone by default; with Auto-fix on, a follow-up merges main in and wisp pushes it', async () => {
   const { repo, s, pr } = await conflictedPr('Fix add() before main moves');
   try {
+    // By default nothing happens until the user clicks Fix conflicts.
     const seen = await api(`/sessions/${s.id}/pr`, { body: {} });
     assert.equal(seen.conflict, true);
+    assert.equal((await session(s.id)).turns.length, 1);
+    assert.equal((await summaryOf(s.id)).conflictFix, null);
+    await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'on' } } });
+    await api(`/sessions/${s.id}/pr`, { body: {} });
     // The task got a follow-up asking for the merge, without anyone sending it.
     const fix = await until(async () => ((await session(s.id)).turns.length === 2 ? session(s.id) : null));
     assert.match(fix.turns[1].prompt, new RegExp(`PR #${pr.number} .* can no longer merge into \`main\``));
@@ -217,12 +222,14 @@ test('a PR that conflicts with its base is fixed on its own: a follow-up merges 
     assert.equal(clean.conflict, false);
     assert.equal((await summaryOf(s.id)).conflictFix, null);
   } finally {
+    await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'off' } } });
     await closePrs(s.id);
   }
 });
 
 test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries; the setting turns it off', async () => {
   process.env.FAKE_LEAVE_CONFLICTS = '1';
+  await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'on' } } });
   const { repo, s } = await conflictedPr('Fix add() and race main');
   let other;
   try {
@@ -247,9 +254,13 @@ test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries;
     await api(`/sessions/${other.s.id}/pr`, { body: {} });
     assert.equal((await session(other.s.id)).turns.length, 1);
     assert.equal((await summaryOf(other.s.id)).conflictFix, null);
+    // ...until the user clicks Fix conflicts on its PR row: that sends the follow-up anyway.
+    assert.equal((await api(`/sessions/${other.s.id}/fix-conflicts`, { body: {} })).conflictFix.step, 'fixing');
+    assert.match((await until(async () => ((await session(other.s.id)).turns.length === 2 ? session(other.s.id) : null))).turns[1].prompt, /can no longer merge/);
+    await until(async () => (await summaryOf(other.s.id)).conflictFix?.step === 'done');
   } finally {
     delete process.env.FAKE_LEAVE_CONFLICTS;
-    await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'on' } } });
+    await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'off' } } });
     await closePrs(s.id, ...(other ? [other.s.id] : []));
   }
 });

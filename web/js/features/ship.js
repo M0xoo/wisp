@@ -69,16 +69,43 @@ export function renderPrStrip(id) {
     <a href="${esc(pr.url)}" target="_blank" class="pr-num">PR #${pr.number}</a>
     <span class="pr-line">${esc(prLine(pr, s.conflictFix))}</span>
     <span class="grow"></span>
-    ${pr.state === 'OPEN' && pr.conflict && s.conflictFix?.step === 'failed' ? `<button class="ghost xs" data-pr="fix" title="Ask the agent to merge the base in and resolve the conflicts again">${icon('replay')}<span>Fix conflicts</span></button>` : ''}
+    ${pr.state === 'OPEN' && pr.conflict && !fixing(s.conflictFix) && s.state !== 'running' ? `<button class="ghost xs pr-fix" data-pr="fix" title="Send the task a follow-up to merge the base in and resolve the conflicts; wisp pushes the fix to the PR">${icon('merge')}<span>Fix conflicts</span></button>` : ''}
     ${pr.state === 'OPEN' ? `<button class="ghost xs" data-pr="refresh" title="Check now (wisp also checks every minute)">${icon('replay')}</button>` : ''}
     <a class="ghost xs" href="${esc(pr.url)}" target="_blank">${icon('external')}<span>GitHub</span></a>
     ${pr.state === 'OPEN' && !pr.conflict ? `<button class="ghost xs pr-merge" data-pr="merge" title="Squash-merge, then fast-forward your local ${esc(s.branch ? 'base branch' : 'checkout')}">${icon('check')}<span>Merge</span></button>` : ''}`;
   node.onclick = (e) => {
     const a = e.target.closest('[data-pr]')?.dataset.pr;
-    if (a === 'refresh') api(`/sessions/${id}/pr`, { method: 'POST', body: {} }).catch(toastError);
+    if (a === 'refresh') refreshPr(id, e.target.closest('[data-pr]'));
     if (a === 'merge') mergePr(id);
-    if (a === 'fix') api(`/sessions/${id}/fix-conflicts`, { method: 'POST', body: {} }).catch(toastError);
+    if (a === 'fix') fixPr(id);
   };
+}
+
+// Check now: the button spins at once and stops when the answer (pushed as a summary) is in.
+function refreshPr(id, btn) {
+  btn.classList.add('busy');
+  btn.disabled = true;
+  api(`/sessions/${id}/pr`, { method: 'POST', body: {} })
+    .catch(toastError)
+    .finally(() => {
+      btn.classList.remove('busy');
+      btn.disabled = false;
+    });
+}
+
+// Fix conflicts: the row flips to "Fixing merge conflicts" at once; a refusal puts it back.
+function fixPr(id) {
+  const s = S.sessions.get(id);
+  if (!s) return;
+  const was = s.conflictFix;
+  s.conflictFix = { ...was, step: 'fixing', why: '' };
+  renderPrStrip(id);
+  api(`/sessions/${id}/fix-conflicts`, { method: 'POST', body: {} }).catch((err) => {
+    const now = S.sessions.get(id);
+    if (now?.conflictFix?.step === 'fixing') now.conflictFix = was;
+    renderPrStrip(id);
+    toastError(err);
+  });
 }
 
 // The in-flight row: the stages as a track that fills in as the server reports them. Built once

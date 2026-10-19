@@ -1,7 +1,8 @@
 // Ship it: whether a worktree session has something to ship, the draft commit message and PR
 // text, and following open PRs (checks, reviews, merges) so their cards stay current. A PR that
-// starts conflicting with its base gets fixed on its own: the task is sent a follow-up to merge the
-// base in, and the result is pushed to the PR when it's done (defaults.fixConflicts: 'off' to stop).
+// conflicts with its base gets fixed when the user clicks Fix conflicts on its row (or on its own
+// with defaults.fixConflicts: 'on'): the task is sent a follow-up to merge the base in, and the
+// result is pushed to the PR when it's done.
 
 import fs from 'node:fs';
 import { worktreeStatus, prView, ship, baseMerged, conflictsWithBase } from '../git.js';
@@ -9,6 +10,8 @@ import { blocksToMarkdown } from '../render.js';
 import { summarize } from '../runner.js';
 
 const PR_POLL_MS = 60_000;
+const PR_FAST_POLL_MS = 10_000; // while GitHub is still working something out: checks running, mergeability unknown, a push just landed
+const PR_TICK_MS = 5_000;
 const SHIP_RECHECK_MS = 5_000;
 const MAX_CONFLICT_FIXES = 3; // per task, so a base that keeps moving can't run up the bill
 
@@ -75,20 +78,24 @@ export function createShip(app) {
     return pr;
   };
 
-  // The PR conflicts with its base: send the task a follow-up to merge the base in. Once per PR
-  // head, so a fix that didn't take isn't retried until something changes the branch.
+  // The PR conflicts with its base: send the task a follow-up to merge the base in. Only when the
+  // user clicks Fix conflicts (force), unless defaults.fixConflicts is 'on': then on its own, once
+  // per PR head, so a fix that didn't take isn't retried until something changes the branch.
   const starting = new Set(); // a poll and a refresh at once must not both send it
-  const fixConflicts = async (s) => {
+  const fixConflicts = async (s, { force = false } = {}) => {
     const pr = s.pr;
-    if (store.config.defaults.fixConflicts === 'off' || pr?.state !== 'OPEN' || !pr.conflict || !s.worktree?.remote) return;
+    if ((!force && store.config.defaults.fixConflicts !== 'on') || pr?.state !== 'OPEN' || !pr.conflict || !s.worktree?.remote) return;
     if (runner.live.has(s.id) || s.shipping || s.ask || s.archived || starting.has(s.id)) return;
     const tries = s.conflictFix?.tries || 0;
-    if (s.conflictFix?.head === pr.head || tries >= MAX_CONFLICT_FIXES) return;
-    starting.add(s.id);
-    try {
-      if ((await conflictsWithBase(s.worktree)) === false || runner.live.has(s.id)) return;
-    } finally {
-      starting.delete(s.id);
+    if (!force && (s.conflictFix?.head === pr.head || tries >= MAX_CONFLICT_FIXES)) return;
+    // The user saw the conflict and asked: no fetch first, the follow-up starts at once.
+    if (!force) {
+      starting.add(s.id);
+      try {
+        if ((await conflictsWithBase(s.worktree)) === false || runner.live.has(s.id)) return;
+      } finally {
+        starting.delete(s.id);
+      }
     }
     s.conflictFix = { step: 'fixing', head: pr.head, tries: tries + 1, startedAt: Date.now() };
     await app.launcher.replyTo(s, conflictPrompt(s), [], true);
@@ -116,6 +123,7 @@ export function createShip(app) {
     const onStep = (step) => ((s.shipping = { ...s.shipping, step }), app.sessionChanged(s));
     try {
       s.pr = await ship(s.worktree, { title: `Merge ${s.worktree.remote}/${s.worktree.base} into ${s.worktree.branch}`, pr: s.pr, onStep });
+      s.pushedAt = Date.now();
       fix.step = 'done';
     } catch (err) {
       Object.assign(fix, { step: 'failed', why: `Push failed: ${err.message}` });
@@ -152,9 +160,23 @@ export function createShip(app) {
   }
   for (const s of store.all()) if (s.worktree && !s.archived && s.pr?.state !== 'MERGED') recheck(s);
 
+  // Open PRs are checked every minute, and every few seconds while their state is still settling,
+  // so a check finishing or a pushed fix clearing the conflict shows up quickly.
+  const settling = (s) => {
+    const pr = s.pr;
+    return !!(pr.checks?.pending || pr.mergeState === 'UNKNOWN' || ['pushing', 'done'].includes(s.conflictFix?.step) || Date.now() - (s.pushedAt || 0) < 5 * 60_000);
+  };
+  let polling = false;
   const timer = setInterval(async () => {
-    for (const s of store.all()) if (s.pr?.state === 'OPEN') await refreshPr(s).catch(() => {});
-  }, PR_POLL_MS);
+    if (polling) return;
+    polling = true;
+    try {
+      const due = store.all().filter((s) => s.pr?.state === 'OPEN' && Date.now() - (s.pr.checkedAt || 0) >= (settling(s) ? PR_FAST_POLL_MS : PR_POLL_MS));
+      await Promise.all(due.map((s) => refreshPr(s).catch(() => {})));
+    } finally {
+      polling = false;
+    }
+  }, PR_TICK_MS);
   timer.unref();
 
   return { recheck, refreshPr, fixConflicts, draft, stop: () => clearInterval(timer) };
