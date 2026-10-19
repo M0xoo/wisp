@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { toolsDir } from '../util.js';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { describeCommand } from './commands.js';
 
 const exe = process.platform === 'win32' ? 'opencode.cmd' : 'opencode';
 // Where opencode lives when it isn't on PATH: the copy wisp installs (POST /agents/install),
@@ -213,7 +214,7 @@ function describeTool(name, input, cwd) {
       return { kind: 'edit', label: `Writing ${f}`, file: f };
     case 'bash':
     case 'shell':
-      return { kind: 'run', label: input.description ? clip(input.description) : `Running ${clip(input.command, 60)}`, detail: input.command };
+      return { kind: 'run', label: input.description ? clip(input.description) : describeCommand(input.command, cwd), detail: input.command };
     case 'grep':
       return { kind: 'search', label: `Searching for “${clip(input.pattern, 40)}”` };
     case 'glob':

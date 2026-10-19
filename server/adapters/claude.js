@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectVersion, exitText, flatten, rel, spawnJsonl } from './common.js';
+import { describeCommand } from './commands.js';
 
 const BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 
@@ -199,7 +200,7 @@ function describeTool(name, input, cwd) {
     case 'NotebookEdit':
       return { kind: 'edit', label: `Editing notebook ${f}`, file: f };
     case 'Bash':
-      return { kind: 'run', label: input.description ? clip(input.description) : `Running ${clip(input.command, 60)}`, detail: input.command };
+      return { kind: 'run', label: input.description ? clip(input.description) : describeCommand(input.command, cwd), detail: input.command };
     case 'Grep':
       return { kind: 'search', label: `Searching for “${clip(input.pattern, 40)}”` };
     case 'Glob':

@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Auto picks the thinking level too.** Auto's options are now harness · model · thinking level (`claude:opus:high`), and the goal sets the range of levels: **Cheap** runs low (or minimal), **Balanced** the harness's default or medium, **Best** high or x-high. Within that range Auto learns which level works for each kind of task, the same way it learns models. A model's record at one level counts half at its other levels. Harder thinking starts out a little more likely to work and costs more, and then your outcomes decide. Compare runs and hand-overs use a different model, not just a different level. A rate limit rests the model at every level. A follow-up that changes the level counts as a miss for Auto's pick. Settings → Auto lists the levels it has a record for. Harnesses and models without levels run at their default, as before.
 
+### Changed
+
+- **Shell commands read as English in the live ticker.** Instead of `Running sed -n 15,50p server/a.js`, a task now shows "Reading lines 15–50 of server/a.js". wisp knows the common file, search, git, gh, npm/pnpm/yarn, Python, Node, cargo, go, make and docker commands, follows `&&` chains and pipes (`git status && git diff --stat` → "Checking git status, then summarising changes"), and looks inside `bash -lc '…'`. Works for every harness; a command it doesn't know still shows as `Running …`, and the exact command stays in the activity detail.
+
 ## [0.18.1] - 2026-10-19
 
 ### Fixed
