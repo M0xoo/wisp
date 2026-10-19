@@ -53,6 +53,19 @@ export function register(r, app) {
       c.send(200, await app.ship.refreshPr(s));
     }),
   );
+  // Try the automatic conflict fix again after it gave up (see services/ship.js).
+  r.route(
+    'POST',
+    '/sessions/:id/fix-conflicts',
+    one(async (c, s) => {
+      if (s.pr?.state !== 'OPEN' || !s.worktree) return c.send(400, { error: 'No open pull request.' });
+      if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
+      s.conflictFix = { tries: 0 };
+      await app.ship.refreshPr(s);
+      if (s.conflictFix?.step !== 'fixing') return c.send(409, { error: s.pr.conflict ? 'It merges cleanly with the latest base here: GitHub may not have caught up yet.' : 'The PR has no merge conflicts now.' });
+      c.send(200, { conflictFix: s.conflictFix });
+    }),
+  );
   // Squash-merge the reviewed head, sync the user's base branch, clean up the worktree.
   r.route(
     'POST',

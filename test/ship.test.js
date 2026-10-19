@@ -170,6 +170,90 @@ test('ship it: commit, push, PR; checks are followed; merge syncs local main and
   assert.equal((await session(s.id)).state, 'done');
 });
 
+// A shipped task whose PR now conflicts: main moved on the same line the task changed.
+async function conflictedPr(prompt) {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt, cwd: repo.dir, agent: 'claude' } });
+  await settled(s.id);
+  const pr = await api(`/sessions/${s.id}/ship`, { body: { title: 'fix: add adds' } });
+  fs.writeFileSync(path.join(repo.dir, 'math.js'), 'export function add(a, b) {\n  return b - a;\n}\n');
+  repo.git('commit', '-qam', 'meanwhile on main');
+  repo.git('push', '-q', 'origin', 'main');
+  setGh({ mergeable: 'CONFLICTING' });
+  return { repo, s, pr };
+}
+const summaryOf = async (id) => (await api('/sessions')).find((x) => x.id === id);
+// Closed, so the minute poll stops running the fake gh (which rewrites its state file) under later tests.
+async function closePrs(...ids) {
+  const { prs } = ghState();
+  for (const id of ids) {
+    const n = (await summaryOf(id))?.pr?.number;
+    if (n) prs[n].state = 'CLOSED';
+  }
+  setGh({ prs, mergeable: undefined });
+  for (const id of ids) await api(`/sessions/${id}/pr`, { body: {} }).catch(() => {});
+}
+
+test('a PR that conflicts with its base is fixed on its own: a follow-up merges main in, wisp pushes it', async () => {
+  const { repo, s, pr } = await conflictedPr('Fix add() before main moves');
+  try {
+    const seen = await api(`/sessions/${s.id}/pr`, { body: {} });
+    assert.equal(seen.conflict, true);
+    // The task got a follow-up asking for the merge, without anyone sending it.
+    const fix = await until(async () => ((await session(s.id)).turns.length === 2 ? session(s.id) : null));
+    assert.match(fix.turns[1].prompt, new RegExp(`PR #${pr.number} .* can no longer merge into \`main\``));
+    assert.match(fix.turns[1].prompt, /`git merge origin\/main`/);
+    // When the run ends, the merge is pushed to the PR's branch.
+    await until(async () => (await summaryOf(s.id)).conflictFix?.step === 'done');
+    const wt = fix.worktree;
+    repo.git('--git-dir', repo.remote, 'merge-base', '--is-ancestor', 'main', wt.branch); // throws if main isn't in
+    assert.equal(repo.git('--git-dir', repo.remote, 'rev-parse', wt.branch), repo.git('-C', wt.path, 'rev-parse', 'HEAD'));
+    // Still CONFLICTING on the (stale) GitHub side: the new head was handled, so no second follow-up.
+    await api(`/sessions/${s.id}/pr`, { body: {} });
+    assert.equal((await session(s.id)).turns.length, 2);
+    // GitHub agrees it merges now: the PR row goes back to normal.
+    setGh({ mergeable: 'MERGEABLE' });
+    const clean = await api(`/sessions/${s.id}/pr`, { body: {} });
+    assert.equal(clean.conflict, false);
+    assert.equal((await summaryOf(s.id)).conflictFix, null);
+  } finally {
+    await closePrs(s.id);
+  }
+});
+
+test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries; the setting turns it off', async () => {
+  process.env.FAKE_LEAVE_CONFLICTS = '1';
+  const { repo, s } = await conflictedPr('Fix add() and race main');
+  let other;
+  try {
+    const head = repo.git('--git-dir', repo.remote, 'rev-parse', (await session(s.id)).worktree.branch);
+    await api(`/sessions/${s.id}/pr`, { body: {} });
+    const failed = await until(async () => ((await summaryOf(s.id)).conflictFix?.step === 'failed' ? summaryOf(s.id) : null));
+    assert.match(failed.conflictFix.why, /Still conflicted: math\.js/);
+    assert.equal(failed.unread, true);
+    assert.equal(repo.git('--git-dir', repo.remote, 'rev-parse', (await session(s.id)).worktree.branch), head, 'nothing pushed');
+    // The poll doesn't try again on the same head...
+    await api(`/sessions/${s.id}/pr`, { body: {} });
+    assert.equal((await session(s.id)).turns.length, 2);
+    // ...but the PR row's Fix conflicts does (here: the agent clears up the half-done merge).
+    delete process.env.FAKE_LEAVE_CONFLICTS;
+    repo.git('-C', (await session(s.id)).worktree.path, 'merge', '--abort');
+    assert.equal((await api(`/sessions/${s.id}/fix-conflicts`, { body: {} })).conflictFix.step, 'fixing');
+    await until(async () => (await summaryOf(s.id)).conflictFix?.step === 'done');
+
+    // Off in Settings: a conflicting PR is left alone.
+    await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'off' } } });
+    other = await conflictedPr('Fix add() with the fixer off');
+    await api(`/sessions/${other.s.id}/pr`, { body: {} });
+    assert.equal((await session(other.s.id)).turns.length, 1);
+    assert.equal((await summaryOf(other.s.id)).conflictFix, null);
+  } finally {
+    delete process.env.FAKE_LEAVE_CONFLICTS;
+    await api('/config', { method: 'PATCH', body: { defaults: { fixConflicts: 'on' } } });
+    await closePrs(s.id, ...(other ? [other.s.id] : []));
+  }
+});
+
 test('ship it refuses an empty branch and sessions without a worktree', async () => {
   const repo = makeClone();
   const s = await api('/sessions', { body: { prompt: 'look around', cwd: repo.dir, agent: 'claude' } });

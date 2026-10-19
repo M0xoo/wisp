@@ -129,7 +129,7 @@ export async function removeWorktree(wt, { force = false, branch = false } = {})
 
 // --- Ship it: commit, push, open a PR, follow it, merge it -----------------------------------
 
-const PR_FIELDS = 'number,url,title,state,isDraft,reviewDecision,mergeStateStatus,statusCheckRollup,headRefOid,baseRefName,mergedAt';
+const PR_FIELDS = 'number,url,title,state,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,headRefOid,baseRefName,mergedAt';
 const PASS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const FAIL = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
 
@@ -149,6 +149,8 @@ export function prSummary(j) {
     draft: !!j.isDraft,
     review: j.reviewDecision || '', // APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | ''
     mergeState: j.mergeStateStatus || '',
+    // GitHub can't merge it into its base: both sides changed the same lines (UNKNOWN while it computes).
+    conflict: j.mergeable === 'CONFLICTING' || j.mergeStateStatus === 'DIRTY',
     head: j.headRefOid,
     base: j.baseRefName,
     mergedAt: j.mergedAt || null,
@@ -181,6 +183,37 @@ export async function ship(wt, { title, body = '', draft = false, pr, onStep = (
   if (pr?.state === 'OPEN') return prView(dir, pr.number);
   const url = (await gh(dir, ['pr', 'create', '--base', wt.base, '--head', wt.branch, '--title', title.trim(), '--body', body.trim() || ' ', ...(draft ? ['--draft'] : [])])).split('\n').pop();
   return prView(dir, url);
+}
+
+// Does the branch really conflict with its freshly fetched base? Checked before spending an agent
+// run on GitHub's word, which can lag a push. true / false, or null when this git can't tell (< 2.38).
+export async function conflictsWithBase(wt) {
+  if (!wt?.remote || !fs.existsSync(wt.path)) return null;
+  await quiet(git(wt.path, ['fetch', '--quiet', wt.remote, wt.base], { timeout: 30_000 }));
+  return new Promise((resolve) => {
+    execFile(GIT(), ['merge-tree', '--write-tree', '--name-only', '--no-messages', `refs/remotes/${wt.remote}/${wt.base}`, 'HEAD'], { cwd: wt.path, timeout: 30_000, env: { ...process.env, ...QUIET_ENV } }, (err) =>
+      resolve(!err ? false : err.code === 1 ? true : null),
+    );
+  });
+}
+
+// After an agent was asked to merge the base into its branch: is it in, with nothing left half
+// done? A merge it resolved but left uncommitted is committed here. { ok } or { ok: false, why }.
+export async function baseMerged(wt) {
+  const dir = wt.path;
+  const unmerged = await quiet(git(dir, ['diff', '--name-only', '--diff-filter=U']));
+  if (unmerged) return { ok: false, why: `Still conflicted: ${unmerged.split('\n').join(', ')}` };
+  if (await quiet(git(dir, ['rev-parse', '--quiet', '--verify', 'MERGE_HEAD']))) {
+    await git(dir, ['add', '-A']);
+    await git(dir, ['commit', '--quiet', '--no-verify', '--no-edit']);
+  }
+  const base = `refs/remotes/${wt.remote}/${wt.base}`;
+  const merged = await git(dir, ['merge-base', '--is-ancestor', base, 'HEAD']).then(() => true, () => false);
+  if (!merged) return { ok: false, why: `${wt.remote}/${wt.base} is not merged into the branch.` };
+  // Conflict markers staged as if resolved: git no longer sees them, so look in the PR's diff.
+  const marked = await quiet(git(dir, ['diff', '--name-only', '-G^<<<<<<< ', `${base}...HEAD`]));
+  if (marked) return { ok: false, why: `Conflict markers left in ${marked.split('\n').join(', ')}` };
+  return { ok: true };
 }
 
 // Squash-merge the exact head that was reviewed, then tidy up and catch the user's checkout up.

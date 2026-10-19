@@ -144,6 +144,7 @@ export function openapi({ version, port }) {
         },
       },
       '/sessions/{id}/pr': { parameters: [id], post: { summary: 'Refresh the PR status (checks, review, state) now; it is also polled every minute', responses: { 200: json(ref('PullRequest')), 404: err[404] } } },
+      '/sessions/{id}/fix-conflicts': { parameters: [id], post: { summary: 'Retry the automatic merge-conflict fix after it gave up: a follow-up merges the base in, then wisp pushes to the PR', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
       '/sessions/{id}/merge': {
         parameters: [id],
         post: { summary: 'Mark the PR ready if draft, squash-merge it with --match-head-commit, fast-forward the local base branch, remove the worktree', responses: { 200: json({ type: 'object', properties: { pr: ref('PullRequest'), sync: { type: 'object', properties: { ok: { type: 'boolean' }, text: { type: 'string' } } } } }), 400: err[400] } },
@@ -325,6 +326,7 @@ export function openapi({ version, port }) {
             draft: { type: 'boolean' },
             review: { type: 'string', description: 'APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | ""' },
             checks: { type: 'object', properties: { pass: { type: 'integer' }, fail: { type: 'integer' }, pending: { type: 'integer' } } },
+            conflict: { type: 'boolean', description: 'GitHub cannot merge it into its base: merge conflicts' },
             head: { type: 'string' },
             base: { type: 'string' },
           },
@@ -407,6 +409,7 @@ export function openapi({ version, port }) {
             branch: { type: 'string', description: 'Worktree branch, if it has one' },
             pr: { type: ['object', 'null'], description: 'Its pull request, once shipped' },
             shipping: { type: ['object', 'null'], description: "{ step: start | commit | push | pr, update } while Ship it runs" },
+            conflictFix: { type: ['object', 'null'], description: "{ step: fixing | pushing | done | failed, why } while wisp fixes the PR's merge conflicts on its own (defaults.fixConflicts: 'off' turns it off)" },
             groupId: { type: ['string', 'null'], description: 'Shared by sessions launched together with compare' },
             origin: { type: ['object', 'null'], description: '{ kind: recipe | trigger, id, name } when not launched by hand' },
           },
