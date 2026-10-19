@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **An open card stays open when its task finishes.** It used to fold shut if you had scrolled away or switched windows while it worked; now it lands in "Needs you" still open, with the result ready to read.
+
 ## [0.19.0] - 2026-10-19
 
 ### Added
