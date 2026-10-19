@@ -154,7 +154,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=15" />
+  <link rel="stylesheet" href="style.css?v=18" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -192,11 +192,19 @@
       <div class="hero-top">
         <p class="kicker"><span class="dot"></span>v0.15.0 · free and open source</p>
         <h1>Send coding agents <span class="off">off</span>. <span class="soft">Read what they did.</span></h1>
-        <div class="desk-cta" id="deskCta">
-          <button class="cmd" id="heroCmd" data-copy="npx wisp-agents" aria-label="Copy install command">
-            <span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span>
-          </button>
-          <p class="fine" id="deskFine">macOS · Linux and Windows in beta · Node 20+ · MIT</p>
+        <div class="desk-cta" id="deskCta" data-tabs>
+          <div class="hero-tabs" role="tablist" aria-label="How to get wisp">
+            <button class="tab" role="tab" id="htab-npx" aria-controls="heroPanel" aria-selected="true" tabindex="0" data-tab="npx" data-cmd="npx wisp-agents" data-note="macOS · Linux and Windows in beta · Node 20+ · MIT">npx</button>
+            <button class="tab" role="tab" id="htab-npm" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="npm" data-cmd="npm install -g wisp-agents" data-note="Puts the wisp command on your PATH · any OS · Node 20+">npm</button>
+            <button class="tab" role="tab" id="htab-curl" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="curl" data-cmd="curl -fsSL https://mokh.xyz/install.sh | bash" data-note="macOS and Linux · checks for Node 20+, then installs with npm">curl</button>
+            <button class="tab" role="tab" id="htab-brew" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="brew" data-cmd="brew install m0xoo/tap/wisp-agents" data-note="Homebrew · CLI and browser mode; the desktop app comes from npm">brew</button>
+          </div>
+          <div role="tabpanel" id="heroPanel" aria-labelledby="htab-npx">
+            <button class="cmd" id="heroCmd" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy install command">
+              <span class="p">$</span><code data-tab-code>npx wisp-agents</code><span class="copy">Copy</span>
+            </button>
+          </div>
+          <p class="fine" id="deskFine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
         </div>
         <p class="lede">Hand tasks to Claude Code, Codex, Cursor and four other agent CLIs. They run in the background, each on its own branch. You get a one-screen report when one is done, or a question when it's stuck. Never a transcript.</p>
       </div>
@@ -434,7 +442,7 @@
         <p class="sub">A flaky test, a dependency bump, a small bug. You'll be set up in about a minute.</p>
         <ol class="steps">
           <li><span class="n">1</span><b>Node 20+ and one agent CLI, signed in</b><p>Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI or Grok Build.</p></li>
-          <li><span class="n">2</span><b>Run wisp</b><p><button class="cmd sm" data-copy="npx wisp-agents"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button></p><p class="muted">Opens the desktop app. Add <code>--browser</code> for <code>localhost:4477</code>.</p><p><button class="cmd sm" data-copy="curl -fsSL https://mokh.xyz/install.sh | bash"><span class="p">$</span><code>curl -fsSL https://mokh.xyz/install.sh | bash</code><span class="copy">Copy</span></button></p><p class="muted">Or put the <code>wisp</code> command on your PATH for good. macOS and Linux; checks for Node 20+ first.</p><p><button class="cmd sm" data-copy="brew install m0xoo/tap/wisp-agents"><span class="p">$</span><code>brew install m0xoo/tap/wisp-agents</code><span class="copy">Copy</span></button></p><p class="muted">Homebrew: CLI and browser mode. The desktop app comes from npm.</p></li>
+          <li><span class="n">2</span><b>Run wisp</b><div class="tabs" data-tabs><div class="tablist" role="tablist" aria-label="How to get wisp"><button class="tab" role="tab" id="tab-npx" aria-controls="tabpanel-install" data-tab="npx" aria-selected="true" tabindex="0" data-cmd="npx wisp-agents" data-note="Opens the desktop app. Add --browser for localhost:4477.">npx</button><button class="tab" role="tab" id="tab-npm" aria-controls="tabpanel-install" data-tab="npm" aria-selected="false" tabindex="-1" data-cmd="npm install -g wisp-agents" data-note="Installs the wisp command everywhere. The desktop app comes with it.">npm</button><button class="tab" role="tab" id="tab-curl" aria-controls="tabpanel-install" data-tab="curl" aria-selected="false" tabindex="-1" data-cmd="curl -fsSL https://mokh.xyz/install.sh | bash" data-note="macOS and Linux. Checks for Node 20+ first, then runs npm install -g.">curl</button><button class="tab" role="tab" id="tab-brew" aria-controls="tabpanel-install" data-tab="brew" aria-selected="false" tabindex="-1" data-cmd="brew install m0xoo/tap/wisp-agents" data-note="Homebrew: CLI and browser mode. The desktop app comes from npm.">brew</button></div><div class="tabpanel" role="tabpanel" id="tabpanel-install" aria-labelledby="tab-npx"><code data-tab-code>npx wisp-agents</code><button class="copy-ico" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div></div><p class="muted" data-tab-note>Opens the desktop app. Add --browser for localhost:4477.</p></li>
           <li><span class="n">3</span><b>Describe it, pick the folder, press Enter</b><p>Then go do something else. wisp tells you when it's done or needs you.</p></li>
         </ol>
       </div>
@@ -478,6 +486,6 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=8"></script>
+  <script src="main.js?v=10"></script>
 </body>
 </html>

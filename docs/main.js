@@ -13,7 +13,7 @@ for (const btn of $$('[data-copy]')) {
       await navigator.clipboard.writeText(btn.dataset.copy);
       btn.classList.add('copied');
       if (label) label.textContent = 'Copied';
-      window.posthog?.capture?.('install_copied');
+      window.posthog?.capture?.('install_copied', { method: btn.dataset.copy.split(' ')[0] });
     } catch {
       if (label) label.textContent = 'Select';
     }
@@ -23,6 +23,62 @@ for (const btn of $$('[data-copy]')) {
     }, 1600);
   });
 }
+
+// ---------- install tabs ----------
+// The hero and the install section each have npx / npm / curl / brew tabs. Picking one updates the
+// command, its copy button and the note, and the other box follows. A box with data-task set (the
+// hero, once the visitor typed a task) shows the command that installs wisp and starts that task.
+const tabBoxes = $$('[data-tabs]').map((box) => {
+  const tabs = $$('[role="tab"]', box);
+  const code = $('[data-tab-code]', box);
+  const copy = $('[data-tab-copy]', box);
+  const note = $('[data-tab-note]', box) || $('[data-tab-note]', box.parentElement);
+  const panel = $('[role="tabpanel"]', box);
+  let current = tabs.find((t) => t.getAttribute('aria-selected') === 'true') || tabs[0];
+  const commandFor = (tab) => {
+    const task = box.dataset.task;
+    if (!task) return tab.dataset.cmd;
+    return tab.dataset.tab === 'npx' ? `npx wisp-agents "${task}"` : `${tab.dataset.cmd} && wisp "${task}"`;
+  };
+  const pick = (tab, focus) => {
+    current = tab;
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute('aria-selected', on);
+      t.tabIndex = on ? 0 : -1;
+    }
+    code.textContent = copy.dataset.copy = commandFor(tab);
+    if (note && !box.dataset.task) note.textContent = tab.dataset.note;
+    panel.setAttribute('aria-labelledby', tab.id);
+    if (focus) tab.focus();
+  };
+  const choose = (tab, focus) => {
+    pick(tab, focus);
+    for (const other of tabBoxes) if (other.box !== box) other.show(tab.dataset.tab);
+  };
+  tabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => {
+      choose(tab);
+    });
+    tab.addEventListener('keydown', (e) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+      if (!step && e.key !== 'Home' && e.key !== 'End') return;
+      e.preventDefault();
+      const n = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + step + tabs.length) % tabs.length;
+      choose(tabs[n], true);
+    });
+  });
+  return {
+    box,
+    show: (name) => {
+      const tab = tabs.find((t) => t.dataset.tab === name);
+      if (tab) pick(tab);
+    },
+    refresh: () => {
+      pick(current);
+    },
+  };
+});
 
 // ---------- reveal once ----------
 const io = new IntersectionObserver(
@@ -53,7 +109,6 @@ if (desk) {
   const send = $('.l-send', form);
   const lists = { needs: $('[data-g="needs"] .q-list', desk), working: $('[data-g="working"] .q-list', desk) };
   const cta = $('#deskCta');
-  const cmd = $('#heroCmd');
   const LOGO = { claude: 'assets/logos/claudecode-color.svg', codex: 'assets/logos/codex-color.svg' };
   const PROJ = { 'api-server': 'c-violet', 'web-app': 'c-teal', 'your-repo': 'c-sky' };
   const wait = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
@@ -231,9 +286,8 @@ if (desk) {
     steps.forEach((t, i) => setTimeout(() => status(el, t), 900 + i * 1300));
     setTimeout(() => status(el, 'A web page can’t reach your code. Copy the command to run it for real.'), 900 + steps.length * 1300 + 600);
     // Hand back the real command, with their task in it.
-    const quoted = `npx wisp-agents "${text.replace(/["\\$`]/g, '\\$&')}"`;
-    cmd.dataset.copy = quoted;
-    $('code', cmd).textContent = quoted;
+    cta.dataset.task = text.replace(/["\\$`]/g, '\\$&');
+    tabBoxes.find((t) => t.box === cta)?.refresh();
     cta.classList.add('mine');
     $('#deskFine').innerHTML = '<b>Run it in your project folder.</b> It opens wisp and starts this task.';
     window.posthog?.capture?.('hero_task_typed');

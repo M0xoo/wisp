@@ -6,8 +6,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { tmp } from './helpers.js';
+import { tmp, win } from './helpers.js';
 
+// The installer covers macOS and Linux only (Windows users run npm directly), so skip on Windows.
+const opts = { skip: win };
 const script = fileURLToPath(new URL('../docs/install.sh', import.meta.url));
 
 function fakeBin(dir, name, body) {
@@ -41,7 +43,7 @@ function run(env, extra = {}) {
   });
 }
 
-test('install.sh installs the latest wisp-agents from npm and confirms wisp is on PATH', () => {
+test('install.sh installs the latest wisp-agents from npm and confirms wisp is on PATH', opts, () => {
   const env = setup();
   const r = run(env);
   assert.equal(r.status, 0, r.stderr);
@@ -50,14 +52,14 @@ test('install.sh installs the latest wisp-agents from npm and confirms wisp is o
   assert.match(r.stdout, /wisp "fix the flaky auth test"/);
 });
 
-test('WISP_VERSION pins the npm version', () => {
+test('WISP_VERSION pins the npm version', opts, () => {
   const env = setup();
   const r = run(env, { WISP_VERSION: '0.14.0' });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(fs.readFileSync(env.log, 'utf8').trim(), 'install -g wisp-agents@0.14.0');
 });
 
-test('install.sh refuses Node.js older than 20 before touching npm', () => {
+test('install.sh refuses Node.js older than 20 before touching npm', opts, () => {
   const env = setup({ nodeVersion: 'v18.20.0' });
   const r = run(env);
   assert.equal(r.status, 1);
@@ -65,14 +67,14 @@ test('install.sh refuses Node.js older than 20 before touching npm', () => {
   assert.equal(fs.existsSync(env.log), false);
 });
 
-test('install.sh says what to do when npm fails', () => {
+test('install.sh says what to do when npm fails', opts, () => {
   const env = setup({ npmExit: 243 });
   const r = run(env);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /npm install failed/);
 });
 
-test('install.sh explains a PATH problem when wisp is not found after install', () => {
+test('install.sh explains a PATH problem when wisp is not found after install', opts, () => {
   const env = setup({ withWisp: false });
   const r = run(env);
   assert.equal(r.status, 1);
