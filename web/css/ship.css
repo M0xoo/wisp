@@ -53,13 +53,13 @@
 .pill.pr-merged, .pr-strip.pr-merged { --tone: #8250df; }
 .pill.pr-closed, .pr-strip.pr-closed { --tone: var(--faint); }
 .pr-strip {
-  display: flex; align-items: center; gap: 8px; margin: 0 14px 4px; padding: 5px 6px 5px 10px; border-radius: 9px;
+  display: flex; align-items: center; gap: 8px; margin: 8px 14px 4px; padding: 5px 6px 5px 10px; border-radius: 9px;
   font-size: 12.5px; background: color-mix(in srgb, var(--tone) 7%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
 }
 .pr-strip[hidden] { display: none; }
 .pr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tone); flex: none; }
 .pr-strip.pr-pending .pr-dot { animation: pulse 1.4s ease-in-out infinite; }
-.pr-num { font-weight: 600; color: var(--ink); }
+.pr-num { font-weight: 600; color: var(--ink); white-space: nowrap; }
 .pr-line { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pr-strip .ghost .i { width: 13px; height: 13px; }
 .pr-strip .pr-merge { color: var(--good); font-weight: 500; }

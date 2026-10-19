@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Mark done and the PR row are where you look.** An opened task now has Mark done (or Reopen) in its top bar, next to Ship it, so you can close it out without scrolling to the composer. The PR row (checks, GitHub, Merge) moved from the top of the card to right above the composer, so after reading the result it's in view without scrolling back up.
 - **Full auto is the default mode.** New launches, API and CLI calls without a mode, scheduled and CI triggers, and recipes run with no permission prompts; tasks in git repos still get their own worktree and a checkpoint before every turn. If your saved launcher mode was Edits (the old default), wisp switches it to Full auto once; a Plan pick, or anything you choose afterwards, sticks. Issue triggers still start in Plan. The mode button now shows just an icon for Full auto and spells out Plan and Edits.
 
 ## [0.16.0] - 2026-10-19
