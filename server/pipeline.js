@@ -22,7 +22,7 @@ import { infraError, tierOf } from './router.js';
 const errorText = (turn) => (turn.presentation?.blocks || []).filter((b) => b.type === 'terminal').map((b) => b.output || '').join('\n');
 const MAX_MOVES = 4; // a task moved this many times because harnesses were at their limit stops there
 
-export const AUTO_DEFAULTS = { check: 'on', repairs: 1, escalate: 'on', best2: 'on', scout: 'big' };
+export const AUTO_DEFAULTS = { check: 'on', repairs: 1, escalate: 'on', best2: 'off', scout: 'big' };
 
 export function autoSettings(d = {}) {
   const r = d.router || {};
@@ -30,7 +30,7 @@ export function autoSettings(d = {}) {
     check: r.check !== 'off',
     repairs: [0, 1, 2].includes(Number(r.repairs)) ? Number(r.repairs) : AUTO_DEFAULTS.repairs,
     escalate: r.escalate !== 'off',
-    best2: r.best2 !== 'off',
+    best2: r.best2 === 'on', // opt-in: it runs every Best task twice
     scout: ['off', 'big', 'all'].includes(r.scout) ? r.scout : AUTO_DEFAULTS.scout,
   };
 }
