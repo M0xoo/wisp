@@ -8,7 +8,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
-const { Router, classify, reward, betaSample, tierOf, infraError } = await import('../server/router.js');
+const { Router, classify, reward, betaSample, tierOf, infraError, splitKey, levelsFor } = await import('../server/router.js');
 
 const AGENTS = [
   { id: 'claude', name: 'Claude Code', available: true, models: [{ id: '' }, { id: 'opus', label: 'Opus' }, { id: 'sonnet', label: 'Sonnet' }, { id: 'haiku', label: 'Haiku' }] },
@@ -159,6 +159,54 @@ test('cold start: Balanced and Best lean to stronger tiers until there are enoug
   assert.ok(tiers('balanced').has(1), 'haiku earned its place');
 });
 
+test('thinking levels: the goal sets the band, levels are learned, a model shares its record across them', () => {
+  const LEVELS = [
+    { id: 'claude', name: 'Claude Code', available: true, efforts: ['low', 'medium', 'high', 'xhigh', 'max'], models: [{ id: 'opus', label: 'Opus' }, { id: 'sonnet', label: 'Sonnet' }] },
+    { id: 'antigravity', name: 'Antigravity', available: true, efforts: ['low', 'medium', 'high'], models: [{ id: 'gemini-3.8-flash-low', label: 'Flash Low', efforts: [] }] },
+  ];
+  assert.deepEqual(splitKey('claude:opus:high'), { agent: 'claude', model: 'opus', effort: 'high' });
+  assert.deepEqual(splitKey('opencode:ollama/llama3:8b'), { agent: 'opencode', model: 'ollama/llama3:8b', effort: '' }, 'a colon in a model id is not a level');
+  assert.deepEqual(splitKey('codex::low'), { agent: 'codex', model: '', effort: 'low' });
+  assert.equal(tierOf('claude:sonnet:high'), 2, 'the level does not make a model stronger');
+  assert.deepEqual(levelsFor(['low', 'medium', 'high', 'xhigh', 'max'], 'cheap'), ['low']);
+  assert.deepEqual(levelsFor(['low', 'medium', 'high', 'xhigh', 'max'], 'balanced'), ['', 'medium']);
+  assert.deepEqual(levelsFor(['low', 'medium', 'high', 'xhigh', 'max'], 'best'), ['high', 'xhigh']);
+  assert.deepEqual(levelsFor([], 'best'), [''], 'no levels: the default');
+
+  const r = new Router(tmp('router-levels'));
+  const picks = (goal, opts = {}) => Array.from({ length: 30 }, (_, i) => r.choose({ prompt: 'fix the bug', agents: LEVELS, goal, rng: seeded(i + 5), ...opts }));
+  for (const p of picks('cheap')) assert.equal(p.effort, p.model === 'gemini-3.8-flash-low' ? '' : 'low', p.key);
+  for (const p of picks('balanced')) assert.ok(['', 'medium'].includes(p.effort), p.key);
+  for (const p of picks('best')) assert.ok(['high', 'xhigh'].includes(p.effort), p.key);
+  // Before any outcomes Best starts on high: xhigh costs more for about the same chance.
+  const best = r.choose({ prompt: 'fix the bug', agents: LEVELS, goal: 'best', important: true });
+  assert.equal(best.key, 'claude:opus:high');
+  assert.equal(best.route.effort, 'high');
+  assert.equal(best.label, 'Claude Code · Opus · High');
+  assert.ok(r.estimate('bug', 'claude:opus:high').usd > r.estimate('bug', 'claude:opus').usd, 'thinking harder costs more');
+
+  // xhigh earns its place on bugs; high on the same model learns from it at half weight.
+  const highBefore = r.estimate('bug', 'claude:opus:high').mean;
+  const sonnetBefore = r.estimate('bug', 'claude:sonnet:high').mean;
+  for (let i = 0; i < 8; i++) (r.record(`x${i}`, { key: 'claude:opus:xhigh', type: 'bug', at: Date.now() }), r.signal(`x${i}`, { merged: true }));
+  assert.ok(r.estimate('bug', 'claude:opus:high').mean > highBefore, 'the same model at another level counts');
+  assert.equal(r.estimate('bug', 'claude:sonnet:high').mean, sonnetBefore, 'another model does not');
+  for (let i = 0; i < 8; i++) (r.record(`h${i}`, { key: 'claude:opus:high', type: 'bug', at: Date.now() }), r.signal(`h${i}`, { hero: 'blocked' }));
+  assert.equal(r.choose({ prompt: 'fix the bug', agents: LEVELS, goal: 'best', important: true }).key, 'claude:opus:xhigh');
+  // Compare and hand-overs exclude every level of a taken model.
+  for (const p of picks('best', { exclude: ['claude:opus:xhigh'] })) assert.notEqual(p.model, 'opus', p.key);
+  // A rate limit on one level rests the model at every level.
+  r.cool('claude:opus:high', { scope: 'arm', ms: 60_000 });
+  assert.ok(r.cooling('claude:opus:xhigh') && r.cooling('claude:opus') && !r.cooling('claude:sonnet:high'));
+  // Settings shows the levels it has a record at, labelled.
+  const rep = r.report(LEVELS);
+  const x = rep.arms.find((a) => a.key === 'claude:opus:xhigh');
+  assert.equal(x.label, 'Claude Code · Opus · X-High');
+  assert.equal(x.effort, 'xhigh');
+  assert.equal(x.n, 8);
+  assert.ok(!rep.arms.some((a) => a.key === 'claude:sonnet:low'), 'levels without a record stay out of the list');
+});
+
 // --- through the server --------------------------------------------------------------------
 
 process.env.WISP_HOME = tmp('router-home');
@@ -199,6 +247,9 @@ test('Auto is the default harness, and a launch with it runs on a real one, with
   assert.ok(['claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'].includes(s.agent));
   assert.equal(s.route.goal, 'cheap');
   assert.equal(s.route.type, 'bug');
+  // Cheap thinks low wherever the harness has levels, and the session runs at the level Auto picked.
+  assert.equal(s.effort, s.route.effort ?? '');
+  assert.ok(['', 'minimal', 'low'].includes(s.effort), s.effort);
   const done = await until(async () => {
     const x = await api(`/sessions/${s.id}`);
     return x.state === 'review' && x;

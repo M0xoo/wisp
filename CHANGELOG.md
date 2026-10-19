@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Auto picks the thinking level too.** Auto's options are now harness · model · thinking level (`claude:opus:high`), and the goal sets the range of levels: **Cheap** runs low (or minimal), **Balanced** the harness's default or medium, **Best** high or x-high. Within that range Auto learns which level works for each kind of task, the same way it learns models. A model's record at one level counts half at its other levels. Harder thinking starts out a little more likely to work and costs more, and then your outcomes decide. Compare runs and hand-overs use a different model, not just a different level. A rate limit rests the model at every level. A follow-up that changes the level counts as a miss for Auto's pick. Settings → Auto lists the levels it has a record for. Harnesses and models without levels run at their default, as before.
+
 ## [0.18.0] - 2026-10-19
 
 ### Added
