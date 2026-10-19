@@ -50,3 +50,13 @@ export function popover(node, { anchor, keep, capture = false, onClose } = {}) {
   document.body.append(node);
   return close;
 }
+
+// Keep a right-click menu at the pointer but on-screen near the window edges. Reads offset
+// sizes: the menu's pop-in animation starts scaled down, so its bounding box is too small
+// on the first frame and the last items would end up below the fold.
+export function clampToViewport(node, x, y) {
+  const w = node.offsetWidth;
+  const h = node.offsetHeight;
+  node.style.left = `${Math.max(8, Math.min(x, innerWidth - w - 8))}px`;
+  node.style.top = `${Math.max(8, Math.min(y, innerHeight - h - 8))}px`;
+}

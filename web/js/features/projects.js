@@ -6,7 +6,7 @@ import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { launch, S, save, saveLaunch } from '../core/state.js';
 import { present } from '../ui/overlay.js';
-import { popover } from '../ui/popover.js';
+import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { clones, isRepo, repoLabel, repoName, startClone } from './clones.js';
 import { feedToTop, renderFeed } from './feed.js';
@@ -146,10 +146,7 @@ function projectMenu(id, e) {
     }
   };
   const close = popover(menu);
-  // Keep the menu on-screen when right-clicking near the window edge.
-  const r = menu.getBoundingClientRect();
-  if (r.right > innerWidth - 8) menu.style.left = `${innerWidth - r.width - 8}px`;
-  if (r.bottom > innerHeight - 8) menu.style.top = `${innerHeight - r.height - 8}px`;
+  clampToViewport(menu, e.clientX, e.clientY);
 }
 
 const COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
