@@ -6,7 +6,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, icon } from '../core/dom.js';
-import { launch, S } from '../core/state.js';
+import { launch, S, setAgents } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { harnessLogo } from './runners.js';
 
@@ -25,7 +25,7 @@ export async function installHarness(id) {
   failed = '';
   bus.emit('install');
   try {
-    S.agents = await api('/agents/install', { method: 'POST', body: { id } });
+    setAgents(await api('/agents/install', { method: 'POST', body: { id } }));
     $('#launcher')?.placesChanged?.();
     toast(`<b>${esc(S.agents.find((a) => a.id === id)?.name || id)}</b> is ready: free models, no account needed. Type a task and press Enter.`, { timeout: 7000 });
     $('#prompt')?.focus();
@@ -68,7 +68,7 @@ export function renderSetup() {
     btn.disabled = true;
     btn.classList.add('busy');
     try {
-      S.agents = await api('/agents/recheck', { method: 'POST', body: {} });
+      setAgents(await api('/agents/recheck', { method: 'POST', body: {} }));
       $('#launcher')?.placesChanged?.();
       bus.emit('agents');
       if (needsSetup()) toast('Still no harness found. Install opencode here, or Claude Code, Codex, Cursor… yourself.');

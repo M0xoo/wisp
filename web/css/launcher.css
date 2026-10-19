@@ -4,6 +4,11 @@
    while it's open so switching between the two harness pickers doesn't flash the ring off and on. */
 .launcher:is(:focus-within, :has(.open)) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
 .launcher.drop, .composer.drop { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* index.html's first paint: same height as the real launcher, so nothing jumps when it fills in */
+.launcher.skel .l-projects { height: 35px; }
+.launcher.skel .l-bar { height: 38px; }
+.launcher.skel .l-recipes { height: 40px; }
+@container launcher (max-width: 480px) { .launcher.skel .l-recipes { height: 90px; } } /* its hint wraps on phones */
 .l-projects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 2px 8px; }
 /* no harness yet: one quiet line offering to install opencode */
 .l-setup { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; padding: 6px 6px 6px 10px; border-radius: 9px; background: var(--accent-soft); font-size: 13px; color: var(--ink-2); }

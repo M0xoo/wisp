@@ -34,7 +34,7 @@ export function register(r, app) {
 
   r.route('GET', '/openapi.json', (c) => c.send(200, openapi({ version: VERSION, port })), { doc: false });
 
-  r.route('GET', '/agents', async (c) => c.send(200, await app.auto.detect({ fresh: c.query.has('fresh') })));
+  r.route('GET', '/agents', async (c) => c.send(200, await (c.query.has('fresh') ? app.auto.detect({ fresh: true }) : app.auto.listed())));
   // Re-check: detect harnesses and models again, here and on every online machine.
   r.route('POST', '/agents/recheck', async (c) => {
     const [agents] = await Promise.all([app.auto.detect({ fresh: true }), machines.recheckAgents()]);

@@ -6,7 +6,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { money, pct } from '../core/format.js';
-import { S } from '../core/state.js';
+import { S, setAgents } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { openRouter } from './auto.js';
@@ -171,7 +171,7 @@ export function openSettings(opts) {
     btn.classList.add('busy');
     const before = new Map(S.agents.map((a) => [a.id, a]));
     try {
-      S.agents = await api('/agents/recheck', { method: 'POST', body: {} });
+      setAgents(await api('/agents/recheck', { method: 'POST', body: {} }));
       if (!node.isConnected) return;
       paintAgents();
       $('#launcher')?.placesChanged?.();
