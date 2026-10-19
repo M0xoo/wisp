@@ -1,10 +1,24 @@
 // Claude Code adapter — drives `claude -p --output-format stream-json`.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectVersion, exitText, flatten, rel, spawnJsonl } from './common.js';
 
 const BIN = process.env.WISP_CLAUDE_BIN || 'claude';
+
+// Claude in Chrome turns itself on only in interactive sessions; `-p` needs --chrome. Follow the
+// user's own "enabled by default" choice (/chrome in Claude Code) so a wisp run gets the same tools.
+// WISP_CLAUDE_CHROME=1/0 overrides it.
+export function chromeEnabled(env = process.env) {
+  if (env.WISP_CLAUDE_CHROME) return env.WISP_CLAUDE_CHROME !== '0';
+  const file = env.CLAUDE_CONFIG_DIR ? path.join(env.CLAUDE_CONFIG_DIR, '.claude.json') : path.join(os.homedir(), '.claude.json');
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')).claudeInChromeDefaultEnabled === true;
+  } catch {
+    return false;
+  }
+}
 
 const PERMISSION_MODES = {
   plan: 'plan',
@@ -42,6 +56,7 @@ export default {
     ];
     if (model) args.push('--model', model);
     if (effort) args.push('--effort', effort);
+    if (chromeEnabled()) args.push('--chrome');
     if (resumeId) args.push('--resume', resumeId);
     if (Object.keys(mcpServers).length) {
       args.push('--mcp-config', JSON.stringify({ mcpServers }));

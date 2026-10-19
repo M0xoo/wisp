@@ -173,6 +173,24 @@ test('claude: a resume that first reports stopped background tasks still ends on
   assert.ok(events.some((e) => e.type === 'change'), 'the work after it is reported too');
 });
 
+test('claude: passes --chrome when Claude in Chrome is enabled by default', async () => {
+  const dir = tmp('claude-config');
+  process.env.CLAUDE_CONFIG_DIR = dir;
+  try {
+    await run('claude').done;
+    assert.ok(!records(RECORD, 'claude').at(-1).argv.includes('--chrome'), 'no config: off');
+    fs.writeFileSync(path.join(dir, '.claude.json'), JSON.stringify({ claudeInChromeDefaultEnabled: true }));
+    await run('claude').done;
+    assert.ok(records(RECORD, 'claude').at(-1).argv.includes('--chrome'), 'follows the /chrome default');
+    process.env.WISP_CLAUDE_CHROME = '0';
+    await run('claude').done;
+    assert.ok(!records(RECORD, 'claude').at(-1).argv.includes('--chrome'), 'env override wins');
+  } finally {
+    delete process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.WISP_CLAUDE_CHROME;
+  }
+});
+
 test('codex: MCP server and attachments are passed as config overrides and flags', async () => {
   const img = path.join(tmp('att'), 'shot one.png');
   fs.writeFileSync(img, 'png');
