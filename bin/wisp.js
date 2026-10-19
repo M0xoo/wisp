@@ -236,8 +236,10 @@ async function interactive() {
 
   let openPath = '/';
   if (command === 'add') {
-    const dir = path.resolve(words[1] || process.cwd());
-    const p = await api('/projects', { path: dir }).catch((e) => console.error(`  ✗ ${e.message}`));
+    // A repo URL is cloned by the server (into ~/code unless defaults.cloneDir says otherwise).
+    const url = /^(https?:|ssh:|git:|git@|(www\.)?github\.com\/)/i.test(words[1] || '');
+    if (url) console.log(`  ◌ cloning ${words[1]}…`);
+    const p = await api('/projects', url ? { repo: words[1] } : { path: path.resolve(words[1] || process.cwd()) }).catch((e) => console.error(`  ✗ ${e.message}`));
     if (p) console.log(`  ✓ project added: ${p.name}  (${p.path})`);
     if (running || electron) process.exit(0);
   } else if (words.length) {

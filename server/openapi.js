@@ -90,7 +90,19 @@ export function openapi({ version, port }) {
       },
       '/projects': {
         get: { summary: 'List projects', responses: { 200: json({ type: 'array', items: ref('Project') }) } },
-        post: { summary: 'Add a folder as a project', requestBody: body({ type: 'object', required: ['path'], properties: { path: { type: 'string' }, name: { type: 'string' } } }), responses: { 201: json(ref('Project')), 400: err[400] } },
+        post: {
+          summary: 'Add a folder as a project, or clone a repo URL and add the clone',
+          requestBody: body({
+            type: 'object',
+            properties: {
+              path: { type: 'string', description: 'A folder, or a repo URL (https://github.com/o/r, git@host:o/r.git, o/r)' },
+              repo: { type: 'string', description: 'A repo URL to clone into defaults.cloneDir (default ~/code), then add' },
+              name: { type: 'string' },
+              machine: { type: 'string', description: 'Add (or clone) it on this machine' },
+            },
+          }),
+          responses: { 201: json(ref('Project')), 400: err[400] },
+        },
       },
       '/projects/{pid}': {
         parameters: [{ name: 'pid', in: 'path', required: true, schema: { type: 'string' } }],
@@ -291,6 +303,7 @@ export function openapi({ version, port }) {
           properties: {
             prompt: { type: 'string' },
             cwd: { type: 'string', description: 'Project folder (absolute; ~ allowed). Default: the server’s cwd' },
+            scratch: { type: 'boolean', description: 'No project folder: run in an empty scratch directory (no worktree). Overrides cwd' },
             agent: { enum: ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'auto', description: 'auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)' },
             important: { type: 'boolean', description: 'With agent auto: no exploring, take the pick with the best record' },
             mode: { enum: ['plan', 'edits', 'auto'], default: 'auto' },

@@ -12,6 +12,7 @@ import { popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { openAutomations, recipeParams, runRecipe } from './automations.js';
+import { cloneById, clones } from './clones.js';
 import { renderFeed } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { connectMachine, offlineToast, openMachines } from './machines.js';
@@ -25,6 +26,11 @@ import { agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt
 import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 
+// "No folder": a general ask with no project. The server gives it an empty scratch directory.
+const NO_FOLDER = 'none';
+const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
+const projectOf = (k) => (launch.picks[k] === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
+
 function syncWhere() {
   launch.where = launch.where.filter((k, i) => (!k || machineById(k)) && launch.where.indexOf(k) === i);
   if (!launch.where.length) launch.where = [''];
@@ -34,7 +40,7 @@ function syncWhere() {
     if (!launch.where.includes(placeOf(f))) launch.where = [placeOf(f)];
     launch.picks[placeOf(f)] = f.id;
   } else if (projectById(launch.project) && !Object.values(launch.picks).includes(launch.project)) launch.picks[placeOf(projectById(launch.project))] ??= launch.project;
-  for (const k of launch.where) if (!projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
+  for (const k of launch.where) if (launch.picks[k] !== NO_FOLDER && !cloneById(launch.picks[k]) && !projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
   launch.project = launch.picks[launch.where[0]] || null;
 }
 
@@ -230,8 +236,8 @@ export function renderLauncher() {
       return feedbackCommand(prompt, { restore: () => !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input'))) });
     }
     // One run per place picked under "Run on", each in the project picked for it.
-    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectById(launch.picks[k]) }));
-    const unset = targets.find((t) => !t.project);
+    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(k), clone: cloneById(launch.picks[k]) }));
+    const unset = targets.find((t) => !t.project && !t.clone);
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
     if (off) return offlineToast(off.k);
@@ -250,12 +256,13 @@ export function renderLauncher() {
     const files = tray.take();
     const cmp = compare;
     const runner = { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
-    const pending = targets.map((t) => addPending(prompt, t, runner));
+    // A repo still cloning gets a stand-in project; its card says so until the clone lands.
+    const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone && `Cloning ${t.clone.label}`));
     if (cmp.length) (compare = []), paintCompare();
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
-    if (S.filter !== 'all' && targets.some((t) => t.project.id !== S.filter)) {
+    if (S.filter !== 'all' && targets.some((t) => t.project?.scratch || t.project?.id !== S.filter)) {
       S.filter = 'all';
       save('wisp.filter', S.filter);
     }
@@ -264,13 +271,20 @@ export function renderLauncher() {
     showLaunched(btn, ghost);
     ta.focus();
     try {
+      for (const [i, t] of targets.entries()) {
+        if (!t.clone) continue;
+        const p = (t.project = await t.clone.promise);
+        // Now a real project, so the live session can replace the card (dropPending).
+        const card = S.sessions.get(pending[i]);
+        if (card) Object.assign(card, { projectId: p.id, project: p.name, cwd: p.path, color: p.color, live: 'Starting up' }), renderFeed();
+      }
       // Several places: one shared groupId, so the runs land as one task with a row each.
       const groupId = targets.length > 1 ? [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('') : undefined;
       const results = await Promise.allSettled(
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.path, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, scratch: t.project.scratch || undefined, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -291,7 +305,10 @@ export function renderLauncher() {
     } catch (err) {
       for (const id of pending) S.sessions.delete(id);
       renderFeed();
-      toastError(err);
+      if (!err.shown) return toastError(err);
+      // The clone failed (its toast says why): the task goes back in the box.
+      if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
+      tray.restore(files);
     }
   };
   $('#launch', box).onclick = go;
@@ -332,11 +349,17 @@ export function renderLaunchChips() {
     const list = projectsAt(k);
     const off = m && m.state !== 'online';
     const label = k || multi ? `<span class="lp-gl ${off ? 'off' : ''}" title="${esc(k ? `${m?.target} · ${MACHINE_STATE[m?.state] || ''}` : 'This computer')}">${icon(k ? 'server' : 'laptop')}${esc(placeName(k))}${off ? `<button class="link xs" data-connect="${k}">${m.state === 'connecting' || m.state === 'reconnecting' ? 'connecting…' : 'Connect'}</button>` : ''}</span>` : '';
-    const chips = list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
-    const add = list.length
+    // A repo still cloning: picked, with a spinner, until the real project replaces it.
+    const cloning = clones
+      .filter((c) => (c.where || '') === k)
+      .map((c) => `<button class="lp-chip cloning ${c.id === launch.picks[k] ? 'on' : ''}" data-id="${c.id}" data-k="${k}" title="Cloning ${esc(c.label)}…"><span class="orb live"></span>${esc(c.name)}<span class="lp-note">cloning…</span></button>`)
+      .join('');
+    const chips = cloning + list.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
+    const add = list.length || cloning
       ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi ? '' : 'Other folder…'}</button>`
-      : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a project folder…'}</button>`;
-    return `<span class="lp-group">${label}${chips}${add}</span>`;
+      : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a folder…'}</button>`;
+    const none = `<button class="lp-chip none ${launch.picks[k] === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" data-k="${k}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}No folder</button>`;
+    return `<span class="lp-group">${label}${chips}${none}${add}</span>`;
   };
   box.innerHTML = `<span class="l-in">in</span>${launch.where.map(group).join('')}`;
   box.onclick = (e) => {
@@ -486,7 +509,7 @@ function launchedFx(from, to) {
 // A launch the server hasn't answered yet: a placeholder summary that shows in Working as a
 // "Starting up" card. It can't be opened; the real card takes its place.
 let pendingSeq = 0;
-function addPending(prompt, { project: p, m }, { agent, model, effort }) {
+function addPending(prompt, { project: p, m }, { agent, model, effort }, live = 'Starting up') {
   const id = `pending-${++pendingSeq}`;
   const line = plain(prompt).split('\n')[0].replace(/\s+/g, ' ');
   const now = Date.now();
@@ -498,11 +521,12 @@ function addPending(prompt, { project: p, m }, { agent, model, effort }) {
     model,
     effort,
     cwd: p.path,
+    scratch: p.scratch,
     project: p.name,
     projectId: p.id,
     color: p.color || 'slate',
     state: 'running',
-    live: 'Starting up',
+    live,
     createdAt: now,
     updatedAt: now,
     machine: m ? { id: m.id, name: m.name, target: m.target } : null,

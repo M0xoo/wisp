@@ -9,16 +9,27 @@ import { normalizePreset } from '../subagents.js';
 import { envDisabled, feedbackAvailable } from '../telemetry.js';
 import { TERMINALS } from '../terminal.js';
 import { normalizeWebhooks } from '../services/webhooks.js';
+import { cloneRepo, gh, git, parseRepo } from '../git.js';
 import { expand } from '../util.js';
 
 // Where people keep their repos, for one-click "add project".
 const REPO_ROOTS = ['code', 'Code', 'dev', 'Developer', 'projects', 'Projects', 'src', 'repos', 'work', 'git', 'GitHub', 'Documents', 'Downloads', 'Desktop'];
 
+// Where a pasted repo URL is cloned: defaults.cloneDir, else the first usual repo folder that
+// exists (not Documents/Downloads/Desktop), else ~/code.
+export function cloneRoot(config) {
+  if (config.defaults?.cloneDir) return expand(config.defaults.cloneDir);
+  const dir = REPO_ROOTS.slice(0, -3)
+    .map((r) => path.join(os.homedir(), r))
+    .find((d) => fs.existsSync(d) && fs.statSync(d).isDirectory());
+  return dir || path.join(os.homedir(), 'code');
+}
+
 export function register(r, app) {
   const { store, telemetry, prefs, retro, remote, machines } = app;
 
   r.route('GET', '/config', (c) =>
-    c.send(200, { ...store.config, remote: undefined, home: os.homedir(), cwd: process.cwd(), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
+    c.send(200, { ...store.config, remote: undefined, home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
   );
   r.route('PATCH', '/config', async (c) => {
     const body = await c.body();
@@ -91,18 +102,54 @@ export function register(r, app) {
   r.route('POST', '/projects', async (c) => {
     const body = await c.body();
     if (body.machine) {
-      const p = await machines.addProject(String(body.machine), String(body.path || '').trim(), body.name);
+      const p = await machines.addProject(String(body.machine), String(body.repo || body.path || '').trim(), body.name);
       app.broadcast('config', {});
       return c.send(201, p);
     }
-    const dir = expand(body.path || '');
+    // A repo URL (in `repo`, or pasted into `path`): clone it, then add the clone.
+    const typed = String(body.repo || body.path || '').trim();
+    const local = !body.repo && (/^[~./\\]|^[a-z]:/i.test(typed) || fs.existsSync(expand(typed)));
+    const repo = !local && parseRepo(typed, { shorthand: true });
+    if (body.repo && !repo) return c.send(400, { error: `Not a repo URL: ${typed}` });
+    let dir = expand(typed);
+    let cloned = null;
+    if (repo) {
+      const out = await cloneRepo(repo, cloneRoot(store.config));
+      dir = out.dir;
+      cloned = { url: repo.url, existed: out.existed };
+    }
     if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return c.send(400, { error: `Not a folder: ${dir}` });
     const p = store.addProject(dir, { name: body.name });
     app.broadcast('config', {});
-    c.send(201, p);
+    c.send(201, cloned ? { ...p, cloned } : p);
   });
   // Find git repos in the usual places so adding projects is one click.
   r.route('GET', '/projects/discover', (c) => c.send(200, discoverRepos(new Set(store.config.projects.map((p) => p.path)))), { doc: false });
+  // The user's GitHub repos (gh's login), newest first, minus ones already added: one click clones.
+  // Empty when gh isn't installed or signed in.
+  r.route(
+    'GET',
+    '/projects/github',
+    async (c) => {
+      const list = await gh(os.homedir(), ['repo', 'list', '--limit', '40', '--json', 'nameWithOwner,description,isPrivate,isFork,pushedAt,url'], { timeout: 20_000 })
+        .then((out) => JSON.parse(out || '[]'))
+        .catch(() => null);
+      if (!list) return c.send(200, []);
+      const origins = await Promise.all(
+        store.config.projects.filter((p) => !p.machine).map((p) => git(p.path, ['remote', 'get-url', 'origin'], { timeout: 5000 }).catch(() => '')),
+      );
+      const have = new Set(origins.map((o) => parseRepo(o)?.gh?.toLowerCase()).filter(Boolean));
+      c.send(
+        200,
+        list
+          .filter((x) => !have.has(x.nameWithOwner.toLowerCase()))
+          .sort((a, b) => String(b.pushedAt).localeCompare(String(a.pushedAt)))
+          .slice(0, 24)
+          .map((x) => ({ repo: x.nameWithOwner, url: x.url, description: x.description || '', private: !!x.isPrivate, fork: !!x.isFork, pushedAt: x.pushedAt })),
+      );
+    },
+    { doc: false },
+  );
   const project = (c) => store.config.projects.find((x) => x.id === c.params.id);
   r.route('PATCH', '/projects/:id', async (c) => {
     const p = project(c);
