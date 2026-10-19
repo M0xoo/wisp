@@ -41,7 +41,7 @@ export function connect() {
       renderFeed();
     });
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
-    if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state]) !== JSON.stringify([s.pr, s.toShip, s.state])) renderPrStrip(s.id);
+    if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));

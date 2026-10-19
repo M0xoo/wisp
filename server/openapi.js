@@ -406,6 +406,7 @@ export function openapi({ version, port }) {
             updatedAt: { type: 'integer' },
             branch: { type: 'string', description: 'Worktree branch, if it has one' },
             pr: { type: ['object', 'null'], description: 'Its pull request, once shipped' },
+            shipping: { type: ['object', 'null'], description: "{ step: start | commit | push | pr, update } while Ship it runs" },
             groupId: { type: ['string', 'null'], description: 'Shared by sessions launched together with compare' },
             origin: { type: ['object', 'null'], description: '{ kind: recipe | trigger, id, name } when not launched by hand' },
           },
