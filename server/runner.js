@@ -20,6 +20,26 @@ const BACKGROUND_MAX_MS = 60 * 60_000; // how long a turn may wait on its backgr
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
 // The delegate tool lives on the same injected server, so harnesses name it like ask_user.
 const delegateTool = (askTool) => askTool && askTool.replace(/ask_user$/, 'delegate');
+// The answers a live approval offers. Typed text instead is a "no, do this instead".
+export const APPROVAL = { allow: 'Allow', always: 'Always allow in this task', deny: 'Deny' };
+const sameAction = (a, b) => a.tool === b.tool && a.detail === b.detail;
+
+// A live approval's answer: the button the user clicked, a yes/no typed out, or anything else,
+// which denies the call and hands the agent the user's words.
+export function approvalDecision(text) {
+  const t = String(text || '').trim();
+  if (t === APPROVAL.always || /^(always\b|2$)/i.test(t)) return { decision: 'allow', always: true };
+  if (t === APPROVAL.allow || /^(y|yes|ok|allow|approve|go ahead|1)$/i.test(t)) return { decision: 'allow' };
+  if (t === APPROVAL.deny || /^(n|no|deny|reject|3)$/i.test(t)) return { decision: 'deny' };
+  return { decision: 'deny', message: t };
+}
+
+// The follow-up that retries what a turn's permissions refused, once the user allowed it.
+function retryPrompt(items, scoped) {
+  const list = items.map((b) => `- ${b.tool}${b.detail ? `: \`${b.detail}\`` : ''}`).join('\n');
+  const how = scoped ? 'I allowed exactly these for this follow-up' : 'This follow-up runs in Full auto, so nothing is blocked';
+  return `These actions were blocked by your permissions last turn:\n${list}\n\n${how}. Run them now and finish the task.`;
+}
 
 export { newId };
 
@@ -79,6 +99,7 @@ export function summarize(s, store) {
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : '',
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
+    approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
     branch: s.worktree?.branch || '',
     toShip: s.toShip || null, // { dirty, ahead, unpushed } of the worktree, null until checked
     pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks } : null,
@@ -159,11 +180,12 @@ export class Runner extends EventEmitter {
   // mode: switch the permission mode (plan / edits / auto) from this follow-up on. A queued
   // follow-up keeps its own, so the run before it isn't affected. run: { agent, model, effort }
   // switches the harness, model and thinking level the same way (see #switchRun).
-  reply(session, text, attachments = [], { queue = false, mode, run } = {}) {
+  // grants / once: a retry of what the last turn's permissions blocked (see approveBlocked).
+  reply(session, text, attachments = [], { queue = false, mode, run, grants, once } = {}) {
     if (!MODES.has(mode) || mode === session.mode) mode = undefined;
     run = changedRun(session, run);
-    const extra = { ...(mode && { mode }), ...(run && { run }) };
-    if (session.ask && !mode && !run) {
+    const extra = { ...(mode && { mode }), ...(run && { run }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }) };
+    if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
       return { answered: true };
     }
@@ -191,8 +213,27 @@ export class Runner extends EventEmitter {
     }
     if (mode) session.mode = mode;
     if (run) this.#switchRun(session, run);
-    this.#startTurn(session, text, attachments);
+    this.#startTurn(session, text, attachments, extra);
     return { queued: false };
+  }
+
+  // The card under a turn whose permissions refused something: allow retries it as a follow-up,
+  // with exactly those actions allowed where the harness can scope a grant, else in Full auto for
+  // that one follow-up. Deny just closes the card.
+  approveBlocked(session, { turnId, allow }) {
+    const turn = turnId ? session.turns.find((t) => t.id === turnId) : session.turns.at(-1);
+    if (!turn?.blocked?.length) throw bad('Nothing on that turn is waiting for approval.', 404);
+    if (turn.approval) throw bad(`Already ${turn.approval}.`, 409);
+    if (turn !== session.turns.at(-1) || this.live.has(session.id)) throw bad('The task has moved on since; send a follow-up instead.', 409);
+    turn.approval = allow ? 'allowed' : 'denied';
+    if (!allow) {
+      this.#touch(session, { turn: turn.id });
+      return { denied: true };
+    }
+    const scoped = turn.blocked.every((b) => b.rule !== undefined);
+    const out = this.reply(session, retryPrompt(turn.blocked, scoped), [], scoped ? { grants: turn.blocked.map((b) => b.rule) } : { once: 'auto' });
+    this.#touch(session, { turn: turn.id });
+    return { ...out, scoped };
   }
 
   // A follow-up on another harness, model or thinking level. A model or level change resumes the
@@ -223,7 +264,8 @@ export class Runner extends EventEmitter {
   }
 
   // ask_user: the agent is blocked inside a tool call until answer() is called.
-  ask(session, { question, context, options }) {
+  // permission: set for a live approval ({ tool, action, detail }), see requestApproval().
+  ask(session, { question, context, options, permission }) {
     const turn = session.turns.at(-1);
     session.ask = {
       id: newId(),
@@ -231,34 +273,66 @@ export class Runner extends EventEmitter {
       context: context ? String(context) : '',
       options: Array.isArray(options) ? options.map(String).slice(0, 6) : [],
       askedAt: Date.now(),
+      ...(permission && { permission }),
     };
     session.state = 'waiting';
     session.unread = true;
     delete session.archived; // a question needs the user, so it comes back to the feed
-    if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'ask', label: `Asked you: ${session.ask.question}` });
+    const label = permission ? `Needs your OK to ${permission.action}` : `Asked you: ${session.ask.question}`;
+    if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'ask', label });
     this.#touch(session, { turn: turn?.id });
     this.emit('finished', { session: summarize(session, this.store) });
     return session.ask.id;
+  }
+
+  // Live approval: the harness asks before a tool call its permission mode doesn't allow on its
+  // own (Claude's --permission-prompt-tool). It waits on the answer like ask_user; something the
+  // user said "always" to earlier in this task goes through at once.
+  requestApproval(session, { tool, input }) {
+    const adapter = adapters[session.agent];
+    const p = adapter.permission?.(String(tool || ''), input && typeof input === 'object' ? input : {}, workdir(session)) || { tool: String(tool || 'tool'), action: `use ${tool}`, detail: '' };
+    const turn = session.turns.at(-1);
+    if ((session.grants || []).some((g) => sameAction(g, p))) {
+      if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label: `Allowed (always in this task): ${p.action}` });
+      return { decision: 'allow' };
+    }
+    const id = this.ask(session, {
+      question: `Allow ${adapter.name} to ${p.action}?`,
+      context: p.why || '',
+      options: [APPROVAL.allow, APPROVAL.always, APPROVAL.deny],
+      permission: { tool: p.tool, action: p.action, detail: p.detail },
+    });
+    return { id };
   }
 
   answer(session, text) {
     const ask = session.ask;
     if (!ask) return false;
     ask.answer = text;
-    this.answers.set(ask.id, text);
+    const turn = session.turns.at(-1);
+    let label = `You answered: ${text}`;
+    if (ask.permission) {
+      const d = approvalDecision(text);
+      this.answers.set(ask.id, { answer: text, ...d });
+      const p = ask.permission;
+      if (d.always) (session.grants ||= []).push({ tool: p.tool, detail: p.detail });
+      // Denied here, so the turn's "blocked" card shouldn't offer it again.
+      if (d.decision === 'deny' && turn) (turn.denied ||= []).push({ tool: p.tool, detail: p.detail });
+      label = d.decision === 'allow' ? `You allowed${d.always ? ' (always in this task)' : ''}: ${p.action}` : `You denied: ${p.action}${d.message ? ` (“${d.message}”)` : ''}`;
+    } else this.answers.set(ask.id, { answer: text });
     delete session.ask;
     session.state = this.live.has(session.id) ? 'running' : 'review';
-    const turn = session.turns.at(-1);
-    if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label: `You answered: ${text}` });
+    if (turn) this.#onEvent(session, turn, { type: 'tool', kind: 'answer', label });
     this.#touch(session, { turn: turn?.id });
     return true;
   }
 
+  // { answer } once answered (plus { decision, message? } for an approval), { pending }, or { cancelled }.
   pollAnswer(askId) {
     if (this.answers.has(askId)) {
-      const answer = this.answers.get(askId);
+      const out = this.answers.get(askId);
       this.answers.delete(askId);
-      return { answer };
+      return out;
     }
     const open = this.store.all().some((s) => s.ask?.id === askId);
     return open ? { pending: true } : { cancelled: true };
@@ -355,7 +429,7 @@ export class Runner extends EventEmitter {
   }
 
   // The record of a new turn, with the checkpoint taken before the agent touches anything.
-  #newTurn(session, prompt, attachments) {
+  #newTurn(session, prompt, attachments, mode = session.mode) {
     const id = newId();
     // A subagent's edits land in the lead's turn, whose checkpoint already covers them.
     const checkpoint =
@@ -370,7 +444,7 @@ export class Runner extends EventEmitter {
       agent: session.agent,
       model: session.model,
       effort: session.effort || '',
-      mode: session.mode,
+      mode,
       attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })),
       startedAt: Date.now(),
       endedAt: null,
@@ -405,14 +479,18 @@ export class Runner extends EventEmitter {
           WISP_URL: this.bridge.url,
           WISP_TOKEN: this.bridge.token,
           WISP_SESSION: session.id,
+          ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m) }))) }),
         },
       },
     };
   }
 
-  #startTurn(session, prompt, attachments = []) {
-    const turn = this.#newTurn(session, prompt, attachments);
+  // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
+  // this turn only (an approved retry the harness can't scope runs in Full auto).
+  #startTurn(session, prompt, attachments = [], { grants = [], once } = {}) {
+    const mode = MODES.has(once) ? once : session.mode;
+    const turn = this.#newTurn(session, prompt, attachments, mode);
     session.turns.push(turn);
     session.state = 'running';
     session.unread = false;
@@ -436,7 +514,8 @@ export class Runner extends EventEmitter {
       attachments,
       cwd: workdir(session),
       resumeId: session.agentSessionId,
-      mode: session.mode,
+      mode,
+      grants,
       model: session.model,
       effort: session.effort || '',
       systemPrompt: this.#systemPrompt(session, adapter, team),
@@ -471,7 +550,7 @@ export class Runner extends EventEmitter {
       const next = session.queue.shift();
       if (next?.mode) session.mode = next.mode;
       if (next?.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
-      if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments);
+      if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments, next);
       else this.#touch(session);
     };
     handle.release = release;
@@ -518,6 +597,14 @@ export class Runner extends EventEmitter {
         const lead = session.parentId && this.store.get(session.parentId);
         const leadTurn = lead?.turns.at(-1);
         if (leadTurn?.status === 'running') this.#onEvent(lead, leadTurn, { ...ev, by: session.member });
+        return;
+      }
+      case 'blocked': {
+        // A tool call the harness's permissions refused. The card after the turn offers to retry it.
+        const item = { tool: String(ev.tool || 'tool'), detail: String(ev.detail ?? ''), ...(ev.rule !== undefined && { rule: ev.rule }) };
+        const list = (turn.blocked ||= []);
+        if (!list.some((b) => sameAction(b, item))) list.push(item);
+        this.store.save(session);
         return;
       }
       case 'background': {
@@ -587,6 +674,7 @@ export class Runner extends EventEmitter {
       // Compare runs keep the prompt's title: they're one task, and one run's headline shouldn't name it.
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
     }
+    if (!ev.stopped) blockedCard(turn);
     session.state = 'review';
     session.unread = !interrupted;
     this.store.save(session, { now: true });
@@ -604,4 +692,28 @@ export class Runner extends EventEmitter {
     if (!quiet) this.emit('summary', summarize(session, this.store));
     if (turn) this.emit('turn', { sessionId: session.id, turnId: turn });
   }
+}
+
+// What the turn's permissions refused, as one "blocked" block after the hero: the harness's own
+// reports (which can carry a rule to allow exactly that) merged with the agent's "blocked" block,
+// minus anything the user already denied. turn.blocked keeps the list for the retry.
+function blockedCard(turn) {
+  const blocks = turn.presentation?.blocks || [];
+  const own = blocks.filter((b) => b.type === 'blocked').flatMap((b) => (Array.isArray(b.items) ? b.items : []));
+  const items = [...(turn.blocked || [])];
+  for (const i of own) {
+    if (!i || typeof i !== 'object') continue;
+    const item = { tool: String(i.tool || 'tool'), detail: String(i.detail ?? i.command ?? i.path ?? ''), ...(i.why && { why: String(i.why) }) };
+    const known = items.find((b) => sameAction(b, item) || (item.detail && b.detail === item.detail));
+    if (known) known.why ||= item.why;
+    else items.push(item);
+  }
+  // The agent may name a tool its own way (shell for Bash): the same command still counts.
+  const left = items.filter((b) => !(turn.denied || []).some((d) => sameAction(d, b) || (b.detail && d.detail === b.detail))).slice(0, 12);
+  if (left.length) turn.blocked = left;
+  else delete turn.blocked;
+  if (!turn.presentation) return;
+  const rest = blocks.filter((b) => b.type !== 'blocked');
+  if (left.length) rest.splice(rest[0]?.type === 'hero' ? 1 : 0, 0, { type: 'blocked', items: left.map(({ rule, ...b }) => b) });
+  turn.presentation.blocks = rest;
 }

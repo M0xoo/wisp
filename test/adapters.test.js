@@ -260,3 +260,25 @@ test('opencode: a rate limit that clears on a retry lets the turn finish', async
   assert.equal(results.length, 1);
   assert.equal(results[0].isError, false, results[0].text);
 });
+
+test('claude: permission prompts go to wisp only in Edits mode, and only with its server injected', async () => {
+  const wisp = { wisp: { command: process.execPath, args: ['-e', ''] } };
+  const argvOf = async (opts) => (await run('claude', opts).done, records(RECORD, 'claude').at(-1).argv);
+  const prompt = (argv) => argv[argv.indexOf('--permission-prompt-tool') + 1];
+  assert.equal(prompt(await argvOf({ mode: 'edits', mcpServers: wisp })), 'mcp__wisp__approve');
+  assert.ok(!(await argvOf({ mode: 'plan', mcpServers: wisp })).includes('--permission-prompt-tool'));
+  assert.ok(!(await argvOf({ mode: 'auto', mcpServers: wisp })).includes('--permission-prompt-tool'));
+  assert.ok(!(await argvOf({ mode: 'edits' })).includes('--permission-prompt-tool'), 'a subagent (no server) keeps the old deny');
+  const argv = await argvOf({ mode: 'edits', mcpServers: wisp, grants: ['Bash(npm publish)'] });
+  assert.ok(hasSeq(argv, ['--allowedTools', 'mcp__wisp', 'Bash(npm publish)']));
+  assert.deepEqual(adapters.claude.permission('Write', { file_path: path.join('/repo', 'src', 'a.js') }, '/repo'), { tool: 'Write', action: `write ${path.join('src', 'a.js')}`, detail: path.join('src', 'a.js'), why: '' });
+});
+
+test('grok, cursor, antigravity: what their permissions refused comes out as blocked events', async () => {
+  const grok = await run('grok', { prompt: 'BLOCKED publish it' }).done;
+  assert.deepEqual(grok.filter((e) => e.type === 'blocked'), [{ type: 'blocked', tool: 'Edit', detail: 'calc.py' }]);
+  const cursor = await run('cursor').done;
+  assert.deepEqual(cursor.filter((e) => e.type === 'blocked'), [{ type: 'blocked', tool: 'shell', detail: 'npm test' }]);
+  const agy = await run('antigravity').done;
+  assert.deepEqual(agy.filter((e) => e.type === 'blocked'), [{ type: 'blocked', tool: 'run_command', detail: 'npm test' }]);
+});

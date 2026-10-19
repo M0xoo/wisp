@@ -2,7 +2,7 @@
 // and older ones folded.
 
 import { countChanges, fmtDuration, renderPresentation } from '../blocks.js';
-import { esc, md } from '../md.js';
+import { esc, inlineMd, md } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
@@ -33,7 +33,22 @@ export function ctxFor(s, turn, isLatest) {
     zoom: (src) => overlay(el(`<img class="lightbox" src="${esc(src)}">`)),
     revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
     exec: (command, key) => execAction(s.id, turn.id, command, key),
+    approve: (allow) => approveBlocked(s, turn, allow),
   };
+}
+
+// The "Blocked by permissions" card's buttons. Allow starts the retry, so the card goes to
+// Working at once; a refusal rolls that back and shows why.
+async function approveBlocked(s, turn, allow) {
+  const undo = allow ? startOptimistic(s.id, 'Allow & retry what was blocked', null, {}) : null;
+  try {
+    await api(`/sessions/${s.id}/approve`, { method: 'POST', body: { turnId: turn.id, allow } });
+    if (undo) scheduleRefetch(s.id);
+  } catch (err) {
+    undo?.();
+    toastError(err);
+    throw err;
+  }
 }
 
 // Older turns render as one-line folded rows; past this many they hide behind "Show earlier".
@@ -125,7 +140,7 @@ export function renderBody(id, { fresh }) {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
-    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}`;
+    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
@@ -268,7 +283,19 @@ function actItem(a) {
 
 function renderAskCard(s) {
   const a = s.ask;
-  const node = el(`
+  const p = a.permission;
+  // A live approval: the agent is paused on a tool call its permissions don't allow by themselves.
+  const node = p
+    ? el(`
+    <div class="ask-card perm">
+      <div class="q-head">${icon('lock')}<span>Needs your approval</span></div>
+      <p class="q-text">${inlineMd(a.question)}</p>
+      ${p.detail && !a.question.includes(p.detail) ? `<pre class="perm-detail">${esc(p.detail)}</pre>` : ''}
+      ${a.context ? `<p class="q-context">${esc(a.context)}</p>` : ''}
+      <div class="q-opts">${a.options.map((o, i) => `<button class="opt ${i === 0 ? 'go' : i === a.options.length - 1 ? 'no' : ''}" data-i="${i}"><span class="k">${i + 1}</span>${esc(o)}</button>`).join('')}</div>
+      <form class="q-own"><input class="input" placeholder="Or say what to do instead (denies this call)…"><button class="ghost sm">Send</button></form>
+    </div>`)
+    : el(`
     <div class="ask-card">
       <div class="q-head">${icon('ask')}<span>Needs your call</span></div>
       <p class="q-text">${esc(a.question)}</p>

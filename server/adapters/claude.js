@@ -29,6 +29,8 @@ const PERMISSION_MODES = {
 export default {
   id: 'claude',
   name: 'Claude Code',
+  // Asks wisp before a tool call its permission mode won't allow on its own (Edits mode).
+  approveTool: 'mcp__wisp__approve',
   models: [
     { id: '', label: 'Default', hint: 'Whatever Claude Code is set to' },
     { id: 'opus', label: 'Opus', hint: 'Most capable, for hard problems' },
@@ -46,8 +48,14 @@ export default {
     return detectVersion(BIN);
   },
 
+  // What a permission prompt is about, for the approval card and for matching "always allow".
+  permission(tool, input, cwd) {
+    return { tool, action: actionOf(tool, input, cwd), detail: detailOf(tool, input, cwd), why: tool === 'Bash' ? input.description || '' : '' };
+  },
+
   // Returns { stop(), done: Promise<void> }. Everything else is reported through onEvent.
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, onEvent }) {
+  // grants: --allowedTools rules (Bash(npm publish)) for what the user allowed after a denial.
+  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
     const args = [
       '-p',
       '--output-format', 'stream-json',
@@ -58,10 +66,11 @@ export default {
     if (effort) args.push('--effort', effort);
     if (chromeEnabled()) args.push('--chrome');
     if (resumeId) args.push('--resume', resumeId);
-    if (Object.keys(mcpServers).length) {
-      args.push('--mcp-config', JSON.stringify({ mcpServers }));
-      args.push('--allowedTools', ...Object.keys(mcpServers).map((n) => `mcp__${n}`));
-    }
+    if (Object.keys(mcpServers).length) args.push('--mcp-config', JSON.stringify({ mcpServers }));
+    // In Edits mode, what would prompt goes to wisp's approve tool (the user decides) instead of being denied.
+    if (mcpServers.wisp && mode === 'edits') args.push('--permission-prompt-tool', this.approveTool);
+    const allowed = [...Object.keys(mcpServers).map((n) => `mcp__${n}`), ...grants.filter((g) => typeof g === 'string')];
+    if (allowed.length) args.push('--allowedTools', ...allowed);
     // Its built-in subagents (Task, or Agent in newer versions) would bypass the user's team.
     if (delegating) args.push('--disallowedTools', 'Task', 'Agent', 'Workflow');
     const dirs = [...new Set(attachments.map((a) => path.dirname(a.path)))];
@@ -132,6 +141,11 @@ export default {
           return;
         }
         sawResult = true;
+        // Refused tool calls (no approve tool here, or the user said no): the card offers a retry.
+        for (const d of msg.permission_denials || []) {
+          const input = d.tool_input || {};
+          onEvent({ type: 'blocked', tool: d.tool_name, detail: detailOf(d.tool_name, input, cwd), rule: ruleOf(d.tool_name, input) });
+        }
         onEvent({ ...ev, background: background.size }); // > 0: another turn and result follow when they finish
       }
     };
@@ -217,6 +231,29 @@ function describeTool(name, input, cwd) {
       return { kind: 'tool', label: name.startsWith('mcp__') ? `Using ${name.split('__').slice(1).join(' · ')}` : `Using ${name}` };
   }
 }
+
+// A permission prompt's subject: "run `npm publish`", "edit src/a.ts", "fetch https://…".
+function actionOf(tool, input, cwd) {
+  const f = rel(input.file_path || input.notebook_path || input.path, cwd);
+  if (tool === 'Bash') return `run \`${clip(input.command, 200)}\``;
+  if (/^(Edit|MultiEdit|Write|NotebookEdit)$/.test(tool) && f) return `${tool === 'Write' ? 'write' : 'edit'} ${f}`;
+  if (tool === 'WebFetch') return `fetch ${clip(input.url, 120)}`;
+  if (tool === 'WebSearch') return `search the web for “${clip(input.query, 80)}”`;
+  if (tool === 'ExitPlanMode') return 'leave plan mode and start making changes';
+  if (tool.startsWith('mcp__')) return `use ${tool.split('__').slice(1).join(' · ')}`;
+  return `use ${tool}`;
+}
+
+// The exact thing being allowed, so "always allow" matches only the same command or file.
+function detailOf(tool, input, cwd) {
+  if (tool === 'Bash') return String(input.command ?? '');
+  const f = input.file_path || input.notebook_path || input.path;
+  if (f) return rel(f, cwd);
+  return String(input.url ?? input.query ?? input.pattern ?? '');
+}
+
+// An --allowedTools rule for a retry: the exact command for Bash, the tool for the rest.
+const ruleOf = (tool, input) => (tool === 'Bash' && input.command ? `Bash(${input.command})` : tool);
 
 // Capture edit inputs so wisp can show real diffs without asking the agent for them.
 function captureChange(name, input, cwd) {

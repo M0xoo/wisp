@@ -71,6 +71,8 @@ export default {
               const [outcome, value = {}] = resultOf(body.result);
               if (outcome && outcome !== 'success') {
                 onEvent({ type: 'tool_error', name: name.replace(/ToolCall$/, ''), text: clip(value.error || value.message || value.reason || value.stderr || outcome, 400) });
+                // Refused by its permissions (no --force): the card offers to retry it.
+                if (/reject|denied|permission/i.test(outcome)) onEvent({ type: 'blocked', tool: name.replace(/ToolCall$/, ''), detail: String(args.command ?? args.path ?? args.url ?? '') });
               } else if (name === 'editToolCall' || name === 'deleteToolCall') {
                 const change = editChange(args.path || value.path, value, cwd, files);
                 if (change) onEvent({ type: 'change', ...change });

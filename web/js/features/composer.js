@@ -159,7 +159,9 @@ export function updateDock(id) {
   ta.placeholder = tour
     ? 'This is the tour — launch a real wisp from the box at the top'
     : s.ask
-      ? `Answer ${name}…`
+      ? s.ask.permission
+        ? `Or tell ${name} what to do instead (denies this call)…`
+        : `Answer ${name}…`
       : s.state === 'running'
         ? queueing()
           ? `Queue a follow-up — sent when ${name} finishes`
