@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Fix conflicts button on every conflicting PR.** When a PR has merge conflicts, its row on the card now has a **Fix conflicts** button that sends the task a follow-up to merge the base in and resolve them; wisp pushes the result to the PR, as with the automatic fix. Before, the button only showed after the automatic fix had given up. It now also works with "Fix PR conflicts" off in Settings, or after the automatic retries ran out. The row switches to "Fixing merge conflicts" as soon as you click.
 
+### Changed
+
+- **Auto's Best goal runs frontier models only.** Best now always picks a frontier model (Claude Opus, Codex's default, Grok 4, Gemini Argon), never an everyday or small one like Sonnet or Haiku, however well those did on your past tasks. Before, that was only true for your first 20 outcomes. If every frontier model is busy or at its limit, Best waits instead of stepping down: best-of-2 runs a single pick, and a move at a usage limit stops with a note. Only when you have no frontier model installed (or allowed) does Best use the strongest one you have.
+
 ### Fixed
 
 - **Right-click menus no longer get cut off at the bottom of the window.** The task, project and queued-message menus measured themselves mid pop-in animation, while still scaled down, so near the bottom edge the last item ("Delete session") ended up below the fold. They now measure their real size and stay fully on-screen.
