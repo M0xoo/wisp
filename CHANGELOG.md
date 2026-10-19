@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-19
+
 ### Added
 
 - **Approve what an agent's permissions block, from wisp.** In Edits mode a coding agent used to be refused quietly when it wanted something its permissions don't cover, like `npm publish`, a write outside the project or a network call from Codex's sandbox. You only found out from a half-done report. Now:
@@ -312,7 +314,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/M0xoo/wisp/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/M0xoo/wisp/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/M0xoo/wisp/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/M0xoo/wisp/compare/v0.13.0...v0.14.0
