@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-19
+
 ### Added
 
 - **Auto picks the thinking level too.** Auto's options are now harness · model · thinking level (`claude:opus:high`), and the goal sets the range of levels: **Cheap** runs low (or minimal), **Balanced** the harness's default or medium, **Best** high or x-high. Within that range Auto learns which level works for each kind of task, the same way it learns models. A model's record at one level counts half at its other levels. Harder thinking starts out a little more likely to work and costs more, and then your outcomes decide. Compare runs and hand-overs use a different model, not just a different level. A rate limit rests the model at every level. A follow-up that changes the level counts as a miss for Auto's pick. Settings → Auto lists the levels it has a record for. Harnesses and models without levels run at their default, as before.
@@ -361,7 +363,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.18.1...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/M0xoo/wisp/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/M0xoo/wisp/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/M0xoo/wisp/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/M0xoo/wisp/compare/v0.16.0...v0.17.0
