@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Spell inputs look like the rest of wisp.** In Settings → Spells and the *Cast a spell* dialog the prompt box was a 32px input squeezed to one line with its resize grip over the text, and *Paste JSON or a link* was monospace; both sat flush against their panel's edge. They now use wisp's standard text box and input, inset like every other settings row.
+- **Settings → Spells casts from a prompt box like the launcher's.** The Cast button no longer sits beside the text box: the prompt is a rounded box with the launcher's focus ring and an Enter button in a bar under the text, it grows as you type, and a click anywhere on it puts the cursor in. Long example prompts wrap inside their chip instead of running over the next one.
 - **Space above "Needs you" is back.** When something needed you, the first feed group sat flush under the launcher's recipes row.
 - **Codex can use wisp's tools outside Full auto.** In Edits and Plan mode `codex exec` refused every MCP call ("requires approval, but approval policy is never"), so `ask_user` and the other wisp tools failed there. wisp's own MCP server is now pre-approved.
 - **A report whose last block lost a closing brace keeps that block.** Agents sometimes drop a `}` after a long string (a spell's script); wisp used to skip the block with a warning, and now closes it.
