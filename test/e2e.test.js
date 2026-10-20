@@ -517,3 +517,154 @@ test('opencode: a rejected permission retries with exactly that pattern allowed;
   assert.equal(after.turns.length, 1);
   assert.equal(after.turns[0].approval, 'denied');
 });
+
+// --- /btw: side questions answered next to the run, which carries on ---
+
+const btwOf = (x, id) => x.turns.flatMap((t) => t.btw || []).find((b) => b.id === id);
+const answered = (sid, id) =>
+  until(async () => {
+    const b = btwOf(await session(sid), id);
+    return b?.status !== 'running' && b;
+  });
+async function del(p) {
+  const r = await fetch(`${base}/api${p}`, { method: 'DELETE', headers: { 'content-type': 'application/json' } });
+  return { status: r.status, body: await r.json() };
+}
+
+for (const agent of ['claude', 'codex', 'opencode']) {
+  test(`${agent}: /btw mid-run is answered on a fork of the conversation; the run is not interrupted`, async () => {
+    process.env.FAKE_HANG = '1';
+    try {
+      const s = await api('/sessions', { prompt: 'long task', cwd: makeRepo(), agent, mode: 'edits' });
+      await until(async () => (await session(s.id)).agentSessionId);
+      const q = await api(`/sessions/${s.id}/btw`, { text: '/btw did you update the docs?' });
+      assert.equal(q.question, 'did you update the docs?');
+      assert.equal(q.status, 'running');
+      assert.equal(q.forked, true);
+
+      const b = await answered(s.id, q.id);
+      assert.equal(b.status, 'done', b.error);
+      assert.equal(b.answer, 'Side answer (forked): did you update the docs?');
+      const x = await session(s.id);
+      assert.equal(x.state, 'running', 'the run carries on');
+      assert.equal(x.turns.length, 1, 'no new turn');
+      assert.equal(x.turns[0].status, 'running');
+      assert.equal(x.agentSessionId, `${agent}-session-1`, 'the task keeps its own conversation');
+
+      const rec = records(RECORD, 'btw').at(-1);
+      assert.ok(rec.argv.includes(`${agent}-session-1`), 'forked from the running conversation');
+      if (agent === 'claude') {
+        assert.ok(rec.argv.includes('--fork-session') && rec.argv.includes('--no-session-persistence'));
+        assert.equal(rec.argv[rec.argv.indexOf('--permission-mode') + 1], 'plan', 'read-only');
+        assert.ok(!rec.argv.includes('--mcp-config'), 'no ask_user or delegate on the side');
+      }
+      if (agent === 'codex') assert.deepEqual(rec.argv.slice(rec.argv.indexOf('fork'), rec.argv.indexOf('fork') + 2), ['fork', 'codex-session-1']);
+      if (agent === 'opencode') assert.ok(rec.argv.includes('--fork') && rec.argv.includes('plan'));
+      await api(`/sessions/${s.id}/stop`, {});
+    } finally {
+      delete process.env.FAKE_HANG;
+    }
+  });
+}
+
+test('/btw through /reply (CLI, phone) is a side question too; it never answers a pending ask_user', async () => {
+  process.env.FAKE_HANG = '1';
+  try {
+    const s = await api('/sessions', { prompt: 'long task', cwd: makeRepo(), agent: 'claude' });
+    await until(async () => (await session(s.id)).agentSessionId);
+    const r = await api(`/sessions/${s.id}/reply`, { text: '/BTW   which file are you in?' });
+    assert.ok(r.btw && !r.interrupted && !r.queued);
+    assert.equal(r.btw.question, 'which file are you in?');
+    assert.equal((await answered(s.id, r.btw.id)).status, 'done');
+    const x = await session(s.id);
+    assert.equal(x.turns.length, 1);
+    assert.equal(x.queue.length, 0);
+    await api(`/sessions/${s.id}/stop`, {});
+  } finally {
+    delete process.env.FAKE_HANG;
+  }
+
+  const asking = await api('/sessions', { prompt: 'ASK before fixing add()', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  await until(async () => (await session(asking.id)).state === 'waiting');
+  const r = await api(`/sessions/${asking.id}/reply`, { text: '/btw why do you ask?' });
+  assert.ok(r.btw);
+  await answered(asking.id, r.btw.id);
+  const x = await session(asking.id);
+  assert.equal(x.state, 'waiting', 'still waiting on its own question');
+  assert.equal(x.ask.question, 'Proceed with the fix?');
+  await api(`/sessions/${asking.id}/answer`, { text: 'Yes' });
+  await settled(asking.id, 1);
+});
+
+test('/btw still being answered when a follow-up starts a new turn moves to that turn', async () => {
+  process.env.FAKE_HANG = '1';
+  process.env.FAKE_BTW = 'slow';
+  try {
+    const s = await api('/sessions', { prompt: 'long task', cwd: makeRepo(), agent: 'claude' });
+    await until(async () => (await session(s.id)).agentSessionId);
+    const q = await api(`/sessions/${s.id}/btw`, { text: 'how far along are you?' });
+    await api(`/sessions/${s.id}/reply`, { text: 'actually, do it differently' });
+    const moved = await until(async () => {
+      const x = await session(s.id);
+      return x.turns.length === 2 && x;
+    });
+    assert.equal(moved.turns[0].btw, undefined);
+    assert.deepEqual(moved.turns[1].btw.map((b) => b.id), [q.id]);
+    assert.equal((await answered(s.id, q.id)).status, 'done');
+    assert.equal((await session(s.id)).turns[1].btw[0].answer, 'Side answer (forked): how far along are you?');
+    await api(`/sessions/${s.id}/stop`, {});
+  } finally {
+    delete process.env.FAKE_HANG;
+    delete process.env.FAKE_BTW;
+  }
+});
+
+test('/btw on a harness that cannot fork gets the task written out; after the run it adds no turn', async () => {
+  const s = await api('/sessions', { prompt: 'fix add() in math.js', cwd: makeRepo(), agent: 'cursor' });
+  await settled(s.id, 1);
+  await new Promise((r) => setTimeout(r, 300)); // the CLI's exit lands after its result
+  const done = await session(s.id);
+  const q = await api(`/sessions/${s.id}/btw`, { text: 'what did you change?' });
+  assert.equal(q.forked, false);
+  const b = await answered(s.id, q.id);
+  assert.equal(b.answer, 'Side answer (digest): what did you change?');
+  const { stdin, argv } = records(RECORD, 'btw').at(-1);
+  assert.match(stdin, /## The task so far/);
+  assert.match(stdin, /\*\*User:\*\* fix add\(\) in math\.js/);
+  assert.match(stdin, /math\.js/);
+  assert.ok(!argv.includes('--resume'), 'a fresh run, not the task’s conversation');
+  const x = await session(s.id);
+  assert.equal(x.turns.length, 1);
+  assert.equal(x.state, done.state);
+  assert.equal(x.updatedAt, done.updatedAt, 'the card stays where it is in the feed');
+});
+
+test('/btw: a CLI that cannot fork falls back to the written-out task; dismiss stops and drops it', async () => {
+  const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'claude' });
+  await settled(s.id, 1);
+  process.env.FAKE_BTW = 'nofork';
+  try {
+    const q = await api(`/sessions/${s.id}/btw`, { text: 'are the tests green?' });
+    assert.equal(q.forked, true);
+    const b = await answered(s.id, q.id);
+    assert.equal(b.status, 'done', b.error);
+    assert.equal(b.forked, false);
+    assert.equal(b.answer, 'Side answer (digest): are the tests green?');
+  } finally {
+    delete process.env.FAKE_BTW;
+  }
+
+  process.env.FAKE_BTW = 'slow';
+  try {
+    const q = await api(`/sessions/${s.id}/btw`, { text: 'never mind' });
+    assert.equal((await del(`/sessions/${s.id}/btw?item=${q.id}`)).status, 200);
+    assert.equal(btwOf(await session(s.id), q.id), undefined);
+    await new Promise((r) => setTimeout(r, 3500)); // its run would have answered by now
+    assert.equal(btwOf(await session(s.id), q.id), undefined, 'a dismissed question stays gone');
+    assert.equal((await del(`/sessions/${s.id}/btw?item=${q.id}`)).status, 404);
+  } finally {
+    delete process.env.FAKE_BTW;
+  }
+
+  await assert.rejects(api(`/sessions/${s.id}/btw`, { text: '/btw   ' }), /Type your question after \/btw/);
+});

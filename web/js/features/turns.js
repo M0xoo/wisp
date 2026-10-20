@@ -10,6 +10,7 @@ import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toastError } from '../ui/toast.js';
 import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
+import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
 import { expand, fetchFull, scheduleRefetch } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
@@ -165,6 +166,7 @@ export function renderBody(id, { fresh }) {
     if (turnsEl.children[i] !== node) turnsEl.insertBefore(node, turnsEl.children[i] || null);
   });
   for (const [tid, v] of n.turnNodes) if (!keep.has(tid)) (v.node.remove(), n.turnNodes.delete(tid));
+  paintBtw(id); // side questions update in place, so they don't re-render their turn
 
   updateDock(id);
   if (dock?.isConnected) scrollByPx(dock.getBoundingClientRect().top - dockTop);
@@ -261,6 +263,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
     if (subs) node.append(subs);
     node.append(renderTrail(s, t, tx));
   }
+  node.append(el('<div class="btw-list"></div>')); // side questions asked during this turn (btw.js)
   return node;
 }
 
@@ -290,6 +293,10 @@ function renderWorking(s, t, tx) {
       </div>
     </div>`);
   if (waiting) $('.ask-slot', node).append(renderAskCard(s));
+  // The /btw tip goes after Show all activity. The transcript's panel has none: it leads the row with Stop.
+  const tip = btwTip(s.id);
+  if (tip && tx) $('.w-actions', node).prepend(tip);
+  else if (tip) $('.peek', node).after(tip);
   const ticker = $('.ticker', node);
   if (ticker)
     t.activity

@@ -43,7 +43,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | ❓ **Live questions** | Agents get an `ask_user` tool, so they can pause mid-run. Your answer goes straight back to the running agent. |
 | 🧾 **Real diffs** | Edits come from the agent's own tool calls, so `diff` blocks show what actually changed. |
 | 📥 **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
-| 💬 **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. |
+| 💬 **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. To ask without interrupting, start with `/btw` (`/btw did you update the docs too?`): a separate read-only run answers on a copy of the conversation, and the agent keeps working. |
 | 🔎 **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
 | ✨ **Auto** | The default harness: wisp picks the harness, model and thinking level per task from what worked before, and learns from merges, 👍 / 👎 and follow-ups. See [Auto](#auto). |
 | 🤖 **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, or Grok Build. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
@@ -131,6 +131,7 @@ wisp ls --state running,waiting   # list sessions
 wisp show <id>                    # state + latest presentation
 wisp wait <id>                    # until it finishes or asks you something
 wisp reply <id> "also do X"       # follow up (answers a pending question; --mode, --agent, --model to switch)
+wisp btw <id> "did you do X?"     # ask on the side without interrupting the run; prints the answer
 wisp stop <id>
 wisp ship <id> [--draft]          # commit, push and open a PR for a worktree task
 wisp merge <id>                   # squash-merge its PR, fast-forward your local main

@@ -98,12 +98,16 @@
 .w-panel.tx-panel { padding: 10px 14px; gap: 12px; }
 .tx-panel .w-orb { padding-top: 0; align-self: flex-start; }
 .tx-panel .w-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
-.tx-panel .w-status { grid-column: 1; grid-row: 1; margin: 0; }
+.tx-panel .w-status { grid-column: 1; grid-row: 1; flex-wrap: wrap; row-gap: 2px; margin: 0; }
+.tx-panel .w-status > * { white-space: nowrap; }
 .tx-panel .w-actions { grid-column: 2; grid-row: 1; margin: 0; }
 .tx-panel .w-body > :not(.w-status, .w-actions) { grid-column: 1 / -1; }
 .tx-panel .ask-slot:not(:empty) { margin-top: 10px; }
 
 @media (max-width: 720px) {
+  /* The /btw tip doesn't fit beside the status: the row with it and Stop goes under it. */
+  .tx-panel .w-body:has(.w-tip) { display: block; }
+  .tx-panel .w-body:has(.w-tip) .w-actions { margin-top: 8px; }
   .tx-title { display: none; }
   .tx-cmd { display: none; }
   .tx-msg { padding-right: 8px; }

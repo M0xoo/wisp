@@ -9,6 +9,8 @@
 //                                                  null = can't inject MCP, ask via a question block
 //     approveTool?: string                         its permission prompts go to wisp's `approve` MCP
 //                                                  tool (live approval); omit if it can't route them
+//     fork?: true                                  run({ resumeId, fork: true }) works on a copy of
+//                                                  that conversation, leaving it as it is (/btw)
 //     permission?(tool, input, cwd): { tool, action, detail, why? }   what a live approval is about
 //     detect(): Promise<{ available, version?, error?, models? }>   models overrides the static list
 //     resumeCommand({ resumeId, model, effort }): string[]   argv to continue the session interactively

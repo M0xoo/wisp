@@ -19,6 +19,9 @@
 //                the first reply a full presentation (a finished task that left a dev server up)
 //   FAKE_ORPHANS=1  claude: on --resume, first answer the last run's stopped background tasks with
 //                an empty zero-turn result, as the real CLI does
+//   FAKE_BTW     a /btw side question (recorded as btw.jsonl) answers at once, whatever else is set;
+//                `nofork` fails a forked one the way a CLI without fork support does, `slow`
+//                answers after 3s; FAKE_BTW_ANSWER is the answer (screenshots)
 // A prompt with ALSO (a task across several folders) makes claude fix math.js in each --add-dir too.
 // A prompt with NARRATE makes claude say a long message and run a command that prints something
 // (what the transcript shows).
@@ -81,15 +84,44 @@ const stdin =
 
 // A retro run (wisp's learner): recorded on its own, no tools, just the JSON reply.
 const retro = name === 'claude' && !!flag('--append-system-prompt')?.includes('# wisp retro');
+// A /btw side question (server/btw.js): recorded on its own too, answered in plain text.
+const btw = stdin.includes('# wisp btw');
 
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT }) + '\n');
 }
 
 if (retro) {
   out({ type: 'system', subtype: 'init', session_id: 'retro-session' });
   out({ type: 'result', subtype: 'success', is_error: false, result: process.env.FAKE_RETRO || '{}', session_id: 'retro-session' });
+  process.exit(0);
+}
+
+if (btw) {
+  const forked = name === 'claude' ? argv.includes('--fork-session') : name === 'codex' ? argv.includes('fork') : name === 'opencode' ? argv.includes('--fork') : false;
+  if (forked && process.env.FAKE_BTW === 'nofork') {
+    process.stderr.write(`error: unknown option '${name === 'codex' ? 'fork' : '--fork-session'}'\n`);
+    process.exit(1);
+  }
+  if (process.env.FAKE_BTW === 'slow') await new Promise((r) => setTimeout(r, 3000));
+  const question = stdin.split('## Side question\n\n').pop().trim();
+  const text = process.env.FAKE_BTW_ANSWER || `Side answer (${forked ? 'forked' : 'digest'}): ${question}`;
+  const id = `${name}-btw`;
+  if (name === 'codex') {
+    out({ type: 'thread.started', thread_id: id });
+    out({ type: 'item.completed', item: { id: 'b1', type: 'agent_message', text } });
+    out({ type: 'turn.completed', usage: { input_tokens: 4, cached_input_tokens: 0, output_tokens: 2 } });
+  } else if (name === 'opencode') {
+    const base = { sessionID: id, timestamp: Date.now() };
+    out({ ...base, type: 'step_start', part: { type: 'step-start', messageID: 'b1' } });
+    out({ ...base, type: 'text', part: { type: 'text', messageID: 'b1', text } });
+    out({ ...base, type: 'step_finish', part: { type: 'step-finish', messageID: 'b1', tokens: { input: 4, output: 2 }, cost: 0 } });
+  } else {
+    // claude and cursor-agent share the shape: an init, then the result.
+    out({ type: 'system', subtype: 'init', session_id: id });
+    out({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: id, duration_ms: 4, num_turns: 1, total_cost_usd: 0.002 });
+  }
   process.exit(0);
 }
 

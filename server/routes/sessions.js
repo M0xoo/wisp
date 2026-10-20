@@ -1,10 +1,11 @@
 // Sessions: list and launch, one session (read, edit, delete), and what can be done to it:
-// wait, presentation, reply, queue, answer, revert, rollback, exec, takeover, stop, file.
+// wait, presentation, reply, btw, queue, answer, revert, rollback, exec, takeover, stop, file.
 // Ids of the form <id>@<machine> are passed through to that machine's wisp (proxy.js).
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
+import { btwQuestion } from '../btw.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
 import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree } from '../git.js';
@@ -117,6 +118,7 @@ export function register(r, app) {
     '/sessions/:id',
     one(async (c, s) => {
       runner.stop(s);
+      runner.stopSides(s);
       await runner.live.get(s.id)?.done;
       cleanupCheckpoints(workdir(s), s.id);
       for (const cid of Object.values(s.children || {})) {
@@ -192,6 +194,21 @@ export function register(r, app) {
       const run = agent !== undefined || model !== undefined || effort !== undefined ? await followUpRun(s, { agent, model, effort }) : undefined;
       c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run));
     }),
+  );
+
+  // A side question (/btw): answered next to the run, which carries on. text may keep its /btw.
+  r.route(
+    'POST',
+    '/sessions/:id/btw',
+    one(async (c, s) => {
+      const { text, attachments } = await c.body();
+      c.send(200, await launcher.askBtw(s, btwQuestion(text) ?? String(text || ''), app.uploads.resolve(attachments)));
+    }),
+  );
+  r.route(
+    'DELETE',
+    '/sessions/:id/btw',
+    one((c, s) => (runner.dropBtw(s, c.query.get('item') || '') ? c.send(200, { ok: true }) : c.send(404, { error: 'No such side question.' }))),
   );
 
   r.route(

@@ -21,7 +21,8 @@ export function missedTurns(session, agent, resumeId) {
   return missed.some((t) => (t.agent || agent) !== agent) ? missed : [];
 }
 
-function turnText(t, n, name) {
+// One earlier turn as markdown: the request, its report and the files it edited. /btw uses it too.
+export function turnText(t, n, name) {
   const blocks = (t.presentation?.blocks || []).filter((b) => KEEP.has(b?.type));
   const report = t.status === 'running' ? '' : blocksToMarkdown(blocks, t) || clip(t.raw, 1500);
   const files = (t.changes || []).filter((c) => !c.reverted).map((c) => `\`${c.file}\``);

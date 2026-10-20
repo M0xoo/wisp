@@ -32,6 +32,7 @@ export default {
   name: 'Claude Code',
   // Asks wisp before a tool call its permission mode won't allow on its own (Edits mode).
   approveTool: 'mcp__wisp__approve',
+  fork: true, // run({ resumeId, fork }) answers on a copy of the conversation (/btw)
   models: [
     { id: '', label: 'Default', hint: 'Whatever Claude Code is set to' },
     { id: 'opus', label: 'Opus', hint: 'Most capable, for hard problems' },
@@ -57,7 +58,8 @@ export default {
   // Returns { stop(), done: Promise<void> }. Everything else is reported through onEvent.
   // grants: --allowedTools rules (Bash(npm publish)) for what the user allowed after a denial.
   // dirs: the task's other folders, which it may read and edit like cwd.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
+  // fork: resume a throwaway copy of resumeId's conversation, leaving the original as it is.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
     const args = [
       '-p',
       '--output-format', 'stream-json',
@@ -68,6 +70,7 @@ export default {
     if (effort) args.push('--effort', effort);
     if (chromeEnabled()) args.push('--chrome');
     if (resumeId) args.push('--resume', resumeId);
+    if (resumeId && fork) args.push('--fork-session', '--no-session-persistence');
     if (Object.keys(mcpServers).length) args.push('--mcp-config', JSON.stringify({ mcpServers }));
     // In Edits mode, what would prompt goes to wisp's approve tool (the user decides) instead of being denied.
     if (mcpServers.wisp && mode === 'edits') args.push('--permission-prompt-tool', this.approveTool);

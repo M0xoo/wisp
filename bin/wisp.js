@@ -4,7 +4,7 @@
 //   wisp                       open the wisp desktop app (or focus the running one)
 //   wisp "fix the tests"       launch a wisp in the current folder
 //   wisp add [path]            add a folder as a project (default: current folder)
-//   wisp ls | show | wait | reply | stop    script sessions (see --help)
+//   wisp ls | show | wait | reply | btw | stop    script sessions (see --help)
 //   wisp run <recipe> [values…]             run a saved recipe
 //   wisp mcp                   stdio MCP server, so other agents and editors can use wisp
 //   wisp skill [install]       the agent skill that teaches other agents to use wisp
@@ -26,6 +26,7 @@ const HELP = `usage:
   wisp wait <id>                block until it finishes or asks you something
   wisp reply <id> "text"        follow up (answers a pending question)   (--queue  --mode plan|edits|auto
                                 --agent ID  --model ID  --effort LEVEL: switch harness / model from here on)
+  wisp btw <id> "question"      ask on the side without interrupting the run; prints the answer
   wisp stop <id>                stop a run
   wisp ship <id>                commit, push and open a PR for a worktree session   (--draft)
   wisp merge <id>               squash-merge its PR and sync your local base branch
@@ -40,7 +41,7 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 
-const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage']);
+const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage']);
 const argv = process.argv.slice(2);
 const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
 const words = [];
@@ -80,7 +81,7 @@ for (let i = 0; i < argv.length; i++) {
 // Newer commands are also common first words of a task ("ship the docs", "usage of X"), so they
 // only count when the rest fits; `wisp run` falls back to a task when no recipe has that name.
 const SESSION_ID = /^[a-f0-9]{12}$/;
-const FITS = { ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, run: (w) => w.length > 1 };
+const FITS = { ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), btw: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, run: (w) => w.length > 1 };
 const command = literal !== 'task' && COMMANDS.has(words[0]) && (FITS[words[0]]?.(words) ?? true) ? words[0] : null;
 const cwd = flags.cwd || process.cwd();
 const die = (msg) => {
@@ -108,6 +109,7 @@ async function scripted(cmd, args) {
   const wisp = await WispClient.connect({ port: argv.some((a) => a === '--port' || a === '-p') ? flags.port : undefined });
   const out = (v, text) => console.log(flags.json ? JSON.stringify(v, null, 2) : text);
   const need = (v, what) => v || die(`${what} required — see wisp --help`);
+  const btw = (b) => out(b, b.status === 'done' ? b.answer : b.status === 'running' ? '  … still answering; it will show on the card' : `  ! ${b.error}`);
   const show = async (id, summary) => {
     const p = await wisp.presentation(id);
     const s = summary || (await wisp.sessions()).find((x) => x.id === id);
@@ -135,8 +137,13 @@ async function scripted(cmd, args) {
     case 'reply': {
       const id = need(args[0], 'session id');
       const r = await wisp.reply(id, need(args.slice(1).join(' ').trim(), 'text'), { queue: flags.queue, mode: flags.mode || undefined, agent: flags.agent || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined });
+      if (r.btw) return btw(await wisp.btwAnswer(id, r.btw.id)); // "/btw …": a side question
       if (!flags.wait) return out(r, r.answered ? '  ✓ answered' : r.interrupted ? '  ✓ interrupted; resuming with your message' : r.queued ? '  ✓ queued' : '  ✓ sent');
       return show(id, await wisp.wait(id));
+    }
+    case 'btw': {
+      const id = need(args[0], 'session id');
+      return btw(await wisp.btw(id, need(args.slice(1).join(' ').trim(), 'question')));
     }
     case 'stop':
       return out(await wisp.stop(need(args[0], 'session id')), '  ✓ stopped');

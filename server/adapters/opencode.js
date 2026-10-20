@@ -27,6 +27,7 @@ export default {
   id: 'opencode',
   name: 'opencode',
   askTool: 'wisp_ask_user',
+  fork: true, // run({ resumeId, fork }) answers on a copy of the session (/btw)
   models: [{ id: '', label: 'Default', hint: 'Whatever opencode is set to' }],
 
   resumeCommand({ resumeId, model }) {
@@ -67,7 +68,8 @@ export default {
   },
 
   // grants: { permission, patterns } the user allowed after `run` rejected them, for this turn.
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
+  // fork: continue a copy of resumeId's session instead of the session itself (/btw).
+  run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     // Errors to stderr: the only place a rate limit shows up (see RATE_LIMITED).
     const args = ['run', '--format', 'json', '--print-logs', '--log-level', 'ERROR'];
@@ -76,6 +78,7 @@ export default {
     if (model) args.push('--model', model);
     if (model && effort) args.push('--variant', effort);
     if (resumeId) args.push('--session', resumeId);
+    if (resumeId && fork) args.push('--fork');
     for (const a of attachments) args.push('--file', a.path);
 
     // Inject the ask_user server through inline config, merged over the user's own.
