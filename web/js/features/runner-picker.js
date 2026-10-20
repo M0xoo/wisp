@@ -1,10 +1,14 @@
 import { esc } from '../md.js';
+import { api } from '../core/api.js';
+import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { S, setAgents } from '../core/state.js';
 import { popover } from '../ui/popover.js';
+import { toast, toastError } from '../ui/toast.js';
 import { placeName } from './places.js';
 import { AUTO, AUTO_GOALS, effortLabel, effortsFor, harnessesAt, harnessLogo } from './runners.js';
 import { openSettings } from './settings.js';
+import { copySetupCommand, INSTALLABLE, installHarness, setupCommand, setupDocs, setupTip, setupTitle } from './setup.js';
 
 // One popover for all three choices: harnesses on the left, the focused harness's models on the
 // right, and its thinking levels underneath. Clicking (or arrowing to) a harness previews its
@@ -14,9 +18,10 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   const open = $('.picker');
   if (open) return open.close();
   const agents = places ? harnessesAt(places, { auto }) : auto ? [AUTO, ...S.agents] : S.agents;
+  const remote = places?.length > 1 || !!places?.[0];
   const sub = (a) => {
     if (a.id === 'auto') return 'Picks harness and model for you';
-    if (!a.available) return places?.length > 1 || places?.[0] ? 'Not installed there' : 'Not installed';
+    if (!a.available) return remote ? 'Not installed there' : 'Not installed';
     const models = (a.models || []).length > 1 ? `${a.models.length - 1} models` : 'Default model';
     return a.missing?.length ? `Not on ${a.missing.map(placeName).join(', ')}` : models;
   };
@@ -35,7 +40,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
         <div class="pk-head">Harness</div>
         ${agents
           .map(
-            (a) => `<button class="pk-h${a.available ? '' : ' off'}" role="option" data-id="${esc(a.id)}" ${a.available ? '' : 'disabled'}>
+            (a) => `<button class="pk-h${a.available ? '' : ' off'}" role="option" data-id="${esc(a.id)}" ${a.available ? '' : `aria-disabled="true" title="${esc(setupTitle(a))}"`}>
               <span class="pk-logo">${harnessLogo(a.id)}</span>
               <span class="pk-text"><b>${esc(a.name)}</b><small${a.missing?.length ? ' class="warn"' : ''}>${esc(sub(a))}</small></span>
               ${a.id === agent ? '<span class="pk-dot" title="In use"></span>' : ''}
@@ -86,6 +91,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
     const models = a?.models || [{ id: '', label: 'Default' }];
     const current = focusAgent === agent ? model : savedModel(focusAgent);
     input.placeholder = `Search ${a?.name || ''} models`;
+    if (a && !a.available) return paintSetup(a);
     if (a?.id === 'auto') {
       list.innerHTML = `<div class="pk-group"><div class="pk-ghead">Goal</div>${AUTO_GOALS.map((g) => `<button class="pk-m${g.id === current ? ' on' : ''}" role="option" aria-selected="${g.id === current}" data-id="${g.id}"><span class="pk-text"><b>${g.label}</b><small>${g.hint}</small></span>${icon('check', 'pk-check')}</button>`).join('')}</div><p class="pk-note">wisp picks the harness and model for each task from what worked before, and learns from how it went. ${'<a href="#" class="pk-auto-more">How Auto picks</a>'}</p><div class="pk-empty" hidden>No models match</div>`;
       $('.pk-search', node).hidden = true;
@@ -120,6 +126,51 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
     filter();
     paintEffort();
   };
+  // A harness that isn't installed: how to get it, in place of its models.
+  const paintSetup = (a) => {
+    $('.pk-search', node).hidden = true;
+    seg.hidden = true;
+    const canInstall = !remote && INSTALLABLE.has(a.id);
+    list.innerHTML = `<div class="pk-setup">
+      <b>${esc(a.name)} isn’t installed${remote ? ' there' : ''}</b>
+      <p>${esc(setupTip(a))}</p>
+      ${a.setup?.command && !canInstall ? setupCommand(a.setup.command) : ''}
+      <div class="pk-setup-actions">
+        ${canInstall ? `<button class="primary sm pk-install">Install ${esc(a.name)}</button>` : ''}
+        ${setupDocs(a)}
+        <button class="ghost sm pk-recheck" title="Look for harnesses again">${icon('replay')}<span>Re-check</span></button>
+      </div>
+    </div>`;
+    const c = $('.setup-cmd', list);
+    if (c) c.onclick = () => {
+      copySetupCommand(c);
+    };
+    const inst = $('.pk-install', list);
+    if (inst) inst.onclick = () => {
+      close();
+      installHarness(a.id);
+    };
+    $('.pk-recheck', list).onclick = async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.classList.add('busy');
+      try {
+        setAgents(await api('/agents/recheck', { method: 'POST', body: {} }));
+        $('#launcher')?.placesChanged?.();
+        bus.emit('agents');
+        const found = S.agents.find((x) => x.id === a.id)?.available;
+        if (found) {
+          close();
+          toast(`<b>${esc(a.name)}</b> found`);
+        } else if (node.isConnected) toast(`Still no ${esc(a.name)}. Install it, sign in, then re-check.`);
+      } catch (err) {
+        toastError(err);
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('busy');
+      }
+    };
+  };
   const rows = () => $$('.pk-m', list).filter((b) => !b.hidden);
   const filter = () => {
     const q = input.value.trim().toLowerCase();
@@ -145,7 +196,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   // Picking a harness applies it straight away with the model and level it shows as selected.
   const useAgent = (id) => {
     preview(id);
-    if (id === agent) return;
+    if (id === agent || !agents.find((x) => x.id === id)?.available) return;
     markInUse(id);
     agent = id;
     model = savedModel(id);
@@ -171,7 +222,6 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   };
   const keys = (e) => {
     const inSide = sideRows.includes(document.activeElement);
-    const live = sideRows.filter((b) => !b.disabled);
     const segBtns = $$('button', seg);
     const inSeg = segBtns.includes(document.activeElement);
     // Tab hops from the model list to the thinking levels and back; anywhere else it leaves.
@@ -191,7 +241,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
       e.preventDefault();
       e.stopPropagation();
       const d = e.key === 'ArrowDown' ? 1 : -1;
-      if (inSide) preview(step(live, d)?.dataset.id);
+      if (inSide) preview(step(sideRows, d)?.dataset.id); // not-installed ones too: they show how to get them
       else step(rows(), d);
     } else if (e.key === 'ArrowLeft' && document.activeElement !== input) {
       e.preventDefault();

@@ -19,7 +19,7 @@ import { notifyOn } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
 import { machinesSummary } from './places.js';
 import { AUTO_GOALS, harnessLogo } from './runners.js';
-import { INSTALLABLE, installHarness, isInstalling } from './setup.js';
+import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupCommand, setupDocs, setupTip } from './setup.js';
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
@@ -156,11 +156,13 @@ export function openSettings(opts) {
         // opencode: wisp can install it (free models, no account), so its row offers that.
         const canInstall = !a.available && INSTALLABLE.has(a.id);
         const busy = isInstalling(a.id);
+        // Not found: this OS's setup tip, with the command to copy unless wisp installs it itself.
         const desc = a.available
-          ? [a.version, n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
-          : busy ? 'Installing into ~/.wisp/tools…' : canInstall ? 'Install it here: free models, no account needed' : `Install the ${a.name} CLI and sign in, then re-check`;
+          ? esc([a.version, n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))
+          : busy ? 'Installing into ~/.wisp/tools…' : `${esc(setupTip(a))}${a.setup?.command && !canInstall ? setupCommand(a.setup.command) : ''}`;
         const install = canInstall ? `<button class="ghost sm" data-install="${esc(a.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Installing…' : 'Install'}</button>` : '';
-        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, esc(desc), `${install}<span class="sx-state ${a.available ? 'ok' : 'bad'}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`);
+        const docs = a.available ? '' : setupDocs(a);
+        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}<span class="sx-state ${a.available ? 'ok' : 'bad'}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`);
       }).join('')
       : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>';
     const missing = S.agents.filter((a) => !a.available).length;
@@ -174,6 +176,8 @@ export function openSettings(opts) {
   bus.on('agents', paintAgents, { node });
   bus.on('install', paintAgents, { node });
   $('.sx-agents', node).onclick = (e) => {
+    const c = e.target.closest('[data-copy]');
+    if (c) return copySetupCommand(c);
     const b = e.target.closest('[data-install]');
     if (b) installHarness(b.dataset.install);
   };

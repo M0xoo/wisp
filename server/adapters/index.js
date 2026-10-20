@@ -13,6 +13,7 @@
 //                                                  that conversation, leaving it as it is (/btw)
 //     permission?(tool, input, cwd): { tool, action, detail, why? }   what a live approval is about
 //     detect(): Promise<{ available, version?, error?, models? }>   models overrides the static list
+//     setup?(platform): { tip, command?, url? }    how to get it on that OS, sent while it isn't found
 //     resumeCommand({ resumeId, model, effort }): string[]   argv to continue the session interactively
 //     run({ prompt, cwd, resumeId, mode, model, effort, systemPrompt, grants, onEvent }): { stop(), done: Promise }
 //                                                  grants: `rule`s from its own blocked events the
@@ -52,6 +53,7 @@ function checked(a) {
     a.askTool !== null && a.askTool !== undefined && typeof a.askTool !== 'string' && 'askTool',
     a.approveTool !== undefined && (typeof a.approveTool !== 'string' || typeof a.permission !== 'function') && 'approveTool + permission()',
     typeof a.detect !== 'function' && 'detect()',
+    a.setup !== undefined && typeof a.setup !== 'function' && 'setup()',
     typeof a.run !== 'function' && 'run()',
     a.resumeCommand !== undefined && typeof a.resumeCommand !== 'function' && 'resumeCommand()',
   ].filter(Boolean);
@@ -74,7 +76,7 @@ export async function listAgents({ fresh = false } = {}) {
       // Only a hit is cached: a CLI installed while wisp is running shows up on the next call.
       if (!found.available) detected.delete(a.id);
       // delegates: can lead a team of subagents (needs wisp's MCP server injected).
-      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], delegates: a.askTool !== null, ...found };
+      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], delegates: a.askTool !== null, ...found, ...(!found.available && a.setup && { setup: a.setup() }) };
     }),
   );
 }

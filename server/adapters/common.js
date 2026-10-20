@@ -18,6 +18,19 @@ export function detectVersion(bin, args = ['--version']) {
   });
 }
 
+// Detect `bin`, or when it doesn't run, the first copy in fallbacks() that does: CLIs that live
+// off PATH (an install wisp made, a desktop app's bundled CLI). Resolves detectVersion's answer
+// plus the `bin` that answered. An explicit WISP_*_BIN override (`pinned`) is never second-guessed.
+export async function detectFirst(bin, fallbacks, pinned = false) {
+  const found = await detectVersion(bin);
+  if (found.available || pinned) return { ...found, bin };
+  for (const b of fallbacks().filter((f) => fs.existsSync(f))) {
+    const there = await detectVersion(b);
+    if (there.available) return { ...there, bin: b };
+  }
+  return { ...found, bin };
+}
+
 // Run `bin args` and resolve with stdout, or '' on any failure. Used for model discovery.
 export function quietOutput(bin, args, timeout = 15_000) {
   return new Promise((resolve) => {
