@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'CHANGELOG.md'
+      - 'scripts/site.mjs'
+      - 'server/adapters/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -25,9 +28,23 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # sitemap lastmod comes from each page's last commit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/site.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
           path: docs
       - id: deployment
         uses: actions/deploy-pages@v4
+      # Tell Bing, Yandex and the other IndexNow engines what's new (Google reads the sitemap).
+      - name: Ping IndexNow
+        if: github.event_name == 'push'
+        continue-on-error: true
+        run: |
+          urls=$(grep -o '<loc>[^<]*' docs/sitemap.xml | sed 's/<loc>//' | jq -R . | jq -sc .)
+          curl -fsS -X POST https://api.indexnow.org/indexnow -H 'Content-Type: application/json; charset=utf-8' \
+            -d "{\"host\":\"trywisp.dev\",\"key\":\"c74d7dc2f8b011de1d62484d8507a500\",\"keyLocation\":\"https://trywisp.dev/c74d7dc2f8b011de1d62484d8507a500.txt\",\"urlList\":$urls}"

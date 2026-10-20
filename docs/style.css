@@ -417,6 +417,86 @@ h1 .off.fly { animation: off-fly 0.9s cubic-bezier(0.5, 0, 0.75, 0) both; }
 .foot a { color: var(--muted); text-decoration: none; }
 .foot a:hover { color: var(--ink); }
 
+/* ---------- doc pages (scripts/site.mjs: agents/, integrations, changelog, 404) ---------- */
+.links a[aria-current='page'] { color: var(--ink); }
+.doc { padding: 40px 0 96px; }
+.doc > * { max-width: 780px; }
+.doc h1 { display: flex; align-items: center; gap: 14px; font-size: clamp(32px, 4.6vw, 50px); line-height: 1.06; font-weight: 680; letter-spacing: -0.04em; }
+.doc h1 img { flex: none; }
+.doc h2 { font-size: clamp(24px, 2.8vw, 30px); line-height: 1.15; letter-spacing: -0.03em; margin: 56px 0 14px; scroll-margin-top: 80px; }
+.doc h3 { font-size: 19px; letter-spacing: -0.02em; margin: 32px 0 10px; scroll-margin-top: 80px; }
+.doc h4 { font-size: 15px; margin: 24px 0 8px; }
+.doc p, .doc li, .doc dd { color: var(--ink-2); }
+.doc p + p, .doc p + .table, .doc .table + p, .doc pre + p { margin-top: 14px; }
+.doc a:not(.btn):not(.cmd) { color: var(--accent); text-decoration: none; }
+.doc a:not(.btn):not(.cmd):hover { text-decoration: underline; }
+.doc code { white-space: normal; overflow-wrap: break-word; }
+.doc > .wide { max-width: none; }
+.doc > .wide > p { max-width: 780px; }
+.doc pre { margin: 16px 0; padding: 16px 18px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.doc pre code { padding: 0; background: none; white-space: pre; overflow-wrap: normal; font-size: inherit; }
+.crumbs ol { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 28px; padding: 0; list-style: none; font: 13px var(--mono); color: var(--muted); }
+.crumbs li + li::before { content: '/'; margin-right: 6px; color: var(--faint); }
+.doc .crumbs a { color: var(--muted); }
+.doc-head { margin-bottom: 36px; }
+.doc-lede { margin-top: 18px; font-size: 19px; line-height: 1.55; color: var(--ink-2); }
+.doc-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.doc .fine { margin-top: 12px; font-size: 13px; }
+.doc-shot { max-width: 1000px; margin: 0 0 8px; overflow: hidden; border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow); }
+.doc-list, .doc-steps { margin: 0; padding-left: 22px; }
+.doc-list li, .doc-steps li { margin: 10px 0; }
+.doc-steps .cmd { display: flex; width: fit-content; margin-top: 10px; }
+.doc-dl { margin: 0 0 18px; border-top: 1px solid var(--line); }
+.doc-dl > div { display: grid; grid-template-columns: 180px 1fr; gap: 20px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.doc-dl dt { font-weight: 600; }
+.doc-dl dd { margin: 0; }
+.table { margin: 16px 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.table table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.table th, .table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.table tr:last-child > * { border-bottom: 0; }
+.table thead th { font-weight: 600; background: var(--bg-2); }
+.doc .matrix { min-width: 860px; font-size: 13.5px; }
+.matrix tbody th { font-weight: 600; white-space: nowrap; }
+.matrix .yes { color: var(--ink); font-weight: 600; }
+.doc .agent-cards { max-width: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 0 0 24px; padding: 0; list-style: none; }
+.agent-cards a { display: flex; flex-direction: column; gap: 6px; height: 100%; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-decoration: none; transition: border-color 0.15s; }
+.doc .agent-cards a:hover { border-color: var(--faint); text-decoration: none; }
+.agent-name { display: flex; align-items: center; gap: 10px; font: 650 18px/1.2 var(--display); color: var(--ink); }
+.agent-cards .muted { font-size: 13.5px; }
+.agent-more { margin-top: 6px; font-size: 14px; }
+.agent-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
+.doc .agent-grid a { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 14.5px; font-weight: 550; }
+.doc .agent-grid a:hover { border-color: var(--faint); text-decoration: none; }
+.toc { margin: 0 0 40px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.toc .eyebrow { margin-bottom: 10px; color: var(--muted); }
+.toc ul { columns: 2; gap: 24px; margin: 0; padding: 0; list-style: none; font-size: 14.5px; }
+.toc li { padding: 3px 0; break-inside: avoid; }
+.prose ul, .prose ol { padding-left: 22px; }
+.prose li { margin: 8px 0; }
+.prose li > ul { margin-top: 6px; }
+.prose blockquote { margin: 16px 0; padding: 4px 0 4px 16px; border-left: 1px solid var(--line-2); }
+.release { padding-bottom: 8px; }
+.release h2 { display: flex; align-items: baseline; gap: 14px; padding-top: 32px; border-top: 1px solid var(--line); }
+.release:first-child h2 { margin-top: 8px; padding-top: 0; border-top: 0; }
+.doc .release h2 a { color: var(--ink); }
+.release time { font: 14px var(--mono); letter-spacing: 0; color: var(--muted); }
+.strip li a { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }
+.strip li a:hover { color: var(--ink); }
+@media (max-width: 960px) {
+  .docpage .links { display: flex; gap: 16px; margin-left: 0; }
+}
+@media (max-width: 560px) {
+  .docpage .nav-in { gap: 16px; }
+  .docpage .links a[href='/cloud.html'] { display: none; }
+}
+@media (max-width: 760px) {
+  .doc .agent-cards { grid-template-columns: 1fr; }
+  .doc-dl > div { grid-template-columns: 1fr; gap: 4px; }
+  .toc ul { columns: 1; }
+  .doc h1 { font-size: 32px; }
+  .doc-lede { font-size: 17px; }
+}
+
 /* ---------- motion ---------- */
 @media (prefers-reduced-motion: no-preference) {
   .js .rise { opacity: 0; translate: 0 18px; transition: opacity 0.7s ease, translate 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }

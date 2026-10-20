@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# wisp installer. Served from https://mokh.xyz/install.sh:
+# wisp installer. Served from https://trywisp.dev/install.sh:
 #
-#   curl -fsSL https://mokh.xyz/install.sh | bash
+#   curl -fsSL https://trywisp.dev/install.sh | bash
 #
 # It checks for Node.js 20+ and npm, installs wisp-agents globally from npm, and confirms that
 # the `wisp` command is on PATH. Set WISP_VERSION to pin a release (default: latest); it goes on
-# the bash side of the pipe: curl -fsSL https://mokh.xyz/install.sh | WISP_VERSION=0.21.0 bash
+# the bash side of the pipe: curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.21.0 bash
 set -euo pipefail
 
 PACKAGE="wisp-agents"

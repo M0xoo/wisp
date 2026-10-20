@@ -17,6 +17,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **No folder is picked by default when wisp has no folders.** With no projects added, the launcher now starts on **No folder**, so a prompt runs right away in an empty scratch directory instead of opening the folder picker. Adding a folder picks it, as before.
 
+- **The website is now [trywisp.dev](https://trywisp.dev/), with more pages for search engines to find.** Canonical, Open Graph, structured-data, `robots.txt`, `llms.txt`, the install script and the npm and Homebrew `homepage` use the new domain. The site gained a page per harness ([Claude Code](https://trywisp.dev/agents/claude-code.html), Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build) that shows how wisp runs that CLI: the flags behind each permission mode, how it asks you questions, `/btw` and the take-over command. An [agents overview](https://trywisp.dev/agents/) compares them, and the integrations guide and changelog are now [pages on the site](https://trywisp.dev/changelog.html) instead of GitHub links. `scripts/site.mjs` (`npm run site`) builds these pages, a `404.html` and a `sitemap.xml` with each page's last-commit date. The Pages workflow runs it before each deploy, redeploys when `CHANGELOG.md` or an adapter changes, and pings IndexNow (Bing and friends) afterwards. The harness logos on the landing page link to their pages.
+
 ### Fixed
 
 - **The Auto-fix PR conflicts switch works on its own.** In Settings → General it only responded after you had clicked Worktree per task in the same visit.

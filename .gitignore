@@ -1,3 +1,10 @@
 node_modules/
 .DS_Store
 bench/out/
+
+# Docs site pages built by scripts/site.mjs (the Pages workflow builds them before deploy)
+docs/404.html
+docs/agents/
+docs/changelog.html
+docs/integrations.html
+docs/sitemap.xml

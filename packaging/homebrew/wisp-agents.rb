@@ -7,7 +7,7 @@
 #   curl -fsSL <url> | shasum -a 256
 class WispAgents < Formula
   desc "Launch coding agents, skip the transcript, read the presentation"
-  homepage "https://mokh.xyz/"
+  homepage "https://trywisp.dev/"
   url "https://registry.npmjs.org/wisp-agents/-/wisp-agents-0.15.0.tgz"
   sha256 "83376b9aca183f0b7e259411478fcfc1cc7a6675d12c99dfd5083d93c2566c90"
   license "MIT"
