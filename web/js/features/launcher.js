@@ -33,7 +33,10 @@ const NO_FOLDER = 'none';
 const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
 // One pick for every place the task runs on (launch.picks[''], see core/state.js): the project,
 // or No folder, or a repo still cloning; and the task's other folders (launch.also['']).
-const pickId = () => launch.picks[''];
+// Nothing to pick (no projects yet) runs in No folder; the stored pick stays null, so the first
+// project to show up takes over (syncWhere).
+const storedPick = () => launch.picks[''];
+const pickId = () => storedPick() || NO_FOLDER;
 const projectOf = () => (pickId() === NO_FOLDER ? GENERAL : projectById(pickId()));
 const alsoIds = () => launch.also[''] || [];
 const chosen = (id) => id === pickId() || alsoIds().includes(id);
@@ -60,13 +63,13 @@ function syncWhere() {
   if (f && !chosen(f.id)) {
     launch.picks[''] = f.id;
     delete launch.also[''];
-  } else if (!pickId() && projectById(launch.project)) launch.picks[''] = launch.project;
-  if (pickId() !== NO_FOLDER && !cloneById(pickId()) && !projectById(pickId())) launch.picks[''] = projects()[0]?.id || null;
+  } else if (!storedPick() && projectById(launch.project)) launch.picks[''] = launch.project;
+  if (storedPick() !== NO_FOLDER && !cloneById(storedPick()) && !projectById(storedPick())) launch.picks[''] = projects()[0]?.id || null;
   // Other folders only go with a project (not No folder or a clone).
   const ids = ownPick() ? alsoIds().filter((id, i, a) => id !== pickId() && a.indexOf(id) === i && projectById(id)) : [];
   if (ids.length) launch.also[''] = ids;
   else delete launch.also[''];
-  launch.project = pickId() || null;
+  launch.project = storedPick() || null;
 }
 
 export function renderLauncher() {
@@ -443,7 +446,7 @@ export function renderLaunchChips() {
       launch.picks[''] = id;
       delete launch.also[''];
     }
-    launch.project = pickId();
+    launch.project = storedPick();
     saveLaunch();
     paintScratch();
     renderLaunchRecipes();

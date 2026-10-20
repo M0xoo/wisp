@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Move a task to another computer with a follow-up.** The composer has a new **Runs on** button (shown once you have a machine). Pick another computer and your next follow-up moves the task there: its branch, uncommitted and untracked changes travel as a git bundle and land in a worktree on the same branch, and the earlier turns come along as history, so the harness there is told what happened before it continues. The old session is archived with a "Continues on …" link; the new card shows "From …" and tags each earlier turn with where it ran. A running task has to stop or finish first. API: `"machine"` on `POST /sessions/:id/reply` (`""` for this computer).
 - **Rerun on another computer.** The rerun dialog has a **Run on** picker; the rerun uses that computer's checkout of the project, cloned there first if needed.
 
+### Changed
+
+- **No folder is picked by default when wisp has no folders.** With no projects added, the launcher now starts on **No folder**, so a prompt runs right away in an empty scratch directory instead of opening the folder picker. Adding a folder picks it, as before.
+
 ## [0.21.0] - 2026-10-20
 
 ### Added
