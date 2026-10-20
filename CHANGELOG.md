@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **The website shows moving a task to another computer or agent.** A new landing-page section, *Start on your laptop. Finish on the dev box.*, has a working copy of a task card's follow-up box: pick a computer under **Runs on** and an agent, press ↵, and it packs the work, hands the history over and carries on there, the way the app does. It plays once by itself when it comes into view; click anything to try it. A new guide, [Move a task to another machine or agent, mid-way](https://trywisp.dev/guides/move-a-task-to-another-machine-or-agent.html), covers doing it by hand with `git bundle`, what wisp moves, what each agent is told when you switch harness, model or computer, and the CLI and API. The landing FAQ answers it too, and *Machines* is in the landing nav. In *Also in the box*, the Machines tile became *Several folders*, since machines now have their own section. The landing nav no longer wraps onto two lines between 960 and 1200px wide; it drops Control and CLI there.
+
 ## [0.23.0] - 2026-10-20
 
 ### Changed

@@ -18,6 +18,7 @@ const REPO = 'https://github.com/M0xoo/wisp';
 const INDEX = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
 // Same stylesheet version and analytics as the landing page, so a bump there covers these pages too.
 const CSS_V = INDEX.match(/style\.css\?v=(\d+)/)?.[1] || '1';
+const RELAY_V = INDEX.match(/relay\.js\?v=(\d+)/)?.[1] || '1';
 const POSTHOG = INDEX.match(/<script>\s*!function\(t,e\)[\s\S]*?<\/script>/)?.[0] || '';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -235,7 +236,8 @@ const installButton = (cmd = 'npx wisp-agents') =>
   `<button class="cmd" data-copy="${esc(cmd)}" aria-label="Copy install command"><span class="p">$</span><code>${esc(cmd)}</code><span class="copy">Copy</span></button>`;
 
 // path: site path ('/agents/codex.html'); crumbs: [[label, path], …] after Home.
-function page({ path: p, title, description, crumbs = [], body, schema = [], noindex = false }) {
+// scripts: extra <script> tags for the end of <body> (the relay demo).
+function page({ path: p, title, description, crumbs = [], body, schema = [], noindex = false, scripts = '' }) {
   const url = `${SITE}${p}`;
   const trail = [['wisp', '/'], ...crumbs];
   const breadcrumb = {
@@ -303,7 +305,7 @@ ${crumbs.length ? `    <nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.m
     <a href="https://www.npmjs.com/package/wisp-agents" target="_blank" rel="noopener">npm</a>
     <a href="${REPO}" target="_blank" rel="noopener">GitHub</a>
   </footer>
-  ${COPY_JS}
+  ${COPY_JS}${scripts ? `\n  ${scripts}` : ''}
 </body>
 </html>
 `;
@@ -472,7 +474,7 @@ function guidePage(g) {
       <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build · macOS, Linux, Windows (beta) · Node 20+</p>
     </header>
 
-    ${shot(...g.shot)}
+    ${g.demo ? `<div data-relay id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>` : shot(...g.shot)}
 ${g.body}
     <section class="faq-doc">
       <h2 id="faq">Questions</h2>
@@ -490,6 +492,7 @@ ${g.body}
     description: g.description,
     crumbs: [['Guides', '/guides/'], [g.h1, guideUrl(g)]],
     body,
+    scripts: g.demo ? `<script src="/relay.js?v=${RELAY_V}" defer></script>` : '',
     schema: [
       {
         '@type': 'TechArticle',
