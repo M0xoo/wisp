@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { openapi } from '../openapi.js';
-import { usage } from '../usage.js';
+import { toolStats, usage } from '../usage.js';
 import { expandHome, VERSION } from '../util.js';
 
 export const API_VERSION = 1;
@@ -70,6 +70,10 @@ export function register(r, app) {
 
   // Spend and outcomes. ?days=7|30|90
   r.route('GET', '/usage', (c) => c.send(200, usage(store.all(), { days: Number(c.query.get('days')) || 30, project: (s) => store.projectFor(s.cwd) })));
+  // Tool calls by kind, harness, project and day (what wisp_stats tells agents).
+  r.route('GET', '/usage/tools', (c) =>
+    c.send(200, toolStats(store.all(), { days: Math.min(Math.max(Number(c.query.get('days')) || 30, 1), 365), project: (s) => store.projectFor(s.cwd), filter: { agent: c.query.get('agent') || '', project: c.query.get('project') || '' } })),
+  );
 
   // Feedback for the wisp team: thumbs on a turn and/or a note. { rating?, text?, sessionId?, turnId? }
   r.route('POST', '/feedback', async (c) => c.send(200, await app.sendFeedback(await c.body())));

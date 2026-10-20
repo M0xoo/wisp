@@ -83,6 +83,9 @@ export default {
       args.push('-c', `${key}.command=${toml(srv.command)}`, '-c', `${key}.args=${toml(srv.args || [])}`);
       if (srv.env) args.push('-c', `${key}.env=${toml(srv.env)}`);
       args.push('-c', `${key}.tool_timeout_sec=${ASK_TIMEOUT_MS / 1000}`);
+      // wisp's own tools (ask_user, the spell tools…) need no approval: outside Full auto, codex
+      // exec's approval policy is never, which otherwise refuses every MCP call.
+      args.push('-c', `${key}.default_tools_approval_mode=${toml('approve')}`);
     }
     const images = attachments.filter((a) => IMAGE.test(a.mime));
     for (const img of images) args.push('-i', img.path);

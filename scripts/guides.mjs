@@ -461,5 +461,70 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       ],
       related: ['run-coding-agents-on-multiple-machines', 'run-multiple-claude-code-agents-in-parallel', 'multi-agent-coding'],
     },
+
+    {
+      slug: 'customize-wisp-with-spells',
+      title: 'Add buttons, panels and blocks to wisp by asking — spells',
+      h1: 'Change wisp itself, by asking: spells',
+      card: 'A floating button for your PRs, a stats panel, a block for agents: ask, try it, keep it.',
+      description: 'Add a button that opens all your PRs, a panel with your agent tool stats, a block agents can use in reports, or a new look, by asking wisp. Try each change live, keep it, share it.',
+      lede: 'In wisp you change the app itself by asking: “a floating button that opens all my PRs”, “a panel with my tool stats”, “a deploy block for agents”, “compact cards”. An agent writes the change as a <b>spell</b>, a small JSON file wisp layers over itself. You try it in the window, keep it, and share it as a file.',
+      shot: ['spell', 'A Cast a spell report in wisp: the Task board spell with what it adds, a preview of its floating button and its panel drawn with real data, and Turn on, Try it, JSON and Copy buttons'],
+      body: `
+    <section>
+      <h2 id="cast">Cast one</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp.</b> ${installButton()}</li>
+        <li><b>Say what to change.</b> ⌘K → <i>Cast a spell…</i>, Settings → Spells, or type <code>/spell</code> in the prompt box: <code>/spell a floating button that opens all my open PRs, with how many there are</code>.</li>
+        <li><b>Look at the preview.</b> The agent reads wisp’s spell reference, samples your real data, checks the spell with wisp and hands it back as a card: its buttons as they will look, its panels drawn with your data, and what it does in plain words.</li>
+        <li><b>Try it, then keep it.</b> <b>Try it</b> applies it to this window only; <b>Undo</b> takes it back. <b>Keep</b> turns it on. A follow-up changes it (“make it a top bar button”), and “remove the … spell” drops it.</li>
+      </ol>
+      ${sh(`wisp spell cast "a top bar button with my tool stats for the last 30 days"
+wisp spell          # ● on  ○ off
+wisp spell off --all`)}
+    </section>
+
+    <section>
+      <h2 id="what">What a spell can change</h2>
+      <div class="table"><table>
+        <thead><tr><th>Ask for</th><th>What wisp does</th></tr></thead>
+        <tbody>
+          <tr><td>A floating button that opens all my PRs</td><td>A button in a corner with a live count, from a read-only <code>gh search prs</code> wisp runs; one click opens them all</td></tr>
+          <tr><td>My wisp tool stats</td><td>A top bar button that opens a dialog of stats and charts from <code>/usage/tools</code></td></tr>
+          <tr><td>A deploy block for agents</td><td>A new block type agents are told about and can end their reports with</td></tr>
+          <tr><td>Quick replies, a second opinion</td><td>Chips above the follow-up box, a <i>Second opinion</i> button that reruns the task on Codex in Plan mode</td></tr>
+          <tr><td>Compact cards, PR first, Open PR on hover</td><td>Restyles and reorders the card head, adds a hover button on cards that have a PR</td></tr>
+          <tr><td>A bigger, monospace prompt box</td><td>Placeholder, rows and font of the prompt box; hides the parts you don’t use</td></tr>
+          <tr><td>Send failing tests back once</td><td>A hook: when a turn ends with failing tests, wisp replies to the agent, once per task</td></tr>
+          <tr><td>Codex always runs the linter first</td><td>A rule added to Codex agents’ prompts</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section>
+      <h2 id="safe">Why it’s safe to keep one</h2>
+      <ul class="doc-list">
+        <li><b>Spell code can’t reach anything.</b> It runs in a sandboxed frame with no network, no page and no wisp API. It gets the data wisp fetched and returns blocks, which wisp checks and draws itself.</li>
+        <li><b>Data is read-only.</b> Spells read wisp’s own routes and read-only <code>gh</code> commands. They can’t merge, push or write.</li>
+        <li><b>You see how far it reaches.</b> Each spell is <i>Safe</i>, <i>Acts for you</i>, <i>Reads GitHub</i> or <i>Runs commands</i>, with every command listed. Questions and approvals can’t be hidden or restyled.</li>
+        <li><b>Off means gone.</b> Turning a spell off puts wisp back exactly as it was. <code>WISP_SAFE=1</code> starts wisp with every spell off.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="share">Share it with your team</h2>
+      <p>Settings → Spells exports a spell as a <code>.spell.json</code> file, or copies its JSON for a chat. A colleague drops the file on wisp, pastes it (or a link) into Settings → Spells, or runs:</p>
+      ${sh(`wisp spell install ./my-prs.spell.json --on
+wisp spell install gist:<id>`)}
+      <p>They see the same review first, and it stays off until they turn it on.</p>
+    </section>
+`,
+      faq: [
+        ['Do spells change wisp’s code?', 'No. A spell is a JSON file in ~/.wisp/spells that wisp reads at runtime. Your wisp install stays as it is, updates keep working, and turning a spell off removes everything it added.'],
+        ['Which agents can cast spells?', 'Any harness wisp runs: Claude Code, Codex, opencode, Cursor, Antigravity or Grok. The agent works in an empty folder of its own and uses wisp’s spell tools to read the reference and check its spell.'],
+        ['Can a spell I get from someone else run code on my computer?', 'Only if it says so: a spell whose buttons run commands is marked Runs commands and lists each command, and asks before the first run. Spell scripts run in a sandbox with no network or file access.'],
+      ],
+      related: ['run-coding-agents-in-the-background', 'multi-agent-coding', 'run-claude-code-and-codex-in-parallel'],
+    },
   ];
 }

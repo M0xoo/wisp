@@ -23,6 +23,8 @@ import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { transcriptOn } from './transcript.js';
 import { replay, toggleTranscript } from './turns.js';
 import { openUsage } from './usage.js';
+import { activeSpells, runAction } from './spells.js';
+import { openCast } from './spell-ui.js';
 
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
@@ -96,6 +98,15 @@ function paletteItems() {
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
+  items.push(
+    { group: a, label: 'Cast a spell…', icon: 'spark', keywords: 'spell customize change wisp add button panel block theme plugin extension mod', run: () => openCast() },
+    { group: a, label: 'Spells', icon: 'spark', keywords: 'spells installed manage import export share customize', run: () => openSettings({ pane: 'spells' }) },
+  );
+  // What spells add to ⌘K: their commands, and their buttons for the palette slot.
+  for (const spell of activeSpells()) {
+    const cmds = [...(spell.commands || []), ...(spell.buttons || []).filter((b) => b.slot === 'palette')];
+    for (const c of cmds) items.push({ group: 'Spells', label: c.label, sub: spell.name, icon: c.icon || 'spark', kbd: c.key ? c.key.replace(/^shift\+/i, '⇧').toUpperCase() : undefined, keywords: `spell ${c.keywords || ''}`, run: () => runAction(spell, c.do, { session: S.focus }) });
+  }
   if (feedbackOn()) items.push({ group: a, label: 'Send feedback…', icon: 'thumb-up', keywords: 'feedback bug report idea suggestion thumbs contact team', run: () => openFeedback() });
 
   for (const r of S.config.recipes || []) items.push({ group: 'Recipes', label: `Run: ${r.name}`, sub: r.prompt.replace(/\s+/g, ' ').slice(0, 80), icon: 'spark', keywords: `recipe ${r.prompt}`, run: () => runRecipe({ ...r, params: recipeParams(r.prompt) }) });

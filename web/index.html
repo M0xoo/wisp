@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="/css/subagents.css">
   <link rel="stylesheet" href="/css/auto.css">
   <link rel="stylesheet" href="/css/transcript.css">
+  <link rel="stylesheet" href="/css/spells.css">
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -98,6 +99,7 @@
       <button class="auto-btn" id="autoBtn" title="Automations: recipes and triggers">
         <svg class="i"><use href="#i-bolt"/></svg><span>Automations</span><b class="ab-n" hidden></b>
       </button>
+      <div class="sp-top" id="spTop"></div>
       <button class="search-btn" id="searchBtn" title="Search">
         <svg class="i"><use href="#i-search"/></svg><span>Search</span><kbd class="mod-k"></kbd>
       </button>
@@ -117,6 +119,7 @@
         </section>
       </div>
       <div class="feed-head" id="feedHead"></div>
+      <div class="sp-feedtop" id="spFeedTop" hidden></div>
       <div class="feed" id="feed">
         <section class="f-group needs" id="secNeeds" hidden><h4>Needs you<span class="n"></span></h4><div class="f-list"></div></section>
         <section class="f-group working" id="secWorking" hidden><h4>Working<span class="n"></span></h4><div class="f-list"></div></section>
@@ -131,6 +134,7 @@
     <svg class="i"><use href="#i-send"/></svg><kbd>U</kbd>
   </button>
   <div class="drag-strip"></div>
+  <div class="sp-float" id="spFloat" hidden></div>
   <div class="overlay" id="overlay" hidden></div>
   <div class="toasts" id="toasts"></div>
 

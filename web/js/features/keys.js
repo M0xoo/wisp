@@ -11,6 +11,10 @@ import { focusLauncher } from './launcher.js';
 import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
 import { replay, toggleTranscript } from './turns.js';
+import { activeSpells, runAction } from './spells.js';
+
+// Keys wisp uses itself (with or without Shift), which spells can't claim.
+const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', ...'123456789'.split('')]);
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -37,6 +41,17 @@ export function onKey(e) {
   if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#overlay').hidden) return;
   const k = e.key.toLowerCase();
   const id = S.focus && S.nodes.has(S.focus) ? S.focus : null;
+  // A spell's key (only keys wisp doesn't use itself: spells can't take over built-in ones).
+  const combo = `${e.shiftKey ? 'shift+' : ''}${k}`;
+  if (!BUILT_IN.has(combo)) {
+    for (const spell of activeSpells()) {
+      const c = [...(spell.commands || []), ...(spell.buttons || [])].find((x) => x.key && x.key.toLowerCase() === combo);
+      if (c) {
+        e.preventDefault();
+        return runAction(spell, c.do, { session: id });
+      }
+    }
+  }
   if (k === 'n') {
     e.preventDefault();
     focusLauncher();

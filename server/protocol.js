@@ -103,7 +103,13 @@ const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous 
 
 // askTool: how the harness names wisp's injected ask_user tool, or null if it can't take one.
 // ask: replaces the ask guidance outright (subagents, who have nobody to ask).
-export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask } = {}) => PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) : ASK_BLOCK));
+// extraBlocks: block types spells add ({ type, doc, spell }), listed with the built-in ones.
+export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask, extraBlocks = [] } = {}) => {
+  const out = PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) : ASK_BLOCK));
+  if (!extraBlocks.length) return out;
+  const docs = extraBlocks.map((b) => `- ${b.doc.trim().startsWith('{') ? b.doc.trim().replace(/\}\s+(?=\S)/, '}\n  ') : `{"type":"${b.type}"} ${b.doc}`}\n  (From the user's spell ${b.spell}.)`).join('\n');
+  return out.replace('\nStrings must be valid JSON', `\n${docs}\n\nStrings must be valid JSON`);
+};
 export const SYSTEM_PROMPT = systemPrompt();
 
 // Only the opener is matched by regex. The closing fence can't be: the JSON itself often
@@ -164,8 +170,15 @@ function salvageBlocks(src) {
     while (/[\s,]/.test(src[i] || '')) i++;
     if (src[i] !== '{') break;
     const len = jsonEnd(src.slice(i));
-    if (len < 0) break;
-    const block = tryJson(src.slice(i, i + len));
+    if (len < 0) {
+      // The last block is missing closing braces (a common slip after a long string): close it.
+      const fixed = closeBraces(src.slice(i));
+      if (fixed) blocks.push(fixed);
+      else bad++;
+      break;
+    }
+    // A bracket count that ends early on a `]` usually means a block lost a closing brace.
+    const block = tryJson(src.slice(i, i + len)) || closeBraces(src.slice(i, i + len));
     if (block && typeof block === 'object') blocks.push(block);
     else bad++;
     i += len;
@@ -173,6 +186,22 @@ function salvageBlocks(src) {
   if (!blocks.length) return null;
   if (bad) blocks.push({ type: 'callout', tone: 'warn', title: `${bad} block${bad > 1 ? 's' : ''} skipped`, text: 'Part of the agent\'s answer was malformed JSON and could not be shown.' });
   return blocks;
+}
+
+// A block whose closing braces went missing at the end of the answer: cut it at each of its last
+// few `}` and add up to three more until it parses. null when that doesn't help.
+function closeBraces(src) {
+  const body = src.replace(/```[\s\S]*$/, '').trimEnd();
+  let cut = body.length;
+  for (let tries = 0; tries < 6 && cut > 0; tries++) {
+    cut = body.lastIndexOf('}', cut - 1);
+    if (cut < 0) return null;
+    for (let k = 1; k <= 3; k++) {
+      const json = tryJson(body.slice(0, cut + 1) + '}'.repeat(k));
+      if (json && typeof json === 'object' && typeof json.type === 'string') return json;
+    }
+  }
+  return null;
 }
 
 function jsonEnd(src) {

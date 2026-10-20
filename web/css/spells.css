@@ -1,0 +1,186 @@
+/* Spells: what spells add to wisp (slots, panels, blocks), and Settings → Spells. Plain 1px neutral
+   borders like the panels next to them. */
+
+.sp-sandbox { position: absolute; width: 0; height: 0; border: 0; visibility: hidden; }
+
+/* top bar */
+.sp-top { display: contents; }
+.sp-btn .sp-n, .sp-fab .sp-n, .sp-qr .sp-n { min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; font-size: 10.5px; font-weight: 600; display: inline-grid; place-items: center; background: var(--accent-soft); color: var(--accent-ink); }
+.sp-btn .i { width: 14px; height: 14px; }
+
+/* floating buttons */
+.sp-float {
+  position: fixed; right: 22px; bottom: 22px; z-index: 30; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 10px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.sp-float.left { right: auto; left: 22px; align-items: flex-start; }
+.sp-float[hidden] { display: none; }
+.sp-fab {
+  display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px 0 13px; border-radius: 21px;
+  background: var(--surface); color: var(--ink-2); border: 1px solid var(--line-2); box-shadow: var(--shadow-2);
+  font-size: 13.5px; font-weight: 500; transition: translate 0.15s var(--ease), color 0.15s, border-color 0.15s;
+  animation: sp-in 0.25s var(--ease);
+}
+.sp-fab .i { width: 16px; height: 16px; }
+.sp-fab:hover { color: var(--ink); border-color: var(--faint); translate: 0 -2px; }
+.sp-fab.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.sp-fab:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+@keyframes sp-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+.sp-fan { display: flex; flex-direction: column-reverse; align-items: inherit; gap: 8px; }
+.sp-fan-items { display: none; flex-direction: column-reverse; align-items: inherit; gap: 8px; }
+.sp-fan.open .sp-fan-items { display: flex; }
+.sp-fan.open .sp-fan-btn { color: var(--ink); border-color: var(--faint); }
+body:has(.launcher.docked:is(:focus-within, :has(.open))) .sp-float { bottom: 96px; }
+
+/* card head chips and hover buttons */
+.sp-chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 6px; font-size: 11.5px; white-space: nowrap;
+  color: var(--muted); background: var(--bg-2); border: 1px solid var(--line);
+}
+.sp-chip .i { width: 12px; height: 12px; }
+.sp-chip.tone-good { color: var(--good); }
+.sp-chip.tone-bad { color: var(--bad); }
+.sp-chip.tone-warn { color: var(--warn); }
+.sp-chip.tone-info { color: var(--info); }
+button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
+.sp-quick:hover { color: var(--accent); }
+
+/* prompt box and follow-up box */
+.sp-lbar, .sp-cbar { display: inline-flex; align-items: center; gap: 6px; }
+.sp-lbar:empty, .sp-cbar:empty { display: none; }
+.sp-lchips, .sp-cchips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 2px 0; }
+.sp-cchips { padding: 0 0 8px; }
+.sp-cchips[hidden] { display: none; }
+.sp-qr {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; font-size: 12.5px;
+  color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); transition: border-color 0.15s, color 0.15s;
+  text-align: left; max-width: 100%;
+}
+.sp-qr .i { width: 13px; height: 13px; }
+.sp-qr:hover { border-color: var(--line-2); color: var(--ink); }
+
+/* panels: in cards, above the feed, and as dialogs */
+.sp-card { display: grid; gap: 10px; padding: 12px 14px 0; }
+.sp-card[hidden] { display: none; }
+.sp-cpanel, .sp-feed { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.sp-cpanel > header, .sp-feed > header { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--ink-2); }
+.sp-cpanel > header .i, .sp-feed > header .i { width: 14px; height: 14px; color: var(--muted); }
+.sp-by { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--faint); }
+.sp-by .i { width: 12px; height: 12px; }
+.sp-cpanel-body, .sp-feed-body { padding: 12px; }
+.sp-cpanel-body .presentation, .sp-feed-body .presentation, .sp-panel-body .presentation, .sp-pv-body .presentation, .sp-block .presentation { gap: 10px; }
+.sp-feedtop { display: grid; gap: 12px; margin: 14px 0; }
+.sp-feedtop[hidden] { display: none; }
+.sp-panel { width: min(720px, 100%); }
+.sp-panel header { gap: 10px; }
+.sp-panel header h2 { display: flex; align-items: center; gap: 8px; margin-right: auto; }
+.sp-panel header h2 .i { width: 18px; height: 18px; color: var(--muted); }
+.sp-panel .sp-by { margin-left: 0; }
+.sp-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); max-height: none; border-radius: 0; border-width: 0 0 0 1px; }
+.sp-out { max-height: 60vh; overflow: auto; white-space: pre-wrap; }
+.sp-error { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 9px; font-size: 13px; color: var(--bad); background: var(--del-bg); }
+.sp-error .i { flex: none; width: 15px; height: 15px; margin-top: 1px; }
+.sp-empty { margin: 0; color: var(--faint); font-size: 13px; }
+
+/* blocks spells add to reports */
+.sp-off { padding: 10px 12px; }
+.sp-off-head { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.sp-off-head .i { width: 14px; height: 14px; }
+.sp-off-head .link { margin-left: auto; }
+.sp-off pre { margin: 10px 0 0; }
+
+/* the spell block in a Cast a spell report */
+.b-spell { padding: 14px 16px; display: grid; gap: 10px; }
+.sp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }
+.sp-head > .i { width: 17px; height: 17px; color: var(--accent); }
+.sp-ver { font: 500 11.5px var(--mono); color: var(--faint); }
+.sp-state { margin-left: auto; }
+.sp-on { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; color: var(--good); background: var(--add-bg); }
+.sp-desc { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+.sp-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 13px; color: var(--ink-2); }
+.sp-lines li { display: flex; gap: 8px; align-items: flex-start; }
+.sp-lines li .i { flex: none; width: 13px; height: 13px; margin-top: 3px; color: var(--good); }
+.sp-lines li.bad, .sp-lines li.bad .i { color: var(--bad); }
+.sp-lines li.warn .i { color: var(--warn); }
+.sp-preview { display: grid; gap: 10px; }
+.sp-preview:empty { display: none; }
+.sp-pv-btns { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); }
+.sp-pv { display: grid; gap: 5px; justify-items: start; }
+.sp-pv small, .sp-pv-panel small { font-size: 11px; color: var(--faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.sp-pv .sp-fab { animation: none; box-shadow: none; }
+.sp-pv .sp-quick { opacity: 1; margin: 0; }
+.sp-pv > span:not(small) { pointer-events: none; }
+.sp-pv-panel { display: grid; gap: 6px; }
+.sp-pv-body { padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.sp-pv-note { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--muted); }
+.sp-pv-note .i { width: 13px; height: 13px; color: var(--accent); }
+.sp-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.sp-acts .i { width: 14px; height: 14px; }
+.sp-json { margin: 0; max-height: 360px; overflow: auto; }
+
+/* how risky */
+.sp-kind { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 6px; font: 600 11px var(--sans); letter-spacing: 0.01em; border: 1px solid var(--line); color: var(--muted); background: var(--surface-2); vertical-align: 1px; }
+.sp-kind.k-acts { color: var(--info); }
+.sp-kind.k-reads { color: var(--ink-2); }
+.sp-kind.k-runs { color: var(--warn); }
+
+/* trying a spell */
+.sp-try {
+  position: fixed; left: 50%; top: 70px; translate: -50% 0; z-index: 60; display: flex; align-items: center; gap: 10px;
+  padding: 8px 8px 8px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-2); font-size: 13.5px;
+  animation: sp-in 0.25s var(--ease);
+}
+.sp-try > .i { width: 15px; height: 15px; color: var(--accent); }
+
+/* cast, review and Settings → Spells */
+.sp-cast textarea, .sp-castrow textarea, .sp-castrow input { width: 100%; resize: vertical; }
+.sp-cast { display: grid; gap: 12px; }
+.sp-cast header, .sp-review header { margin-bottom: 0; }
+.sp-cast h2, .sp-review h2 { display: flex; align-items: center; gap: 8px; }
+.sp-cast h2 .i, .sp-review h2 .i { width: 18px; height: 18px; color: var(--accent); }
+.sp-cast footer, .sp-review footer, .sp-confirm footer { display: flex; align-items: center; gap: 10px; justify-content: flex-end; }
+.sp-cast footer .hint { margin-right: auto; }
+.sp-review { display: grid; gap: 12px; }
+.sp-review p { margin: 0; }
+.sp-review .grow { flex: 1; }
+.sp-review-kind { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13px; color: var(--ink-2); }
+.sp-review details pre { max-height: 300px; overflow: auto; }
+.sp-confirm { display: grid; gap: 12px; }
+.sp-confirm p { margin: 0; }
+.sp-examples { display: flex; flex-wrap: wrap; gap: 6px; }
+.sp-castbox { display: grid; gap: 10px; padding-bottom: 14px; }
+.sp-castrow { display: flex; gap: 8px; align-items: flex-start; padding: 0 2px 4px; }
+.sp-castrow .primary, .sp-castrow .ghost { flex: none; }
+.sp-row .sx-text details { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.sp-row .sx-text summary { cursor: pointer; width: max-content; }
+.sp-row .sp-lines { margin-top: 6px; }
+.sp-row .sx-ctl { display: flex; align-items: center; gap: 4px; }
+.sp-row.broken b { color: var(--bad); }
+.sp-none { display: flex; gap: 12px; align-items: center; padding: 16px 4px; color: var(--muted); }
+.sp-none > .i { width: 20px; height: 20px; color: var(--accent); }
+.sp-none p { margin: 2px 0 0; font-size: 13px; }
+.sp-foot .link { vertical-align: baseline; }
+.sp-lock { display: flex !important; align-items: center; gap: 5px; margin-top: 3px; color: var(--accent-ink) !important; }
+.sp-lock .i { width: 12px; height: 12px; }
+.menu .sp-menu { display: flex; align-items: center; gap: 9px; width: 100%; }
+
+/* card density */
+body.sp-compact #feed .it-head { padding-top: 7px; padding-bottom: 7px; }
+body.sp-compact #feed .it-sub { display: none; }
+body.sp-compact #feed .f-list { gap: 6px; }
+body.sp-comfy #feed .it-head { padding-top: 15px; padding-bottom: 15px; }
+
+@media (max-width: 640px) {
+  .sp-float { right: 14px; bottom: 14px; }
+  .sp-fab { height: 40px; padding: 0 12px; }
+  .sp-fab .sp-fab-l { display: none; }
+  .sp-fan.open .sp-fab-l { display: inline; }
+  .sp-try { left: 12px; right: 12px; translate: none; top: 62px; }
+  .sp-castrow { flex-direction: column; align-items: stretch; }
+  /* bar buttons fold to their icon (a button without one keeps its label) */
+  .sp-lbar .sp-btn:has(.i) > span, .sp-cbar .sp-btn:has(.i) > span { display: none; }
+  .sp-lbar .sp-btn, .sp-cbar .sp-btn { padding: 0 7px; }
+}
+
+/* the floating stack moves up while the Collapse button is out */
+body:has(.collapse-all.on) .sp-float:not(.left) { bottom: 76px; }

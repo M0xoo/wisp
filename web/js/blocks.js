@@ -930,6 +930,12 @@ R.unknown = (b) => el(`<div class="b-code card"><div class="code-head"><span cla
 
 // --- public -----------------------------------------------------------------
 
+// Block types defined elsewhere: spells (features/spells.js) register the `spell` block and draw
+// the types spells add through the fallback, before R.unknown.
+export const registerBlock = (type, fn) => (R[type] = fn);
+let fallback = () => null;
+export const setBlockFallback = (fn) => (fallback = fn);
+
 export function renderPresentation(presentation, ctx) {
   const wrap = document.createElement('div');
   wrap.className = 'presentation';
@@ -939,7 +945,7 @@ export function renderPresentation(presentation, ctx) {
     const delay = reduced() ? 0 : Math.min(i, 10) * 110;
     let node;
     try {
-      node = (R[b.type] || R.unknown)(b, { ...ctx, delay });
+      node = R[b.type] ? R[b.type](b, { ...ctx, delay }) : fallback(b, { ...ctx, delay }) || R.unknown(b);
     } catch (err) {
       console.error('block failed', b, err);
       node = R.unknown(b);

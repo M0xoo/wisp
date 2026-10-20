@@ -89,12 +89,27 @@ const R = {
   next: (b) => `**Next**\n${list(b.items).map((i) => `- ${str(i)}`).join('\n')}`,
 };
 
+// Block types spells add: their summary template stands in for them here (set from server/index.js).
+let spellBlock = () => null;
+export const setSpellBlocks = (fn) => (spellBlock = fn);
+const fillFields = (tpl, o) => String(tpl).replace(/\{([a-zA-Z_][\w.]*)\}/g, (_, k) => str(k.split('.').reduce((x, y) => x?.[y], o)));
+
+R.spell = (b) => {
+  const remove = b.remove || (!b.spell?.wispSpell && b.spell?.remove);
+  if (remove) return `**✨ Spell:** remove \`${str(remove)}\``;
+  const s = b.spell || {};
+  return `**✨ Spell: ${str(s.name) || str(s.id)}**${s.description ? ` — ${s.description}` : ''}\n\n_Keep it in wisp to turn it on._`;
+};
+
 // blocks: presentation blocks; turn (optional) supplies captured edits for diff blocks.
 export function blocksToMarkdown(blocks = [], turn = null) {
   return list(blocks)
     .map((b) => {
       try {
-        return R[b?.type] ? R[b.type](b, turn) : fence(JSON.stringify(b, null, 2), 'json');
+        if (R[b?.type]) return R[b.type](b, turn);
+        const def = spellBlock(b?.type);
+        if (def?.summary) return `${fillFields(def.summary, b)}`;
+        return fence(JSON.stringify(b, null, 2), 'json');
       } catch {
         return '';
       }

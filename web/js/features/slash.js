@@ -5,6 +5,7 @@ import { esc } from '../md.js';
 import { el } from '../core/dom.js';
 import { SLASH, slashMatches } from '../slash-text.js';
 import { feedbackOn } from './feedback.js';
+import { activeSpells } from './spells.js';
 
 // Register before the box's own Enter handler: picking a command must not send it.
 export function slashMenu(ta, host) {
@@ -13,7 +14,7 @@ export function slashMenu(ta, host) {
   let items = [];
   let sel = 0;
   let closed = false; // Esc: hidden until the text changes
-  const commands = () => SLASH.filter((c) => c.name !== 'feedback' || feedbackOn());
+  const commands = () => [...SLASH.filter((c) => c.name !== 'feedback' || feedbackOn()), ...activeSpells().flatMap((s) => (s.slash || []).map((c) => ({ name: c.name, args: c.args || '', hint: c.hint || `From ${s.name}` })))];
   const paint = () => {
     const next = !closed && document.activeElement === ta ? slashMatches(ta.value, commands()) : [];
     if (next.map((c) => c.name).join() !== items.map((c) => c.name).join()) sel = 0;

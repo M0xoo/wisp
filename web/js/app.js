@@ -19,6 +19,8 @@ import { onKey } from './features/keys.js';
 import { backToTop, onScroll, stage } from './features/scroll.js';
 import { openSettings, telemetryNotice } from './features/settings.js';
 import { installUpdate, loadUpdate } from './features/update.js';
+import { routeSpell } from './features/spell-ui.js';
+import './features/spells.js';
 
 document.addEventListener('keydown', onKey);
 stage.addEventListener('scroll', onScroll, { passive: true });
@@ -58,6 +60,7 @@ if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron'
 
 // #/s/<id> still works (notifications, CLI): it reveals that item in the feed.
 function route() {
+  if (routeSpell()) return; // #/spell?src=…: a shared spell to review
   const m = location.hash.match(/^#\/s\/(\w+)/);
   if (!m) return;
   history.replaceState(null, '', '#/');

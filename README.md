@@ -56,6 +56,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🤝 **Subagents** | Give the lead agent a team on other harnesses (e.g. Claude Code hands tests to Codex ×3). It delegates through a `delegate` tool; their edits land in its worktree. See [Subagents](#subagents). |
 | ⏪ **Checkpoints & rollback** | Every turn is snapshotted first. Restore to before any turn, revert a single file, or re-run a command block from the presentation. |
 | ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
+| ✨ **Spells** | Change wisp itself while it runs: ask for a floating button that opens your PRs, a panel with your tool stats, a block agents can use in their reports, a different prompt box, quick replies, buttons on cards, a new look. An agent writes it as a *spell*; you try it in the window and keep it. Share one as a file, and turn any of them off to put wisp back as it was. See [Spells](#spells). |
 | 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.24.1`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
 | 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there, or start a task with `/new`. |
@@ -365,6 +366,45 @@ Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe m
 | Issue labelled | an open issue carries a label | `{number} {title} {body} {url} {author}` |
 
 GitHub triggers poll with your `gh` login (every 2–60 minutes), so nothing has to reach your machine; the first check only records what already exists. Issue triggers start in Plan mode: issue text comes from whoever can open issues, so think twice before giving it Full auto.
+
+## Spells
+
+A spell is a change to wisp that wisp layers over itself at runtime, without anyone editing its code: buttons, panels, blocks agents can use, a different look, how agents behave. Each is one JSON file in `~/.wisp/spells/`. Turning one off puts back exactly what it changed, and the file is all you need to share it.
+
+**Cast one.** ⌘K → *Cast a spell…*, Settings → Spells, or `/spell …` in the prompt box. Say what you want:
+
+```text
+/spell a floating button that opens all my open PRs on GitHub, with how many there are
+/spell a top bar button with my wisp tool stats for the last 30 days
+/spell a "deploy" block agents can use to show where they deployed and whether it's healthy
+/spell compact cards, the PR first, and an Open PR button on cards that have one
+/spell quick replies above the follow-up box: Run the tests, Explain why…
+/spell when a task finishes with failing tests, send it back once
+```
+
+An agent (in an empty folder of its own) reads the spell reference, samples the real data, checks the spell with wisp and hands it back as a card with a live preview: the buttons as they will look, panels drawn with your data, and what the spell does in plain words. **Try it** applies it to this window only (**Undo** takes it back); **Keep** turns it on. Ask a follow-up to change it, or "remove the … spell" to drop it.
+
+**What a spell can do**
+
+| | |
+|---|---|
+| Add | Buttons in the top bar, floating in a corner (grouped into a menu), in the prompt box and the follow-up box, on cards (on hover, in the head, in the menu) and in ⌘K. Chips and quick replies. Panels as a dialog, a drawer, above the feed or inside each card. |
+| Change | Restyle or hide named parts (`card.title`, `launcher.compare`, `topbar.machines`, …), reorder a card's head, set the prompt box's placeholder, rows and font, recolour wisp (`--accent`, …). |
+| Agents | New block types for reports (`deploy`, …), rules added to agents' prompts (all or per project / harness), `/commands`, settings while the spell is on. |
+| On its own | Hooks: when a turn finishes or fails, a task starts or waits for you, reply once, mark done, archive, notify or POST to a URL. |
+| Data | Read-only wisp routes (`/sessions`, `/usage/tools`, …) and read-only `gh` commands (`search prs`, `pr checks`, `run list`, …). wisp fetches them; spell code never touches the network. |
+
+A spell's code (`script`) runs only in a sandboxed frame with no network, no DOM and no wisp API: it gets the data wisp fetched and returns values or blocks, which wisp checks and draws with its own renderer. Every spell shows how far it reaches: **Safe**, **Acts for you** (follow-ups, launches; only when you click, or a hook), **Reads GitHub**, or **Runs commands**. Questions, approvals and Settings → Spells can't be restyled or hidden. Start wisp with `WISP_SAFE=1` to turn every spell off, or use **Turn every spell off** in Settings → Spells.
+
+**Share one.** Settings → Spells → export (a `.spell.json` file) or copy (JSON for a chat). Your colleague drops the file on wisp, pastes it or a link (https or `gist:<id>`) into Settings → Spells, or runs `wisp spell install ./my-prs.spell.json`. They see the same review before anything changes, and it stays off until they turn it on.
+
+```sh
+wisp spell                         # list: ● on  ○ off
+wisp spell cast "a /explain command that asks for a plain-words explanation"
+wisp spell install my-prs.spell.json --on
+wisp spell export my-prs > my-prs.spell.json
+wisp spell off --all
+```
 
 ## Usage
 

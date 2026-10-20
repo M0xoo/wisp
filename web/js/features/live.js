@@ -17,6 +17,7 @@ import { openSettings } from './settings.js';
 import { renderPrStrip } from './ship.js';
 import { onChildSummary } from './team.js';
 import { onActivity } from './turns.js';
+import { applySpells, spellEvent } from './spells.js';
 import { loadUpdate, renderUpdate } from './update.js';
 
 export function connect() {
@@ -37,10 +38,16 @@ export function connect() {
     keepInPlace(follow ? S.nodes.get(s.id).card : feedAnchor(s.id), renderFeed);
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
     if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
+    if (prev?.state !== s.state || prev?.pr?.state !== s.pr?.state) spellEvent('summary');
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
-  es.addEventListener('finished', (e) => notifyFinished(JSON.parse(e.data).session));
+  es.addEventListener('finished', (e) => (notifyFinished(JSON.parse(e.data).session), spellEvent('finished')));
+  // A spell hook's notify, from the server.
+  es.addEventListener('spell', (e) => {
+    const m = JSON.parse(e.data);
+    if (m.toast) toast(`<b>${esc(m.spell)}</b> · ${esc(m.toast)}`);
+  });
   es.addEventListener('removed', (e) => {
     const { id } = JSON.parse(e.data);
     S.sessions.delete(id);
@@ -80,6 +87,7 @@ export async function loadSessions() {
 
 export async function loadConfig() {
   S.config = await api('/config');
+  applySpells();
   renderProjects();
   renderLaunchChips();
   paintAutoBtn();

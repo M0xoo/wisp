@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
+import { spellGuide } from './spell-guide.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
 import { handoffNote } from './handoff.js';
@@ -145,6 +146,7 @@ export function summarize(s, store) {
     conflictFix: s.conflictFix ? { step: s.conflictFix.step, why: s.conflictFix.why || '' } : null,
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger' | 'telegram', id, name }
+    ...(s.kind && { kind: s.kind }), // 'spell': a Cast a spell task
     moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
     movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
     // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.
@@ -187,6 +189,7 @@ export class Runner extends EventEmitter {
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
     this.sides = new Map(); // /btw id -> { sessionId, handle }: side questions being answered
     this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
+    this.spellBlocks = () => []; // (session) => block types spells add, for the protocol
     this.routeAuto = null; // (prompt, { cwd }) => { agent, model, route } for subagents set to Auto
     this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
 
@@ -209,7 +212,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '' }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -230,6 +233,7 @@ export class Runner extends EventEmitter {
       queue: [],
       turns: [...history],
       ...(moved && { moved }),
+      ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js)
       ...(worktree && { worktree }),
       ...(also.length && { also }),
       ...(groupId && { groupId }),
@@ -625,10 +629,12 @@ export class Runner extends EventEmitter {
 
   // The wisp protocol for this run: a lead hears about its team, a subagent that it can't ask.
   #systemPrompt(session, adapter, team) {
+    const extraBlocks = session.parentId ? [] : this.spellBlocks(session);
     const base = session.parentId
       ? systemPrompt({ ask: SUBAGENT_ASK })
-      : systemPrompt({ askTool: adapter.askTool }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
-    return base + workspaceNote(session) + this.promptExtra(session);
+      : systemPrompt({ askTool: adapter.askTool, extraBlocks }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
+    const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
+    return base + spell + workspaceNote(session) + this.promptExtra(session);
   }
 
   // wisp's own MCP server (ask_user, delegate), for harnesses that take one. Subagents get none.
@@ -646,6 +652,7 @@ export class Runner extends EventEmitter {
           WISP_TOKEN: this.bridge.token,
           WISP_SESSION: session.id,
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
+          ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
           ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m) }))) }),
         },
       },

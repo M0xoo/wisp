@@ -1,0 +1,135 @@
+// What a Cast a spell agent is told: how spells work, what it may use, and how to hand one back.
+// The reference (slots, parts, actions, …) comes from web/js/spell-schema.js, so it never drifts
+// from what wisp accepts.
+
+import { ACTIONS, CARD_HEAD_ORDER, EVENTS, HOOK_ACTIONS, HOOK_IF, ICONS, PART_PROPS, PARTS, SETTINGS, SLOTS, STYLE_PROPS, TOKENS, WISP_DATA, GH_READ } from '../web/js/spell-schema.js';
+
+export const SPELL_EXAMPLES = [
+  {
+    ask: 'A floating button that opens all my open PRs',
+    spell: {
+      wispSpell: 1, id: 'my-prs', name: 'My PRs', version: '1.0.0', description: 'Open every PR you have open on GitHub, from a floating button.',
+      data: { prs: { gh: ['search', 'prs', '--author', '@me', '--state', 'open', '--json', 'url,title,repository'], refresh: 120 } },
+      buttons: [{ slot: 'float', icon: 'github', label: 'My PRs', badge: { count: 'prs' }, do: { openAll: { data: 'prs', field: 'url' } } }],
+    },
+  },
+  {
+    ask: 'A top bar button that shows my wisp tool stats',
+    spell: {
+      wispSpell: 1, id: 'tool-stats', name: 'Tool stats', version: '1.0.0',
+      data: { tools: { wisp: '/usage/tools?days=30' } },
+      buttons: [{ slot: 'topbar', icon: 'stats', label: 'Tools', do: { panel: 'tools' } }],
+      panels: [{ id: 'tools', title: 'Tool calls · last 30 days', as: 'dialog', data: ['tools'], render: 'tools' }],
+      script: "export function tools({ tools: t }) {\n  return [\n    { type: 'stats', items: [{ label: 'tool calls', value: t.total.calls }, { label: 'turns', value: t.total.turns }, { label: 'spend', value: Math.round(t.total.cost * 100) / 100, unit: '$' }] },\n    { type: 'chart', title: 'By kind', items: t.kinds.map((k) => ({ label: k.kind, value: k.calls })) },\n    { type: 'chart', title: 'By harness', items: t.agents.map((a) => ({ label: a.agent, value: a.calls })) },\n  ];\n}",
+    },
+  },
+  {
+    ask: 'A deploy block agents use after deploying',
+    spell: {
+      wispSpell: 1, id: 'deploy-block', name: 'Deploy block', version: '1.0.0',
+      blocks: [{ type: 'deploy', doc: '{"type":"deploy","env":"staging","url":"https://…","status":"ok|failed","checks":[{"label":"health","ok":true}]} After you deploy: where it went and whether it is healthy.', summary: 'Deployed {env} → {url} ({status})', render: 'deploy' }],
+      script: "export function deploy(b) {\n  return [\n    { type: 'callout', tone: b.status === 'ok' ? 'success' : 'danger', title: `${b.env} · ${b.status}`, text: b.url },\n    { type: 'checklist', items: (b.checks || []).map((c) => ({ text: c.label, done: !!c.ok })) },\n  ];\n}",
+    },
+  },
+  {
+    ask: 'Compact cards, bold titles, PR first, no machine or project, and Open PR on hover',
+    spell: {
+      wispSpell: 1, id: 'compact-cards', name: 'Compact cards', version: '1.0.0',
+      parts: { card: { props: { density: 'compact' } }, 'card.title': { style: { fontWeight: '650' } }, 'card.head': { order: ['pr', 'pill', 'time'] } },
+      ui: { hide: ['card.machine', 'card.project'] },
+      buttons: [{ slot: 'card.hover', icon: 'github', label: 'Open PR', when: { hasPr: true }, do: { open: '{pr.url}' } }],
+    },
+  },
+  {
+    ask: 'Quick replies above the follow-up box, and a second-opinion button',
+    spell: {
+      wispSpell: 1, id: 'quick-replies', name: 'Quick replies', version: '1.0.0',
+      buttons: [
+        { slot: 'composer.chips', label: 'Run the tests', do: { send: 'Run the tests and show me the output.' } },
+        { slot: 'composer.chips', label: 'Explain why…', do: { insert: 'Explain why ' } },
+        { slot: 'composer.bar', icon: 'agent', label: 'Second opinion', do: { rerun: { agent: 'codex', mode: 'plan', prompt: 'Review the changes on branch {branch} and say what you would do differently.' } } },
+      ],
+    },
+  },
+  {
+    ask: 'When tests fail, send the task back once',
+    spell: {
+      wispSpell: 1, id: 'fix-failing-tests', name: 'Fix failing tests', version: '1.0.0',
+      hooks: [{ on: 'turn.finished', if: { testsFailed: true }, max: 1, do: { reply: 'Some tests fail. Fix them, rerun the suite and report again.' } }],
+    },
+  },
+];
+
+// The full reference, as JSON (wisp_spell_schema).
+export function spellReference() {
+  return {
+    format: 'One JSON object. Required: wispSpell (1), id (lowercase-dashes), name. Everything else is optional.',
+    fields: {
+      version: '"1.0.0" — bump it when you change a spell the user already has',
+      description: 'one sentence',
+      harnesses: '["*"] or e.g. ["claude","codex"]: which harnesses its prompt rules, blocks and hooks apply to',
+      when: '{ project: [names|ids|paths], agent: [...], mode: [...] } scope for prompt rules, blocks and hooks',
+      data: '{ name: { wisp: "/path?query" } | { gh: [args], cwd?: "task", refresh?: seconds } } — fetched by wisp; script functions receive them as their first argument { name: value }. gh args may use {field} templates over the card\'s task (e.g. "{pr.number}").',
+      buttons: '[{ id?, slot, label, icon?, title?, badge?: { count: "<data>" } | { text: "{field}" } | { fn, with: [data] }, group?: "name" (float only: folds into one button), corner?: "bottom-left", when?: {hasPr, prState, state, status, agent, project, unread, hasBranch} (card slots), do }]',
+      chips: '[{ slot: "card.head" | "launcher.chips" | "composer.chips", text: "{field} template" | fn: "<script fn>" (returns a string), with?: [data], tone?: good|bad|warn|info|neutral, icon?, title?, when?, do? }]',
+      panels: '[{ id, title, icon?, as: dialog|drawer|feed|card, slot?: card.top|card.bottom (as card), data: [names], render: "<script fn>", refresh?: { every: seconds, on: [summary, finished] } }] — render returns an array of wisp presentation blocks (stats, chart, markdown, checklist, files, callout, steps, tree, flow, terminal, code, actions with url…)',
+      blocks: '[{ type, doc: "one-line JSON example + when to use it", summary: "{field} template for text-only places", render: "<script fn>" }] — new presentation blocks agents can use; render(block) returns wisp blocks',
+      parts: '{ "<part>": { style?: { cssProp: value }, props?: {...}, order?: [...] (card.head only) } }',
+      ui: '{ hide: [parts], tokens: { "--accent": "#7c5cff" }, dark: { … tokens for dark mode } }',
+      prompt: '["text", { text, when }] — added to agents\' system prompts while the spell is on',
+      settings: '{ key: value } — wins over the user\'s setting while the spell is on',
+      slash: '[{ name, args?, hint?, do }] — /name in a follow-up box; {args} in do\'s text is what the user typed after it',
+      commands: '[{ label, keywords?, icon?, key?, do }] — ⌘K items (key: a single key like "g" or "shift+g", only when no built-in uses it)',
+      hooks: `[{ on, if?, max?, do }] — on: ${Object.keys(EVENTS).join(' | ')}; if: { ${HOOK_IF.join(', ')} }; do: one of ${[...HOOK_ACTIONS].join(', ')}; max: times per task (default 1)`,
+      recipes: '[{ name, prompt with {params}, agent?, mode? }] — saved prompts',
+      script: 'JS with `export function name(data, ctx) { return … }` functions. It runs in a sandbox with no network, no DOM and no wisp API: it can only compute and return values (blocks, strings, numbers, lists of links). ctx: { session } (the card\'s task summary, when there is one), { block } for agent blocks (the block is also the first argument).',
+    },
+    templates: '{field} in text, labels, links and gh args is filled from the card\'s task summary: id, title, state, status, agent, model, mode, project, branch, cwd, preview, pr.number, pr.url, pr.state, pr.checks …; in slash commands {args} too. Missing fields become empty.',
+    slots: SLOTS,
+    parts: Object.keys(PARTS),
+    partProps: PART_PROPS,
+    cardHeadOrder: Object.keys(CARD_HEAD_ORDER),
+    styleProps: STYLE_PROPS,
+    tokens: TOKENS,
+    icons: ICONS,
+    actions: Object.fromEntries(Object.entries(ACTIONS).map(([k, v]) => [k, v.doc])),
+    settings: SETTINGS,
+    wispData: WISP_DATA,
+    ghReadOnly: Object.fromEntries(Object.entries(GH_READ).map(([k, v]) => [k, v || 'GET only'])),
+    examples: SPELL_EXAMPLES,
+  };
+}
+
+// The system-prompt section for a Cast a spell task (kind: 'spell').
+export function spellGuide(tool = 'mcp__wisp__ask_user') {
+  const t = (name) => tool.replace(/ask_user$/, name);
+  return `
+
+## This task: cast a spell on wisp
+
+The user wants to change wisp itself — add a button, a panel, a block agents can use, restyle or hide
+part of the UI, change how agents behave — without anyone editing wisp's code. You do it by writing a
+**spell**: one JSON object wisp layers over itself at runtime. You don't edit files and you don't run
+commands; wisp installs the spell when the user clicks **Keep** on your report.
+
+How to work:
+1. Call \`wisp_spell_schema\` (${t('wisp_spell_schema')}) for the full reference: slots, parts, actions,
+   icons, tokens, data sources, examples. Use only what it lists.
+2. Call \`wisp_spells\` (${t('wisp_spells')}) to see what the user has already. To change one, keep its id and
+   bump its version; to remove one, end with \`{"type":"spell","remove":"<id>"}\` (remove at the top
+   level of the block, no spell object).
+3. If you read data (a \`wisp\` or \`gh\` source), call \`wisp_spell_data\` (${t('wisp_spell_data')}) with the
+   source to see the real shape before writing script that reads it.
+4. Call \`wisp_spell_check\` (${t('wisp_spell_check')}) with your spell until it says ok. It validates and
+   compiles the script (without running it) and says in plain words what the spell does.
+5. End with a report whose blocks include exactly one \`spell\` block:
+   {"type":"spell","spell":{ …the whole spell… }}
+   Put a hero first (what the spell does, in a line), then the spell block, then anything worth
+   knowing (what you assumed, what it can't do). Keep it short: the spell block itself shows the user
+   a preview and what changes.
+
+Rules: prefer the smallest spell that does what was asked. Never invent slots, parts, actions or
+fields. Script functions are pure: no fetch, no DOM, no globals — they get data and return values.
+If the ask needs something spells can't do yet, say so in a callout and do the closest thing they can.
+`;
+}

@@ -6,6 +6,7 @@ const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
 const json = (schema, description = 'OK') => ({ description, content: { 'application/json': { schema } } });
 const id = { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Session id' };
 const body = (schema) => ({ required: true, content: { 'application/json': { schema } } });
+const spellId = { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Spell id' };
 const err = { 400: json(ref('Error'), 'Bad request'), 404: json(ref('Error'), 'Not found') };
 const ok = json({ type: 'object', properties: { ok: { type: 'boolean' } } });
 
@@ -219,6 +220,42 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object' }) },
         },
       },
+      '/usage/tools': {
+        get: {
+          summary: 'Tool calls by kind, harness, project and day, with turns, cost and success rate (what wisp_stats tells agents)',
+          parameters: [{ name: 'days', in: 'query', schema: { type: 'integer', default: 30, maximum: 365 } }, { name: 'agent', in: 'query', schema: { type: 'string' } }, { name: 'project', in: 'query', schema: { type: 'string' }, description: 'Project id or name' }],
+          responses: { 200: json({ type: 'object' }) },
+        },
+      },
+      '/spells': {
+        get: { summary: 'Every spell: its JSON, on or off, where it came from, a plain-words summary and its kind (safe | acts | reads | runs); broken files; safe mode', responses: { 200: json({ type: 'object' }) } },
+        post: {
+          summary: 'Install or update a spell from { spell }, { text } (pasted JSON) or { url } (https or gist:<id>). It stays off unless enable: true',
+          requestBody: body({ type: 'object', properties: { spell: { type: 'object' }, text: { type: 'string' }, url: { type: 'string' }, enable: { type: 'boolean' } } }),
+          responses: { 200: json({ type: 'object' }), 201: json({ type: 'object' }), 400: err[400], 409: json({ type: 'object' }) },
+        },
+      },
+      '/spells/check': {
+        post: {
+          summary: 'Validate a spell without installing it: { ok, spell, summary, kind, warnings, installed } or { ok: false, problems }',
+          requestBody: body({ type: 'object', properties: { spell: { type: 'object' }, text: { type: 'string' }, url: { type: 'string' } } }),
+          responses: { 200: json({ type: 'object' }), 400: err[400] },
+        },
+      },
+      '/spells/try-data': { post: { summary: "Fetch a data source of a spell that isn't installed (Try it); the spell is validated first", requestBody: body({ type: 'object', required: ['spell', 'name'], properties: { spell: { type: 'object' }, name: { type: 'string' }, session: { type: 'string' } } }), responses: { 200: json({ type: 'object', properties: { value: {} } }), 400: err[400], 404: err[404] } } },
+      '/spells/off': { post: { summary: 'Turn every spell off', responses: { 200: json({ type: 'object' }) } } },
+      '/spells/{id}': {
+        parameters: [spellId],
+        get: { summary: 'One spell', responses: { 200: json({ type: 'object' }), 404: err[404] } },
+        patch: { summary: 'Turn a spell on or off. 409 when its block types or slash commands clash with one that is on', requestBody: body({ type: 'object', required: ['enabled'], properties: { enabled: { type: 'boolean' } } }), responses: { 200: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }) } },
+        delete: { summary: 'Remove a spell', responses: { 200: json({ type: 'object' }), 404: err[404] } },
+      },
+      '/spells/{id}/export': { parameters: [spellId], get: { summary: 'The spell file to share (.spell.json)', responses: { 200: json({ type: 'object' }), 404: err[404] } } },
+      '/spells/{id}/data/{name}': {
+        parameters: [spellId, { name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
+        post: { summary: "Fetch one of a spell's data sources. session: the card's task, for per-task sources; fresh skips the cache", requestBody: body({ type: 'object', properties: { session: { type: 'string' }, fresh: { type: 'boolean' } } }), responses: { 200: json({ type: 'object', properties: { value: {} } }), 404: err[404] } },
+      },
+      '/open': { post: { summary: 'Open http(s) links in the default browser (at most 20)', requestBody: body({ type: 'object', required: ['urls'], properties: { urls: { type: 'array', items: { type: 'string' } } } }), responses: { 200: json({ type: 'object' }), 400: err[400] } } },
       '/sessions/{id}/wait': {
         parameters: [id, { name: 'timeout', in: 'query', schema: { type: 'integer', default: 60, maximum: 290 }, description: 'Seconds' }],
         get: { summary: 'Long-poll until the session needs you (finished or asking)', responses: { 200: json({ allOf: [ref('Summary'), { type: 'object', properties: { timedOut: { type: 'boolean' } } }] }), 404: err[404] } },
@@ -315,6 +352,7 @@ export function openapi({ version, port }) {
             cwd: { type: 'string', description: 'Project folder (absolute; ~ allowed). Default: the server’s cwd' },
             also: { type: 'array', maxItems: 8, items: { type: 'string' }, description: 'More folders the same task works in (absolute; ~ allowed). The agent gets each; git repos get their own worktree, and Ship it opens a PR in each' },
             scratch: { type: 'boolean', description: 'No project folder: run in an empty scratch directory (no worktree). Overrides cwd' },
+            kind: { type: 'string', enum: ['spell'], description: 'spell: Cast a spell. The agent writes a spell that changes wisp (an empty scratch folder, Edits mode, this computer); its report ends with a spell block to keep' },
             agent: { enum: ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'auto', description: 'auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)' },
             important: { type: 'boolean', description: 'With agent auto: no exploring, take the pick with the best record' },
             mode: { enum: ['plan', 'edits', 'auto'], default: 'auto' },

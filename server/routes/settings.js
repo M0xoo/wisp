@@ -18,19 +18,33 @@ export { cloneRoot };
 export function register(r, app) {
   const { store, telemetry, prefs, retro, remote, machines } = app;
 
+  // defaults are what's in effect: yours, with what spells set on top (lockedBy says which spell).
+  // spells: every spell that's on, for the page to apply. recipes: yours and the spells'.
+  const view = () => ({
+    ...store.config,
+    remote: undefined,
+    defaults: { ...store.config.defaults },
+    lockedBy: app.spells.settings().lockedBy,
+    recipes: [...store.config.recipes, ...app.spells.recipes()],
+    spells: app.spells.forPage(),
+    spellsSafe: app.spells.safe,
+  });
   r.route('GET', '/config', (c) =>
-    c.send(200, { ...store.config, remote: undefined, home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
+    c.send(200, { ...view(), home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
   );
   r.route('PATCH', '/config', async (c) => {
     const body = await c.body();
-    if (body.defaults) Object.assign(store.config.defaults, body.defaults);
+    const locked = app.spells.settings().lockedBy;
+    const clash = Object.keys(body.defaults || {}).find((k) => locked[k] && body.defaults[k] !== store.config.defaults[k]);
+    if (clash) return c.send(409, { error: `${clash} is set by the spell ${locked[clash].name}. Turn it off in Settings → Spells to change it.`, spell: locked[clash] });
+    if (body.defaults) Object.assign(store.config.defaults, Object.fromEntries(Object.entries(body.defaults).filter(([k]) => !locked[k])));
     if (body.webhooks !== undefined) {
       const { hooks, error } = normalizeWebhooks(body.webhooks);
       if (error) return c.send(400, { error });
       store.config.webhooks = hooks;
     }
     app.configChanged();
-    c.send(200, { ...store.config, remote: undefined });
+    c.send(200, view());
   });
 
   // What wisp learned: preferences and lessons, global and per project (scope = 'global' or a project path).
