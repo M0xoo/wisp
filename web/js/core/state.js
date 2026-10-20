@@ -30,13 +30,14 @@ export const S = {
   drafts: new Map(),
   replyModes: new Map(), // session id → the mode its next follow-up switches to
   replyRunners: new Map(), // session id → { agent, model, effort } its next follow-up switches to
+  replyPlaces: new Map(), // session id → the place ('' = this computer) its next follow-up moves it to
 };
 export const saveOpen = () => save('wisp.open', [...S.open]);
 export const setAgents = (list) => ((S.agents = list), save('wisp.agents', list));
 
 // Where the launcher sends a prompt: '' = this computer, else machine ids. Several run in parallel,
-// each in the project picked for it (launch.picks[place]), and show up as one task. A run can
-// work in more of that place's projects too (launch.also[place]): one agent, several folders.
+// all in the project picked (launch.picks['']; any project runs on any place), and show up as one
+// task. A run can work in more projects too (launch.also['']): one agent, several folders.
 export const launch = {
   project: load('wisp.launchProject', null), // the project picked in the first place
   where: load('wisp.launchWhere', ['']),

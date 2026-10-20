@@ -47,6 +47,10 @@
 .discover h4 .i { width: 14px; height: 14px; }
 .discover h4 .muted { font-weight: 400; }
 .prow.cloning .ppath { color: var(--muted); }
+/* Where a project is checked out: one quiet tag per place. */
+.ppath:has(.pplace) { display: flex; gap: 8px; font-family: inherit; }
+.pplace { display: inline-flex; align-items: center; gap: 4px; }
+.pplace .ic { width: 11px; height: 11px; }
 .discover h4 .link { margin-left: auto; font-size: 12px; }
 .prow.cloning .orb.live { margin: 0; }
 .hint .clonedir { width: 220px; height: 24px; padding: 0 7px; margin: 0 4px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 12px; outline: 0; }

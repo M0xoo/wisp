@@ -12,7 +12,7 @@ import { toastError } from '../ui/toast.js';
 import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
-import { expand, fetchFull, scheduleRefetch } from './feed.js';
+import { expand, fetchFull, renderFeed, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
 import { agentName, DEFAULT_MODE, effortLabel, modelBadge, MODES } from './runners.js';
@@ -91,6 +91,7 @@ export function renderBody(id, { fresh }) {
       if (a === 'ship') shipDialog(id);
       if (a === 'done') toggleDone(id);
       if (a === 'more') moreMenu(id, e.target.closest('button'));
+      if (a === 'moved') openMoved(S.full.get(id)?.movedTo?.id);
     });
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
     renderDock(id);
@@ -109,6 +110,8 @@ export function renderBody(id, { fresh }) {
     ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
     ${(s.also || []).map((a, i) => `<span class="m also c-${summary.also?.[i]?.color || 'slate'}" title="${esc(`Also works in ${a.cwd}${a.worktree ? `\nWorktree: ${a.worktree.path}\nBranch ${a.worktree.branch}, from ${a.worktree.baseRef}` : ''}`)}"><i class="p-dot"></i>${esc(summary.also?.[i]?.project || a.cwd.split(/[\\/]/).pop())}</span>`).join('')}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} subagent${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
+    ${s.moved?.from ? `<span class="m" title="${esc(`This task ran on ${s.moved.from} before it moved here, with its work and history`)}">${icon('server')}From ${esc(s.moved.from)}</span>` : ''}
+    ${s.movedTo?.id ? `<button class="m moved-to" data-a="moved" title="This task carries on as a new session on ${esc(s.movedTo.place)}">${icon('server')}Continues on ${esc(s.movedTo.place)}</button>` : ''}
     ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
   // Ship and Done sit in the top bar and again next to the composer, so they're there on opening the
@@ -199,6 +202,14 @@ export function repaintViews() {
   for (const id of S.open) if (S.full.has(id)) renderBody(id, { fresh: false });
 }
 
+// The session a moved task carries on in: shown, opened and focused (archived ones stay hidden).
+function openMoved(next) {
+  if (!next || !S.sessions.has(next)) return;
+  renderFeed();
+  expand(next);
+  setFocus(next);
+}
+
 function renderFoldedTurn(t, unfold) {
   const hero = t.presentation?.blocks?.find((b) => b.type === 'hero');
   const node = el(`
@@ -207,6 +218,7 @@ function renderFoldedTurn(t, unfold) {
         ${icon('chevron', 'chev')}
         <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${mentionHtml(esc(t.prompt.replace(/\s+/g, ' ')), { link: false })}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
+        ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
       </button>
@@ -239,6 +251,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
       <div class="ask-foot">
         ${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}
         ${modeSwitch(s, t)}
+        ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}, before the task moved`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
         ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}

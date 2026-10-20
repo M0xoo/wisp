@@ -31,6 +31,28 @@ export class Uploads {
     return Array.isArray(ids) ? ids.map((i) => this.byId.get(i)).filter(Boolean) : [];
   }
 
+  // A file to fill in here (a moved task's bundle): its path, and add() once it's written.
+  reserve(name) {
+    const id = newId();
+    const file = path.join(this.dir, `${id}-${name}`);
+    return { id, file, add: () => this.#record({ id, name, size: fs.statSync(file).size, mime: 'application/octet-stream', path: file }) };
+  }
+
+  remove(id) {
+    const u = this.byId.get(id);
+    if (!u) return false;
+    this.byId.delete(id);
+    fs.rmSync(u.path, { force: true });
+    fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
+    return true;
+  }
+
+  #record(meta) {
+    this.byId.set(meta.id, meta);
+    fs.writeFileSync(path.join(this.dir, `${meta.id}.json`), JSON.stringify(meta));
+    return meta;
+  }
+
   async receive(req, { name, type }) {
     name = path.basename(name || 'file').replace(/[^\w.\- ]+/g, '_').slice(-120) || 'file';
     const id = newId();
@@ -51,9 +73,6 @@ export class Uploads {
       out.on('finish', resolve);
       out.on('error', reject);
     });
-    const meta = { id, name, size, mime: type || MIME[path.extname(name).toLowerCase()] || 'application/octet-stream', path: file };
-    this.byId.set(id, meta);
-    fs.writeFileSync(path.join(this.dir, `${id}.json`), JSON.stringify(meta));
-    return meta;
+    return this.#record({ id, name, size, mime: type || MIME[path.extname(name).toLowerCase()] || 'application/octet-stream', path: file });
   }
 }

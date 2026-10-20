@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { execFile } from './proc.js';
 import { bad } from './util.js';
 
@@ -12,9 +13,9 @@ const GH = () => process.env.WISP_GH_BIN || 'gh';
 // Never wait on a credential or confirmation prompt nobody can see.
 const QUIET_ENV = { GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GIT_EDITOR: 'true' };
 
-export function run(bin, args, { cwd, timeout = 60_000 } = {}) {
+export function run(bin, args, { cwd, timeout = 60_000, env } = {}) {
   return new Promise((resolve, reject) => {
-    execFile(bin, args, { cwd, timeout, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, ...QUIET_ENV } }, (err, stdout, stderr) => {
+    execFile(bin, args, { cwd, timeout, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, ...QUIET_ENV, ...env } }, (err, stdout, stderr) => {
       if (!err) return resolve(String(stdout).trim());
       // git and gh lead with "fatal:" / "error:"; otherwise the tail is the useful part.
       const lines = String(stderr || '').trim().split('\n').filter(Boolean);
@@ -279,10 +280,13 @@ export function parseRepo(input, { shorthand = false } = {}) {
   return null;
 }
 
+// parseRepo, plus a plain path to a repo on disk (an origin can be one).
+export const repoOf = (u) => parseRepo(u) || (path.isAbsolute(String(u || '')) ? parseRepo(pathToFileURL(String(u)).href) : null);
+
 // The same repo, however it was spelled (https vs ssh, .git or not, case of the host).
-const sameRepo = (a, b) => {
+export const sameRepo = (a, b) => {
   const key = (u) => {
-    const r = parseRepo(u);
+    const r = repoOf(u);
     return r && (r.gh ? `github.com/${r.gh.toLowerCase()}` : `${r.host}/${r.path}`);
   };
   return !!key(a) && key(a) === key(b);
@@ -316,4 +320,76 @@ export async function cloneRepo(repo, parent, { timeout = 10 * 60_000 } = {}) {
   if (/not found|does not exist|could not read username|authentication|permission denied|403/i.test(last.message))
     throw bad(`Couldn’t clone ${what}: it doesn’t exist, or this login can’t see it.${repo.gh ? ' Private repo? Check `gh auth status`.' : ''}`);
   throw bad(`Couldn’t clone ${what}: ${last.message}`);
+}
+
+// --- moving a task to another place: its work travels as a git bundle ---
+
+// Who the snapshot commit is by, so packing works where git has no user.name.
+const MOVER = { GIT_AUTHOR_NAME: 'wisp', GIT_AUTHOR_EMAIL: 'wisp@localhost', GIT_COMMITTER_NAME: 'wisp', GIT_COMMITTER_EMAIL: 'wisp@localhost' };
+
+// Pack the work in `dir` into `file`: the branch's commits plus one snapshot commit on top that
+// holds what isn't committed (untracked files too, ignored ones not). The user's index and
+// working tree are only read. Commits the remote already has (from wt.head down) stay out.
+// Resolves the pack's description for unpackWork(), or null outside a repo with commits.
+export async function packWork(dir, wt, file) {
+  const root = await repoRoot(dir);
+  const head = root && (await quiet(git(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'])));
+  if (!head) return null;
+  const index = `${file}.index`;
+  const env = { ...MOVER, GIT_INDEX_FILE: index };
+  const ref = `refs/wisp/move/${path.basename(file).replace(/\W+/g, '-')}`;
+  try {
+    await git(root, ['read-tree', 'HEAD'], { env });
+    await git(root, ['add', '-A'], { env, timeout: 120_000 });
+    const tree = await git(root, ['write-tree'], { env });
+    const snap = await git(root, ['commit-tree', tree, '-p', head, '-m', 'wisp: work in progress, moved'], { env });
+    await git(root, ['update-ref', ref, snap]);
+    const published = wt?.head && (await quiet(git(root, ['branch', '-r', '--contains', wt.head])));
+    await git(root, ['bundle', 'create', file, ref, ...(published ? [`^${wt.head}`] : [])], { timeout: 300_000 });
+    const branch = wt?.branch || '';
+    return { ref, branch, base: wt?.base || '', baseRef: wt?.baseRef || '', head: wt?.head || null, remote: wt?.remote ?? null, prereq: !!published };
+  } finally {
+    fs.rmSync(index, { force: true });
+    await quiet(git(root, ['update-ref', '-d', ref]));
+  }
+}
+
+// Unpack a packWork() bundle into a new worktree of the repo at `cwd`, on the same branch name
+// when it's free: its commits as commits, the snapshot as uncommitted changes again.
+export async function unpackWork({ cwd, home, id, title, pack, file }) {
+  const root = await repoRoot(cwd);
+  if (!root) throw bad(`${cwd} isn’t a git repo here, so the work has nowhere to go.`);
+  if (pack.prereq) await quiet(git(root, ['fetch', '--quiet', 'origin'], { timeout: 60_000 })); // the commits the bundle leaves out
+  const local = `refs/wisp/moved/${id}`;
+  try {
+    await git(root, ['fetch', '--quiet', '--no-tags', file, `+${pack.ref}:${local}`], { timeout: 300_000 });
+  } catch (err) {
+    throw bad(`Couldn’t bring the work over: ${err.message}`);
+  }
+  const taken = async (b) => !!(await quiet(git(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${b}`])));
+  let branch = /^[\w./-]{1,120}$/.test(pack.branch || '') && !(await taken(pack.branch)) ? pack.branch : `wisp/${slug(title) || 'task'}-${id.slice(0, 6)}`;
+  if (await taken(branch)) branch = `wisp/${slug(title) || 'task'}-${id}`;
+  const dir = path.join(home, 'worktrees', `${path.basename(root)}-${id}`);
+  fs.mkdirSync(path.dirname(dir), { recursive: true });
+  try {
+    await git(root, ['worktree', 'add', '--quiet', '--no-track', '-b', branch, dir, `${local}^`]);
+    await git(dir, ['read-tree', '-u', '--reset', local]);
+    await git(dir, ['reset', '--quiet']);
+  } finally {
+    await quiet(git(root, ['update-ref', '-d', local]));
+  }
+  // A task that ran in the folder itself (no worktree) branches from what's here.
+  const base = pack.baseRef ? null : await baseRef(root);
+  const sub = path.relative(realpath(root), realpath(cwd));
+  return {
+    path: dir,
+    cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir,
+    branch,
+    base: pack.base || base?.branch || '',
+    baseRef: pack.baseRef || base?.ref || '',
+    head: pack.head || (await quiet(git(dir, ['rev-parse', 'HEAD']))) || null,
+    remote: pack.baseRef ? pack.remote : base?.remote || null,
+    root,
+    createdAt: Date.now(),
+  };
 }

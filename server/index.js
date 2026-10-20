@@ -29,6 +29,8 @@ import { scoutNote } from './scout.js';
 import { createFeedback } from './services/feedback.js';
 import { createInstaller } from './services/install.js';
 import { createLaunch } from './services/launch.js';
+import { createMove } from './services/move.js';
+import { createPlaces } from './services/places.js';
 import { phoneActions } from './services/phone.js';
 import { createShip } from './services/ship.js';
 import { trackTurns } from './services/telemetry.js';
@@ -148,6 +150,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   });
   trackTurns(app);
 
+  app.places = createPlaces(app);
+  app.mover = createMove(app);
   app.launcher = createLaunch(app);
   app.sendFeedback = createFeedback(app);
   app.triggers = new Triggers({ store, launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0], onChange: () => app.broadcast('config', {}) });
