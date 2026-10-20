@@ -1,6 +1,6 @@
 # wisp
 
-> Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build) in the background and hands back a 30-second animated presentation instead of a 4,000-line transcript.
+> Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build) in parallel and in the background, each in its own git worktree, on this computer or other machines over SSH, and hands back a 30-second animated presentation instead of a 4,000-line transcript.
 
 - Website: https://trywisp.dev/
 - GitHub: https://github.com/M0xoo/wisp
@@ -66,5 +66,12 @@ wisp --mode plan "audit dependencies"
 - [Integrations Guide (MCP, CLI, SDK, HTTP API, Webhooks)](https://trywisp.dev/integrations.html)
 - [Supported agents: how wisp runs each CLI](https://trywisp.dev/agents/)
 - [Claude Code](https://trywisp.dev/agents/claude-code.html) · [Codex](https://trywisp.dev/agents/codex.html) · [Cursor CLI](https://trywisp.dev/agents/cursor.html) · [opencode](https://trywisp.dev/agents/opencode.html) · [Antigravity CLI](https://trywisp.dev/agents/antigravity.html) · [Grok Build](https://trywisp.dev/agents/grok.html)
+- [Guides](https://trywisp.dev/guides/)
+  - [Run Claude Code and Codex in parallel](https://trywisp.dev/guides/run-claude-code-and-codex-in-parallel.html)
+  - [Run multiple Claude Code agents in parallel](https://trywisp.dev/guides/run-multiple-claude-code-agents-in-parallel.html)
+  - [Run coding agents on multiple machines (SSH)](https://trywisp.dev/guides/run-coding-agents-on-multiple-machines.html)
+  - [Multi-agent coding: a lead delegating to other harnesses](https://trywisp.dev/guides/multi-agent-coding.html)
+  - [Claude Code vs Codex, on your own repo](https://trywisp.dev/guides/claude-code-vs-codex.html)
+  - [Run coding agents in the background](https://trywisp.dev/guides/run-coding-agents-in-the-background.html)
 - [Changelog](https://trywisp.dev/changelog.html)
 - [README](https://github.com/M0xoo/wisp/blob/main/README.md)

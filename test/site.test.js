@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, markdown, AGENTS } from '../scripts/site.mjs';
+import { build, markdown, AGENTS, GUIDES } from '../scripts/site.mjs';
 import { adapters } from '../server/adapters/index.js';
 
 const DOCS = fileURLToPath(new URL('../docs/', import.meta.url));
@@ -49,6 +49,24 @@ test('sitemap lists every indexable page on the canonical domain', () => {
   assert.deepEqual(locs, pages.filter((p) => !p.noindex).map((p) => `${SITE}${p.path}`));
   assert.ok(locs.includes(`${SITE}/agents/claude-code.html`));
   assert.match(fs.readFileSync(path.join(DOCS, 'robots.txt'), 'utf8'), new RegExp(`Sitemap: ${SITE}/sitemap.xml`));
+});
+
+test('guides: each answers its question up front, links related guides, and the landing page links in', () => {
+  const index = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
+  const hub = fs.readFileSync(path.join(out, 'guides/index.html'), 'utf8');
+  for (const g of GUIDES) {
+    const html = fs.readFileSync(path.join(out, `guides/${g.slug}.html`), 'utf8');
+    const words = g.lede.replace(/<[^>]+>/g, '').split(/\s+/).length;
+    assert.ok(words >= 30 && words <= 80, `${g.slug}: lede is ${words} words`);
+    assert.ok(g.title.length <= 70, `${g.slug}: title is ${g.title.length} chars`);
+    assert.ok(g.description.length >= 120 && g.description.length <= 220, `${g.slug}: description is ${g.description.length} chars`);
+    assert.match(html, /"@type":"FAQPage"/, g.slug);
+    for (const r of g.related) assert.ok(GUIDES.some((x) => x.slug === r) && r !== g.slug, `${g.slug}: related ${r}`);
+    assert.ok(hub.includes(`href="/guides/${g.slug}.html"`), `hub links ${g.slug}`);
+  }
+  for (const slug of ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines']) {
+    assert.ok(index.includes(`href="guides/${slug}.html"`), `landing page links ${slug}`);
+  }
 });
 
 test('there is a page for every harness, and its mode flags match the adapter', () => {
