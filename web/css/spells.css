@@ -147,12 +147,28 @@ button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
 .sp-confirm { display: grid; gap: 12px; }
 .sp-confirm p { margin: 0; }
 .sp-examples { display: flex; flex-wrap: wrap; gap: 6px; }
+/* a long example wraps inside its chip instead of spilling over the next one */
+.sp-examples .sp-qr { height: auto; min-height: 26px; padding-block: 3px; line-height: 1.4; }
 .sp-castbox { display: grid; gap: 10px; padding-bottom: 14px; }
 .sp-castbox > .sp-examples { padding: 0 14px; }
 .sp-castrow { display: flex; gap: 8px; align-items: center; padding: 0 14px 14px; }
 .sp-castrow:has(.textarea) { align-items: flex-start; }
 .sp-castrow .textarea { min-height: 56px; }
-.sp-castbox > .sp-castrow { padding-bottom: 0; }
+/* the cast box: the launcher's prompt in small, the send button in a bar under the text */
+.sp-prompt {
+  margin: 0 14px; padding: 8px 10px 8px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--surface);
+  box-shadow: var(--shadow-1); cursor: text; transition: box-shadow 0.15s, border-color 0.15s;
+}
+.sp-prompt:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sp-prompt textarea {
+  display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; padding: 6px 4px;
+  font-size: 15px; line-height: 1.55; color: var(--ink); min-height: 56px;
+}
+.sp-prompt textarea::placeholder { color: var(--faint); }
+.sp-pbar { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+.sp-pbar .grow { flex: 1; }
+.sp-pin { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--faint); }
+.sp-pin .i { width: 13px; height: 13px; color: var(--accent); }
 .sp-castrow .primary, .sp-castrow .ghost { flex: none; }
 .sp-row .sx-text details { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
 .sp-row .sx-text summary { cursor: pointer; width: max-content; }

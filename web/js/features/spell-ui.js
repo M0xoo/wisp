@@ -9,6 +9,7 @@ import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { registerBlock } from '../blocks.js';
+import { autosize } from './attachments.js';
 import { callSpell, cleanBlocks, drawBlocks, keep, setOn, spellData, tryOn, tryingId, undoTry } from './spells.js';
 
 const KIND = {
@@ -256,7 +257,10 @@ export function spellsPane(section) {
   section.innerHTML = `
     <div class="sx-group sp-castbox">
       <div class="sx-row"><div class="sx-text"><b>Cast a spell</b><small>Ask for a change to wisp. An agent writes it; you try it and keep it.</small></div></div>
-      <div class="sp-castrow"><textarea class="textarea" rows="2" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea><button class="primary sm" data-a="cast">${icon('spark')}Cast</button></div>
+      <div class="sp-prompt">
+        <textarea rows="2" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea>
+        <div class="sp-pbar"><span class="sp-pin">${icon('spark')}Writes a spell, not your code</span><span class="grow"></span><button class="send" data-a="cast" title="Cast (Enter · Shift+Enter for newline)">${icon('enter')}</button></div>
+      </div>
       <div class="sp-examples">${EXAMPLES.map((x) => `<button type="button" class="sp-qr">${esc(x)}</button>`).join('')}</div>
     </div>
     <div class="sx-group sp-list"></div>
@@ -299,6 +303,13 @@ export function spellsPane(section) {
   bus.on('config', paint, { node: section });
   bus.on('spells:changed', paint, { node: section });
   const castTa = $('.sp-castbox textarea', section);
+  autosize(castTa, 240);
+  // A click on the box's padding or bar lands in the textarea, as on the launcher.
+  $('.sp-prompt', section).onmousedown = (e) => {
+    if (e.target.closest('button, textarea')) return;
+    e.preventDefault();
+    castTa.focus();
+  };
   const doCast = async () => {
     const text = castTa.value.trim();
     if (!text) return castTa.focus();
