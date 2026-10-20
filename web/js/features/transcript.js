@@ -189,22 +189,26 @@ export function renderLiveTranscript(s, t, ctx) {
   return node;
 }
 
-// A new step in a running turn. The working panel under the timeline holds still on screen while
-// the timeline grows above it, so watching a run reads like a chat; scrolled away, nothing moves.
+// A new step. In a running turn it goes at the end, and the working panel under the timeline holds
+// still on screen while the timeline grows above it, so watching a run reads like a chat; scrolled
+// away, nothing moves. A finished turn still gets wisp's own steps after the agent's answer (Auto
+// checking the tests): they go above the end marker, and what you're reading below doesn't move.
 export function appendStep(turnNode, item, t, scrollBy) {
-  const list = $('.tx.live .tx-list', turnNode);
+  const list = $('.tx-list', turnNode);
   const reg = list && registry.get(list);
   if (!reg) return;
-  const html = item.kind === 'text' ? msgHtml(item, reg.length, t) : stepHtml(item, reg.length, t, true);
+  const live = !!list.closest('.live');
+  const html = item.kind === 'text' ? msgHtml(item, reg.length, t) : stepHtml(item, reg.length, t, live);
   if (!html) return;
   reg.push(item);
-  const panel = $('.w-panel', turnNode);
-  const r = panel?.getBoundingClientRect();
-  const held = r && r.bottom > 0 && r.top < innerHeight ? r.top : null;
+  const end = $(':scope > .tx-end', list);
+  const anchor = live ? $('.w-panel', turnNode) : end;
+  const r = anchor?.getBoundingClientRect();
+  const held = !r ? null : live ? (r.bottom > 0 && r.top < innerHeight ? r.top : null) : r.bottom <= 0 ? r.top : null;
   const li = el(html);
   li.classList.add('new');
-  list.append(li);
-  if (held !== null) scrollBy(panel.getBoundingClientRect().top - held);
+  list.insertBefore(li, end);
+  if (held !== null) scrollBy(anchor.getBoundingClientRect().top - held);
 }
 
 // A step that changed after it was shown (its output came in).
