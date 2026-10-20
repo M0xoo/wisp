@@ -114,7 +114,7 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
 
     <section>
       <h2 id="move-a-task">Move a task to another computer</h2>
-      <p>Started on the laptop and want it to keep going on the desktop? The <b>Runs on</b> button next to the follow-up box moves your next message, and the task, to another computer. The branch and its uncommitted work travel as a git bundle into a worktree on the same branch there, and the earlier turns come along, so the agent picks up where it stopped. <b>Rerun</b> has the same picker.</p>
+      <p>Started on the laptop and want it to keep going on the desktop? The <b>Runs on</b> button next to the follow-up box moves your next message, and the task, to another computer. The branch and its uncommitted work travel as a git bundle into a worktree on the same branch there, and the earlier turns come along, so the agent picks up where it stopped. The same follow-up can switch agents. <b>Rerun</b> has the same picker. <a href="/guides/move-a-task-to-another-machine-or-agent.html">How moving a task works →</a></p>
     </section>
 
     <section>
@@ -132,7 +132,95 @@ tmux new -d -s fix 'cd ../app-fix && claude -p "fix the flaky auth test"'`)}
         ['What happens when my laptop disconnects?', 'The agents on the machine keep running. wisp reconnects on its own when your laptop is back, and finished reports and pending questions are waiting in the queue.'],
         ['Can I answer an agent’s question from my phone?', 'Yes. Questions and finished tasks from every machine go to ntfy or Telegram, and you can answer from there.'],
       ],
-      related: ['run-coding-agents-in-the-background', 'run-claude-code-and-codex-in-parallel', 'multi-agent-coding'],
+      related: ['move-a-task-to-another-machine-or-agent', 'run-coding-agents-in-the-background', 'multi-agent-coding'],
+    },
+
+    {
+      slug: 'move-a-task-to-another-machine-or-agent',
+      title: 'Move a Claude Code or Codex task to another machine or agent — wisp',
+      h1: 'Move a task to another machine or agent, mid-way',
+      card: 'Laptop to dev box, Claude Code to Codex: one follow-up, work and history included.',
+      description: 'Continue a Claude Code or Codex task on another computer, or hand it to another agent, without losing work: the branch, uncommitted changes and earlier turns move with your next follow-up.',
+      lede: 'To carry a coding-agent task over to another computer, the new place needs the branch, the uncommitted changes and what happened so far. In wisp, the <b>Runs on</b> button next to the follow-up box moves all three with your next message: the work travels as a git bundle into a worktree on the same branch, and the agent there gets the earlier turns. The same follow-up can switch from Claude Code to Codex.',
+      demo: true,
+      body: `
+    <section>
+      <h2 id="why">When you’d move a task</h2>
+      <ul class="doc-list">
+        <li><b>The laptop has to go.</b> The battery is low, or you’re about to close it. Move the task to a desktop or a VM and it keeps working.</li>
+        <li><b>The job got bigger.</b> The full test suite, a Docker build or a GPU needs a bigger box than the one it started on.</li>
+        <li><b>The agent is stuck or out of quota.</b> Claude Code hit its usage limit or keeps going in circles. Hand the next step to Codex, or the other way round.</li>
+        <li><b>A second opinion.</b> Have another model review or finish what the first one started, in the same branch.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="manual">Doing it by hand</h2>
+      <p>Git can carry the work. The agent’s conversation can’t: it stays in the first CLI’s session files on the first computer.</p>
+      ${sh(`# on the laptop: commit what's there, bundle the branch, copy it over
+git add -A && git commit -m "wip: stripe v2"
+git bundle create /tmp/work.bundle origin/main..HEAD
+scp /tmp/work.bundle devbox:/tmp/
+
+# on the dev box: a worktree on the same branch
+cd ~/code/app && git fetch /tmp/work.bundle HEAD:stripe-v2
+git worktree add ../app-stripe stripe-v2
+cd ../app-stripe && codex   # starts with no idea what happened so far`)}
+      <p>Then you explain the task again: what was asked, what the first agent did, what’s left. And the WIP commit is now part of your branch.</p>
+    </section>
+
+    <section>
+      <h2 id="with-wisp">With wisp: one follow-up</h2>
+      <ol class="doc-steps">
+        <li><b>Connect the other computer</b> once, under <b>Machines</b>. It needs SSH with a key, Node.js 20+ and the agent CLIs, signed in. See <a href="/guides/run-coding-agents-on-multiple-machines.html">agents on multiple machines</a>.</li>
+        <li><b>Click the Runs on button</b> (the laptop icon next to the follow-up box) and pick the machine. To switch agents too, use the harness button beside it and pick Codex, opencode or another model.</li>
+        <li><b>Type the follow-up and press Enter.</b> A running task has to stop or finish first.</li>
+      </ol>
+      <p>Then wisp:</p>
+      <ol class="doc-list">
+        <li>packs the task’s branch and its uncommitted and untracked changes into a git bundle (your own checkout and index are left alone);</li>
+        <li>carries it to the other computer, which reuses its checkout of the project or clones the repo’s <code>origin</code>;</li>
+        <li>unpacks it into a worktree there, on the same branch, with the uncommitted changes still uncommitted;</li>
+        <li>starts the agent on your follow-up, with the earlier turns written out ahead of it: each request, the report it got and the files that were edited;</li>
+        <li>archives the old card with a <b>Continues on devbox</b> link. The new card shows <b>From MacBook</b> and tags each earlier turn with where it ran.</li>
+      </ol>
+      <p><b>Rerun</b> has the same picker, for starting the task over somewhere else instead.</p>
+    </section>
+
+    <section>
+      <h2 id="switch-agent">Switch agent without moving</h2>
+      <p>The harness button in the follow-up box works on its own too. What the next agent knows depends on what you switch:</p>
+      <div class="table"><table>
+        <thead><tr><th>You switch</th><th>Conversation</th><th>What it’s told</th></tr></thead>
+        <tbody>
+          <tr><td>Model or thinking level</td><td>Same conversation, resumed</td><td>Nothing extra: it was there</td></tr>
+          <tr><td>Harness (Claude Code → Codex)</td><td>Codex starts its own, in the same folder</td><td>Every turn it didn’t see, newest first, up to about 24k characters</td></tr>
+          <tr><td>Back to the first harness</td><td>Its own session, resumed</td><td>Only what happened while it was away</td></tr>
+          <tr><td>Computer</td><td>A new session on that computer</td><td>Every earlier turn, tagged with where it ran</td></tr>
+        </tbody>
+      </table></div>
+      <p>Each turn’s badge shows the harness that ran it, so the card reads as one story across agents and computers.</p>
+    </section>
+
+    <section>
+      <h2 id="api">From the CLI and API</h2>
+      ${sh(`# switch agent and model on the next follow-up
+wisp reply <id> "finish the other call sites" --agent codex
+
+# move the task too: machine is a machine's id, "" for this computer
+curl -X POST localhost:4477/api/sessions/<id>/reply \\
+  -H 'content-type: application/json' \\
+  -d '{"text":"finish the other call sites","machine":"devbox","agent":"codex"}'`)}
+      <p>The MCP tool <code>wisp_reply</code> takes <code>agent</code>, <code>model</code> and <code>effort</code> as well. See <a href="/integrations.html">integrations</a>.</p>
+    </section>
+`,
+      faq: [
+        ['Can I move a task while the agent is running?', 'No. Stop it or let it finish first, so there is a settled state to pack. Then send the follow-up with another computer picked.'],
+        ['Does the agent on the other computer remember the conversation?', 'Its CLI starts a new session there, since the old one stays on the first computer. wisp writes the earlier turns into the follow-up: each request, the report and the files edited, newest first. The code itself is already in the worktree.'],
+        ['What if the other machine doesn’t have the project?', 'wisp reuses a clone of the same repo if it finds one there, or clones the project’s origin first. A repo without a remote can’t be cloned this way; add its folder on that machine instead.'],
+        ['Can I move it back?', 'Yes. Use the same button on the new card and pick this computer. The work and history come back the same way.'],
+      ],
+      related: ['run-coding-agents-on-multiple-machines', 'claude-code-vs-codex', 'run-coding-agents-in-the-background'],
     },
 
     {
