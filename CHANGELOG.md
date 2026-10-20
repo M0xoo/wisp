@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **No folder is picked by default when wisp has no folders.** With no projects added (on this computer, or on a machine picked under **Run on**), the launcher now starts on **No folder**, so a prompt runs right away in an empty scratch directory instead of opening the folder picker. Adding a folder picks it, as before.
+
 ## [0.21.0] - 2026-10-20
 
 ### Added

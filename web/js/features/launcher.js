@@ -30,7 +30,9 @@ import { canLead, paintTeamBtn, teamEditor } from './team.js';
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
 const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
-const projectOf = (k) => (launch.picks[k] === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
+// A place with nothing to pick (no projects yet) runs in No folder; its first project takes over.
+const pickAt = (k) => launch.picks[k] || NO_FOLDER;
+const projectOf = (k) => (pickAt(k) === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
 // The place's other folders for the task (launch.also), and whether a project is in it at all.
 const alsoAt = (k) => launch.also[k] || [];
 const chosen = (k, id) => id === launch.picks[k] || alsoAt(k).includes(id);
@@ -370,7 +372,7 @@ export function renderLauncher() {
 // No folder everywhere picked: no git repo, so no worktree either; the toggle would only mislead.
 function paintScratch() {
   const wt = $('#launcher #wtBtn');
-  if (wt) wt.hidden = launch.where.every((k) => launch.picks[k] === NO_FOLDER);
+  if (wt) wt.hidden = launch.where.every((k) => pickAt(k) === NO_FOLDER);
 }
 
 export function renderLaunchChips() {
@@ -409,7 +411,7 @@ export function renderLaunchChips() {
     const add = list.length || cloning
       ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi || list.length > max ? '' : 'Other folder…'}</button>`
       : `<button class="lp-chip add" data-add="${k}">${icon('folder')}${k ? `Pick a project on ${esc(placeName(k))}…` : 'Choose a folder…'}</button>`;
-    const none = `<button class="lp-chip none ${launch.picks[k] === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" data-k="${k}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}<span>No folder</span></button>`;
+    const none = `<button class="lp-chip none ${pickAt(k) === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" data-k="${k}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}<span>No folder</span></button>`;
     return `<span class="lp-group">${label}${chips}${more}${none}${add}</span>`;
   };
   box.innerHTML = `<span class="l-in">in</span>${launch.where.map(group).join('')}`;
@@ -453,7 +455,7 @@ export function renderLaunchChips() {
       const k = more.dataset.more;
       return projectList(more, {
         projects: projectsAt(k),
-        current: launch.picks[k],
+        current: pickAt(k),
         // Each row's + adds it to the task (or takes it out) and leaves the list open.
         also: ownPick(k) && {
           has: (id) => chosen(k, id),
