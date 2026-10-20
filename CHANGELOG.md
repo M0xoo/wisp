@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-20
+
 ### Added
 
 - **Full transcript, when you want it.** Turn on Settings → General → **Full transcript** and every card shows its run as a timeline: the agent's messages in full, every step it took (commands, reads, edits, searches, questions), and at the end its presentation, rendered as blocks as usual. Click a step to see the whole command and what it printed, the diff that one edit made, or the full error. Long runs of steps fold their middle, and **Jump to the result** skips to the end. While a task runs, the timeline grows live above a one-line status bar with Stop. Any card can switch either way with its **Transcript** button or `V` (also in ⌘K), and keeps that choice. Off by default. Agent messages are now kept whole (they used to be cut at 600 characters), and so is the output of each command, search, web or MCP call, up to 2,000 characters (its start and end), from Claude Code, Codex, opencode, Cursor and Grok. Turns from before this change show their steps without output.
@@ -411,7 +413,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/M0xoo/wisp/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/M0xoo/wisp/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/M0xoo/wisp/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/M0xoo/wisp/compare/v0.18.1...v0.19.0
