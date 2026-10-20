@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Spells: change wisp itself, by asking.** A spell is a change wisp layers over itself at runtime: a floating button that opens all your PRs (with how many), a top bar button with your tool stats, a `deploy` block agents can use in their reports, compact cards with an Open PR button on hover, quick replies above the follow-up box, a monospace prompt box with a *Plan on Codex* button, a hook that sends a task back once when its tests fail. Cast one from ⌘K → *Cast a spell…*, Settings → Spells, `/spell …` in the prompt box or `wisp spell cast "…"`. An agent writes it in an empty folder of its own, using new `wisp_spell_schema`, `wisp_spells`, `wisp_spell_data` and `wisp_spell_check` tools, and its report ends with the spell: a live preview with your real data and what it does in plain words. **Try it** applies it to the window only; **Keep** turns it on; a follow-up changes it. Spells add buttons, chips and panels to named places (top bar, floating, prompt box, follow-up box, card head / hover / menu / body, ⌘K, above the feed), restyle or hide named parts, recolour wisp, add block types and prompt rules for agents, `/commands`, settings (shown as *Set by …* in Settings) and hooks. Their data comes from read-only wisp routes and read-only `gh` commands that wisp runs; their code runs in a sandboxed frame with no network, DOM or API and can only return values and blocks. Each spell says how far it reaches (Safe, Acts for you, Reads GitHub, Runs commands). Turning one off puts wisp back exactly as it was; `WISP_SAFE=1` turns them all off. Share a spell as a `.spell.json` file, pasted JSON or a link: Settings → Spells (export, copy, import by file, paste or link) or `wisp spell install|on|off|rm|export`. API: `/spells` (list, install, `check`, on/off, export, data, `try-data`, `off`), `POST /open`, `GET /usage/tools`, and `kind: "spell"` on `POST /sessions`.
+
+### Fixed
+
+- **Codex can use wisp's tools outside Full auto.** In Edits and Plan mode `codex exec` refused every MCP call ("requires approval, but approval policy is never"), so `ask_user` and the other wisp tools failed there. wisp's own MCP server is now pre-approved.
+- **A report whose last block lost a closing brace keeps that block.** Agents sometimes drop a `}` after a long string (a spell's script); wisp used to skip the block with a warning, and now closes it.
+
 ## [0.24.1] - 2026-10-20
 
 ### Fixed

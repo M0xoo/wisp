@@ -23,6 +23,7 @@ import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupComma
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
+import { spellsPane } from './spell-ui.js';
 
 // A sidebar of sections and one pane at a time, like every other app's settings. Big lists
 // (memory, automations, usage history) keep their own views; a pane only summarises and links.
@@ -34,6 +35,7 @@ const SETTINGS_PANES = [
   { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
   { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
+  { id: 'spells', label: 'Spells', icon: 'spark', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
   { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },
   { id: 'privacy', label: 'Privacy', icon: 'info', lede: 'What wisp sends about itself. Never prompts, paths or code.' },
 ];
@@ -135,6 +137,7 @@ export function openSettings(opts) {
             ${row('Triggers', '<span class="trigger-hint"></span>', '<button class="ghost sm" data-auto="triggers">Manage</button>')}
           </div>
         </section>
+        <section class="sx-pane sp-pane" data-pane="spells"></section>
         <section class="sx-pane" data-pane="usage">
           <div class="us-tiles sx-usage"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
           <div class="sx-group">${row('Charts and breakdowns', 'Per day, per project and per harness · model', '<button class="ghost sm" id="openUsage">Open usage</button>')}</div>
@@ -149,6 +152,7 @@ export function openSettings(opts) {
     </div>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
+  spellsPane($('[data-pane="spells"].sx-pane', node));
   const paintAgents = () => {
     $('.sx-agents', node).innerHTML = S.agents.length
       ? S.agents.map((a) => {
@@ -441,6 +445,23 @@ export function openSettings(opts) {
   $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
+  // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
+  const LOCKABLE = { transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', learn: '#learn', editor: 'select[name="editor"]', notify: '#notif' };
+  const paintLocks = () => {
+    for (const n of $$('.sp-lock', node)) n.remove();
+    for (const [key, sel] of Object.entries(LOCKABLE)) {
+      const ctl = $(sel, node);
+      if (!ctl) continue;
+      const by = S.config.lockedBy?.[key];
+      ctl.disabled = !!by;
+      if (by) $('.sx-text', ctl.closest('.sx-row'))?.insertAdjacentHTML('beforeend', `<small class="sp-lock">${icon('spark')}Set by the spell <b>${esc(by.name)}</b> · <button class="link xs" data-pane-go="spells">Spells</button></small>`);
+    }
+  };
+  paintLocks();
+  bus.on('config', paintLocks, { node });
+  node.addEventListener('click', (e) => {
+    if (e.target.closest('[data-pane-go]')) show(e.target.closest('[data-pane-go]').dataset.paneGo);
+  });
   $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
   $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
   $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });

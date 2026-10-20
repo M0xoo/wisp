@@ -6,7 +6,9 @@ import { normalizeTrigger, triggerView } from '../triggers.js';
 export function register(r, app) {
   const { store } = app;
 
-  r.route('GET', '/recipes', (c) => c.send(200, store.config.recipes.map(recipeView)));
+  // Yours, then the ones spells add (read-only: they belong to the spell).
+  const all = () => [...store.config.recipes, ...app.spells.recipes()];
+  r.route('GET', '/recipes', (c) => c.send(200, all().map(recipeView)));
   r.route('POST', '/recipes', async (c) => {
     const x = normalizeRecipe(await c.body());
     store.config.recipes.push(x);
@@ -14,9 +16,10 @@ export function register(r, app) {
     c.send(201, recipeView(x));
   });
   // A recipe by id or by name (loosely: "Fix Bug" finds fix-bug).
-  const recipe = (fn) => async (c) => {
-    const x = findRecipe(store.config.recipes, c.params.key);
+  const recipe = (fn, { mine = false } = {}) => async (c) => {
+    const x = findRecipe(all(), c.params.key);
     if (!x) return c.send(404, { error: 'no such recipe' });
+    if (mine && x.spell) return c.send(409, { error: `This recipe comes from the spell ${x.spell.name}; change the spell instead.` });
     return fn(c, x);
   };
   r.route('GET', '/recipes/:key', recipe((c, x) => c.send(200, recipeView(x))));
@@ -27,7 +30,7 @@ export function register(r, app) {
       Object.assign(x, normalizeRecipe(await c.body(), x));
       app.configChanged();
       c.send(200, recipeView(x));
-    }),
+    }, { mine: true }),
   );
   r.route(
     'DELETE',
@@ -36,7 +39,7 @@ export function register(r, app) {
       store.config.recipes = store.config.recipes.filter((y) => y !== x);
       app.configChanged();
       c.send(200, { ok: true });
-    }),
+    }, { mine: true }),
   );
   // POST /recipes/:key/run { params | words, cwd, … }. machine: run it in a project there
   // (r.cwd empty, or a path on that machine).

@@ -20,6 +20,7 @@ import { scrollByPx, topInset, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
+import { paintCard } from './spells.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -98,6 +99,7 @@ export function renderBody(id, { fresh }) {
   }
 
   const body = n.body;
+  paintCard(id); // spell panels and buttons in the card
   const proj = projectById(summary.projectId);
   // The head already shows the harness, model and project, and the task head has Compare. This bar
   // says how the run was set up: a mode worth noticing (Plan or Edits, as on the launcher), the

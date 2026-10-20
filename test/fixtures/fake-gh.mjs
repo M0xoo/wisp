@@ -69,6 +69,10 @@ if (a === 'pr' && b === 'create') {
 } else if (a === 'run' && b === 'list') {
   const branch = flag('--branch');
   console.log(JSON.stringify((state.runs || []).filter((r) => !branch || r.headBranch === branch)));
+} else if (a === 'search' && b === 'prs') {
+  // Spells' data sources: the open PRs in the state file.
+  const open = Object.values(state.prs).filter((p) => argv.includes('--state') ? p.state === flag('--state').toUpperCase() : true);
+  console.log(JSON.stringify(open.map((p) => ({ number: p.number, title: p.title, url: p.url, state: p.state, repository: { nameWithOwner: 'acme/repo' } }))));
 } else if (a === 'issue' && b === 'list') {
   if (typeof state.issues === 'string') console.log(state.issues); // a broken reply
   else console.log(JSON.stringify((state.issues || []).filter((i) => (i.labels || []).includes(flag('--label')))));

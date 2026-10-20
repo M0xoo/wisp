@@ -19,6 +19,9 @@
 //                the first reply a full presentation (a finished task that left a dev server up)
 //   FAKE_ORPHANS=1  claude: on --resume, first answer the last run's stopped background tasks with
 //                an empty zero-turn result, as the real CLI does
+// A prompt with CAST (a Cast a spell task) reads wisp_spell_schema, checks a spell with
+// wisp_spell_check and ends with a spell block; FAILTESTS reports a failing test run (until a
+// follow-up says "Fix them"); DEPLOYBLOCK adds a `deploy` block, a type a spell adds.
 //   FAKE_BTW     a /btw side question (recorded as btw.jsonl) answers at once, whatever else is set;
 //                `nofork` fails a forked one the way a CLI without fork support does, `slow`
 //                answers after 3s; FAKE_BTW_ANSWER is the answer (screenshots)
@@ -216,6 +219,12 @@ const refused = publishing && !allowedPublish;
 const final = (answer) => {
   const blocks = [{ type: 'hero', title: `Fake ${name} finished`, summary: answer ? `Answer was: ${answer}` : refused ? 'npm publish was blocked.' : publishing ? 'Published.' : 'No question asked.', status: 'done' }];
   if (refused && name === 'codex') blocks.push({ type: 'blocked', items: [{ tool: 'shell', detail: 'npm publish', why: 'needs network access' }] });
+  // FAILTESTS: the report shows a failing test run (what spell hooks react to).
+  if (stdin.includes('FAILTESTS') && !stdin.includes('Fix them')) blocks.push({ type: 'tests', command: 'npm test', passed: 3, failed: 1 });
+  // DEPLOYBLOCK: a block type a spell added.
+  if (stdin.includes('DEPLOYBLOCK')) blocks.push({ type: 'deploy', env: 'staging', url: 'https://staging.example.com', status: 'ok', checks: [{ label: 'health', ok: true }] });
+  // CAST: a Cast a spell task hands its spell back.
+  if (stdin.includes('CAST')) blocks.push({ type: 'spell', spell: FAKE_SPELL });
   return 'All done.\n```wisp\n' + JSON.stringify({ blocks }) + '\n```';
 };
 
@@ -231,8 +240,15 @@ if (fixup) {
     g('merge', '--quiet', '--no-edit', ...(process.env.FAKE_LEAVE_CONFLICTS ? [] : ['-X', 'ours']), fixup[1]);
   } catch {}
 }
+// FAKE_SPELL: a JSON file with the spell a CAST task hands back (screenshots and UI checks).
+const FAKE_SPELL = process.env.FAKE_SPELL ? JSON.parse(fs.readFileSync(process.env.FAKE_SPELL, 'utf8')) : { wispSpell: 1, id: 'fake-hello', name: 'Fake hello', prompt: ['Say hello first.'] };
 const ask = async () => {
   const srv = injectedMcp();
+  if (stdin.includes('CAST') && srv) {
+    const schema = await mcpCall(srv, 'wisp_spell_schema', {});
+    const check = await mcpCall(srv, 'wisp_spell_check', { spell: FAKE_SPELL });
+    return `schema ${schema ? 'read' : 'missing'} | check: ${String(check).split('\n')[0]}`;
+  }
   if (stdin.includes('DELEGATE') && srv) {
     const names = (list) => list.find((t) => t.name === 'delegate').inputSchema.properties.tasks.items.properties.subagent.enum.filter((n) => !n.includes('#'));
     const times = stdin.includes('DELEGATE TWICE') ? 2 : 1;

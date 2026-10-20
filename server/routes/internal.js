@@ -9,6 +9,9 @@ import { summarize } from '../runner.js';
 import { delegationReport } from '../subagents.js';
 import { toolStats, toolStatsText } from '../usage.js';
 import { clip } from '../util.js';
+import { describeSpell, normalizeSpell } from '../spells.js';
+import { spellReference } from '../spell-guide.js';
+import { ghProblem, wispPathProblem } from '../../web/js/spell-schema.js';
 
 export function register(r, app) {
   const { store, runner, telemetry } = app;
@@ -72,6 +75,64 @@ export function register(r, app) {
       if (!list.length) return c.send(200, { done: true, text: 'No delegated tasks to report on.' });
       const running = ({ d, child }) => child?.turns.find((t) => t.id === d.turnId)?.status === 'running';
       c.send(200, { done: !list.some(running), text: list.map(({ d, child }) => delegationReport(d, child, adapters)).join('\n\n---\n\n') });
+    }),
+    opts,
+  );
+
+  // Cast a spell: the tools a spell task writes its spell with. Only that task's token works.
+  const spellTask = (fn) =>
+    guarded(async (c) => {
+      const s = lead(c);
+      if (!s) return c.send(404, { error: 'no such session' });
+      if (s.kind !== 'spell') return c.send(403, { error: 'only a Cast a spell task can use this' });
+      return fn(c, s);
+    });
+  r.route(
+    'GET',
+    '/internal/spells/:id',
+    spellTask((c) => {
+      const { spells } = app.spells.list();
+      const one = (x) => [`### ${x.name} (\`${x.id}\` v${x.version}, ${x.enabled ? 'on' : 'off'})`, ...x.summary.map((l) => `- ${l}`), '', '```json', JSON.stringify(app.spells.exported(x.id), null, 2), '```'].join('\n');
+      const text = spells.length ? spells.map(one).join('\n\n') : 'The user has no spells yet.';
+      c.send(200, { text });
+    }),
+    opts,
+  );
+  r.route('GET', '/internal/spell-schema/:id', spellTask((c) => c.send(200, { text: JSON.stringify(spellReference(), null, 1) })), opts);
+  r.route(
+    'POST',
+    '/internal/spell-data/:id',
+    spellTask(async (c) => {
+      const { source, task } = await c.body();
+      const src = source && typeof source === 'object' ? source : {};
+      const problem = src.wisp !== undefined ? wispPathProblem(src.wisp) : src.gh !== undefined ? ghProblem(src.gh) : 'source is { "wisp": "/path" } or { "gh": [args] }';
+      if (problem) return c.send(200, { text: `Not allowed: ${problem}` });
+      const session = task ? store.get(String(task)) : null;
+      try {
+        const value = await app.spellData.get(`check-${c.params.id}`, 'sample', { ...src, refresh: 10 }, { session, summary: session ? summarize(session, store) : null, fresh: true });
+        const json = JSON.stringify(value, null, 1);
+        c.send(200, { text: json.length > 12_000 ? `${json.slice(0, 12_000)}\n… (cut; ${json.length} characters in all)` : json });
+      } catch (err) {
+        c.send(200, { text: `The source failed: ${err.message}` });
+      }
+    }),
+    opts,
+  );
+  r.route(
+    'POST',
+    '/internal/spell-check/:id',
+    spellTask(async (c) => {
+      const { spell } = await c.body();
+      try {
+        const { spell: n, warnings } = normalizeSpell(spell);
+        const d = describeSpell(n);
+        const was = app.spells.get(n.id);
+        c.send(200, {
+          text: [`ok — “${n.name}” (${d.kind}) would:`, ...d.lines.map((l) => `- ${l}`), ...(warnings.length ? ['', 'Warnings:', ...warnings.map((w) => `- ${w}`)] : []), ...(was ? ['', `The user already has \`${n.id}\` v${was.version}; yours replaces it${n.version === was.version ? ' (bump version)' : ''}.`] : []), '', 'End your report with {"type":"spell","spell":{…}} holding exactly this spell.'].join('\n'),
+        });
+      } catch (err) {
+        c.send(200, { text: err.problems ? `Not ok. Fix:\n${err.problems.map((p) => `- ${p}`).join('\n')}` : `Not ok: ${err.message}` });
+      }
     }),
     opts,
   );

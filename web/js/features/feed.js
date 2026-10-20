@@ -16,6 +16,7 @@ import { scrollByPx, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
+import { slotHtml } from './spells.js';
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -247,7 +248,9 @@ function renderHead(n, s) {
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
       ${projectLabel(s)}
+      ${s.pending ? '' : slotHtml('card.head', s)}
       <span class="q-time">${ago(s.updatedAt)}</span>
+      ${s.pending ? '' : slotHtml('card.hover', s)}
       ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
       ${icon('chevron', 'chev')}
     </span>`;

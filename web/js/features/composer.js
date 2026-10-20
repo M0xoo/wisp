@@ -24,6 +24,8 @@ import { feedAnchor, keepInPlace, watching } from './scroll.js';
 import { shipDialog } from './ship.js';
 import { slashMenu } from './slash.js';
 import { renderBody } from './turns.js';
+import { paintCard, runAction, spellProp } from './spells.js';
+import { spellSlash } from './launcher.js';
 
 export function draftInto(id, text) {
   const ta = $('.reply', S.nodes.get(id)?.card);
@@ -91,6 +93,7 @@ export function renderDock(id) {
     }
   });
   $('.send', comp).onclick = () => sendReply(id, ta.value);
+  paintCard(id); // what spells add to the box and the card
 }
 
 // The mode the next follow-up runs in: the session's own until the user picks another here.
@@ -243,6 +246,8 @@ export function updateDock(id) {
               ? `Follow up with ${next} to reopen…`
               : 'Follow up to reopen…'
             : `Follow up with ${next}…`;
+  const spellPh = spellProp('composer.input', 'placeholder');
+  if (spellPh && !tour && !s.ask) ta.placeholder = spellPh;
   paintSide(id);
   paintReplyMode(id, $('.c-mode', n.card));
   paintReplyRunner(id, $('.c-runner', n.card));
@@ -335,6 +340,13 @@ export async function sendReply(id, text) {
   text = (text || '').trim();
   if (!s || !text) return;
   const ta = n && $('.reply', n.card);
+  // A spell's slash command: it does its thing on this task instead of being sent.
+  const slash = !isBtw(text) && spellSlash(text);
+  if (slash) {
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    return runAction(slash.spell, slash.cmd.do, { session: id, args: slash.args, input: ta });
+  }
   // A side question: answered next to the run, so nothing is interrupted, queued or switched.
   if (isBtw(text)) {
     const question = btwQuestion(text);

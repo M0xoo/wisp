@@ -16,6 +16,10 @@ import { welcomeSession } from './welcome.js';
 import { Telemetry } from './telemetry.js';
 import { Updater } from './update.js';
 import { Preferences, Retro } from './preferences.js';
+import { Spells, overlayDefaults } from './spells.js';
+import { createSpellData } from './spells-data.js';
+import { setSpellBlocks } from './render.js';
+import { createSpellHooks } from './services/spell-hooks.js';
 import { Triggers } from './triggers.js';
 import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
@@ -47,11 +51,12 @@ import * as machineRoutes from './routes/machines.js';
 import * as proxyRoutes from './routes/proxy.js';
 import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
+import * as spellRoutes from './routes/spells.js';
 
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, proxyRoutes, sessionRoutes, shipRoutes];
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -86,6 +91,14 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   };
 
   if (store.all().length === 0) store.put(welcomeSession());
+
+  // Spells: changes layered over wisp at runtime (server/spells.js). Settings a spell sets win
+  // while it's on; config.json keeps only yours.
+  app.spells = new Spells(store.home);
+  store.config.defaults = overlayDefaults(store.config.defaults, () => app.spells.settings());
+  app.spells.onChange = () => app.configChanged();
+  app.spellData = createSpellData(app);
+  setSpellBlocks((type) => app.spells.enabled().flatMap((x) => x.blocks || []).find((b) => b.type === type) || null);
 
   runner.on('summary', (s) => app.broadcast('summary', s));
   runner.on('activity', (a) => app.broadcast('activity', a));
@@ -122,7 +135,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.prefs = new Preferences(store.home);
   app.learning = () => store.config.defaults.learn !== 'off';
   const projectOf = (cwd) => store.projectFor(cwd)?.path || cwd;
-  runner.promptExtra = (s) => (app.learning() && s.agent !== 'wisp' ? app.prefs.prompt(projectOf(s.cwd)) : '') + scoutNote(s.scout);
+  runner.promptExtra = (s) => (app.learning() && s.agent !== 'wisp' ? app.prefs.prompt(projectOf(s.cwd)) : '') + (s.parentId ? '' : app.spells.promptFor(s, store.projectFor(s.cwd))) + scoutNote(s.scout);
+  runner.spellBlocks = (s) => app.spells.blocksFor(s, store.projectFor(s.cwd));
   app.retro = new Retro({
     store,
     runner,
@@ -158,6 +172,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
   app.ship = createShip(app);
+  createSpellHooks(app);
 
   const routes = new Routes();
   for (const mod of ROUTES) mod.register(routes, app);

@@ -23,6 +23,7 @@ import { machineById, pathAt, placeName, projectById } from './places.js';
 import { agentById, agentName, DEFAULT_MODE, effortsFor, harnessesAt, modeMenu, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
+import { slotHtml } from './spells.js';
 
 export async function toggleDone(id) {
   const s = S.sessions.get(id);
@@ -192,9 +193,11 @@ export function taskMenu(id, e) {
       <button data-a="recipe">${icon('spark')}Save as recipe…</button>
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
+      ${slotHtml('card.menu', s).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${s.id}" `)}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
     </div>`);
   menu.onclick = async (ev) => {
+    if (ev.target.closest('[data-sp]')) return close();
     const a = ev.target.closest('button')?.dataset.a;
     close();
     if (a === 'open') expand(id);

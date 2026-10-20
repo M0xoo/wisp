@@ -42,6 +42,11 @@ export function createLaunch(app) {
   //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs } }
   async function launch(body, origin = null) {
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
+    // kind 'spell': Cast a spell. The agent changes wisp, not a project: an empty scratch folder of
+    // its own, one run. Edits mode, not Plan: Claude's Plan mode refuses MCP tools (the spell tools),
+    // and there is nothing in the folder to edit; wisp installs the spell only when you keep it.
+    const kind = body.kind === 'spell' ? 'spell' : '';
+    if (kind) body = { ...body, scratch: true, mode: 'edits', compare: undefined, subagents: undefined, preset: undefined, worktree: false };
     // scratch: no project folder (general questions); the task gets an empty directory of its own.
     const scratch = body.scratch === true;
     const cwd = scratch ? store.scratchDir(newId()) : expand(body.cwd || process.cwd());
@@ -109,7 +114,7 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
   // Where a launch runs: body.machine ('' = here), else a project folder that only exists on a
@@ -131,7 +136,7 @@ export function createLaunch(app) {
 
   // launch(), here or on a machine. Resolves with summaries (a compare launch has several).
   async function launchAny(body, origin = null) {
-    const mid = machineFor(body);
+    const mid = body.kind === 'spell' ? null : machineFor(body); // spells change this wisp, so they're cast here
     // Every project runs anywhere: its folders become the ones on that place, cloned there first if need be.
     body = await app.places.placeBody(body, mid);
     if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));

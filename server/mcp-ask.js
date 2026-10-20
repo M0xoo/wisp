@@ -9,10 +9,12 @@
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
 // reports, e.g. a task the user mentioned in the prompt.
+// With WISP_SPELLS (a Cast a spell task): `wisp_spells`, `wisp_spell_schema`, `wisp_spell_data` and
+// `wisp_spell_check`, to write a spell for the user to keep.
 
 import readline from 'node:readline';
 
-const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_APPROVE } = process.env;
+const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_APPROVE, WISP_SPELLS } = process.env;
 let TEAM = [];
 try {
   TEAM = JSON.parse(process.env.WISP_TEAM || '[]');
@@ -95,6 +97,44 @@ const SESSION = {
     required: ['id'],
   },
 };
+
+// Cast a spell tasks (WISP_SPELLS) get the tools to write one: what's installed, the reference,
+// a data source's real answer, and a check that validates without installing anything.
+const SPELL_TOOLS = [
+  {
+    name: 'wisp_spells',
+    description: 'The spells the user has (on or off), each as its full JSON with a plain-words summary. Read-only.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'wisp_spell_schema',
+    description: 'The complete reference for writing a spell: fields, slots, parts, props, style properties, tokens, icons, actions, data sources and worked examples.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'wisp_spell_data',
+    description: 'Run a spell data source and return a sample of its real answer, so script reads the right shape. Read-only (wisp GET routes from the allowlist, read-only gh commands).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'object', description: '{ "wisp": "/usage/tools?days=30" } or { "gh": ["search", "prs", "--author", "@me", "--json", "url,title"] }' },
+        task: { type: 'string', description: 'Optional task id, to fill {field} templates in gh args from that task (e.g. {pr.number}).' },
+      },
+      required: ['source'],
+    },
+  },
+  {
+    name: 'wisp_spell_check',
+    description: 'Validate a spell without installing it. Returns ok and what it does in plain words, or every problem to fix. The script is compiled, never run.',
+    inputSchema: { type: 'object', properties: { spell: { type: 'object', description: 'The whole spell JSON.' } }, required: ['spell'] },
+  },
+];
+
+async function spellTool(name, args = {}) {
+  if (name === 'wisp_spell_data') return (await call(`/api/internal/spell-data/${WISP_SESSION}`, args)).text;
+  if (name === 'wisp_spell_check') return (await call(`/api/internal/spell-check/${WISP_SESSION}`, args)).text;
+  return (await call(`/api/internal/${name === 'wisp_spells' ? 'spells' : 'spell-schema'}/${WISP_SESSION}`)).text;
+}
 
 async function sessions(args = {}) {
   const q = new URLSearchParams(Object.entries(args).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]));
@@ -228,7 +268,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, STATS, SESSIONS, SESSION, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, STATS, SESSIONS, SESSION, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -246,6 +286,8 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'subagent_results') {
       const a = params.arguments || {};
       send({ id, result: { content: [{ type: 'text', text: await results(a.ids, a.wait !== false) }] } });
+    } else if (method === 'tools/call' && WISP_SPELLS && SPELL_TOOLS.some((t) => t.name === params?.name)) {
+      send({ id, result: { content: [{ type: 'text', text: await spellTool(params.name, params.arguments || {}) }] } });
     } else if (method === 'ping') {
       send({ id, result: {} });
     } else {

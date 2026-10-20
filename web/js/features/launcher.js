@@ -27,6 +27,8 @@ import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
 import { agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
+import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
+import { cast } from './spell-ui.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -72,6 +74,19 @@ function syncWhere() {
   launch.project = storedPick() || null;
 }
 
+// A spell's slash command at the start of `text`: { spell, cmd, args } or null.
+export function spellSlash(text) {
+  const m = /^\/([a-z][a-z0-9-]*)(?:\s+([\s\S]*))?$/i.exec(String(text || '').trim());
+  if (!m) return null;
+  for (const spell of activeSpells()) {
+    const cmd = (spell.slash || []).find((c) => c.name === m[1].toLowerCase());
+    if (cmd) return { spell, cmd, args: (m[2] || '').trim() };
+  }
+  return null;
+}
+
+bus.on('spells:launcher', () => $('#launcher:not(.skel)') && renderLauncher());
+
 export function renderLauncher() {
   const box = $('#launcher');
   const mode = S.config.defaults.mode || DEFAULT_MODE.id;
@@ -104,18 +119,19 @@ export function renderLauncher() {
     <div class="l-recipes"></div>`;
   renderLaunchChips();
   renderSetup();
+  launcherParts(box); // what spells add to the prompt box
 
   const ta = mentionBox($('#prompt', box));
   const tray = attachTray();
   ta.parentNode.before(tray.node); // before the mention box's wrapper
   acceptFiles(box, ta, tray);
-  autosize(ta);
+  autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
   ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe()));
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
-  const hint = () => (ta.placeholder = document.activeElement === ta
+  const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta
     ? 'What should I go do? Paste screenshots, drop logs or videos…'
-    : `What should I go do? Press ${combo('L')} to start typing`);
+    : `What should I go do? Press ${combo('L')} to start typing`));
   ta.addEventListener('focus', hint);
   ta.addEventListener('blur', hint);
   hint();
@@ -247,8 +263,7 @@ export function renderLauncher() {
     });
   });
   paintCompare();
-  runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launch.where, auto: true }, (id, model, effort) => {
+  const pickRun = (id, model, effort) => {
       agent = harnessesAt(launch.where, { auto: true }).find((a) => a.id === id);
       curModel = model;
       curEffort = effort;
@@ -260,11 +275,38 @@ export function renderLauncher() {
       const efforts = effort || effortsFor(id, model).length ? { ...d.efforts, [id]: effort } : d.efforts;
       Object.assign(d, { agent: id, model, models, effort, efforts });
       api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models, effort, efforts } } }).catch(() => {});
-    });
+  };
+  runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launch.where, auto: true }, pickRun);
+  // Spells: set the pickers (setLaunch), or launch once with other settings (launchWith).
+  box.spellSet = (v) => {
+    if (v.agent && harnessesAt(launch.where, { auto: true }).some((a) => a.id === v.agent)) pickRun(v.agent, v.model ?? savedModel(v.agent), v.effort ?? savedEffort(v.agent, v.model ?? savedModel(v.agent)));
+    else if (v.agent) toast(`${esc(agentName(v.agent))} isn’t installed here`, { tone: 'bad' });
+    if (v.mode) setMode(v.mode);
+  };
+  box.spellLaunch = (v) => go(v);
 
-  const go = async () => {
+  // over: a spell's launchWith ({ agent, model, effort, mode, text }) for this one launch.
+  const go = async (over = null) => {
+    if (over && !(over instanceof Event) && over.text && !ta.value.trim().startsWith(over.text)) ta.value = `${over.text}${ta.value.trim() ? `\n\n${ta.value.trim()}` : ''}`;
+    if (over instanceof Event) over = null;
     const prompt = ta.value.trim();
     if (!prompt) return ta.focus();
+    // /spell <what to change>: cast a spell instead of starting a task.
+    const spellAsk = /^\/spell(?:\s+|$)([\s\S]*)$/i.exec(prompt);
+    if (spellAsk) {
+      if (!spellAsk[1].trim()) return toast('Say what to change after /spell, like “/spell a floating button that opens my PRs”');
+      ta.value = '';
+      S.drafts.delete('home');
+      ta.dispatchEvent(new Event('input'));
+      return cast(spellAsk[1]).catch((err) => (toastError(err), (ta.value = prompt), ta.dispatchEvent(new Event('input'))));
+    }
+    // A spell's slash command, typed in the prompt box.
+    const slash = spellSlash(prompt);
+    if (slash) {
+      ta.value = '';
+      ta.dispatchEvent(new Event('input'));
+      return runAction(slash.spell, slash.cmd.do, { args: slash.args, input: ta });
+    }
     if (isFeedback(prompt)) {
       ta.value = '';
       ta.dispatchEvent(new Event('input'));
@@ -277,7 +319,7 @@ export function renderLauncher() {
     const off = targets.find((t) => t.m && t.m.state !== 'online');
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
-    const wanted = [agent?.id, ...compare.map((c) => c.agent)].filter((id) => id !== 'auto'); // Auto picks from what's there
+    const wanted = [over?.agent || agent?.id, ...compare.map((c) => c.agent)].filter((id) => id !== 'auto'); // Auto picks from what's there
     for (const t of targets) {
       const list = agentsAt(t.k);
       const missing = list && wanted.find((id) => !list.some((x) => x.id === id && x.available));
@@ -290,7 +332,8 @@ export function renderLauncher() {
     const attachments = await tray.ids();
     const files = tray.take();
     const cmp = compare;
-    const runner = { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
+    const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '' } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
+    const launchMode = over?.mode || curMode;
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet
     const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : undefined));
@@ -320,7 +363,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -347,7 +390,9 @@ export function renderLauncher() {
       tray.restore(files);
     }
   };
-  $('#launch', box).onclick = go;
+  $('#launch', box).onclick = () => {
+    go();
+  };
   // Picking other places (or a machine coming online) changes which harnesses exist: keep the
   // pick if one of them still has it, else move to one that's installed there.
   box.placesChanged = () => {

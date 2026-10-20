@@ -6,6 +6,7 @@
 //   wisp add [path]            add a folder as a project (default: current folder)
 //   wisp ls | show | wait | reply | btw | stop    script sessions (see --help)
 //   wisp run <recipe> [values…]             run a saved recipe
+//   wisp spell [ls|cast|install|on|off|rm|export]  spells: changes to wisp itself
 //   wisp mcp                   stdio MCP server, so other agents and editors can use wisp
 //   wisp skill [install]       the agent skill that teaches other agents to use wisp
 
@@ -33,6 +34,11 @@ const HELP = `usage:
   wisp run <recipe> [values…]   run a saved recipe; values fill its {params} in order, or key=value
   wisp recipes                  list recipes
   wisp usage                    spend and outcomes   (--days 7|30|90)
+  wisp spell                    list spells (changes to wisp itself: buttons, panels, blocks, looks)
+  wisp spell cast "<change>"    an agent writes a spell for it; keep it in the app   (--wait)
+  wisp spell install <file|url> add a spell someone sent (https, gist:<id>); off until --on
+  wisp spell on|off|rm <id>     turn a spell on or off, or remove it   (wisp spell off --all)
+  wisp spell export <id>        print the spell file to share
   wisp mcp                      run the MCP server (stdio) for other agents and editors
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)
   wisp -- "ls the repo"         a task that starts with a command name
@@ -41,7 +47,7 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 
-const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage']);
+const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells']);
 const argv = process.argv.slice(2);
 const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
 const words = [];
@@ -69,6 +75,8 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--worktree') flags.worktree = true;
   else if (a === '--compare') flags.compare = argv[++i].split(',').filter(Boolean).map((x) => ({ agent: x.split(':')[0], model: x.split(':').slice(1).join(':') || undefined }));
   else if (a === '--draft') flags.draft = true;
+  else if (a === '--on') flags.on = true;
+  else if (a === '--all') flags.all = true;
   else if (a === '--days') flags.days = Number(argv[++i]);
   else if (a === '--version' || a === '-v') {
     console.log(JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).version);
@@ -171,6 +179,9 @@ async function scripted(cmd, args) {
       if (!flags.json) console.error(`  ◌ launched: ${s.title}  (${s.id}) — waiting…`);
       return show(s.id, await wisp.wait(s.id));
     }
+    case 'spell':
+    case 'spells':
+      return spellCommand(wisp, args, { out, need, show });
     case 'usage': {
       const u = await wisp.usage({ days: flags.days || 30 });
       const money = (v) => `$${v.toFixed(2)}`;
@@ -178,6 +189,49 @@ async function scripted(cmd, args) {
       const rows = (list, label) => list.map((x) => `  ${label(x).padEnd(32).slice(0, 32)}  ${money(x.cost).padStart(8)}  ${String(x.turns).padStart(5)} turns  ${pct(x.successRate).padStart(4)} ok`).join('\n');
       return out(u, `Last ${u.days} days: ${money(u.total.cost)} · ${u.total.turns} turns in ${u.total.sessions} sessions · ${pct(u.total.successRate)} worked · ${u.total.questions} questions\n\nBy project\n${rows(u.projects, (x) => x.name)}\n\nBy harness · model\n${rows(u.runners, (x) => `${x.agent} · ${x.model || 'default'}`)}`);
     }
+  }
+}
+
+// wisp spell …: list, cast, install, turn on/off, remove and export spells (server/routes/spells.js).
+async function spellCommand(wisp, [sub = 'ls', ...rest], { out, need, show }) {
+  const api = (method, p, body) => wisp.request(method, p, body);
+  const line = (s) => `${s.enabled ? '●' : '○'} ${s.id.padEnd(24)} ${`v${s.version}`.padEnd(8)} ${s.kind.padEnd(5)}  ${s.name}${s.description ? ` — ${s.description}` : ''}`;
+  switch (sub) {
+    case 'ls':
+    case 'list': {
+      const r = await api('GET', '/spells');
+      return out(r, [r.safe ? '! safe mode: every spell is off' : '', ...r.spells.map(line), ...r.broken.map((b) => `! ${b.id}: ${b.error}`)].filter(Boolean).join('\n') || 'No spells yet. Cast one: wisp spell cast "a floating button that opens my PRs"');
+    }
+    case 'cast': {
+      const s = await wisp.launch({ prompt: need(rest.join(' ').trim(), 'what to change'), kind: 'spell', agent: flags.agent || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined });
+      if (!flags.wait) return out(s, `  ✨ casting: ${s.title}  (${s.id})\n  Try it and keep it from its card in wisp.`);
+      if (!flags.json) console.error(`  ✨ casting: ${s.title}  (${s.id}) — waiting…`);
+      return show(s.id, await wisp.wait(s.id));
+    }
+    case 'install':
+    case 'add': {
+      const src = need(rest[0], 'a .spell.json file or a link');
+      const body = /^(https:\/\/|gist:)/i.test(src) ? { url: src } : { text: fs.readFileSync(path.resolve(src), 'utf8'), name: path.basename(src) };
+      const check = await api('POST', '/spells/check', body);
+      if (!check.ok) die(`That spell has problems:\n- ${check.problems.join('\n- ')}`);
+      const r = await api('POST', '/spells', { ...body, enable: !!flags.on });
+      return out(r, [`  ✓ ${r.updated ? 'updated' : 'added'} ${r.spell.name} (${r.spell.id} v${r.spell.version}, ${r.spell.kind})${r.spell.enabled ? ', on' : ' — off; turn it on with: wisp spell on ' + r.spell.id}`, ...check.summary.map((l) => `    · ${l}`)].join('\n'));
+    }
+    case 'on':
+    case 'off': {
+      if (sub === 'off' && flags.all) return out(await api('POST', '/spells/off', {}), '  ✓ every spell is off');
+      const r = await api('PATCH', `/spells/${encodeURIComponent(need(rest[0], 'spell id'))}`, { enabled: sub === 'on' });
+      return out(r, `  ✓ ${r.name} is ${r.enabled ? 'on' : 'off'}`);
+    }
+    case 'rm':
+    case 'remove':
+      return out(await api('DELETE', `/spells/${encodeURIComponent(need(rest[0], 'spell id'))}`, {}), '  ✓ removed');
+    case 'export': {
+      const s = await api('GET', `/spells/${encodeURIComponent(need(rest[0], 'spell id'))}/export`);
+      return console.log(JSON.stringify(s, null, 2));
+    }
+    default:
+      die(`unknown: wisp spell ${sub} (ls, cast, install, on, off, rm, export)`);
   }
 }
 
