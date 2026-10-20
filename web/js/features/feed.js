@@ -66,13 +66,47 @@ function groups() {
   return { needs, working, done, archived };
 }
 
+// Done and Archived can hold hundreds of tasks: they show a page of cards and add the next
+// page as the user scrolls to the end of the list. The headings count every one.
+const PAGE = 60;
+const page = { secDone: PAGE, secArchived: PAGE };
+const moreObserver = new IntersectionObserver(
+  (entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting || e.target.hidden) continue;
+      page[e.target.closest('.f-group').id] += PAGE;
+      renderFeed();
+      // Still in view after a short page: observing again reports it again, so the next page comes.
+      moreObserver.unobserve(e.target);
+      moreObserver.observe(e.target);
+    }
+  },
+  { root: stage, rootMargin: '0px 0px 800px 0px' },
+);
+for (const id of Object.keys(page)) {
+  const more = el(`<button class="f-more link xs" hidden></button>`);
+  more.addEventListener('click', () => {
+    page[id] += PAGE;
+    renderFeed();
+  });
+  $(`#${id}`).append(more);
+  moreObserver.observe(more);
+}
+
 export function renderFeed() {
   const { needs, working, done, archived } = groups();
   const place = (sec, list, show = true) => {
     const box = $('.f-list', sec);
     sec.hidden = !list.length;
     $('h4 .n', sec).textContent = list.length || '';
-    const want = show ? list : [];
+    const cap = page[sec.id] ?? list.length;
+    const want = show ? list.slice(0, cap) : [];
+    const more = $('.f-more', sec);
+    if (more) {
+      const left = show ? list.length - want.length : 0;
+      more.hidden = left <= 0;
+      more.textContent = `Show ${Math.min(left, PAGE)} more · ${left} left`;
+    }
     want.forEach((s, i) => {
       const { card } = s.runs ? taskItem(s) : item(s);
       // Only touch the DOM when the order actually changed: moving a node
@@ -83,9 +117,9 @@ export function renderFeed() {
   };
   place($('#secNeeds'), needs);
   place($('#secWorking'), working);
-  place($('#secDone'), done.slice(0, 60), S.showDone);
+  place($('#secDone'), done, S.showDone);
   $('#secDone').classList.toggle('collapsed', !S.showDone);
-  place($('#secArchived'), archived.slice(0, 60), S.showArchived);
+  place($('#secArchived'), archived, S.showArchived);
   $('#secArchived').classList.toggle('collapsed', !S.showArchived);
 
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
@@ -398,6 +432,13 @@ export function reveal(id) {
     S.filter = 'all';
     save('wisp.filter', S.filter);
     renderLaunchChips();
+  }
+  // A card further down than the pages shown so far: show pages up to it.
+  const sec = { done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
+  if (sec) {
+    const { done, archived } = groups();
+    const at = (sec === 'secDone' ? done : archived).findIndex((t) => (t.runs || [t]).some((r) => r.id === id));
+    if (at >= page[sec]) page[sec] = Math.ceil((at + 1) / PAGE) * PAGE;
   }
   renderFeed();
   setFocus(id, { scroll: false });
