@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Builds the docs site's generated pages next to the hand-written ones (docs/index.html, cloud.html):
-// a page per harness under agents/, integrations.html and changelog.html from their markdown,
-// 404.html and sitemap.xml. The Pages workflow runs it before upload; the output is gitignored.
+// a page per harness under agents/, the guides under guides/ (scripts/guides.mjs), integrations.html
+// and changelog.html from their markdown, 404.html and sitemap.xml. The Pages workflow runs it before upload; the output is gitignored.
 //
 //   node scripts/site.mjs [outDir]     default: docs/
 
@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { guides } from './guides.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS = path.join(ROOT, 'docs');
@@ -277,6 +278,7 @@ ${graph.length ? `  <script type="application/ld+json">${JSON.stringify({ '@cont
       <a class="brand" href="/" aria-label="wisp home"><span class="mark" aria-hidden="true"></span>wisp</a>
       <nav class="links" aria-label="Primary">
         <a href="/agents/"${p.startsWith('/agents/') ? ' aria-current="page"' : ''}>Agents</a>
+        <a href="/guides/"${p.startsWith('/guides/') ? ' aria-current="page"' : ''}>Guides</a>
         <a href="/integrations.html"${p === '/integrations.html' ? ' aria-current="page"' : ''}>Integrations</a>
         <a href="/changelog.html"${p === '/changelog.html' ? ' aria-current="page"' : ''}>Changelog</a>
         <a href="/cloud.html">Cloud</a>
@@ -294,6 +296,7 @@ ${crumbs.length ? `    <nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.m
     <span class="muted">MIT © M0xoo</span>
     <span class="grow"></span>
     <a href="/agents/">Agents</a>
+    <a href="/guides/">Guides</a>
     <a href="/integrations.html">Integrations</a>
     <a href="/changelog.html">Changelog</a>
     <a href="/cloud.html">wisp Cloud</a>
@@ -308,8 +311,9 @@ ${crumbs.length ? `    <nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.m
 
 const APP = { '@id': `${SITE}/#app` };
 const logo = (a, size = 22) => `<img src="/assets/logos/${a.logo}" alt="" width="${size}" height="${size}"${a.mono ? ' class="mono"' : ''} />`;
-const shot = (name, alt) =>
-  `<figure class="doc-shot"><picture><source srcset="/assets/shots/dark-${name}.webp" media="(prefers-color-scheme: dark)" /><img src="/assets/shots/light-${name}.webp" alt="${esc(alt)}" loading="lazy" /></picture></figure>`;
+// prefix: 'story-' for the landing page's story shots (story-dark-compare.webp).
+const shot = (name, alt, prefix = '') =>
+  `<figure class="doc-shot"><picture><source srcset="/assets/shots/${prefix}dark-${name}.webp" media="(prefers-color-scheme: dark)" /><img src="/assets/shots/${prefix}light-${name}.webp" alt="${esc(alt)}" loading="lazy" /></picture></figure>`;
 
 function agentPage(a) {
   const others = AGENTS.filter((x) => x !== a);
@@ -376,6 +380,7 @@ function agentPage(a) {
       <h2 id="other-agents">Run it next to other agents</h2>
       <p>The same queue takes every harness. Compare one task on two of them side by side, or let <b>Auto</b> pick the harness and model per task from what worked before.</p>
       <ul class="agent-grid">${others.map((x) => `<li><a href="/agents/${x.slug}.html">${logo(x)}<span>${esc(x.name)}</span></a></li>`).join('')}</ul>
+      <p>Guides: ${GUIDES.filter((g) => ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines', 'multi-agent-coding'].includes(g.slug)).map((g) => `<a href="/guides/${g.slug}.html">${esc(g.h1)}</a>`).join(' · ')}.</p>
     </section>
 `;
   return page({
@@ -450,6 +455,95 @@ function agentsIndex() {
   });
 }
 
+// ---------- guides ----------
+
+const sh = (code) => `<pre data-lang="sh"><code>${esc(code)}</code></pre>`;
+export const GUIDES = guides({ esc, sh, shot, installButton, agents: AGENTS });
+const guideUrl = (g) => `/guides/${g.slug}.html`;
+
+function guidePage(g) {
+  const related = g.related.map((r) => GUIDES.find((x) => x.slug === r));
+  const body = `
+    <header class="doc-head">
+      <p class="eyebrow">Guide</p>
+      <h1>${esc(g.h1)}</h1>
+      <p class="doc-lede">${g.lede}</p>
+      <div class="doc-cta">${installButton()}<a class="btn" href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a></div>
+      <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build · macOS, Linux, Windows (beta) · Node 20+</p>
+    </header>
+
+    ${shot(...g.shot)}
+${g.body}
+    <section class="faq-doc">
+      <h2 id="faq">Questions</h2>
+      <dl class="doc-dl">${g.faq.map(([q, a]) => `<div><dt>${esc(q)}</dt><dd>${esc(a)}</dd></div>`).join('')}</dl>
+    </section>
+
+    <section>
+      <h2 id="related">Related guides</h2>
+      <ul class="guide-cards">${related.map((r) => `<li><a href="${guideUrl(r)}"><b>${esc(r.h1)}</b><span class="muted">${esc(r.card)}</span></a></li>`).join('')}</ul>
+    </section>
+`;
+  return page({
+    path: guideUrl(g),
+    title: g.title,
+    description: g.description,
+    crumbs: [['Guides', '/guides/'], [g.h1, guideUrl(g)]],
+    body,
+    schema: [
+      {
+        '@type': 'TechArticle',
+        headline: g.h1,
+        description: g.description,
+        url: `${SITE}${guideUrl(g)}`,
+        image: `${SITE}/assets/og.png`,
+        inLanguage: 'en',
+        dateModified: lastmod(['scripts/guides.mjs']),
+        author: { '@type': 'Person', name: 'M0xoo', url: 'https://github.com/M0xoo' },
+        about: APP,
+        isPartOf: { '@id': `${SITE}/#website` },
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: g.faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+      },
+    ],
+  });
+}
+
+function guidesIndex() {
+  const body = `
+    <header class="doc-head">
+      <p class="eyebrow">Guides</p>
+      <h1>Run coding agents in parallel, anywhere</h1>
+      <p class="doc-lede">How to run Claude Code, Codex and other coding agents side by side on one repo, on several machines, as a team, and in the background. Each guide shows the manual way with plain <code>git</code> and <code>ssh</code>, then how wisp does it.</p>
+      <div class="doc-cta">${installButton()}</div>
+    </header>
+
+    <ul class="guide-cards">${GUIDES.map((g) => `
+      <li><a href="${guideUrl(g)}"><b>${esc(g.h1)}</b><span class="muted">${esc(g.card)}</span><span class="agent-more">Read the guide →</span></a></li>`).join('')}
+    </ul>
+
+    <section>
+      <h2 id="agents">By agent</h2>
+      <p>How wisp runs each CLI: the flags behind each permission mode, how it asks you questions, and the take-over command.</p>
+      <ul class="agent-grid">${AGENTS.map((x) => `<li><a href="/agents/${x.slug}.html">${logo(x)}<span>${esc(x.name)}</span></a></li>`).join('')}</ul>
+    </section>
+`;
+  return page({
+    path: '/guides/',
+    title: 'Guides: run Claude Code, Codex and other coding agents in parallel — wisp',
+    description: 'Guides to running coding agents in parallel: Claude Code and Codex side by side, several Claude Code sessions on one repo, agents on multiple machines over SSH, multi-agent teams and background runs.',
+    crumbs: [['Guides', '/guides/']],
+    body,
+    schema: [{
+      '@type': 'ItemList',
+      name: 'wisp guides',
+      itemListElement: GUIDES.map((g, i) => ({ '@type': 'ListItem', position: i + 1, name: g.h1, url: `${SITE}${guideUrl(g)}` })),
+    }],
+  });
+}
+
 function integrationsPage() {
   const src = fs.readFileSync(path.join(DOCS, 'integrations.md'), 'utf8');
   const title = src.match(/^# (.+)$/m)?.[1] || 'Integrating wisp';
@@ -511,7 +605,7 @@ function notFoundPage() {
     <header class="doc-head">
       <p class="eyebrow">404</p>
       <h1>Nothing here</h1>
-      <p class="doc-lede">That page doesn’t exist, or it moved. Try the <a href="/">home page</a>, the <a href="/agents/">agents</a>, the <a href="/integrations.html">integrations</a> or the <a href="/changelog.html">changelog</a>.</p>
+      <p class="doc-lede">That page doesn’t exist, or it moved. Try the <a href="/">home page</a>, the <a href="/agents/">agents</a>, the <a href="/guides/">guides</a>, the <a href="/integrations.html">integrations</a> or the <a href="/changelog.html">changelog</a>.</p>
       <div class="doc-cta">${installButton()}</div>
     </header>
 `,
@@ -534,6 +628,8 @@ export function build(out = DOCS) {
     { path: '/', file: null, sources: ['docs/index.html'], priority: '1.0' },
     { path: '/agents/', file: 'agents/index.html', html: agentsIndex(), sources: ['scripts/site.mjs', 'server/adapters'], priority: '0.8' },
     ...AGENTS.map((a) => ({ path: `/agents/${a.slug}.html`, file: `agents/${a.slug}.html`, html: agentPage(a), sources: ['scripts/site.mjs', `server/adapters/${a.id}.js`], priority: '0.8' })),
+    { path: '/guides/', file: 'guides/index.html', html: guidesIndex(), sources: ['scripts/site.mjs', 'scripts/guides.mjs'], priority: '0.9' },
+    ...GUIDES.map((g) => ({ path: guideUrl(g), file: `guides/${g.slug}.html`, html: guidePage(g), sources: ['scripts/guides.mjs'], priority: '0.9' })),
     { path: '/integrations.html', file: 'integrations.html', html: integrationsPage(), sources: ['docs/integrations.md'], priority: '0.7' },
     { path: '/changelog.html', file: 'changelog.html', html: changelogPage(), sources: ['CHANGELOG.md'], priority: '0.6' },
     { path: '/cloud.html', file: null, sources: ['docs/cloud.html'], priority: '0.6' },

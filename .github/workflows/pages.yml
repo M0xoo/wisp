@@ -7,6 +7,7 @@ on:
       - 'docs/**'
       - 'CHANGELOG.md'
       - 'scripts/site.mjs'
+      - 'scripts/guides.mjs'
       - 'server/adapters/**'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
