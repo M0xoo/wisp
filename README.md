@@ -56,7 +56,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🤝 **Subagents** | Give the lead agent a team on other harnesses (e.g. Claude Code hands tests to Codex ×3). It delegates through a `delegate` tool; their edits land in its worktree. See [Subagents](#subagents). |
 | ⏪ **Checkpoints & rollback** | Every turn is snapshotted first. Restore to before any turn, revert a single file, or re-run a command block from the presentation. |
 | ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
-| 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.22.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
+| 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.23.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
 | 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there, or start a task with `/new`. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** (no permission prompts, the default) for each launch. `Shift+Tab` in the prompt cycles modes. In Edits mode, anything the permissions block comes to you: Claude Code waits for **Allow / Always / Deny**, and the other harnesses show an **Allow & retry** card. |
@@ -85,7 +85,7 @@ brew install m0xoo/tap/wisp-agents             # Homebrew: CLI and browser mode,
 wisp "fix the flaky auth test"
 ```
 
-The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.22.0 bash`).
+The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.23.0 bash`).
 
 From source:
 
@@ -135,7 +135,7 @@ wisp btw <id> "did you do X?"     # ask on the side without interrupting the run
 wisp stop <id>
 wisp ship <id> [--draft]          # commit, push and open a PR for a worktree task
 wisp merge <id>                   # squash-merge its PR, fast-forward your local main
-wisp run release 0.22.0            # run a recipe; values fill its {params} (or version=0.22.0)
+wisp run release 0.23.0            # run a recipe; values fill its {params} (or version=0.23.0)
 wisp recipes                      # list recipes
 wisp usage [--days 7]             # spend and outcomes
 wisp mcp                          # MCP server for other agents and editors
@@ -304,7 +304,7 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 
 ## Auto
 
-**Auto** is the default harness: wisp picks the harness, model and thinking level for each task. Its "model" is a goal: **Balanced** (best result per dollar), **Cheap** or **Best**. The goal also sets how hard the agent thinks: Cheap runs at low (or minimal), Balanced at the harness's default or medium, Best at high or x-high. A harness or model without levels runs at its default.
+**Auto** is the default harness: wisp picks the harness, model and thinking level for each task. Its "model" is a goal: **Balanced** (the default), **Cheap** or **Best**. Balanced and Best both run frontier models (Opus, not Sonnet or Haiku) when you have one installed and allowed; what sets them apart is how hard the agent thinks: Balanced runs at the harness's default or medium, Best at high or x-high. Cheap runs at low (or minimal) on whichever model does the job for least. A harness or model without levels runs at its default; for models with the level in their name (Antigravity's `gemini-4-argon-high`) the goal picks the variant the same way.
 
 How it picks: every harness · model · thinking level you have installed is an option (`claude:opus:high`). For the kind of task (bug, feature, UI, tests, refactor, docs, release, question) Auto keeps an estimate of how often each option does it well. The estimate starts from a small wisp-bench pilot that ships with wisp (`server/router-priors.json`), then counts your own outcomes: merged PR (best), closed PR, 👍 / 👎, rollback, then how the run ended, less a bit for each follow-up you needed. It draws from each estimate (Thompson sampling), so options with little data now and then get a turn, and takes the best value for the goal after expected cost and time. A launch with `important: true` (API, SDK) gets the best-known option, with no trying. Options that keep failing a kind of task are left out of it. Thinking harder starts out a little more likely to work and costs more, and then your outcomes decide. A model's record at one level counts half at its other levels.
 
@@ -319,7 +319,7 @@ After the run, Auto checks the work before it lands in your queue:
 3. **Repair**: new failures go back to the same agent (1 round by default, up to 2).
 4. **Hand over**: still failing, or the run errored, so the task runs again on a stronger tier (small → everyday → frontier) in its own worktree, next to the first run.
 
-A harness that says it's at its limit (session or usage limit, rate limit, no credit) isn't failing the task. Auto rests it until the limit resets, doesn't count the run against it, and moves the task to the best pick that can run now. Best always runs frontier models only (Opus, not Sonnet or Haiku); it falls back to the strongest you have only when no frontier model is installed. Until Auto has 20 of your own outcomes, Balanced picks only everyday and frontier models. The shipped estimates come from a small pilot, so they count for at most 4 tasks each.
+A harness that says it's at its limit (session or usage limit, rate limit, no credit) isn't failing the task. Auto rests it until the limit resets, doesn't count the run against it, and moves the task to the best pick that can run now. Best always runs frontier models only; it falls back to the strongest you have only when no frontier model is installed. Balanced runs on the strongest tier that can run now, whatever the record of the weaker models: frontier, or everyday (Sonnet, never Haiku) while every frontier model is at its limit or when you have none. The shipped estimates come from a small pilot, so they count for at most 4 tasks each.
 5. **Best of two** (goal Best, off by default): two picks work side by side; tests decide, then a cheap model reads both diffs, and the better run is marked **Pick**.
 
 Each step's outcome feeds the router: a test pass counts more than the agent's "done", needing a repair counts less, and losing a best-of-2 a little less again. Your own follow-up stops whatever Auto was about to do next. A launch on a machine is checked on that machine, where the files are. Settings → Auto turns each step on or off and sets the test command per project.
@@ -354,7 +354,7 @@ Before each turn, wisp snapshots the git working tree (pinned at `refs/wisp/chec
 Prepare release {version}: update CHANGELOG, README and docs/, bump package.json, tag v{version}.
 ```
 
-Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe may pin a project, harness, model and mode. Run it from ⌘K (*Run: Release*), from the Recipes view, or from a terminal: `wisp run release 0.22.0` fills the fields in order, `wisp run release version=0.22.0` by name.
+Make one from ⌘K → *Recipes*, or *Save as recipe…* on any card. A recipe may pin a project, harness, model and mode. Run it from ⌘K (*Run: Release*), from the Recipes view, or from a terminal: `wisp run release 0.23.0` fills the fields in order, `wisp run release version=0.23.0` by name.
 
 **Triggers** launch sessions on their own while wisp is open (⌘K → *Triggers*):
 

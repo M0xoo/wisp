@@ -1,7 +1,7 @@
 {
   "name": "wisp-agents",
-  "version": "0.22.0",
-  "description": "Launch coding agents, skip the transcript, read the presentation.",
+  "version": "0.23.0",
+  "description": "Run Claude Code, Codex, Cursor and other coding agents in parallel, in the background, on any of your machines. Skip the transcript, read the report.",
   "type": "module",
   "bin": {
     "wisp": "bin/wisp.js",
@@ -31,7 +31,17 @@
   "keywords": [
     "claude",
     "claude-code",
+    "codex",
+    "openai-codex",
+    "cursor",
+    "opencode",
     "coding-agent",
+    "ai-agents",
+    "multi-agent",
+    "parallel",
+    "git-worktree",
+    "ssh",
+    "orchestration",
     "ai",
     "agents",
     "cli",

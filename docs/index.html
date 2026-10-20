@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>wisp — Run Claude Code, Codex &amp; Cursor agents in the background</title>
-  <meta name="description" content="wisp is a free, open-source launcher that runs coding agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok) in the background and hands you a 30-second presentation instead of a transcript." />
+  <title>wisp — Run Claude Code, Codex &amp; Cursor agents in parallel</title>
+  <meta name="description" content="Run Claude Code, Codex, Cursor and other coding agents in parallel, each in its own git worktree, on this computer or your other machines. Free and open source." />
   <link rel="canonical" href="https://trywisp.dev/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="author" content="M0xoo" />
@@ -14,7 +14,7 @@
   <meta property="og:site_name" content="wisp" />
   <meta property="og:url" content="https://trywisp.dev/" />
   <meta property="og:title" content="wisp — Send coding agents off. Read the highlights." />
-  <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in the background. Get diffs, tests and decisions back as a 30-second presentation — no transcript." />
+  <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in parallel, in the background, on any of your machines. Get diffs, tests and decisions back as a one-screen report — no transcript." />
   <meta property="og:image" content="https://trywisp.dev/assets/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -22,7 +22,7 @@
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="wisp — Send coding agents off. Read the highlights." />
-  <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in the background. Read a 30-second presentation instead of the transcript." />
+  <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in parallel, on any of your machines. Read a one-screen report instead of the transcript." />
   <meta name="twitter:image" content="https://trywisp.dev/assets/og.png" />
   <meta name="twitter:image:alt" content="wisp — Send agents off. Read the highlights." />
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
@@ -40,7 +40,7 @@
         "@id": "https://trywisp.dev/#website",
         "url": "https://trywisp.dev/",
         "name": "wisp",
-        "description": "Open-source launcher that runs AI coding agents in the background and hands back a 30-second animated presentation instead of a transcript.",
+        "description": "Open-source app that runs AI coding agents like Claude Code and Codex in parallel, in the background and on several machines, and hands back a one-screen report instead of a transcript.",
         "inLanguage": "en",
         "publisher": { "@type": "Person", "name": "M0xoo", "url": "https://github.com/M0xoo" }
       },
@@ -49,8 +49,8 @@
         "@id": "https://trywisp.dev/#app",
         "name": "wisp",
         "alternateName": "wisp-agents",
-        "softwareVersion": "0.22.0",
-        "description": "Launch coding agents in the background, skip the transcript, and read the animated presentation they hand back: diffs, test results, commits and decisions.",
+        "softwareVersion": "0.23.0",
+        "description": "Run Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI and Grok Build in parallel, each in its own git worktree, on this computer or your other machines over SSH. Skip the transcript and read the report they hand back: diffs, test results, commits and decisions.",
         "url": "https://trywisp.dev/",
         "downloadUrl": "https://www.npmjs.com/package/wisp-agents",
         "installUrl": "https://www.npmjs.com/package/wisp-agents",
@@ -68,9 +68,9 @@
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@type": "Person", "name": "M0xoo", "url": "https://github.com/M0xoo" },
-        "keywords": "Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, AI coding agents, MCP server, developer tools",
+        "keywords": "Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, AI coding agents, parallel coding agents, run Claude Code and Codex in parallel, multi-agent coding, coding agents on multiple machines, SSH, git worktrees, background agents, MCP server, developer tools",
         "featureList": [
-          "Runs Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI and Grok Build in the background",
+          "Runs Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI and Grok Build in parallel, in the background",
           "Animated presentations instead of transcripts",
           "Real diffs captured from the agent's own tool calls",
           "ask_user tool so agents can ask questions mid-run",
@@ -81,9 +81,9 @@
           "Plan, Edits and Full auto permission modes",
           "Learns your preferences and its own lessons from past sessions",
           "A git worktree per task, and one-click Ship it to a pull request",
-          "Subagents on other harnesses, delegated to by the lead agent",
           "Per-turn checkpoints with one-click rollback",
-          "Compare runs, recipes and triggers",
+          "Compare: one task on Claude Code and Codex side by side, keep the better run",
+          "Recipes and triggers",
           "MCP server, CLI, JS SDK, HTTP API and webhooks"
         ]
       },
@@ -107,6 +107,22 @@
             "acceptedAnswer": {
               "@type": "Answer",
               "text": "Claude Code (claude), OpenAI Codex (codex), opencode, Cursor CLI (cursor-agent), Antigravity CLI (agy) and Grok Build (grok). Each harness is one adapter file, so adding another is small."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I run Claude Code and Codex in parallel?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Every task runs in its own git worktree and branch, so Claude Code, Codex and the other agents can work on the same repo at the same time without colliding. Click vs in the launcher (or pass --compare codex) to run one task on both and keep the better run."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can wisp run agents on several machines?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Machines connects to your other computers over SSH and starts wisp there. One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps."
             }
           },
           {
@@ -154,7 +170,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=19" />
+  <link rel="stylesheet" href="style.css?v=21" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -175,6 +191,7 @@
         <a href="#control">Control</a>
         <a href="#cli">CLI</a>
         <a href="#faq">FAQ</a>
+        <a href="guides/">Guides</a>
         <a href="cloud.html">Cloud</a>
       </nav>
       <button class="nav-cmd" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span>npx wisp-agents<span class="copy">Copy</span></button>
@@ -190,7 +207,7 @@
     <section class="hero">
       <div class="wrap hero-grid">
       <div class="hero-top">
-        <p class="kicker"><span class="dot"></span>v0.22.0 · free and open source</p>
+        <p class="kicker"><span class="dot"></span>v0.23.0 · free and open source</p>
         <h1>Send coding agents <span class="off">off</span>. <span class="soft">Read what they did.</span></h1>
         <div class="desk-cta" id="deskCta" data-tabs>
           <div class="hero-tabs" role="tablist" aria-label="How to get wisp">
@@ -206,7 +223,7 @@
           </div>
           <p class="fine" id="deskFine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
         </div>
-        <p class="lede">Hand tasks to Claude Code, Codex, Cursor and four other agent CLIs. They run in the background, each on its own branch. You get a one-screen report when one is done, or a question when it's stuck. Never a transcript.</p>
+        <p class="lede">Hand tasks to Claude Code, Codex, Cursor and three other agent CLIs. They run in parallel in the background, each on its own branch, on this computer or your other machines. You get a one-screen report when one is done, or a question when it's stuck. Never a transcript.</p>
       </div>
 
       <div class="desk" id="desk">
@@ -327,7 +344,7 @@
       <div class="wrap c-head">
         <p class="eyebrow">Compare</p>
         <h2>Not sure which agent?<br />Run both and keep the winner.</h2>
-        <p>Click <b>vs</b> in the launcher and one prompt runs on two harnesses at once, each in its own worktree. wisp lines them up: time, cost, files, tests, and both reports. <b>Keep this</b> archives the other.</p>
+        <p>Click <b>vs</b> in the launcher and one prompt runs on two harnesses at once, each in its own worktree. wisp lines them up: time, cost, files, tests, and both reports. <b>Keep this</b> archives the other. <a class="more-link" href="guides/claude-code-vs-codex.html">Claude Code vs Codex on your own repo →</a></p>
       </div>
       <div class="wrap-wide">
         <div class="cmp-shot"><picture>
@@ -409,8 +426,8 @@
     <section class="more wrap" id="more">
       <p class="eyebrow">Also in the box</p>
       <dl class="grid">
-        <div><dt>Machines</dt><dd>Run agents on a dev box or cloud VM over SSH. Any project runs on any machine: wisp clones it there when needed. One prompt can go to several machines at once, and a follow-up can move a task to another one, work and history included.</dd></div>
-        <div><dt>Subagents</dt><dd>Give the lead a team on other harnesses. Claude Code can hand tests to three Codex copies through a <code>delegate</code> tool.</dd></div>
+        <div><dt>Machines</dt><dd>Run agents on a dev box or cloud VM over SSH. Any project runs on any machine: wisp clones it there when needed. One prompt can go to several machines at once, and a follow-up can move a task to another one, work and history included. <a href="guides/run-coding-agents-on-multiple-machines.html">Agents on multiple machines →</a></dd></div>
+        <div><dt>Subagents</dt><dd>Give the lead a team on other harnesses. Claude Code can hand tests to three Codex copies through a <code>delegate</code> tool. <a href="guides/multi-agent-coding.html">Multi-agent coding →</a></dd></div>
         <div><dt>Checkpoints</dt><dd>Every turn is snapshotted before it starts. Restore to before any turn, or revert one file.</dd></div>
         <div><dt>It learns</dt><dd>After a session, a short retro records your preferences and the agent's mistakes. Later runs get them in their prompt.</dd></div>
         <div><dt>Phone</dt><dd>Questions and finished tasks go to ntfy or Telegram. Answer from there, or start a task with <code>/new</code>.</dd></div>
@@ -454,6 +471,8 @@
       <div class="qa-list">
         <details><summary>What is wisp?</summary><p>wisp is a free, open-source launcher for AI coding agents. It runs agents like Claude Code and Codex on your projects in the background. When one finishes, it hands you a short report (the diff, test results, commits and next steps) instead of a long transcript.</p></details>
         <details><summary>Which coding agents does wisp support?</summary><p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>), Antigravity CLI (<code>agy</code>) and Grok Build (<code>grok</code>). Each harness is one adapter file, so adding another is small.</p></details>
+        <details><summary>Can I run Claude Code and Codex in parallel?</summary><p>Yes. Every task runs in its own git worktree and branch, so Claude Code, Codex and the other agents can work on the same repo at the same time without colliding. Click <b>vs</b> in the launcher (or pass <code>--compare codex</code>) to run one task on both and keep the better run. <a href="guides/run-claude-code-and-codex-in-parallel.html">Guide →</a></p></details>
+        <details><summary>Can wisp run agents on several machines?</summary><p>Yes. <b>Machines</b> connects to your other computers over SSH and starts wisp there. One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps. <a href="guides/run-coding-agents-on-multiple-machines.html">Guide →</a></p></details>
         <details><summary>Is wisp free?</summary><p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity or Grok account, and those providers bill as usual.</p></details>
         <details><summary>Does my code leave my machine?</summary><p>wisp itself is a local server. Sessions and state are plain JSON in <code>~/.wisp</code>. Your code only goes to the agent provider you choose, same as running that CLI directly. wisp sends anonymous usage stats with no prompts, paths or agent output. Turn them off with <code>WISP_TELEMETRY=0</code> or <code>DO_NOT_TRACK=1</code>.</p></details>
         <details><summary>Can I take over a session in my terminal?</summary><p>Yes. Press <kbd>T</kbd> and wisp opens your terminal in the project with the agent's resume command, for example <code>claude --resume &lt;id&gt;</code>. It works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, Windows Terminal and more.</p></details>
@@ -482,6 +501,7 @@
     <a href="cloud.html">wisp Cloud</a>
     <a href="changelog.html">Changelog</a>
     <a href="agents/">Agents</a>
+    <a href="guides/">Guides</a>
     <a href="integrations.html">Integrations</a>
     <a href="https://www.npmjs.com/package/wisp-agents" target="_blank" rel="noopener">npm</a>
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>

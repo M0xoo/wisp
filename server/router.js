@@ -2,8 +2,9 @@
 //
 // Every harness × model × thinking level the user has is an "arm" (claude:opus:high; no level is
 // the harness's default). The goal picks the band of levels: Cheap runs low, Balanced the default
-// or medium, Best high. Within the band the levels are learned like models are, and a model's
-// record at its other levels counts half. For each kind of task (bug, ui, docs, …) wisp
+// or medium, Best high. Balanced and Best both run frontier models when you have one, so the
+// level is what tells them apart. Within the band the levels are learned like models are, and a
+// model's record at its other levels counts half. For each kind of task (bug, ui, docs, …) wisp
 // keeps a Beta(wins, losses) estimate per arm, stacked from three sources: the shipped priors
 // (./router-priors.json, from wisp-bench), the user's history on every kind of task, and the
 // history on this kind. A launch draws a chance of success from each estimate (Thompson
@@ -27,13 +28,12 @@ const PRIORS = JSON.parse(fs.readFileSync(new URL('./router-priors.json', import
 
 export const GOALS = {
   cheap: { label: 'Cheap', value: 1, hint: 'Lowest cost that still gets it done' },
-  balanced: { label: 'Balanced', value: 5, hint: 'Best result per dollar' },
-  best: { label: 'Best', value: 50, hint: 'Frontier models only; cost only breaks ties' },
+  balanced: { label: 'Balanced', value: 5, hint: 'Frontier models at default or medium thinking' },
+  best: { label: 'Best', value: 50, hint: 'Frontier models at high thinking; cost only breaks ties' },
 };
 export const TYPES = ['bug', 'feature', 'ui', 'test', 'refactor', 'docs', 'release', 'question'];
 const MINUTE_USD = 0.05; // what a minute of waiting costs you, in the utility
 const PRIOR_CAP = 4; // shipped priors count as at most this many tasks, so your own soon outweigh them
-const COLD_START = 20; // until Auto has this many of your outcomes, Balanced and Best stay on stronger tiers
 const ALL_WEIGHT = 0.5; // your history on other kinds of task counts half
 const HALF_LIFE_MS = 30 * 864e5; // models change: older outcomes fade
 const NEW_ARM_SHARE = 0.25; // how often a new arm on probation may take an exploring slot
@@ -80,6 +80,17 @@ export const levelsFor = (efforts = [], goal = 'balanced') => {
   const have = (BANDS[goal] || BANDS.balanced).filter((e) => e === '' || efforts.includes(e));
   return have.length ? have : [''];
 };
+// Some harnesses bake the level into the model id (Antigravity's gemini-4-argon-high, no separate
+// selector): there the goal picks among a model's variants the same way.
+const SUFFIX = /-(minimal|low|medium|high|xhigh|max)$/;
+const NAMED = { cheap: ['minimal', 'low'], balanced: ['medium'], best: ['high', 'xhigh', 'max'] };
+const stemOf = (k) => baseOf(k).replace(SUFFIX, '');
+function byNamedLevel(cands, goal) {
+  const want = NAMED[goal] || NAMED.balanced;
+  const named = (c) => !c.efforts.length && c.model.match(SUFFIX)?.[1];
+  const fits = new Set(cands.filter((c) => want.includes(named(c))).map((c) => stemOf(c.key)));
+  return cands.filter((c) => !named(c) || want.includes(named(c)) || !fits.has(stemOf(c.key)));
+}
 const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUpperCase() + e.slice(1);
 
 export const armKey = (agent, model = '', effort = '') => `${agent}:${model || ''}${effort ? `:${effort}` : ''}`;
@@ -99,10 +110,12 @@ export const baseOf = (k) => {
 };
 // Versions stripped: claude-sonnet-5-5 and claude-sonnet-5-6 are one family, and a new version
 // starts from what the family already showed.
-const family = (k) => k.replace(/[-.]?\d+([.-]\d+)*/g, '');
+// A level in the id is the same model too: gemini-4-argon-high starts from what -medium showed.
+const family = (k) => k.replace(SUFFIX, '').replace(/[-.]?\d+([.-]\d+)*/g, '');
 
 // How strong a model is, roughly: 1 small/fast/free, 2 everyday, 3 frontier. Best runs on tier 3
-// only, hand-overs step up a tier, and until Auto has your own outcomes Balanced stays on tier 2+.
+// only, Balanced on the strongest tier that can run (frontier when you have one), and hand-overs
+// step up a tier.
 // The shipped priors come from a small pilot that flattered cheap models; tiers keep them honest.
 const FRONTIER_DEFAULTS = new Set(['codex:']); // a harness whose default model is its frontier one
 export function tierOf(key) {
@@ -259,34 +272,38 @@ export class Router {
   // Pick an arm. agents: listAgents() of the place it runs. goal: cheap | balanced | best, which
   // also sets the band of thinking levels (levelsFor).
   // important: no exploring. exclude: arm keys already taken (compare, hand-overs): every level of
-  // that harness · model is out. needDelegate: the lead
-  // of a team must be a harness that can delegate. rng: for tests.
+  // that harness · model is out, and every variant of a model with its level in its id.
+  // needDelegate: the lead of a team must be a harness that can delegate. rng: for tests.
   // scouted: { type, size } from the scout, which beats the keyword guess.
   // minTier: only arms at least that strong (a hand-over steps up). Arms cooling down after a usage
   // or rate limit are skipped while any other arm can run.
   // Best runs frontier models only: if any is installed and allowed, Best never steps down a tier,
   // even when they're all taken or at their limit (null then). With none installed, the strongest.
+  // Balanced runs frontier models too, whatever its record of the others (Sonnet or Haiku winning
+  // a few tasks doesn't make them the face of Auto), and steps down a tier only while every
+  // frontier model is taken or at its limit, so the task still runs.
   choose({ prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, scouted = null, minTier = 0, rng = Math.random } = {}) {
     if (!this.synced) this.sync(agents);
+    if (!GOALS[goal]) goal = 'balanced';
     const guess = classify(prompt, { attachments });
     const type = scouted?.type || guess.type;
     const size = scouted?.size || guess.size;
-    const V = (GOALS[goal] || GOALS.balanced).value;
-    const out = new Set(exclude.map(baseOf));
+    const V = GOALS[goal].value;
+    const out = new Set(exclude.map(stemOf));
     const usable = candidates(agents, new Set(Object.keys(this.state.arms))).filter((c) => (!needDelegate || c.delegates) && (!allowed || allowed.includes(c.agent)));
     const frontierOnly = goal === 'best' && usable.some((c) => tierOf(c.key) >= 3);
-    let arms = usable
-      .filter((c) => !out.has(c.key) && (!frontierOnly || tierOf(c.key) >= 3))
+    let arms = byNamedLevel(usable.filter((c) => !out.has(stemOf(c.key))), goal)
+      .filter((c) => !frontierOnly || tierOf(c.key) >= 3)
       .flatMap((c) => levelsFor(c.efforts, goal).map((effort) => ({ ...c, key: armKey(c.agent, c.model, effort), effort, label: `${c.label}${effort ? ` · ${effortLabel(effort)}` : ''}`, base: c.key })))
       .map((c) => ({ ...c, est: this.estimate(type, c.key), state: this.state.arms[c.base]?.state || 'new' }));
     if (!arms.length) return null;
     const free = arms.filter((x) => !this.cooling(x.key));
     if (!free.length) return null; // everything allowed is at its limit: nothing to route to now
     arms = free;
-    // Cold start: until there are enough of your own outcomes, lean to quality (the shipped priors
-    // are thin). Cheap is left alone: that goal asked for cheap.
-    const cold = this.learned() < COLD_START;
-    const floorTier = Math.max(minTier, goal === 'best' ? 3 : cold && goal !== 'cheap' ? 2 : 0);
+    // Balanced and Best run on the strongest tier that can run now, whatever the record of the
+    // weaker ones. Cheap is left alone: that goal asked for cheap.
+    const top = Math.max(...arms.map((x) => tierOf(x.key)));
+    const floorTier = Math.max(minTier, goal === 'cheap' ? 0 : top);
     for (let t = floorTier; t > 0; t--) {
       const strong = arms.filter((x) => tierOf(x.key) >= t);
       if (strong.length) {
@@ -323,7 +340,7 @@ export class Router {
       key: pick.key,
       label: pick.label,
       route: {
-        goal: GOALS[goal] ? goal : 'balanced',
+        goal,
         type,
         size,
         key: pick.key,
@@ -336,7 +353,6 @@ export class Router {
         explored: byMean[0].key !== pick.key,
         trying: pick.state === 'new',
         tier: tierOf(pick.key),
-        ...(cold && goal !== 'cheap' && goal !== 'best' && { coldStart: true }),
         propensity: round(hits / 200),
         alternatives: byMean.filter((x) => x.key !== pick.key).slice(0, 3).map((x) => ({ key: x.key, label: x.label, chance: round(x.est.mean), usd: round(x.est.usd) })),
         at: this.now(),
@@ -453,7 +469,6 @@ export class Router {
     return {
       priors: { version: PRIORS.version, source: PRIORS.source },
       learned: routes.filter((r) => r.r !== null).length,
-      coldStart: { needed: COLD_START, have: this.learned() },
       routed: routes.length,
       arms,
       recent: routes.sort((p, q) => q.at - p.at).slice(0, 30).map((r) => ({ id: r.id, key: r.key, label: r.label, type: r.type, goal: r.goal, chance: r.chance, r: r.r, explored: r.explored, trying: r.trying, at: r.at, signals: r.signals })),
