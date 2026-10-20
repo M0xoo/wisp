@@ -116,7 +116,7 @@ export function openSettings(opts) {
           <div class="sx-group">
             ${row('Machines', '<span class="machines-hint"></span>', '<button class="ghost sm" id="openMachines">Manage</button>')}
           </div>
-          <p class="hint">Also in the top bar, and in Projects: add folders on a machine, then launch there like anywhere else.</p>
+          <p class="hint">Also in the top bar. Every project runs on every machine: pick one under Run on and wisp clones the project there the first time. A follow-up or a rerun can move a task to another one.</p>
         </section>
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">

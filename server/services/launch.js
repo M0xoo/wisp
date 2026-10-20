@@ -39,7 +39,7 @@ export function createLaunch(app) {
   const { store, runner, machines } = app;
 
   // body: { prompt, cwd, also: [folder], scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
-  //         subagents: [{ name, agent, model, effort, use }] | preset: teamId }
+  //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs } }
   async function launch(body, origin = null) {
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
     // scratch: no project folder (general questions); the task gets an empty directory of its own.
@@ -73,6 +73,16 @@ export function createLaunch(app) {
     const attachments = app.uploads.resolve(body.attachments);
     const ids = runners.map(() => newId());
     let trees = ids.map(() => null);
+    // A task moved here from another place (services/move.js): its work comes in its bundles.
+    const moved = body.moved && typeof body.moved === 'object' && !comparing ? body.moved : null;
+    if (moved) {
+      const made = await app.mover.unpack([cwd, ...also], moved.packs, { id: ids[0], title: moved.title || body.prompt });
+      trees = [made[0]];
+      const extras = also.map((dir, i) => ({ cwd: dir, ...(made[i + 1] && { worktree: made[i + 1] }) }));
+      const history = Array.isArray(moved.turns) ? moved.turns.filter((t) => t && typeof t === 'object' && typeof t.prompt === 'string') : [];
+      const r = runners[0];
+      return [runner.create({ id: ids[0], prompt: body.prompt, cwd, also: extras, ...r, mode, attachments, worktree: trees[0], groupId, origin: origin || moved.origin || null, subagents, history, title: moved.title, moved: { from: String(moved.from || ''), at: Date.now() } })];
+    }
     if (wantTree) {
       const must = body.worktree === true || (comparing && mode !== 'plan');
       // One fetch for the whole launch, then the checkouts side by side: compare runs used to
@@ -102,9 +112,10 @@ export function createLaunch(app) {
     return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
-  // Where a launch runs: body.machine, else a project folder that only exists on a machine
-  // (recipes and schedules keep just the path). null = here.
+  // Where a launch runs: body.machine ('' = here), else a project folder that only exists on a
+  // machine (recipes and schedules keep just the path). null = here.
   function machineFor(body) {
+    if (typeof body.machine === 'string') return body.machine ? machines.get(body.machine).id : null; // '' = this computer
     if (body.machine) return machines.get(String(body.machine)).id;
     const cwd = String(body.cwd || '');
     if (!cwd || fs.existsSync(expand(cwd))) return null;
@@ -121,6 +132,8 @@ export function createLaunch(app) {
   // launch(), here or on a machine. Resolves with summaries (a compare launch has several).
   async function launchAny(body, origin = null) {
     const mid = machineFor(body);
+    // Every project runs anywhere: its folders become the ones on that place, cloned there first if need be.
+    body = await app.places.placeBody(body, mid);
     if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));
     // Auto for a machine: routed here, with the harnesses that machine has; its outcomes come
     // back through the summaries it streams (auto.signals), so one router learns from every place.

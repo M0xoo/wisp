@@ -4,11 +4,14 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { installFakeBins, makeRepo, records, tmp, until, win } from './helpers.js';
+import { installFakeBins, makeClone, makeRepo, records, same, tmp, until, win } from './helpers.js';
+import { sameRepo } from '../server/git.js';
 import { bootstrapScript, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, updateTo } from '../server/machines.js';
 
 const RECORD = tmp('machines-record');
@@ -27,6 +30,7 @@ fs.writeFileSync(ssh, `#!${process.execPath}\nimport(${JSON.stringify(pathToFile
 fs.chmodSync(ssh, 0o755);
 process.env.WISP_SSH = ssh;
 
+const execGit = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8' }).trim();
 const WISP_BIN = fileURLToPath(new URL('../bin/wisp.js', import.meta.url));
 const { startServer } = await import('../server/index.js');
 
@@ -184,6 +188,10 @@ test('a failed connect says why and what to run', { skip: win }, async () => {
 });
 
 test('connect, add a project, launch, follow up and stop wisp over there', { skip: win, timeout: 120_000 }, async () => {
+  // Repos the machine clones go to a temp folder, not the real ~/code.
+  const clonesThere = tmp('clones-there');
+  fs.mkdirSync(path.join(THERE, 'me_devbox'), { recursive: true });
+  fs.writeFileSync(path.join(THERE, 'me_devbox', 'config.json'), JSON.stringify({ defaults: { cloneDir: clonesThere } }));
   const m = await call('POST', '/machines', { target: 'me@devbox', port: remotePort, command: `${JSON.stringify(process.execPath)} ${JSON.stringify(WISP_BIN)}` });
   assert.equal(m.name, 'devbox');
   const v = await until(
@@ -287,6 +295,71 @@ test('connect, add a project, launch, follow up and stop wisp over there', { ski
   assert.ok(there.id.endsWith(`@${m.id}`));
   for (const x of [here, there]) assert.equal((await call('GET', `/sessions/${x.id}/wait?timeout=30`)).state, 'review');
   assert.deepEqual((await call('GET', '/sessions')).filter((x) => x.groupId === gid).map((x) => !!x.machine).sort(), [false, true]);
+
+  // A project added here runs there too: wisp clones its origin there first and keeps the copy.
+  const local = makeClone();
+  const lp = await call('POST', '/projects', { path: local.dir });
+  assert.equal(lp.origin, local.remote);
+  const away = await call('POST', '/sessions', { prompt: 'Rename add to sum', cwd: local.dir, agent: 'claude', machine: m.id });
+  assert.ok(away.id.endsWith(`@${m.id}`));
+  assert.equal(away.projectId, lp.id); // one project, wherever it runs
+  const copy = (await call('GET', '/projects')).find((x) => x.id === lp.id).copies[m.id];
+  assert.ok(same(path.dirname(copy), clonesThere), copy);
+  assert.ok(sameRepo(execGit(copy, 'remote', 'get-url', 'origin'), local.remote));
+  assert.equal((await call('GET', `/sessions/${away.id}/wait?timeout=30`)).state, 'review');
+  const awayFull = await call('GET', `/sessions/${away.id}`);
+  assert.ok(same(awayFull.worktree.root, copy));
+  // A second launch there reuses the copy.
+  const again1 = await call('POST', '/sessions', { prompt: 'Plan only', cwd: local.dir, agent: 'claude', machine: m.id, worktree: false });
+  await call('GET', `/sessions/${again1.id}/wait?timeout=30`);
+  assert.ok(same(fs.realpathSync(records(RECORD, 'claude').at(-1).cwd), copy));
+
+  // What the agent did there: a commit and uncommitted work.
+  const wt = awayFull.worktree.path;
+  fs.writeFileSync(path.join(wt, 'sum.js'), 'export const sum = (a, b) => a + b;\n');
+  execGit(wt, 'add', 'sum.js');
+  execGit(wt, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'add sum');
+  fs.appendFileSync(path.join(wt, 'math.js'), '// wip there\n');
+  fs.writeFileSync(path.join(wt, 'notes.md'), 'untracked\n');
+
+  // Follow up here instead: the task moves over, its work and history with it.
+  const mv = await call('POST', `/sessions/${away.id}/reply`, { text: 'Now add a test', machine: '' });
+  assert.equal(mv.moved, true);
+  const home = mv.session;
+  assert.ok(!home.id.includes('@'));
+  assert.equal(home.projectId, lp.id);
+  assert.equal(home.moved.from, 'devbox');
+  assert.equal(home.title, awayFull.title);
+  assert.equal((await call('GET', `/sessions/${home.id}/wait?timeout=30`)).state, 'review');
+  const homeFull = await call('GET', `/sessions/${home.id}`);
+  assert.equal(homeFull.turns.length, awayFull.turns.length + 1);
+  assert.equal(homeFull.turns[0].moved, 'devbox');
+  assert.equal(homeFull.worktree.branch, awayFull.worktree.branch);
+  assert.ok(same(homeFull.worktree.root, local.dir));
+  const hw = homeFull.worktree.path;
+  assert.equal(fs.readFileSync(path.join(hw, 'sum.js'), 'utf8'), 'export const sum = (a, b) => a + b;\n');
+  assert.match(fs.readFileSync(path.join(hw, 'math.js'), 'utf8'), /wip there/);
+  assert.equal(execGit(hw, 'log', '-1', '--format=%s'), 'add sum'); // committed stays committed
+  assert.deepEqual(execFileSync('git', ['status', '--porcelain'], { cwd: hw, encoding: 'utf8' }).split('\n').filter(Boolean).sort(), [' M math.js', '?? notes.md']); // the rest uncommitted again
+  const heard = records(RECORD, 'claude').at(-1);
+  assert.ok(same(fs.realpathSync(heard.cwd), hw));
+  assert.match(heard.stdin + heard.argv.join(' '), /ran on another computer \(devbox\)[\s\S]*Rename add to sum[\s\S]*Now add a test/);
+  const left = await call('GET', `/sessions/${away.id}`);
+  assert.equal(left.archived, true);
+  const hostHere = os.hostname().replace(/\.local$/, '');
+  assert.deepEqual(left.movedTo, { id: home.id, place: hostHere });
+  await assert.rejects(call('POST', `/sessions/${home.id}/reply`, { text: 'x', machine: 'nope00' }), /No such machine/);
+
+  // And back out to the machine: same branch name is taken there, so it gets the id.
+  const out = await call('POST', `/sessions/${home.id}/reply`, { text: 'Run it on the box', machine: m.id });
+  assert.ok(out.session.id.endsWith(`@${m.id}`));
+  assert.equal((await call('GET', `/sessions/${out.session.id}/wait?timeout=30`)).state, 'review');
+  const outFull = await call('GET', `/sessions/${out.session.id}`);
+  assert.equal(outFull.turns.length, homeFull.turns.length + 1);
+  assert.deepEqual(outFull.turns.map((t) => t.moved || ''), ['devbox', hostHere, '']);
+  assert.ok(same(outFull.worktree.root, copy));
+  assert.match(fs.readFileSync(path.join(outFull.worktree.path, 'math.js'), 'utf8'), /wip there/);
+  assert.equal((await call('GET', `/sessions/${home.id}`)).archived, true);
 
   // Offline: the last sessions seen stay listed; actions say it's offline.
   await call('POST', `/machines/${m.id}/disconnect`);

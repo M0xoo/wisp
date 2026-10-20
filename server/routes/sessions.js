@@ -97,6 +97,8 @@ export function register(r, app) {
       if (body.state === 'done' && s.state !== 'running') s.state = 'done';
       if (body.state === 'review' && s.state === 'done') s.state = 'review';
       if (typeof body.unread === 'boolean') s.unread = body.unread;
+      // Moved to another place by the wisp that shows it (services/move.js): where it went.
+      if (body.movedTo && typeof body.movedTo === 'object') s.movedTo = { id: String(body.movedTo.id || ''), place: String(body.movedTo.place || '') };
       // The team can change between turns; the next turn's lead sees the new roster.
       if (body.subagents !== undefined && !s.parentId) {
         s.subagents = normalizeTeam(body.subagents, adapters);
@@ -186,14 +188,25 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/reply',
     one(async (c, s) => {
-      const { text, attachments, queue, mode, agent, model, effort } = await c.body();
+      const { text, attachments, queue, mode, agent, model, effort, machine } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
+      // machine: carry the task on on a machine instead (services/move.js). '' is here, where it is.
+      // A /btw side question never moves it.
+      if (typeof machine === 'string' && machine && btwQuestion(text) === null) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort }));
       // agent / model / effort: run this follow-up (and the ones after it) on another harness or model.
       const run = agent !== undefined || model !== undefined || effort !== undefined ? await followUpRun(s, { agent, model, effort }) : undefined;
       c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run));
     }),
+  );
+
+  // Pack the task's work to move it to another place (services/move.js): bundles, as uploads.
+  r.route(
+    'POST',
+    '/sessions/:id/pack',
+    one(async (c, s) => c.send(200, await app.mover.pack(s))),
+    { doc: false },
   );
 
   // A side question (/btw): answered next to the run, which carries on. text may keep its /btw.

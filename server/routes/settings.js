@@ -10,20 +10,10 @@ import { envDisabled, feedbackAvailable } from '../telemetry.js';
 import { TERMINALS } from '../terminal.js';
 import { normalizeWebhooks } from '../services/webhooks.js';
 import { cloneRepo, gh, git, parseRepo } from '../git.js';
+import { checkout, cloneRoot, discoverRepos, originAt } from '../services/places.js';
 import { expand } from '../util.js';
 
-// Where people keep their repos, for one-click "add project".
-const REPO_ROOTS = ['code', 'Code', 'dev', 'Developer', 'projects', 'Projects', 'src', 'repos', 'work', 'git', 'GitHub', 'Documents', 'Downloads', 'Desktop'];
-
-// Where a pasted repo URL is cloned: defaults.cloneDir, else the first usual repo folder that
-// exists (not Documents/Downloads/Desktop), else ~/code.
-export function cloneRoot(config) {
-  if (config.defaults?.cloneDir) return expand(config.defaults.cloneDir);
-  const dir = REPO_ROOTS.slice(0, -3)
-    .map((r) => path.join(os.homedir(), r))
-    .find((d) => fs.existsSync(d) && fs.statSync(d).isDirectory());
-  return dir || path.join(os.homedir(), 'code');
-}
+export { cloneRoot };
 
 export function register(r, app) {
   const { store, telemetry, prefs, retro, remote, machines } = app;
@@ -119,12 +109,30 @@ export function register(r, app) {
       cloned = { url: repo.url, existed: out.existed };
     }
     if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return c.send(400, { error: `Not a folder: ${dir}` });
-    const p = store.addProject(dir, { name: body.name });
+    // Its origin: the same repo added on another place joins that project, and a machine
+    // without a checkout of it can clone it.
+    const origin = await originAt(dir);
+    const p = store.addProject(dir, { name: body.name, repo: origin || undefined });
     app.broadcast('config', {});
-    c.send(201, cloned ? { ...p, cloned } : p);
+    c.send(201, { ...p, ...(cloned && { cloned }), ...(origin && { origin }) });
   });
+  // Another wisp (this computer is one of its machines) needs a checkout of `repo` here: one that's
+  // already here, else a fresh clone. It's added as a project here too.
+  r.route(
+    'POST',
+    '/projects/checkout',
+    async (c) => {
+      const { repo, name } = await c.body();
+      const out = await checkout(store, String(repo || ''));
+      const p = store.addProject(out.dir, { name: name ? String(name) : undefined, repo: String(repo) });
+      app.broadcast('config', {});
+      c.send(200, { path: out.dir, existed: !!out.existed, name: p.name });
+    },
+    { doc: false },
+  );
+  r.route('GET', '/projects/origin', async (c) => c.send(200, { origin: await originAt(expand(c.query.get('path') || '.')) }), { doc: false });
   // Find git repos in the usual places so adding projects is one click.
-  r.route('GET', '/projects/discover', (c) => c.send(200, discoverRepos(new Set(store.config.projects.map((p) => p.path)))), { doc: false });
+  r.route('GET', '/projects/discover', (c) => c.send(200, discoverRepos(new Set(store.config.projects.map((p) => store.pathAt(p)).filter(Boolean)))), { doc: false });
   // The user's GitHub repos (gh's login), newest first, minus ones already added: one click clones.
   // Empty when gh isn't installed or signed in.
   r.route(
@@ -136,7 +144,7 @@ export function register(r, app) {
         .catch(() => null);
       if (!list) return c.send(200, []);
       const origins = await Promise.all(
-        store.config.projects.filter((p) => !p.machine).map((p) => git(p.path, ['remote', 'get-url', 'origin'], { timeout: 5000 }).catch(() => '')),
+        store.config.projects.map((p) => p.repo || (store.pathAt(p) ? git(store.pathAt(p), ['remote', 'get-url', 'origin'], { timeout: 5000 }).catch(() => '') : '')),
       );
       const have = new Set(origins.map((o) => parseRepo(o)?.gh?.toLowerCase()).filter(Boolean));
       c.send(
@@ -168,26 +176,4 @@ export function register(r, app) {
     app.configChanged();
     c.send(200, { ok: true });
   });
-}
-
-// Git repos up to two levels under the usual folders, newest first, skipping known ones.
-function discoverRepos(known) {
-  const found = [];
-  const walk = (dir, depth) => {
-    if (found.length >= 60) return;
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    if (entries.some((e) => e.name === '.git')) {
-      if (!known.has(dir)) found.push({ path: dir, name: path.basename(dir), mtime: fs.statSync(dir).mtimeMs });
-      return;
-    }
-    if (depth <= 0) return;
-    for (const e of entries) if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') walk(path.join(dir, e.name), depth - 1);
-  };
-  for (const r of REPO_ROOTS) walk(path.join(os.homedir(), r), 2);
-  return found.sort((a, b) => b.mtime - a.mtime).slice(0, 24);
 }

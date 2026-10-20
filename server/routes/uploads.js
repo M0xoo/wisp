@@ -16,4 +16,6 @@ export function register(r, app) {
     c.res.writeHead(200, { 'content-type': u.mime, 'content-length': fs.statSync(u.path).size });
     fs.createReadStream(u.path).pipe(c.res);
   });
+  // A moved task's bundle, once the other place has it (services/move.js).
+  r.route('DELETE', '/uploads/:id', (c) => c.send(200, { ok: uploads.remove(c.params.id) }), { doc: false });
 }

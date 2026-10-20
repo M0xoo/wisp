@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { sameRepo } from './git.js';
 import { parsePresentation } from './protocol.js';
 import { writeJsonAtomic } from './util.js';
 
 const DEFAULT_CONFIG = {
-  projects: [], // [{ id, name, path, color, addedAt, machine? }]; machine: the server/machines.js id it lives on
+  projects: [], // [{ id, name, path, color, addedAt, machine?, repo?, copies? }]: see projectFor()
   defaults: { agent: 'auto', mode: 'auto', model: '', effort: '' }, // agent auto: wisp picks harness and model (server/router.js)
   recipes: [], // saved prompts with {params}: server/recipes.js
   triggers: [], // schedules and GitHub watchers: server/triggers.js
@@ -19,6 +20,9 @@ const DEFAULT_CONFIG = {
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 const MAX_KEPT_IMAGE = 25 * 1024 * 1024;
+
+// The key for this computer in a project's copies (machine ids are 6 hex characters).
+export const HERE = 'here';
 
 export const PROJECT_COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
 
@@ -85,32 +89,61 @@ export class Store {
   }
 
   // --- projects: plain folders, matched to sessions by path prefix ---
+  //
+  // A project is one repo, and every place can run it. path (on machine, null = this computer) is
+  // where it was added; copies are its checkouts elsewhere, which wisp found or cloned there the
+  // first time a task ran there: { [machine id, or HERE]: path }. repo: its origin URL, once known.
 
-  // machine: a project on another computer (paths there are POSIX); null = this one.
+  // The project's folder on `machine` (null = this computer), or null when it has none there yet.
+  pathAt(p, machine = null) {
+    return (p.machine || null) === (machine || null) ? p.path : p.copies?.[machine || HERE] || null;
+  }
+
+  // machine: a folder on another computer (paths there are POSIX); null = this one.
   projectFor(cwd = '', machine = null) {
     if (!machine && this.isScratch(cwd)) return null; // never inside a project, even one at ~
     const sep = machine ? '/' : path.sep;
     let best = null;
-    for (const p of this.config.projects)
-      if ((p.machine || null) === machine && (cwd === p.path || cwd.startsWith(p.path + sep)) && (!best || p.path.length > best.path.length)) best = p;
+    let len = 0;
+    for (const p of this.config.projects) {
+      const dir = this.pathAt(p, machine);
+      if (dir && (cwd === dir || cwd.startsWith(dir + sep)) && dir.length > len) [best, len] = [p, dir.length];
+    }
     return best;
   }
 
-  addProject(dir, { name, color, machine } = {}) {
-    const existing = this.config.projects.find((p) => p.path === dir && (p.machine || null) === (machine || null));
+  // repo: the folder's origin URL. A folder of a repo that's already a project becomes that
+  // project's copy on this place, so the same repo is one project wherever it's checked out.
+  addProject(dir, { name, color, machine, repo } = {}) {
+    const existing = this.config.projects.find((p) => this.pathAt(p, machine) === dir);
     if (existing) return existing;
+    const same = repo && this.config.projects.find((p) => p.repo && sameRepo(p.repo, repo) && !this.pathAt(p, machine));
+    if (same) {
+      (same.copies ||= {})[machine || HERE] = dir;
+      this.saveConfig();
+      return same;
+    }
     const used = new Set(this.config.projects.map((p) => p.color));
     const project = {
       id: Math.random().toString(36).slice(2, 10),
       name: name || (machine ? path.posix.basename(dir) : path.basename(dir)) || dir,
       path: dir,
       ...(machine && { machine }),
+      ...(repo && { repo }),
       color: color || PROJECT_COLORS.find((c) => !used.has(c)) || PROJECT_COLORS[this.config.projects.length % PROJECT_COLORS.length],
       addedAt: Date.now(),
     };
     this.config.projects.push(project);
     this.saveConfig();
     return project;
+  }
+
+  // A checkout of the project on `machine`, found or cloned there (services/places.js).
+  setCopy(p, machine, dir) {
+    if (this.pathAt(p, machine) === dir) return;
+    if ((p.machine || null) === (machine || null)) p.path = dir;
+    else (p.copies ||= {})[machine || HERE] = dir;
+    this.saveConfig();
   }
 
   // Folder-less tasks run in a throwaway directory of their own under ~/.wisp/scratch.

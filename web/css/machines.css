@@ -38,6 +38,10 @@
 .wm-row:hover .wm-only { opacity: 1; }
 .wm-only:hover { background: var(--bg-2); color: var(--ink); }
 .wm-sep { height: 1px; margin: 5px 4px; background: var(--line); }
+.wm-note { margin: 0 10px 6px; max-width: 300px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.wm-note.warn { color: var(--warn); }
+.place-menu .wm-check { border-radius: 50%; }
+.place-menu .wm-row[disabled] { opacity: 0.45; cursor: default; }
 .p-chip .p-where { width: 11px; height: 11px; color: var(--muted); }
 .projects-modal .where { margin-bottom: 12px; }
 .projects-modal .where .i { width: 13px; height: 13px; color: var(--muted); }

@@ -17,7 +17,10 @@ import { collapse, expand, handOff, renderFeed, setFocus } from './feed.js';
 import { launchBehind } from './launcher.js';
 import { copyTaskId, mentionBox } from './mentions.js';
 import { runnerPicker } from './runner-picker.js';
-import { agentName, DEFAULT_MODE, effortsFor, modeMenu, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
+import { connectMachine } from './machines.js';
+import { placeMenu } from './place-menu.js';
+import { machineById, pathAt, placeName, projectById } from './places.js';
+import { agentById, agentName, DEFAULT_MODE, effortsFor, harnessesAt, modeMenu, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 
@@ -221,15 +224,18 @@ export async function deleteSession(id) {
   });
 }
 
-// Launch the task again as a new session in the same folder: same prompt and attachments,
-// optionally edited, on whichever harness, model and thinking level you pick. The original stays.
+// Launch the task again as a new session in the same project: same prompt and attachments,
+// optionally edited, on whichever computer, harness, model and thinking level you pick. The
+// original stays. Another computer runs it in its own checkout (cloned there if need be).
 export async function rerun(id) {
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(toastError));
   const first = s?.turns?.[0];
   if (!first?.prompt) return toast('Nothing to rerun — this session has no prompt.', { tone: 'bad' });
-  const has = (a) => S.agents.some((x) => x.id === a && x.available);
-  let agent = has(s.agent) ? s.agent : S.agents.find((x) => x.available)?.id || s.agent;
-  const models = S.agents.find((x) => x.id === agent)?.models || [];
+  let place = s.machine?.id || '';
+  const here = () => harnessesAt([place]).filter((x) => x.available);
+  const has = (a) => here().some((x) => x.id === a);
+  let agent = has(s.agent) ? s.agent : here()[0]?.id || s.agent;
+  const models = agentById(agent)?.models || [];
   let model = agent === s.agent && models.some((m) => m.id === s.model) ? s.model : savedModel(agent);
   let effort = agent === s.agent && effortsFor(agent, model).includes(s.effort) ? s.effort : savedEffort(agent, model);
   let mode = MODES.some((m) => m.id === s.mode) ? s.mode : S.config.defaults.mode || DEFAULT_MODE.id;
@@ -242,13 +248,14 @@ export async function rerun(id) {
         <textarea class="rr-prompt" rows="3" spellcheck="false"></textarea>
         ${files.length ? `<div class="rr-files">${files.map((f) => `<span class="rr-file">${icon('clip')}${esc(f.name)}</span>`).join('')}</div>` : ''}
         <div class="l-bar">
+          <button class="tog-btn where-btn" data-a="place" aria-haspopup="menu" ${S.machines.length ? '' : 'hidden'}></button>
           <button class="mode-btn" data-a="mode" aria-haspopup="menu"></button>
           <button class="runner-btn" data-a="runner" title="Harness, model and thinking level" aria-haspopup="dialog"></button>
           <span class="grow"></span>
           <button class="primary sm" data-a="go">${icon('rerun')}Rerun</button>
         </div>
       </div>
-      <p class="hint">Starts a new session in <code>${esc(s.cwd)}</code>. “${esc(s.title)}” is kept as it is.</p>
+      <p class="hint rr-hint"></p>
     </div>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
@@ -264,12 +271,37 @@ export async function rerun(id) {
   };
   const runnerBtn = $('[data-a="runner"]', node);
   const paintRunner = () => paintRunnerBtn(runnerBtn, agent, model, effort);
+  // Where it runs: where it ran, unless you pick another computer.
+  const placeBtn = $('[data-a="place"]', node);
+  const project = projectById(S.sessions.get(id)?.projectId);
+  const paintPlace = () => {
+    placeBtn.classList.toggle('on', !!place);
+    placeBtn.innerHTML = `${icon(place ? 'server' : 'laptop')}<span>${esc(placeName(place))}</span>${icon('chevron', 'chev')}`;
+    placeBtn.title = 'Run it on another computer';
+    const fresh = project && !pathAt(project, place);
+    $('.rr-hint', node).innerHTML = `Starts a new session in <code>${esc(project && !fresh ? pathAt(project, place) : s.cwd)}</code>${S.machines.length ? ` on <b>${esc(placeName(place))}</b>` : ''}${fresh ? `, in a checkout wisp clones there first` : ''}. “${esc(s.title)}” is kept as it is.`;
+  };
   paintMode();
   paintRunner();
+  paintPlace();
+  placeBtn.onclick = () =>
+    placeMenu(placeBtn, { title: 'Rerun on', current: place, from: s.machine?.id || '' }, (k) => {
+      place = k;
+      if (k && machineById(k)?.state === 'off') connectMachine(k);
+      // The harness has to be there too: keep it if it is, else the first one that is.
+      if (!has(agent) && here().length) {
+        agent = here()[0].id;
+        model = savedModel(agent);
+        effort = savedEffort(agent, model);
+        paintRunner();
+      }
+      paintPlace();
+      ta.focus();
+    });
   modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode(), ta.focus()));
   // Picks here only apply to this rerun; the launcher's remembered defaults are left alone.
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort, auto: true }, (a, m, e) => {
+    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort, places: [place], auto: true }, (a, m, e) => {
       [agent, model, effort] = [a, m, e];
       paintRunner();
     });
@@ -279,8 +311,8 @@ export async function rerun(id) {
     if (!prompt) return ta.focus();
     close();
     try {
-      const body = { prompt, cwd: s.cwd, also: s.also?.map((a) => a.cwd), agent, mode, model, effort, attachments: files.map((f) => f.id) };
-      const next = await launchBehind({ prompt, cwd: s.cwd, runner: { agent, model, effort } }, () => api('/sessions', { method: 'POST', body }));
+      const body = { prompt, cwd: s.cwd, also: s.also?.map((a) => a.cwd), machine: place, agent, mode, model, effort, attachments: files.map((f) => f.id) };
+      const next = await launchBehind({ prompt, cwd: s.cwd, runner: { agent, model, effort }, machine: place }, () => api('/sessions', { method: 'POST', body }));
       setFocus(next.id);
     } catch (err) {
       toast(`Rerun failed: ${esc(err.message)}`, { tone: 'bad', action: { label: 'Edit again', run: () => rerun(id) } });
