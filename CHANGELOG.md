@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Space above "Needs you" is back.** When something needed you, the first feed group sat flush under the launcher's recipes row.
 - **Codex can use wisp's tools outside Full auto.** In Edits and Plan mode `codex exec` refused every MCP call ("requires approval, but approval policy is never"), so `ask_user` and the other wisp tools failed there. wisp's own MCP server is now pre-approved.
 - **A report whose last block lost a closing brace keeps that block.** Agents sometimes drop a `}` after a long string (a spell's script); wisp used to skip the block with a warning, and now closes it.
 

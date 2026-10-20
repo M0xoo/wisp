@@ -1,6 +1,6 @@
 /* ---------- feed ---------- */
 .feed-head { display: flex; align-items: center; gap: 14px; min-height: 22px; margin: 26px 0 10px; padding: 0 4px; font-size: 13px; }
-.feed-head[hidden] + .feed { margin-top: 26px; }
+.feed-head[hidden] ~ .feed { margin-top: 26px; }
 .hs { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); }
 .hs i { width: 7px; height: 7px; border-radius: 50%; }
 .hs.working i { background: var(--accent); animation: pulse 1.6s infinite; }
