@@ -67,7 +67,7 @@ export default {
             const args = body.args || {};
             if (msg.subtype === 'started') {
               if ((name === 'editToolCall' || name === 'deleteToolCall') && args.path) files.remember(args.path);
-              onEvent({ type: 'tool', ...describeTool(name, args, cwd) });
+              onEvent({ type: 'tool', id: msg.call_id, ...describeTool(name, args, cwd) });
             } else if (msg.subtype === 'completed') {
               const [outcome, value = {}] = resultOf(body.result);
               if (outcome && outcome !== 'success') {
@@ -77,6 +77,9 @@ export default {
               } else if (name === 'editToolCall' || name === 'deleteToolCall') {
                 const change = editChange(args.path || value.path, value, cwd, files);
                 if (change) onEvent({ type: 'change', ...change });
+              } else {
+                const output = [value.stdout, value.stderr].filter((x) => typeof x === 'string' && x).join('\n') || (typeof value.content === 'string' ? value.content : '');
+                if (output) onEvent({ type: 'tool_output', id: msg.call_id, text: output });
               }
             }
             break;

@@ -1,5 +1,6 @@
 // The page's DOM-free modules: markdown and highlighting (web/js/md.js), line diffs
-// (web/js/diff.js), display formatters (web/js/core/format.js) and the event bus (web/js/core/bus.js).
+// (web/js/diff.js), display formatters (web/js/core/format.js), the event bus (web/js/core/bus.js)
+// and what the transcript shows (web/js/features/transcript.js).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,6 +8,7 @@ import { esc, md, inlineMd, highlight, langOf } from '../web/js/md.js';
 import { diffLines, hunks, countChanges } from '../web/js/diff.js';
 import { ago, fmtSize, money, pct } from '../web/js/core/format.js';
 import * as bus from '../web/js/core/bus.js';
+import { finalAnswer, layout, messageText, sameStep } from '../web/js/features/transcript.js';
 
 test('esc escapes HTML and treats null as empty', () => {
   assert.equal(esc(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -138,4 +140,43 @@ test('places: a task in several folders lists under each project, its card names
   assert.equal(projectLabel({ project: 'a<b' }), '<span class="q-proj">a&lt;b</span>');
   assert.match(projectLabel(s), /api<span class="q-also c-teal">\+ web<\/span>/);
   assert.match(projectLabel({ ...s, also: [...s.also, { project: 'docs', color: 'amber' }] }), /<span class="q-also ">\+2<\/span>/);
+});
+
+test("transcript: the final answer is the turn's last message(s), shown as blocks instead", () => {
+  const answer = 'Done.\n```wisp\n{"blocks":[{"type":"hero","title":"x"}]}\n```';
+  const t = {
+    raw: answer,
+    activity: [
+      { kind: 'text', label: 'Looking around.' },
+      { kind: 'run', label: 'Run the tests' },
+      { kind: 'text', label: answer.slice(0, 600) },
+      { kind: 'check', label: 'Tests pass', by: 'wisp' }, // Auto's note after the answer
+    ],
+  };
+  assert.deepEqual([...finalAnswer(t)], [2]);
+  // Streamed in parts: every trailing part of the answer goes.
+  assert.deepEqual([...finalAnswer({ raw: 'Part one. Part two.', activity: [{ kind: 'run' }, { kind: 'text', label: 'Part one.' }, { kind: 'text', label: 'Part two.' }] })], [2, 1]);
+  // No answer (stopped, failed): every message stays.
+  assert.equal(finalAnswer({ activity: [{ kind: 'text', label: 'hi' }] }).size, 0);
+  assert.equal(finalAnswer({ raw: 'A different answer', activity: [{ kind: 'text', label: 'Looking around.' }] }).size, 0);
+});
+
+test('transcript: a message mid-run hides the presentation it is writing', () => {
+  assert.equal(messageText('All set.\n\n```wisp\n{"blocks":['), 'All set.');
+  assert.equal(messageText('```wisp\n{'), '');
+  assert.equal(messageText('  plain  '), 'plain');
+});
+
+test('transcript: long runs of steps fold their middle; messages split runs', () => {
+  const step = (i) => ({ kind: 'run', label: `s${i}` });
+  const out = layout([...Array.from({ length: 20 }, (_, i) => step(i)), { kind: 'text', label: 'hi' }, step(99)]);
+  assert.deepEqual(out.map((x) => (x.fold ? `fold ${x.fold.length}` : x.label)), ['s0', 's1', 's2', 's3', 'fold 12', 's16', 's17', 's18', 's19', 'hi', 's99']);
+  assert.equal(layout(Array.from({ length: 12 }, (_, i) => step(i))).length, 12, 'twelve fit without folding');
+});
+
+test('transcript: an update finds its step by call id, else by time and label', () => {
+  assert.ok(sameStep({ call: 't1', label: 'a' }, { call: 't1', label: 'b' }));
+  assert.ok(!sameStep({ call: 't1' }, { call: 't2' }));
+  assert.ok(sameStep({ t: 5, kind: 'edit', label: 'Editing a' }, { t: 5, kind: 'edit', label: 'Editing a' }));
+  assert.ok(!sameStep({ t: 5, kind: 'edit', label: 'Editing a' }, { t: 6, kind: 'edit', label: 'Editing a' }));
 });

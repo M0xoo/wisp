@@ -15,6 +15,7 @@ process.env.WISP_UPDATE_CHECK = '0'; // no registry calls from tests
 installFakeBins();
 
 const { startServer } = await import('../server/index.js');
+const { clipOutput } = await import('../server/runner.js');
 
 let srv;
 let base;
@@ -117,6 +118,33 @@ for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
     assert.ok(last.argv.includes(`${agent}-session-1`), 'resumed by id');
   });
 }
+
+test('claude: the transcript keeps whole messages, what calls printed, and which call made each edit', async () => {
+  const s = await api('/sessions', { prompt: 'NARRATE then fix add()', cwd: makeRepo(), agent: 'claude', mode: 'auto', worktree: false });
+  const done = await until(async () => {
+    const x = await session(s.id);
+    return x.state === 'review' && x;
+  });
+  const acts = done.turns[0].activity;
+  const said = acts.find((a) => a.kind === 'text' && a.label.startsWith('Looking around first.'));
+  assert.ok(said.label.length > 1000, 'a long message is kept whole');
+  const status = acts.find((a) => a.kind === 'run' && a.detail === 'git status --short');
+  assert.deepEqual([status.call, status.output], ['t4', ' M math.js']);
+  assert.equal(acts.find((a) => a.kind === 'read').output, undefined, "a read's output is the file: not kept");
+  assert.deepEqual(acts.find((a) => a.kind === 'edit').edits, [0, 1], 'the edit points at its slice of the change');
+  assert.equal(acts.find((a) => a.kind === 'run' && a.detail === 'npm test').output, undefined, 'a failed call is an error row instead');
+  assert.ok(acts.some((a) => a.kind === 'error'));
+});
+
+test('clipOutput keeps short output whole and long output as its first and last lines', () => {
+  assert.equal(clipOutput('ok\n\n'), 'ok');
+  const lines = Array.from({ length: 400 }, (_, i) => `line ${i}`).join('\n');
+  const out = clipOutput(lines);
+  assert.ok(out.length < 2100, `${out.length} chars`);
+  assert.ok(out.startsWith('line 0\n') && out.endsWith('line 399'));
+  assert.match(out, /\n… \d+ lines cut …\n/);
+  assert.match(clipOutput('x'.repeat(5000)), /… 3100 characters cut …/);
+});
 
 test('wisp_stats: an agent reads tool counts across the user\'s sessions through the injected MCP server', async () => {
   // Earlier tests left finished claude turns with Read / Edit / Bash calls in the store.

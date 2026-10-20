@@ -19,9 +19,12 @@
 //
 // onEvent receives normalized events:
 //   { type: 'session', id }                         agent-side session id (used to resume follow-ups)
-//   { type: 'tool', kind, label, file?, detail? }   kind: read|edit|run|search|web|agent|plan|tool
+//   { type: 'tool', kind, label, file?, detail?, id?, output? }   kind: read|edit|run|search|web|agent|plan|tool
+//                                                  id: the harness's call id, for a later tool_output;
+//                                                  output: what it returned, if it reports calls once run
+//   { type: 'tool_output', id, text }               what a finished call returned (the transcript shows it)
 //   { type: 'tool_error', name, text }
-//   { type: 'text', text }                          intermediate assistant prose
+//   { type: 'text', text }                          assistant prose, the final answer included
 //   { type: 'thinking' }
 //   { type: 'change', file, op, edits: [{ before, after }] }
 //   { type: 'blocked', tool, detail, rule? }        a call its permissions refused; rule: what allows

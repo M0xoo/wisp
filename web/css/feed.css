@@ -26,7 +26,8 @@
 .toggle-done { cursor: pointer; user-select: none; }
 .toggle-done:hover { color: var(--ink-2); }
 .toggle-done .chev { width: 12px; height: 12px; transition: transform 0.2s; }
-.f-group.done:not(.collapsed) .chev { transform: rotate(90deg); }
+/* Only the group's own heading: the cards inside have chevrons of their own. */
+.f-group.done:not(.collapsed) > .toggle-done .chev { transform: rotate(90deg); }
 /* Folded groups are just a row of headings: stack them tight instead of leaving a section gap each. */
 .f-group.collapsed { margin-bottom: 2px; }
 .f-group.collapsed h4 { margin: 0; }

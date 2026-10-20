@@ -359,7 +359,7 @@ export function collapse(id) {
   renderFeedHead(groups().needs, groups().working);
 }
 
-async function fetchFull(id) {
+export async function fetchFull(id) {
   const s = await api(`/sessions/${id}`).catch(() => null);
   if (!s) {
     S.open.delete(id);

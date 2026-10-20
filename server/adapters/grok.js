@@ -108,7 +108,7 @@ export default {
                 if (part.name === 'write' && input.file_path) files.remember(input.file_path);
                 // Streamed once answered, so "waiting" would land after "You answered"; the trail has both.
                 if (part.name === 'use_tool' && input.tool_name === 'wisp__ask_user') continue;
-                onEvent({ type: 'tool', ...describeTool(part.name, input, cwd) });
+                onEvent({ type: 'tool', id: part.id, ...describeTool(part.name, input, cwd) });
               }
             }
             break;
@@ -122,6 +122,7 @@ export default {
               else {
                 const change = captureChange(call.name, call.input, cwd, files);
                 if (change) onEvent({ type: 'change', ...change });
+                else onEvent({ type: 'tool_output', id: part.tool_use_id, text: flatten(part.content) });
               }
             }
             break;

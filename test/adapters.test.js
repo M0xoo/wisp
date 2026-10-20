@@ -110,6 +110,25 @@ for (const id of Object.keys(BIN)) {
     assert.match(results[0].text, /```wisp/);
   });
 
+  // The transcript: what a finished call returned, matched to the call that made it.
+  if (['claude', 'codex', 'opencode', 'grok'].includes(id)) {
+    test(`${id}: a finished call's output comes back with its call`, async () => {
+      const events = await run(id).done;
+      const out = events.find((e) => e.type === 'tool_output');
+      if (id === 'opencode') {
+        // It reports a call once it has run, output and all.
+        assert.equal(events.find((e) => e.type === 'tool' && e.kind === 'run').output, '1 failing');
+        return;
+      }
+      assert.ok(out, 'a tool_output event');
+      const call = events.find((e) => e.type === 'tool' && e.id === out.id);
+      assert.ok(call, `tool_output ${out.id} names a call that was announced`);
+      if (id === 'codex') assert.deepEqual([call.kind, out.text], ['run', ' M math.js']);
+      if (id === 'claude') assert.match(out.text, /a - b/);
+      if (id === 'claude') assert.ok(!events.some((e) => e.type === 'tool_output' && e.id === 't3'), 'a failed call is an error, not output');
+    });
+  }
+
   for (const mode of ['plan', 'edits', 'auto']) {
     test(`${id}: ${mode} mode command line`, async () => {
       await run(id, { mode, model: 'm-1' }).done;

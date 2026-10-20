@@ -1,7 +1,7 @@
 // Codex CLI adapter — drives `codex exec --json` (JSONL thread/turn/item events).
 
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, flatten, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const BIN = process.env.WISP_CODEX_BIN || 'codex';
@@ -73,9 +73,9 @@ export default {
       const type = item.type || item.item_type;
       if (phase === 'started') {
         if (type === 'command_execution') {
-          onEvent({ type: 'tool', kind: 'run', label: describeCommand(unwrapShell(item.command), cwd), detail: item.command });
+          onEvent({ type: 'tool', id: item.id, kind: 'run', label: describeCommand(unwrapShell(item.command), cwd), detail: item.command });
         } else if (type === 'mcp_tool_call') {
-          onEvent({ type: 'tool', ...describeMcp(item) });
+          onEvent({ type: 'tool', id: item.id, ...describeMcp(item) });
         } else if (type === 'web_search') {
           onEvent({ type: 'tool', kind: 'web', label: item.query ? `Searching the web: ${clip(item.query, 50)}` : 'Searching the web' });
         }
@@ -103,7 +103,7 @@ export default {
         case 'command_execution':
           if (item.status === 'failed' || (item.exit_code != null && item.exit_code !== 0)) {
             onEvent({ type: 'tool_error', name: clip(unwrapShell(item.command), 40), text: clip(item.aggregated_output || `exit ${item.exit_code}`, 400) });
-          }
+          } else if (item.aggregated_output) onEvent({ type: 'tool_output', id: item.id, text: item.aggregated_output });
           break;
         case 'file_change':
           for (const c of item.changes || []) {
@@ -116,6 +116,7 @@ export default {
           break;
         case 'mcp_tool_call':
           if (item.status === 'failed') onEvent({ type: 'tool_error', name: `${item.server}.${item.tool}`, text: clip(item.error?.message || 'failed', 400) });
+          else if (item.result?.content) onEvent({ type: 'tool_output', id: item.id, text: flatten(item.result.content) });
           break;
         case 'todo_list': {
           const next = item.items?.find((t) => !t.completed);

@@ -39,6 +39,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 |---|---|
 | 🚀 **Fire and forget** | Launch a task from the UI or from any folder with `wisp "…"`. Each folder becomes a project. |
 | 🎞️ **Presentations, not transcripts** | Agents end with structured blocks that render as an animated, skimmable report. |
+| 📜 **The full transcript, if you want it** | Off by default. Settings → General → *Full transcript*, or a card's **Transcript** button (`V`), shows the agent's messages and every step on a timeline. Click a step to see its output or diff. The presentation still renders as blocks at the end. |
 | ❓ **Live questions** | Agents get an `ask_user` tool, so they can pause mid-run. Your answer goes straight back to the running agent. |
 | 🧾 **Real diffs** | Edits come from the agent's own tool calls, so `diff` blocks show what actually changed. |
 | 📥 **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
@@ -200,6 +201,7 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 | `M` | Rename |
 | `⌫` | Delete |
 | `R` | Replay the presentation |
+| `V` | Switch between the full transcript and the presentation |
 | `C` | Collapse all |
 | `U` | Back to top (also `Home`) |
 | `?` | Show all shortcuts |

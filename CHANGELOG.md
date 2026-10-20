@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Full transcript, when you want it.** Turn on Settings → General → **Full transcript** and every card shows its run as a timeline: the agent's messages in full, every step it took (commands, reads, edits, searches, questions), and at the end its presentation, rendered as blocks as usual. Click a step to see the whole command and what it printed, the diff that one edit made, or the full error. Long runs of steps fold their middle, and **Jump to the result** skips to the end. While a task runs, the timeline grows live above a one-line status bar with Stop. Any card can switch either way with its **Transcript** button or `V` (also in ⌘K), and keeps that choice. Off by default. Agent messages are now kept whole (they used to be cut at 600 characters), and so is the output of each command, search, web or MCP call, up to 2,000 characters (its start and end), from Claude Code, Codex, opencode, Cursor and Grok. Turns from before this change show their steps without output.
+
+### Fixed
+
+- **The Auto-fix PR conflicts switch works on its own.** In Settings → General it only responded after you had clicked Worktree per task in the same visit.
+- **Chevrons inside Done cards point the right way.** Showing the Done list rotated every chevron in its cards too, so collapsed cards looked open.
+
 ## [0.21.0] - 2026-10-20
 
 ### Added

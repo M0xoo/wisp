@@ -152,7 +152,7 @@ export default {
             // Emitted once the tool has finished, with its input and output.
             const state = part.state || {};
             const input = state.input || {};
-            onEvent({ type: 'tool', ...describeTool(part.tool, input, cwd) });
+            onEvent({ type: 'tool', ...describeTool(part.tool, input, cwd), ...(state.status !== 'error' && typeof state.output === 'string' && { output: state.output }) });
             if (state.status === 'error') onEvent({ type: 'tool_error', name: part.tool, text: clip(state.error || state.output, 400) });
             else {
               for (const change of captureChanges(part.tool, input, state.metadata || {}, cwd, files)) onEvent({ type: 'change', ...change });
