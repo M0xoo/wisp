@@ -29,6 +29,7 @@ import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
+import { SPELL_HINT, spellAsk } from '../slash-text.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -292,13 +293,13 @@ export function renderLauncher() {
     const prompt = ta.value.trim();
     if (!prompt) return ta.focus();
     // /spell <what to change>: cast a spell instead of starting a task.
-    const spellAsk = /^\/spell(?:\s+|$)([\s\S]*)$/i.exec(prompt);
-    if (spellAsk) {
-      if (!spellAsk[1].trim()) return toast('Say what to change after /spell, like “/spell a floating button that opens my PRs”');
+    const ask = spellAsk(prompt);
+    if (ask !== null) {
+      if (!ask) return toast(SPELL_HINT);
       ta.value = '';
       S.drafts.delete('home');
       ta.dispatchEvent(new Event('input'));
-      return cast(spellAsk[1]).catch((err) => (toastError(err), (ta.value = prompt), ta.dispatchEvent(new Event('input'))));
+      return cast(ask).catch((err) => (toastError(err), (ta.value = prompt), ta.dispatchEvent(new Event('input'))));
     }
     // A spell's slash command, typed in the prompt box.
     const slash = spellSlash(prompt);

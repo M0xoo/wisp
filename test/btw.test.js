@@ -22,9 +22,18 @@ test('btwQuestion reads "/btw …" on the server and in the page alike', () => {
   assert.equal(page.isBtw('/btwz'), false);
 });
 
+test('spellAsk reads "/spell …" in the launcher and follow-ups', () => {
+  assert.equal(page.spellAsk('/spell a floating PR button'), 'a floating PR button');
+  assert.equal(page.spellAsk('  /SPELL\n  compact cards '), 'compact cards');
+  assert.equal(page.spellAsk('/spell'), '');
+  assert.equal(page.spellAsk('/spellbook'), null);
+  assert.equal(page.spellAsk('cast a /spell'), null);
+});
+
 test('the / menu offers the commands a half-typed one could be', () => {
   const names = (t) => page.slashMatches(t).map((c) => c.name);
-  assert.deepEqual(names('/'), ['btw', 'feedback']);
+  assert.deepEqual(names('/'), ['btw', 'spell', 'feedback']);
+  assert.deepEqual(names('/s'), ['spell']);
   assert.deepEqual(names('/b'), ['btw']);
   assert.deepEqual(names('/F'), ['feedback']);
   assert.deepEqual(names('/btw '), [], 'closed once the command is typed and a space follows');

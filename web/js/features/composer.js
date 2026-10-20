@@ -3,7 +3,7 @@
 
 import { esc } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
-import { btwQuestion, isBtw } from '../slash-text.js';
+import { btwQuestion, isBtw, SPELL_HINT, spellAsk } from '../slash-text.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { S, saveOpen } from '../core/state.js';
@@ -26,6 +26,7 @@ import { slashMenu } from './slash.js';
 import { renderBody } from './turns.js';
 import { paintCard, runAction, spellProp } from './spells.js';
 import { spellSlash } from './launcher.js';
+import { cast } from './spell-ui.js';
 
 export function draftInto(id, text) {
   const ta = $('.reply', S.nodes.get(id)?.card);
@@ -361,6 +362,17 @@ export async function sendReply(id, text) {
       n?.tray?.restore(files);
     };
     return askBtw(id, question, { attachments, files, restore });
+  }
+  // /spell <what to change>: cast a spell (a task of its own) instead of sending a follow-up.
+  const ask = spellAsk(text);
+  if (ask !== null) {
+    if (!ask) return toast(SPELL_HINT);
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    return cast(ask).catch((err) => {
+      toastError(err);
+      if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+    });
   }
   if (isFeedback(text)) {
     if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));

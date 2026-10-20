@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **`/spell` works in follow-ups.** Type `/spell a floating button that opens my PRs` in any task's follow-up box to cast a spell, the same as from the prompt box; the follow-up isn't sent to that task. The `/` menu there now lists `/spell`.
+
 ## [0.25.0] - 2026-10-21
 
 ### Added
