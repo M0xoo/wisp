@@ -15,6 +15,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS = path.join(ROOT, 'docs');
 const SITE = 'https://trywisp.dev';
 const REPO = 'https://github.com/M0xoo/wisp';
+// Markdown with \n line ends, whatever the checkout has (Windows checks out CRLF).
+const readText = (f) => fs.readFileSync(f, 'utf8').replace(/\r\n?/g, '\n');
 const INDEX = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
 // Same stylesheet version and analytics as the landing page, so a bump there covers these pages too.
 const CSS_V = INDEX.match(/style\.css\?v=(\d+)/)?.[1] || '1';
@@ -548,7 +550,7 @@ function guidesIndex() {
 }
 
 function integrationsPage() {
-  const src = fs.readFileSync(path.join(DOCS, 'integrations.md'), 'utf8');
+  const src = readText(path.join(DOCS, 'integrations.md'));
   const title = src.match(/^# (.+)$/m)?.[1] || 'Integrating wisp';
   const html = markdown(src.replace(/^# .+\n/m, ''), `${REPO}/blob/main/docs/`);
   const toc = [...html.matchAll(/<h2 id="([^"]+)">(.*?)<\/h2>/g)].map(([, id, t]) => `<li><a href="#${id}">${t}</a></li>`).join('');
@@ -570,7 +572,7 @@ function integrationsPage() {
 }
 
 function changelogPage() {
-  const src = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+  const src = readText(path.join(ROOT, 'CHANGELOG.md'));
   // Released versions only: Unreleased describes main, not what `npx wisp-agents` gets.
   const releases = src.split(/^(?=## \[)/m).filter((s) => /^## \[\d/.test(s));
   const body = releases.map((r) => {
