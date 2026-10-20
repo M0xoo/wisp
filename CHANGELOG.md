@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **The site builds the same on Windows.** With a CRLF checkout, the integrations page kept its markdown title as a second `<h1>` and the changelog page repeated each release heading, because `scripts/site.mjs` matched `\n` line ends only. It now normalizes line ends when reading `docs/integrations.md` and `CHANGELOG.md`, and the site test passes on Windows CI.
+- **Done and Archived count every task and load more as you scroll.** Their headings always said 60 once you had more than that, and the older tasks never showed. The headings now count them all, the lists show 60 cards at first and add the next 60 as you scroll near the end (or click **Show 60 more · N left**), and opening an older task from a notification or ⌘K shows the cards down to it.
 
 ## [0.23.0] - 2026-10-20
 
