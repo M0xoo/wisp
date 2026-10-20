@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Update now updates, however you installed wisp.** **Update to X** installs the new version and restarts wisp for every install route: `npx`, `npm install -g`, the `install.sh` script, and now Homebrew. On a Homebrew install it used to run `npm install -g` and then restart the old keg. Now it runs `brew upgrade m0xoo/tap/wisp-agents` and restarts from the new keg. If the install leaves wisp on the same version (the tap doesn't have the release yet, or npm installed into a different folder), the button says so instead of restarting into the old version and then reporting that wisp didn't come back. A git clone of the repo no longer shows the button or tells you to run `git pull`. `GET /update` no longer returns `auto`, and the method can now be `brew`.
+
 ## [0.24.0] - 2026-10-20
 
 ### Added

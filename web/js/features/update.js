@@ -18,12 +18,11 @@ export function renderUpdate(u) {
   b.disabled = busy;
   b.classList.toggle('busy', busy);
   b.querySelector('span').textContent = u.status === 'installing' ? 'Updating…' : u.status === 'restarting' ? 'Restarting…' : `Update to ${u.latest}`;
-  b.title = u.auto ? `wisp ${u.current} → ${u.latest}: install and restart` : `wisp ${u.latest} is out. Run \`${u.command}\` to update`;
+  b.title = `wisp ${u.current} → ${u.latest}: install and restart`;
 }
 
 export async function installUpdate() {
   if (!update?.available) return;
-  if (!update.auto) return toast(`wisp <b>${esc(update.latest)}</b> is out. Run <code>${esc(update.command)}</code>`, { action: { label: 'Copy', run: () => copy(update.command) }, timeout: 8000 });
   const post = (force) => api('/update', { method: 'POST', body: { force } });
   try {
     await post(false).catch(async (err) => {
