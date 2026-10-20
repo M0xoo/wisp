@@ -25,7 +25,7 @@ export function openapi({ version, port }) {
     paths: {
       '/health': { get: { summary: 'Liveness, version and pid', responses: { 200: json(ref('Health')) } } },
       '/update': {
-        get: { summary: 'Current and latest published version, and how this copy updates (global | npx | git). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
+        get: { summary: 'Current and latest published version, and how this copy updates (global | npx | brew | git; a git clone never offers one). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
         post: { summary: 'Install the latest version and relaunch. 409 while agents run unless { force: true }', responses: { 202: json({ type: 'object' }), 409: json({ type: 'object' }) } },
       },
       '/preferences': {

@@ -69,12 +69,12 @@ test('re-check finds models added after wisp cached the detection', async () => 
   }
 });
 
-test('/api/update reports the current version; a git checkout refuses to self-update', async () => {
+test('/api/update reports the current version; a git checkout never offers or runs an update', async () => {
   const u = await api('/update');
   assert.equal(u.current, JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
   assert.equal(u.available, false);
   assert.equal(u.method, 'git');
-  assert.equal(u.auto, false);
+  assert.equal(u.command, undefined);
   const r = await fetch(`${base}/api/update`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   assert.equal(r.status, 400);
 });
