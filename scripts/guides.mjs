@@ -441,7 +441,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
 
     <section>
       <h2 id="triggers">On a schedule, or when CI fails</h2>
-      <p><b>Recipes</b> are saved prompts with <code>{params}</code> (<code>wisp run release 0.24.1</code>). <b>Triggers</b> start them on their own while wisp is open:</p>
+      <p><b>Recipes</b> are saved prompts with <code>{params}</code> (<code>wisp run release 0.25.0</code>). <b>Triggers</b> start them on their own while wisp is open:</p>
       <div class="table"><table>
         <thead><tr><th>Trigger</th><th>Fires when</th></tr></thead>
         <tbody>
