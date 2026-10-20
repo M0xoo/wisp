@@ -64,7 +64,7 @@ test('guides: each answers its question up front, links related guides, and the 
     for (const r of g.related) assert.ok(GUIDES.some((x) => x.slug === r) && r !== g.slug, `${g.slug}: related ${r}`);
     assert.ok(hub.includes(`href="/guides/${g.slug}.html"`), `hub links ${g.slug}`);
   }
-  for (const slug of ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines']) {
+  for (const slug of ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines', 'move-a-task-to-another-machine-or-agent']) {
     assert.ok(index.includes(`href="guides/${slug}.html"`), `landing page links ${slug}`);
   }
 });

@@ -70,6 +70,7 @@ wisp --mode plan "audit dependencies"
   - [Run Claude Code and Codex in parallel](https://trywisp.dev/guides/run-claude-code-and-codex-in-parallel.html)
   - [Run multiple Claude Code agents in parallel](https://trywisp.dev/guides/run-multiple-claude-code-agents-in-parallel.html)
   - [Run coding agents on multiple machines (SSH)](https://trywisp.dev/guides/run-coding-agents-on-multiple-machines.html)
+  - [Move a task to another machine or agent mid-way](https://trywisp.dev/guides/move-a-task-to-another-machine-or-agent.html)
   - [Multi-agent coding: a lead delegating to other harnesses](https://trywisp.dev/guides/multi-agent-coding.html)
   - [Claude Code vs Codex, on your own repo](https://trywisp.dev/guides/claude-code-vs-codex.html)
   - [Run coding agents in the background](https://trywisp.dev/guides/run-coding-agents-in-the-background.html)
