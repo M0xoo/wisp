@@ -21,6 +21,7 @@ export default {
   id: 'codex',
   name: 'Codex',
   askTool: 'mcp__wisp__ask_user',
+  fork: true, // run({ resumeId, fork }) answers on a copy of the conversation (/btw)
   models: [{ id: '', label: 'Default', hint: 'Whatever Codex is set to' }],
   efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
 
@@ -33,7 +34,8 @@ export default {
   },
 
   // dirs: the task's other folders, writable like cwd.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
+  // fork: `exec fork` a copy of resumeId's conversation instead of resuming it (/btw).
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     // `resume` doesn't take --sandbox, so set it through config for both paths.
     if (mode === 'auto') args.push('--dangerously-bypass-approvals-and-sandbox');
@@ -54,7 +56,7 @@ export default {
       const dirs = [...new Set([...extra, ...attachments.map((a) => path.dirname(a.path))])];
       for (const d of dirs) args.push('--add-dir', d);
     }
-    if (resumeId) args.push('resume', resumeId);
+    if (resumeId) args.push(fork ? 'fork' : 'resume', resumeId);
     // No prompt argument: codex reads it from stdin.
 
     let input = withProtocol(prompt, systemPrompt, resumeId);

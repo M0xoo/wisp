@@ -25,7 +25,8 @@ export function findProject(projects, q) {
 export const mask = (t) => (t ? `••••${String(t).slice(-4)}` : '');
 
 export class Remote {
-  // act({ sessionId, kind: answer|reply|done|text, ref, index, text }) → a short result line.
+  // act({ sessionId, kind: answer|reply|done|text, ref, index, text, later? }) → a short result line;
+  // later(text) sends one more message afterwards (a /btw answer).
   // launch({ project, prompt }) → the new session's summary (a task started with /new).
   constructor({ store, act, launch = async () => null, onChange = () => {} }) {
     Object.assign(this, { store, act, launch, onChange });
@@ -253,7 +254,8 @@ export class Remote {
     const replyTo = m.reply_to_message?.message_id;
     const sessionId = replyTo && (this.store.all().find((x) => x.remote?.tg?.includes(replyTo))?.id || this.tgElsewhere.get(replyTo));
     if (!sessionId) return say(t.allowStart ? 'Reply to one of wisp’s messages to answer it or follow up, or send /new <task> to start one.' : 'Reply to one of wisp’s messages to answer it or send a follow-up.');
-    await say(await this.act({ sessionId, kind: 'text', text: m.text }), { reply_to_message_id: m.message_id });
+    const later = (text) => say(text, { reply_to_message_id: m.message_id }).catch(() => {});
+    await say(await this.act({ sessionId, kind: 'text', text: m.text, later }), { reply_to_message_id: m.message_id });
   }
 
   async #tgCommand(name, arg, m, say) {

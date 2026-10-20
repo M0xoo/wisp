@@ -1,7 +1,9 @@
-// The composer at the bottom of an expanded card: follow-ups, answers, queued follow-ups.
+// The composer at the bottom of an expanded card: follow-ups, answers, queued follow-ups, and
+// side questions (/btw), which don't interrupt the run.
 
 import { esc } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
+import { btwQuestion, isBtw } from '../slash-text.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { S, saveOpen } from '../core/state.js';
@@ -9,6 +11,7 @@ import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
+import { askBtw } from './btw.js';
 import { expand, renderFeed, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { mentionBox } from './mentions.js';
@@ -19,6 +22,7 @@ import { runnerPicker } from './runner-picker.js';
 import { agentById, agentName, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace, watching } from './scroll.js';
 import { shipDialog } from './ship.js';
+import { slashMenu } from './slash.js';
 import { renderBody } from './turns.js';
 
 export function draftInto(id, text) {
@@ -53,6 +57,7 @@ export function renderDock(id) {
   n.tray = attachTray();
   comp.prepend(n.tray.node);
   const ta = mentionBox($('.reply', comp));
+  slashMenu(ta, comp);
   autosize(ta, 260);
   acceptFiles(comp, ta, n.tray);
   $('.c-attach', comp).onclick = n.tray.pick;
@@ -70,7 +75,10 @@ export function renderDock(id) {
     pickReplyPlace(id, placeBtn);
   };
   ta.value = S.drafts.get(id) || '';
-  ta.addEventListener('input', () => S.drafts.set(id, ta.value));
+  ta.addEventListener('input', () => {
+    S.drafts.set(id, ta.value);
+    paintSide(id);
+  });
   ta.addEventListener('focus', () => setFocus(id, { scroll: false }));
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -226,8 +234,8 @@ export function updateDock(id) {
         : `Answer ${name}…`
       : s.state === 'running'
         ? queueing()
-          ? `Queue a follow-up — sent when ${name} finishes`
-          : `Steer ${name} — interrupts and sends now`
+          ? `Queue a follow-up — sent when ${name} finishes. /btw asks now`
+          : `Steer ${name} — interrupts and sends now. /btw asks without interrupting`
         : S.replyPlaces.has(id)
           ? `Follow up on ${replyPlace(id) ? placeName(replyPlace(id)) : 'this computer'} with ${next}…`
           : s.state === 'done'
@@ -235,7 +243,7 @@ export function updateDock(id) {
               ? `Follow up with ${next} to reopen…`
               : 'Follow up to reopen…'
             : `Follow up with ${next}…`;
-  $('.c-hint', n.card).innerHTML = s.queue?.length ? `${s.queue.length} queued` : '';
+  paintSide(id);
   paintReplyMode(id, $('.c-mode', n.card));
   paintReplyRunner(id, $('.c-runner', n.card));
   paintReplyPlace(id, $('.c-place', n.card));
@@ -246,6 +254,23 @@ export function updateDock(id) {
   q.title = queueing()
     ? `Queueing: follow-ups wait until ${name} finishes. Click to send now instead.`
     : `Sending now: follow-ups interrupt ${name}. Click to queue them instead.`;
+}
+
+// "/btw …" in the box: a side question, so the composer says it won't interrupt anything, and the
+// mode and harness pickers (which are for the next follow-up) step back.
+function paintSide(id) {
+  const s = S.full.get(id);
+  const comp = $('.composer', S.nodes.get(id)?.card);
+  if (!s || !comp) return;
+  const side = isBtw($('.reply', comp).value);
+  const live = s.state === 'running' || s.state === 'waiting';
+  comp.classList.toggle('is-btw', side);
+  $('.send', comp).title = side ? 'Ask on the side (Enter): nothing is interrupted' : 'Send (Enter · Shift+Enter for newline)';
+  $('.c-hint', comp).innerHTML = side
+    ? `<span class="c-side">Side question</span> · ${live ? `${esc(agentName(s.agent))} keeps working` : 'no new turn'}`
+    : s.queue?.length
+      ? `${s.queue.length} queued`
+      : '';
 }
 
 // Follow-ups waiting their turn, shown above the composer so it's clear what goes out next.
@@ -310,6 +335,21 @@ export async function sendReply(id, text) {
   text = (text || '').trim();
   if (!s || !text) return;
   const ta = n && $('.reply', n.card);
+  // A side question: answered next to the run, so nothing is interrupted, queued or switched.
+  if (isBtw(text)) {
+    const question = btwQuestion(text);
+    if (!question) return toast('Type your question after /btw, like “/btw did you update the docs too?”');
+    if (n?.tray?.busy) toast('Waiting for uploads…');
+    const attachments = n?.tray ? await n.tray.ids() : [];
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    const files = n?.tray?.take() || [];
+    const restore = () => {
+      if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+      n?.tray?.restore(files);
+    };
+    return askBtw(id, question, { attachments, files, restore });
+  }
   if (isFeedback(text)) {
     if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
     S.drafts.delete(id);

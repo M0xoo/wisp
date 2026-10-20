@@ -12,7 +12,8 @@ import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js
 import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
 import { handoffNote } from './handoff.js';
 import { agentPrompt, plainMentions } from './mentions.js';
-import { bad, MODES, newId } from './util.js';
+import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
+import { bad, clip, MODES, newId } from './util.js';
 
 const MAX_ACTIVITY = 400;
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
@@ -166,6 +167,7 @@ export class Runner extends EventEmitter {
     this.stopping = new Set();
     this.interrupting = new Set();
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
+    this.sides = new Map(); // /btw id -> { sessionId, handle }: side questions being answered
     this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
     this.routeAuto = null; // (prompt, { cwd }) => { agent, model, route } for subagents set to Auto
     this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
@@ -180,6 +182,9 @@ export class Runner extends EventEmitter {
         s.state = 'review';
         store.save(s);
       }
+      const asked = s.turns.flatMap((x) => x.btw || []).filter((b) => b.status === 'running');
+      for (const b of asked) Object.assign(b, { status: 'error', error: 'wisp was restarted before this was answered.' });
+      if (asked.length) store.save(s);
     }
   }
 
@@ -310,6 +315,99 @@ export class Runner extends EventEmitter {
     session.queue.splice(at, 1);
     this.#touch(session);
     return true;
+  }
+
+  // /btw: a side question, answered by a read-only run of its own while the task's run carries on
+  // (server/btw.js). It lands on the latest turn and never reaches the task's conversation.
+  btw(session, question, attachments = []) {
+    const turn = session.turns.at(-1);
+    if (!turn) throw bad('Nothing to ask about yet.', 409);
+    if ([...this.sides.values()].filter((x) => x.sessionId === session.id).length >= MAX_BTW) throw bad(`${MAX_BTW} side questions are still being answered. Ask again once one is in.`, 429);
+    const entry = {
+      id: newId(),
+      question,
+      status: 'running',
+      askedAt: Date.now(),
+      agent: session.agent,
+      model: session.model || '',
+      ...(attachments.length && { attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })) }),
+    };
+    (turn.btw ||= []).push(entry);
+    this.#sideRun(session, turn, entry, attachments, !!adapters[session.agent]?.fork && !!session.agentSessionId);
+    this.#btwChanged(session, turn);
+    return entry;
+  }
+
+  // forked: on a copy of the agent's conversation, so it knows what the run did and why. A fork
+  // that fails (a CLI too old to fork) asks again with wisp's record of the task instead.
+  #sideRun(session, turn, entry, attachments, forked) {
+    const adapter = adapters[entry.agent];
+    const name = (t) => adapters[t.agent || session.agent]?.name || t.agent || session.agent;
+    const question = agentPrompt(entry.question, this.store, { tool: null, self: session.id });
+    entry.forked = forked;
+    let reply = null;
+    let handle;
+    try {
+      handle = adapter.run({
+        prompt: btwPrompt(session, question, { forked, name }),
+        attachments,
+        cwd: workdir(session),
+        dirs: alsoDirs(session),
+        resumeId: forked ? session.agentSessionId : null,
+        fork: forked,
+        mode: 'plan',
+        model: entry.model,
+        effort: session.effort || '',
+        systemPrompt: BTW_SYSTEM,
+        onEvent: (ev) => {
+          if (ev.type === 'result') reply = ev;
+        },
+      });
+    } catch (err) {
+      reply = { isError: true, text: err.message };
+      handle = { done: Promise.resolve(), stop() {} };
+    }
+    const side = { sessionId: session.id, handle, timedOut: false };
+    this.sides.set(entry.id, side);
+    const timer = setTimeout(() => ((side.timedOut = true), handle.stop()), BTW_TIMEOUT_MS);
+    handle.done.then(() => {
+      clearTimeout(timer);
+      if (this.sides.get(entry.id) !== side) return; // dismissed, or the task was deleted
+      this.sides.delete(entry.id);
+      const ok = reply && !reply.isError && !reply.stopped;
+      if (!ok && forked && !side.timedOut) return this.#sideRun(session, turn, entry, attachments, false);
+      if (ok) Object.assign(entry, { status: 'done', answer: btwAnswer(reply.text), ...(reply.stats?.costUsd && { costUsd: reply.stats.costUsd }) });
+      else Object.assign(entry, { status: 'error', error: side.timedOut ? `No answer after ${BTW_TIMEOUT_MS / 60_000} minutes.` : clip(reply?.text || 'The side run ended without an answer.', 400) });
+      entry.answeredAt = Date.now();
+      this.#btwChanged(session, turn);
+    });
+  }
+
+  // Dismiss a side question, stopping its run if it's still going.
+  dropBtw(session, id) {
+    const turn = session.turns.find((t) => t.btw?.some((b) => b.id === id));
+    if (!turn) return false;
+    turn.btw = turn.btw.filter((b) => b.id !== id);
+    if (!turn.btw.length) delete turn.btw;
+    this.sides.get(id)?.handle.stop();
+    this.sides.delete(id);
+    this.#btwChanged(session, turn);
+    return true;
+  }
+
+  // The task is going away: its side questions stop too.
+  stopSides(session) {
+    for (const [id, side] of this.sides) {
+      if (side.sessionId !== session.id) continue;
+      this.sides.delete(id);
+      side.handle.stop();
+    }
+  }
+
+  // A side question changed: the card repaints it in place. The task's own state is untouched.
+  #btwChanged(session, turn) {
+    this.store.save(session);
+    this.emit('turn', { sessionId: session.id, turnId: turn.id });
   }
 
   // ask_user: the agent is blocked inside a tool call until answer() is called.
@@ -542,6 +640,14 @@ export class Runner extends EventEmitter {
     const mode = MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
+    // Side questions still being answered move to the new turn: the old one folds away on the card.
+    const prev = session.turns.at(-1);
+    const open = prev?.btw?.filter((b) => b.status === 'running') || [];
+    if (open.length) {
+      prev.btw = prev.btw.filter((b) => !open.includes(b));
+      if (!prev.btw.length) delete prev.btw;
+      turn.btw = open;
+    }
     session.turns.push(turn);
     session.state = 'running';
     session.unread = false;

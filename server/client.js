@@ -160,6 +160,25 @@ export class WispClient {
   // run it, and the follow-ups after it, on another harness, model or thinking level.
   reply = (id, text, { attachments, queue, mode, agent, model, effort } = {}) => this.request('POST', `/sessions/${id}/reply`, { text, attachments, queue, mode, agent, model, effort });
 
+  // A side question (/btw): a read-only run of its own answers it while the task's run carries on.
+  // Resolves with { id, question, status: done | error, answer | error } once it's answered
+  // (status stays running if timeoutMs runs out first), or right away with wait: false.
+  async btw(id, text, { attachments, wait = true, timeoutMs = 6 * 60_000 } = {}) {
+    const q = await this.request('POST', `/sessions/${id}/btw`, { text, attachments });
+    return wait ? this.btwAnswer(id, q.id, { timeoutMs }) : q;
+  }
+
+  async btwAnswer(id, btwId, { timeoutMs = 6 * 60_000 } = {}) {
+    const end = Date.now() + timeoutMs;
+    for (;;) {
+      const s = await this.request('GET', `/sessions/${id}`);
+      const b = s.turns.flatMap((t) => t.btw || []).find((x) => x.id === btwId);
+      if (!b) return { id: btwId, status: 'error', error: 'It was dismissed.' };
+      if (b.status !== 'running' || Date.now() > end) return b;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
   // Upload a file (path, Buffer or Uint8Array) to attach to a launch or reply. Returns { id, … }.
   async upload(file, { name, type } = {}) {
     const data = typeof file === 'string' ? fs.readFileSync(file) : file;

@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
+import { btwQuestion } from '../btw.js';
 import { createWorktree, worktreeSource, ensureWorktree, removeWorktree } from '../git.js';
 import { qualify } from '../machines.js';
 import { fill, positional } from '../recipes.js';
@@ -154,9 +155,23 @@ export function createLaunch(app) {
   }
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
+  // One that starts with /btw is a side question instead: the run carries on (see askBtw).
   async function replyTo(s, text, attachments = [], queue, mode, run) {
+    const question = btwQuestion(text);
+    if (question !== null) return { btw: await askBtw(s, question, attachments) };
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
     return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run });
+  }
+
+  // /btw: answered by a read-only run of its own, next to the task's run (server/btw.js).
+  async function askBtw(s, question, attachments = []) {
+    question = String(question || '').trim();
+    if (!question) throw bad('Type your question after /btw.');
+    if (s.agent === 'wisp') throw bad('This is the tour — launch a real wisp to ask it things.');
+    for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+    const entry = runner.btw(s, question, attachments);
+    app.telemetry?.track('btw', { agent: s.agent, forked: entry.forked, running: runner.live.has(s.id) });
+    return entry;
   }
 
   function markDone(s) {
@@ -177,5 +192,5 @@ export function createLaunch(app) {
     return s;
   }
 
-  return { launch, launchAny, machineFor, pushUploads, replyTo, markDone, runRecipe };
+  return { launch, launchAny, machineFor, pushUploads, replyTo, askBtw, markDone, runRecipe };
 }

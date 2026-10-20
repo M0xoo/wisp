@@ -184,7 +184,54 @@
 .log { max-height: 340px; overflow-y: auto; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
 .w-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .w-queued { font-size: 12px; color: var(--accent-ink); font-weight: 500; }
+/* the /btw tip (features/btw.js): until it's been used once */
+.w-tip { display: inline-flex; align-items: center; gap: 2px; min-width: 0; animation: fade-in 0.4s 0.6s var(--ease) both; }
+.w-tip-go { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--muted); }
+.w-tip-go:hover { color: var(--ink); }
+.w-tip-k { color: var(--faint); }
+.w-tip-go code { flex: none; padding: 1px 5px; border-radius: 5px; background: var(--bg-2); font: 500 11.5px var(--mono); color: var(--ink-2); }
+.w-tip-t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.w-tip-x { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: var(--faint); opacity: 0; transition: opacity 0.15s; }
+.w-tip-x .i { width: 11px; height: 11px; }
+.w-tip:hover .w-tip-x, .w-tip-x:focus-visible { opacity: 1; }
+.w-tip-x:hover { background: var(--bg-2); color: var(--ink); }
+@media (hover: none) { .w-tip-x { opacity: 1; } }
+.w-actions > .peek { flex: none; white-space: nowrap; }
+/* No room beside Show all activity and Stop on a phone: the tip gets its own line under them. */
+@media (max-width: 720px) {
+  .w-actions:has(.w-tip) { flex-wrap: wrap; row-gap: 8px; }
+  .w-tip { order: 1; flex-basis: 100%; }
+}
 @keyframes tick-in { from { opacity: 0; transform: translateY(-4px); } }
+
+/* /btw side questions (features/btw.js): plain hairline cards on the turn they were asked during */
+.btw-list { display: grid; gap: 8px; margin-top: 14px; }
+.btw-list:empty { display: none; }
+.btw { position: relative; padding: 10px 40px 11px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.btw.new { animation: rise 0.35s var(--ease) both; }
+.btw.landed > :is(.btw-a, .btw-err) { animation: fade-in 0.4s var(--ease) both; }
+.btw-q { display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; line-height: 20px; color: var(--ink); }
+.btw-tag {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px 1px 4px; border-radius: 5px; cursor: default;
+  font: 600 11px/18px var(--sans); color: var(--accent-ink); background: var(--accent-soft); align-self: flex-start; margin-top: 1px;
+}
+.btw-tag .i { width: 12px; height: 12px; }
+.btw-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
+.btw-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.btw-a { margin-top: 6px; font-size: 13.5px; }
+.btw-a p, .btw-a ul, .btw-a ol, .btw-a pre { margin-bottom: 8px; }
+.btw-wait { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12.5px; color: var(--muted); }
+.btw-wait .elapsed { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; }
+.btw-dots { display: inline-flex; gap: 3px; }
+.btw-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.btw-dots i:nth-child(2) { animation-delay: 0.2s; }
+.btw-dots i:nth-child(3) { animation-delay: 0.4s; }
+.btw-err { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; font-size: 12.5px; color: var(--bad); }
+.btw-err .i { flex: none; width: 13px; height: 13px; translate: 0 2px; }
+.btw-x { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 7px; color: var(--faint); opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s; }
+.btw-x .i { width: 12px; height: 12px; }
+.btw:hover .btw-x, .btw-x:focus-visible, .btw.st-running .btw-x { opacity: 1; }
+@media (hover: none) { .btw-x { opacity: 1; } }
 
 /* ask card (mid-run question) */
 .ask-card, .b-question {
