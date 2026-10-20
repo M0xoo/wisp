@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-10-20
+
 ### Added
 
 - **How to get a missing harness, where you look for it.** Settings → Agents now shows, for each harness wisp didn't find, what to do on that computer's OS: a one-line tip (e.g. that the ChatGPT app is enough for Codex on macOS and Linux but not on Windows, or that the Antigravity and Cursor editors don't include their CLIs), the install command to copy with one click, and a **Docs** link. In the harness picker, hovering a greyed-out harness shows the same tip, and clicking it (or arrowing onto it) shows the steps in place of its models, with **Re-check** (and **Install** for opencode). It still can't be picked. API: unavailable harnesses in `GET /agents` carry `setup: { tip, command?, url }`; adapters provide it through an optional `setup(platform)`.
@@ -434,7 +436,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.23.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.24.0...HEAD
+[0.24.0]: https://github.com/M0xoo/wisp/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/M0xoo/wisp/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/M0xoo/wisp/compare/v0.21.0...v0.22.0
 [0.21.0]: https://github.com/M0xoo/wisp/compare/v0.20.0...v0.21.0
