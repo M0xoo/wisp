@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Guides on the website for what people search for.** Six new pages under [trywisp.dev/guides](https://trywisp.dev/guides/): [run Claude Code and Codex in parallel](https://trywisp.dev/guides/run-claude-code-and-codex-in-parallel.html), [run multiple Claude Code agents in parallel](https://trywisp.dev/guides/run-multiple-claude-code-agents-in-parallel.html), [run coding agents on multiple machines](https://trywisp.dev/guides/run-coding-agents-on-multiple-machines.html), [multi-agent coding](https://trywisp.dev/guides/multi-agent-coding.html), [Claude Code vs Codex on your own repo](https://trywisp.dev/guides/claude-code-vs-codex.html) and [run coding agents in the background](https://trywisp.dev/guides/run-coding-agents-in-the-background.html). Each answers its question in the first paragraph, shows the manual way with `git worktree` and `ssh`, then how wisp does it, and ends with FAQs (with `FAQPage` structured data). `scripts/guides.mjs` holds them; `scripts/site.mjs` renders them into the sitemap. The landing page's title, description and structured data now say *in parallel* and *on your other machines*, its FAQ answers both questions, and Guides is in the nav and footer of every page. The npm description and keywords match.
+
 ## [0.22.0] - 2026-10-20
 
 ### Added
