@@ -178,7 +178,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=23" />
+  <link rel="stylesheet" href="style.css?v=24" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -197,6 +197,7 @@
         <a href="#morning">A morning</a>
         <a href="#report">The report</a>
         <a href="#machines">Machines</a>
+        <a href="#spells">Spells</a>
         <a href="#control">Control</a>
         <a href="#cli">CLI</a>
         <a href="#faq">FAQ</a>
@@ -381,6 +382,24 @@
       </div>
     </section>
 
+    <!-- ───────── spells: change wisp itself by asking (spells.js) ───────── -->
+    <section class="spells wrap" id="spells">
+      <div class="spells-head">
+        <p class="eyebrow">Spells</p>
+        <h2>Want wisp to work your way? Ask it.</h2>
+        <p>A button for your open PRs, a panel with your stats, a block agents can end their reports with, quick replies, a whole new look. Say what you want and an agent writes it as a <b>spell</b>: a small file wisp layers over itself. Try it in the window, keep it, send it to your team. Switch it off and wisp is back as it was.</p>
+      </div>
+      <div class="spells-grid">
+        <div data-spells id="spellbook" aria-label="Try it: cast a spell and watch a small wisp window change"></div>
+      </div>
+      <dl class="relay-facts spells-facts">
+        <div><dt>Any agent writes it</dt><dd>Claude Code, Codex or any harness wisp runs, in an empty folder of its own. wisp checks the spell before you see it.</dd></div>
+        <div><dt>Sandboxed by design</dt><dd>Spell code gets data and returns blocks. No network, no page, no wisp API. Data comes from read-only routes and <code>gh</code>.</dd></div>
+        <div><dt>Shared as a file</dt><dd>A <code>.spell.json</code>, pasted JSON or a gist link. It shows the same review and stays off until your colleague turns it on.</dd></div>
+      </dl>
+      <p class="relay-links"><a href="guides/customize-wisp-with-spells.html">The spells guide →</a><a href="guides/customize-wisp-with-spells.html#anatomy">What’s in a spell file →</a></p>
+    </section>
+
     <!-- ───────── control ───────── -->
     <section class="control wrap" id="control">
       <div class="sec-head">
@@ -537,5 +556,6 @@
 
   <script src="main.js?v=10"></script>
   <script src="relay.js?v=1" defer></script>
+  <script src="spells.js?v=1" defer></script>
 </body>
 </html>
