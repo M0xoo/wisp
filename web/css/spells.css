@@ -133,7 +133,6 @@ button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
 .sp-try > .i { width: 15px; height: 15px; color: var(--accent); }
 
 /* cast, review and Settings → Spells */
-.sp-cast textarea, .sp-castrow textarea, .sp-castrow input { width: 100%; resize: vertical; }
 .sp-cast { display: grid; gap: 12px; }
 .sp-cast header, .sp-review header { margin-bottom: 0; }
 .sp-cast h2, .sp-review h2 { display: flex; align-items: center; gap: 8px; }
@@ -149,7 +148,11 @@ button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
 .sp-confirm p { margin: 0; }
 .sp-examples { display: flex; flex-wrap: wrap; gap: 6px; }
 .sp-castbox { display: grid; gap: 10px; padding-bottom: 14px; }
-.sp-castrow { display: flex; gap: 8px; align-items: flex-start; padding: 0 2px 4px; }
+.sp-castbox > .sp-examples { padding: 0 14px; }
+.sp-castrow { display: flex; gap: 8px; align-items: center; padding: 0 14px 14px; }
+.sp-castrow:has(.textarea) { align-items: flex-start; }
+.sp-castrow .textarea { min-height: 56px; }
+.sp-castbox > .sp-castrow { padding-bottom: 0; }
 .sp-castrow .primary, .sp-castrow .ghost { flex: none; }
 .sp-row .sx-text details { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
 .sp-row .sx-text summary { cursor: pointer; width: max-content; }
