@@ -176,7 +176,7 @@ export function openCast(prefill = '') {
     <form class="modal sp-cast">
       <header><h2>${icon('spark')} Cast a spell</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
       <p class="hint">Say what to change in wisp: a button, a panel, a block for agents, a different look, how agents behave. An agent writes it as a spell; you see a preview, try it and keep it. Nothing changes until you do.</p>
-      <textarea class="input" rows="3" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea>
+      <textarea class="textarea" rows="3" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea>
       <div class="sp-examples">${EXAMPLES.slice(0, 6).map((x) => `<button type="button" class="sp-qr">${esc(x)}</button>`).join('')}</div>
       <footer><span class="hint">Runs on ${esc(S.config.defaults.agent === 'auto' || !S.config.defaults.agent ? 'Auto' : S.config.defaults.agent)} in an empty folder of its own: it writes the spell, not your code.</span><button class="primary" type="submit">${icon('spark')}Cast</button></footer>
     </form>`);
@@ -256,14 +256,14 @@ export function spellsPane(section) {
   section.innerHTML = `
     <div class="sx-group sp-castbox">
       <div class="sx-row"><div class="sx-text"><b>Cast a spell</b><small>Ask for a change to wisp. An agent writes it; you try it and keep it.</small></div></div>
-      <div class="sp-castrow"><textarea class="input" rows="2" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea><button class="primary sm" data-a="cast">${icon('spark')}Cast</button></div>
+      <div class="sp-castrow"><textarea class="textarea" rows="2" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea><button class="primary sm" data-a="cast">${icon('spark')}Cast</button></div>
       <div class="sp-examples">${EXAMPLES.map((x) => `<button type="button" class="sp-qr">${esc(x)}</button>`).join('')}</div>
     </div>
     <div class="sx-group sp-list"></div>
     <div class="sx-group">
       <div class="sx-row"><div class="sx-text"><b>Add a spell</b><small>A <code>.spell.json</code> file a colleague sent, its JSON, or a link (https or <code>gist:&lt;id&gt;</code>). You review it before anything changes.</small></div>
         <div class="sx-ctl"><button class="ghost sm" data-a="file">${icon('file')}File…</button><input type="file" accept=".json,application/json" hidden></div></div>
-      <div class="sp-castrow"><input class="input mono" placeholder="Paste JSON or a link" spellcheck="false"><button class="ghost sm" data-a="paste">Review</button></div>
+      <div class="sp-castrow"><input class="input" placeholder="Paste JSON or a link" spellcheck="false"><button class="ghost sm" data-a="paste">Review</button></div>
     </div>
     <p class="hint sp-foot"></p>`;
   const list = $('.sp-list', section);
