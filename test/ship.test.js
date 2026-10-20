@@ -685,6 +685,12 @@ test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are
     tgUpdate({ message: { message_id: 15, chat: { id: 42 }, text: 'and a changelog', reply_to_message: { message_id: startedId } } });
     await until(async () => (await session(t1.id)).turns.length === 2);
     await settled(t1.id);
+    // A /btw reply is a side question: no new turn, and its answer comes back as its own message.
+    tgUpdate({ message: { message_id: 18, chat: { id: 42 }, text: '/btw what changed?', reply_to_message: { message_id: startedId } } });
+    await until(() => tg.sent.find((m) => m.reply_to_message_id === 18 && /Asking on the side/.test(m.text)));
+    const btwMsg = await until(() => tg.sent.find((m) => m.reply_to_message_id === 18 && m.text.startsWith('btw: ')));
+    assert.equal(btwMsg.text, 'btw: Side answer (forked): what changed?');
+    assert.equal((await session(t1.id)).turns.length, 2);
 
     // The default project from settings, for /new without @.
     await api('/remote', { method: 'PUT', body: { telegram: { project: otherP.id } } });

@@ -1,6 +1,6 @@
 /* ---------- per-item composer ---------- */
 .composer {
-  padding: 6px 8px 8px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+  position: relative; padding: 6px 8px 8px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
   transition: box-shadow 0.15s, border-color 0.15s;
 }
 .composer:focus-within { background: var(--surface); border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -31,6 +31,22 @@
 .c-queue { color: var(--faint); font-size: 12px; }
 .c-queue.on { color: var(--ink); background: var(--bg-2); }
 .c-done:hover { color: var(--good); }
+
+/* "/btw …" in the box: a side question. The pickers are for the next follow-up, so they step back. */
+.composer.is-btw .c-mode, .composer.is-btw .c-runner, .composer.is-btw .c-queue { opacity: 0.35; }
+.c-side { font-weight: 600; color: var(--accent-ink); }
+
+/* the / menu (features/slash.js): opens above the box, like the box's own popovers */
+.slash-menu {
+  position: absolute; left: 8px; bottom: calc(100% + 6px); z-index: 30; min-width: 280px; max-width: calc(100% - 16px); padding: 5px;
+  border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); animation: pop 0.18s var(--ease);
+}
+.slash-item { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 7px 10px; border-radius: 8px; text-align: left; font-size: 13px; color: var(--ink-2); }
+.slash-item b { font: 600 12.5px var(--mono); color: var(--ink); }
+.slash-args { font: 12px var(--mono); color: var(--faint); }
+.slash-hint { margin-left: auto; padding-left: 12px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slash-item.on, .slash-item:hover { background: var(--bg-2); }
+.slash-item.on b { color: var(--accent-ink); }
 
 /* attachments tray */
 .tray { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
