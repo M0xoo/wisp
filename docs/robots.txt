@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://mokh.xyz/sitemap.xml
+Sitemap: https://trywisp.dev/sitemap.xml

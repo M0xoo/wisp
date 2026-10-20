@@ -1,4 +1,4 @@
-// docs/install.sh (served as mokh.xyz/install.sh): run it against fake node, npm and wisp binaries.
+// docs/install.sh (served as trywisp.dev/install.sh): run it against fake node, npm and wisp binaries.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

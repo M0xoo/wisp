@@ -15,7 +15,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
 [![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity%20·%20Grok-d97757)](#adding-a-harness)
 
-[Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
+[Website](https://trywisp.dev/) · [Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
 </div>
 
@@ -77,14 +77,14 @@ The first run downloads Electron for the desktop app; if that isn't possible, wi
 Or install it globally to get the `wisp` command everywhere. Pick one:
 
 ```sh
-curl -fsSL https://mokh.xyz/install.sh | bash   # macOS or Linux: checks Node 20+, then npm install -g wisp-agents
+curl -fsSL https://trywisp.dev/install.sh | bash   # macOS or Linux: checks Node 20+, then npm install -g wisp-agents
 npm install -g wisp-agents                      # any OS with Node 20+
 brew install m0xoo/tap/wisp-agents             # Homebrew: CLI and browser mode, no Electron desktop app
 
 wisp "fix the flaky auth test"
 ```
 
-The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://mokh.xyz/install.sh | WISP_VERSION=0.21.0 bash`).
+The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.21.0 bash`).
 
 From source:
 
