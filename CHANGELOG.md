@@ -16,6 +16,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **No folder is picked by default when wisp has no folders.** With no projects added, the launcher now starts on **No folder**, so a prompt runs right away in an empty scratch directory instead of opening the folder picker. Adding a folder picks it, as before.
 
+### Fixed
+
+- **The rerun dialog's Rerun button no longer slides off the edge.** With the **Run on** picker added, the bar under the prompt (place, mode, harness) was wider than the dialog and pushed **Rerun** out of view. The dialog is a little wider, and when space runs short the harness name folds first (its logo stays), then the model; on narrow windows the place and mode buttons show only their icons.
+
 ## [0.21.0] - 2026-10-20
 
 ### Added

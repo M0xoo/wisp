@@ -22,6 +22,21 @@
 .rr-files { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 2px 6px; }
 .rr-file { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 7px; font-size: 12px; color: var(--ink-2); background: var(--bg-2); }
 .rr-file .i { width: 12px; height: 12px; color: var(--muted); }
+/* the bar never pushes Rerun out of the box: the harness name gives way first (the logo still says
+   which), then the model; on a narrow dialog the mode and place labels fold to their icons */
+.rerun-modal { width: min(660px, 100%); }
+.rr-box { container: rerun / inline-size; }
+.rr-box .l-bar > .runner-btn { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.rr-box .runner-btn :is(.rb-logo, .rb-e, .chev) { flex: none; }
+.rr-box .runner-btn .rb-h { flex: 0 100 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-box .runner-btn .rb-m { flex: 0 1 auto; min-width: 0; }
+.rr-box .where-btn span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container rerun (max-width: 520px) {
+  .rr-box .l-bar :is(.mode-btn, .where-btn) span, .rr-box .runner-btn .rb-h { display: none; }
+  .rr-box .runner-btn .rb-m { margin-left: 0; }
+  .rr-box .runner-btn .rb-m::before { display: none; }
+}
+@container rerun (max-width: 400px) { .rr-box .runner-btn :is(.rb-m, .chev) { display: none; } }
 .overlay:not([hidden]) ~ :is(.picker, .menu) { z-index: 55; }
 .add-row { display: flex; gap: 8px; }
 .path-input { position: relative; flex: 1; }
