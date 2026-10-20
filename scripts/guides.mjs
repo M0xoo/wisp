@@ -5,9 +5,50 @@
 // shows the manual way too, then how wisp does it. Keep the facts in step with the README.
 //
 // h: helpers from site.mjs ({ esc, sh, shot, installButton, agents }).
+//
+// The spells guide's reference tables and examples come from wisp's own spell schema and the
+// examples its Cast a spell agent gets, so the guide can't drift from what wisp accepts.
+
+import { ACTIONS, EVENTS, GH_READ, HOOK_IF, SLOTS, WISP_DATA } from '../web/js/spell-schema.js';
+import { SPELL_EXAMPLES } from '../server/spell-guide.js';
+
+const REACH = { safe: 'Safe', acts: 'Acts for you', runs: 'Runs commands' };
+// An action's doc starts with its JSON example ({ "open": "…" } open one link); keep the words after it.
+function actionText(doc) {
+  let depth = 0;
+  let str = false;
+  for (let i = 0; i < doc.length; i++) {
+    const c = doc[i];
+    if (str) { if (c === '\\') i++; else if (c === '"') str = false; continue; }
+    if (c === '"') str = true;
+    else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return doc.slice(i + 1).trim().replace(/^./, (x) => x.toUpperCase());
+  }
+  return doc;
+}
+const spellOf = (id) => SPELL_EXAMPLES.find((x) => x.spell.id === id).spell;
+// The spell fields the guide lists besides the ones its example shows.
+const FIELDS = [
+  ['description', 'One sentence, shown in Settings → Spells and on its review'],
+  ['chips', 'Small labels on a card head or under the prompt and follow-up boxes, from a template or a script'],
+  ['panels', 'Dialogs, drawers and panels above the feed or inside a card, drawn by a script from the spell’s data'],
+  ['parts', 'Restyle a named part of wisp, set its props (a monospace prompt box, compact cards) or reorder the card head'],
+  ['ui', '<code>hide</code> named parts; <code>tokens</code> and <code>dark</code> recolour wisp'],
+  ['blocks', 'New report block types agents can use'],
+  ['prompt', 'Rules added to agents’ prompts, for all tasks or some'],
+  ['settings', 'Settings that win over yours while the spell is on (shown as <i>Set by …</i> in Settings)'],
+  ['slash', '<code>/commands</code> for the follow-up box'],
+  ['commands', '⌘K items, optionally with a single-key shortcut'],
+  ['hooks', 'Something wisp does on its own when a turn finishes, fails, starts or waits'],
+  ['recipes', 'Saved prompts with <code>{params}</code>'],
+  ['harnesses, when', 'Which harnesses, projects, agents and modes its rules, blocks and hooks apply to'],
+  ['script', 'JavaScript functions that turn data into blocks, strings or links, run in a sandbox'],
+];
 
 export function guides(h) {
-  const { sh, shot, installButton } = h;
+  const { esc, sh, shot, installButton } = h;
+  // Lists of plain values stay on one line, so a spell reads like the file people write.
+  const json = (obj) => `<pre data-lang="json"><code>${esc(JSON.stringify(obj, null, 2).replace(/\[\s*\n((?:\s*(?:"(?:[^"\\]|\\.)*"|-?\d[\d.]*|true|false|null),?\n)+)\s*\]/g, (m, items) => `[${items.split('\n').map((x) => x.trim()).filter(Boolean).join(' ')}]`))}</code></pre>`;
   const claude = h.agents.find((a) => a.id === 'claude');
   const codex = h.agents.find((a) => a.id === 'codex');
 
@@ -142,7 +183,7 @@ tmux new -d -s fix 'cd ../app-fix && claude -p "fix the flaky auth test"'`)}
       card: 'Laptop to dev box, Claude Code to Codex: one follow-up, work and history included.',
       description: 'Continue a Claude Code or Codex task on another computer, or hand it to another agent, without losing work: the branch, uncommitted changes and earlier turns move with your next follow-up.',
       lede: 'To carry a coding-agent task over to another computer, the new place needs the branch, the uncommitted changes and what happened so far. In wisp, the <b>Runs on</b> button next to the follow-up box moves all three with your next message: the work travels as a git bundle into a worktree on the same branch, and the agent there gets the earlier turns. The same follow-up can switch from Claude Code to Codex.',
-      demo: true,
+      demo: 'relay',
       body: `
     <section>
       <h2 id="why">When you’d move a task</h2>
@@ -469,19 +510,34 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       card: 'A floating button for your PRs, a stats panel, a block for agents: ask, try it, keep it.',
       description: 'Add a button that opens all your PRs, a panel with your agent tool stats, a block agents can use in reports, or a new look, by asking wisp. Try each change live, keep it, share it.',
       lede: 'In wisp you change the app itself by asking: “a floating button that opens all my PRs”, “a panel with my tool stats”, “a deploy block for agents”, “compact cards”. An agent writes the change as a <b>spell</b>, a small JSON file wisp layers over itself. You try it in the window, keep it, and share it as a file.',
-      shot: ['spell', 'A Cast a spell report in wisp: the Task board spell with what it adds, a preview of its floating button and its panel drawn with real data, and Turn on, Try it, JSON and Copy buttons'],
+      demo: 'spells',
       body: `
+    <p class="muted">Above: a working copy. Pick an ask and the little wisp window changes the way the app does; switch a spell off and it changes back. <code>{ }</code> shows the spell file.</p>
+
+    <nav class="toc" aria-label="On this page"><p class="eyebrow">On this page</p><ul>
+      <li><a href="#cast">Cast one</a></li>
+      <li><a href="#what">What a spell can change</a></li>
+      <li><a href="#anatomy">What’s in a spell file</a></li>
+      <li><a href="#places">Where things can go</a></li>
+      <li><a href="#actions">What buttons can do</a></li>
+      <li><a href="#data">Data and scripts</a></li>
+      <li><a href="#agents">Blocks, prompt rules and hooks</a></li>
+      <li><a href="#safe">Why it’s safe to keep one</a></li>
+      <li><a href="#share">Share it with your team</a></li>
+      <li><a href="#cli">From the terminal</a></li>
+      <li><a href="#trouble">When something looks wrong</a></li>
+    </ul></nav>
+
     <section>
       <h2 id="cast">Cast one</h2>
       <ol class="doc-steps">
         <li><b>Start wisp.</b> ${installButton()}</li>
-        <li><b>Say what to change.</b> ⌘K → <i>Cast a spell…</i>, Settings → Spells, or type <code>/spell</code> in the prompt box: <code>/spell a floating button that opens all my open PRs, with how many there are</code>.</li>
-        <li><b>Look at the preview.</b> The agent reads wisp’s spell reference, samples your real data, checks the spell with wisp and hands it back as a card: its buttons as they will look, its panels drawn with your data, and what it does in plain words.</li>
-        <li><b>Try it, then keep it.</b> <b>Try it</b> applies it to this window only; <b>Undo</b> takes it back. <b>Keep</b> turns it on. A follow-up changes it (“make it a top bar button”), and “remove the … spell” drops it.</li>
+        <li><b>Say what to change.</b> ⌘K → <i>Cast a spell…</i>, Settings → Spells, or type <code>/spell</code> in the prompt box: <code>/spell a floating button that opens all my open PRs, with how many there are</code>. Be as specific as you like about where it goes and what it shows.</li>
+        <li><b>Look at the preview.</b> The agent works in an empty folder of its own: it reads wisp’s spell reference, samples your real data, checks the spell with wisp until it passes, and hands it back as a card. The card shows its buttons as they will look, its panels drawn with your data, and a plain-words list of what it adds.</li>
+        <li><b>Try it, then keep it.</b> <b>Try it</b> applies the spell to this window only; <b>Undo</b> takes it back. <b>Turn on</b> keeps it. A follow-up on the card changes it (“make it a top bar button”, “only for api-server”), and “remove the … spell” drops it.</li>
       </ol>
-      ${sh(`wisp spell cast "a top bar button with my tool stats for the last 30 days"
-wisp spell          # ● on  ○ off
-wisp spell off --all`)}
+      ${shot('spell', 'A Cast a spell report in wisp: the Task board spell with what it adds, a preview of its floating button and its panel drawn with real data, and Turn on, Try it, JSON and Copy buttons')}
+      <p>Every spell you have is in Settings → Spells, with a switch, its reach, and export, copy and remove.</p>
     </section>
 
     <section>
@@ -495,6 +551,8 @@ wisp spell off --all`)}
           <tr><td>Quick replies, a second opinion</td><td>Chips above the follow-up box, a <i>Second opinion</i> button that reruns the task on Codex in Plan mode</td></tr>
           <tr><td>Compact cards, PR first, Open PR on hover</td><td>Restyles and reorders the card head, adds a hover button on cards that have a PR</td></tr>
           <tr><td>A bigger, monospace prompt box</td><td>Placeholder, rows and font of the prompt box; hides the parts you don’t use</td></tr>
+          <tr><td>A violet wisp</td><td>Sets design tokens (<code>--accent</code>, <code>--radius</code>, …), with separate values for dark mode</td></tr>
+          <tr><td>A /explain command</td><td>A slash command for the follow-up box that sends a prompt with what you typed after it</td></tr>
           <tr><td>Send failing tests back once</td><td>A hook: when a turn ends with failing tests, wisp replies to the agent, once per task</td></tr>
           <tr><td>Codex always runs the linter first</td><td>A rule added to Codex agents’ prompts</td></tr>
         </tbody>
@@ -502,11 +560,70 @@ wisp spell off --all`)}
     </section>
 
     <section>
+      <h2 id="anatomy">What’s in a spell file</h2>
+      <p>A spell is one JSON object. Only <code>wispSpell</code>, <code>id</code> and <code>name</code> are required; everything else is a list of things to add or change. This is the whole <i>My PRs</i> spell:</p>
+      ${json(spellOf('my-prs'))}
+      <ul class="doc-list">
+        <li><b><code>id</code>, <code>version</code></b>: the file is <code>~/.wisp/spells/&lt;id&gt;.json</code>. A changed spell keeps its id and bumps its version, so installing it again updates it in place.</li>
+        <li><b><code>data</code></b>: named sources wisp fetches for the spell. Here <code>prs</code> is a read-only <code>gh</code> command, refreshed every 120 seconds.</li>
+        <li><b><code>buttons</code></b>: each names a <a href="#places">slot</a>, a label, an icon, an optional badge (here: how many items <code>prs</code> has) and what it <a href="#actions">does</a>.</li>
+      </ul>
+      <p>The other top-level fields:</p>
+      <div class="table"><table>
+        <thead><tr><th>Field</th><th>What it holds</th></tr></thead>
+        <tbody>${FIELDS.map(([f, d]) => `<tr><td><code>${f}</code></td><td>${d}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p>Text, labels, links and <code>gh</code> arguments can use <code>{field}</code> templates filled from the card’s task: <code>{title}</code>, <code>{branch}</code>, <code>{project}</code>, <code>{agent}</code>, <code>{pr.number}</code>, <code>{pr.url}</code> and more. In slash commands, <code>{args}</code> is what you typed after the command.</p>
+    </section>
+
+    <section>
+      <h2 id="places">Where things can go</h2>
+      <p>Spells never touch wisp’s page directly. They name a slot, and wisp puts the button, chip or panel there with its own markup, so wisp updates don’t break them.</p>
+      <div class="table"><table>
+        <thead><tr><th>Slot</th><th>Where</th></tr></thead>
+        <tbody>${Object.entries(SLOTS).map(([k, d]) => `<tr><td><code>${k}</code></td><td>${esc(d)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p>Panels open as a <code>dialog</code>, a side <code>drawer</code>, pinned above the <code>feed</code>, or inside an open <code>card</code>. To restyle or hide something, a spell names a part (<code>card.title</code>, <code>launcher.input</code>, <code>topbar.machines</code>, …) and sets a short list of allowed CSS properties, props such as <code>density</code> or <code>monospace</code>, or the order of the card head.</p>
+    </section>
+
+    <section>
+      <h2 id="actions">What buttons can do</h2>
+      <p>Each action has a reach, and a spell’s reach is the furthest of its actions. You see it before you turn the spell on.</p>
+      <div class="table"><table>
+        <thead><tr><th>Action</th><th>Reach</th><th>Does</th></tr></thead>
+        <tbody>${Object.entries(ACTIONS).map(([k, a]) => `<tr><td><code>${k}</code></td><td>${REACH[a.kind]}</td><td>${esc(actionText(a.doc))}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </section>
+
+    <section>
+      <h2 id="data">Data and scripts</h2>
+      <p>A spell can read two kinds of data, and wisp fetches both; spell code never touches the network.</p>
+      <ul class="doc-list">
+        <li><b>wisp’s own routes</b>, read-only: ${WISP_DATA.map((r) => `<code>${r}</code>`).join(', ')}.</li>
+        <li><b>Read-only <code>gh</code> commands</b>: ${Object.entries(GH_READ).map(([c, subs]) => `<code>gh ${c}${subs ? ` ${subs.join('|')}` : ''}</code>`).join(', ')}. <code>gh api</code> may only read: no <code>-X</code>, <code>-f</code>, <code>-F</code> or <code>--input</code>.</li>
+      </ul>
+      <p>To draw a panel, a spell carries a <code>script</code>: plain JavaScript functions that get the data and return wisp’s report blocks (stats, charts, checklists, callouts, tables of files, …). wisp checks what comes back and draws it with its own renderer. This is the panel behind <i>Tool stats</i>:</p>
+      ${json(spellOf('tool-stats'))}
+    </section>
+
+    <section>
+      <h2 id="agents">Blocks, prompt rules and hooks</h2>
+      <p>Spells also change what agents do, for every harness or only some (<code>harnesses</code>), and for every task or only some projects, agents or modes (<code>when</code>).</p>
+      <ul class="doc-list">
+        <li><b>Blocks.</b> A new report block type. wisp tells agents about it while the spell is on, and the spell’s script draws it. The <code>doc</code> line is what agents read.</li>
+        <li><b>Prompt rules.</b> Lines added to agents’ system prompts: “Codex runs <code>npm run lint</code> before reporting”.</li>
+        <li><b>Hooks.</b> On ${Object.keys(EVENTS).map((e) => `<code>${e}</code>`).join(', ')}, if ${HOOK_IF.map((e) => `<code>${e}</code>`).join(', ')} match, reply, mark done, archive, notify or call a webhook. <code>max</code> caps how often per task (default once).</li>
+      </ul>
+      ${json(spellOf('fix-failing-tests'))}
+    </section>
+
+    <section>
       <h2 id="safe">Why it’s safe to keep one</h2>
       <ul class="doc-list">
         <li><b>Spell code can’t reach anything.</b> It runs in a sandboxed frame with no network, no page and no wisp API. It gets the data wisp fetched and returns blocks, which wisp checks and draws itself.</li>
         <li><b>Data is read-only.</b> Spells read wisp’s own routes and read-only <code>gh</code> commands. They can’t merge, push or write.</li>
-        <li><b>You see how far it reaches.</b> Each spell is <i>Safe</i>, <i>Acts for you</i>, <i>Reads GitHub</i> or <i>Runs commands</i>, with every command listed. Questions and approvals can’t be hidden or restyled.</li>
+        <li><b>You see how far it reaches.</b> Each spell is <i>Safe</i>, <i>Acts for you</i>, <i>Reads GitHub</i> or <i>Runs commands</i>, with every command listed. A command asks you before its first run.</li>
+        <li><b>Some things stay put.</b> Questions, approvals and Settings → Spells can’t be restyled or hidden, so a spell can’t lock you out of turning it off.</li>
         <li><b>Off means gone.</b> Turning a spell off puts wisp back exactly as it was. <code>WISP_SAFE=1</code> starts wisp with every spell off.</li>
       </ul>
     </section>
@@ -515,14 +632,46 @@ wisp spell off --all`)}
       <h2 id="share">Share it with your team</h2>
       <p>Settings → Spells exports a spell as a <code>.spell.json</code> file, or copies its JSON for a chat. A colleague drops the file on wisp, pastes it (or a link) into Settings → Spells, or runs:</p>
       ${sh(`wisp spell install ./my-prs.spell.json --on
+wisp spell install https://example.com/my-prs.spell.json
 wisp spell install gist:<id>`)}
-      <p>They see the same review first, and it stays off until they turn it on.</p>
+      <p>They see the same review first, and it stays off until they turn it on. Commit a team’s spells to a repo and everyone installs the same set.</p>
+    </section>
+
+    <section>
+      <h2 id="cli">From the terminal</h2>
+      <div class="table"><table>
+        <thead><tr><th>Command</th><th>Does</th></tr></thead>
+        <tbody>
+          <tr><td><code>wisp spell</code></td><td>List your spells: <code>●</code> on, <code>○</code> off, and any that are broken</td></tr>
+          <tr><td><code>wisp spell cast "…"</code></td><td>An agent writes a spell for it; keep it in the app. <code>--wait</code> blocks until it’s done; <code>--agent</code>, <code>--model</code>, <code>--effort</code> pick who writes it</td></tr>
+          <tr><td><code>wisp spell install &lt;file|url&gt;</code></td><td>Check and add a spell (a file, an https link or <code>gist:&lt;id&gt;</code>). Off until you add <code>--on</code></td></tr>
+          <tr><td><code>wisp spell on|off &lt;id&gt;</code></td><td>Turn one on or off; <code>wisp spell off --all</code> turns every spell off</td></tr>
+          <tr><td><code>wisp spell rm &lt;id&gt;</code></td><td>Remove it</td></tr>
+          <tr><td><code>wisp spell export &lt;id&gt;</code></td><td>Print the spell file, to save or send</td></tr>
+        </tbody>
+      </table></div>
+      ${sh(`wisp spell cast "a /explain command that asks for a plain-words explanation" --wait
+wisp spell export my-prs > my-prs.spell.json
+wisp spell off --all`)}
+      <p>Over HTTP the same lives under <code>/spells</code>; see <a href="/integrations.html">Integrations</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="trouble">When something looks wrong</h2>
+      <ul class="doc-list">
+        <li><b>wisp looks odd and you don’t know why.</b> Settings → Spells → <i>Turn every spell off</i>, then turn them back on one at a time. If wisp won’t even open properly, start it with <code>WISP_SAFE=1</code>.</li>
+        <li><b>A spell is listed as broken.</b> <code>wisp spell</code> prints <code>! &lt;id&gt;: &lt;why&gt;</code>. Usually it names a slot, part or action this version of wisp doesn’t have; ask for a follow-up on its card, or remove it.</li>
+        <li><b>A button doesn’t show.</b> Card buttons can have a <code>when</code> (only cards with a PR, only Codex tasks, …), and hidden parts take their buttons with them. Ask the agent which applies.</li>
+        <li><b>The data is empty.</b> <code>gh</code> sources need the GitHub CLI installed and signed in (<code>gh auth status</code>) on the machine wisp runs on.</li>
+      </ul>
     </section>
 `,
       faq: [
         ['Do spells change wisp’s code?', 'No. A spell is a JSON file in ~/.wisp/spells that wisp reads at runtime. Your wisp install stays as it is, updates keep working, and turning a spell off removes everything it added.'],
         ['Which agents can cast spells?', 'Any harness wisp runs: Claude Code, Codex, opencode, Cursor, Antigravity or Grok. The agent works in an empty folder of its own and uses wisp’s spell tools to read the reference and check its spell.'],
         ['Can a spell I get from someone else run code on my computer?', 'Only if it says so: a spell whose buttons run commands is marked Runs commands and lists each command, and asks before the first run. Spell scripts run in a sandbox with no network or file access.'],
+        ['Can I write a spell by hand?', 'Yes. Write the JSON, then run wisp spell install ./my.spell.json: wisp checks it the same way it checks a cast spell and tells you, in plain words, what it does or what is wrong.'],
+        ['What if I ask for something spells can’t do?', 'The agent says so in its report and does the closest thing spells can. Spells can only use the slots, parts, actions and data sources in wisp’s reference, so they can’t reach further than that.'],
       ],
       related: ['run-coding-agents-in-the-background', 'multi-agent-coding', 'run-claude-code-and-codex-in-parallel'],
     },

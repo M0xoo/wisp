@@ -74,5 +74,6 @@ wisp --mode plan "audit dependencies"
   - [Multi-agent coding: a lead delegating to other harnesses](https://trywisp.dev/guides/multi-agent-coding.html)
   - [Claude Code vs Codex, on your own repo](https://trywisp.dev/guides/claude-code-vs-codex.html)
   - [Run coding agents in the background](https://trywisp.dev/guides/run-coding-agents-in-the-background.html)
+  - [Spells: change wisp itself by asking](https://trywisp.dev/guides/customize-wisp-with-spells.html)
 - [Changelog](https://trywisp.dev/changelog.html)
 - [README](https://github.com/M0xoo/wisp/blob/main/README.md)

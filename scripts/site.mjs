@@ -21,6 +21,7 @@ const INDEX = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
 // Same stylesheet version and analytics as the landing page, so a bump there covers these pages too.
 const CSS_V = INDEX.match(/style\.css\?v=(\d+)/)?.[1] || '1';
 const RELAY_V = INDEX.match(/relay\.js\?v=(\d+)/)?.[1] || '1';
+const SPELLS_V = INDEX.match(/spells\.js\?v=(\d+)/)?.[1] || '1';
 const POSTHOG = INDEX.match(/<script>\s*!function\(t,e\)[\s\S]*?<\/script>/)?.[0] || '';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -238,7 +239,7 @@ const installButton = (cmd = 'npx wisp-agents') =>
   `<button class="cmd" data-copy="${esc(cmd)}" aria-label="Copy install command"><span class="p">$</span><code>${esc(cmd)}</code><span class="copy">Copy</span></button>`;
 
 // path: site path ('/agents/codex.html'); crumbs: [[label, path], …] after Home.
-// scripts: extra <script> tags for the end of <body> (the relay demo).
+// scripts: extra <script> tags for the end of <body> (a guide's demo).
 function page({ path: p, title, description, crumbs = [], body, schema = [], noindex = false, scripts = '' }) {
   const url = `${SITE}${p}`;
   const trail = [['wisp', '/'], ...crumbs];
@@ -464,6 +465,17 @@ function agentsIndex() {
 const sh = (code) => `<pre data-lang="sh"><code>${esc(code)}</code></pre>`;
 export const GUIDES = guides({ esc, sh, shot, installButton, agents: AGENTS });
 const guideUrl = (g) => `/guides/${g.slug}.html`;
+// A guide's `demo`: a working copy of the feature in place of its screenshot (docs/relay.js, docs/spells.js).
+const DEMOS = {
+  relay: {
+    html: `<div data-relay id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>`,
+    script: `<script src="/relay.js?v=${RELAY_V}" defer></script>`,
+  },
+  spells: {
+    html: `<div data-spells id="spellbook" aria-label="Try it: cast a spell and watch a small wisp window change"></div>`,
+    script: `<script src="/spells.js?v=${SPELLS_V}" defer></script>`,
+  },
+};
 
 function guidePage(g) {
   const related = g.related.map((r) => GUIDES.find((x) => x.slug === r));
@@ -476,7 +488,7 @@ function guidePage(g) {
       <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build · macOS, Linux, Windows (beta) · Node 20+</p>
     </header>
 
-    ${g.demo ? `<div data-relay id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>` : shot(...g.shot)}
+    ${DEMOS[g.demo]?.html || shot(...g.shot)}
 ${g.body}
     <section class="faq-doc">
       <h2 id="faq">Questions</h2>
@@ -494,7 +506,7 @@ ${g.body}
     description: g.description,
     crumbs: [['Guides', '/guides/'], [g.h1, guideUrl(g)]],
     body,
-    scripts: g.demo ? `<script src="/relay.js?v=${RELAY_V}" defer></script>` : '',
+    scripts: DEMOS[g.demo]?.script || '',
     schema: [
       {
         '@type': 'TechArticle',

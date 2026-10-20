@@ -64,9 +64,19 @@ test('guides: each answers its question up front, links related guides, and the 
     for (const r of g.related) assert.ok(GUIDES.some((x) => x.slug === r) && r !== g.slug, `${g.slug}: related ${r}`);
     assert.ok(hub.includes(`href="/guides/${g.slug}.html"`), `hub links ${g.slug}`);
   }
-  for (const slug of ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines', 'move-a-task-to-another-machine-or-agent']) {
+  for (const slug of ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines', 'move-a-task-to-another-machine-or-agent', 'customize-wisp-with-spells']) {
     assert.ok(index.includes(`href="guides/${slug}.html"`), `landing page links ${slug}`);
   }
+});
+
+test('the spells guide mounts the demo and its reference tables follow the spell schema', async () => {
+  const { SLOTS, ACTIONS } = await import('../web/js/spell-schema.js');
+  const html = fs.readFileSync(path.join(out, 'guides/customize-wisp-with-spells.html'), 'utf8');
+  assert.match(html, /<div data-spells /);
+  assert.match(html, /<script src="\/spells\.js\?v=\d+" defer><\/script>/);
+  for (const slot of Object.keys(SLOTS)) assert.ok(html.includes(`<code>${slot}</code>`), `slot ${slot}`);
+  for (const action of Object.keys(ACTIONS)) assert.ok(html.includes(`<code>${action}</code>`), `action ${action}`);
+  assert.ok(!/<script src="\/relay\.js/.test(html), 'no relay demo on the spells guide');
 });
 
 test('there is a page for every harness, and its mode flags match the adapter', () => {
