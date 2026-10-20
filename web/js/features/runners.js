@@ -21,9 +21,9 @@ export const agentName = (id) => S.agents.find((a) => a.id === id)?.name || (id 
 // level per task. Its "models" are the goal it optimises for, which also sets the level band, so
 // there are no thinking levels to pick here.
 export const AUTO_GOALS = [
-  { id: 'balanced', label: 'Balanced', hint: 'Best result per dollar · default or medium thinking' },
+  { id: 'balanced', label: 'Balanced', hint: 'Frontier models · default or medium thinking' },
   { id: 'cheap', label: 'Cheap', hint: 'Lowest cost that still gets it done · low thinking' },
-  { id: 'best', label: 'Best', hint: 'Best result; cost only breaks ties · high thinking' },
+  { id: 'best', label: 'Best', hint: 'Frontier models · high thinking; cost only breaks ties' },
 ];
 export const AUTO = { id: 'auto', name: 'Auto', available: true, delegates: true, models: AUTO_GOALS, efforts: [], hint: 'wisp picks the harness, model and thinking level from what worked before' };
 
