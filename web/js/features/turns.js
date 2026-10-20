@@ -12,15 +12,14 @@ import { toastError } from '../ui/toast.js';
 import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
-import { expand, renderFeed, scheduleRefetch, setFocus } from './feed.js';
+import { expand, fetchFull, renderFeed, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
 import { agentName, DEFAULT_MODE, effortLabel, modelBadge, MODES } from './runners.js';
-import { scrollByPx, watching } from './scroll.js';
+import { scrollByPx, topInset, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
-
-const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock' };
+import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -35,6 +34,7 @@ export function ctxFor(s, turn, isLatest) {
     revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
     exec: (command, key) => execAction(s.id, turn.id, command, key),
     approve: (allow) => approveBlocked(s, turn, allow),
+    refresh: () => fetchFull(s.id).then(() => S.full.get(s.id)),
   };
 }
 
@@ -68,6 +68,7 @@ export function renderBody(id, { fresh }) {
         <div class="it-bar">
           <div class="it-meta"></div>
           <div class="it-actions">
+            <button class="ghost xs tx-toggle" data-a="transcript" aria-pressed="false">${icon('transcript')}<span>Transcript</span></button>
             <button class="ghost xs" data-a="replay" title="Replay presentation (R)">${icon('replay')}</button>
             <button class="ghost xs" data-a="takeover" title="Take over in your terminal (T)">${icon('terminal')}</button>
             <button class="ghost xs" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
@@ -84,6 +85,7 @@ export function renderBody(id, { fresh }) {
     n.body = body;
     $('.it-bar', body).addEventListener('click', (e) => {
       const a = e.target.closest('[data-a]')?.dataset.a;
+      if (a === 'transcript') toggleTranscript(id);
       if (a === 'replay') replay(id);
       if (a === 'takeover') takeOver(id);
       if (a === 'ship') shipDialog(id);
@@ -121,6 +123,11 @@ export function renderBody(id, { fresh }) {
     $('span', b).textContent = s.state === 'done' ? 'Reopen' : 'Mark done';
   });
   $('[data-a="takeover"]', body).hidden = !s.agentSessionId;
+  const tx = transcriptOn(id);
+  const txBtn = $('[data-a="transcript"]', body);
+  txBtn.classList.toggle('on', tx);
+  txBtn.setAttribute('aria-pressed', tx);
+  txBtn.title = tx ? 'Back to the presentation (V)' : 'Full transcript: every message and step (V)';
 
   // Turns: keep nodes whose content hasn't changed so animations don't replay.
   const turnsEl = $('.turns', body);
@@ -145,12 +152,12 @@ export function renderBody(id, { fresh }) {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
-    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}`;
+    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}|${tx}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
       const toggle = () => (n.unfolded.has(t.id) ? n.unfolded.delete(t.id) : n.unfolded.add(t.id), renderBody(id, { fresh: false }));
-      node = folded ? renderFoldedTurn(t, toggle) : renderTurn(s, t, isLatest, isLatest ? null : toggle);
+      node = folded ? renderFoldedTurn(t, toggle) : renderTurn(s, t, isLatest, isLatest ? null : toggle, tx);
       if (prev) prev.node.replaceWith(node);
       if (!prev && !fresh && !folded) firstNew ??= node;
       if (prev && prev.status === 'running' && t.status !== 'running') firstNew ??= node;
@@ -166,7 +173,33 @@ export function renderBody(id, { fresh }) {
 
   updateDock(id);
   if (dock?.isConnected) scrollByPx(dock.getBoundingClientRect().top - dockTop);
-  if (firstNew && watched) requestAnimationFrame(() => firstNew.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  // A transcript was being read at its tail: its result lands right there, so show that, not the prompt.
+  const landing = firstNew && tx ? $('.tx-end', firstNew) || firstNew : firstNew;
+  if (landing && watched) requestAnimationFrame(() => landing.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
+// The full transcript or the presentation, for one card. The turn being read keeps its place: its
+// prompt stays where it was on screen, or comes back into view if it had scrolled off the top.
+export function toggleTranscript(id) {
+  const n = S.nodes.get(id);
+  pickView(id, !transcriptOn(id));
+  if (!S.open.has(id)) return expand(id);
+  if (!n?.body?.querySelector('.turns')) return;
+  const turns = [...n.body.querySelectorAll('.turn:not(.folded)')];
+  const mid = innerHeight / 2;
+  const reading = turns.find((x) => { const r = x.getBoundingClientRect(); return r.top <= mid && r.bottom >= mid; }) || turns.at(-1);
+  const tid = reading?.dataset.turn;
+  const before = reading && $('.ask', reading)?.getBoundingClientRect().top;
+  renderBody(id, { fresh: false });
+  const ask = tid && $(`.turn[data-turn="${tid}"] .ask`, n.body);
+  if (!ask || before === undefined) return;
+  if (before < topInset()) ask.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  else scrollByPx(ask.getBoundingClientRect().top - before);
+}
+
+// After the setting changes: every open card follows it.
+export function repaintViews() {
+  for (const id of S.open) if (S.full.has(id)) renderBody(id, { fresh: false });
 }
 
 // The session a moved task carries on in: shown, opened and focused (archived ones stay hidden).
@@ -202,8 +235,9 @@ function modeSwitch(s, t) {
   return m ? `<span class="t-mode m-${m.id}" title="Switched from ${esc(MODES.find((x) => x.id === prev)?.label || prev)} to ${m.label} for this follow-up">${icon(m.icon)}${m.label}</span>` : '';
 }
 
-// `fold` is set for older turns the user unfolded, so they can tuck them away again.
-function renderTurn(s, t, isLatest, fold) {
+// `fold` is set for older turns the user unfolded, so they can tuck them away again. `tx`: the card
+// shows the full transcript.
+function renderTurn(s, t, isLatest, fold, tx) {
   const node = el(`<article class="turn ${t.rolledBackAt ? 'is-rolled-back' : ''}" data-turn="${t.id}"></article>`);
   const long = t.prompt.length > 360 || t.prompt.split('\n').length > 5;
   const cp = t.checkpoint;
@@ -233,21 +267,25 @@ function renderTurn(s, t, isLatest, fold) {
   node.append(ask);
 
   if (t.status === 'running') {
-    node.append(renderWorking(s, t));
+    if (tx) node.append(renderLiveTranscript(s, t, ctxFor(s, t, isLatest)));
+    node.append(renderWorking(s, t, tx));
   } else {
-    node.append(renderPresentation(t.presentation, ctxFor(s, t, isLatest)));
+    const ctx = ctxFor(s, t, isLatest);
+    node.append(tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, ctx));
     const subs = renderSubs(s, t);
     if (subs) node.append(subs);
-    node.append(renderTrail(s, t));
+    node.append(renderTrail(s, t, tx));
   }
   node.append(el('<div class="btw-list"></div>')); // side questions asked during this turn (btw.js)
   return node;
 }
 
-function renderWorking(s, t) {
+// The live panel. With the transcript on, the steps are already on the timeline above it, so it
+// keeps only the status, the question, the team and Stop.
+function renderWorking(s, t, tx) {
   const waiting = !!s.ask;
   const node = el(`
-    <div class="w-panel ${waiting ? 'waiting' : ''}">
+    <div class="w-panel ${waiting ? 'waiting' : ''} ${tx ? 'tx-panel' : ''}">
       <div class="w-orb"><div class="orb live"><i></i><i></i><i></i></div></div>
       <div class="w-body">
         <div class="w-status">
@@ -257,9 +295,9 @@ function renderWorking(s, t) {
         </div>
         <div class="ask-slot"></div>
         ${teamLiveHtml(s, t)}
-        <ul class="ticker"></ul>
+        ${tx ? '' : '<ul class="ticker"></ul>'}
         <div class="w-actions">
-          <button class="link xs peek">Show all activity</button>
+          ${tx ? '' : '<button class="link xs peek">Show all activity</button>'}
           ${s.queue?.length ? `<span class="w-queued">${s.queue.length} follow-up${s.queue.length > 1 ? 's' : ''} queued</span>` : ''}
           <span class="grow"></span>
           <button class="ghost sm danger stop">${icon('stop')}Stop</button>
@@ -268,13 +306,16 @@ function renderWorking(s, t) {
       </div>
     </div>`);
   if (waiting) $('.ask-slot', node).append(renderAskCard(s));
+  // The /btw tip goes after Show all activity. The transcript's panel has none: it leads the row with Stop.
   const tip = btwTip(s.id);
-  if (tip) $('.peek', node).after(tip);
+  if (tip && tx) $('.w-actions', node).prepend(tip);
+  else if (tip) $('.peek', node).after(tip);
   const ticker = $('.ticker', node);
-  t.activity
-    .filter((a) => a.kind !== 'text')
-    .slice(-5)
-    .forEach((a) => ticker.prepend(actItem(a)));
+  if (ticker)
+    t.activity
+      .filter((a) => a.kind !== 'text')
+      .slice(-5)
+      .forEach((a) => ticker.prepend(actItem(a)));
   $('.stop', node).onclick = async (e) => {
     // Shows at once; the run winds down and the live update replaces this panel.
     const btn = e.currentTarget;
@@ -288,7 +329,7 @@ function renderWorking(s, t) {
       toastError(err);
     });
   };
-  $('.peek', node).onclick = (e) => {
+  if (!tx) $('.peek', node).onclick = (e) => {
     const log = $('.log', node);
     log.hidden = !log.hidden;
     e.target.textContent = log.hidden ? 'Show all activity' : 'Hide activity';
@@ -297,8 +338,10 @@ function renderWorking(s, t) {
   return node;
 }
 
+// A line in the ticker and the activity log. A message (kept whole for the transcript) shows its start.
 function actItem(a) {
-  return el(`<li class="act k-${a.kind}">${icon(KIND_ICON[a.kind] || 'tool')}<span>${esc(a.label || '')}</span></li>`);
+  const label = a.kind === 'text' && a.label?.length > 400 ? `${a.label.slice(0, 400)}…` : a.label || '';
+  return el(`<li class="act k-${a.kind}">${icon(KIND_ICON[a.kind] || 'tool')}<span>${esc(label)}</span></li>`);
 }
 
 function renderAskCard(s) {
@@ -344,7 +387,9 @@ function renderAskCard(s) {
   return node;
 }
 
-function renderTrail(s, t) {
+// Under a finished turn. With the transcript showing, its steps and the agent's notes are already on
+// the page, so the bar drops those two.
+function renderTrail(s, t, tx) {
   const acts = t.activity || [];
   const count = (k) => acts.filter((a) => a.kind === k).length;
   const parts = [
@@ -365,13 +410,13 @@ function renderTrail(s, t) {
   const node = el(`
     <div class="trail">
       <div class="trail-bar">
-        ${acts.length ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}</span>`).join('') : 'Activity'}</button>` : ''}
+        ${acts.length && !tx ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}</span>`).join('') : 'Activity'}</button>` : ''}
         ${t.endedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
         ${st.costUsd ? `<span class="tb">$${st.costUsd.toFixed(2)}</span>` : ''}
         <span class="grow"></span>
         ${t.changes?.length ? `<button class="link xs" data-tab="changes">${t.changes.length} file${t.changes.length > 1 ? 's' : ''} <span class="plus">+${totals.add}</span> <span class="minus">−${totals.del}</span></button>` : ''}
         <span class="tb-tools">
-          ${t.presentation?.notes ? `<button class="tb-btn" data-tab="notes" title="Agent notes" aria-label="Agent notes">${icon('text')}</button>` : ''}
+          ${t.presentation?.notes && !tx ? `<button class="tb-btn" data-tab="notes" title="Agent notes" aria-label="Agent notes">${icon('text')}</button>` : ''}
           ${canRollback ? (rolledBack
             ? `<button class="link xs cp-rollback rolled-back" data-a="rollback" title="Re-apply changes from this turn">${icon('rerun')}Re-apply</button>`
             : `<button class="tb-btn cp-rollback" data-a="rollback" title="Restore working tree to before this turn${t.checkpoint?.head ? ` (${t.checkpoint.head.slice(0, 7)})` : ''}" aria-label="Restore to before this turn">${icon('replay')}</button>`) : ''}
@@ -421,13 +466,21 @@ function renderTrail(s, t) {
   return node;
 }
 
-// Live activity without re-rendering the whole turn.
-export function onActivity({ sessionId, turnId, item }) {
+// Live activity without re-rendering the whole turn. `update`: a step already shown changed (its
+// output came in).
+export function onActivity({ sessionId, turnId, item, update }) {
   const s = S.full.get(sessionId);
   if (!s) return;
   const turn = s.turns.find((t) => t.id === turnId);
-  if (turn && !turn.activity.includes(item)) turn.activity.push(item);
   const node = S.nodes.get(sessionId)?.turnNodes.get(turnId)?.node;
+  if (update) {
+    const known = turn?.activity.findLast((a) => sameStep(a, item));
+    if (known) Object.assign(known, item);
+    if (node) updateStep(node, item, turn);
+    return;
+  }
+  if (turn && !turn.activity.includes(item)) turn.activity.push(item);
+  if (node && turn) appendStep(node, item, turn, scrollByPx);
   if (!node || item.kind === 'text') return;
   const ticker = $('.ticker', node);
   if (ticker) {

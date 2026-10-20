@@ -20,7 +20,8 @@ import { openProjects, renderProjects } from './projects.js';
 import { agentName } from './runners.js';
 import { openSettings } from './settings.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
-import { replay } from './turns.js';
+import { transcriptOn } from './transcript.js';
+import { replay, toggleTranscript } from './turns.js';
 import { openUsage } from './usage.js';
 
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
@@ -55,6 +56,7 @@ function paletteItems() {
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'spark', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
     items.push({ group: g, label: 'Replay presentation', sub, icon: 'replay', kbd: 'R', run: () => withCard(id, () => replay(id), { open: true }) });
+    items.push({ group: g, label: transcriptOn(id) ? 'Show the presentation' : 'Show the full transcript', sub, icon: 'transcript', kbd: 'V', keywords: 'transcript log messages steps tool calls verbose activity history', run: () => withCard(id, () => toggleTranscript(id)) });
     items.push({ group: g, label: 'Rename', sub, icon: 'pen', kbd: 'M', run: () => withCard(id, () => rename(id)) });
     items.push({ group: g, label: 'Delete session', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
   }

@@ -20,6 +20,7 @@ export function shortcuts() {
     ['⌫', 'Delete item'],
     ['T', 'Take over in terminal'],
     ['R', 'Replay presentation'],
+    ['V', 'Full transcript / presentation'],
     ['⇧R', 'Rerun with another harness, model or thinking level'],
     ['S', 'Ship it: commit, push and open a PR (worktree tasks)'],
     ['1–9', 'Pick an answer when asked'],

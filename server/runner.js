@@ -16,6 +16,10 @@ import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw
 import { bad, clip, MODES, newId } from './util.js';
 
 const MAX_ACTIVITY = 400;
+const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
+const MAX_OUTPUT = 2_000; // what a tool call returned: its start and end past this
+// The calls whose output the transcript shows. A read returns the file and an edit a confirmation.
+const OUTPUT_KINDS = new Set(['run', 'search', 'web', 'tool', 'agent']);
 const LINGER_MS = 3000; // how long a CLI may keep running after it reported its result
 const BACKGROUND_MAX_MS = 60 * 60_000; // how long a turn may wait on its background tasks
 const ASK_SERVER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'mcp-ask.js');
@@ -43,6 +47,20 @@ function retryPrompt(items, scoped) {
 }
 
 export { newId };
+
+// A tool call's output for the transcript: whole when short, else its first and last lines (the
+// end of a test run or a build is what tells how it went).
+export function clipOutput(text) {
+  const out = String(text ?? '').replace(/\s+$/, '');
+  if (out.length <= MAX_OUTPUT) return out;
+  let head = out.slice(0, 600);
+  let tail = out.slice(-1300);
+  if (head.includes('\n')) head = head.slice(0, head.lastIndexOf('\n'));
+  if (tail.includes('\n')) tail = tail.slice(tail.indexOf('\n') + 1);
+  const cut = out.slice(head.length, out.length - tail.length);
+  const lines = cut.split('\n').length - 1;
+  return `${head}\n… ${lines > 1 ? `${lines} lines` : `${cut.length} characters`} cut …\n${tail}`;
+}
 
 // Where the agent actually works: its own worktree when it has one, else the project folder.
 export const workdir = (s) => s.worktree?.cwd || s.cwd;
@@ -726,13 +744,27 @@ export class Runner extends EventEmitter {
       case 'tool_error':
       case 'text': {
         const item = { t: Date.now(), kind: ev.type === 'tool' ? ev.kind : ev.type === 'text' ? 'text' : 'error' };
-        if (ev.type === 'tool') Object.assign(item, { label: ev.label, file: ev.file, detail: ev.detail });
-        else if (ev.type === 'text') item.label = ev.text.slice(0, 600);
+        if (ev.type === 'tool') {
+          Object.assign(item, { label: ev.label, file: ev.file, detail: ev.detail });
+          if (ev.id) item.call = String(ev.id); // a tool_output later finds its call by this
+          if (ev.output && OUTPUT_KINDS.has(item.kind)) item.output = clipOutput(ev.output);
+        } else if (ev.type === 'text') item.label = ev.text.slice(0, MAX_TEXT);
         else item.label = `${ev.name || 'Tool'} failed: ${ev.text}`;
         turn.activity.push(item);
-        if (turn.activity.length > MAX_ACTIVITY) turn.activity.splice(0, turn.activity.length - MAX_ACTIVITY);
+        // The transcript says how many of the oldest steps it no longer has.
+        if (turn.activity.length > MAX_ACTIVITY) turn.trimmed = (turn.trimmed || 0) + turn.activity.splice(0, turn.activity.length - MAX_ACTIVITY).length;
         this.emit('activity', { sessionId: session.id, turnId: turn.id, item });
         this.#touch(session, { quiet: ev.type === 'text' });
+        return;
+      }
+      case 'tool_output': {
+        // What a call returned, for the transcript: matched to the call by the harness's id.
+        const item = ev.id && turn.activity.findLast((a) => a.call === String(ev.id));
+        const output = clipOutput(ev.text);
+        if (!item || !OUTPUT_KINDS.has(item.kind) || !output.trim()) return;
+        item.output = output;
+        this.emit('activity', { sessionId: session.id, turnId: turn.id, item, update: true });
+        this.store.save(session);
         return;
       }
       case 'change': {
@@ -748,7 +780,11 @@ export class Runner extends EventEmitter {
         }
         if (ev.op === 'create' && entry.edits.length === 0) entry.op = 'create';
         delete entry.reverted;
+        const from = entry.edits.length;
         entry.edits.push(...ev.edits);
+        // The transcript shows each edit under the call that made it: [from, to) in entry.edits.
+        const call = !ev.by && turn.activity.findLast((a) => a.kind === 'edit' && a.file === ev.file);
+        if (call) call.edits = [call.edits?.[0] ?? from, entry.edits.length];
         if (ev.by && !entry.by?.includes(ev.by)) (entry.by ||= []).push(ev.by);
         this.store.save(session);
         // A subagent's edits are the lead's too: they show up in its files, diffs and Ship it.

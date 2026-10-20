@@ -10,7 +10,7 @@ import { collapse, collapseAll, expand, feedIds, setFocus, toggle } from './feed
 import { focusLauncher } from './launcher.js';
 import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
-import { replay } from './turns.js';
+import { replay, toggleTranscript } from './turns.js';
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -69,6 +69,7 @@ export function onKey(e) {
   else if (k === 'r' && e.shiftKey && id) rerun(id);
   else if (k === 's' && id && shippable(S.sessions.get(id))) shipDialog(id);
   else if (k === 'r' && id) replay(id);
+  else if (k === 'v' && id) toggleTranscript(id);
   else if (k === '/' && id) {
     e.preventDefault();
     const focusReply = () => $('.reply', S.nodes.get(id)?.card)?.focus();

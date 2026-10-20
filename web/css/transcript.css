@@ -1,0 +1,115 @@
+/* ---------- full transcript (features/transcript.js) ----------
+   A timeline under the prompt: a hairline rail with each step's icon on it, the agent's messages as
+   prose, and the presentation after the rail ends. */
+
+.ghost.tx-toggle.on { color: var(--accent-ink); background: var(--accent-soft); }
+
+.tx { display: flex; flex-direction: column; }
+.tx-head { display: flex; align-items: center; gap: 6px; min-height: 22px; margin: -6px 0 8px; font-size: 12px; color: var(--faint); white-space: nowrap; }
+.tx-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--muted); }
+.tx-count { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tx-title .i { width: 14px; height: 14px; }
+.tx-title + .tx-count::before { content: '·'; margin-right: 6px; }
+.tx-jump { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.tx-jump .i { width: 12px; height: 12px; transform: rotate(90deg); }
+
+.tx-list { position: relative; list-style: none; margin: 0 0 18px; padding: 0; }
+.tx-list::before { content: ''; position: absolute; left: 11.5px; top: 12px; bottom: 15px; width: 1px; background: var(--line-2); }
+/* Mid-run the rail fades out into the working panel: more is coming. */
+.tx.live .tx-list { margin-bottom: 10px; }
+.tx.live .tx-list::before { bottom: -10px; background: linear-gradient(var(--line-2) calc(100% - 28px), transparent); }
+
+.tx-step, .tx-fold, .tx-end, .tx-msg { position: relative; padding-left: 28px; }
+.tx-ic {
+  position: absolute; left: 2px; top: 5px; width: 20px; height: 20px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--surface); color: var(--faint);
+}
+.tx-ic .i { width: 14px; height: 14px; }
+
+/* a step: one line, opening to its command and output, its diff, or its error */
+.tx-row {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; min-height: 30px; padding: 4px 8px;
+  border-radius: 7px; font-size: 13px; color: var(--ink-2); text-align: left; outline: 0;
+}
+.tx-row[role='button'] { cursor: pointer; transition: background 0.15s, color 0.15s; }
+.tx-row[role='button']:hover, .tx-row[role='button']:focus-visible, .tx-step.open > .tx-row { background: var(--bg-2); color: var(--ink); }
+.tx-row[role='button']:focus-visible { box-shadow: 0 0 0 2px var(--accent-soft); }
+/* Both give way on a narrow row, the command three times faster. (Shrink factors that sum under 1
+   would leave part of the overflow in place.) */
+.tx-label { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-cmd { flex: 0 3 auto; min-width: 0; font: 12px/1.4 var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-row .nums { margin-left: auto; }
+.tx-t { margin-left: auto; flex: none; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity 0.15s; }
+.tx-row .nums + .tx-t { margin-left: 0; }
+.tx-step:hover .tx-t, .tx-msg:hover .tx-t, .tx-step.open .tx-t { opacity: 1; }
+.tx-open {
+  flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin: -2px -4px -2px 0; border-radius: 6px;
+  color: var(--faint); opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.tx-open .i { width: 13px; height: 13px; }
+.tx-step:hover .tx-open, .tx-open:focus-visible { opacity: 1; }
+.tx-open:hover { color: var(--ink); background: var(--surface); }
+.tx-row .chev { flex: none; width: 12px; height: 12px; color: var(--faint); transition: transform 0.2s var(--ease); }
+.tx-step.open > .tx-row .chev { transform: rotate(90deg); }
+.tx-step.loading > .tx-row { opacity: 0.6; cursor: progress; }
+
+.tx-step.k-error .tx-ic, .tx-step.k-error .tx-label { color: var(--bad); }
+.tx-step:is(.k-ask, .k-wait) .tx-ic, .tx-step.k-ask .tx-label { color: var(--warn); }
+.tx-step.k-answer .tx-ic { color: var(--good); }
+.tx-step.by-wisp .tx-ic { color: var(--accent); }
+.tx-step.by-wisp .tx-label { color: var(--muted); }
+/* What you were asked and answered, and plan lines, read in full. */
+.tx-step:is(.k-ask, .k-answer, .k-plan, .k-check, .k-background, .by-wisp) .tx-label { white-space: normal; }
+
+.tx-more { margin: 2px 0 8px 8px; animation: rise 0.3s var(--ease); }
+.tx-out {
+  margin: 0; padding: 10px 12px; max-height: 340px; overflow: auto; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--line); font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word;
+}
+.tx-cmdline, .tx-res { display: block; }
+.tx-cmdline { color: var(--ink); }
+.tx-cmdline b { color: var(--faint); font-weight: 500; }
+.tx-res { color: var(--muted); }
+.tx-cmdline + .tx-res { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line-2); }
+.tx-out.err { color: var(--bad); background: var(--del-bg); border-color: color-mix(in srgb, var(--bad) 22%, var(--line)); }
+.tx-none { margin: 0; font-size: 12.5px; color: var(--muted); }
+.tx-diff .presentation { gap: 8px; }
+.tx-diff .b-diff.bare { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); overflow: hidden; }
+
+/* a message: the agent's own words, on a dot of the rail */
+.tx-msg { margin: 8px 0 12px; padding-top: 2px; padding-right: 64px; }
+.tx-dot { position: absolute; left: 8px; top: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--surface); }
+.tx-msg .prose { padding-left: 8px; font-size: 14px; color: var(--ink); }
+.tx-msg .tx-t { position: absolute; right: 4px; top: 4px; }
+.tx-msg:first-child { margin-top: 0; }
+
+/* a long run of steps folds its middle */
+.tx-fold .tx-row { color: var(--muted); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.tx-fold .tx-row:hover { background: var(--bg-2); color: var(--ink); }
+
+.tx-end { display: flex; align-items: center; min-height: 30px; padding-left: 36px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.tx-end .tx-ic { color: var(--good); }
+.tx-end.st-error .tx-ic { color: var(--bad); }
+.tx-end.st-stopped .tx-ic { color: var(--warn); }
+
+.tx-step.new, .tx-msg.new { animation: tick-in 0.45s var(--ease); }
+
+/* The working panel under a live transcript: status and Stop on one line, a question under them. */
+.w-panel.tx-panel { padding: 10px 14px; gap: 12px; }
+.tx-panel .w-orb { padding-top: 0; align-self: flex-start; }
+.tx-panel .w-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.tx-panel .w-status { grid-column: 1; grid-row: 1; flex-wrap: wrap; row-gap: 2px; margin: 0; }
+.tx-panel .w-status > * { white-space: nowrap; }
+.tx-panel .w-actions { grid-column: 2; grid-row: 1; margin: 0; }
+.tx-panel .w-body > :not(.w-status, .w-actions) { grid-column: 1 / -1; }
+.tx-panel .ask-slot:not(:empty) { margin-top: 10px; }
+
+@media (max-width: 720px) {
+  /* The /btw tip doesn't fit beside the status: the row with it and Stop goes under it. */
+  .tx-panel .w-body:has(.w-tip) { display: block; }
+  .tx-panel .w-body:has(.w-tip) .w-actions { margin-top: 8px; }
+  .tx-title { display: none; }
+  .tx-cmd { display: none; }
+  .tx-msg { padding-right: 8px; }
+  .tx-msg .tx-t { display: none; }
+}

@@ -23,6 +23,8 @@
 //                `nofork` fails a forked one the way a CLI without fork support does, `slow`
 //                answers after 3s; FAKE_BTW_ANSWER is the answer (screenshots)
 // A prompt with ALSO (a task across several folders) makes claude fix math.js in each --add-dir too.
+// A prompt with NARRATE makes claude say a long message and run a command that prints something
+// (what the transcript shows).
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 // Permissions: with APPROVE, claude asks wisp's `approve` tool (its --permission-prompt-tool)
@@ -270,6 +272,12 @@ if (name === 'claude') {
   out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: target } }] } });
   if (process.env.FAKE_HANG) hang();
   else {
+    out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: [{ type: 'text', text: before }] }] } });
+    if (stdin.includes('NARRATE')) {
+      out({ type: 'assistant', session_id: session, message: { content: [{ type: 'text', text: `Looking around first.${' Here is why.'.repeat(100)}` }] } });
+      out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't4', name: 'Bash', input: { command: 'git status --short', description: 'Check the tree' } }] } });
+      out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't4', content: ' M math.js' }] } });
+    }
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't2', name: 'Edit', input: { file_path: target, old_string: 'a - b', new_string: 'a + b' } }] } });
     fs.writeFileSync(target, after);
     if (stdin.includes('ALSO')) {
@@ -311,6 +319,8 @@ if (name === 'claude') {
   if (process.env.FAKE_HANG) hang();
   else {
     out({ type: 'item.completed', item: { id: 'i0', type: 'command_execution', command: 'npm test', exit_code: 1, aggregated_output: '1 failing', status: 'failed' } });
+    out({ type: 'item.started', item: { id: 'i3', type: 'command_execution', command: "/bin/bash -lc 'git status --short'", status: 'in_progress' } });
+    out({ type: 'item.completed', item: { id: 'i3', type: 'command_execution', command: "/bin/bash -lc 'git status --short'", exit_code: 0, aggregated_output: ' M math.js', status: 'completed' } });
     fs.writeFileSync(target, after);
     fs.writeFileSync(path.join(cwd, 'notes.txt'), 'new file\n');
     out({ type: 'item.completed', item: { id: 'i1', type: 'file_change', changes: [{ path: target, kind: 'update' }, { path: 'notes.txt', kind: 'add' }], status: 'completed' } });

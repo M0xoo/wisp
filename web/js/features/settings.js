@@ -20,6 +20,8 @@ import { openPhone, phoneSummary } from './phone.js';
 import { machinesSummary } from './places.js';
 import { AUTO_GOALS, harnessLogo } from './runners.js';
 import { INSTALLABLE, installHarness, isInstalling } from './setup.js';
+import { clearPicks } from './transcript.js';
+import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
 
 // A sidebar of sections and one pane at a time, like every other app's settings. Big lists
@@ -79,6 +81,9 @@ export function openSettings(opts) {
           <div class="sx-group">
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
             ${row('Auto-fix PR conflicts', 'Without waiting for a click on Fix conflicts: when a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
+          </div>
+          <div class="sx-group">
+            ${row('Full transcript', 'Every message and step the agent took, with its presentation at the end. Any one card switches with its Transcript button or <kbd>V</kbd>', '<button class="switch" id="txDefault" role="switch"></button>')}
           </div>
         </section>
         <section class="sx-pane" data-pane="notifications">
@@ -308,6 +313,9 @@ export function openSettings(opts) {
     });
     if (!saved) return;
     paintWt();
+    renderLauncher();
+  };
+  paintWt();
   const fc = $('#fixConflicts', node);
   const paintFc = () => fc.setAttribute('aria-checked', S.config.defaults.fixConflicts === 'on');
   fc.onclick = async () => {
@@ -321,9 +329,22 @@ export function openSettings(opts) {
     }
   };
   paintFc();
-    renderLauncher();
+  // The transcript switch flips every open card at once; a refused save flips them back.
+  const tx = $('#txDefault', node);
+  const paintTx = () => tx.setAttribute('aria-checked', S.config.defaults.transcript === 'on');
+  const setTx = (v) => {
+    S.config.defaults.transcript = v;
+    clearPicks();
+    paintTx();
+    repaintViews();
   };
-  paintWt();
+  tx.onclick = async () => {
+    const was = S.config.defaults.transcript || 'off';
+    setTx(was === 'on' ? 'off' : 'on');
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { transcript: S.config.defaults.transcript } } }));
+    if (!saved) setTx(was);
+  };
+  paintTx();
   // Auto: goal, exploring and allowed harnesses here; the full record in its own view.
   const paintAuto = async () => {
     const r = await api('/router').catch(() => null);

@@ -111,17 +111,18 @@ export default {
             onEvent({ type: 'thinking' });
           } else if (part.type === 'tool_use') {
             pendingTools.set(part.id, part.name);
-            onEvent({ type: 'tool', ...describeTool(part.name, part.input || {}, cwd) });
+            onEvent({ type: 'tool', id: part.id, ...describeTool(part.name, part.input || {}, cwd) });
             const change = captureChange(part.name, part.input || {}, cwd);
             if (change) onEvent({ type: 'change', ...change });
           }
         }
       } else if (msg.type === 'user') {
         for (const part of msg.message?.content || []) {
-          if (part.type === 'tool_result' && part.is_error) {
+          if (part.type !== 'tool_result') continue;
+          if (part.is_error) {
             const name = pendingTools.get(part.tool_use_id);
             onEvent({ type: 'tool_error', name, text: flatten(part.content).slice(0, 400) });
-          }
+          } else onEvent({ type: 'tool_output', id: part.tool_use_id, text: flatten(part.content) });
         }
       } else if (msg.type === 'system') {
         // background_tasks_changed carries the full list; task_started/task_notification are the
