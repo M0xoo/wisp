@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **`/btw` side questions.** Type `/btw did you update the docs too?` in a card's follow-up box to ask while the agent works, without interrupting it. A separate read-only run answers it, and the answer shows on the card under the turn you asked during. Claude Code, Codex and opencode answer on a copy (fork) of the agent's conversation, so they know what the run did and why; the task's own conversation never sees the question. Cursor, Antigravity and Grok, and CLIs too old to fork, get wisp's record of the task instead: requests, reports, actions so far and files changed. It also works when the task isn't running, and it adds no turn. Dismiss an answer with its ×; dismissing one that is still running stops it. Typing `/` in the box opens a small command menu (`/btw`, `/feedback`), and a working task shows a quiet **Tip: `/btw` asks without interrupting** next to Show all activity. Click it to start one in the box. It goes away after your first `/btw`, or when you hide it with its ×. CLI: `wisp btw <id> "question"` prints the answer, and `wisp reply <id> "/btw …"` works too, as does a `/btw` reply from Telegram. API: `POST /sessions/:id/btw`, `DELETE /sessions/:id/btw?item=<id>`. SDK: `wisp.btw(id, text)`.
+
 ### Changed
 
 - **No folder is picked by default when wisp has no folders.** With no projects added (on this computer, or on a machine picked under **Run on**), the launcher now starts on **No folder**, so a prompt runs right away in an empty scratch directory instead of opening the folder picker. Adding a folder picks it, as before.

@@ -1,6 +1,8 @@
 // Phone (ntfy / Telegram): what a tap or a reply there does to a session, here or on a machine.
 
+import { BTW_TIMEOUT_MS } from '../btw.js';
 import { splitId } from '../machines.js';
+import { truncate } from '../util.js';
 
 export function phoneActions(app) {
   const { store, runner, machines } = app;
@@ -21,6 +23,17 @@ export function phoneActions(app) {
     return s && { s: machines.session(at.machine, s), answer: (a) => call('POST', '/answer', { text: a }), reply: (t) => call('POST', '/reply', { text: t }), done: async () => !live && !!(await call('PATCH', '', { state: 'done' })) };
   }
 
+  // A /btw from the phone: its answer, once it's in (null if it was dismissed or never came).
+  async function btwAnswer(sessionId, btwId) {
+    for (const end = Date.now() + BTW_TIMEOUT_MS + 30_000; Date.now() < end; ) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const b = (await sessionOps(sessionId).catch(() => null))?.s.turns.flatMap((t) => t.btw || []).find((x) => x.id === btwId);
+      if (!b) return null;
+      if (b.status !== 'running') return b;
+    }
+    return null;
+  }
+
   return {
     // /new from Telegram: the launcher's remembered harness, model and mode, like `wisp "…"`.
     launch: async ({ project, prompt }) => {
@@ -31,7 +44,8 @@ export function phoneActions(app) {
       app.broadcast('config', {});
       return s;
     },
-    act: async ({ sessionId, kind, ref, index, text }) => {
+    // later(text): a message sent after this one (Telegram), for a /btw's answer.
+    act: async ({ sessionId, kind, ref, index, text, later }) => {
       const ops = await sessionOps(sessionId).catch((err) => ({ error: err.message }));
       if (ops?.error) return `Can’t reach it: ${ops.error}`;
       if (!ops) return 'That session is gone.';
@@ -59,6 +73,11 @@ export function phoneActions(app) {
       }
       if (s.agent === 'wisp') return 'That is the tour; it can’t take follow-ups.';
       const r = await ops.reply(String(text || '').trim());
+      if (r.btw) {
+        // Not awaited: the bot keeps taking messages while the side run answers.
+        btwAnswer(sessionId, r.btw.id).then((b) => b && later?.(truncate(b.status === 'done' ? `btw: ${b.answer}` : `Couldn’t answer that: ${b.error}`, 4000))).catch(() => {});
+        return later ? '✓ Asking on the side; the agent keeps working. The answer follows here.' : '✓ Asked on the side; the answer shows on the card in wisp.';
+      }
       return r.answered ? '✓ Answered' : r.interrupted ? '✓ Sent; the agent picked it up mid-run' : r.queued ? '✓ Queued for when it finishes' : '✓ Sent';
     },
   };

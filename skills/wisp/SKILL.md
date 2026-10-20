@@ -37,6 +37,7 @@ wisp wait <id>            # block until it finishes or asks a question; prints t
 wisp show <id>            # current state + latest presentation as markdown
 wisp ls --state running,waiting
 wisp reply <id> "also cover the empty-list case"   # follow-up; answers a pending question too
+wisp btw <id> "did you touch the migrations?"       # side question: answered without interrupting the run
 wisp stop <id>
 ```
 
