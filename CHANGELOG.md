@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-20
+
 ### Added
 
 - **One task across several folders.** A task can now work in more than one project at a time, for example an API and the web app that uses it. In the launcher, ⌘-click (Ctrl- or Shift-click) a second project chip, or click the **+** on its corner or next to it in the project list. One agent starts in the first folder and can read and edit the others: Claude Code and Codex get them as `--add-dir`, and every harness is told the paths. Each git repo gets its own worktree. The card reads `api + web` and shows up under either project's filter. **Ship it** opens a pull request in each repo that has changes, and **Merge all** merges them together and syncs each local base branch. CLI: `wisp "…" --also ~/code/web` (repeatable). API: `"also": [folders]` on `POST /sessions`. MCP: `also` on `wisp_launch`.
@@ -389,7 +391,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/M0xoo/wisp/compare/v0.20.0...v0.21.0
 [0.20.0]: https://github.com/M0xoo/wisp/compare/v0.19.0...v0.20.0
 [0.19.0]: https://github.com/M0xoo/wisp/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/M0xoo/wisp/compare/v0.18.0...v0.18.1
