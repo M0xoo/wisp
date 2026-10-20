@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **How to get a missing harness, where you look for it.** Settings → Agents now shows, for each harness wisp didn't find, what to do on that computer's OS: a one-line tip (e.g. that the ChatGPT app is enough for Codex on macOS and Linux but not on Windows, or that the Antigravity and Cursor editors don't include their CLIs), the install command to copy with one click, and a **Docs** link. In the harness picker, hovering a greyed-out harness shows the same tip, and clicking it (or arrowing onto it) shows the steps in place of its models, with **Re-check** (and **Install** for opencode). It still can't be picked. API: unavailable harnesses in `GET /agents` carry `setup: { tip, command?, url }`; adapters provide it through an optional `setup(platform)`.
+- **Codex and Claude Code from their desktop apps, no CLI install needed.** If `codex` isn't on PATH, wisp uses the Codex CLI the ChatGPT desktop app ships: `ChatGPT.app/Contents/Resources/codex-cli/bin/codex` on macOS (or `Codex.app/Contents/Resources/codex` from the older Codex app), in `/Applications` or `~/Applications`, and `/usr/lib/chatgpt/resources/codex` from the Linux `.deb`. It shares `~/.codex`, so the app's sign-in carries over. The Windows app is a Store package whose files can't be run from outside it, so on Windows Codex still needs the CLI. If `claude` isn't on PATH, wisp uses the newest copy the Claude desktop app downloads for its Code tab, on macOS and Windows (`<app data>/Claude/claude-code/<version>/…`, including the Store installs' folders). That copy is signed in only while the app runs it, so run it once and `/login`. Both adapters also look in the CLIs' own install folders (`~/.codex/packages/standalone/current/bin`, `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`, `~/.local/bin`, `~/.claude/local`), which an app started from the Dock or Start menu may not have on PATH. A `WISP_CODEX_BIN` or `WISP_CLAUDE_BIN` override still wins.
+
 ## [0.22.0] - 2026-10-20
 
 ### Added

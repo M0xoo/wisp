@@ -1,10 +1,9 @@
 // opencode adapter — drives `opencode run --format json` (one JSON event per line).
 
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { toolsDir } from '../util.js';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, detectFirst, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const exe = process.platform === 'win32' ? 'opencode.cmd' : 'opencode';
@@ -12,7 +11,8 @@ const exe = process.platform === 'win32' ? 'opencode.cmd' : 'opencode';
 // and the official install script's folder (it edits your shell profile, which an app started
 // from the Dock or a service never reads).
 export const fallbackBins = () => [path.join(toolsDir(), 'node_modules', '.bin', exe), path.join(os.homedir(), '.opencode', 'bin', process.platform === 'win32' ? 'opencode.exe' : 'opencode')];
-let BIN = process.env.WISP_OPENCODE_BIN || 'opencode';
+const DEFAULT_BIN = process.env.WISP_OPENCODE_BIN || 'opencode';
+let BIN = DEFAULT_BIN;
 // Rate-limited (the free models, mostly), `opencode run` keeps retrying and prints nothing, so
 // the task would sit at "Starting up" for good. Its error log says so: give it this long to get
 // through, then stop and tell the user what to do.
@@ -35,17 +35,14 @@ export default {
     return [BIN, ...(resumeId ? ['--session', resumeId] : []), ...(model ? ['--model', model] : [])];
   },
 
+  // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
+  setup() {
+    return { tip: 'wisp can install it here: free models, no account needed', command: 'npm i -g opencode-ai', url: 'https://opencode.ai' };
+  },
+
   async detect() {
-    let found = await detectVersion(BIN);
-    if (!found.available && !process.env.WISP_OPENCODE_BIN) {
-      for (const bin of fallbackBins().filter((b) => fs.existsSync(b))) {
-        const there = await detectVersion(bin);
-        if (!there.available) continue;
-        BIN = bin;
-        found = there;
-        break;
-      }
-    }
+    const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_OPENCODE_BIN);
+    BIN = bin;
     if (!found.available) return found;
     // `opencode models --verbose` prints each provider/model id followed by its JSON metadata;
     // the metadata's `variants` are the reasoning efforts `run --variant` accepts for that model.

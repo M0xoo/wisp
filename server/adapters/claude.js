@@ -3,10 +3,46 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectVersion, exitText, flatten, rel, spawnJsonl } from './common.js';
+import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectFirst, exitText, flatten, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
 
-const BIN = process.env.WISP_CLAUDE_BIN || 'claude';
+const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
+let BIN = DEFAULT_BIN;
+// Where claude lives when it isn't on PATH: the native installer's folders (an app started from
+// the Dock never reads the shell profile that adds them), then the copies the Claude desktop app
+// downloads for its Code tab into <userData>/claude-code/<version>/<sha12>/ (older builds: straight
+// into <version>/; macOS builds may wrap it in claude.app), newest version first. That copy is
+// signed in only while the app runs it, so on its own it needs one sign-in.
+const newestFirst = (dir) => {
+  try {
+    return fs.readdirSync(dir).sort((a, b) => b.localeCompare(a, 'en', { numeric: true }));
+  } catch {
+    return [];
+  }
+};
+export const fallbackBins = () => {
+  const home = os.homedir();
+  const win = process.platform === 'win32';
+  const exe = win ? 'claude.exe' : 'claude';
+  const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+  // The app's userData: a direct install, then the two Store (MSIX) packages, whose AppData writes
+  // land in their own LocalCache.
+  const userData = {
+    darwin: [path.join(home, 'Library', 'Application Support', 'Claude')],
+    win32: [
+      path.join(process.env.APPDATA || path.join(home, 'AppData', 'Roaming'), 'Claude'),
+      ...['Claude_pzs8sxrjxfjjc', 'AnthropicPBC.Claude_fnn82j28hfe8t'].map((p) => path.join(local, 'Packages', p, 'LocalCache', 'Roaming', 'Claude')),
+    ],
+  }[process.platform] || [];
+  const desktop = userData.flatMap((d) => {
+    const root = path.join(d, 'claude-code');
+    return newestFirst(root).flatMap((v) => [
+      ...newestFirst(path.join(root, v)).flatMap((h) => [path.join(root, v, h, exe), path.join(root, v, h, 'claude.app', 'Contents', 'MacOS', 'claude')]),
+      path.join(root, v, exe),
+    ]);
+  });
+  return [path.join(home, '.local', 'bin', exe), ...(win ? [] : [path.join(home, '.claude', 'local', 'claude')]), ...desktop];
+};
 
 // Claude in Chrome turns itself on only in interactive sessions; `-p` needs --chrome. Follow the
 // user's own "enabled by default" choice (/chrome in Claude Code) so a wisp run gets the same tools.
@@ -46,8 +82,19 @@ export default {
     return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : []), ...dirs.flatMap((d) => ['--add-dir', d])];
   },
 
-  detect() {
-    return detectVersion(BIN);
+  // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
+  setup(platform = process.platform) {
+    return {
+      tip: platform === 'linux' ? 'Install Claude Code, then run claude once to sign in' : 'Install Claude Code and run claude once to sign in. Or open the Claude app’s Code tab once: wisp uses the copy it downloads',
+      command: platform === 'win32' ? 'irm https://claude.ai/install.ps1 | iex' : 'curl -fsSL https://claude.ai/install.sh | bash',
+      url: 'https://claude.com/claude-code',
+    };
+  },
+
+  async detect() {
+    const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_CLAUDE_BIN);
+    BIN = bin;
+    return found;
   },
 
   // What a permission prompt is about, for the approval card and for matching "always allow".

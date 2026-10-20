@@ -35,6 +35,11 @@ export default {
     return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--reasoning-effort', effort] : [])];
   },
 
+  // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
+  setup() {
+    return { tip: 'Install Grok Build (grok) and sign in', url: 'https://x.ai/cli' };
+  },
+
   async detect() {
     const found = await detectVersion(BIN);
     if (!found.available) return found;

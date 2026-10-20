@@ -48,9 +48,20 @@ const fakeApp = () => {
   };
 };
 
-test('with nothing installed, opencode is not found', async () => {
-  const oc = (await listAgents({ fresh: true })).find((a) => a.id === 'opencode');
+test('with nothing installed, opencode is not found, and each harness says how to get it', async () => {
+  const agents = await listAgents({ fresh: true });
+  const oc = agents.find((a) => a.id === 'opencode');
   assert.equal(oc.available, false);
+  // Settings → Agents and the picker show these: a tip for this OS, a docs link, maybe a command.
+  for (const a of agents.filter((x) => !x.available)) {
+    assert.ok(a.setup?.tip, `${a.id} has a setup tip`);
+    assert.match(a.setup.url, /^https:\/\//, `${a.id} links its install guide`);
+  }
+  const { adapters } = await import('../server/adapters/index.js');
+  assert.match(adapters.codex.setup('win32').tip, /can’t be run from outside the app/, 'no ChatGPT-app promise on Windows');
+  assert.match(adapters.codex.setup('linux').tip, /ChatGPT desktop app/);
+  assert.equal(adapters.claude.setup('win32').command, 'irm https://claude.ai/install.ps1 | iex');
+  assert.doesNotMatch(adapters.claude.setup('linux').tip, /Claude app/, 'no Claude desktop app on Linux');
 });
 
 test('installing opencode puts it in ~/.wisp/tools, and it is detected from there with its models', async () => {
@@ -107,4 +118,53 @@ test('npmInstall runs npm install --prefix and passes on its error output', asyn
   // No npm at all: say what to install.
   npm = path.join(dir, 'no-such-npm');
   await assert.rejects(npmInstall('opencode-ai', prefix, { npm }), (err) => err.status === 424 && /npm isn’t on PATH/.test(err.message));
+});
+
+// No codex or claude on PATH, but a desktop app brought one: the ChatGPT app ships codex inside
+// its bundle, the Claude app downloads claude for its Code tab. wisp finds and runs those copies.
+const fakeCli = (exe, name) => {
+  const lib = path.join(path.dirname(exe), 'lib');
+  fs.mkdirSync(lib, { recursive: true });
+  fs.copyFileSync(FAKE, path.join(lib, `${name}.mjs`)); // the fake plays the harness its file is named after
+  fs.writeFileSync(exe, `#!${process.execPath}\nimport(${JSON.stringify(pathToFileURL(path.join(lib, `${name}.mjs`)).href)});\n`);
+  fs.chmodSync(exe, 0o755);
+};
+
+test('codex and claude are found off PATH where their installers and desktop apps keep them', { skip: win }, async () => {
+  const { adapters } = await import('../server/adapters/index.js');
+  const { fallbackBins: codexBins } = await import('../server/adapters/codex.js');
+  const { fallbackBins: claudeBins } = await import('../server/adapters/claude.js');
+  const home = process.env.HOME;
+  const mac = process.platform === 'darwin';
+  if (mac) {
+    assert.ok(codexBins().includes(path.join(home, 'Applications', 'ChatGPT.app', 'Contents', 'Resources', 'codex-cli', 'bin', 'codex')));
+    assert.ok(codexBins().includes('/Applications/Codex.app/Contents/Resources/codex'));
+  }
+  // The standalone installer's copy comes first: /Applications may hold a real ChatGPT app.
+  fakeCli(path.join(home, '.codex', 'packages', 'standalone', 'current', 'bin', 'codex'), 'codex');
+  const desktop = path.join(home, 'Library', 'Application Support', 'Claude', 'claude-code');
+  // Today's layout is <version>/<first 12 of the sha256>/claude; older builds left <version>/claude.
+  const claudeExe = mac ? path.join(desktop, '2.1.10', '0a1b2c3d4e5f', 'claude') : path.join(home, '.local', 'bin', 'claude');
+  fakeCli(claudeExe, 'claude');
+  if (mac) {
+    fakeCli(path.join(desktop, '2.1.9', 'claude'), 'claude');
+    const order = claudeBins();
+    assert.ok(order.includes(claudeExe));
+    assert.ok(order.indexOf(claudeExe) < order.indexOf(path.join(desktop, '2.1.9', 'claude')), 'newest version first');
+  }
+
+  const agents = await listAgents({ fresh: true });
+  for (const id of ['codex', 'claude']) {
+    const a = agents.find((x) => x.id === id);
+    assert.equal(a.available, true, a.error);
+    assert.match(a.version, /9\.9\.9/);
+    assert.equal(a.bin, undefined, 'the path stays server-side');
+    assert.equal(a.setup, undefined, 'found: no setup tip');
+  }
+  const events = [];
+  const cwd = tmp('install-cwd');
+  await adapters.codex.run({ prompt: 'say hi', systemPrompt: '', cwd, mode: 'plan', attachments: [], mcpServers: {}, onEvent: (e) => events.push(e) }).done;
+  const result = events.find((e) => e.type === 'result');
+  assert.equal(result?.isError, false, result?.text);
+  assert.equal(adapters.codex.resumeCommand({ resumeId: 'r1' })[0], path.join(home, '.codex', 'packages', 'standalone', 'current', 'bin', 'codex'));
 });
