@@ -5,9 +5,11 @@
 // result is pushed to the PR when it's done.
 
 import fs from 'node:fs';
-import { worktreeStatus, prView, ship, baseMerged, conflictsWithBase } from '../git.js';
+import path from 'node:path';
+import { worktreeStatus, prView, ship, merge, baseMerged, conflictsWithBase } from '../git.js';
 import { blocksToMarkdown } from '../render.js';
 import { summarize } from '../runner.js';
+import { bad } from '../util.js';
 
 const PR_POLL_MS = 60_000;
 const PR_FAST_POLL_MS = 10_000; // while GitHub is still working something out: checks running, mergeability unknown, a push just landed
@@ -29,15 +31,28 @@ export const conflictPrompt = (s) => {
   ].join('\n');
 };
 
+// The repos a task ships: its own worktree, then those of its other folders (also). Each is
+// { name, wt, at }, where `at` holds that repo's PR (the session for its own, else the also entry).
+export function reposOf(s, store) {
+  const name = (dir) => store?.projectFor?.(dir)?.name || path.basename(dir || '');
+  return [s.worktree && { name: name(s.cwd), wt: s.worktree, at: s }, ...(s.also || []).map((a) => a.worktree && { name: name(a.cwd), wt: a.worktree, at: a })].filter(Boolean);
+}
+// Something new for this repo's PR: uncommitted changes, or commits its open PR (or a new one) lacks.
+const pending = (st, pr) => !!(st.dirty || (pr?.state === 'OPEN' ? st.unpushed : st.ahead));
+const hasTrees = (s) => !!(s?.worktree || s?.also?.some((a) => a.worktree));
+
 export function createShip(app) {
   const { store, runner } = app;
 
   // Ship it shows only when the worktree has something to ship: uncommitted changes, or commits
-  // not yet pushed. Rechecked whenever wisp might have changed the worktree.
+  // not yet pushed. Rechecked whenever wisp might have changed the worktree. A task in several
+  // repos adds theirs up, and `repos` counts the ones with something to ship.
   const check = async (s) => {
-    if (!s?.worktree || s.parentId) return;
-    const { dirty, ahead, unpushed } = await worktreeStatus(s.worktree);
-    const next = { dirty, ahead, unpushed };
+    if (!hasTrees(s) || s.parentId) return;
+    const repos = reposOf(s, store);
+    const all = await Promise.all(repos.map((r) => worktreeStatus(r.wt)));
+    const sum = (k) => all.reduce((n, st) => n + st[k], 0);
+    const next = { dirty: sum('dirty'), ahead: sum('ahead'), unpushed: sum('unpushed'), ...(repos.length > 1 && { repos: all.filter((st, i) => pending(st, repos[i].at.pr)).length }) };
     if (JSON.stringify(next) === JSON.stringify(s.toShip)) return;
     s.toShip = next;
     app.sessionChanged(s);
@@ -47,7 +62,7 @@ export function createShip(app) {
   const checks = new Map(); // id → true while checking, 'again' if another check is due
   const checkedAt = new Map();
   const recheck = (s, { lazy = false } = {}) => {
-    if (!s?.worktree || s.parentId) return;
+    if (!hasTrees(s) || s.parentId) return;
     if (lazy && (runner.live.has(s.id) || checks.has(s.id) || Date.now() - (checkedAt.get(s.id) || 0) < SHIP_RECHECK_MS)) return;
     if (checks.has(s.id)) return void checks.set(s.id, 'again');
     checks.set(s.id, true);
@@ -61,8 +76,25 @@ export function createShip(app) {
       });
   };
 
+  // The PRs of the task's other repos: their state, checks and reviews, for the card.
+  const refreshAlso = async (s) => {
+    const open = (s.also || []).filter((a) => a.pr && a.worktree && a.pr.state === 'OPEN');
+    if (!open.length) return false;
+    let news = false;
+    await Promise.all(
+      open.map(async (a) => {
+        const prev = a.pr;
+        a.pr = await prView(fs.existsSync(a.worktree.path) ? a.worktree.path : a.worktree.root, prev.number).catch(() => ({ ...prev, checkedAt: Date.now() }));
+        if (a.pr.state !== prev.state || a.pr.review !== prev.review || (!a.pr.checks.pending && prev.checks?.pending)) news = true;
+      }),
+    );
+    if (news) s.unread = true;
+    app.sessionChanged(s);
+    return true;
+  };
   const refreshPr = async (s) => {
-    if (!s.pr || !s.worktree) return s.pr;
+    await refreshAlso(s);
+    if (!s.pr || !s.worktree) return s.pr || s.also?.find((a) => a.pr)?.pr;
     const prev = s.pr;
     const dir = fs.existsSync(s.worktree.path) ? s.worktree.path : s.worktree.root;
     const pr = await prView(dir, prev.number);
@@ -135,6 +167,59 @@ export function createShip(app) {
     recheck(s);
   };
 
+  // Ship it: commit, push and open (or update) the PR, in each of the task's repos with something
+  // new. One repo ships as before, even with nothing new (git says why). Several: one PR each,
+  // each noting the others; a failure names its repo and leaves the PRs already opened in place.
+  const shipAll = async (s, { title, body = '', draft = false }) => {
+    const repos = reposOf(s, store);
+    let todo = repos;
+    if (repos.length > 1) {
+      const st = await Promise.all(repos.map((r) => worktreeStatus(r.wt)));
+      todo = repos.filter((r, i) => pending(st[i], r.at.pr));
+      if (!todo.length) throw bad('Nothing to ship: none of the task’s repos have new changes.');
+    }
+    const note = repos.length > 1 ? `\n\nPart of one task across ${repos.map((r) => `\`${r.name}\``).join(', ')}: wisp opens a pull request in each.` : '';
+    s.shipping = { step: 'start', update: todo.every((r) => r.at.pr?.state === 'OPEN'), startedAt: Date.now(), ...(todo.length > 1 && { of: todo.length }) };
+    app.sessionChanged(s);
+    try {
+      for (const [i, r] of todo.entries()) {
+        const onStep = (step) => ((s.shipping = { ...s.shipping, step, ...(todo.length > 1 && { repo: r.name, at: i + 1 }) }), app.sessionChanged(s));
+        try {
+          r.at.pr = await ship(r.wt, { title, body: `${body}${note}`.trim(), draft, pr: r.at.pr, onStep });
+        } catch (err) {
+          throw repos.length > 1 ? Object.assign(new Error(`${r.name}: ${err.message}`), { status: err.status }) : err;
+        }
+      }
+      s.pushedAt = Date.now(); // the PR is polled fast for a while, so its checks show up as they start
+    } finally {
+      delete s.shipping;
+      app.sessionChanged(s, { now: true });
+    }
+    recheck(s);
+    return { ...(s.pr || todo[0].at.pr), ...(repos.length > 1 && { prs: prsOf(s) }) };
+  };
+  // Every PR the task opened, its own first: { repo, number, url, state }.
+  const prsOf = (s) => reposOf(s, store).filter((r) => r.at.pr).map((r) => ({ repo: r.name, number: r.at.pr.number, url: r.at.pr.url, state: r.at.pr.state }));
+
+  // Merge: squash-merge each open PR of the task, its own first. Stops at the first that fails.
+  const mergeAll = async (s) => {
+    const open = reposOf(s, store).filter((r) => r.at.pr?.state === 'OPEN');
+    if (!open.length) throw bad('No pull request to merge.');
+    const synced = [];
+    for (const r of open) {
+      try {
+        const { pr, sync } = await merge(r.wt, r.at.pr.number);
+        r.at.pr = pr;
+        synced.push(sync);
+      } catch (err) {
+        app.sessionChanged(s, { now: true });
+        throw open.length > 1 ? Object.assign(new Error(`${r.name}: ${err.message}`), { status: err.status }) : err;
+      }
+    }
+    const sync = { ok: synced.every((x) => x.ok), text: synced.map((x) => x.text).join(' ') };
+    return { pr: s.pr || open[0].at.pr, sync, ...(reposOf(s, store).length > 1 && { prs: prsOf(s) }) };
+  };
+
   // Default commit message and PR text, from the session's latest presentation.
   const draft = (s) => {
     const turn = s.turns.findLast((t) => t.status === 'done') || s.turns.at(-1);
@@ -158,7 +243,7 @@ export function createShip(app) {
     delete s.shipping; // a ship cut short by a restart isn't running anymore
     if (s.conflictFix?.step === 'pushing') Object.assign(s.conflictFix, { step: 'failed', why: 'wisp restarted while pushing the fix.' });
   }
-  for (const s of store.all()) if (s.worktree && !s.archived && s.pr?.state !== 'MERGED') recheck(s);
+  for (const s of store.all()) if (hasTrees(s) && !s.archived && s.pr?.state !== 'MERGED') recheck(s);
 
   // Open PRs are checked every minute, and every few seconds while their state is still settling,
   // so a check finishing or a pushed fix clearing the conflict shows up quickly.
@@ -171,7 +256,9 @@ export function createShip(app) {
     if (polling) return;
     polling = true;
     try {
-      const due = store.all().filter((s) => s.pr?.state === 'OPEN' && Date.now() - (s.pr.checkedAt || 0) >= (settling(s) ? PR_FAST_POLL_MS : PR_POLL_MS));
+      // A task's other repos' PRs ride along with its own (or poll on their own when it has none open).
+      const lead = (s) => (s.pr?.state === 'OPEN' ? s.pr : s.also?.find((a) => a.pr?.state === 'OPEN')?.pr);
+      const due = store.all().filter((s) => lead(s) && Date.now() - (lead(s).checkedAt || 0) >= (s.pr?.state === 'OPEN' && settling(s) ? PR_FAST_POLL_MS : PR_POLL_MS));
       await Promise.all(due.map((s) => refreshPr(s).catch(() => {})));
     } finally {
       polling = false;
@@ -179,5 +266,5 @@ export function createShip(app) {
   }, PR_TICK_MS);
   timer.unref();
 
-  return { recheck, refreshPr, fixConflicts, draft, stop: () => clearInterval(timer) };
+  return { recheck, refreshPr, fixConflicts, draft, shipAll, mergeAll, prsOf, stop: () => clearInterval(timer) };
 }

@@ -276,6 +276,66 @@ test('ship it refuses an empty branch and sessions without a worktree', async ()
   await assert.rejects(api(`/sessions/${flat.id}/ship`), /worktree sessions/);
 });
 
+// One task across two repos (also): the agent gets the second as an extra dir, each repo its own
+// worktree; Ship it opens a PR in each, and Merge merges both and syncs both checkouts.
+test('one task across two repos: a worktree each, a PR each, merged together', async () => {
+  const api1 = makeClone();
+  const web = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'ALSO fix add() in both repos', cwd: api1.dir, also: [web.dir, api1.dir, path.join(api1.dir, '.')], agent: 'claude' } });
+  assert.equal(s.also.length, 1, 'cwd itself is dropped from also');
+  assert.equal(fs.realpathSync(s.also[0].cwd), fs.realpathSync(web.dir));
+  assert.match(s.also[0].branch, /^wisp\/also-fix-add-in-both-repos-/);
+  const done = await settled(s.id);
+  const [extra] = done.also;
+  // The agent ran in the first repo's worktree with the second's worktree as an extra dir, and was told about it.
+  const run = records(RECORD, 'claude').findLast((r) => fs.realpathSync(r.cwd) === fs.realpathSync(done.worktree.path));
+  assert.ok(run.argv.slice(run.argv.indexOf('--add-dir')).includes(extra.worktree.cwd), run.argv.join(' '));
+  assert.match(run.argv[run.argv.indexOf('--append-system-prompt') + 1], /This task spans 2 folders/);
+  for (const dir of [done.worktree.path, extra.worktree.path]) assert.match(fs.readFileSync(path.join(dir, 'math.js'), 'utf8'), /a \+ b/);
+  for (const dir of [api1.dir, web.dir]) assert.match(fs.readFileSync(path.join(dir, 'math.js'), 'utf8'), /a - b/);
+  // Both folders are projects, and the task lists under either one.
+  const projects = (await api('/config')).projects;
+  const webProject = projects.find((p) => fs.realpathSync(p.path) === fs.realpathSync(web.dir));
+  assert.ok(webProject);
+  assert.ok((await api(`/sessions?project=${webProject.id}`)).some((x) => x.id === s.id));
+  assert.ok((await api(`/sessions?cwd=${encodeURIComponent(web.dir)}`)).some((x) => x.id === s.id));
+
+  const toShip = async () => (await api('/sessions')).find((x) => x.id === s.id).toShip;
+  await until(async () => (await toShip())?.repos === 2);
+  const draft = await api(`/sessions/${s.id}/ship`);
+  assert.equal(draft.repos.length, 2);
+  assert.equal(draft.dirty, 2);
+  setGh({ checks: [], review: '' });
+  const pr = await api(`/sessions/${s.id}/ship`, { body: { title: 'fix: add adds' } });
+  assert.equal(pr.prs.length, 2);
+  for (const [repo, wt] of [[api1, done.worktree], [web, extra.worktree]]) assert.match(repo.git('--git-dir', repo.remote, 'log', '--format=%s%n%b', wt.branch), /fix: add adds\n[\s\S]*Part of one task across/);
+  const sum = (await api('/sessions')).find((x) => x.id === s.id);
+  assert.equal(sum.also[0].pr.number, pr.prs[1].number);
+  await until(async () => (await toShip())?.repos === 0);
+  await assert.rejects(api(`/sessions/${s.id}/ship`, { body: { title: 'again' } }), /none of the task’s repos have new changes/);
+
+  const r = await api(`/sessions/${s.id}/merge`, { body: {} });
+  assert.deepEqual(r.prs.map((x) => x.state), ['MERGED', 'MERGED']);
+  for (const repo of [api1, web]) assert.match(fs.readFileSync(path.join(repo.dir, 'math.js'), 'utf8'), /a \+ b/);
+  assert.equal(fs.existsSync(extra.worktree.path), false);
+  assert.equal((await session(s.id)).state, 'done');
+});
+
+test('also: a folder that is not there is refused; one that is not a repo is used in place', async () => {
+  const repo = makeClone();
+  await assert.rejects(api('/sessions', { body: { prompt: 'x', cwd: repo.dir, also: [path.join(repo.dir, 'nope')], agent: 'claude' } }), /Not a directory/);
+  const plain = tmp('plain-also');
+  const s = await api('/sessions', { body: { prompt: 'ALSO look', cwd: repo.dir, also: [plain], agent: 'claude' } });
+  assert.equal(s.also[0].branch, '');
+  const done = await settled(s.id);
+  assert.equal(done.also[0].worktree, undefined);
+  const run = records(RECORD, 'claude').findLast((r) => fs.realpathSync(r.cwd) === fs.realpathSync(done.worktree.path));
+  assert.ok(run.argv.includes(done.also[0].cwd));
+  // Deleting the task removes its worktrees and leaves the plain folder alone.
+  await api(`/sessions/${s.id}`, { method: 'DELETE' });
+  assert.equal(fs.existsSync(plain), true);
+});
+
 test('archive drops a clean worktree and a follow-up brings it back; delete removes it', async () => {
   const repo = makeClone();
   const s = await api('/sessions', { body: { prompt: 'Tidy math.js', cwd: repo.dir, agent: 'claude' } });

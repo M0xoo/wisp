@@ -41,6 +41,18 @@
 .lp-chip.more:hover, .lp-chip.more.open { color: var(--ink); border-color: var(--line-2); }
 .lp-chip.more .i { width: 12px; height: 12px; }
 .l-projects .lp-chip[hidden] { display: none; }
+/* one task, several folders: a small badge on a chip's corner adds it (+) or leaves it out (×) */
+.l-projects .lp-chip { position: relative; }
+.lp-also {
+  position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--line-2); color: var(--muted); box-shadow: var(--shadow-1);
+  opacity: 0; transform: scale(0.6); transition: opacity 0.12s, transform 0.12s, color 0.12s, background 0.12s; pointer-events: none;
+}
+.lp-also .i { width: 10px; height: 10px; }
+.lp-chip:is(:hover, :focus-visible) .lp-also { opacity: 1; transform: none; pointer-events: auto; }
+.lp-also:hover { color: #fff; background: var(--accent); border-color: var(--accent); }
+.lp-also.x:hover { background: var(--bad); border-color: var(--bad); }
+@media (hover: none) { .lp-also:not(.x) { opacity: 1; transform: none; pointer-events: auto; } }
 /* narrow, with "+N" (whose list has No folder too): it goes icon-only unless picked */
 @container launcher (max-width: 520px) { .l-projects:has(.more:not([hidden])) .lp-chip.none:not(.on) span { display: none; } }
 /* recipes: one-click prompts under the launch bar */

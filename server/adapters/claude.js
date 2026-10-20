@@ -41,8 +41,8 @@ export default {
   efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 
   // Interactive command to take over a session in a terminal.
-  resumeCommand({ resumeId, model, effort }) {
-    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : [])];
+  resumeCommand({ resumeId, model, effort, dirs = [] }) {
+    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : []), ...dirs.flatMap((d) => ['--add-dir', d])];
   },
 
   detect() {
@@ -56,7 +56,8 @@ export default {
 
   // Returns { stop(), done: Promise<void> }. Everything else is reported through onEvent.
   // grants: --allowedTools rules (Bash(npm publish)) for what the user allowed after a denial.
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
+  // dirs: the task's other folders, which it may read and edit like cwd.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
     const args = [
       '-p',
       '--output-format', 'stream-json',
@@ -74,7 +75,7 @@ export default {
     if (allowed.length) args.push('--allowedTools', ...allowed);
     // Its built-in subagents (Task, or Agent in newer versions) would bypass the user's team.
     if (delegating) args.push('--disallowedTools', 'Task', 'Agent', 'Workflow');
-    const dirs = [...new Set(attachments.map((a) => path.dirname(a.path)))];
+    const dirs = [...new Set([...extra, ...attachments.map((a) => path.dirname(a.path))])];
     if (dirs.length) args.push('--add-dir', ...dirs);
     args.push('--verbose'); // terminates the variadic flags above
     prompt += attachmentNote(attachments, 'Read images and PDFs with the Read tool');

@@ -78,6 +78,9 @@
   font-size: 11px; font-weight: 500; padding: 0 7px; border-radius: 5px; line-height: 19px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
   color: color-mix(in srgb, var(--pc) 65%, var(--ink)); background: color-mix(in srgb, var(--pc) 10%, transparent);
 }
+/* a task in several folders: the others after its own, each in its colour */
+.q-proj.multi { max-width: 180px; }
+.q-also { margin-left: 4px; color: color-mix(in srgb, var(--pc) 65%, var(--ink)); }
 .q-time { font-size: 11.5px; color: var(--faint); min-width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
 .q-queued { font-size: 11px; color: var(--accent-ink); font-weight: 600; }
 /* one-click done on collapsed review rows; revealed on hover/focus */

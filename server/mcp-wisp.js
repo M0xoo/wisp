@@ -23,6 +23,7 @@ const TOOLS = [
       properties: {
         prompt: { type: 'string', description: 'The task, written as you would brief a colleague: goal, constraints, how to verify.' },
         cwd: { type: 'string', description: 'Absolute path of the project folder. Default: this MCP server’s working directory.' },
+        also: { type: 'array', items: { type: 'string' }, description: 'Absolute paths of more folders the same agent works in (e.g. the API next to its web app). Git repos each get a worktree, and Ship it opens a PR in each.' },
         agent: { type: 'string', enum: AGENTS, description: 'Harness to run; auto lets wisp pick harness and model from what worked before. Default: the user’s last pick in wisp.' },
         mode: { type: 'string', enum: ['plan', 'edits', 'auto'], description: 'plan = read-only, edits = auto-accept file edits, auto = no permission prompts. Default: the user’s pick.' },
         model: { type: 'string', description: 'Model id for that harness. Default: the user’s pick.' },
@@ -116,7 +117,7 @@ async function callTool(name, a = {}) {
   switch (name) {
     case 'wisp_launch': {
       if (!a.prompt?.trim()) throw new Error('prompt is required');
-      const s = await c.launch({ prompt: a.prompt, cwd: a.cwd || process.cwd(), agent: a.agent, mode: a.mode, model: a.model, effort: a.effort, subagents: a.subagents, preset: a.preset });
+      const s = await c.launch({ prompt: a.prompt, cwd: a.cwd || process.cwd(), also: Array.isArray(a.also) ? a.also : undefined, agent: a.agent, mode: a.mode, model: a.model, effort: a.effort, subagents: a.subagents, preset: a.preset });
       if (a.wait) return waitFor(s.id);
       return `Launched session \`${s.id}\` (“${s.title}”) on ${s.agent} in ${s.cwd}, mode ${s.mode}. Call wisp_wait or wisp_get with this id for the result.`;
     }

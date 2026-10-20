@@ -19,6 +19,7 @@
 //                the first reply a full presentation (a finished task that left a dev server up)
 //   FAKE_ORPHANS=1  claude: on --resume, first answer the last run's stopped background tasks with
 //                an empty zero-turn result, as the real CLI does
+// A prompt with ALSO (a task across several folders) makes claude fix math.js in each --add-dir too.
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 // Permissions: with APPROVE, claude asks wisp's `approve` tool (its --permission-prompt-tool)
@@ -239,6 +240,14 @@ if (name === 'claude') {
   else {
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't2', name: 'Edit', input: { file_path: target, old_string: 'a - b', new_string: 'a + b' } }] } });
     fs.writeFileSync(target, after);
+    if (stdin.includes('ALSO')) {
+      const at = argv.indexOf('--add-dir');
+      const dirs = at < 0 ? [] : argv.slice(at + 1, argv.findIndex((a, i) => i > at && a.startsWith('--')));
+      for (const f of dirs.map((d) => path.join(d, 'math.js')).filter((f) => fs.existsSync(f))) {
+        out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: `t2-${f}`, name: 'Edit', input: { file_path: f, old_string: 'a - b', new_string: 'a + b' } }] } });
+        fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('a - b', 'a + b'));
+      }
+    }
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't3', name: 'Bash', input: { command: 'npm test', description: 'Run the tests' } }] } });
     out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't3', is_error: true, content: '1 failing' }] } });
     const answer = await ask();

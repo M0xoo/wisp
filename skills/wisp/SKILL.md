@@ -23,7 +23,8 @@ wisp "add pagination to /api/users" --cwd ~/code/api --wait     # block until do
 ```
 
 Options: `--agent claude|codex|opencode|cursor|antigravity|grok`, `--mode plan|edits|auto`, `--model ID`,
-`--effort low|medium|high`, `--cwd DIR` (default: current folder), `--wait`, `--json`.
+`--effort low|medium|high`, `--cwd DIR` (default: current folder), `--also DIR` (another folder the
+same agent works in, repeatable: e.g. the API and its web app), `--wait`, `--json`.
 `--json` prints the session summary; its `id` is what every other command takes.
 
 Write the prompt as a self-contained brief: the agent cannot see your conversation. Include the

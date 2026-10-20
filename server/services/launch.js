@@ -2,6 +2,7 @@
 // runs), here or on a machine, plus the follow-ups and "done" that every surface shares.
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { adapters } from '../adapters/index.js';
 import { createWorktree, worktreeSource, ensureWorktree, removeWorktree } from '../git.js';
 import { qualify } from '../machines.js';
@@ -11,11 +12,32 @@ import { normalizeTeam } from '../subagents.js';
 import { bad, expand, MODES, newId } from '../util.js';
 
 export const MAX_COMPARE = 4;
+export const MAX_ALSO = 8; // extra folders one task may work in
+
+// also: more folders the task works in besides cwd (a backend and its web app, say). Each must be
+// a directory; repeats, cwd itself and folders inside one already listed are dropped.
+export function alsoDirs(list, cwd) {
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) throw bad('also must be a list of folders.');
+  const inside = (a, b) => a === b || a.startsWith(b.endsWith(path.sep) ? b : b + path.sep);
+  const out = [];
+  for (const x of list) {
+    const raw = typeof x === 'string' ? x : x?.cwd;
+    if (!String(raw || '').trim()) continue;
+    const dir = path.resolve(expand(String(raw).trim()));
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) throw bad(`Not a directory: ${dir}`);
+    if (inside(dir, cwd) || out.some((d) => inside(dir, d))) continue;
+    for (let i = out.length - 1; i >= 0; i--) if (inside(out[i], dir)) out.splice(i, 1);
+    out.push(dir);
+  }
+  if (out.length > MAX_ALSO) throw bad(`A task can work in up to ${MAX_ALSO + 1} folders.`);
+  return out;
+}
 
 export function createLaunch(app) {
   const { store, runner, machines } = app;
 
-  // body: { prompt, cwd, scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
+  // body: { prompt, cwd, also: [folder], scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
   //         subagents: [{ name, agent, model, effort, use }] | preset: teamId }
   async function launch(body, origin = null) {
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
@@ -23,6 +45,7 @@ export function createLaunch(app) {
     const scratch = body.scratch === true;
     const cwd = scratch ? store.scratchDir(newId()) : expand(body.cwd || process.cwd());
     if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) throw bad(`Not a directory: ${cwd}`);
+    const also = scratch ? [] : alsoDirs(body.also, cwd);
     const d = store.config.defaults;
     const preset = body.preset && store.config.teams.find((t) => t.id === body.preset);
     if (body.preset && !preset && !body.subagents) throw bad(`no such subagent preset: ${body.preset}`);
@@ -66,7 +89,16 @@ export function createLaunch(app) {
       }
       if (failed) console.warn(`wisp: no worktree for ${cwd}: ${failed.message}`);
     }
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    // The other folders: a worktree of their own per run where they're git repos (so parallel
+    // tasks don't collide there either), else the folder itself.
+    const extras = await Promise.all(
+      also.map(async (dir) => {
+        const source = wantTree && (await worktreeSource(dir).catch(() => null));
+        const made = await Promise.all(ids.map((id) => (source ? createWorktree({ cwd: dir, home: store.home, id, title: body.prompt, source }).catch((err) => console.warn(`wisp: no worktree for ${dir}: ${err.message}`)) : null)));
+        return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
+      }),
+    );
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
   // Where a launch runs: body.machine, else a project folder that only exists on a machine
@@ -110,7 +142,7 @@ export function createLaunch(app) {
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
   async function replyTo(s, text, attachments = [], queue, mode, run) {
-    await ensureWorktree(s.worktree);
+    for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
     return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run });
   }
 

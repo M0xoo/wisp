@@ -279,7 +279,7 @@ export async function rerun(id) {
     if (!prompt) return ta.focus();
     close();
     try {
-      const body = { prompt, cwd: s.cwd, agent, mode, model, effort, attachments: files.map((f) => f.id) };
+      const body = { prompt, cwd: s.cwd, also: s.also?.map((a) => a.cwd), agent, mode, model, effort, attachments: files.map((f) => f.id) };
       const next = await launchBehind({ prompt, cwd: s.cwd, runner: { agent, model, effort } }, () => api('/sessions', { method: 'POST', body }));
       setFocus(next.id);
     } catch (err) {

@@ -304,6 +304,7 @@ export function openapi({ version, port }) {
           properties: {
             prompt: { type: 'string' },
             cwd: { type: 'string', description: 'Project folder (absolute; ~ allowed). Default: the server’s cwd' },
+            also: { type: 'array', maxItems: 8, items: { type: 'string' }, description: 'More folders the same task works in (absolute; ~ allowed). The agent gets each; git repos get their own worktree, and Ship it opens a PR in each' },
             scratch: { type: 'boolean', description: 'No project folder: run in an empty scratch directory (no worktree). Overrides cwd' },
             agent: { enum: ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'auto', description: 'auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)' },
             important: { type: 'boolean', description: 'With agent auto: no exploring, take the pick with the best record' },

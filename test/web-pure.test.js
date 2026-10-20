@@ -127,3 +127,15 @@ test('bus: subscribers get events; one tied to a node stops once the node is gon
   bus.emit('nobody-listens', 5);
   assert.deepEqual(seen, [['free', 1], ['node', 1], ['free', 2], ['free', 3]]);
 });
+
+test('places: a task in several folders lists under each project, its card names them', async () => {
+  const { inProject, projectLabel } = await import('../web/js/features/places.js');
+  const s = { projectId: 'api', project: 'api', also: [{ projectId: 'web', project: 'web', color: 'teal' }] };
+  assert.equal(inProject(s, 'api'), true);
+  assert.equal(inProject(s, 'web'), true);
+  assert.equal(inProject(s, 'docs'), false);
+  assert.equal(inProject({ projectId: 'api' }, 'web'), false);
+  assert.equal(projectLabel({ project: 'a<b' }), '<span class="q-proj">a&lt;b</span>');
+  assert.match(projectLabel(s), /api<span class="q-also c-teal">\+ web<\/span>/);
+  assert.match(projectLabel({ ...s, also: [...s.also, { project: 'docs', color: 'amber' }] }), /<span class="q-also ">\+2<\/span>/);
+});

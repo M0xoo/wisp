@@ -73,6 +73,12 @@
 .pm-row .p-run { flex: none; }
 .pm-row .pm-check { flex: none; width: 14px; height: 14px; color: var(--accent); visibility: hidden; }
 .pm-row.on .pm-check { visibility: visible; }
+/* the launcher's list: + adds a project to the task, ✓ shows it's in */
+.pm-also { flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin: -2px -4px -2px 0; border-radius: 6px; color: var(--faint); }
+.pm-also .i { width: 13px; height: 13px; }
+.pm-also:hover { color: var(--ink); background: var(--surface-2); }
+.pm-row.in .pm-also { color: var(--accent); }
+.pm-row.in .pm-name { font-weight: 500; color: var(--ink); }
 .pm-x .i { width: 14px; height: 14px; color: var(--muted); }
 .pm-empty { padding: 18px 10px; text-align: center; font-size: 13px; color: var(--muted); }
 .menu .danger:hover { color: var(--bad); background: var(--del-bg); }

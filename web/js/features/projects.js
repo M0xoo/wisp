@@ -13,7 +13,7 @@ import { feedToTop, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
 import { connectMachine, openMachines } from './machines.js';
-import { MACHINE_STATE, machineById, placeOf, projectById, projectTitle, recentFirst } from './places.js';
+import { inProject, MACHINE_STATE, machineById, placeOf, projectById, projectTitle, recentFirst } from './places.js';
 import { projectList } from './project-list.js';
 
 // Project filter chips in the top bar before the rest fold into "+N".
@@ -23,7 +23,7 @@ let fitBar; // refits the chips when the bar's width changes
 export function renderProjects() {
   const all = [...S.sessions.values()];
   const stats = (pid) => {
-    const l = pid === 'all' ? all : all.filter((s) => s.projectId === pid);
+    const l = pid === 'all' ? all : all.filter((s) => inProject(s, pid));
     return { run: l.filter((s) => s.state === 'running').length, need: l.filter((s) => s.state === 'waiting' || (s.state === 'review' && s.unread)).length };
   };
   const badges = (id) => {
@@ -259,6 +259,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
   const picked = async (proj) => {
     await loadConfig();
     launch.picks[placeOf(proj)] = proj.id;
+    delete launch.also[placeOf(proj)];
     if (!launch.where.includes(placeOf(proj))) launch.where = [placeOf(proj)];
     if (placeOf(proj) === launch.where[0]) launch.project = proj.id;
     saveLaunch();
@@ -343,7 +344,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
       ? pending +
         projects
           .map((p) => {
-            const n = [...S.sessions.values()].filter((s) => s.projectId === p.id).length;
+            const n = [...S.sessions.values()].filter((s) => inProject(s, p.id)).length;
             return `<div class="prow c-${p.color}" data-id="${p.id}">
               <button class="swatch" title="Change colour"><i class="p-dot"></i></button>
               <div class="prow-main"><input class="pname" value="${esc(p.name)}"><span class="ppath">${esc(tilde(p.path))}</span></div>

@@ -42,6 +42,7 @@
 .pill.st-running { --tone: var(--accent); }
 .it-meta .m.branch, .it-meta .m:has(> .i) { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .it-meta .m.branch { font: 11px var(--mono); color: var(--ink-2); }
+.it-meta .m.also { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2); }
 .it-meta .m .i { width: 12px; height: 12px; flex: none; color: var(--faint); }
 .it-meta .m.m-plan, .it-meta .m.m-plan .i { color: var(--accent-ink); }
 .it-meta .m.m-auto, .it-meta .m.m-auto .i { color: var(--warn); }
@@ -60,6 +61,14 @@
 .pr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tone); flex: none; }
 .pr-strip.pr-pending .pr-dot { animation: pulse 1.4s ease-in-out infinite; }
 .pr-num { font-weight: 600; color: var(--ink); white-space: nowrap; }
+/* a task in several repos: their PRs after the first, each with its own tone */
+.pr-also { --tone: var(--good); display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 1px 7px; border-radius: 6px; font-weight: 500; color: var(--ink); white-space: nowrap; background: color-mix(in srgb, var(--tone) 10%, transparent); }
+.pr-also i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
+.pr-also:hover { background: color-mix(in srgb, var(--tone) 18%, transparent); }
+.pr-also.pr-pending { --tone: var(--warn); }
+.pr-also.pr-fail { --tone: var(--bad); }
+.pr-also.pr-merged { --tone: #8250df; }
+.pr-also.pr-closed { --tone: var(--faint); }
 .pr-line { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pr-strip .ghost .i { width: 13px; height: 13px; }
 .pr-strip .pr-merge { color: var(--good); font-weight: 500; }
@@ -74,12 +83,15 @@
 .ship-route code { font: 12px var(--mono); padding: 1px 6px; border-radius: 6px; background: var(--bg-2); }
 .ship-route .i { width: 13px; height: 13px; color: var(--faint); }
 .ship-route .muted { margin-left: auto; }
+.ship-route .ship-repo { font-weight: 600; color: var(--ink); }
+.ship-route + .ship-route { margin-top: -6px; }
 .ship-field { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 0; }
 .ship-field > span { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
 .ship-field select { width: 100%; }
 .ship-check { display: flex; margin-top: 10px; }
 .ship-foot { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .ship-foot > .muted { margin-right: auto; }
+.ship-foot > .primary { flex: none; white-space: nowrap; }
 .ship-foot code { font-size: 11px; }
 .hint.bad { color: var(--bad); }
 
