@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **The Auto-fix PR conflicts switch works on its own.** In Settings → General it only responded after you had clicked Worktree per task in the same visit.
 - **Chevrons inside Done cards point the right way.** Showing the Done list rotated every chevron in its cards too, so collapsed cards looked open.
+- **The rerun dialog's Rerun button no longer slides off the edge.** With the **Run on** picker added, the bar under the prompt (place, mode, harness) was wider than the dialog and pushed **Rerun** out of view. The dialog is a little wider, and when space runs short the harness name folds first (its logo stays), then the model; on narrow windows the place and mode buttons show only their icons.
 
 ## [0.21.0] - 2026-10-20
 
