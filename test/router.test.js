@@ -145,18 +145,45 @@ test('limits: a usage or rate limit is the harness being unavailable, not the mo
   assert.equal(r.choose({ prompt: 'x', agents: AGENTS, allowed: ['claude'], important: true }).agent, 'claude');
 });
 
-test('cold start: Balanced leans to stronger tiers until there are enough of your outcomes', () => {
-  const r = new Router(tmp('router-cold'));
-  const tiers = (goal) => new Set(Array.from({ length: 40 }, (_, i) => tierOf(r.choose({ prompt: 'fix the bug', agents: AGENTS, goal, rng: seeded(i + 3) }).key)));
-  assert.ok(!tiers('balanced').has(1), 'no small models for Balanced yet');
+test('Balanced runs on the strongest tier you have, whatever the record of the weaker ones; Cheap learns across tiers', () => {
+  const r = new Router(tmp('router-tiers'));
+  const everyday = [{ id: 'claude', name: 'Claude Code', available: true, models: [{ id: 'sonnet', label: 'Sonnet' }, { id: 'haiku', label: 'Haiku' }] }, AGENTS[3]];
+  const tiers = (goal, agents = AGENTS) => new Set(Array.from({ length: 40 }, (_, i) => tierOf(r.choose({ prompt: 'fix the bug', agents, goal, rng: seeded(i + 3) }).key)));
+  assert.deepEqual([...tiers('balanced')], [3], 'frontier when you have one');
+  assert.deepEqual([...tiers('balanced', everyday)], [2], 'else everyday, never small');
   assert.deepEqual([...tiers('best')], [3], 'Best is frontier only');
-  assert.ok(r.choose({ prompt: 'x', agents: AGENTS, goal: 'balanced' }).route.coldStart);
   // A hand-over asks for a stronger tier than the run it replaces.
   for (let i = 0; i < 20; i++) assert.equal(tierOf(r.choose({ prompt: 'x', agents: AGENTS, goal: 'best', important: true, minTier: 3, rng: seeded(i + 1) }).key), 3);
-  // With enough of your outcomes, it's your data that decides, whatever the tier.
+  // Haiku winning every task makes it Cheap's pick, not Balanced's.
   for (let i = 0; i < 25; i++) (r.record(`h${i}`, { key: 'claude:haiku', type: 'bug', at: Date.now() }), r.signal(`h${i}`, { feedback: 'up' }));
-  assert.ok(!r.choose({ prompt: 'fix the bug', agents: AGENTS, goal: 'balanced' }).route.coldStart);
-  assert.ok(tiers('balanced').has(1), 'haiku earned its place');
+  assert.deepEqual([...tiers('balanced', everyday)], [2]);
+  assert.ok(tiers('cheap').has(1), 'Cheap may pick it next to Opus');
+});
+
+test('Balanced runs frontier models when you have one, at default or medium thinking; Best at high', () => {
+  const LEVELS = [
+    { id: 'claude', name: 'Claude Code', available: true, efforts: ['low', 'medium', 'high', 'xhigh', 'max'], models: [{ id: '' }, { id: 'opus', label: 'Opus' }, { id: 'sonnet', label: 'Sonnet' }, { id: 'haiku', label: 'Haiku' }] },
+    { id: 'antigravity', name: 'Antigravity', available: true, efforts: ['low', 'medium', 'high'], models: [{ id: '' }, ...['low', 'medium', 'high'].map((l) => ({ id: `gemini-4-argon-${l}`, label: `Argon ${l}`, efforts: [] })), { id: 'gemini-3.8-flash-medium', label: 'Flash', efforts: [] }] },
+  ];
+  const r = new Router(tmp('router-balanced'));
+  // Sonnet and Haiku win every task, Opus loses some.
+  for (let i = 0; i < 30; i++) {
+    for (const key of ['claude:sonnet', 'claude:haiku:medium']) (r.record(`${key}${i}`, { key, type: 'bug', at: Date.now() }), r.signal(`${key}${i}`, { merged: true }));
+    (r.record(`o${i}`, { key: 'claude:opus:medium', type: 'bug', at: Date.now() }), r.signal(`o${i}`, { hero: i % 2 ? 'done' : 'partial' }));
+  }
+  const picks = (goal, opts = {}) => Array.from({ length: 40 }, (_, i) => r.choose({ prompt: 'fix the bug', agents: LEVELS, goal, rng: seeded(i + 7), ...opts }));
+  for (const p of picks('balanced')) {
+    assert.equal(tierOf(p.key), 3, p.key);
+    assert.ok(p.model === 'gemini-4-argon-medium' || (p.model === 'opus' && ['', 'medium'].includes(p.effort)), p.key);
+  }
+  for (const p of picks('best')) assert.ok(p.key === 'antigravity:gemini-4-argon-high' || ['claude:opus:high', 'claude:opus:xhigh'].includes(p.key), p.key);
+  for (const p of picks('cheap', { allowed: ['antigravity'] })) assert.notEqual(p.model, 'gemini-4-argon-high', p.key);
+  // Taking a model takes every variant of it.
+  assert.equal(r.choose({ prompt: 'x', agents: LEVELS, goal: 'best', allowed: ['antigravity'], exclude: ['antigravity:gemini-4-argon-high'] }), null);
+  // Every frontier model at its limit: Balanced steps down so the task still runs (Best doesn't).
+  r.cool('claude:opus', { scope: 'arm', ms: 60_000 });
+  assert.equal(r.choose({ prompt: 'x', agents: LEVELS, goal: 'balanced', allowed: ['claude'], important: true }).model, 'sonnet');
+  assert.equal(r.choose({ prompt: 'x', agents: LEVELS, goal: 'best', allowed: ['claude'] }), null);
 });
 
 test('Best runs frontier models only, whatever the record of the others', () => {
@@ -166,11 +193,9 @@ test('Best runs frontier models only, whatever the record of the others', () => 
     for (const key of ['claude:sonnet:high', 'claude:haiku:high']) (r.record(`${key}${i}`, { key, type: 'bug', at: Date.now() }), r.signal(`${key}${i}`, { merged: true }));
     (r.record(`o${i}`, { key: 'claude:opus:high', type: 'bug', at: Date.now() }), r.signal(`o${i}`, { hero: 'blocked' }));
   }
-  assert.ok(r.learned() >= 20, 'past the cold start');
   for (let i = 0; i < 40; i++) {
     const p = r.choose({ prompt: 'fix the bug', agents: AGENTS, goal: 'best', rng: seeded(i + 1) });
     assert.equal(tierOf(p.key), 3, p.key);
-    assert.ok(!p.route.coldStart);
   }
   assert.equal(r.choose({ prompt: 'fix the bug', agents: AGENTS, goal: 'best', allowed: ['claude'], important: true }).model, 'opus');
   // Every frontier model taken or at its limit: nothing, not a step down.

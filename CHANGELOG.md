@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Auto's Balanced goal runs frontier models.** When you have a frontier model installed and allowed (Opus, Codex's default, Gemini Argon, Grok 4.x), Balanced now picks it, at the harness's default or medium thinking, instead of Sonnet or Haiku. Best stays on frontier models at high or x-high, so the thinking level is what sets the two apart. Balanced steps down to an everyday model (Sonnet, never Haiku) only while every frontier model is at its limit, so the task still runs, or when you have none; small models' wins no longer pull Balanced to them after 20 outcomes. Cheap is unchanged. For models with the level in their name (Antigravity's `gemini-4-argon-low` / `-medium` / `-high`), the goal now picks the variant: Cheap low, Balanced medium, Best high, and the other variants count as the same model.
+
 ## [0.22.0] - 2026-10-20
 
 ### Added
