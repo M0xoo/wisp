@@ -1,5 +1,6 @@
-// Projects and machines: the places a task can run. A project is a folder, on this computer or on a
-// machine (another computer running its own wisp, reached over SSH).
+// Projects and machines: the places a task can run. A project is one repo, and runs on every place:
+// it was added on one (path, machine), and wisp clones it onto the others the first time a task
+// runs there (copies: { [machine id | 'here']: path }; server/services/places.js).
 
 import { esc } from '../md.js';
 import { icon } from '../core/dom.js';
@@ -20,17 +21,26 @@ export function projectLabel(s) {
 }
 export const placeName = (k) => (k ? machineById(k)?.name || 'machine' : 'This computer');
 export const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
-export const projectsAt = (k) => S.config.projects.filter((p) => placeOf(p) === k).sort(recentFirst);
+// Every project, on every place: one that isn't on a place yet gets cloned there on first use.
+export const projects = () => [...S.config.projects].sort(recentFirst);
+// The project's folder on place k, or '' when wisp still has to put it there.
+export const pathAt = (p, k) => (placeOf(p) === k ? p.path : p?.copies?.[k || 'here'] || '');
+// The places that have a checkout of it: where it was added first.
+export const placesOf = (p) => (p ? [placeOf(p), ...Object.keys(p.copies || {}).map((k) => (k === 'here' ? '' : k))].filter((k, i, a) => a.indexOf(k) === i && (!k || machineById(k))) : []);
 
 // A machine runs its own wisp; this one signs in over SSH, tunnels to it and shows its sessions
-// as <id>@<machine>. Projects can live on a machine; launching in one runs the agent there.
+// as <id>@<machine>. Any project runs there; the launch clones it there first if it has to.
 export const machineById = (id) => S.machines.find((m) => m.id === id);
 const machineOnline = (id) => machineById(id)?.state === 'online';
 export const MACHINE_STATE = { online: 'Online', connecting: 'Connecting…', reconnecting: 'Reconnecting…', error: 'Couldn’t connect', off: 'Not connected' };
+// Where it is: "~/code/app", "on devbox: /srv/app", plus the other places that have it.
 export const projectTitle = (p) => {
   if (!p) return '';
+  const tilde = (x) => (S.config.home && x.startsWith(S.config.home) ? `~${x.slice(S.config.home.length)}` : x);
   const m = p.machine && machineById(p.machine);
-  return m ? `${p.path} on ${m.name}${m.state === 'online' ? '' : ' (not connected)'}` : p.path;
+  const first = m ? `${p.path} on ${m.name}${m.state === 'online' ? '' : ' (not connected)'}` : tilde(p.path);
+  const also = placesOf(p).slice(1).map(placeName);
+  return also.length ? `${first}\nAlso checked out on ${also.join(', ')}` : first;
 };
 
 export function machinePill(mt) {

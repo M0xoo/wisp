@@ -126,6 +126,8 @@ export function summarize(s, store) {
     conflictFix: s.conflictFix ? { step: s.conflictFix.step, why: s.conflictFix.why || '' } : null,
     groupId: s.groupId || null,
     origin: s.origin || null, // { kind: 'recipe' | 'trigger' | 'telegram', id, name }
+    moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
+    movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
     // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.
     team: (s.subagents || []).flatMap((m) =>
       copies(m).map((name) => {
@@ -183,13 +185,14 @@ export class Runner extends EventEmitter {
 
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null }) {
+  // history / title / moved: a task moved here from another place, with the turns it had there.
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
       id,
-      title: autoTitle(prompt),
-      titleAuto: true,
+      title: title || autoTitle(prompt),
+      titleAuto: !title,
       agent,
       cwd,
       mode,
@@ -202,7 +205,8 @@ export class Runner extends EventEmitter {
       agentSessionId: null,
       agentSessions: {}, // harness -> its own conversation id, so switching back resumes it
       queue: [],
-      turns: [],
+      turns: [...history],
+      ...(moved && { moved }),
       ...(worktree && { worktree }),
       ...(also.length && { also }),
       ...(groupId && { groupId }),

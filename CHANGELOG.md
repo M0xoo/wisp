@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Every project runs on every machine.** Projects are no longer tied to one computer. Pick any project, pick a machine under **Run on**, and launch: if the machine has no checkout of it yet, wisp finds one there (a project or a git repo in the usual folders with the same origin) or clones the repo's origin into the machine's clone folder, then remembers it. The launcher shows one row of projects for all the places you picked, the card says "Cloning … on devbox" while it does that, and the Projects dialog lists every project with the places it's checked out on. A folder you add on a machine that's the same repo as a project you already have joins that project instead of becoming a second one. Repos without a git remote can't be cloned this way; wisp says so.
+- **Move a task to another computer with a follow-up.** The composer has a new **Runs on** button (shown once you have a machine). Pick another computer and your next follow-up moves the task there: its branch, uncommitted and untracked changes travel as a git bundle and land in a worktree on the same branch, and the earlier turns come along as history, so the harness there is told what happened before it continues. The old session is archived with a "Continues on …" link; the new card shows "From …" and tags each earlier turn with where it ran. A running task has to stop or finish first. API: `"machine"` on `POST /sessions/:id/reply` (`""` for this computer).
+- **Rerun on another computer.** The rerun dialog has a **Run on** picker; the rerun uses that computer's checkout of the project, cloned there first if needed.
+
 ## [0.21.0] - 2026-10-20
 
 ### Added

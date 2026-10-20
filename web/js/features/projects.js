@@ -13,7 +13,7 @@ import { feedToTop, renderFeed } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
 import { connectMachine, openMachines } from './machines.js';
-import { inProject, MACHINE_STATE, machineById, placeOf, projectById, projectTitle, recentFirst } from './places.js';
+import { inProject, MACHINE_STATE, machineById, pathAt, placeName, placesOf, projectById, projectTitle, recentFirst } from './places.js';
 import { projectList } from './project-list.js';
 
 // Project filter chips in the top bar before the rest fold into "+N".
@@ -203,8 +203,8 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
         : `Clones <b>${esc(repoLabel(v))}</b> into <button class="link" data-a="clonedir" title="Change where repos are cloned">${esc(tilde(S.config.cloneDir || '~/code'))}/${esc(repoName(v))}</button>. You can write the task while it clones.`;
     else
       hint.innerHTML = m
-        ? `Folders on <b>${esc(m.name)}</b>, or a repo URL to clone there. Agents run there, in its own worktrees; you follow along here.`
-        : 'Paste a GitHub URL and wisp clones it for you. Or run <code>wisp add</code> inside any folder: it is added automatically.';
+        ? `Folders on <b>${esc(m.name)}</b>, or a repo URL to clone there. You don’t need to add a project here that you already have: every project runs on ${esc(m.name)}, and wisp clones it there the first time.`
+        : `Paste a GitHub URL and wisp clones it for you. Or run <code>wisp add</code> inside any folder: it is added automatically.${S.machines.length ? ' Projects run on your machines too: wisp clones them there when a task needs it.' : ''}`;
   };
   // Change the clone folder in place: the hint turns into a small path field.
   $('.hint', node).addEventListener('click', (e) => {
@@ -255,13 +255,13 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
     input.focus();
   });
 
-  // A new project becomes the launcher's pick for its place.
+  // A new project becomes the launcher's pick; added on a machine, the task runs there.
   const picked = async (proj) => {
     await loadConfig();
-    launch.picks[placeOf(proj)] = proj.id;
-    delete launch.also[placeOf(proj)];
-    if (!launch.where.includes(placeOf(proj))) launch.where = [placeOf(proj)];
-    if (placeOf(proj) === launch.where[0]) launch.project = proj.id;
+    launch.picks[''] = proj.id;
+    delete launch.also[''];
+    launch.project = proj.id;
+    if (!launch.where.includes(where || '')) launch.where = [where || ''];
     saveLaunch();
     renderLaunchChips();
   };
@@ -332,9 +332,9 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
 
   const list = () => {
     const box = $('#plist', node);
-    const projects = S.config.projects.filter((p) => (p.machine || null) === where);
+    // Every project, wherever it was added: each runs on every place. Its row says where it's checked out.
+    const projects = [...S.config.projects].sort(recentFirst);
     const pending = clones
-      .filter((j) => j.where === where)
       .map(
         (j) => `<div class="prow cloning"><span class="swatch"><span class="orb live"></span></span>
           <div class="prow-main"><b class="pname">${esc(repoName(j.url))}</b><span class="ppath">Cloning ${esc(repoLabel(j.url))}…</span></div></div>`,
@@ -345,15 +345,17 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
         projects
           .map((p) => {
             const n = [...S.sessions.values()].filter((s) => inProject(s, p.id)).length;
+            const at = placesOf(p);
+            const spots = at.map((k) => `<span class="pplace" title="${esc(k ? `${pathAt(p, k)} on ${placeName(k)}` : pathAt(p, k))}">${icon(k ? 'server' : 'laptop')}${esc(placeName(k))}</span>`).join('');
             return `<div class="prow c-${p.color}" data-id="${p.id}">
               <button class="swatch" title="Change colour"><i class="p-dot"></i></button>
-              <div class="prow-main"><input class="pname" value="${esc(p.name)}"><span class="ppath">${esc(tilde(p.path))}</span></div>
+              <div class="prow-main"><input class="pname" value="${esc(p.name)}"><span class="ppath">${S.machines.length ? spots : esc(tilde(p.path))}</span></div>
               <span class="pcount">${n} session${n === 1 ? '' : 's'}</span>
               <button class="icon-btn premove" title="Remove from wisp (files untouched)">${icon('trash')}</button>
             </div>`;
           })
           .join('')
-      : `<p class="muted">No projects ${where ? `on ${esc(here()?.name || '')} ` : ''}yet. Add a folder above, or pick one below.</p>`;
+      : `<p class="muted">No projects yet. Add a folder above, or pick one below.</p>`;
     $$('.prow[data-id]', box).forEach((row) => {
       const id = row.dataset.id;
       const p = projectById(id);

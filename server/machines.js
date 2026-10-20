@@ -21,6 +21,7 @@ import { spawn, killTree } from './proc.js';
 import { newer } from './update.js';
 import { bootstrapScript } from './machines/bootstrap.js';
 import { sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, TARGET } from './machines/hosts.js';
+import { HERE } from './store.js';
 import { bad, DEFAULT_PORT, shq } from './util.js';
 
 export { DEFAULT_PORT };
@@ -153,7 +154,17 @@ export class Machines extends EventEmitter {
     this.conns.delete(id);
     this.cache.delete(id);
     this.store.config.machines = this.list.filter((x) => x.id !== id);
-    this.store.config.projects = this.store.config.projects.filter((p) => p.machine !== id);
+    // Its checkouts go. A project added there lives on in a copy elsewhere, if it has one.
+    this.store.config.projects = this.store.config.projects.filter((p) => {
+      delete p.copies?.[id];
+      if (p.machine !== id) return true;
+      const [k, dir] = Object.entries(p.copies || {})[0] || [];
+      if (!k) return false;
+      delete p.copies[k];
+      delete p.machine;
+      Object.assign(p, { path: dir }, k !== HERE && { machine: k });
+      return true;
+    });
     this.store.saveConfig();
     this.onChange();
   }
@@ -175,7 +186,7 @@ export class Machines extends EventEmitter {
         remote: c?.remote || null,
         outdated: updateTo(this.version, c?.remote?.version, m.command),
         log: c?.log.slice(-30) || [],
-        projects: this.store.config.projects.filter((p) => p.machine === m.id).length,
+        projects: this.store.config.projects.filter((p) => this.store.pathAt(p, m.id)).length,
         working: cached.filter((s) => s.state === 'running').length,
       };
     });
@@ -577,10 +588,10 @@ export class Machines extends EventEmitter {
     return j;
   }
 
+  // A folder there that's a checkout of a repo already added elsewhere joins that project.
   async addProject(mid, dir, name) {
     const p = await this.json(mid, 'POST', '/projects', { path: dir }, { timeout: 10 * 60_000 }); // dir may be a repo URL to clone
-    const local = this.store.addProject(p.path, { name: name || p.name, machine: mid });
-    return local;
+    return this.store.addProject(p.path, { name: name || p.name, machine: mid, repo: p.origin || p.cloned?.url || undefined });
   }
 
   // A terminal on the machine running `command` (Take over), in the user's own interactive login

@@ -34,6 +34,11 @@ export function register(r, app) {
       return c.send(200, { command: argv.map(shq).join(' ') });
     }
     const body = m === 'GET' ? undefined : await c.body();
+    // A follow-up that moves the task here or to another machine (services/move.js).
+    if (action === 'reply' && typeof body?.machine === 'string') {
+      if (body.machine !== mid) return c.send(200, await app.mover.move(c.params.id, body.machine, { ...body, text: String(body.text || '').trim() }));
+      delete body.machine;
+    }
     if (action === 'reply' && body?.attachments?.length) body.attachments = await app.launcher.pushUploads(mid, body.attachments);
     const out = await machines.json(mid, m, sub, body, action === 'wait' ? { timeout: (MAX_WAIT_S + 30) * 1000 } : undefined);
     if (!action && m === 'GET') return c.send(200, machines.session(mid, out));

@@ -33,7 +33,7 @@ const tilde = (p) => (S.config.home && p.startsWith(S.config.home) ? `~${p.slice
 // goes back to what it had picked.
 export function startClone(url, where = null) {
   const k = where || '';
-  const prev = launch.picks[k];
+  const prev = launch.picks[''];
   const job = { id: `clone-${++seq}`, url, where: where || null, name: repoName(url), label: repoLabel(url) };
   clones.push(job);
   // A feed filtered to another project would pull the launcher back to that project.
@@ -43,13 +43,14 @@ export function startClone(url, where = null) {
     renderFeed();
     renderProjects();
   }
-  launch.picks[k] = job.id;
+  launch.picks[''] = job.id;
+  delete launch.also[''];
+  launch.project = job.id;
   if (!launch.where.includes(k)) launch.where = [k];
-  if (k === launch.where[0]) launch.project = job.id;
   const repick = (id) => {
-    if (launch.picks[k] !== job.id) return; // picked something else meanwhile
-    launch.picks[k] = id;
-    if (k === launch.where[0]) launch.project = id;
+    if (launch.picks[''] !== job.id) return; // picked something else meanwhile
+    launch.picks[''] = id;
+    launch.project = id;
     saveLaunch();
   };
   const on = where ? ` on ${esc(machineById(where)?.name || 'the machine')}` : '';

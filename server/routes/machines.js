@@ -36,7 +36,7 @@ export function register(r, app) {
     'GET',
     '/machines/:id/discover',
     known(async (c, id) => {
-      const have = new Set(store.config.projects.filter((p) => p.machine === id).map((p) => p.path));
+      const have = new Set(store.config.projects.map((p) => store.pathAt(p, id)).filter(Boolean));
       c.send(200, (await machines.json(id, 'GET', '/projects/discover')).filter((f) => !have.has(f.path)));
     }),
   );
