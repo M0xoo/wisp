@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **One task across several folders.** A task can now work in more than one project at a time, for example an API and the web app that uses it. In the launcher, ⌘-click (Ctrl- or Shift-click) a second project chip, or click the **+** on its corner or next to it in the project list. One agent starts in the first folder and can read and edit the others: Claude Code and Codex get them as `--add-dir`, and every harness is told the paths. Each git repo gets its own worktree. The card reads `api + web` and shows up under either project's filter. **Ship it** opens a pull request in each repo that has changes, and **Merge all** merges them together and syncs each local base branch. CLI: `wisp "…" --also ~/code/web` (repeatable). API: `"also": [folders]` on `POST /sessions`. MCP: `also` on `wisp_launch`.
+
+### Fixed
+
+- **The launcher's project row no longer throws while it isn't laid out.** Refitting the chips of a launcher that had just been painted over (or folded into the dock) read the position of a chip that wasn't there.
+
 ## [0.20.0] - 2026-10-19
 
 ### Added

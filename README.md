@@ -49,6 +49,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | 🧠 **Learns as you go** | After a session goes quiet, a background retro records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later runs get them in their prompt. See [Learning](#learning). |
+| 🗂️ **One task, several folders** | ⌘-click a second project in the launcher (or its **+**) and one agent works in both, e.g. the API and the web app that uses it. Each git repo gets its own worktree, and **Ship it** opens a PR in each. |
 | 🌿 **A worktree per task** | In a git repo each task gets its own worktree and branch from `origin/main`, so parallel agents never collide. |
 | 🚢 **Ship it** | One click commits, pushes and opens the PR. The card follows CI and reviews; **Merge** squash-merges and syncs your local main. |
 | 🤝 **Subagents** | Give the lead agent a team on other harnesses (e.g. Claude Code hands tests to Codex ×3). It delegates through a `delegate` tool; their edits land in its worktree. See [Subagents](#subagents). |
@@ -146,6 +147,7 @@ wisp skill install                # install the wisp skill for Claude Code (--ag
 | `--agent`, `-a` | `claude` · `codex` · `opencode` · `cursor` · `antigravity` · `grok` (default: the agent last picked in the launcher) |
 | `--model` · `--effort` | Model id and thinking level for the launch |
 | `--cwd`, `-C DIR` | Project folder (default: the current one) |
+| `--also DIR` | Another folder the same task works in; repeat for more (each git repo gets its own worktree and PR) |
 | `--wait`, `-w` | Wait for the run to finish or ask, then print the presentation |
 | `--no-worktree` | Edit the folder in place instead of a fresh worktree (default in git repos: a worktree) |
 | `--compare a[:model],…` | Also run the task on these harnesses, each in its own worktree |
@@ -328,6 +330,8 @@ In a git repo, every launch (except Plan mode) runs in its own [git worktree](ht
 **Ship it** (`S`) commits whatever is uncommitted (the message is drafted from the presentation as a conventional commit; edit it before shipping), pushes the branch and runs `gh pr create`. You need the [GitHub CLI](https://cli.github.com) signed in. From then on the card follows the PR every minute: checks (✓ / running / failing), the review decision, merged or closed. **Merge** runs `gh pr ready` for drafts and `gh pr merge --squash --match-head-commit <sha>`, so a branch that moved since you looked is never merged, then fast-forwards your local base branch (`git merge --ff-only`, or a ref update when it isn't checked out) and removes the worktree and branch. If a ruleset requires a review, Merge waits for the approval like `gh` does.
 
 **Compare** (the **vs** button next to the harness picker) launches the same task on a second harness. Both get their own worktree and show up as one task in the feed, with a row per run; **Compare** on the task shows them side by side, and **Keep this** archives the others and deletes their worktrees.
+
+**Several folders.** A task can span projects: ⌘/Ctrl-click (or Shift-click) another project chip in the launcher, or use the **+** on its corner or in the project list. The agent starts in the first folder and gets the others as extra working directories (`--add-dir` for Claude Code and Codex; the rest are told the paths). Each git repo gets its own worktree on the task's branch name, the card reads `api + web` and lists under either project's filter, and **Ship it** commits, pushes and opens a PR per repo with changes, each noting the others. **Merge all** squash-merges them in order and syncs each local base branch. From the CLI or API: `wisp "…" --also ~/code/web`, `"also": ["~/code/web"]` on `POST /sessions`, or `also` on the `wisp_launch` MCP tool. wisp fixes merge conflicts only on the first repo's PR, and checkpoints and rollback cover the first folder.
 
 Turn worktrees off in Settings → *Worktree per task*, with the launcher's **Worktree / In place** toggle, or per launch (`--no-worktree`, `"worktree": false`).
 

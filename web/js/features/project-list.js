@@ -6,6 +6,8 @@
 //   meta(p)   extra html after a row's name (status badges)
 //   extras    [{ id, label, icon }] fixed rows under the list (No folder, Other folder…)
 //   onPick    (id) => …, a project's id or an extra's
+//   also      { has(id), toggle(id) }: each row gets a + that adds the project to the task (✓ once
+//             it's in) without closing the list; ⌘/Ctrl/Shift+Enter does the same from the keyboard
 
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
@@ -13,7 +15,7 @@ import { fuzzy, highlight } from '../fuzzy.js';
 import { popover } from '../ui/popover.js';
 import { projectTitle } from './places.js';
 
-export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, label = 'Projects' }) {
+export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, also = null, label = 'Projects' }) {
   if ($('.menu.pm')) return $('.menu.pm').close();
   const node = el(`
     <div class="menu pm" role="dialog" aria-label="${esc(label)}">
@@ -43,8 +45,10 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
     list.innerHTML = hits.length
       ? hits
           .map(
-            ({ p, m }) => `<button class="pm-row c-${p.color} ${p.id === current ? 'on' : ''}" data-id="${esc(p.id)}" role="option" aria-selected="${p.id === current}" title="${esc(projectTitle(p))}">
-              <i class="p-dot"></i><span class="pm-name">${highlight(p.name, m?.idx, esc)}</span>${p.machine ? icon('server', 'pm-where') : ''}${meta(p)}<small class="pm-path">${esc(p.path.replace(/^\/(Users|home)\/[^/]+/, '~'))}</small>${icon('check', 'pm-check')}
+            ({ p, m }) => `<button class="pm-row c-${p.color} ${p.id === current ? 'on' : ''} ${also?.has(p.id) ? 'in' : ''}" data-id="${esc(p.id)}" role="option" aria-selected="${p.id === current}" title="${esc(projectTitle(p))}">
+              <i class="p-dot"></i><span class="pm-name">${highlight(p.name, m?.idx, esc)}</span>${p.machine ? icon('server', 'pm-where') : ''}${meta(p)}<small class="pm-path">${esc(p.path.replace(/^\/(Users|home)\/[^/]+/, '~'))}</small>${
+                also ? `<span class="pm-also" data-also title="${also.has(p.id) ? `Leave ${esc(p.name)} out of this task` : `Also work in ${esc(p.name)}`}">${icon(also.has(p.id) ? 'check' : 'plus')}</span>` : icon('check', 'pm-check')
+              }
             </button>`,
           )
           .join('')
@@ -57,9 +61,19 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
     close();
     onPick(id);
   };
+  // Adding to the task keeps the list open, the row where it was and the search as typed.
+  const toggle = (r) => {
+    also.toggle(r.dataset.id);
+    const at = act;
+    paint();
+    mark(at, false);
+    input.focus({ preventScroll: true });
+  };
   node.onclick = (e) => {
     const r = e.target.closest('.pm-row');
-    if (r) pick(r.dataset.id);
+    if (!r) return;
+    if (also && !r.classList.contains('pm-x') && (e.target.closest('[data-also]') || e.metaKey || e.ctrlKey || e.shiftKey)) return toggle(r);
+    pick(r.dataset.id);
   };
   node.onmousemove = (e) => {
     const r = e.target.closest('.pm-row');
@@ -73,7 +87,8 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
     } else if (e.key === 'Enter' && !e.isComposing) {
       e.preventDefault();
       const r = rows()[act];
-      if (r) pick(r.dataset.id);
+      if (r && also && !r.classList.contains('pm-x') && (e.metaKey || e.ctrlKey || e.shiftKey)) toggle(r);
+      else if (r) pick(r.dataset.id);
     } else if (e.key === 'Tab') close();
   };
 

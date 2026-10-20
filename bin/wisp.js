@@ -37,12 +37,12 @@ const HELP = `usage:
   wisp -- "ls the repo"         a task that starts with a command name
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok  --model ID  --effort LEVEL
-                --cwd DIR  --wait  --json  --no-worktree  --compare agent[:model],…
+                --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 
 const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage']);
 const argv = process.argv.slice(2);
-const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
+const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
 const words = [];
 let literal = false;
 for (let i = 0; i < argv.length; i++) {
@@ -57,6 +57,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--model') flags.model = argv[++i];
   else if (a === '--effort') flags.effort = argv[++i];
   else if (a === '--cwd' || a === '-C') flags.cwd = path.resolve(argv[++i].replace(/^~(?=$|[\\/])/, os.homedir()));
+  else if (a === '--also') flags.also.push(path.resolve(argv[++i].replace(/^~(?=$|[\\/])/, os.homedir())));
   else if (a === '--state') flags.state = argv[++i];
   else if (a === '--limit') flags.limit = Number(argv[++i]);
   else if (a === '--json') flags.json = true;
@@ -114,7 +115,7 @@ async function scripted(cmd, args) {
   };
   switch (cmd) {
     case 'launch': {
-      const s = await wisp.launch({ prompt: args.join(' '), cwd, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree, compare: flags.compare || undefined });
+      const s = await wisp.launch({ prompt: args.join(' '), cwd, also: flags.also, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree, compare: flags.compare || undefined });
       if (s.group && !flags.wait) return out(s, s.group.map((x) => `  ◌ launched on ${x.agent}: ${x.title}  (${x.id})`).join('\n'));
       if (!flags.wait) return out(s, `  ◌ launched: ${s.title}  (${s.id})`);
       if (!flags.json) console.error(`  ◌ launched: ${s.title}  (${s.id}) — waiting…`);

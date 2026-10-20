@@ -8,6 +8,16 @@ import { S } from '../core/state.js';
 export const projectById = (id) => S.config.projects.find((p) => p.id === id);
 
 export const placeOf = (p) => p?.machine || '';
+// A task's projects: its own, then those of the other folders it works in (also).
+export const inProject = (s, id) => s.projectId === id || !!s.also?.some((a) => a.projectId === id);
+
+// The project on a card: "api + web", or "api +2" past that, each one in the tooltip.
+export function projectLabel(s) {
+  const also = s.also || [];
+  if (!also.length) return `<span class="q-proj">${esc(s.project)}</span>`;
+  const names = [s.project, ...also.map((a) => a.project)];
+  return `<span class="q-proj multi" title="${esc(`One task in ${names.length} folders: ${names.join(', ')}`)}">${esc(s.project)}<span class="q-also ${also.length === 1 ? `c-${also[0].color}` : ''}">${also.length === 1 ? `+ ${esc(also[0].project)}` : `+${also.length}`}</span></span>`;
+}
 export const placeName = (k) => (k ? machineById(k)?.name || 'machine' : 'This computer');
 export const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
 export const projectsAt = (k) => S.config.projects.filter((p) => placeOf(p) === k).sort(recentFirst);

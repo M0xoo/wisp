@@ -35,10 +35,12 @@ export const saveOpen = () => save('wisp.open', [...S.open]);
 export const setAgents = (list) => ((S.agents = list), save('wisp.agents', list));
 
 // Where the launcher sends a prompt: '' = this computer, else machine ids. Several run in parallel,
-// each in the project picked for it (launch.picks[place]), and show up as one task.
+// each in the project picked for it (launch.picks[place]), and show up as one task. A run can
+// work in more of that place's projects too (launch.also[place]): one agent, several folders.
 export const launch = {
   project: load('wisp.launchProject', null), // the project picked in the first place
   where: load('wisp.launchWhere', ['']),
   picks: load('wisp.launchPicks', {}),
+  also: load('wisp.launchAlso', {}),
 };
-export const saveLaunch = () => (save('wisp.launchWhere', launch.where), save('wisp.launchPicks', launch.picks), save('wisp.launchProject', launch.project));
+export const saveLaunch = () => (save('wisp.launchWhere', launch.where), save('wisp.launchPicks', launch.picks), save('wisp.launchAlso', launch.also), save('wisp.launchProject', launch.project));

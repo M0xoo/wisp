@@ -132,6 +132,22 @@ for (const id of Object.keys(BIN)) {
     assert.ok(!records(RECORD, BIN[id]).at(-1).argv.includes('high'), 'no flag when unset');
   });
 
+  // A task across several folders: Claude and Codex get the others as writable dirs (Codex in its
+  // sandbox's writable roots too, which resume takes as well); the rest only hear the paths.
+  if (id === 'claude' || id === 'codex')
+    test(`${id}: the task's other folders on the command line`, async () => {
+      const web = tmp('also-web');
+      await run(id, { dirs: [web] }).done;
+      const { argv } = records(RECORD, BIN[id]).at(-1);
+      assert.ok(hasSeq(argv, ['--add-dir', web]), argv.join(' '));
+      if (id === 'codex') {
+        assert.ok(hasSeq(argv, ['-c', `sandbox_workspace_write.writable_roots=${JSON.stringify([web])}`]), argv.join(' '));
+        await run(id, { dirs: [web], resumeId: 'prev-1', prompt: 'more' }).done;
+        assert.ok(records(RECORD, BIN[id]).at(-1).argv.includes(`sandbox_workspace_write.writable_roots=${JSON.stringify([web])}`), 'kept on resume');
+      }
+      if (id === 'claude') assert.deepEqual(adapters[id].resumeCommand({ resumeId: 'r1', dirs: [web] }).slice(-2), ['--add-dir', web], 'take over gets them too');
+    });
+
   test(`${id}: follow-ups resume the session without re-sending the protocol`, async () => {
     const events = await run(id, { resumeId: 'prev-1', prompt: 'and add a test' }).done;
     const rec = records(RECORD, BIN[id]).at(-1);

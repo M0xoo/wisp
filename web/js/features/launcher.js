@@ -31,6 +31,11 @@ import { canLead, paintTeamBtn, teamEditor } from './team.js';
 const NO_FOLDER = 'none';
 const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: true };
 const projectOf = (k) => (launch.picks[k] === NO_FOLDER ? GENERAL : projectById(launch.picks[k]));
+// The place's other folders for the task (launch.also), and whether a project is in it at all.
+const alsoAt = (k) => launch.also[k] || [];
+const chosen = (k, id) => id === launch.picks[k] || alsoAt(k).includes(id);
+const ownPick = (k) => projectsAt(k).some((p) => p.id === launch.picks[k]);
+const MOD = combo('').replace(/\+$/, ''); // ⌘ or Ctrl, for "⌘-click"
 // Project chips in the "in" row, at most, before the rest fold into "+N".
 const CHIPS = 5;
 
@@ -41,13 +46,23 @@ function syncWhere() {
   launch.where = launch.where.filter((k, i) => (!k || machineById(k)) && launch.where.indexOf(k) === i);
   if (!launch.where.length) launch.where = [''];
   // Filtering the feed to a project points the launcher at it (its machine joins if it wasn't picked).
+  // One that's already in the task (as its first folder or another) leaves the selection as it is.
   const f = S.filter !== 'all' && S.filter !== filterSeen && projectById(S.filter);
   filterSeen = S.filter;
   if (f) {
     if (!launch.where.includes(placeOf(f))) launch.where = [placeOf(f)];
-    launch.picks[placeOf(f)] = f.id;
+    if (!chosen(placeOf(f), f.id)) {
+      launch.picks[placeOf(f)] = f.id;
+      delete launch.also[placeOf(f)];
+    }
   } else if (projectById(launch.project) && !Object.values(launch.picks).includes(launch.project)) launch.picks[placeOf(projectById(launch.project))] ??= launch.project;
   for (const k of launch.where) if (launch.picks[k] !== NO_FOLDER && !cloneById(launch.picks[k]) && !projectsAt(k).some((p) => p.id === launch.picks[k])) launch.picks[k] = projectsAt(k)[0]?.id || null;
+  // Other folders only go with a project (not No folder or a clone), and only that place's projects.
+  for (const k of Object.keys(launch.also)) {
+    const ids = ownPick(k) ? launch.also[k].filter((id, i, a) => id !== launch.picks[k] && a.indexOf(id) === i && projectsAt(k).some((p) => p.id === id)) : [];
+    if (ids.length) launch.also[k] = ids;
+    else delete launch.also[k];
+  }
   launch.project = launch.picks[launch.where[0]] || null;
 }
 
@@ -250,7 +265,7 @@ export function renderLauncher() {
       return feedbackCommand(prompt, { restore: () => !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input'))) });
     }
     // One run per place picked under "Run on", each in the project picked for it.
-    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(k), clone: cloneById(launch.picks[k]) }));
+    const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(k), clone: cloneById(launch.picks[k]), also: ownPick(k) ? alsoAt(k).map(projectById).filter(Boolean) : [] }));
     const unset = targets.find((t) => !t.project && !t.clone);
     if (unset) return openProjects({ focusAdd: true, machine: unset.k || null });
     const off = targets.find((t) => t.m && t.m.state !== 'online');
@@ -276,7 +291,7 @@ export function renderLauncher() {
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
-    if (S.filter !== 'all' && targets.some((t) => t.project?.scratch || t.project?.id !== S.filter)) {
+    if (S.filter !== 'all' && targets.some((t) => t.project?.scratch || (t.project?.id !== S.filter && !t.also.some((p) => p.id === S.filter)))) {
       S.filter = 'all';
       save('wisp.filter', S.filter);
     }
@@ -298,7 +313,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, scratch: t.project.scratch || undefined, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k || undefined, groupId, agent: runner.agent, mode: curMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -374,16 +389,22 @@ export function renderLaunchChips() {
       .filter((c) => (c.where || '') === k)
       .map((c) => `<button class="lp-chip cloning ${c.id === launch.picks[k] ? 'on' : ''}" data-id="${c.id}" data-k="${k}" title="Cloning ${esc(c.label)}…"><span class="orb live"></span>${esc(c.name)}<span class="lp-note">cloning…</span></button>`)
       .join('');
-    // Tens of projects: the most recent few as chips (the pick always among them), the rest one
+    // Tens of projects: the most recent few as chips (the picks always among them), the rest one
     // search away behind "+N". fitChips() then folds more into it if the row would wrap.
     const max = multi ? 3 : CHIPS;
-    let shown = list;
-    if (list.length > max) {
-      const top = list.slice(0, max);
-      const picked = list.find((p) => p.id === launch.picks[k]);
-      shown = !picked || top.includes(picked) ? top : [...top.slice(0, -1), picked].sort((a, b) => list.indexOf(a) - list.indexOf(b));
-    }
-    const chips = cloning + shown.map((p) => `<button class="lp-chip c-${p.color} ${p.id === launch.picks[k] ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(projectTitle(p))}"><i class="p-dot"></i>${esc(p.name)}</button>`).join('');
+    const picked = list.filter((p) => chosen(k, p.id));
+    const rest = list.filter((p) => !chosen(k, p.id)).slice(0, Math.max(0, max - picked.length));
+    const shown = list.filter((p) => picked.includes(p) || rest.includes(p));
+    // A task can span several of the place's projects: ⌘-click a chip, or its + badge, to add it;
+    // the × on a picked one leaves it out again.
+    const own = ownPick(k);
+    const several = own && alsoAt(k).length > 0;
+    const badge = (p) =>
+      chosen(k, p.id)
+        ? several ? `<span class="lp-also x" data-also="${p.id}" title="Leave ${esc(p.name)} out of this task">${icon('x')}</span>` : ''
+        : own ? `<span class="lp-also" data-also="${p.id}" title="Also work in ${esc(p.name)} (${MOD}-click)">${icon('plus')}</span>` : '';
+    const tip = (p) => `${projectTitle(p)}${several && p.id === launch.picks[k] ? '\nThe agent starts here' : ''}${own && !chosen(k, p.id) ? `\n${MOD}-click to work in it too` : ''}`;
+    const chips = cloning + shown.map((p) => `<button class="lp-chip c-${p.color} ${chosen(k, p.id) ? 'on' : ''}" data-id="${p.id}" data-k="${k}" title="${esc(tip(p))}"><i class="p-dot"></i>${esc(p.name)}${badge(p)}</button>`).join('');
     const more = list.length > 1 ? `<button class="lp-chip more" data-more="${k}" data-total="${list.length}" title="All ${list.length} projects${k ? ` on ${esc(placeName(k))}` : ''}" aria-haspopup="dialog"><span class="lp-more-n"></span>${icon('search')}</button>` : '';
     const add = list.length || cloning
       ? `<button class="lp-chip add" data-add="${k}" title="Another folder${k ? ` on ${esc(placeName(k))}` : ''}">${icon('folder')}${multi || list.length > max ? '' : 'Other folder…'}</button>`
@@ -400,9 +421,21 @@ export function renderLaunchChips() {
   });
   fitRow.observe(box);
   paintScratch();
-  const pick = (k, id) => {
-    launch.picks[k] = id;
-    if (k === launch.where[0]) launch.project = id;
+  // A plain pick makes it the task's only folder; `add` (⌘-click, the + badge) adds it to the
+  // folders or takes it out. Leaving out the first folder hands its place to the next one.
+  const pick = (k, id, { add = false } = {}) => {
+    const also = alsoAt(k);
+    if (add && ownPick(k) && projectById(id)) {
+      if (id !== launch.picks[k]) launch.also[k] = also.includes(id) ? also.filter((x) => x !== id) : [...also, id];
+      else if (also.length) {
+        launch.picks[k] = also[0];
+        launch.also[k] = also.slice(1);
+      }
+    } else {
+      launch.picks[k] = id;
+      delete launch.also[k];
+    }
+    if (k === launch.where[0]) launch.project = launch.picks[k];
     saveLaunch();
     paintScratch();
     renderLaunchRecipes();
@@ -410,8 +443,9 @@ export function renderLaunchChips() {
   box.onclick = (e) => {
     const chip = e.target.closest('.lp-chip[data-id]');
     if (chip) {
-      pick(chip.dataset.k, chip.dataset.id);
-      $$(`.lp-chip[data-k="${chip.dataset.k}"]`, box).forEach((x) => x.classList.toggle('on', x === chip));
+      const k = chip.dataset.k;
+      pick(k, chip.dataset.id, { add: !!e.target.closest('[data-also]') || e.metaKey || e.ctrlKey || e.shiftKey });
+      renderLaunchChips(); // the + and × badges follow the picks
       return;
     }
     const more = e.target.closest('[data-more]');
@@ -420,6 +454,14 @@ export function renderLaunchChips() {
       return projectList(more, {
         projects: projectsAt(k),
         current: launch.picks[k],
+        // Each row's + adds it to the task (or takes it out) and leaves the list open.
+        also: ownPick(k) && {
+          has: (id) => chosen(k, id),
+          toggle: (id) => {
+            pick(k, id, { add: true });
+            renderLaunchChips();
+          },
+        },
         label: `Projects on ${placeName(k)}`,
         extras: [
           { id: NO_FOLDER, label: 'No folder', icon: 'spark' },
@@ -460,6 +502,7 @@ function fitChips(box) {
     if (launch.where.length > 1) continue;
     const wraps = () => {
       const kids = [...g.children].filter((x) => !x.hidden && x.offsetParent);
+      if (!kids.length) return false; // not laid out (a launcher painted over, or folded into the dock)
       const lin = $('.l-in', box); // "in" left alone on a line counts too
       return kids.some((x) => x.offsetTop >= kids[0].offsetTop + kids[0].offsetHeight) || (lin && kids[0].offsetTop >= lin.offsetTop + lin.offsetHeight);
     };
@@ -605,7 +648,7 @@ function launchedFx(from, to) {
 // A launch the server hasn't answered yet: a placeholder summary that shows in Working as a
 // "Starting up" card. It can't be opened; the real card takes its place.
 let pendingSeq = 0;
-function addPending(prompt, { project: p, m }, { agent, model, effort }, live = 'Starting up') {
+function addPending(prompt, { project: p, m, also = [] }, { agent, model, effort }, live = 'Starting up') {
   const id = `pending-${++pendingSeq}`;
   const line = plain(prompt).split('\n')[0].replace(/\s+/g, ' ');
   const now = Date.now();
@@ -621,6 +664,7 @@ function addPending(prompt, { project: p, m }, { agent, model, effort }, live = 
     project: p.name,
     projectId: p.id,
     color: p.color || 'slate',
+    ...(also.length && { also: also.map((x) => ({ cwd: x.path, project: x.name, projectId: x.id, color: x.color, branch: '', pr: null })) }),
     state: 'running',
     live,
     createdAt: now,

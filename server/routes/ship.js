@@ -1,7 +1,9 @@
 // Ship it. GET: what would ship (branch, changes, draft message). POST { title, body, draft }:
-// commit, push, open or update the PR. Then follow it (pr) and squash-merge it (merge).
+// commit, push, open or update the PR. Then follow it (pr) and squash-merge it (merge). A task in
+// several repos (also) ships, follows and merges a PR in each (services/ship.js).
 
-import { ship, merge, worktreeStatus } from '../git.js';
+import { worktreeStatus } from '../git.js';
+import { reposOf } from '../services/ship.js';
 
 export function register(r, app) {
   const { store, runner, telemetry } = app;
@@ -11,46 +13,40 @@ export function register(r, app) {
     return fn(c, s);
   };
   const NO_TREE = 'Ship it works on worktree sessions: launch with a worktree to get one.';
+  const hasTrees = (s) => !!(s.worktree || s.also?.some((a) => a.worktree));
 
   r.route(
     'GET',
     '/sessions/:id/ship',
     one(async (c, s) => {
-      if (!s.worktree) return c.send(400, { error: NO_TREE });
+      if (!hasTrees(s)) return c.send(400, { error: NO_TREE });
       app.ship.recheck(s);
-      c.send(200, { branch: s.worktree.branch, base: s.worktree.base, remote: s.worktree.remote, ...(await worktreeStatus(s.worktree)), pr: s.pr || null, ...app.ship.draft(s) });
+      const repos = await Promise.all(reposOf(s, store).map(async (r) => ({ repo: r.name, branch: r.wt.branch, base: r.wt.base, remote: r.wt.remote, ...(await worktreeStatus(r.wt)), pr: r.at.pr || null })));
+      // The first repo's fields at the top level (as before one task could span repos), each in `repos`.
+      const sum = (k) => repos.reduce((n, r) => n + r[k], 0);
+      c.send(200, { ...repos[0], ...(repos.length > 1 && { dirty: sum('dirty'), ahead: sum('ahead'), repos }), ...app.ship.draft(s) });
     }),
   );
   r.route(
     'POST',
     '/sessions/:id/ship',
     one(async (c, s) => {
-      if (!s.worktree) return c.send(400, { error: NO_TREE });
+      if (!hasTrees(s)) return c.send(400, { error: NO_TREE });
       if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
       if (s.shipping) return c.send(409, { error: 'Already shipping: wait for it to land.' });
       const body = await c.body();
       const draft = app.ship.draft(s);
-      // The card follows along: s.shipping names the stage running now, sent with each summary.
-      s.shipping = { step: 'start', update: s.pr?.state === 'OPEN', startedAt: Date.now() };
-      app.sessionChanged(s);
-      const onStep = (step) => ((s.shipping = { ...s.shipping, step }), app.sessionChanged(s));
-      try {
-        s.pr = await ship(s.worktree, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft, pr: s.pr, onStep });
-        s.pushedAt = Date.now(); // the PR is polled fast for a while, so its checks show up as they start
-      } finally {
-        delete s.shipping;
-        app.sessionChanged(s, { now: true });
-      }
-      telemetry.track('ship', { agent: s.agent, draft: !!body.draft });
-      app.ship.recheck(s);
-      c.send(200, s.pr);
+      // The card follows along: s.shipping names the stage (and repo) running now, sent with each summary.
+      const pr = await app.ship.shipAll(s, { title: body.title ?? draft.title, body: body.body ?? draft.body, draft: !!body.draft });
+      telemetry.track('ship', { agent: s.agent, draft: !!body.draft, ...(pr.prs && { repos: pr.prs.length }) });
+      c.send(200, pr);
     }),
   );
   r.route(
     'POST',
     '/sessions/:id/pr',
     one(async (c, s) => {
-      if (!s.pr) return c.send(404, { error: 'No pull request yet.' });
+      if (!s.pr && !s.also?.some((a) => a.pr)) return c.send(404, { error: 'No pull request yet.' });
       c.send(200, await app.ship.refreshPr(s));
     }),
   );
@@ -76,13 +72,12 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/merge',
     one(async (c, s) => {
-      if (!s.pr || !s.worktree) return c.send(400, { error: 'No pull request to merge.' });
-      const { pr, sync } = await merge(s.worktree, s.pr.number);
-      s.pr = pr;
+      if (!reposOf(s, store).some((r) => r.at.pr)) return c.send(400, { error: 'No pull request to merge.' });
+      const out = await app.ship.mergeAll(s);
       app.launcher.markDone(s);
       telemetry.track('merge', { agent: s.agent });
       app.sessionChanged(s, { now: true });
-      c.send(200, { pr, sync });
+      c.send(200, out);
     }),
   );
 }

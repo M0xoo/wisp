@@ -46,11 +46,21 @@ export { newId };
 // Where the agent actually works: its own worktree when it has one, else the project folder.
 export const workdir = (s) => s.worktree?.cwd || s.cwd;
 
-// Worktree sessions get told where they are, so they don't go looking for the main checkout.
+// Where the agent works in the task's other folders (also): their worktrees, else the folders.
+export const alsoDirs = (s) => (s.also || []).map((a) => a.worktree?.cwd || a.cwd);
+
+// Worktree sessions get told where they are, so they don't go looking for the main checkout. A task
+// with other folders (also) gets their paths: that's where the work in them goes.
 function workspaceNote(s) {
   const wt = s.worktree;
-  if (!wt) return '';
-  return `\n\n## Workspace\n\nYou are in an isolated git worktree (${wt.path}) on branch \`${wt.branch}\`, created from \`${wt.baseRef}\` for this task only. Other agents may be working in the user's main checkout, so make every change here. Dependencies and build output (node_modules, virtualenvs, dist/) are not shared with the main checkout: install them if a command needs them. Leave your changes uncommitted unless the user asks you to commit; the user ships them from wisp (commit, push, pull request).`;
+  const also = s.also || [];
+  const out = [];
+  if (wt) out.push(`You are in an isolated git worktree (${wt.path}) on branch \`${wt.branch}\`, created from \`${wt.baseRef}\` for this task only. Other agents may be working in the user's main checkout, so make every change here. Dependencies and build output (node_modules, virtualenvs, dist/) are not shared with the main checkout: install them if a command needs them. Leave your changes uncommitted unless the user asks you to commit; the user ships them from wisp (commit, push, pull request).`);
+  if (also.length) {
+    const line = (a) => (a.worktree ? `- \`${a.worktree.cwd}\`: a worktree of \`${a.cwd}\` on branch \`${a.worktree.branch}\` (from \`${a.worktree.baseRef}\`). Work here, not in \`${a.cwd}\`.` : `- \`${a.cwd}\``);
+    out.push(`This task spans ${also.length + 1} folders. Besides your working directory (${workdir(s)}), you work in:\n${also.map(line).join('\n')}\n\nRead and change files in all of them as the task needs, using absolute paths outside your working directory. Run each folder's commands (tests, builds) from inside that folder.${also.some((a) => a.worktree) ? ' Leave the changes there uncommitted too; Ship it opens a pull request per repo.' : ''}`);
+  }
+  return out.length ? `\n\n## Workspace\n\n${out.join('\n\n')}` : '';
 }
 
 // A follow-up's { agent, model, effort }, or null when it's what the session already runs on.
@@ -102,6 +112,13 @@ export function summarize(s, store) {
     question: s.ask?.question || '',
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
     branch: s.worktree?.branch || '',
+    // The task's other folders: their project, worktree branch and PR, for the card and the filter.
+    ...(s.also?.length && {
+      also: s.also.map((a) => {
+        const p = store?.projectFor(a.cwd);
+        return { cwd: a.cwd, project: p?.name || path.basename(a.cwd), projectId: p?.id || null, color: p?.color || 'slate', branch: a.worktree?.branch || '', pr: a.pr ? { number: a.pr.number, url: a.pr.url, state: a.pr.state, draft: a.pr.draft, review: a.pr.review, checks: a.pr.checks, conflict: !!a.pr.conflict } : null };
+      }),
+    }),
     toShip: s.toShip || null, // { dirty, ahead, unpushed } of the worktree, null until checked
     shipping: s.shipping || null, // { step: 'start' | 'commit' | 'push' | 'pr', update } while Ship it runs
     pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks, conflict: !!s.pr.conflict } : null,
@@ -165,7 +182,8 @@ export class Runner extends EventEmitter {
   }
 
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
-  create({ id = newId(), prompt, cwd, agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null }) {
+  // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null }) {
     if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -186,6 +204,7 @@ export class Runner extends EventEmitter {
       queue: [],
       turns: [],
       ...(worktree && { worktree }),
+      ...(also.length && { also }),
       ...(groupId && { groupId }),
       ...(origin && { origin }),
       ...(subagents.length && { subagents, children: {} }),
@@ -195,7 +214,7 @@ export class Runner extends EventEmitter {
       ...(route && { route }), // how Auto picked agent, model and level (server/router.js)
     };
     this.store.put(session);
-    if (!parentId) this.store.touchProject(cwd); // a subagent's cwd may be the lead's worktree
+    if (!parentId) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
     this.#startTurn(session, prompt, attachments);
     return session;
   }
@@ -541,6 +560,7 @@ export class Runner extends EventEmitter {
       prompt: handoff ? `${handoff}\n\n${text}` : text,
       attachments,
       cwd: workdir(session),
+      dirs: alsoDirs((session.parentId && this.store.get(session.parentId)) || session), // the task's other folders (a subagent's are its lead's)
       resumeId: session.agentSessionId,
       mode,
       grants,

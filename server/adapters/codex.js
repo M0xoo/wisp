@@ -32,11 +32,14 @@ export default {
     return detectVersion(BIN);
   },
 
-  run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
+  // dirs: the task's other folders, writable like cwd.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     // `resume` doesn't take --sandbox, so set it through config for both paths.
     if (mode === 'auto') args.push('--dangerously-bypass-approvals-and-sandbox');
     else args.push('-c', `sandbox_mode=${toml(SANDBOX[mode] || 'workspace-write')}`);
+    // `resume` doesn't take --add-dir either: the other folders are writable roots through config.
+    if (extra.length && mode !== 'auto') args.push('-c', `sandbox_workspace_write.writable_roots=${toml(extra)}`);
     if (model) args.push('-m', model);
     if (effort) args.push('-c', `model_reasoning_effort=${toml(effort)}`);
     for (const [name, srv] of Object.entries(mcpServers)) {
@@ -48,7 +51,7 @@ export default {
     const images = attachments.filter((a) => IMAGE.test(a.mime));
     for (const img of images) args.push('-i', img.path);
     if (!resumeId) {
-      const dirs = [...new Set(attachments.map((a) => path.dirname(a.path)))];
+      const dirs = [...new Set([...extra, ...attachments.map((a) => path.dirname(a.path))])];
       for (const d of dirs) args.push('--add-dir', d);
     }
     if (resumeId) args.push('resume', resumeId);

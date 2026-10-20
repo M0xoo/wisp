@@ -9,16 +9,16 @@ import { S, save, saveOpen } from '../core/state.js';
 import { taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
 import { renderLaunchChips } from './launcher.js';
-import { machinePill } from './places.js';
+import { inProject, machinePill, projectLabel } from './places.js';
 import { renderProjects } from './projects.js';
 import { agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
 import { scrollByPx, stage, topInset } from './scroll.js';
-import { prPill, shipPill } from './ship.js';
+import { prOf, prPill, shipPill } from './ship.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 
 function visible(list) {
-  return S.filter === 'all' ? list : list.filter((s) => s.projectId === S.filter);
+  return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
 }
 
 // Compare runs (one launch on several harnesses, sharing a groupId) are one task in the feed
@@ -209,10 +209,10 @@ function renderHead(n, s) {
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}
-      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr, s.conflictFix) : ''}
+      ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
-      <span class="q-proj">${esc(s.project)}</span>
+      ${projectLabel(s)}
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
       ${icon('chevron', 'chev')}
@@ -253,11 +253,11 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
     </span>
     <span class="it-side">
-      ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}<span class="q-proj">${esc(s.project)}</span>` : ''}
+      ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}${projectLabel(s)}` : ''}
       ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}
-      ${s.shipping ? shipPill(s) : s.pr ? prPill(s.pr, s.conflictFix) : ''}
+      ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${icon('chevron', 'chev')}
     </span>`;
@@ -297,7 +297,7 @@ function taskItem(t) {
     </span>
     <span class="it-side">
       <button class="ghost xs" data-a="compare" title="Side by side: time, cost, changes, tests and each presentation"><b class="vs-mark">vs</b><span>Compare</span></button>
-      ${places > 1 ? '' : `<span class="q-proj">${esc(t.project)}</span>`}
+      ${places > 1 ? '' : projectLabel(t)}
       <span class="q-time">${ago(t.updatedAt)}</span>
       ${t.state === 'review' && !t.archived ? `<button class="it-quick" data-a="quick-done" title="Mark every run done">${icon('done')}</button>` : ''}
     </span>`;
@@ -394,7 +394,7 @@ export function reveal(id) {
     S.showDone = true;
     save('wisp.showDone', true);
   }
-  if (S.filter !== 'all' && S.filter !== s.projectId) {
+  if (S.filter !== 'all' && !inProject(s, S.filter)) {
     S.filter = 'all';
     save('wisp.filter', S.filter);
     renderLaunchChips();

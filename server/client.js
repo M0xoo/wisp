@@ -132,14 +132,15 @@ export class WispClient {
   // worktree: true/false overrides the default (on in git repos). compare: [{ agent, model, effort }]
   // runs the same task on more harnesses at once, each in its own worktree. subagents:
   // [{ name, agent, model, effort, use }] (or preset: a saved team's id) the lead can delegate to.
-  async launch({ prompt, cwd = process.cwd(), agent, mode, model, effort, attachments, worktree, compare, subagents, preset } = {}) {
+  // also: more folders the same task works in (each git repo gets its own worktree and PR).
+  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset } = {}) {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
       agent ||= defaults.agent || 'auto';
       mode ||= defaults.mode || 'auto';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }
-    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), agent, mode, model, effort, attachments, worktree, compare, subagents, preset });
+    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset });
   }
 
   // Ship it: commit the session's worktree, push its branch, open (or update) the PR.

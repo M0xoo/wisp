@@ -10,7 +10,7 @@ import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree } from '../git.js';
 import { MIME } from '../http/static.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
-import { summarize, workdir } from '../runner.js';
+import { alsoDirs, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
 import { openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
@@ -46,6 +46,10 @@ export function register(r, app) {
     }
     return { agent, ...(model !== undefined && { model: String(model || '') }), ...(effort !== undefined && { effort: String(effort || '') }) };
   };
+  // Archiving removes clean worktrees: the task's own and its other folders' come back before it runs again.
+  const ensureTrees = async (s) => {
+    for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+  };
   const turnOf = (s, turnId) => (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
 
   r.route('GET', '/sessions', async (c) => {
@@ -57,8 +61,10 @@ export function register(r, app) {
     let list = [...here, ...(await machines.sessions(q))].sort((a, b) => b.updatedAt - a.updatedAt);
     if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
     if (q.agent) list = list.filter((x) => x.agent === q.agent);
-    if (q.project) list = list.filter((x) => x.projectId === q.project || x.project === q.project);
-    if (cwd) list = list.filter((x) => x.cwd === cwd || x.cwd?.startsWith(cwd + path.sep));
+    // A task in several folders (also) shows under each of their projects.
+    const dirs = (x) => [x.cwd, ...(x.also || []).map((a) => a.cwd)];
+    if (q.project) list = list.filter((x) => [x, ...(x.also || [])].some((p) => p.projectId === q.project || p.project === q.project));
+    if (cwd) list = list.filter((x) => dirs(x).some((d) => d === cwd || d?.startsWith(cwd + path.sep)));
     if (q.archived !== undefined) list = list.filter((x) => x.archived === (q.archived === 'true' || q.archived === '1'));
     if (Number(q.limit) > 0) list = list.slice(0, Number(q.limit));
     c.send(200, list);
@@ -100,7 +106,8 @@ export function register(r, app) {
       if (s.state === 'done' || s.archived) app.retro.schedule(s, 0); // finished with it: learn now
       // Archived: a clean worktree goes (its branch stays, a follow-up brings it back).
       // discardWorktree: a compare run you didn't keep; its changes go too.
-      if (s.worktree && !runner.live.has(s.id) && (s.archived || body.discardWorktree)) await removeWorktree(s.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !s.pr && 'force' });
+      if (!runner.live.has(s.id) && (s.archived || body.discardWorktree))
+        for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !x.pr && 'force' });
       app.sessionChanged(s);
       c.send(200, summarize(s, store));
     }),
@@ -117,7 +124,7 @@ export function register(r, app) {
         if (store.get(cid)) (store.delete(cid), app.broadcast('removed', { id: cid }));
       }
       // Its worktree goes with it; the branch only if it holds nothing beyond its base.
-      if (s.worktree) await removeWorktree(s.worktree, { force: true, branch: true }).catch(() => {});
+      for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: true }).catch(() => {});
       store.delete(s.id);
       app.broadcast('removed', { id: s.id });
       c.send(200, { ok: true });
@@ -213,7 +220,7 @@ export function register(r, app) {
     one(async (c, s) => {
       const { turnId, allow } = await c.body();
       notTour(s, 'approve');
-      await ensureWorktree(s.worktree);
+      await ensureTrees(s);
       c.send(200, runner.approveBlocked(s, { turnId, allow: allow !== false }));
     }),
   );
@@ -295,8 +302,8 @@ export function register(r, app) {
     one(async (c, s) => {
       const adapter = adapters[s.agent];
       if (!adapter?.resumeCommand || !s.agentSessionId) return c.send(400, { error: 'This session cannot be resumed in a terminal.' });
-      const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort });
-      await ensureWorktree(s.worktree);
+      const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort, dirs: alsoDirs(s) });
+      await ensureTrees(s);
       const command = `cd ${shq(workdir(s))} && ${argv.map(shq).join(' ')}`;
       await fn(s, argv);
       c.send(200, { command });
