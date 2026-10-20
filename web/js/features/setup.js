@@ -3,6 +3,7 @@
 // Settings → Agents uses the same install.
 
 import { esc } from '../md.js';
+import { copy } from '../blocks.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, icon } from '../core/dom.js';
@@ -12,6 +13,17 @@ import { harnessLogo } from './runners.js';
 
 // What wisp can install itself (server/services/install.js).
 export const INSTALLABLE = new Set(['opencode']);
+
+// A harness that isn't found: how to get it, from the server for that computer's OS
+// (adapter setup()). As a tooltip, as a copyable command, and as a docs link.
+export const setupTip = (a) => a.setup?.tip || `Install the ${a.name} CLI and sign in, then re-check`;
+export const setupTitle = (a) => [setupTip(a), a.setup?.command && `$ ${a.setup.command}`].filter(Boolean).join('\n');
+export const setupCommand = (cmd) => `<button type="button" class="setup-cmd" data-copy="${esc(cmd)}" title="Copy"><span class="p">$</span><code>${esc(cmd)}</code>${icon('copy')}</button>`;
+export const setupDocs = (a, cls = 'ghost sm') => (a.setup?.url ? `<a class="${cls}" href="${esc(a.setup.url)}" target="_blank" rel="noopener" title="${esc(a.name)} install guide">${icon('external')}<span>Docs</span></a>` : '');
+export function copySetupCommand(btn) {
+  copy(btn.dataset.copy, btn);
+  toast('Copied. Run it in a terminal, sign in, then Re-check');
+}
 
 let installing = null; // the running install's id
 let failed = ''; // the last install's error, shown in the strip until the next try
@@ -71,7 +83,7 @@ export function renderSetup() {
       setAgents(await api('/agents/recheck', { method: 'POST', body: {} }));
       $('#launcher')?.placesChanged?.();
       bus.emit('agents');
-      if (needsSetup()) toast('Still no harness found. Install opencode here, or Claude Code, Codex, Cursor… yourself.');
+      if (needsSetup()) toast('Still no harness found. Install opencode here, or Claude Code, Codex, Cursor… yourself. The ChatGPT app (Codex) or the Claude app (its Code tab) works too.');
     } catch (err) {
       toastError(err);
     } finally {

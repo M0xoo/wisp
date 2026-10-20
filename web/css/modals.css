@@ -132,6 +132,9 @@
   .sx-main { padding: 16px; }
   .sx-ctl .input { width: 180px; }
   .sx-usage { grid-template-columns: repeat(2, 1fr); }
+  /* a harness that isn't found: its setup tip gets the full width, its buttons go underneath */
+  .sx-agents .sx-row:has(.sx-state.bad) { flex-wrap: wrap; row-gap: 6px; }
+  .sx-agents .sx-row:has(.sx-state.bad) .sx-text { flex-basis: 100%; }
 }
 
 /* memory: what the background retros learned */

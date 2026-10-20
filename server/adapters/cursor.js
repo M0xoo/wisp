@@ -18,6 +18,15 @@ export default {
     return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : [])];
   },
 
+  // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
+  setup(platform = process.platform) {
+    return {
+      tip: 'Install the Cursor CLI, then run cursor-agent login. The Cursor editor doesn’t include it',
+      ...(platform === 'win32' ? {} : { command: 'curl https://cursor.com/install -fsS | bash' }),
+      url: 'https://cursor.com/cli',
+    };
+  },
+
   async detect() {
     const found = await detectVersion(BIN);
     if (!found.available) return found;

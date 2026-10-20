@@ -37,6 +37,11 @@ export default {
     return [BIN, ...(resumeId ? ['--conversation', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : [])];
   },
 
+  // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
+  setup() {
+    return { tip: 'Install the Antigravity CLI (agy) and sign in. The Antigravity app doesn’t include it', url: 'https://antigravity.google/docs/cli/headless/' };
+  },
+
   async detect() {
     const found = await detectVersion(BIN);
     if (!found.available) return found;

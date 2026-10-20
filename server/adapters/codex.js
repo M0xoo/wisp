@@ -1,10 +1,30 @@
 // Codex CLI adapter — drives `codex exec --json` (JSONL thread/turn/item events).
 
+import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, flatten, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, detectFirst, exitText, fileTracker, flatten, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
-const BIN = process.env.WISP_CODEX_BIN || 'codex';
+const DEFAULT_BIN = process.env.WISP_CODEX_BIN || 'codex';
+let BIN = DEFAULT_BIN;
+// Where codex lives when it isn't on PATH: the standalone installer's own copy (its ~/.local/bin
+// link may not be on an app's PATH; on Windows it also keeps one in Programs\OpenAI\Codex), then
+// the CLI the ChatGPT desktop app ships: in its bundle on macOS (the older Codex.app kept it at
+// Resources/codex) and in /usr/lib/chatgpt from the Linux .deb. They share ~/.codex, so the app's
+// sign-in carries. The Windows app is a Store package whose files can't be run from outside it.
+export const fallbackBins = () => {
+  const home = os.homedir();
+  if (process.platform === 'win32') {
+    const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    return [path.join(home, '.codex', 'packages', 'standalone', 'current', 'bin', 'codex.exe'), path.join(local, 'Programs', 'OpenAI', 'Codex', 'bin', 'codex.exe')];
+  }
+  const apps = process.platform === 'darwin' ? ['/Applications', path.join(home, 'Applications')] : [];
+  return [
+    path.join(home, '.codex', 'packages', 'standalone', 'current', 'bin', 'codex'),
+    ...apps.flatMap((d) => [path.join(d, 'ChatGPT.app', 'Contents', 'Resources', 'codex-cli', 'bin', 'codex'), path.join(d, 'Codex.app', 'Contents', 'Resources', 'codex')]),
+    ...(process.platform === 'linux' ? ['/usr/lib/chatgpt/resources/codex'] : []),
+  ];
+};
 const IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
 
 // Codex has no "accept edits only" mode; workspace-write lets it edit the project and run
@@ -29,8 +49,22 @@ export default {
     return [BIN, ...(resumeId ? ['resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['-c', `model_reasoning_effort=${toml(effort)}`] : [])];
   },
 
-  detect() {
-    return detectVersion(BIN);
+  // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
+  setup(platform = process.platform) {
+    return {
+      tip:
+        platform === 'win32'
+          ? 'Install the Codex CLI and run codex once to sign in. On Windows the ChatGPT app’s built-in Codex can’t be run from outside the app'
+          : 'Install the Codex CLI and run codex once to sign in. Or install the ChatGPT desktop app and sign in there: wisp uses the Codex inside it',
+      command: 'npm i -g @openai/codex',
+      url: 'https://github.com/openai/codex',
+    };
+  },
+
+  async detect() {
+    const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_CODEX_BIN);
+    BIN = bin;
+    return found;
   },
 
   // dirs: the task's other folders, writable like cwd.
