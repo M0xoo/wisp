@@ -1,6 +1,7 @@
 package dev.trywisp.mobile;
 
 import android.content.SharedPreferences;
+import android.webkit.WebView;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -10,6 +11,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import java.security.KeyPair;
 import java.security.Security;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.json.JSONObject;
 
 /**
  * The page's side of {@link Tunnel} and {@link Keys}: listKeys, createKey, importKey, deleteKey,
@@ -126,11 +128,35 @@ public class WispSshPlugin extends Plugin {
                 JSObject ev = new JSObject();
                 ev.put("text", text);
                 notifyListeners("line", ev);
+                toPage(text);
             });
             tunnel.start();
         }
         TunnelService.start(getContext(), call.getString("name", host));
         call.resolve();
+    }
+
+    // wisp's own page (http://127.0.0.1:<port>) has no Capacitor bridge, but the app may show it
+    // before the tunnel is up (from its cache): it hears the same lines as a `wisp-tunnel` event
+    // (web/js/features/live.js), and reads where things are with window.wispAndroid.tunnel().
+    private void toPage(String text) {
+        if (getBridge() == null) return;
+        WebView web = getBridge().getWebView();
+        web.post(() -> {
+            String url = web.getUrl();
+            if (url == null || !url.startsWith("http://127.0.0.1:")) return;
+            web.evaluateJavascript("window.dispatchEvent(new CustomEvent('wisp-tunnel', { detail: " + JSONObject.quote(text) + " }))", null);
+        });
+    }
+
+    /** {state, line}: the tunnel's state and its last progress line, for wisp's page as it opens. */
+    static String pageState() {
+        JSObject r = new JSObject();
+        Tunnel t = tunnel;
+        java.util.List<String> lines = t == null ? java.util.Collections.emptyList() : t.lines();
+        r.put("state", t == null ? "idle" : t.state());
+        r.put("line", lines.isEmpty() ? "" : lines.get(lines.size() - 1));
+        return r.toString();
     }
 
     // Trust on first use, per host:port. A changed key is refused until forgetHost.

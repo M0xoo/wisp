@@ -193,7 +193,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
 
     const url = new URL(req.url, `http://${req.headers.host}`);
     try {
-      if (!url.pathname.startsWith('/api/')) return serveStatic(res, url.pathname);
+      if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url.pathname);
       if (!(await routes.handle(req, res, url))) send(res, 404, { error: 'not found' });
     } catch (err) {
       // A refusal (bad input, not found, conflict) is an answer, not a server error.

@@ -19,7 +19,7 @@ import { TAILSCALE_GUIDE } from './reachable.js';
 import { harnessLogo } from './runners.js';
 
 export const loadMachines = () => api('/machines').then(setMachines).catch(() => {});
-export function setMachines(list) {
+export function setMachines(list, { quiet = false } = {}) {
   const was = new Map(S.machines.map((m) => [m.id, m.state === 'online']));
   S.machines = list;
   paintMachinesBtn();
@@ -27,8 +27,9 @@ export function setMachines(list) {
   $('#launcher')?.placesChanged?.();
   renderProjects();
   bus.emit('machines');
-  // Coming online lists its sessions; going offline greys their cards.
-  if (list.some((m) => (was.get(m.id) || false) !== (m.state === 'online'))) loadSessions();
+  // Coming online lists its sessions; going offline greys their cards. (Not for the phone's cached
+  // first paint: the real list is on its way.)
+  if (!quiet && list.some((m) => (was.get(m.id) || false) !== (m.state === 'online'))) loadSessions();
 }
 
 // In the phone app, Machines (SSH from this computer to others) isn't shown: the button goes back

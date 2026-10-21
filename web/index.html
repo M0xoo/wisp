@@ -27,6 +27,8 @@
   <link rel="stylesheet" href="/css/spells.css">
 </head>
 <body>
+  <!-- The phone app's look from the first paint, not when app.js runs (core/state.js MOBILE). -->
+  <script>if (/\bwispMobile\b/.test(navigator.userAgent)) document.body.classList.add('wisp-mobile');</script>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
       <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -121,13 +123,14 @@
         <span class="sp-side" id="spSide"></span>
       </div>
       <div class="launch-slot" id="launchSlot">
-        <!-- First paint, before the scripts load: the launcher's shape, and a box you can already type
-             in. renderLauncher() fills in the rest and keeps what was typed. -->
-        <section class="launcher card skel" id="launcher">
-          <div class="l-projects"><span class="l-in">in</span></div>
+        <!-- First paint, before the scripts load: the launcher's shape with quiet placeholders where its
+             chips and buttons go, and a box you can already type in. renderLauncher() fades the real
+             ones in over them and keeps what was typed. -->
+        <section class="launcher card skel" id="launcher" aria-busy="true">
+          <div class="l-projects"><span class="l-in">in</span><span class="lp-group"><i class="sk sk-chip"></i><i class="sk sk-chip short"></i><i class="sk sk-chip"></i></span></div>
           <textarea id="prompt" rows="2" spellcheck="false" autofocus placeholder="What should I go do? Paste screenshots, drop logs or videos…"></textarea>
-          <div class="l-bar"><span class="grow"></span><button class="send" tabindex="-1" aria-hidden="true"><svg class="i"><use href="#i-enter"/></svg></button></div>
-          <div class="l-recipes"></div>
+          <div class="l-bar"><i class="sk sk-btn"></i><i class="sk sk-btn"></i><i class="sk sk-btn"></i><i class="sk sk-pill"></i><i class="sk sk-btn"></i><span class="grow"></span><i class="sk sk-btn"></i><button class="send" tabindex="-1" aria-hidden="true"><svg class="i"><use href="#i-enter"/></svg></button></div>
+          <div class="l-recipes"><i class="sk sk-line short"></i><i class="sk sk-line"></i></div>
         </section>
       </div>
       <div class="feed-head" id="feedHead"></div>

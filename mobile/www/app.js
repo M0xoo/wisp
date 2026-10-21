@@ -4,7 +4,8 @@
 // 127.0.0.1:<port> on this phone to it, and this page hands over to wisp's page. In there,
 // Computers in the top bar comes back here (web/js/features/machines.js openComputers).
 //
-// Computers live in localStorage, keys in the native plugin. A password is typed for one connect:
+// Computers live in localStorage, keys in the native plugin (their public halves are cached here too,
+// so the list paints before the plugin answers). A password is typed for one connect:
 // the plugin then adds the phone's key there ("@@wisp keyed") and the password is dropped.
 //
 // Progress is wisp's `@@wisp …` line protocol. The plugin adds a few lines of its own:
@@ -21,27 +22,30 @@ const Ssh = native ? registerPlugin('WispSsh') : (await import('./mock.js')).Wis
 
 const DEFAULT_COMMAND = 'npx -y wisp-agents@latest';
 const SAVED = 'wisp.machines';
+const KEYS = 'wisp.keys'; // public keys only: the last list the plugin gave
 const $ = (s, root = document) => root.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const icon = (n) => `<svg class="i"><use href="#i-${n}"/></svg>`;
 // The tunnel step is the phone's; Find harnesses is left to wisp's own page.
 const PHONE_STEPS = STEPS.filter(([id]) => id !== 'agents');
 
-let machines = load();
-let keys = [];
+let machines = load(SAVED);
+let keys = load(KEYS);
 // The one live connection: which machine, its steps, and how it ended (if it did).
 const live = { id: '', state: 'idle', steps: [], failure: null, opened: false };
+let opening = ''; // the computer whose wisp is loading: its button says so until the page changes
 let openOnReady = ''; // set by a Connect tap here, so a background reconnect never yanks the page
 const passwords = new Map(); // typed for one connection, never saved
 
-function load() {
+function load(key) {
   try {
-    return JSON.parse(localStorage.getItem(SAVED)) || [];
+    return JSON.parse(localStorage.getItem(key)) || [];
   } catch {
     return [];
   }
 }
 const save = () => localStorage.setItem(SAVED, JSON.stringify(machines));
+const saveKeys = () => localStorage.setItem(KEYS, JSON.stringify(keys.map(({ id, name, source, type, publicKey, fingerprint }) => ({ id, name, source, type, publicKey, fingerprint }))));
 const newId = () => Math.random().toString(36).slice(2, 10);
 const machine = (id) => machines.find((m) => m.id === id);
 const keyOf = (m) => keys.find((k) => k.id === m?.keyId) || keys[0];
@@ -192,7 +196,7 @@ function paintMachines() {
     .map((m) => {
       const on = live.id === m.id && live.state !== 'idle';
       const state = on ? live.state : 'idle';
-      const go = state === 'ready' ? `<button class="primary m-go" data-a="open" type="button">Open ${icon('arrow')}</button>` : state === 'connecting' ? `<button class="ghost m-go" disabled type="button">Connecting…</button>` : `<button class="ghost m-go" data-a="connect" type="button">${state === 'failed' ? 'Try again' : 'Connect'}</button>`;
+      const go = opening === m.id ? `<button class="primary m-go" disabled type="button"><span class="spin"></span>Opening</button>` : state === 'ready' ? `<button class="primary m-go" data-a="open" type="button">Open ${icon('arrow')}</button>` : state === 'connecting' ? `<button class="ghost m-go" disabled type="button">Connecting…</button>` : `<button class="ghost m-go" data-a="connect" type="button">${state === 'failed' ? 'Try again' : 'Connect'}</button>`;
       return `<article class="card m ${state}" data-id="${esc(m.id)}">
           <div class="m-row">
             <span class="m-ico">${icon('server')}<span class="st"></span></span>
@@ -206,6 +210,7 @@ function paintMachines() {
 }
 
 function paintKeys() {
+  saveKeys();
   $('#keys').innerHTML = keys
     .map((k) => {
       const used = machines.filter((m) => keyOf(m)?.id === k.id).length;
@@ -221,10 +226,26 @@ const paint = () => {
   paintKeys();
 };
 
+// Back here from wisp's page (Computers, Back): the page may come from the back/forward cache, with
+// the Opening button still showing.
+addEventListener('pageshow', () => {
+  if (!opening) return;
+  opening = '';
+  paintMachines();
+});
+
 // --- actions -----------------------------------------------------------------------------------
 
 const openWisp = (m) => {
   if (!native) return toast(`Opens wisp at 127.0.0.1:${m.port || 4477}`); // the preview has no tunnel
+  // The tap shows at once. Once its wisp has opened here, its page and the tasks seen last are
+  // cached on the phone (web/sw.js, web/js/features/cache.js): from then on it opens at once.
+  opening = m.id;
+  paintMachines();
+  if (!m.seen && live.id === m.id && live.state === 'ready') {
+    m.seen = true;
+    save();
+  }
   // ?m=: wisp's page names "here" after this computer (web/js/core/state.js HUB).
   location.href = `http://127.0.0.1:${m.port || 4477}/?m=${encodeURIComponent(nameOf(m))}`;
 };
@@ -246,6 +267,14 @@ async function connect(m) {
     setStep('ssh', 'fail');
     Object.assign(live, { state: 'failed', failure: { id: 'ssh', message: err.message || String(err) } });
     paint();
+    return;
+  }
+  // Opened here before: go straight to its cached page, which catches up when the tunnel is up and
+  // says so if it can't connect (web/js/features/live.js). Not with a password typed just now:
+  // whether it worked shows here.
+  if (m.seen && !passwords.has(m.id) && openOnReady === m.id) {
+    openOnReady = '';
+    openWisp(m);
   }
 }
 
@@ -258,25 +287,74 @@ async function disconnect() {
 
 // --- sheets ------------------------------------------------------------------------------------
 // A sheet pushes a history entry, so Android's back button closes it instead of leaving the app.
+// Like a native one, it slides away: on Back, a tap outside it, or a drag down from its header.
 
 function present(dialog) {
+  dialog.classList.remove('closing');
+  dialog.style.transform = '';
   dialog.showModal();
   history.pushState({ sheet: dialog.id }, '');
   const close = () => {
-    if (dialog.open) dialog.close();
+    dismiss(dialog);
   };
   dialog.onclose = () => {
     if (history.state?.sheet === dialog.id) history.back();
+  };
+  dialog.oncancel = (e) => {
+    e.preventDefault();
+    dismiss(dialog);
+  };
+  dialog.onclick = (e) => {
+    // The backdrop is the dialog itself, outside its box.
+    if (e.target !== dialog) return;
+    const r = dialog.getBoundingClientRect();
+    if (e.clientY < r.top || e.clientY > r.bottom || e.clientX < r.left || e.clientX > r.right) dismiss(dialog);
   };
   dialog.querySelectorAll('[data-close]').forEach((b) => {
     b.onclick = () => {
       close();
     };
   });
+  dragToClose(dialog);
   return close;
 }
+
+function dismiss(dialog) {
+  if (!dialog.open || dialog.classList.contains('closing')) return;
+  dialog.classList.add('closing');
+  setTimeout(() => {
+    dialog.classList.remove('closing');
+    dialog.style.transform = '';
+    dialog.close();
+  }, 180);
+}
+
+function dragToClose(dialog) {
+  const head = dialog.querySelector('header');
+  let y0 = null;
+  let dy = 0;
+  head.onpointerdown = (e) => {
+    if (e.target.closest('button')) return;
+    y0 = e.clientY;
+    dy = 0;
+    head.setPointerCapture(e.pointerId);
+    dialog.classList.add('dragging');
+  };
+  head.onpointermove = (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.clientY - y0);
+    dialog.style.transform = `translateY(${dy}px)`;
+  };
+  head.onpointerup = head.onpointercancel = () => {
+    if (y0 === null) return;
+    y0 = null;
+    dialog.classList.remove('dragging');
+    if (dy > 70) dismiss(dialog);
+    else dialog.style.transform = '';
+  };
+}
 window.addEventListener('popstate', () => {
-  document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+  document.querySelectorAll('dialog[open]').forEach((d) => dismiss(d));
 });
 
 function editMachine(m, { focusPassword = false } = {}) {
@@ -419,12 +497,16 @@ function importKey() {
 // --- boot --------------------------------------------------------------------------------------
 
 async function boot() {
-  wire(); // first, so the buttons work even if the plugin below fails
-  try {
-    ({ keys } = await Ssh.listKeys());
-  } catch (err) {
-    toast(`Couldn’t read this phone’s keys: ${err.message}`, { stay: true });
-  }
+  wire(); // first, so the buttons work even if the plugin below fails; painted from the caches
+  // Both at once: the plugin answers each on its own thread.
+  const [listed, st] = await Promise.all([
+    Ssh.listKeys().catch((err) => {
+      toast(`Couldn’t read this phone’s keys: ${err.message}`, { stay: true });
+      return null;
+    }),
+    Ssh.status(),
+  ]);
+  if (listed) keys = listed.keys;
 
   Ssh.addListener('line', ({ text }) => {
     const opens = apply(text);
@@ -437,7 +519,6 @@ async function boot() {
   });
 
   // The plugin keeps the tunnel while this page is left for wisp's: replay where it got to.
-  const st = await Ssh.status();
   if (st.state !== 'idle' && machine(st.machineId)) {
     resetSteps(st.machineId);
     for (const line of st.lines) apply(line);

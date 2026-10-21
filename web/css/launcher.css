@@ -5,10 +5,24 @@
 .launcher:is(:focus-within, :has(.open)) { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
 .launcher.drop, .composer.drop { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 /* index.html's first paint: same height as the real launcher, so nothing jumps when it fills in */
-.launcher.skel .l-projects { height: 35px; }
+.launcher.skel .l-projects { min-height: 35px; }
 .launcher.skel .l-bar { height: 38px; }
 .launcher.skel .l-recipes { height: 40px; }
 @container launcher (max-width: 480px) { .launcher.skel .l-recipes { height: 90px; } } /* its hint wraps on phones */
+/* Where the chips and buttons will be (the same sizes, so they wrap the same), instead of an empty
+   box that fills up piece by piece. */
+.launcher.skel .l-recipes { flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 12px; }
+.sk { display: inline-block; flex: none; background: var(--bg-2); border-radius: 9px; animation: sk-pulse 1.4s ease-in-out infinite; }
+.sk-chip { width: 140px; height: 27px; border-radius: 99px; }
+.sk-chip.short { width: 96px; }
+.sk-btn { width: 32px; height: 32px; }
+.sk-pill { width: 64px; height: 30px; }
+.sk-line { width: min(300px, 80%); height: 11px; border-radius: 99px; }
+.sk-line.short { width: 64px; }
+@keyframes sk-pulse { 50% { opacity: 0.5; } }
+/* The real controls replace the placeholders all at once, with a short fade (renderLauncher). */
+.launcher.fill-in :is(.l-projects, .l-bar, .l-recipes) { animation: sk-in 0.28s var(--ease); }
+@keyframes sk-in { from { opacity: 0; } }
 .l-projects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 2px 8px; }
 /* no harness yet: one quiet line offering to install opencode */
 .l-setup { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; padding: 6px 6px 6px 10px; border-radius: 9px; background: var(--accent-soft); font-size: 13px; color: var(--ink-2); }
