@@ -74,6 +74,7 @@ export function connect() {
   es.addEventListener('remote', () => bus.emit('remote'));
   es.addEventListener('machines', (e) => setMachines(JSON.parse(e.data)));
   es.addEventListener('cloud', (e) => bus.emit('cloud', JSON.parse(e.data)));
+  es.addEventListener('agent-login', (e) => bus.emit('agent-login', JSON.parse(e.data)));
   es.addEventListener('update', (e) => renderUpdate(JSON.parse(e.data)));
   // A new harness or model Auto can use: it gets a few tasks before Auto relies on it.
   es.addEventListener('router', (e) => {

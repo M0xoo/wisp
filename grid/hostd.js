@@ -136,6 +136,20 @@ export class Hostd extends EventEmitter {
     if (i) i.lastTouch = Date.now();
   }
 
+  // A request on its way to its wisp: never stopped for idleness while one is open.
+  begin(userId) {
+    const i = this.inst.get(userId);
+    if (!i) return () => {};
+    i.inflight = (i.inflight || 0) + 1;
+    let done = false;
+    return () => {
+      if (done) return;
+      done = true;
+      i.inflight -= 1;
+      i.lastTouch = Date.now();
+    };
+  }
+
   dirs(user) {
     const root = path.join(this.dataDir, 'users', user.id);
     return { root, wisp: path.join(root, 'wisp'), home: path.join(root, 'home'), log: path.join(root, 'wisp.log') };
@@ -250,7 +264,9 @@ export class Hostd extends EventEmitter {
       }
       i.nextWakeAt = s.nextWakeAt || null;
       i.lastActiveAt = Math.max(s.lastActivityAt || 0, i.lastTouch || 0);
-      const quiet = !s.live && !s.sides && !s.clients && now - i.lastActiveAt > this.idleMs;
+      // Checked after the await: a request may have arrived meanwhile. stop() flips the state
+      // before it yields, so a request after this point waits for a fresh start instead.
+      const quiet = i.state === 'running' && !i.inflight && !s.live && !s.sides && !s.clients && Date.now() - Math.max(i.lastActiveAt, i.lastTouch || 0) > this.idleMs;
       if (quiet) {
         this.log(`hostd: ${i.user.handle} idle, stopping${i.nextWakeAt ? ` (wakes ${new Date(i.nextWakeAt).toISOString()})` : ''}`);
         await this.stop(i.user.id, 'idle');

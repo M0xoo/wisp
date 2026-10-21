@@ -212,3 +212,19 @@
 .krow { display: flex; align-items: center; gap: 14px; padding: 6px 0; }
 .krow kbd { min-width: 56px; text-align: center; font-size: 11.5px; }
 
+
+/* Settings → Agents: signing in to a harness (features/agent-login.js). */
+.sx-login-ctl { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
+.sx-signed { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--good); }
+.sx-signed .i { width: 13px; height: 13px; }
+.sx-login { margin: 0 14px 12px 50px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.sx-login[hidden] { display: none; }
+.sx-login p { margin: 0; }
+.sx-login.bad p { color: var(--bad); }
+.sx-login-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sx-login-row .input { flex: 1; min-width: 220px; }
+.sx-login .btn-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.sx-login-code { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px dashed var(--line-2); border-radius: 8px; align-self: flex-start; }
+.sx-login-code .mono { font: 600 18px var(--mono); letter-spacing: .12em; }
+.sx-login-wait { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.sx-login-wait .spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }

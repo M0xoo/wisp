@@ -54,6 +54,14 @@ export function openapi({ version, port }) {
         patch: { summary: 'Auto settings', requestBody: body({ type: 'object', properties: { goal: { enum: ['cheap', 'balanced', 'best'] }, explore: { type: 'boolean', description: 'Let Auto try new models on a few tasks' }, allowed: { type: 'array', items: { type: 'string' }, description: 'Harness ids Auto may pick; empty or null = all' }, check: { type: 'boolean', description: 'Run the project tests after an Auto run; only new failures count' }, repairs: { type: 'integer', minimum: 0, maximum: 2, description: 'Times failing tests go back to the same agent' }, escalate: { type: 'boolean', description: 'Still failing: run the task again on a stronger pick, in its own worktree' }, best2: { type: 'boolean', description: 'Goal Best: two picks side by side, the better one marked' }, scout: { enum: ['off', 'big', 'all'], description: 'A cheap model looks at the repo first' } } }), responses: { 200: json({ type: 'object' }) } },
       },
       '/router/reset': { post: { summary: 'Forget what Auto learned here (the shipped starting point stays)', responses: { 200: json({ type: 'object' }) } } },
+      '/agents/{aid}/login': {
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string', enum: ['claude', 'codex', 'cursor', 'grok', 'gh'] } }],
+        get: { summary: 'Whether this harness is signed in, and the sign-in in progress: state (idle | running | waiting | done | failed | cancelled), url to open, code to enter there, needsInput when it waits for a code pasted back', responses: { 200: json({ type: 'object' }) } },
+        post: { summary: 'Start the harness’s own login (claude auth login, codex login --device-auth, …). Its login stays where the CLI keeps it', responses: { 200: json({ type: 'object' }), 400: err[400] } },
+        delete: { summary: 'Cancel the sign-in in progress', responses: { 200: json({ type: 'object' }) } },
+      },
+      '/agents/{aid}/login/input': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Paste back the code the sign-in page showed', requestBody: body({ type: 'object', required: ['code'], properties: { code: { type: 'string' } } }), responses: { 200: json({ type: 'object' }), 409: json(ref('Error')) } } },
+      '/agents/{aid}/logout': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Sign the harness out (its own logout)', responses: { 200: json({ type: 'object' }) } } },
       '/agents/install': {
         post: {
           summary: 'Install a harness into ~/.wisp/tools with npm (only opencode: its free models need no account), then detect again',

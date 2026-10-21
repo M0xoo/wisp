@@ -105,6 +105,8 @@ export const PARTS = {
   'settings.cloud': '.sx-cloud',
   'settings.cloud.computer': '.cl-card',
   'settings.cloud.signin': '.cl-signin',
+  // Settings → Agents: signing in to a harness (its link, code and paste box).
+  'settings.agent.signin': '.sx-login',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.

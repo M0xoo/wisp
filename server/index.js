@@ -25,6 +25,7 @@ import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
 import { Secrets } from './secrets.js';
 import { createCloud } from './services/cloud.js';
+import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
@@ -176,6 +177,11 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.places = createPlaces(app);
   app.mover = createMove(app);
   app.cloud = createCloud(app);
+  // Signing in to a harness from the page; once in, its models are looked up again.
+  app.agentLogin = createAgentLogin({
+    onChange: (v) => app.broadcast('agent-login', v),
+    onDone: () => app.auto.detect({ fresh: true }).then(() => app.broadcast('agents', {}), () => {}),
+  });
   app.launcher = createLaunch(app);
   app.sendFeedback = createFeedback(app);
   app.triggers = new Triggers({ store, launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0], onChange: () => app.broadcast('config', {}) });
@@ -236,6 +242,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
     app.cloud.stop();
+    app.agentLogin.stop();
     for (const s of store.all()) runner.stop(s);
     store.flush();
     app.telemetry.persist();

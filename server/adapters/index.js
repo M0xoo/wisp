@@ -43,6 +43,7 @@ import opencode from './opencode.js';
 import cursor from './cursor.js';
 import antigravity from './antigravity.js';
 import grok from './grok.js';
+import { signedIn } from '../agent-login.js';
 
 // The shape above, checked when wisp starts: a missing piece fails loudly here, not mid-run.
 function checked(a) {
@@ -61,6 +62,7 @@ function checked(a) {
   return a;
 }
 
+
 export const adapters = Object.fromEntries([claude, codex, opencode, cursor, antigravity, grok].map((a) => [a.id, checked(a)]));
 
 const detected = new Map();
@@ -71,12 +73,19 @@ export async function listAgents({ fresh = false } = {}) {
   if (fresh) detected.clear();
   return Promise.all(
     Object.values(adapters).map(async (a) => {
-      if (!detected.has(a.id)) detected.set(a.id, a.detect());
+      // Installed but signed out (it says so, and no API key signs it in): not available, so the
+      // model picker only offers what you can use. Settings → Agents signs it in.
+      if (!detected.has(a.id))
+        detected.set(
+          a.id,
+          a.detect().then(async (f) => (f.available && (await signedIn(a.id).catch(() => null)) === false ? { ...f, available: false, signedIn: false, error: 'Not signed in' } : f)),
+        );
       const found = await detected.get(a.id);
-      // Only a hit is cached: a CLI installed while wisp is running shows up on the next call.
-      if (!found.available) detected.delete(a.id);
+      // Only a hit is cached: a CLI installed while wisp is running shows up on the next call. A
+      // signed-out one stays cached too; signing in from wisp detects again.
+      if (!found.available && found.signedIn !== false) detected.delete(a.id);
       // delegates: can lead a team of subagents (needs wisp's MCP server injected).
-      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], delegates: a.askTool !== null, ...found, ...(!found.available && a.setup && { setup: a.setup() }) };
+      return { id: a.id, name: a.name, models: a.models, efforts: a.efforts || [], delegates: a.askTool !== null, ...found, ...(!found.available && found.signedIn !== false && a.setup && { setup: a.setup() }) };
     }),
   );
 }

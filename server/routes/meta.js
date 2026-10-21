@@ -51,6 +51,12 @@ export function register(r, app) {
     const [agents] = await Promise.all([app.auto.detect({ fresh: true }), machines.recheckAgents()]);
     c.send(200, agents);
   });
+  // Sign in to a harness here: its own login, shown as a link, a code, and a box to paste one back.
+  r.route('GET', '/agents/:id/login', async (c) => c.send(200, { ...app.agentLogin.view(c.params.id), ...(await app.agentLogin.status(c.params.id)) }));
+  r.route('POST', '/agents/:id/login', (c) => c.send(200, app.agentLogin.start(c.params.id)));
+  r.route('POST', '/agents/:id/login/input', async (c) => c.send(200, app.agentLogin.input(c.params.id, (await c.body()).code)));
+  r.route('DELETE', '/agents/:id/login', (c) => c.send(200, app.agentLogin.cancel(c.params.id)));
+  r.route('POST', '/agents/:id/logout', async (c) => c.send(200, await app.agentLogin.logout(c.params.id)));
   // No harness yet: install one (opencode) without leaving wisp. Answers once it's ready.
   r.route('POST', '/agents/install', async (c) => {
     const { id } = await c.body();

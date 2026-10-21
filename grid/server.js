@@ -382,6 +382,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   }
 
   function proxy(req, res, port, user) {
+    // A request on its way keeps its wisp up; a page's event stream doesn't (it stays open for
+    // hours): wisp counts open pages itself, and leaves out a desktop relaying them (/api/status).
+    if (!req.url.startsWith('/api/events')) res.on('close', hostd.begin(user.id));
     const headers = {};
     for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'authorization' && !k.startsWith('x-wisp-proxy') && !k.startsWith('x-forwarded')) headers[k] = v;
     Object.assign(headers, {

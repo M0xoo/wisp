@@ -6,6 +6,11 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends git ca-certificates curl ripgrep python3 openssh-client procps less \
  && rm -rf /var/lib/apt/lists/*
 
+# GitHub CLI: Ship it pushes and opens pull requests with it; each person signs in from Settings → Agents.
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update && apt-get install -y --no-install-recommends gh && rm -rf /var/lib/apt/lists/*
+
 # The agents. Each person signs in to theirs inside their own wisp (or uses opencode's free models).
 RUN npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai && npm cache clean --force
 
