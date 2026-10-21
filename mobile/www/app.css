@@ -151,3 +151,12 @@ details.keys[open] { gap: 10px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* wisp Cloud (a wisp Grid): sign in with a code, then it's a computer like the others. */
+.add.cloud { margin-top: 8px; }
+.gbody { display: flex; flex-direction: column; gap: 12px; }
+.gbody .code { font: 600 28px/1 var(--mono, ui-monospace, monospace); letter-spacing: 0.14em; text-align: center; padding: 18px; border: 1px dashed var(--line-2); border-radius: 12px; background: var(--bg-2); }
+.gbody .wait { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.gbody .err { color: var(--bad, #b91c1c); font-size: 13px; margin: 0; }
+.gbody .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.gbody .row > * { flex: 1; }

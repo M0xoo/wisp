@@ -48,6 +48,9 @@ export function eventStream() {
     attach(req, res) {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       res.write(`event: hello\ndata: {}\n\n`);
+      // Another wisp relaying this one's events (a cloud computer seen from your desktop): it
+      // doesn't count as someone looking (GET /api/status clients).
+      res.relay = req.headers['x-wisp-relay'] === '1';
       clients.add(res);
       req.on('close', () => clients.delete(res));
     },

@@ -1,0 +1,21 @@
+# systemd unit for wisp Grid. Install: copy to /etc/systemd/system/, then
+#   systemctl daemon-reload && systemctl enable --now wisp-grid
+# Secrets stay out of the environment: grid.json points at files in /var/lib/wisp-grid/secrets.
+[Unit]
+Description=wisp Grid
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=wisp
+Environment=GRID_DATA=/var/lib/wisp-grid
+ExecStart=/usr/bin/npx -y wisp-agents grid serve
+Restart=on-failure
+# Its users' wisps stop on SIGTERM; give them time to save.
+TimeoutStopSec=30
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

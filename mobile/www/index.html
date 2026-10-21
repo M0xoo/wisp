@@ -17,6 +17,7 @@
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11 12l8-8M16 7l2.5 2.5M14 9l2 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7.5 18.5h10a4 4 0 00.6-7.95A5.5 5.5 0 007.6 9.1 4.75 4.75 0 007.5 18.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
     <symbol id="i-server" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="13" width="16" height="6.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7.5 7.75h.01M7.5 16.25h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
     <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   </svg>
@@ -28,6 +29,7 @@
 
     <section class="list" id="machines"></section>
     <button class="add" id="addMachine" type="button"><svg class="i"><use href="#i-plus"/></svg><span>Add a computer</span></button>
+    <button class="add cloud" id="addCloud" type="button"><svg class="i"><use href="#i-cloud"/></svg><span>Sign in to wisp Cloud</span></button>
 
     <details class="keys">
       <summary class="sec-head"><span>Keys on this phone <em>advanced</em></span>
@@ -40,6 +42,14 @@
       <div class="list" id="keys"></div>
     </details>
   </main>
+
+  <!-- wisp Cloud: sign in to a wisp Grid, or manage a cloud computer -->
+  <dialog class="sheet" id="gSheet">
+    <form method="dialog" id="gForm" autocomplete="off">
+      <header><h2 id="gTitle">wisp Cloud</h2><button class="icon" value="cancel" type="button" data-close aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></header>
+      <div id="gBody" class="gbody"></div>
+    </form>
+  </dialog>
 
   <!-- Add / edit a computer -->
   <dialog class="sheet" id="mSheet">

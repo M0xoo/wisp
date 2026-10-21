@@ -5,7 +5,7 @@ import { esc } from '../md.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { popover } from '../ui/popover.js';
-import { machineById } from './places.js';
+import { machineById, usable } from './places.js';
 
 export const MODES = [
   { id: 'plan', label: 'Plan', icon: 'plan', hint: 'Read-only. The agent investigates and proposes.' },
@@ -28,7 +28,7 @@ export const AUTO_GOALS = [
 export const AUTO = { id: 'auto', name: 'Auto', available: true, delegates: true, models: AUTO_GOALS, efforts: [], hint: 'wisp picks the harness, model and thinking level from what worked before' };
 
 // Harness lists per place: '' is this computer, else a machine (what it reported when it came online).
-export const agentsAt = (k) => (k ? (machineById(k)?.state === 'online' && machineById(k).remote?.agents) || null : S.agents);
+export const agentsAt = (k) => (k ? (usable(machineById(k)) && machineById(k).remote?.agents) || null : S.agents);
 
 // A harness's models and levels: this computer's if it's installed here, else the first machine's that has it.
 export function agentById(id) {

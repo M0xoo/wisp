@@ -183,7 +183,7 @@ export function openMachines({ host, focusAdd = false } = {}) {
         <span class="mc-icon">${icon('server')}<i class="mc-dot"></i></span>
         <div class="mc-title"><b>${esc(m.name)}</b><span>${esc(m.target)}${m.port !== 4477 ? ` · port ${m.port}` : ''}</span></div>
         <span class="mc-state">${MACHINE_STATE[st] || st}</span>
-        ${st === 'online' || busy ? `<button class="ghost sm" data-a="disconnect">${busy ? 'Cancel' : 'Disconnect'}</button>` : `<button class="primary sm" data-a="connect">${st === 'error' ? 'Try again' : 'Connect'}</button>`}
+        ${st === 'online' || busy ? `<button class="ghost sm" data-a="disconnect">${busy ? 'Cancel' : 'Disconnect'}</button>` : `<button class="primary sm" data-a="connect">${st === 'error' ? 'Try again' : st === 'asleep' ? 'Wake' : 'Connect'}</button>`}
         <button class="icon-btn" data-a="menu" title="More">${icon('dots')}</button>
       </div>
       ${

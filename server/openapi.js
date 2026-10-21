@@ -20,11 +20,14 @@ export function openapi({ version, port }) {
         'Local API of wisp, a launcher and queue for coding agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok). ' +
         'Binds to 127.0.0.1 only. Requests must carry a Host of 127.0.0.1/localhost:<port>; non-GET requests must be ' +
         'application/json (uploads: application/octet-stream) and, if they send an Origin, a local one. ' +
-        'The running server advertises { url, port, pid, version } in ~/.wisp/server.json.',
+        'The running server advertises { url, port, pid, version } in ~/.wisp/server.json. ' +
+        'Behind a reverse proxy (wisp Grid), WISP_TRUSTED_PROXY_SECRET turns on trusted-proxy mode: requests carrying it in ' +
+        'x-wisp-proxy-secret may use any Host, and a non-GET Origin must match WISP_PUBLIC_URL.',
     },
     servers: [{ url: `http://127.0.0.1:${port}/api` }],
     paths: {
       '/health': { get: { summary: 'Liveness, version and pid', responses: { 200: json(ref('Health')) } } },
+      '/status': { get: { summary: 'Whether anything is going on: turns running (live), side questions (sides), open pages (clients), lastActivityAt, and nextWakeAt (the next scheduled trigger). Used to stop an idle wisp', responses: { 200: json({ type: 'object', properties: { live: { type: 'integer' }, sides: { type: 'integer' }, clients: { type: 'integer' }, lastActivityAt: { type: ['integer', 'null'] }, nextWakeAt: { type: ['integer', 'null'] }, version: { type: 'string' } } }) } } },
       '/update': {
         get: { summary: 'Current and latest published version, and how this copy updates (global | npx | brew | git; a git clone never offers one). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
         post: { summary: 'Install the latest version and relaunch. 409 while agents run unless { force: true }', responses: { 202: json({ type: 'object' }), 409: json({ type: 'object' }) } },
@@ -204,6 +207,8 @@ export function openapi({ version, port }) {
           responses: { 201: json({ type: 'object' }), 400: err[400] },
         },
       },
+      '/cloud/signin': { post: { summary: 'Sign in to a wisp Grid (device flow): returns the code to approve in the browser and where; the cloud computer joins Machines once approved', requestBody: body({ type: 'object', required: ['url'], properties: { url: { type: 'string', description: 'The grid, e.g. wisp.example.com' } } }), responses: { 201: json(ref('CloudSignin')), 400: err[400] } } },
+      '/cloud/signin/{sid}': { parameters: [{ name: 'sid', in: 'path', required: true, schema: { type: 'string' } }], get: { summary: 'Where a grid sign-in is: waiting, done, denied, expired, failed or cancelled', responses: { 200: json(ref('CloudSignin')), 404: err[404] } }, delete: { summary: 'Cancel a grid sign-in', responses: { 200: json(ref('CloudSignin')), 404: err[404] } } },
       '/machines/discover': { get: { summary: 'Hosts this computer can reach: ~/.ssh/config, Tailscale peers, ~/.ssh/known_hosts', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/machines/reachable': { get: { summary: 'Whether other devices can reach this computer over SSH: SSH server, Tailscale, authorized keys, and the user@host to connect with', responses: { 200: json({ type: 'object', properties: { os: { type: 'string' }, user: { type: 'string' }, target: { type: 'string' }, supported: { type: 'boolean' }, keys: { type: 'integer' }, ssh: { type: 'object' }, tailscale: { type: 'object' } } }) } } },
       '/machines/ssh-hosts': { get: { summary: 'Hosts from ~/.ssh/config, for suggestions', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
@@ -342,6 +347,7 @@ export function openapi({ version, port }) {
     components: {
       schemas: {
         Error: { type: 'object', properties: { error: { type: 'string' } } },
+        CloudSignin: { type: 'object', properties: { id: { type: 'string' }, grid: { type: 'string' }, state: { enum: ['waiting', 'done', 'denied', 'expired', 'failed', 'cancelled'] }, userCode: { type: 'string' }, verifyUrl: { type: 'string' }, expiresAt: { type: 'integer' }, error: { type: 'string' }, machineId: { type: ['string', 'null'] }, user: { type: ['object', 'null'] } } },
         Health: { type: 'object', properties: { ok: { type: 'boolean' }, name: { const: 'wisp' }, version: { type: 'string' }, apiVersion: { type: 'integer' }, pid: { type: 'integer' }, url: { type: 'string' } } },
         Agent: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, available: { type: 'boolean' }, version: { type: 'string' }, models: { type: 'array', items: { type: 'object' } }, efforts: { type: 'array', items: { type: 'string' } }, setup: { type: 'object', description: 'Only while not found: how to get it on that OS', properties: { tip: { type: 'string' }, command: { type: 'string' }, url: { type: 'string' } } } } },
         Project: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, path: { type: 'string' }, color: { type: 'string' } } },

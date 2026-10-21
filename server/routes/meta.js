@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { openapi } from '../openapi.js';
+import { triggerView } from '../triggers.js';
 import { toolStats, usage } from '../usage.js';
 import { expandHome, VERSION } from '../util.js';
 
@@ -14,7 +15,17 @@ export function register(r, app) {
 
   r.route('GET', '/events', (c) => app.events.attach(c.req, c.res));
 
-  r.route('GET', '/health', (c) => c.send(200, { ok: true, name: 'wisp', version: VERSION, apiVersion: API_VERSION, pid: process.pid, url: `http://127.0.0.1:${port}` }));
+  r.route('GET', '/health', (c) => c.send(200, { ok: true, name: 'wisp', version: VERSION, apiVersion: API_VERSION, pid: process.pid, url: app.publicUrl || `http://127.0.0.1:${port}` }));
+
+  // Whether anything is going on, for whoever starts and stops this wisp (wisp Grid stops an idle
+  // one): turns running, side questions, open pages, the last change, and the next scheduled task.
+  r.route('GET', '/status', (c) => {
+    const next = (store.config.triggers || [])
+      .map((t) => triggerView(t).nextAt)
+      .filter(Boolean)
+      .sort((a, b) => a - b)[0];
+    c.send(200, { live: runner.live.size, sides: runner.sides.size, clients: [...app.events.clients].filter((x) => !x.relay).length, lastActivityAt: app.lastActivityAt || null, nextWakeAt: next || null, version: VERSION });
+  });
 
   // New wisp-agents on npm? POST installs it and relaunches; running agents are stopped, so the
   // client must pass force once it has confirmed that with the user.

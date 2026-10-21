@@ -19,7 +19,7 @@ import { feedbackCommand, isFeedback } from './feedback.js';
 import { connectMachine, offlineToast, openMachines } from './machines.js';
 import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
-import { MACHINE_STATE, machineById, pathAt, placeName, placeOf, placesOf, projectById, projects, projectTitle } from './places.js';
+import { MACHINE_STATE, machineById, pathAt, placeName, placeOf, placesOf, projectById, projects, projectTitle, usable } from './places.js';
 import { projectList } from './project-list.js';
 import { openProjects } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
@@ -325,7 +325,7 @@ export function renderLauncher() {
     // checkout of it yet gets one first (the server clones it there).
     const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(), clone: cloneById(pickId()), also: ownPick() ? alsoIds().map(projectById).filter(Boolean) : [] }));
     if (!targets[0].project && !targets[0].clone) return openProjects({ focusAdd: true });
-    const off = targets.find((t) => t.m && t.m.state !== 'online');
+    const off = targets.find((t) => t.m && !usable(t.m));
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
     const wanted = [over?.agent || agent?.id, ...compare.map((c) => c.agent)].filter((id) => id !== 'auto'); // Auto picks from what's there

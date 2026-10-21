@@ -10,10 +10,16 @@
 //
 // Nothing new listens on the network: the remote wisp stays on its own loopback, and it keeps
 // running (agents too) when this computer sleeps. Auth is whatever your SSH setup does.
+//
+// Cloud computers (kind: 'grid') are wisps on a wisp Grid (grid/), reached over HTTPS at their own
+// address with a device token (secrets.json, never config.json). The grid stops one that's idle:
+// this computer's event stream doesn't keep it up (x-wisp-relay), so when it ends the machine is
+// 'asleep', watched without waking it, and anything you do there wakes it again.
 
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import http from 'node:http';
+import { target as gridTarget } from './grid-client.js';
 import net from 'node:net';
 import readline from 'node:readline';
 import { randomBytes } from 'node:crypto';
@@ -29,6 +35,13 @@ export { DEFAULT_PORT };
 const READY_TIMEOUT_MS = 6 * 60_000; // the first `npx` download can take a while
 const RETRY_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 const LIST_TIMEOUT_MS = 5_000;
+const GRID_STEPS = [
+  ['wake', 'Wake it up'],
+  ['agents', 'Find harnesses'],
+];
+const GRID_WAKE_MS = 90_000;
+const GRID_WATCH_MS = 20_000; // how often an asleep cloud computer is checked (without waking it)
+const isGrid = (m) => m?.kind === 'grid';
 const MAX_LOG = 80;
 
 const sshBin = () => process.env.WISP_SSH || 'ssh';
@@ -68,9 +81,9 @@ const readAll = (res) =>
 
 export class Machines extends EventEmitter {
   // onEvent(event, data): a session event from a machine, ids already rewritten.
-  constructor({ store, version, apiVersion, onEvent = () => {}, onChange = () => {} }) {
+  constructor({ store, version, apiVersion, secrets = null, onEvent = () => {}, onChange = () => {} }) {
     super();
-    Object.assign(this, { store, version, apiVersion, onEvent, onChange });
+    Object.assign(this, { store, version, apiVersion, secrets, onEvent, onChange });
     this.conns = new Map(); // machine id -> connection state
     this.cache = new Map(); // machine id -> Map(remote id -> remote summary): shown while it's offline
   }
@@ -98,8 +111,19 @@ export class Machines extends EventEmitter {
     return this.conns.get(id)?.state === 'online';
   }
 
+  // Takes requests: online, or a cloud computer asleep (a request wakes it).
+  usable(id) {
+    const st = this.conns.get(id)?.state;
+    return st === 'online' || (st === 'asleep' && isGrid(this.list.find((m) => m.id === id)));
+  }
+
   start() {
-    for (const m of this.list) if (m.autoConnect !== false) this.connect(m.id).catch(() => {});
+    for (const m of this.list) {
+      if (m.autoConnect === false) continue;
+      // Opening wisp here shouldn't wake a cloud computer: follow it if it's up, else wait.
+      if (isGrid(m)) this.#asleep(m, { id: m.id, grid: true, state: 'asleep', steps: [], log: [], attempt: 0 }, 0);
+      else this.connect(m.id).catch(() => {});
+    }
   }
 
   stop() {
@@ -110,6 +134,8 @@ export class Machines extends EventEmitter {
 
   #clean(body, prev = {}) {
     const v = (k, d) => (body[k] !== undefined ? body[k] : prev[k] !== undefined ? prev[k] : d);
+    // A cloud computer's address comes from the grid; only its name and auto-connect change here.
+    if (isGrid(prev)) return { name: String(v('name', '') || '').trim().slice(0, 40) || prev.name, autoConnect: v('autoConnect', true) !== false };
     const target = String(v('target', '')).trim();
     if (!TARGET.test(target)) throw bad('SSH host: user@host, a host name, or a Host from ~/.ssh/config.');
     const port = Number(v('port', DEFAULT_PORT));
@@ -117,6 +143,21 @@ export class Machines extends EventEmitter {
     const command = String(v('command', '') || '').trim();
     const name = String(v('name', '') || '').trim().slice(0, 40) || target.replace(/^.*@/, '');
     return { name, target, port, command, autoConnect: v('autoConnect', true) !== false };
+  }
+
+  // A cloud computer, after signing in to its grid (services/cloud.js). The token goes to secrets.json.
+  addGrid({ url, grid, handle, name, token, user = null }) {
+    const u = new URL(url);
+    let m = this.list.find((x) => isGrid(x) && x.url === u.origin);
+    if (m) Object.assign(m, { grid, handle, user });
+    else {
+      m = { id: randomBytes(3).toString('hex'), kind: 'grid', name: String(name || handle || u.hostname).slice(0, 40), url: u.origin, grid, handle, user, target: u.host, port: Number(u.port) || (u.protocol === 'https:' ? 443 : 80), command: '', autoConnect: true, addedAt: Date.now() };
+      this.list.push(m);
+    }
+    this.secrets?.set('machines', m.id, token);
+    this.store.saveConfig();
+    this.onChange();
+    return m;
   }
 
   add(body = {}) {
@@ -147,6 +188,7 @@ export class Machines extends EventEmitter {
     this.disconnect(id);
     this.conns.delete(id);
     this.cache.delete(id);
+    this.secrets?.delete('machines', id);
     this.store.config.machines = this.list.filter((x) => x.id !== id);
     // Its checkouts go. A project added there lives on in a copy elsewhere, if it has one.
     this.store.config.projects = this.store.config.projects.filter((p) => {
@@ -203,6 +245,7 @@ export class Machines extends EventEmitter {
 
   async connect(id, { retry = false } = {}) {
     const m = this.get(id);
+    if (isGrid(m)) return this.#connectGrid(m, { retry });
     const prev = this.conns.get(id);
     if (prev?.child || prev?.state === 'online') return this.view().find((x) => x.id === id);
     clearTimeout(prev?.retryTimer);
@@ -265,6 +308,65 @@ export class Machines extends EventEmitter {
     }
   }
 
+  // A cloud computer: no ssh, no script. Asking for /health wakes it (the grid starts it on any
+  // request); a 503 means it's still waking.
+  async #connectGrid(m, { retry = false } = {}) {
+    const prev = this.conns.get(m.id);
+    if (prev?.state === 'online' || prev?.waking) return this.view().find((x) => x.id === m.id);
+    clearTimeout(prev?.retryTimer);
+    clearTimeout(prev?.watchTimer);
+    const token = this.secrets?.get('machines', m.id);
+    const c = {
+      id: m.id,
+      grid: true,
+      waking: true,
+      token,
+      state: retry ? 'reconnecting' : 'connecting',
+      steps: GRID_STEPS.map(([sid, label], i) => ({ id: sid, label, status: i ? 'pending' : 'run', detail: '' })),
+      error: '',
+      hint: null,
+      log: [],
+      attempt: retry ? prev?.attempt || 0 : 0,
+      wasOnline: retry ? prev?.wasOnline : false,
+      remote: prev?.remote || null,
+    };
+    this.conns.set(m.id, c);
+    this.onChange();
+    if (!token) {
+      c.waking = false;
+      this.#fail(c, 'Signed out of this cloud computer.', { title: 'Sign in again', text: 'Settings → Cloud → Sign in, with the same grid.' });
+      return this.view().find((x) => x.id === m.id);
+    }
+    (async () => {
+      const until = Date.now() + GRID_WAKE_MS;
+      let health = null;
+      while (!health && Date.now() < until && this.conns.get(m.id) === c) {
+        try {
+          health = await this.#raw(m, c, 'GET', '/health', undefined, { timeout: 30_000 });
+        } catch (err) {
+          if (err.status === 401 || err.status === 403) {
+            c.giveUp = true;
+            throw Object.assign(new Error('The grid didn’t accept this computer’s sign-in.'), { hint: { title: 'Signed out', text: 'The device was revoked or expired. Settings → Cloud → Sign in again.' } });
+          }
+          this.#step(c, 'wake', 'run', err.status === 503 ? 'Starting…' : err.message);
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+      if (!health) throw new Error('It didn’t wake up in time.');
+      if (this.conns.get(m.id) !== c) return;
+      this.#step(c, 'wake', 'done', new URL(m.url).host);
+      await this.#ready(m, c);
+    })()
+      .catch((err) => {
+        c.waking = false;
+        this.#fail(c, err.message, err.hint);
+      })
+      .finally(() => {
+        c.waking = false;
+      });
+    return this.view().find((x) => x.id === m.id);
+  }
+
   // The script says wisp answers over there; check it through the tunnel, then go live.
   async #ready(m, c) {
     this.#step(c, 'tunnel', 'run');
@@ -309,6 +411,7 @@ export class Machines extends EventEmitter {
     c.hint = hint || c.hint;
     const running = c.steps.find((s) => s.status === 'run');
     if (running) Object.assign(running, { status: 'fail', detail: running.detail || msg });
+    if (c.grid) c.state = 'error'; // no ssh child whose exit would say so
     this.onChange();
     this.#hangUp(c);
   }
@@ -345,6 +448,7 @@ export class Machines extends EventEmitter {
   #hangUp(c) {
     clearTimeout(c.retryTimer);
     clearTimeout(c.readyTimer);
+    clearTimeout(c.watchTimer);
     c.events?.destroy();
     if (c.child) {
       c.child.stdin.end();
@@ -359,6 +463,7 @@ export class Machines extends EventEmitter {
     c.giveUp = true;
     this.#hangUp(c);
     if (!c.child) c.state = 'off';
+    if (c.grid) this.cache.delete(id);
     this.onChange();
   }
 
@@ -377,6 +482,7 @@ export class Machines extends EventEmitter {
   // The machine refused this computer's key: sign in with the password once to add it, then connect.
   async letIn(id, password) {
     const m = this.get(id);
+    if (isGrid(m)) throw bad('A cloud computer signs in through its grid: Settings → Cloud.', 400);
     const r = await letIn({ target: m.target, password, ssh: sshBin() });
     return { ...r, machine: await this.connect(id) };
   }
@@ -386,6 +492,14 @@ export class Machines extends EventEmitter {
   async stopRemote(id, { restart = false } = {}) {
     const m = this.get(id);
     const c = this.conns.get(id);
+    if (isGrid(m)) {
+      // The grid stops it (and starts it again on the next request).
+      const res = await this.#gridEdge(m, 'POST', '/_grid/stop');
+      if (res.status >= 400) throw bad(res.body.error || `The grid said ${res.status}.`, res.status);
+      if (c) this.#asleep(m, c);
+      if (restart) await this.connect(id);
+      return { ok: true };
+    }
     const pid = c?.remote?.pid || c?.stalePid;
     if (!pid) throw bad('wisp isn’t known to be running there.', 409);
     this.disconnect(id);
@@ -406,13 +520,52 @@ export class Machines extends EventEmitter {
   #online(id) {
     const m = this.get(id);
     const c = this.conns.get(id);
+    // Asleep: the request itself wakes it; the event stream follows.
+    if (isGrid(m) && c?.state === 'asleep') {
+      this.connect(id, { retry: true }).catch(() => {});
+      return { m, c: this.conns.get(id) };
+    }
     if (c?.state !== 'online') throw bad(`${m.name} is offline. Connect it from Machines.`, 503);
     return { m, c };
   }
 
+  // A request to the grid's edge itself (/_grid/…), which never wakes the computer.
+  #gridEdge(m, method, p) {
+    return import('./grid-client.js').then(({ gridJson }) => gridJson(`${m.url}${p}`, { method, token: this.secrets?.get('machines', m.id), body: method === 'GET' ? undefined : {} }));
+  }
+
+  // The grid stopped it (idle): keep the last sessions, check now and then without waking it.
+  #asleep(m, c, first = GRID_WATCH_MS) {
+    this.conns.set(m.id, c);
+    c.events?.destroy();
+    Object.assign(c, { state: 'asleep', error: '' });
+    this.onChange();
+    clearTimeout(c.watchTimer);
+    const watch = async () => {
+      if (this.conns.get(m.id) !== c || c.state !== 'asleep') return;
+      const r = await this.#gridEdge(m, 'GET', '/_grid/state').catch(() => null);
+      if (this.conns.get(m.id) !== c || c.state !== 'asleep') return;
+      // Woken elsewhere (the phone, a schedule): follow it again.
+      if (r?.body?.state === 'running') return this.connect(m.id, { retry: true }).catch(() => {});
+      c.watchTimer = setTimeout(watch, GRID_WATCH_MS);
+      c.watchTimer.unref?.();
+    };
+    c.watchTimer = setTimeout(watch, first);
+    c.watchTimer.unref?.();
+  }
+
+  // Where a request goes: the tunnel's local port, or a cloud computer's own address.
+  #to(m, c, p, headers) {
+    if (!isGrid(m)) return { lib: http, opts: { host: '127.0.0.1', port: c.localPort, path: p, headers: { ...headers, host: `127.0.0.1:${m.port}` } } };
+    const { lib, opts } = gridTarget(m.url);
+    const token = c?.token || this.secrets?.get('machines', m.id);
+    return { lib, opts: { ...opts, path: p, headers: { ...headers, authorization: `Bearer ${token}` } } };
+  }
+
   #request(m, c, method, p, { body, headers = {}, timeout = 120_000 } = {}) {
     return new Promise((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port: c.localPort, path: `/api${p}`, method, headers: { ...headers, host: `127.0.0.1:${m.port}` }, timeout }, resolve);
+      const { lib, opts } = this.#to(m, c, `/api${p}`, headers);
+      const req = lib.request({ ...opts, method, timeout }, resolve);
       req.on('timeout', () => req.destroy(bad(`${m.name} didn’t answer in time.`, 504)));
       req.on('error', (err) => reject(Object.assign(err, { status: err.status || 502 })));
       if (body && typeof body.pipe === 'function') body.pipe(req);
@@ -449,7 +602,9 @@ export class Machines extends EventEmitter {
   // --- the machine's event stream, relayed with ids rewritten ------------------------------
 
   #listen(m, c) {
-    const req = http.get({ host: '127.0.0.1', port: c.localPort, path: '/api/events', headers: { host: `127.0.0.1:${m.port}`, accept: 'text/event-stream' } }, (res) => {
+    // x-wisp-relay: this stream alone doesn't keep a cloud computer awake.
+    const { lib, opts } = this.#to(m, c, '/api/events', { accept: 'text/event-stream', 'x-wisp-relay': '1' });
+    const req = lib.get(opts, (res) => {
       res.setEncoding('utf8');
       let buf = '';
       res.on('data', (d) => {
@@ -467,6 +622,7 @@ export class Machines extends EventEmitter {
         }
       });
       res.on('end', () => this.#streamLost(m, c));
+      res.on('close', () => this.#streamLost(m, c)); // cut off without an end (the far side went away)
     });
     req.on('error', () => this.#streamLost(m, c));
     c.events = req;
@@ -475,6 +631,7 @@ export class Machines extends EventEmitter {
   // The stream only ends when wisp over there stopped or the tunnel broke: start over.
   #streamLost(m, c) {
     if (this.conns.get(m.id) !== c || c.state !== 'online' || c.stopped) return;
+    if (c.grid) return this.#asleep(m, c);
     c.error = 'wisp stopped answering there.';
     this.#hangUp(c);
   }
@@ -600,6 +757,7 @@ export class Machines extends EventEmitter {
   // shell so its PATH has the harness. Wrapped in sh, so a fish or nu login shell parses it too.
   terminalArgv(mid, command) {
     const m = this.get(mid);
+    if (isGrid(m)) throw bad('Take over needs a terminal on that computer; a cloud computer doesn’t offer one yet.', 400);
     return [sshBin(), '-t', m.target, `sh -c ${shq('exec "${SHELL:-/bin/sh}" -lic "$0"')} ${shq(command)}`];
   }
 }
