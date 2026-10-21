@@ -1,0 +1,105 @@
+/* The machines screen. Colours and type come from wisp's own tokens (shared/css/tokens.css). */
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); -webkit-tap-highlight-color: transparent; }
+.wrap { max-width: 560px; margin: 0 auto; padding: 22px 16px 48px; display: flex; flex-direction: column; gap: 14px; }
+.i { width: 16px; height: 16px; flex: none; }
+.muted { color: var(--muted); }
+.grow { flex: 1; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.brand { display: flex; align-items: center; gap: 9px; }
+.orb { width: 14px; height: 14px; border-radius: 50%; background: var(--ink); position: relative; }
+.orb::after { content: ''; position: absolute; right: -3px; bottom: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); }
+.word { font: 600 17px/1 var(--display); letter-spacing: -0.02em; }
+
+.intro h1 { margin: 14px 0 4px; font: 600 25px/1.2 var(--display); letter-spacing: -0.025em; text-wrap: balance; }
+.intro p { margin: 0 0 4px; color: var(--muted); font-size: 14px; text-wrap: pretty; }
+
+button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: inherit; }
+.primary { background: var(--ink); color: var(--bg); border-radius: 11px; padding: 11px 16px; font-weight: 600; font-size: 14.5px; min-height: 44px; }
+.primary:active { opacity: 0.85; }
+.primary:disabled { opacity: 0.45; }
+.ghost { background: none; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 12px; font-size: 13.5px; min-height: 40px; }
+.ghost.sm { padding: 5px 10px; min-height: 32px; font-size: 12.5px; }
+.ghost.danger { color: var(--bad); border-color: transparent; padding-left: 4px; }
+.icon { background: none; width: 36px; height: 36px; border-radius: 9px; color: var(--muted); }
+
+/* --- machines ------------------------------------------------------------------------------- */
+.list { display: flex; flex-direction: column; gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-1); }
+.m { overflow: hidden; }
+.m-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 12px 12px 12px 14px; }
+.m-ico { width: 34px; height: 34px; border-radius: 10px; background: var(--bg-2); display: grid; place-items: center; color: var(--ink-2); position: relative; }
+.m-ico .st { position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--surface); background: var(--faint); }
+.m.ready .st { background: var(--good); }
+.m.connecting .st { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.m.failed .st { background: var(--bad); }
+.m-text { min-width: 0; text-align: left; background: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 0; }
+.m-name { font-weight: 600; font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-sub { font: 12px var(--mono); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-go { min-width: 92px; } /* the same width in every state, so rows don't shift */
+.m-go.primary { min-height: 38px; padding: 8px 12px; font-size: 13.5px; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.run { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.steps li { display: grid; grid-template-columns: 18px 1fr; column-gap: 10px; align-items: start; }
+.steps .dot { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line-2); color: var(--bg); margin-top: 2px; }
+.steps .dot .i { width: 11px; height: 11px; }
+.steps .done .dot { background: var(--good); border-color: var(--good); }
+.steps .fail .dot { background: var(--bad); border-color: var(--bad); }
+.steps .run .dot { border-color: var(--accent); border-top-color: transparent; animation: spin 0.8s linear infinite; }
+.steps .label { font-size: 13.5px; }
+.steps .pending .label { color: var(--faint); }
+.steps .detail { grid-column: 2; font: 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.run-foot { display: flex; justify-content: flex-end; }
+
+.oops { display: flex; flex-direction: column; gap: 8px; padding: 11px 12px; border-radius: 10px; background: var(--del-bg); color: var(--ink-2); font-size: 13px; }
+.oops strong { color: var(--bad); display: flex; gap: 6px; align-items: flex-start; font-weight: 600; }
+.oops strong .i { margin-top: 2px; }
+.oops.lost { background: var(--accent-soft); }
+.oops.lost strong { color: var(--accent-ink); }
+
+.add { background: none; border: 1px dashed var(--line-2); border-radius: 14px; min-height: 52px; color: var(--muted); font-size: 14px; }
+.empty { padding: 22px 18px; text-align: center; color: var(--muted); font-size: 14px; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.empty strong { color: var(--ink); font-size: 15px; }
+
+/* --- keys ----------------------------------------------------------------------------------- */
+.keys { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.sec-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; color: var(--muted); }
+.k { display: grid; grid-template-columns: 18px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; text-align: left; width: 100%; }
+.k .i { color: var(--muted); }
+.k-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.k-name { font-weight: 600; font-size: 14px; }
+.k-fp { font: 11.5px var(--mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-used { font-size: 12px; color: var(--faint); white-space: nowrap; }
+
+/* --- sheets --------------------------------------------------------------------------------- */
+.sheet { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 560px; max-height: 92vh; border-radius: 18px 18px 0 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); }
+.sheet[open] { animation: up 0.22s var(--ease); }
+.sheet::backdrop { background: rgba(0, 0, 0, 0.32); }
+@keyframes up { from { transform: translateY(24px); opacity: 0; } }
+.sheet form { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 18px; }
+.sheet header { display: flex; align-items: center; justify-content: space-between; }
+.sheet h2 { margin: 0; font: 600 18px var(--display); letter-spacing: -0.015em; }
+.sheet p { margin: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.sheet-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); font-weight: 500; }
+.field em { font-style: normal; font-weight: 400; color: var(--faint); }
+.field :is(input, select, textarea) { font: 16px var(--sans); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 12px; outline: none; min-width: 0; width: 100%; }
+.field textarea { font: 12px/1.45 var(--mono); resize: vertical; }
+.field :is(input, select, textarea):focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+#mTarget { font-family: var(--mono); font-size: 15px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.adv summary { cursor: pointer; color: var(--muted); font-size: 13px; padding: 2px 0; }
+.adv[open] { display: flex; flex-direction: column; gap: 12px; }
+
+.install { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding: 12px; border-radius: 12px; background: var(--bg-2); }
+.install p { color: var(--muted); }
+.cmd { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--term-bg); color: var(--term-ink); font: 11px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; max-height: 7.5em; overflow: auto; width: 100%; user-select: all; }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 11px; font-size: 13.5px; box-shadow: var(--shadow-2); max-width: calc(100vw - 32px); z-index: 10; }

@@ -12,7 +12,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installFakeBins, makeClone, makeRepo, records, same, tmp, until, win } from './helpers.js';
 import { sameRepo } from '../server/git.js';
-import { bootstrapScript, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, updateTo } from '../server/machines.js';
+import { authorizedKeys, reachable, sshBanner, tailscaleSelf } from '../server/machines/reachable.js';
+import { bootstrapScript, STEPS, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, updateTo } from '../server/machines.js';
 
 const RECORD = tmp('machines-record');
 const THERE = tmp('machines-there'); // WISP_HOME on "the machine"
@@ -109,6 +110,22 @@ test('ids, hints, ~/.ssh/config hosts and the bootstrap script', () => {
   assert.match(sh, /^PORT=4555$/m);
   assert.match(sh, /^CMD='npx -y wisp-agents@1\.2\.3 # it'\\''s'$/m);
   assert.doesNotMatch(sh, /__[A-Z]+__/);
+});
+
+// mobile/ copies these two files into the Android app and runs them in its WebView.
+test('the bootstrap script loads without Node, for the phone app', () => {
+  for (const f of ['server/machines/bootstrap.js', 'server/shq.js']) {
+    const src = fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+    for (const [, from] of src.matchAll(/from '([^']+)'/g)) assert.ok(['../shq.js'].includes(from), `${f} imports ${from}`);
+  }
+  assert.deepEqual(
+    STEPS.map(([id]) => id),
+    ['ssh', 'node', 'wisp', 'tunnel', 'agents'],
+  );
+  // The phone loads whichever wisp runs there, so it skips the API check.
+  const sh = bootstrapScript({ port: 4477, command: 'npx -y wisp-agents@latest', apiVersion: 'any' });
+  assert.match(sh, /^API=any$/m);
+  assert.match(sh, /\[ "\$API" != any \] && \[ "\$3" != "\$API" \]/);
 });
 
 test('an older wisp on the machine can be updated to this version', () => {
@@ -383,4 +400,36 @@ test('connect, add a project, launch, follow up and stop wisp over there', { ski
   const cfg = await call('GET', '/config');
   assert.ok(!cfg.projects.some((x) => x.machine === m.id));
   assert.ok(!cfg.machines.some((x) => x.id === m.id));
+});
+
+// Settings → Machines → This computer.
+test('this computer: SSH banner, Tailscale self and authorized keys', { skip: win }, async () => {
+  const sshd = net.createServer((c) => c.end('SSH-2.0-OpenSSH_test\r\n'));
+  const other = net.createServer((c) => c.end('HTTP/1.1 400 Bad Request\r\n'));
+  await Promise.all([sshd, other].map((s) => new Promise((r) => s.listen(0, '127.0.0.1', r))));
+  try {
+    assert.equal(await sshBanner({ port: sshd.address().port }), 'SSH-2.0-OpenSSH_test');
+    assert.equal(await sshBanner({ port: other.address().port }), null); // something else on the port
+
+    const dir = tmp('reach');
+    const ts = path.join(dir, 'tailscale');
+    const status = { BackendState: 'Running', Self: { DNSName: 'box.tail1.ts.net.', TailscaleIPs: ['fd7a::1', '100.64.0.9'] } };
+    fs.writeFileSync(ts, `#!/bin/sh\nif [ "$1" = status ]; then echo '${JSON.stringify(status)}'; else echo '{"RunSSH": true}'; fi\n`, { mode: 0o755 });
+    assert.deepEqual(await tailscaleSelf({ bin: ts }), { installed: true, running: true, name: 'box.tail1.ts.net', ip: '100.64.0.9', ssh: true });
+    assert.deepEqual(await tailscaleSelf({ bin: path.join(dir, 'nope') }), { installed: false, running: false });
+
+    fs.mkdirSync(path.join(dir, '.ssh'));
+    assert.equal(authorizedKeys(dir), 0);
+    fs.writeFileSync(path.join(dir, '.ssh', 'authorized_keys'), '# mine\nssh-ed25519 AAAA laptop\n\nssh-ed25519 BBBB wisp-phone\n');
+    assert.equal(authorizedKeys(dir), 2);
+
+    const r = await reachable({ sshPort: sshd.address().port, home: dir, tailscale: { bin: ts } });
+    assert.equal(r.ssh.running, true);
+    assert.equal(r.keys, 2);
+    assert.equal(r.target, `${os.userInfo().username}@box.tail1.ts.net`); // the tailnet name, when there is one
+    assert.equal(r.supported, true);
+  } finally {
+    sshd.close();
+    other.close();
+  }
 });

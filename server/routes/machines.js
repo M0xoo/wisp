@@ -1,6 +1,7 @@
 // /api/machines: add, connect, and browse folders on other computers.
 
 import { sshHosts, discoverHosts } from '../machines.js';
+import { reachable } from '../machines/reachable.js';
 
 export function register(r, app) {
   const { store, machines } = app;
@@ -17,6 +18,8 @@ export function register(r, app) {
   });
   r.route('GET', '/machines/ssh-hosts', (c) => c.send(200, sshHosts()));
   r.route('GET', '/machines/discover', async (c) => c.send(200, await discoverHosts()));
+  // Whether other devices (another computer, the phone app) can reach this one over SSH.
+  r.route('GET', '/machines/reachable', async (c) => c.send(200, await reachable()));
   r.route('PATCH', '/machines/:id', known(async (c, id) => c.send(200, (await machines.update(id, await c.body()), one(id)))));
   r.route(
     'DELETE',

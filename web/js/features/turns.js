@@ -6,7 +6,7 @@ import { esc, inlineMd, md } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { MOBILE, S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toastError } from '../ui/toast.js';
 import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
@@ -124,7 +124,7 @@ export function renderBody(id, { fresh }) {
     b.hidden = s.state === 'running' || s.state === 'waiting';
     $('span', b).textContent = s.state === 'done' ? 'Reopen' : 'Mark done';
   });
-  $('[data-a="takeover"]', body).hidden = !s.agentSessionId;
+  $('[data-a="takeover"]', body).hidden = !s.agentSessionId || MOBILE;
   const tx = transcriptOn(id);
   const txBtn = $('[data-a="transcript"]', body);
   txBtn.classList.toggle('on', tx);

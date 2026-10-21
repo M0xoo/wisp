@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- wisp's page comes through the SSH tunnel at http://127.0.0.1:<port>; the hop off the phone is
+     SSH, so plain HTTP is only allowed to this phone's own loopback. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

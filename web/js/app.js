@@ -7,7 +7,7 @@ import { api } from './core/api.js';
 import * as bus from './core/bus.js';
 import { $, $$ } from './core/dom.js';
 import { ago } from './core/format.js';
-import { S, save, setAgents } from './core/state.js';
+import { MOBILE, S, save, setAgents } from './core/state.js';
 import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
@@ -60,6 +60,7 @@ setInterval(() => {
 }, 30000);
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');
+if (MOBILE) document.body.classList.add('wisp-mobile');
 
 // #/s/<id> still works (notifications, CLI): it reveals that item in the feed.
 function route() {

@@ -96,6 +96,8 @@ export const PARTS = {
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
   'split.body': 'body.split #feed .item.open > .it-body',
+  // Settings → Machines: whether other devices can reach this computer over SSH.
+  'settings.reachable': '.sx-reach',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.

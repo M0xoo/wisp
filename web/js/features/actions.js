@@ -5,7 +5,7 @@ import { copy } from '../blocks.js';
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { MOBILE, S } from '../core/state.js';
 import { keyHint } from '../ui/kbd.js';
 import { overlay } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
@@ -107,6 +107,7 @@ export async function execAction(id, turnId, command, key) {
 }
 
 export async function takeOver(id) {
+  if (MOBILE) return; // no terminal on the phone (the button and command are hidden there)
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(() => null));
   if (!s?.agentSessionId) return;
   if (s.state === 'running' && !confirm(`${agentName(s.agent)} is still running. Stop it and take over in your terminal?`)) return;
@@ -151,7 +152,7 @@ export function moreMenu(id, anchor) {
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
-      <button data-a="folder">${icon('folder')}Open project in editor</button>
+      ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
@@ -362,6 +363,10 @@ const REMOTE_EDITORS = new Set(['vscode', 'cursor', 'windsurf']);
 export function openInEditor(s, p, line) {
   const editor = S.config.defaults.editor || 'vscode';
   const abs = p.startsWith('/') ? p : `${s.cwd}/${p}`.replace(/\/\.$/, '');
+  if (MOBILE) {
+    copy(abs);
+    return toast(`Copied path ${esc(abs)}`);
+  }
   if (s.machine) {
     if (!REMOTE_EDITORS.has(editor)) {
       copy(abs);

@@ -821,3 +821,19 @@ button.sw-tb { cursor: pointer; }
   .sp-row { grid-template-columns: 18px minmax(0, 1fr) 30px 36px; }
   .sp-reach { grid-column: 2; grid-row: 2; justify-self: start; }
 }
+
+/* A guide's own diagram (scripts/guides.mjs `figure`): side by side, stacked on phones. */
+.doc-diagram { padding: 28px 20px; background: var(--surface); }
+.doc-diagram svg { display: block; width: 100%; height: auto; font-family: var(--sans); }
+.doc-diagram .tall { display: none; max-width: 360px; margin: 0 auto; }
+.doc-diagram .box { fill: var(--bg); stroke: var(--line-2); }
+.doc-diagram .zone { fill: none; stroke: var(--line-2); stroke-dasharray: 6 6; }
+.doc-diagram .link { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.doc-diagram .name { fill: var(--ink); font-size: 19px; font-weight: 600; }
+.doc-diagram .sub { fill: var(--muted); font-size: 14px; }
+.doc-diagram .mono { fill: var(--ink-2); font-size: 14px; font-family: var(--mono); }
+.doc-diagram .cmd { fill: var(--accent); font-size: 15px; font-family: var(--mono); }
+@media (max-width: 640px) {
+  .doc-diagram .wide { display: none; }
+  .doc-diagram .tall { display: block; }
+}

@@ -144,6 +144,7 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
         <li>It forwards a free local port to that wisp with <code>ssh -L</code> and relays its events into your queue.</li>
       </ol>
       <p>Nothing new listens on the network: wisp on the machine stays on its own <code>127.0.0.1</code>. There is no account, relay server or cloud in between. The machine needs SSH access with a key, Node.js 20+ and the agent CLIs you want to run, signed in.</p>
+      <p>Want to reach it from anywhere, or from your phone? <a href="/guides/connect-machines-with-tailscale.html">Connect your machines with Tailscale →</a></p>
     </section>
 
     <section>
@@ -174,6 +175,121 @@ tmux new -d -s fix 'cd ../app-fix && claude -p "fix the flaky auth test"'`)}
         ['Can I answer an agent’s question from my phone?', 'Yes. Questions and finished tasks from every machine go to ntfy or Telegram, and you can answer from there.'],
       ],
       related: ['move-a-task-to-another-machine-or-agent', 'run-coding-agents-in-the-background', 'multi-agent-coding'],
+    },
+
+    {
+      slug: 'connect-machines-with-tailscale',
+      title: 'Reach your coding machines from anywhere with Tailscale and SSH — wisp',
+      h1: 'Connect your machines with Tailscale',
+      card: 'Laptop, desktop, server and phone on one private network: SSH in from anywhere, with no open ports.',
+      description: 'Put your laptop, dev box and phone on Tailscale, turn on SSH and let your key in once. Then run Claude Code and Codex there from anywhere with wisp, desktop or Android, without opening a port.',
+      lede: 'To run coding agents on another computer from anywhere, put both devices on <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a>, turn on SSH on the machine and let your key in once. wisp then connects by the machine’s tailnet name, from your laptop or from the wisp Android app, and nothing is exposed to the internet. Settings → Machines → <b>This computer</b> checks each step for you.',
+      // Two drawings of one diagram: side by side, and stacked for phones (docs/style.css swaps them).
+      figure: `<figure class="doc-shot doc-diagram" aria-label="Your laptop and phone reach a machine over SSH inside your private tailnet; wisp on the machine stays on 127.0.0.1">
+  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
+    <rect x="330" y="20" width="300" height="260" rx="22" class="zone"/>
+    <text x="480" y="52" text-anchor="middle" class="sub">your tailnet · private, encrypted</text>
+    <rect x="20" y="58" width="220" height="74" rx="14" class="box"/>
+    <text x="130" y="91" text-anchor="middle" class="name">Laptop</text>
+    <text x="130" y="115" text-anchor="middle" class="sub">wisp · Machines</text>
+    <rect x="20" y="168" width="220" height="74" rx="14" class="box"/>
+    <text x="130" y="201" text-anchor="middle" class="name">Phone</text>
+    <text x="130" y="225" text-anchor="middle" class="sub">wisp Android app</text>
+    <path d="M240 95 C 330 95, 360 150, 715 150 M240 205 C 330 205, 360 150, 715 150" class="link"/>
+    <path d="M703 142 L717 150 L703 158" class="link"/>
+    <text x="480" y="252" text-anchor="middle" class="cmd">ssh you@devbox</text>
+    <rect x="720" y="58" width="220" height="184" rx="14" class="box"/>
+    <text x="830" y="91" text-anchor="middle" class="name">devbox</text>
+    <text x="830" y="135" text-anchor="middle" class="mono">sshd :22</text>
+    <text x="830" y="168" text-anchor="middle" class="mono">wisp 127.0.0.1:4477</text>
+    <text x="830" y="201" text-anchor="middle" class="sub">Claude Code · Codex · …</text>
+  </svg>
+  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
+    <rect x="10" y="10" width="150" height="74" rx="14" class="box"/>
+    <text x="85" y="43" text-anchor="middle" class="name">Laptop</text>
+    <text x="85" y="66" text-anchor="middle" class="sub">wisp</text>
+    <rect x="180" y="10" width="150" height="74" rx="14" class="box"/>
+    <text x="255" y="43" text-anchor="middle" class="name">Phone</text>
+    <text x="255" y="66" text-anchor="middle" class="sub">wisp app</text>
+    <rect x="30" y="112" width="280" height="150" rx="20" class="zone"/>
+    <text x="170" y="140" text-anchor="middle" class="sub">your tailnet · private</text>
+    <path d="M85 84 V 205 C 85 255, 170 250, 170 296 M255 84 V 205 C 255 255, 170 250, 170 296" class="link"/>
+    <path d="M162 284 L170 298 L178 284" class="link"/>
+    <text x="170" y="168" text-anchor="middle" class="cmd">ssh you@devbox</text>
+    <rect x="60" y="300" width="220" height="160" rx="14" class="box"/>
+    <text x="170" y="333" text-anchor="middle" class="name">devbox</text>
+    <text x="170" y="371" text-anchor="middle" class="mono">sshd :22</text>
+    <text x="170" y="402" text-anchor="middle" class="mono">wisp 127.0.0.1:4477</text>
+    <text x="170" y="433" text-anchor="middle" class="sub">Claude Code · Codex</text>
+  </svg>
+</figure>`,
+      body: `
+    <section>
+      <h2 id="why">Why Tailscale</h2>
+      <ul class="doc-list">
+        <li><b>Anywhere, no port forwarding.</b> Your devices find each other from home, the office, a café or mobile data. No router setup, no public IP, no port 22 open to the internet.</li>
+        <li><b>Stable names.</b> Each device gets a name like <code>devbox.tail1234.ts.net</code> that keeps working when its IP changes. wisp lists your tailnet’s computers under <b>Found on this computer</b> in Machines.</li>
+        <li><b>Free for personal use.</b> Laptop, desktop, servers and phone all fit on the free plan.</li>
+      </ul>
+      <p>Any other way to reach the machine over SSH works too: your LAN, a VPN, or a cloud VM with a public address.</p>
+    </section>
+
+    <section>
+      <h2 id="machine">1. Get the machine ready</h2>
+      <p>The machine is the computer the agents run on: a desktop, a home server, a Mac mini, a cloud VM. It runs macOS or Linux (on Windows, use WSL). If wisp is already installed there, open Settings → Machines: <b>This computer</b> shows which of these steps are done and gives the command for each one that isn’t.</p>
+      <ol class="doc-steps">
+        <li><b>Install Tailscale and sign in</b> from <a href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a>. On Linux:
+${sh(`curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up`)}</li>
+        <li><b>Turn on SSH.</b> On macOS, System Settings → General → Sharing → <b>Remote Login</b>, or:
+${sh('sudo systemsetup -setremotelogin on')}
+        On Debian or Ubuntu:
+${sh('sudo apt install -y openssh-server && sudo systemctl enable --now ssh')}
+        On Fedora: <code>sudo dnf install openssh-server && sudo systemctl enable --now sshd</code>.</li>
+        <li><b>Install Node.js 20+ and your agent CLIs</b> (Claude Code, Codex, …) and sign each one in once. wisp starts itself there with <code>npx</code>, so it doesn’t need installing.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="laptop">2. Connect from your laptop</h2>
+      <ol class="doc-steps">
+        <li>Install Tailscale on the laptop and sign in with the same account.</li>
+        <li>Let your key in once (any SSH key works; make one with <code>ssh-keygen -t ed25519</code> if you have none):
+${sh('ssh-copy-id you@devbox')}</li>
+        <li>In wisp, open <b>Machines</b>. The machine is listed under <b>Found on this computer</b> with its tailnet name: pick it and press <b>Connect</b>.</li>
+      </ol>
+      <p>wisp signs in with your SSH keys, finds Node there, starts <code>npx -y wisp-agents</code> (or reuses the one already running) and forwards a local port to it. <a href="/guides/run-coding-agents-on-multiple-machines.html">What you can do once it’s connected →</a></p>
+    </section>
+
+    <section>
+      <h2 id="phone">3. Connect from your phone</h2>
+      <p>The wisp Android app (a prototype; build it from <code>mobile/</code> in the repo) gives you the same wisp, connected to one of your machines at a time.</p>
+      <ol class="doc-steps">
+        <li>Install the Tailscale app on the phone and sign in.</li>
+        <li>In wisp, tap <b>Add a machine</b> and type <code>you@devbox</code>. The sheet shows a one-line command that adds the phone’s key. Run it once on the machine (from your laptop over SSH, for example). You can also import a key the machine already trusts.</li>
+        <li>Tap <b>Save and connect</b>. The card shows the same steps as on the desktop, then wisp opens. Back returns to your machines.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="tailscale-ssh">Optional: Tailscale SSH, no keys at all</h2>
+      <p>On a Linux machine, <a href="https://tailscale.com/kb/1193/tailscale-ssh" target="_blank" rel="noopener">Tailscale SSH</a> lets the devices on your tailnet in by their Tailscale identity, so there are no keys to copy:</p>
+      ${sh('sudo tailscale set --ssh')}
+      <p>Your tailnet’s access rules decide who may connect. wisp on the laptop and the phone app both work with it. On macOS, use Remote Login: the Mac App Store build of Tailscale can’t run an SSH server.</p>
+    </section>
+
+    <section>
+      <h2 id="safety">What is exposed</h2>
+      <p>Only SSH, and only inside your tailnet. wisp on the machine listens on its own <code>127.0.0.1</code>, so the only way to reach it is through an SSH tunnel you opened yourself. There is no wisp account, relay or cloud in between.</p>
+    </section>
+`,
+      faq: [
+        ['Do I need Tailscale?', 'No. wisp needs SSH access to the machine. Tailscale makes that work from anywhere without opening ports, and a LAN, a VPN or a cloud VM with a public address work just as well.'],
+        ['Which machines can run agents?', 'macOS and Linux with SSH and Node.js 20+. On Windows, run wisp inside WSL. Phones and tablets connect to machines; they don’t run agents.'],
+        ['How do I check that a machine is ready?', 'Install wisp there and open Settings → Machines. This computer checks the SSH server, Tailscale and authorized keys, and shows the address to connect with.'],
+        ['Does the phone app need its own key?', 'Each machine uses one of the keys on the phone: one the app makes (it shows the authorized_keys command) or one you import. With Tailscale SSH on a Linux machine, no key is needed.'],
+      ],
+      related: ['run-coding-agents-on-multiple-machines', 'move-a-task-to-another-machine-or-agent', 'run-coding-agents-in-the-background'],
     },
 
     {

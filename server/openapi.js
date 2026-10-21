@@ -205,6 +205,7 @@ export function openapi({ version, port }) {
         },
       },
       '/machines/discover': { get: { summary: 'Hosts this computer can reach: ~/.ssh/config, Tailscale peers, ~/.ssh/known_hosts', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
+      '/machines/reachable': { get: { summary: 'Whether other devices can reach this computer over SSH: SSH server, Tailscale, authorized keys, and the user@host to connect with', responses: { 200: json({ type: 'object', properties: { os: { type: 'string' }, user: { type: 'string' }, target: { type: 'string' }, supported: { type: 'boolean' }, keys: { type: 'integer' }, ssh: { type: 'object' }, tailscale: { type: 'object' } } }) } } },
       '/machines/ssh-hosts': { get: { summary: 'Hosts from ~/.ssh/config, for suggestions', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/machines/{mid}': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], patch: { summary: 'Edit a machine (host, port or command changes reconnect)', responses: { 200: json({ type: 'object' }) } }, delete: { summary: 'Remove a machine and its projects here (nothing on the machine is touched)', responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/connect': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Connect: SSH in, start wisp there if needed, open the tunnel', responses: { 200: json({ type: 'object' }) } } },

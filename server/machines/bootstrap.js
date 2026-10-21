@@ -1,11 +1,22 @@
 // The script that starts wisp on a machine over `ssh … sh -s` and reports each step back.
+// No Node imports: the mobile app (mobile/) runs this same file to start wisp from a phone.
 
-import { shq } from '../util.js';
+import { shq } from '../shq.js';
+
+// The steps a connection goes through, as the script and the tunnel report them.
+export const STEPS = [
+  ['ssh', 'Connect over SSH'],
+  ['node', 'Find Node.js 20+'],
+  ['wisp', 'Start wisp there'],
+  ['tunnel', 'Open the tunnel'],
+  ['agents', 'Find harnesses'],
+];
 
 // What runs on the machine. Sent on stdin, so the login shell there (bash, zsh, fish…) only ever
 // sees `sh -s`. Steps come back as `@@wisp step <id> <run|done> <detail>`, `@@wisp fail <id>
 // <message>`, and finally `@@wisp ready <version> <pid>`; then `cat` holds the session (and the
-// tunnel) open until this side lets go.
+// tunnel) open until this side lets go. apiVersion `any` takes whichever wisp already runs there
+// (the phone loads that wisp's own page, so it always speaks its API).
 export function bootstrapScript({ port, command, apiVersion }) {
   return String.raw`say() { printf '@@wisp %s\n' "$*"; }
 PORT=__PORT__
@@ -30,7 +41,7 @@ H=$(health)
 if [ -n "$H" ]; then
   set -- $H
   if [ "$1" != wisp ]; then say fail wisp "Port $PORT is used by another program there. Pick another port under Advanced."; exit 0; fi
-  if [ "$3" != "$API" ]; then say stale "$4"; say fail wisp "wisp $2 is already running there and speaks an older API. Restart it to update."; exit 0; fi
+  if [ "$API" != any ] && [ "$3" != "$API" ]; then say stale "$4"; say fail wisp "wisp $2 is already running there and speaks an older API. Restart it to update."; exit 0; fi
   say step wisp done "already running · $2"
 else
   LOG=$WISP_HOME; [ -n "$LOG" ] || LOG=$HOME/.wisp
