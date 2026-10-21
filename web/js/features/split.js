@@ -18,6 +18,7 @@ import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
 import { collapse, expand, groups, headPills, renderFeed, setFocus } from './feed.js';
 import { stage } from './scroll.js';
+import { renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
@@ -104,6 +105,40 @@ function leave() {
   if (S.sessions.size) renderFeed();
   const card = open && S.nodes.get(open)?.card;
   if (card) requestAnimationFrame(() => card.scrollIntoView({ block: 'start' }));
+}
+
+// --- each task keeps its place ------------------------------------------------------------------
+
+// Where each task was scrolled to when it closed, so going back to it lands on the same spot. Held
+// by the turn at the top of the pane (and how far into it), so a turn landing meanwhile or older
+// ones folding away don't shift what was being read. At the end: back to the end, new turns and all.
+const places = new Map();
+
+export function keepPlace(id) {
+  const n = S.nodes.get(id);
+  const body = n?.body;
+  if (!isSplit() || !body?.isConnected || !body.querySelector('.turns')) return;
+  if (body.scrollTop < 1) return places.delete(id);
+  const end = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
+  const top = body.getBoundingClientRect().top + ($('.it-bar', body)?.offsetHeight || 0);
+  const turn = $$('.turn', body).find((t) => t.getBoundingClientRect().bottom > top);
+  places.set(id, { end, turn: turn?.dataset.turn, dy: turn ? turn.getBoundingClientRect().top - top : 0, top: body.scrollTop, showAll: n.showAll });
+}
+
+// Once the task's body has rendered on opening it. Used once: a later re-open keeps its own place.
+export function backToPlace(id) {
+  const p = places.get(id);
+  const n = S.nodes.get(id);
+  const body = n?.body;
+  if (!p || !isSplit() || splitOpen() !== id || !body?.querySelector('.turns')) return;
+  places.delete(id);
+  // It was reading turns behind "Show earlier": show them again.
+  if (p.showAll && !n.showAll) (n.showAll = true), renderBody(id, { fresh: false });
+  if (p.end) return (body.scrollTop = body.scrollHeight);
+  const turn = p.turn && $(`.turn[data-turn="${p.turn}"]`, body);
+  if (!turn) return (body.scrollTop = p.top);
+  const top = body.getBoundingClientRect().top + ($('.it-bar', body)?.offsetHeight || 0);
+  body.scrollTop += turn.getBoundingClientRect().top - top - p.dy;
 }
 
 // --- painting ----------------------------------------------------------------------------------

@@ -17,7 +17,7 @@ import { prOf, prPill, shipPill } from './ship.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
-import { isSplit, paintHead, paintSplit, sidebar } from './split.js';
+import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar } from './split.js';
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -400,6 +400,7 @@ export async function expand(id, { scroll = true } = {}) {
   if (scroll) requestAnimationFrame(() => n.card.scrollIntoView({ block: isSplit() ? 'nearest' : 'start', behavior: 'smooth' }));
   if (!S.full.has(id)) await fetchFull(id);
   else renderBody(id, { fresh: true });
+  backToPlace(id);
 }
 
 export function collapse(id) {
@@ -408,6 +409,7 @@ export function collapse(id) {
   saveOpen();
   S.full.delete(id);
   if (n) {
+    keepPlace(id); // split view: where it was scrolled to, for when it opens again
     n.body?.remove();
     n.body = null;
     n.turnNodes.clear();
