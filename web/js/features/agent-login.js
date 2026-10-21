@@ -70,6 +70,7 @@ export function wireLogins(box, places) {
     logins.set(id, { ...was, ...v, ...(v.state === 'done' && { signedIn: true }) });
     if (v.state === 'done' && was.state !== 'done') toast(`Signed in to <b>${esc(NAMES[id] || id)}</b>`);
     repaint(scope, id);
+    bus.emit('agent-login-state', { scope, id, ...logins.get(id) });
   };
   // A machine's sign-in: ask how it's going until it's over.
   const polls = new Map();

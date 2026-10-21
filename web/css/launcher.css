@@ -261,3 +261,6 @@ button.setup-cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis;
   .pk-h { width: auto; flex: none; }
 }
 
+/* The picker's sign-in (features/agent-login.js): the panel sits under the pane's text. */
+.pk-signin .sx-login { margin: 4px 0 0; width: 100%; }
+.pk-signin .sx-login-ctl { margin-right: 0; }

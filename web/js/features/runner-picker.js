@@ -9,6 +9,9 @@ import { placeName } from './places.js';
 import { AUTO, AUTO_GOALS, effortLabel, effortsFor, harnessesAt, harnessLogo } from './runners.js';
 import { openSettings } from './settings.js';
 import { copySetupCommand, INSTALLABLE, installHarness, setupCommand, setupDocs, setupTip, setupTitle } from './setup.js';
+import { CAN, loginControl, loginPanel, wireLogins } from './agent-login.js';
+
+const ACCOUNT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', grok: 'xAI' };
 
 // One popover for all three choices: harnesses on the left, the focused harness's models on the
 // right, and its thinking levels underneath. Clicking (or arrowing to) a harness previews its
@@ -21,11 +24,16 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   const remote = places?.length > 1 || !!places?.[0];
   const sub = (a) => {
     if (a.id === 'auto') return 'Picks harness and model for you';
+    if (!a.available && signedOut(a)) return remote ? 'Signed out there' : 'Signed out';
     if (!a.available) return remote ? 'Not installed there' : 'Not installed';
     const models = (a.models || []).length > 1 ? `${a.models.length - 1} models` : 'Default model';
     return a.missing?.length ? `Not on ${a.missing.map(placeName).join(', ')}` : models;
   };
   let focusAgent = agents.find((a) => a.id === agent && a.available) ? agent : agents.find((a) => a.available)?.id;
+  // Where a harness that isn't available is signed out (and wisp can sign it in): '' here, or a machine.
+  function signedOut(a) {
+    return CAN.has(a.id) && a.signedOut?.length ? { scope: a.signedOut[0] } : null;
+  }
 
   const r = anchor.getBoundingClientRect();
   const width = Math.min(580, innerWidth - 24);
@@ -40,7 +48,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
         <div class="pk-head">Harness</div>
         ${agents
           .map(
-            (a) => `<button class="pk-h${a.available ? '' : ' off'}" role="option" data-id="${esc(a.id)}" ${a.available ? '' : `aria-disabled="true" title="${esc(setupTitle(a))}"`}>
+            (a) => `<button class="pk-h${a.available ? '' : ' off'}" role="option" data-id="${esc(a.id)}" ${a.available ? '' : signedOut(a) ? 'title="Signed out: sign in to use it"' : `aria-disabled="true" title="${esc(setupTitle(a))}"`}>
               <span class="pk-logo">${harnessLogo(a.id)}</span>
               <span class="pk-text"><b>${esc(a.name)}</b><small${a.missing?.length ? ' class="warn"' : ''}>${esc(sub(a))}</small></span>
               ${a.id === agent ? '<span class="pk-dot" title="In use"></span>' : ''}
@@ -91,6 +99,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
     const models = a?.models || [{ id: '', label: 'Default' }];
     const current = focusAgent === agent ? model : savedModel(focusAgent);
     input.placeholder = `Search ${a?.name || ''} models`;
+    if (a && !a.available && signedOut(a)) return paintSignIn(a);
     if (a && !a.available) return paintSetup(a);
     if (a?.id === 'auto') {
       list.innerHTML = `<div class="pk-group"><div class="pk-ghead">Goal</div>${AUTO_GOALS.map((g) => `<button class="pk-m${g.id === current ? ' on' : ''}" role="option" aria-selected="${g.id === current}" data-id="${g.id}"><span class="pk-text"><b>${g.label}</b><small>${g.hint}</small></span>${icon('check', 'pk-check')}</button>`).join('')}</div><p class="pk-note">wisp picks the harness and model for each task from what worked before, and learns from how it went. ${'<a href="#" class="pk-auto-more">How Auto picks</a>'}</p><div class="pk-empty" hidden>No models match</div>`;
@@ -125,6 +134,19 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
       .join('') + '<div class="pk-empty" hidden>No models match</div>';
     filter();
     paintEffort();
+  };
+  // A harness that's installed but signed out: sign it in right here (its own login, on the
+  // computer it runs on), then use it.
+  const paintSignIn = (a) => {
+    $('.pk-search', node).hidden = true;
+    seg.hidden = true;
+    const { scope } = signedOut(a);
+    list.innerHTML = `<div class="pk-setup pk-signin">
+      <b>${esc(a.name)} is signed out${scope ? ` on ${esc(placeName(scope))}` : ''}</b>
+      <p>Sign in with your ${esc(ACCOUNT[a.id] || a.name)} account: a link and a code, no terminal.${scope ? ' The login stays on that computer.' : ''}</p>
+      <div class="pk-setup-actions">${loginControl(a.id, scope)}<button class="primary sm pk-use" hidden>Use ${esc(a.name)}</button></div>
+      ${loginPanel(a.id, scope)}
+    </div>`;
   };
   // A harness that isn't installed: how to get it, in place of its models.
   const paintSetup = (a) => {
@@ -221,6 +243,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
     return next;
   };
   const keys = (e) => {
+    if (document.activeElement?.closest?.('.sx-login')) return; // pasting a sign-in code
     const inSide = sideRows.includes(document.activeElement);
     const segBtns = $$('button', seg);
     const inSeg = segBtns.includes(document.activeElement);
@@ -261,7 +284,31 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   list.onclick = (e) => {
     const b = e.target.closest('.pk-m');
     if (b) choose(b.dataset.id);
+    // Signed in from here: use it, with the model and level it had last time.
+    if (e.target.closest('.pk-use')) {
+      const id = focusAgent;
+      close();
+      anchor.focus();
+      const m = savedModel(id);
+      pick(id, m, savedEffort(id, m));
+    }
   };
+  // Sign-ins started from the picker: the harnesses signed out here or on the Run on machine.
+  wireLogins(node, () => agents.filter(signedOut).map((a) => [signedOut(a).scope, [a.id]]));
+  bus.on(
+    'agent-login-state',
+    (v) => {
+      const a = agents.find((x) => x.id === v.id);
+      if (!a || focusAgent !== v.id || signedOut(a)?.scope !== v.scope) return;
+      const use = $('.pk-use', list);
+      if (use) use.hidden = v.signedIn !== true;
+      if (v.signedIn === true) {
+        a.available = true; // it's usable now, even before the harness list is looked up again
+        sideRows.find((r) => r.dataset.id === v.id)?.classList.remove('off');
+      }
+    },
+    { node },
+  );
   input.oninput = filter;
   seg.onclick = (e) => {
     const b = e.target.closest('button[data-e]');

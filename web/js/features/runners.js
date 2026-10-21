@@ -48,8 +48,10 @@ export function harnessesAt(places, { auto = false } = {}) {
   return ids
     .map((id) => {
       const hits = known.filter(([, l]) => l.some((a) => a.id === id && a.available));
-      const base = hits.length ? hits[0][1].find((a) => a.id === id) : S.agents.find((a) => a.id === id) || known.flatMap(([, l]) => l).find((a) => a.id === id);
-      return { ...base, available: hits.length > 0, missing: hits.length ? known.filter((x) => !hits.includes(x)).map(([k]) => k) : [] };
+      const base = hits.length ? hits[0][1].find((a) => a.id === id) : known.flatMap(([, l]) => l).find((a) => a.id === id) || S.agents.find((a) => a.id === id);
+      // Installed but signed out on these places: the picker signs it in there.
+      const signedOut = known.filter(([, l]) => l.some((a) => a.id === id && a.signedIn === false)).map(([k]) => k);
+      return { ...base, available: hits.length > 0, missing: hits.length ? known.filter((x) => !hits.includes(x)).map(([k]) => k) : [], signedOut };
     })
     .filter((a) => a.available || S.agents.some((x) => x.id === a.id));
 }
