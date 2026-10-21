@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-22
+
 ### Added
 
 - **Signing in to an agent takes effect at once.** It used to read *Not installed* (and refuse a task) for a few seconds while wisp looked up every harness again. Now the picker and launcher treat it as ready as soon as the sign-in finishes, and only that harness is looked up again (here, or on the machine you signed in on).
@@ -520,7 +522,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.28.0...HEAD
+[0.28.0]: https://github.com/M0xoo/wisp/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/M0xoo/wisp/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/M0xoo/wisp/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/M0xoo/wisp/compare/v0.24.1...v0.25.0

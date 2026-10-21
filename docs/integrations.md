@@ -22,7 +22,7 @@ The server binds to `127.0.0.1` (default port `4477`, `WISP_PORT` to change) and
 `~/.wisp/server.json` (`WISP_HOME` to move it) while it runs:
 
 ```json
-{ "url": "http://127.0.0.1:4477", "port": 4477, "pid": 4242, "version": "0.27.0", "apiVersion": 1 }
+{ "url": "http://127.0.0.1:4477", "port": 4477, "pid": 4242, "version": "0.28.0", "apiVersion": 1 }
 ```
 
 The CLI, SDK and MCP server use it to find wisp, and start a headless server (`wisp --no-open`)
