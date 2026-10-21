@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **No keyboard shortcuts in the Android app.** The phone has no keyboard to press them on, so the app no longer shows *Keyboard shortcuts* (or the feed / split view switch) in search, the *Press ⌘L to start typing* prompt hint, the palette's ↑↓ footer, or the key hints in Settings descriptions.
+
 ## [0.27.0] - 2026-10-21
 
 ### Added

@@ -37,7 +37,7 @@ body.electron.mac .topbar { padding-left: 88px; }
 /* ---------- phone app (mobile/) ---------- */
 /* No keyboard shortcuts on a touch screen, and no grey flash on every tap. */
 body.wisp-mobile { -webkit-tap-highlight-color: transparent; }
-body.wisp-mobile kbd { display: none; }
+body.wisp-mobile kbd, body.wisp-mobile .key-hint, body.wisp-mobile .pal-foot { display: none; }
 /* The Computers button (back to the app's list) keeps its label on a phone: it names the computer you're on. */
 body.wisp-mobile .machines-btn span { display: inline; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.wisp-mobile .topbar { gap: 6px; }

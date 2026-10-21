@@ -102,6 +102,9 @@ function paletteItems() {
           { group: a, label: 'Add a machine…', icon: 'server', keywords: 'remote ssh server computer connect', run: () => openMachines({ focusAdd: true }) },
         ]),
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
+  );
+  // The phone always shows the feed and has no keyboard: no layout switch, no shortcuts list.
+  if (!MOBILE) items.push(
     viewPref() === 'split'
       ? { group: a, label: 'Feed view', sub: 'One column, cards open in place', icon: 'feed', kbd: '\\', keywords: 'layout view single column list', run: () => setView('feed') }
       : { group: a, label: 'Split view', sub: 'Tasks in a sidebar, the open one beside it', icon: 'split', kbd: '\\', keywords: 'layout view sidebar columns panes master detail', run: () => setView('split') },
