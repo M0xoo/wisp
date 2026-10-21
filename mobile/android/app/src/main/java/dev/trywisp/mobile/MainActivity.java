@@ -8,6 +8,8 @@ import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -15,11 +17,13 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     private ActivityResultLauncher<String> askPermission;
     private volatile boolean resumed;
+    private boolean clearHistory; // after falling back to the list: Back mustn't return to the error
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -42,6 +46,30 @@ public class MainActivity extends BridgeActivity {
         boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         web.setBackgroundColor(night ? 0xFF111111 : 0xFFFFFFFF);
         web.getSettings().setOffscreenPreRaster(true);
+        // wisp's page comes from the computer through the tunnel. SSH can be up while wisp isn't
+        // (it was quit or crashed there), and with nothing cached the WebView would show its own
+        // error page. Instead: back to the computers list, which says what's happening, while the
+        // tunnel reconnects (that starts wisp again) and opens wisp once it answers.
+        getBridge().setWebViewClient(new BridgeWebViewClient(getBridge()) {
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (!request.isForMainFrame() || !request.getUrl().toString().startsWith("http://127.0.0.1:")) return;
+                WispSshPlugin.nudgeTunnel();
+                view.stopLoading();
+                clearHistory = true;
+                view.loadUrl(getBridge().getLocalUrl() + "/?reopen=1");
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (clearHistory && url != null && url.startsWith(getBridge().getLocalUrl())) {
+                    clearHistory = false;
+                    view.clearHistory();
+                }
+            }
+        });
         // Back goes back in the WebView: from wisp's page to the machines list, and closes an open
         // sheet there (it pushes a history entry). Only with nothing to go back to does it leave.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {

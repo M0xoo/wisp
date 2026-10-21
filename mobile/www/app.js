@@ -133,6 +133,7 @@ function apply(line) {
 // In words for someone who has never used SSH, and what to tap next.
 function hintFor(f) {
   const m = f.message;
+  if (f.id === 'lost' && /wisp stopped/i.test(m)) return { text: 'The app starts it again over SSH and opens it here once it answers.' };
   if (f.id === 'lost') return { text: 'Reconnecting by itself. Your tasks keep running there.' };
   if (/host key/i.test(m)) return { text: 'That computer looks different from last time. If you reinstalled it, that’s expected: forget the saved one and connect again.', action: ['forget', 'Forget and reconnect'] };
   if (/auth/i.test(m)) return { title: 'This phone isn’t allowed in yet', text: 'Enter your password on that computer once. The app adds its own key there, so you won’t type it again.', action: ['password', 'Enter password'] };
@@ -523,6 +524,13 @@ async function boot() {
     resetSteps(st.machineId);
     for (const line of st.lines) apply(line);
     live.state = st.state;
+    // ?reopen: wisp's page didn't load (wisp stopped there, or the tunnel is down), so the app came
+    // back here (MainActivity) and the tunnel is checking. Its next `open` goes back in; one that
+    // is already up doesn't, or a page that keeps failing would bounce between the two.
+    if (new URLSearchParams(location.search).has('reopen')) {
+      openOnReady = st.machineId;
+      history.replaceState(null, '', location.pathname);
+    }
   } else if (main() && !sessionStorage.getItem('wisp.started')) {
     // App start: straight into the wisp of the computer used last. Coming back here (Computers,
     // Back) shows the list instead.
