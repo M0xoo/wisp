@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **The Android app has wisp's icon.** The launcher shows wisp's orb instead of Capacitor's placeholder (with a themed icon on Android 13+), and the launch screen matches the page's light or dark background. Release builds sign with your Play upload key, and `mobile/README.md` walks through publishing on Google Play.
 
+### Fixed
+
+- **Settings on a wisp Grid work again.** Opening Settings on a cloud computer stopped partway (the Connect pane has no machines summary to fill in), so Settings → Auto showed no goal, repair rounds or scout selected, and the buttons that open Memory, Automations, Usage, phone notifications and what Auto learned, plus Copy address on Connect, did nothing.
+- **Cloud computers open inside the phone app again.** They were handed to the browser, so their page wasn't the app's: its top-bar button showed a cloud and *Connect* instead of taking you back to your computers.
+
 ## [0.28.0] - 2026-10-22
 
 ### Added
@@ -39,6 +44,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Auto on a machine picks from that machine's harnesses.** The *Harnesses it may use* list in Settings → Auto came from this computer and was applied everywhere, so on a cloud computer with only opencode signed in, Auto said it found nothing to run on. A place with none of the allowed harnesses now uses what it has. The list also shows harnesses that are only on your machines, and a harness only a machine has no longer stays on probation for good.
 - **Settings in the phone app says *Notifications*, not *Desktop notifications*.**
 - **The phone app no longer shows a browser error when wisp stops on the computer.** SSH could stay connected after wisp itself quit or crashed there, and the app then loaded a page nobody served. Now the app checks wisp through the tunnel every 15 seconds. If wisp stops answering and SSH can't reach its port either, the app starts wisp again over SSH and reopens the page. If the page fails to load anyway, the app goes back to Computers, which shows *wisp stopped on that computer. Starting it again…*, and reopens wisp once it answers.
 - **A task's result reveals itself once.** The staggered entrance (blocks rising in, numbers counting up, the terminal typing its command) plays the first time you see a result; opening the task again just shows it.

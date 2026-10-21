@@ -69,6 +69,29 @@ test('choose: only installed harnesses, with the reason and how likely the pick 
   assert.equal(r.choose({ prompt: 'x', agents: [{ id: 'claude', available: false }] }), null);
 });
 
+test('a machine\'s harnesses: Auto picks from them, they join the arms, and this computer\'s allowed list never strands it', async () => {
+  const { createAuto } = await import('../server/services/auto.js');
+  const router = new Router(tmp('router-machine'));
+  const here = [AGENTS[0]]; // this computer: Claude Code only
+  router.sync(here);
+  const there = [
+    { id: 'claude', name: 'Claude Code', available: false, signedIn: false, models: [{ id: '' }] },
+    { id: 'opencode', name: 'opencode', available: true, models: [{ id: '' }, { id: 'opencode/free-1' }] },
+  ];
+  const defaults = { router: { allowed: ['claude'] } };
+  const auto = createAuto({ store: { config: { defaults } }, router, runner: {}, broadcast: () => {}, telemetry: { track: () => {} }, uploads: {} });
+  const body = { prompt: 'fix the login bug', agent: 'auto', model: 'balanced' };
+  // Only Claude is allowed, and the machine has it signed out: Auto runs on what's there.
+  for (let i = 0; i < 5; i++) assert.equal((await auto.resolve(body, there, { place: 'devbox' })).agent, 'opencode');
+  // Its harness is an arm now, and this computer's stay as they were (nothing marked gone).
+  assert.ok(router.state.arms['opencode:']);
+  assert.equal(router.state.arms['claude:opus'].state, 'ready');
+  // Where an allowed harness can run, the list still narrows the pick.
+  assert.equal((await auto.resolve(body, [...there, { ...AGENTS[1] }, { ...AGENTS[0] }], { place: 'devbox' })).agent, 'claude');
+  // Nothing signed in there: the error names the machine.
+  await assert.rejects(auto.resolve(body, [there[0]], { place: 'devbox' }), /no harness installed and signed in on devbox/);
+});
+
 test('learning: outcomes move the estimate, per kind of task, and survive a restart', () => {
   const home = tmp('router-learn');
   const r = new Router(home);

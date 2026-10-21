@@ -189,8 +189,9 @@ export class Router {
 
   // New harnesses and models since the last look. The first look only learns what's there.
   // Returns [{ key, label }] of arms that just showed up (they start on probation).
-  sync(agents) {
-    const first = !Object.keys(this.state.arms).length;
+  // more: a machine's harnesses, on top of this computer's: none of these is marked gone.
+  sync(agents, { more = false } = {}) {
+    const first = !more && !Object.keys(this.state.arms).length;
     const known = new Set(Object.keys(this.state.arms));
     const added = [];
     const seen = new Set();
@@ -203,9 +204,9 @@ export class Router {
         if (!first) added.push({ key: c.key, label: c.label, state: this.state.arms[c.key].state });
       } else if (arm.state === 'gone') arm.state = 'ready';
     }
-    for (const [k, arm] of Object.entries(this.state.arms)) if (!seen.has(k) && arm.state !== 'gone' && agents.some((a) => a.id === splitKey(k).agent)) arm.state = 'gone';
-    this.synced = true;
-    this.save();
+    if (!more) for (const [k, arm] of Object.entries(this.state.arms)) if (!seen.has(k) && arm.state !== 'gone' && agents.some((a) => a.id === splitKey(k).agent)) arm.state = 'gone';
+    if (!more) this.synced = true;
+    if (!more || added.length) this.save();
     return added;
   }
 
