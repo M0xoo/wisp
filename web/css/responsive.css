@@ -44,3 +44,16 @@ body.wisp-mobile .topbar { gap: 6px; }
 body.wisp-mobile .machines-btn { flex: none; gap: 5px; padding: 0 8px; border-color: var(--line-2); }
 /* Split view needs a wide window: the phone app always shows the feed, so no layout switchers. */
 body.wisp-mobile .view-btn, body.wisp-mobile .view-group { display: none; }
+/* Feels like an app, not a page: a press shows on what you touch, a long press doesn't select the
+   button or header under it, and taps don't wait to see if they're a double-tap zoom. */
+body.wisp-mobile :is(button, a, summary, .it-head, .task-head) { touch-action: manipulation; }
+body.wisp-mobile :is(button, .topbar, .it-head, .task-head) { -webkit-user-select: none; user-select: none; }
+body.wisp-mobile button { transition: transform 0.12s var(--ease), opacity 0.12s; }
+body.wisp-mobile button:active:not(:disabled) { transform: scale(0.96); opacity: 0.8; }
+body.wisp-mobile :is(.it-head, .task-head):active { background: var(--bg-2); }
+/* While what's shown may be stale (painted from the phone's cache, or the tunnel is reconnecting):
+   a thin moving line under the top bar (features/cache.js syncing). */
+body.wisp-mobile .topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat; }
+body.wisp-mobile.syncing .topbar::after { opacity: 1; animation: syncing 1.1s ease-in-out infinite; }
+@keyframes syncing { from { background-position: -40% 0; } to { background-position: 140% 0; } }

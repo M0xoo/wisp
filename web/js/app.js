@@ -13,8 +13,9 @@ import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
 import { renderFeed, reveal, scheduleRefetch } from './features/feed.js';
 import { renderLauncher } from './features/launcher.js';
-import { connect, loadConfig, loadSessions } from './features/live.js';
-import { loadMachines, openMachines } from './features/machines.js';
+import { recall, startShell, syncing } from './features/cache.js';
+import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
+import { loadMachines, openMachines, setMachines } from './features/machines.js';
 import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
 import { backToTop, onScroll, stage } from './features/scroll.js';
@@ -78,21 +79,51 @@ window.addEventListener('focus', () => {
   for (const id of S.open) if (S.sessions.get(id)?.unread) scheduleRefetch(id);
 });
 
+// The phone first paints what it saw last time (features/cache.js): tasks, open tasks and settings
+// show at once while the tunnel brings the real ones, which replace them in place.
+function paintSnapshot(snap) {
+  setConfig(snap.config);
+  setMachines(snap.machines || [], { quiet: true });
+  S.sessions = new Map(snap.sessions.map((s) => [s.id, s]));
+  for (const [id, s] of snap.full || []) if (S.open.has(id)) S.full.set(id, s);
+  renderFeed();
+  renderLauncher();
+  bus.emit('agents');
+}
+
 // The launcher paints as soon as config and machines are in (local, fast), from the last harness
 // list seen. Detecting harnesses can take seconds on a cold start: it repaints the launcher when
 // it lands, only if the list changed.
 (async () => {
+  const snap = recall();
+  if (snap?.config && snap.sessions) {
+    paintSnapshot(snap);
+    syncing(true);
+  }
   const agents = api('/agents').catch(() => null);
   const sessions = loadSessions();
-  await Promise.all([loadConfig(), loadMachines()]);
-  renderLauncher();
-  bus.emit('agents');
-  $('#prompt')?.focus();
-  await sessions;
+  sessions.catch(() => {}); // awaited below, unless the loads before it fail
+  const painted = snap && JSON.stringify([S.config, S.machines]);
+  try {
+    await Promise.all([loadConfig(), loadMachines()]);
+    if (JSON.stringify([S.config, S.machines]) !== painted) {
+      renderLauncher();
+      bus.emit('agents');
+    }
+    if (!snap) $('#prompt')?.focus();
+    await sessions;
+    syncing(false);
+  } catch {
+    // The phone's tunnel isn't back yet (the page came from its cache): the live stream retries,
+    // and its `hello` loads everything.
+  }
   connect();
   route();
   telemetryNotice();
-  if (MOBILE) askNotify(); // alerts are what the phone is for: ask once, on the first visit
+  if (MOBILE) {
+    askNotify(); // alerts are what the phone is for: ask once, on the first visit
+    startShell();
+  }
   const list = await agents;
   if (!list || JSON.stringify(list) === JSON.stringify(S.agents)) return;
   setAgents(list);

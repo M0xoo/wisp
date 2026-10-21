@@ -100,7 +100,13 @@ export function renderLauncher() {
   const old = $('#prompt', box);
   const typing = old && document.activeElement === old && [old.selectionStart, old.selectionEnd];
   if (old) S.drafts.set('home', old.value);
+  const first = box.classList.contains('skel');
   box.classList.remove('skel');
+  box.removeAttribute('aria-busy');
+  if (first) {
+    box.classList.add('fill-in');
+    setTimeout(() => box.classList.remove('fill-in'), 400);
+  }
   box.innerHTML = `
     <div class="l-projects"></div>
     <div class="l-setup" hidden></div>

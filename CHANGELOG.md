@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **The phone app opens instantly.** wisp's page now comes from a cache on the phone (a service worker, only in the app) instead of over the SSH tunnel each time, and the tasks, open tasks and settings you saw last paint at once while the real ones load; a thin line under the top bar shows while they catch up, or while the tunnel reconnects. Once a computer's wisp has opened on the phone, tapping it (or starting the app) goes straight to that page and connects behind it: it catches up the moment the tunnel is up, and if it can't connect it says why, with a way back to Computers. When wisp on that computer is updated (or you switch to a computer on another version), the page reloads onto it by itself.
+- **Feels like an app.** In the phone app, buttons and task headers press in when touched, a long press doesn't select them, sheets slide up and away (drag one down by its header, or tap outside it), the Computers list paints its keys before the plugin answers, and *Open* says *Opening* at once. Dark mode no longer flashes white between the list and wisp.
+
+### Changed
+
+- **The prompt box no longer pops in piece by piece.** Before the page has its settings, it shows quiet placeholders the same size and shape as the folder chips, buttons and recipes, and the real ones fade in over them together, so nothing jumps.
+- **Faster page loads, especially over a tunnel.** The server keeps the page's files in memory, gzips them, answers an unchanged file with a 304, and index.html preloads all of its modules at once instead of one import level at a time.
+
 ### Fixed
 
 - **A task's result reveals itself once.** The staggered entrance (blocks rising in, numbers counting up, the terminal typing its command) plays the first time you see a result; opening the task again just shows it.

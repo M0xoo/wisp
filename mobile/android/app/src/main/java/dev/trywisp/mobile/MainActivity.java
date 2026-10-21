@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.os.Build;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
@@ -33,7 +34,14 @@ public class MainActivity extends BridgeActivity {
         // wisp's page is served from the machine (http://127.0.0.1:<port>), where Capacitor's bridge
         // isn't injected, and the WebView has no Notification API: web/js/features/notify.js
         // uses this instead.
-        getBridge().getWebView().addJavascriptInterface(new Notify(), "wispAndroid");
+        WebView web = getBridge().getWebView();
+        web.addJavascriptInterface(new Notify(), "wispAndroid");
+        // Between pages (the list, then wisp's) the WebView shows its own background: the pages'
+        // (--bg in web/css/tokens.css), so dark mode doesn't flash white. It also draws the parts
+        // just off screen ahead of time, so a fling doesn't show blank tiles.
+        boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        web.setBackgroundColor(night ? 0xFF111111 : 0xFFFFFFFF);
+        web.getSettings().setOffscreenPreRaster(true);
         // Back goes back in the WebView: from wisp's page to the machines list, and closes an open
         // sheet there (it pushes a history entry). Only with nothing to go back to does it leave.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -111,6 +119,11 @@ public class MainActivity extends BridgeActivity {
                 return;
             }
             runOnUiThread(() -> askPermission.launch(Manifest.permission.POST_NOTIFICATIONS));
+        }
+
+        @JavascriptInterface
+        public String tunnel() {
+            return WispSshPlugin.pageState();
         }
 
         @JavascriptInterface

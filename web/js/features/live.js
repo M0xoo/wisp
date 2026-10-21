@@ -4,12 +4,12 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $ } from '../core/dom.js';
-import { S, saveOpen, setAgents } from '../core/state.js';
+import { COMPUTER, MOBILE, S, saveOpen, setAgents } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { paintAutoBtn } from './automations.js';
 import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
-import { loadMachines, setMachines } from './machines.js';
+import { loadMachines, openComputers, setMachines } from './machines.js';
 import { notifyFinished } from './notify.js';
 import { renderProjects } from './projects.js';
 import { feedAnchor, keepInPlace, watching } from './scroll.js';
@@ -20,9 +20,12 @@ import { onActivity } from './turns.js';
 import { applySpells, spellEvent } from './spells.js';
 import { loadUpdate, renderUpdate } from './update.js';
 import { applyView } from './split.js';
+import { checkBuild, syncing } from './cache.js';
 
 let es = null;
 let hiddenAt = 0;
+let helloed = false;
+let configLoaded = false; // from the server, not the phone's snapshot
 
 export function connect() {
   es?.close();
@@ -30,6 +33,7 @@ export function connect() {
   // The browser retries a dropped stream by itself, but gives up for good after an HTTP error
   // (a tunnel that is half back up can answer one): start a new one then.
   es.addEventListener('error', function () {
+    if (this === es) syncing(true);
     if (this.readyState === EventSource.CLOSED && this === es) setTimeout(() => this === es && connect(), 3000);
   });
   es.addEventListener('summary', (e) => {
@@ -83,7 +87,18 @@ export function connect() {
     bus.emit('agents');
   });
   es.addEventListener('preferences', () => bus.emit('preferences'));
-  es.addEventListener('hello', () => (loadSessions(), loadUpdate(), loadMachines())); // also after sleep/reconnect
+  // Also after sleep or a reconnect: everything may have changed meanwhile.
+  es.addEventListener('hello', () => {
+    loadSessions()
+      .then(() => syncing(false))
+      .catch(() => {});
+    // Config too, unless it was just loaded at boot.
+    if (helloed || !configLoaded) loadConfig().then(() => bus.emit('config'), () => {});
+    helloed = true;
+    checkBuild();
+    loadUpdate();
+    loadMachines();
+  });
 }
 
 // Back after a while away (the phone app was in the background, the laptop slept): the stream
@@ -104,10 +119,43 @@ export async function loadSessions() {
 }
 
 export async function loadConfig() {
-  S.config = await api('/config');
+  setConfig(await api('/config'));
+  configLoaded = true;
+}
+export function setConfig(config) {
+  S.config = config;
   applySpells();
   applyView();
   renderProjects();
   renderLaunchChips();
   paintAutoBtn();
+}
+
+// The phone app opens a computer's page from its cache before the tunnel is up (mobile/www/app.js)
+// and passes the tunnel's progress here (WispSshPlugin.toPage). Up: catch up now instead of on
+// the stream's next retry. Failed: say so, with the way back to Computers, where the fix is.
+let tunnelToast = null;
+function onTunnel(line) {
+  const [, kind, rest = ''] = /^@@wisp (\S+) ?(.*)$/.exec(line || '') || [];
+  if (kind === 'open') {
+    tunnelToast?.remove();
+    tunnelToast = null;
+    if (es?.readyState !== EventSource.OPEN) connect();
+  } else if (kind === 'fail') {
+    syncing(false);
+    tunnelToast?.remove();
+    const why = rest.replace(/^\S+ ?/, '') || 'the connection failed';
+    tunnelToast = toast(`Can’t reach <b>${esc(COMPUTER || 'this computer')}</b>: ${esc(why)}`, { tone: 'bad', timeout: 600_000, action: { label: 'Computers', run: openComputers } });
+  } else if (kind === 'lost') {
+    syncing(true);
+  }
+}
+if (MOBILE) {
+  addEventListener('wisp-tunnel', (e) => {
+    onTunnel(e.detail);
+  });
+  try {
+    const t = JSON.parse(window.wispAndroid?.tunnel?.() || 'null');
+    if (t?.state === 'failed') onTunnel(t.line);
+  } catch {}
 }

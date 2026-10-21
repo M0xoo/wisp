@@ -7,6 +7,7 @@ export function toast(html, { tone = '', action, timeout = 4200 } = {}) {
   $('#toasts').append(t);
   setTimeout(() => t.classList.add('out'), timeout);
   setTimeout(() => t.remove(), timeout + 400);
+  return t;
 }
 
 // An error (usually the server refusing something) as a red toast.
