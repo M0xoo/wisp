@@ -5,7 +5,7 @@
 #
 # It checks for Node.js 20+ and npm, installs wisp-agents globally from npm, and confirms that
 # the `wisp` command is on PATH. Set WISP_VERSION to pin a release (default: latest); it goes on
-# the bash side of the pipe: curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.28.0 bash
+# the bash side of the pipe: curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.28.1 bash
 set -euo pipefail
 
 PACKAGE="wisp-agents"
