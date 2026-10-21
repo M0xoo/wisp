@@ -49,6 +49,10 @@ if (name === 'gh') {
   process.stdin.on('data', (d) => {
     got += d;
     if (!/[\r\n]/.test(got)) return;
+    if (got.trim() === 'retry') {
+      got = '';
+      return void process.stdout.write('\nThat code expired.\nPaste code here if prompted > ');
+    }
     if (got.trim().endsWith('good-code')) {
       fs.writeFileSync(file, 'ok');
       console.log('\nLogin successful.');

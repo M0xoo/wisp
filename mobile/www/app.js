@@ -414,6 +414,8 @@ function cloudSheet(m = null, start = null) {
   const back = () => {
     if (document.visibilityState !== 'visible' || !flow?.deviceCode || !flow.timer) return;
     clearTimeout(flow.timer);
+    const w = $('.wait', body);
+    if (w) w.innerHTML = `<span class="spin"></span>Checking with ${esc(hostOf(flow.grid))}…`;
     poll();
   };
   document.addEventListener('visibilitychange', back);
