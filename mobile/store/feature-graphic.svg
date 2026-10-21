@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <!-- Play's feature graphic. Keep text clear of the centre: Play may overlay a play button there. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d1c22"/><stop offset="1" stop-color="#0e0e10"/></linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#6a5cff" stop-opacity=".55"/><stop offset="1" stop-color="#6a5cff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="orb" cx="36%" cy="32%" r="68%"><stop offset="0" stop-color="#fff"/><stop offset=".16" stop-color="#d9fff6"/><stop offset=".38" stop-color="#2fd0b4"/><stop offset=".78" stop-color="#6a5cff"/><stop offset="1" stop-color="#4b3fe0"/></radialGradient>
+  </defs>
+  <rect width="1024" height="500" fill="url(#bg)"/>
+  <circle cx="250" cy="250" r="230" fill="url(#glow)"/>
+  <circle cx="250" cy="250" r="128" fill="url(#orb)"/>
+  <circle cx="390" cy="157" r="10" fill="#fff" opacity=".9"/>
+  <circle cx="120" cy="330" r="6" fill="#bff" opacity=".7"/>
+  <circle cx="358" cy="373" r="4.5" fill="#fff" opacity=".6"/>
+  <g font-family="-apple-system, 'SF Pro Display', Inter, 'Segoe UI', system-ui, sans-serif" fill="#f4f4f2">
+    <text x="470" y="232" font-size="104" font-weight="700" letter-spacing="-4">wisp</text>
+    <text x="474" y="290" font-size="30" fill="#b9b8c2" letter-spacing="-.4">Your coding agents, in your pocket.</text>
+    <text x="474" y="330" font-size="22" fill="#8a8994">Claude Code · Codex · opencode · Cursor</text>
+  </g>
+</svg>

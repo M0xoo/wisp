@@ -22,8 +22,24 @@ android {
             excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF', 'META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*']
         }
     }
+    // Play upload key: android/keystore.properties (gitignored) names the keystore and its
+    // passwords. Without it, release builds come out unsigned.
+    def keystoreFile = rootProject.file('keystore.properties')
+    signingConfigs {
+        if (keystoreFile.exists()) {
+            def ks = new Properties()
+            keystoreFile.withInputStream { ks.load(it) }
+            release {
+                storeFile rootProject.file(ks['storeFile'])
+                storePassword ks['storePassword']
+                keyAlias ks['keyAlias']
+                keyPassword ks['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystoreFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

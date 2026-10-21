@@ -5,9 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **The Android app has wisp's icon.** The launcher shows wisp's orb instead of Capacitor's placeholder (with a themed icon on Android 13+), and the launch screen matches the page's light or dark background. Release builds sign with your Play upload key, and `mobile/README.md` walks through publishing on Google Play.
+- **A privacy policy on trywisp.dev.** [trywisp.dev/privacy.html](https://trywisp.dev/privacy.html) says what wisp, the Android app, wisp Cloud and the site collect (and what never leaves your computer), how to turn usage stats off, and how to delete a wisp Cloud account. Every page of the site links to it.
+
 ### Fixed
 
 - **Signing in and out shows what's happening.** After pasting Claude's code, the paste box used to sit there empty for seconds until the harness was ready; it now says *Checking the code…* (and comes back if the CLI asks for the code again). Signing out of a harness or a cloud computer, and waking one, take effect at once; a finished cloud sign-in shows *Adding it to Machines…* instead of the empty form; the phone app says *Checking…* when you're back from the browser; and the wisp Grid's sign-in, Allow and Sign out buttons spin while the next page loads instead of looking dead.
+- **Signing out of Antigravity works.** Its *Sign out* only said *Sign out of antigravity in a terminal* and stayed signed in, since agy has no logout command. wisp now removes agy's login itself (the macOS keychain, or its file in `~/.gemini` on Linux and wisp Grid). An agent signed in by an API key in wisp's environment now says which key to remove instead.
 - **Settings on a wisp Grid work again.** Opening Settings on a cloud computer stopped partway (the Connect pane has no machines summary to fill in), so Settings → Auto showed no goal, repair rounds or scout selected, and the buttons that open Memory, Automations, Usage, phone notifications and what Auto learned, plus Copy address on Connect, did nothing.
 - **Signing in to wisp Cloud from the phone app brings you back to the app.** After *Allow* in the browser, the page's only link was *Your account*, so wisp Cloud opened in the browser and the app seemed not to connect. It now says *Back to the wisp app*, and the app opens your wisp as soon as you're back.
 - **Cloud computers open inside the phone app again.** They were handed to the browser, so their page wasn't the app's: its top-bar button showed a cloud and *Connect* instead of taking you back to your computers.
