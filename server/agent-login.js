@@ -8,6 +8,9 @@
 // minutes.
 
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { bad } from './util.js';
 import { shq } from './shq.js';
 
@@ -17,7 +20,8 @@ const MAX_OUT = 8000;
 
 // What each harness's login is. bin: the CLI (WISP_<ID>_BIN overrides, as the adapters do).
 // signedIn(out): true, false, or null when the answer isn't one we know (then nothing is hidden).
-// keys: env vars that sign the CLI in without a login.
+// keys: env vars that sign the CLI in without a login. logout: the CLI's sign-out arguments, or a
+// function that does it when the CLI has no such command.
 const said = (out) => (/not (logged|signed) in/i.test(out) ? false : /(logged|signed) in/i.test(out) ? true : null);
 export const LOGINS = {
   claude: { bin: 'claude', env: 'WISP_CLAUDE_BIN', args: ['auth', 'login', '--claudeai'], logout: ['auth', 'logout'], status: ['auth', 'status'], keys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX'], signedIn: (out) => ({ true: true, false: false })[/"loggedIn":\s*(true|false)/.exec(out)?.[1]] ?? null },
@@ -26,8 +30,9 @@ export const LOGINS = {
   grok: { bin: 'grok', env: 'WISP_GROK_BIN', args: ['login', '--device-auth'], logout: ['logout'], status: ['models'], keys: ['XAI_API_KEY'], signedIn: (out) => (/not authenticated/i.test(out) ? false : /logged in/i.test(out) ? true : null) },
   // agy has no login command: a first prompt without a login prints Google's link and reads the
   // code back, then answers it. Its own wait for the code is short (about a minute). It only asks
-  // on a terminal, so on Linux (a wisp Grid) it gets one from script(1).
-  antigravity: { bin: 'agy', env: 'WISP_ANTIGRAVITY_BIN', args: ['-p', 'Reply with OK.'], tty: true, logout: null, status: ['models'], keys: ['GEMINI_API_KEY'], signedIn: (out, code) => (/sign in|authenticat/i.test(out) ? false : code === 0 ? true : null) },
+  // on a terminal, so on Linux (a wisp Grid) it gets one from script(1). Signing out is only /logout
+  // inside its own TUI, so wisp removes the login where agy keeps it.
+  antigravity: { bin: 'agy', env: 'WISP_ANTIGRAVITY_BIN', args: ['-p', 'Reply with OK.'], tty: true, logout: () => forgetAgy(), status: ['models'], keys: ['GEMINI_API_KEY'], signedIn: (out, code) => (/sign in|authenticat/i.test(out) ? false : code === 0 ? true : null) },
   // Not a harness: GitHub for git push and pull requests (Ship it), on a box with no other way in.
   // Afterwards git uses gh's login, and commits get your GitHub name if git has none.
   gh: { bin: 'gh', env: 'WISP_GH_BIN', tool: true, args: ['auth', 'login', '--web', '--hostname', 'github.com', '--git-protocol', 'https', '--skip-ssh-key'], logout: ['auth', 'logout', '--hostname', 'github.com'], status: ['auth', 'status', '--hostname', 'github.com'], keys: ['GH_TOKEN', 'GITHUB_TOKEN'], signedIn: said, after: () => gitFromGh() },
@@ -40,6 +45,13 @@ export async function signedIn(id, env = process.env) {
   if (!s?.status || s.keys.some((k) => env[k])) return null;
   const r = await run([bin(s), ...s.status], { timeout: 8_000 });
   return s.signedIn(r.out, r.code);
+}
+
+// agy's login: the system keychain on macOS (service "gemini", account "antigravity"), a file in
+// ~/.gemini where there's no keychain (Linux, a wisp Grid).
+export async function forgetAgy(home = os.homedir(), platform = process.platform) {
+  fs.rmSync(path.join(home, '.gemini', 'antigravity-cli', 'antigravity-oauth-token'), { force: true });
+  if (platform === 'darwin') await run(['security', 'delete-generic-password', '-s', 'gemini', '-a', 'antigravity']);
 }
 
 // eslint-disable-next-line no-control-regex
@@ -180,9 +192,16 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
 
     async logout(id) {
       const s = spec(id);
-      if (!s.logout) throw bad(`Sign out of ${id} in a terminal.`, 400);
-      const r = await run([bin(s), ...s.logout]);
-      if (r.code !== 0) throw bad(r.out.trim().split('\n').at(-1) || `${s.bin} exited (${r.code}).`, 502);
+      const key = s.keys.find((k) => process.env[k]);
+      if (key) throw bad(`${s.bin} is signed in with ${key}: remove it from wisp's environment to sign out.`, 400);
+      if (typeof s.logout === 'function') {
+        await s.logout();
+        // Gone from where we know to look; if the CLI still says signed in, it kept it elsewhere.
+        if ((await this.status(id)).signedIn) throw bad(`${s.bin} is still signed in: run ${s.bin} in a terminal and type /logout.`, 502);
+      } else {
+        const r = await run([bin(s), ...s.logout]);
+        if (r.code !== 0) throw bad(r.out.trim().split('\n').at(-1) || `${s.bin} exited (${r.code}).`, 502);
+      }
       onDone(id);
       return { agent: id, signedIn: false };
     },
