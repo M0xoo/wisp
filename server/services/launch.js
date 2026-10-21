@@ -142,7 +142,7 @@ export function createLaunch(app) {
     if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));
     // Auto for a machine: routed here, with the harnesses that machine has; its outcomes come
     // back through the summaries it streams (auto.signals), so one router learns from every place.
-    const routed = await app.auto.resolve(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset) });
+    const routed = await app.auto.resolve(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset), place: machines.get(mid).name });
     const routes = [routed.route, ...(routed.compare || []).map((c) => c.route)];
     // The machine runs Auto's check and repair on these picks (an older wisp there ignores them).
     const sendBody = { ...routed };
