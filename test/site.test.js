@@ -117,3 +117,12 @@ test('markdown: headings, nested lists, tables, code and links', () => {
   assert.match(html, /<pre data-lang="sh"><code>echo &quot;&lt;hi&gt;&quot;<\/code><\/pre>/);
   assert.match(html, /<a href="https:\/\/github.com\/M0xoo\/wisp\/blob\/main\/README.md#cli">the README<\/a>/);
 });
+
+test('the privacy policy has the contact and the account deletion anchor Play links to, and every footer links it', () => {
+  const html = read(pages.find((p) => p.path === '/privacy.html'));
+  assert.match(html, /<h2 id="delete-your-wisp-cloud-account">/);
+  assert.match(html, /<a href="mailto:hello@trywisp.dev">/);
+  assert.match(html, /<li><a href="#delete-your-wisp-cloud-account">/);
+  for (const f of ['index.html', 'cloud.html']) assert.match(fs.readFileSync(path.join(DOCS, f), 'utf8'), /<a href="privacy.html">Privacy<\/a>/, f);
+  assert.match(read(pages.find((p) => p.path === '/changelog.html')), /<a href="\/privacy.html">Privacy<\/a>/);
+});

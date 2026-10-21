@@ -90,6 +90,48 @@ npm run preview      # the machines screen in a desktop browser, with a fake plu
 
 Without `JAVA_HOME` set: `export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`.
 
+## Google Play
+
+The launcher icon is wisp's orb (`docs/assets/icon.svg`) as an adaptive icon: vector layers in
+`res/drawable/ic_launcher_{background,foreground,monochrome}.xml` (the last one is Android 13's
+themed icon). The store art is in `store/`: `icon.png` (512×512) and `feature-graphic.png`
+(1024×500), drawn from the `.svg` next to each.
+
+1. **Make an upload key**, once, and keep it out of git (backed up: losing it means asking Google
+   to reset it):
+   ```sh
+   keytool -genkeypair -keystore ~/wisp-upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000
+   ```
+   and write `android/keystore.properties` (gitignored):
+   ```
+   storeFile=/Users/you/wisp-upload.jks
+   storePassword=…
+   keyAlias=upload
+   keyPassword=…
+   ```
+2. **Bump** `versionCode` (every upload needs a higher one) and `versionName` in
+   `android/app/build.gradle`.
+3. **Build the bundle:** `npm run sync && cd android && ./gradlew bundleRelease`
+   → `android/app/build/outputs/bundle/release/app-release.aab`.
+4. **In the Play Console** (a developer account is a one-time $25): *Create app*, name `wisp`,
+   app, free. Then *Release → Testing → Internal testing → Create release*, opt in to Play App
+   Signing and upload the `.aab`. Fill the store listing with `store/icon.png`,
+   `store/feature-graphic.png` and 2+ phone screenshots.
+5. **App content** asks for:
+   - *Privacy policy:* https://trywisp.dev/privacy.html (`docs/privacy.md`).
+   - *Data safety:* the app's own code collects nothing. The wisp page it shows sends
+     anonymous usage stats (app info and performance, crash logs; optional, Settings → Privacy)
+     and, when you send it, feedback. wisp Cloud sign-in collects email, name and user IDs for
+     account management. Everything is encrypted in transit.
+   - *Account deletion:* https://trywisp.dev/privacy.html#delete-your-wisp-cloud-account.
+   - *Foreground service:* `specialUse` keeps the user's SSH tunnel open. Play wants a short
+     video of the *Connected to …* notification.
+   - *Target audience:* not for children. *App access:* reviewers need a way in, such as a wisp
+     Cloud test account.
+6. **Go public:** a new personal developer account has to run a closed test with 12+ testers for
+   14 days before *Production* unlocks; organisation accounts can promote straight from internal
+   testing.
+
 ## Test
 
 ```sh

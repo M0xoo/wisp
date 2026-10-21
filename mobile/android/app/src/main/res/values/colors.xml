@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launch screen, matched to the page's background (bg in web/css/tokens.css) so opening doesn't flash. -->
+    <color name="splash_background">#FFFFFF</color>
+</resources>

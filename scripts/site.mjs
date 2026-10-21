@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Builds the docs site's generated pages next to the hand-written ones (docs/index.html, cloud.html):
 // a page per harness under agents/, the guides under guides/ (scripts/guides.mjs), integrations.html
-// and changelog.html from their markdown, 404.html and sitemap.xml. The Pages workflow runs it before upload; the output is gitignored.
+// changelog.html and privacy.html from their markdown, 404.html and sitemap.xml. The Pages workflow runs it before upload; the output is gitignored.
 //
 //   node scripts/site.mjs [outDir]     default: docs/
 
@@ -45,6 +45,7 @@ function link(href, base) {
   const url = new URL(href, base).href;
   // Pages this site renders itself.
   if (url.startsWith(`${REPO}/blob/main/docs/integrations.md`)) return url.replace(/^.*integrations\.md/, '/integrations.html');
+  if (url.startsWith(`${REPO}/blob/main/docs/privacy.md`)) return url.replace(/^.*privacy\.md/, '/privacy.html');
   if (url.startsWith(`${REPO}/blob/main/CHANGELOG.md`)) return url.replace(/^.*CHANGELOG\.md/, '/changelog.html');
   return url;
 }
@@ -308,6 +309,7 @@ ${crumbs.length ? `    <nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.m
     <a href="/integrations.html">Integrations</a>
     <a href="/changelog.html">Changelog</a>
     <a href="/cloud.html">wisp Cloud</a>
+    <a href="/privacy.html">Privacy</a>
     <a href="https://www.npmjs.com/package/wisp-agents" target="_blank" rel="noopener">npm</a>
     <a href="${REPO}" target="_blank" rel="noopener">GitHub</a>
   </footer>
@@ -616,6 +618,27 @@ function changelogPage() {
   });
 }
 
+// The privacy policy: the Play listing links to it (and to its #delete-your-wisp-cloud-account).
+function privacyPage() {
+  const src = readText(path.join(DOCS, 'privacy.md'));
+  const html = markdown(src.replace(/^# .+\n/m, ''), `${REPO}/blob/main/docs/`);
+  const toc = [...html.matchAll(/<h2 id="([^"]+)">(.*?)<\/h2>/g)].map(([, id, t]) => `<li><a href="#${id}">${t}</a></li>`).join('');
+  return page({
+    path: '/privacy.html',
+    title: 'wisp privacy policy',
+    description: 'What wisp, the wisp Android app, wisp Cloud and trywisp.dev collect, what never leaves your computer, how to turn usage stats off and how to delete your account.',
+    crumbs: [['Privacy', '/privacy.html']],
+    body: `
+    <header class="doc-head">
+      <p class="eyebrow">Legal</p>
+      <h1>Privacy policy</h1>
+    </header>
+    <nav class="toc" aria-label="On this page"><p class="eyebrow">On this page</p><ul>${toc}</ul></nav>
+    <article class="prose">${html}</article>
+`,
+  });
+}
+
 function notFoundPage() {
   return page({
     path: '/404.html',
@@ -653,6 +676,7 @@ export function build(out = DOCS) {
     ...GUIDES.map((g) => ({ path: guideUrl(g), file: `guides/${g.slug}.html`, html: guidePage(g), sources: ['scripts/guides.mjs'], priority: '0.9' })),
     { path: '/integrations.html', file: 'integrations.html', html: integrationsPage(), sources: ['docs/integrations.md'], priority: '0.7' },
     { path: '/changelog.html', file: 'changelog.html', html: changelogPage(), sources: ['CHANGELOG.md'], priority: '0.6' },
+    { path: '/privacy.html', file: 'privacy.html', html: privacyPage(), sources: ['docs/privacy.md'], priority: '0.3' },
     { path: '/cloud.html', file: null, sources: ['docs/cloud.html'], priority: '0.6' },
     { path: '/404.html', file: '404.html', html: notFoundPage(), noindex: true },
   ];
