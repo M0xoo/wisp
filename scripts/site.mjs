@@ -466,6 +466,7 @@ const sh = (code) => `<pre data-lang="sh"><code>${esc(code)}</code></pre>`;
 export const GUIDES = guides({ esc, sh, shot, installButton, agents: AGENTS });
 const guideUrl = (g) => `/guides/${g.slug}.html`;
 // A guide's `demo`: a working copy of the feature in place of its screenshot (docs/relay.js, docs/spells.js).
+// A guide's `figure`: its own diagram (inline SVG) instead of a screenshot.
 const DEMOS = {
   relay: {
     html: `<div data-relay id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>`,
@@ -488,7 +489,7 @@ function guidePage(g) {
       <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build · macOS, Linux, Windows (beta) · Node 20+</p>
     </header>
 
-    ${DEMOS[g.demo]?.html || shot(...g.shot)}
+    ${DEMOS[g.demo]?.html || g.figure || shot(...g.shot)}
 ${g.body}
     <section class="faq-doc">
       <h2 id="faq">Questions</h2>

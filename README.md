@@ -436,6 +436,22 @@ Nothing new listens on the network: wisp on the machine stays on its own `127.0.
 
 A task can change computers mid-way: the **Runs on** button next to the composer moves your next follow-up (and the task) to another computer. The task's branch and uncommitted work travel as a git bundle into a worktree there, on the same branch, and its earlier turns come along so the harness picks up where the other one stopped. The old session is archived and links to the new one. **Rerun** has the same picker.
 
+### Get a machine ready
+
+The machine runs macOS or Linux (on Windows, use WSL) and needs three things. Install wisp there and open Settings → *Machines*: **This computer** checks each one and gives this OS's command for anything missing, along with the `user@host` to connect with.
+
+1. **An SSH server.** On macOS, System Settings → General → Sharing → *Remote Login* (`sudo systemsetup -setremotelogin on`). On Debian or Ubuntu, `sudo apt install -y openssh-server && sudo systemctl enable --now ssh`.
+2. **Your key, let in once.** From the computer you connect from, run `ssh-copy-id you@host`. The phone app shows its own one-line command for this.
+3. **Node.js 20+ and the harness CLIs**, each signed in. wisp starts itself there with `npx`.
+
+### Tailscale
+
+[Tailscale](https://tailscale.com) puts your laptop, machines and phone on one private network, so wisp reaches a machine from anywhere without opening a port or setting up the router. Install it on each device and sign in with the same account. Machines then lists your tailnet's computers under *Found on this computer* by name (`devbox.tail1234.ts.net`). On a Linux machine, `sudo tailscale set --ssh` turns on [Tailscale SSH](https://tailscale.com/kb/1193/tailscale-ssh), which lets your tailnet's devices in with no keys to copy. On macOS, use Remote Login instead: the Mac App Store build of Tailscale can't run an SSH server. Step by step: [Connect your machines with Tailscale](https://trywisp.dev/guides/connect-machines-with-tailscale.html).
+
+### On your phone (Android, prototype)
+
+[`mobile/`](mobile/) is an Android app that connects to one of your machines over SSH, starts wisp there with the same script Machines uses, and shows wisp's own page through the tunnel. Every feature works the same, and the agents keep running when the phone sleeps. Save several machines, give each one a key (made on the phone, or imported), and switch between them with one tap. Build it with `cd mobile && npm install && npm run build`; see [mobile/README.md](mobile/README.md).
+
 ## Learning
 
 After a session has been quiet for 90 seconds (or right away when you mark it done or archive it), wisp runs a short **retro**: the same harness, read-only and without tools (Claude Code runs it on Haiku), reads a digest of the turns it hasn't seen yet. The digest holds your requests and follow-ups, questions and answers, failed tool calls and the commands run around them, and how each run ended. The retro then updates four small lists:

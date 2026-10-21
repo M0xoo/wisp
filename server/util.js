@@ -23,8 +23,7 @@ export const expand = (p) => path.resolve(expandHome(p));
 // wisp's own copies of harness CLIs, installed from the app when there's none (~/.wisp/tools).
 export const toolsDir = () => path.join(process.env.WISP_HOME || path.join(os.homedir(), '.wisp'), 'tools');
 
-// Single-quote for a POSIX shell.
-export const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+export { shq } from './shq.js';
 
 // One line, at most n characters (whitespace collapsed).
 export function clip(s, n = 80) {

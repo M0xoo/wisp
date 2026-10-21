@@ -17,6 +17,7 @@ import { openMachines } from './machines.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { notifyOn } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
+import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
 import { AUTO_GOALS, harnessLogo } from './runners.js';
 import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupCommand, setupDocs, setupTip } from './setup.js';
@@ -128,6 +129,8 @@ export function openSettings(opts) {
             ${row('Machines', '<span class="machines-hint"></span>', '<button class="ghost sm" id="openMachines">Manage</button>')}
           </div>
           <p class="hint">Also in the top bar. Every project runs on every machine: pick one under Run on and wisp clones the project there the first time. A follow-up or a rerun can move a task to another one.</p>
+          <div class="sx-head"><div><b>This computer</b><small>What another computer, or the wisp phone app, needs to connect here over SSH</small></div><button class="ghost sm" id="reachRecheck">${icon('replay')}Re-check</button></div>
+          ${reachableHtml()}
         </section>
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">
@@ -207,6 +210,7 @@ export function openSettings(opts) {
       btn.classList.remove('busy');
     }
   };
+  let reachChecked = false;
   const pick = (id, focus = false) => {
     settingsPane = id;
     const p = SETTINGS_PANES.find((x) => x.id === id);
@@ -220,6 +224,11 @@ export function openSettings(opts) {
     $('.sx-title', node).textContent = p.label;
     $('.sx-lede', node).textContent = p.lede;
     $('.sx-main', node).scrollTop = 0;
+    // Checked when the pane opens: it knocks on the SSH port and asks tailscale.
+    if (id === 'machines' && !reachChecked) {
+      reachChecked = true;
+      paintReachable(reachableBox(node));
+    }
   };
   // Memory, Automations, Usage and Phone open in the main area, next to the sidebar, with a
   // way back to the section they came from. Leaving one goes back; only the X closes Settings.
@@ -481,6 +490,9 @@ export function openSettings(opts) {
   $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
   $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
   $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
+  $('#reachRecheck', node).onclick = () => {
+    paintReachable(reachableBox(node));
+  };
 }
 
 // Say once that anonymous stats are on, with a way out.

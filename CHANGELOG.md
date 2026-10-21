@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **wisp for Android (prototype, `mobile/`).** Save your machines and use wisp on them from your phone: the app connects over SSH, starts wisp there with the same script desktop Machines uses (or reuses the running one), forwards its port and shows wisp's own page, so every feature works the same. Each machine uses a key you pick: make one on the phone (the sheet shows the `authorized_keys` command), import an OpenSSH, PEM or PuTTY key, or type a password just for that connection. The connect steps show on each machine's card. One machine is connected at a time and switching takes one tap. A dropped connection comes back on its own. Inside the app, wisp hides Take over, *Open in editor* and keyboard hints. See `mobile/README.md` to build it.
+- **Settings → Machines → This computer.** Checks whether another computer, or the phone app, can connect here over SSH: whether an SSH server answers, whether Tailscale is up (and Tailscale SSH), and how many keys are in `authorized_keys`. Each missing piece comes with this OS's command to copy (Remote Login on macOS, openssh-server on Linux, WSL on Windows), plus the `user@host` to connect with. Spells can restyle or hide it (`settings.reachable`).
+- **Guide: Connect your machines with Tailscale.** Get a machine ready, connect from the laptop and the phone, and turn on Tailscale SSH for no keys at all. Linked from the README, the Machines guide and the landing page.
+
 ## [0.26.0] - 2026-10-21
 
 ### Added

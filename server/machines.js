@@ -19,7 +19,7 @@ import readline from 'node:readline';
 import { randomBytes } from 'node:crypto';
 import { spawn, killTree } from './proc.js';
 import { newer } from './update.js';
-import { bootstrapScript } from './machines/bootstrap.js';
+import { bootstrapScript, STEPS } from './machines/bootstrap.js';
 import { sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, TARGET } from './machines/hosts.js';
 import { HERE } from './store.js';
 import { bad, DEFAULT_PORT, shq } from './util.js';
@@ -29,16 +29,9 @@ const READY_TIMEOUT_MS = 6 * 60_000; // the first `npx` download can take a whil
 const RETRY_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 const LIST_TIMEOUT_MS = 5_000;
 const MAX_LOG = 80;
-export const STEPS = [
-  ['ssh', 'Connect over SSH'],
-  ['node', 'Find Node.js 20+'],
-  ['wisp', 'Start wisp there'],
-  ['tunnel', 'Open the tunnel'],
-  ['agents', 'Find harnesses'],
-];
 
 const sshBin = () => process.env.WISP_SSH || 'ssh';
-export { shq, bootstrapScript, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts };
+export { STEPS, shq, bootstrapScript, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts };
 
 // Session ids: <remote id>@<machine id> here. Local ids never contain '@'.
 export const qualify = (id, mid) => (id ? `${id}@${mid}` : id);

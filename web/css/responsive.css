@@ -33,3 +33,8 @@ body.electron .topbar button, body.electron .topbar a, body.electron .topbar .pr
 body.electron .overlay, body.electron .overlay *, body.electron .menu, body.electron .menu *, body.electron .toasts, body.electron .toast * { -webkit-app-region: no-drag; }
 body.electron.mac .topbar { padding-left: 88px; }
 
+
+/* ---------- phone app (mobile/) ---------- */
+/* No keyboard shortcuts on a touch screen, and no grey flash on every tap. */
+body.wisp-mobile { -webkit-tap-highlight-color: transparent; }
+body.wisp-mobile kbd { display: none; }

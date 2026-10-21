@@ -14,6 +14,10 @@ export function save(k, v) {
   } catch {}
 }
 
+// Inside the wisp Android app (mobile/), which appends wispMobile to its WebView's user agent and
+// shows this page through an SSH tunnel: there's no terminal, editor or folder picker on the phone.
+export const MOBILE = typeof navigator !== 'undefined' && /\bwispMobile\b/.test(navigator.userAgent);
+
 export const S = {
   sessions: new Map(), // id -> summary
   full: new Map(), // id -> full session, for expanded items

@@ -118,6 +118,14 @@
 #recheck.busy { cursor: progress; }
 #recheck.busy .i { animation: spin 0.8s linear infinite reverse; }
 .sx-usage .it-loading { grid-column: 1 / -1; }
+/* a titled group inside a pane (Machines → This computer) */
+.sx-head { display: flex; align-items: flex-end; gap: 12px; margin: 22px 2px 8px; }
+.sx-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sx-head b { font-weight: 600; font-size: 13.5px; }
+.sx-head small { font-size: 12px; color: var(--muted); }
+.sx-reach .sx-text small { white-space: normal; }
+.sx-reach .sx-text a { color: var(--accent-ink); }
+.sx-reach .sx-ctl:empty { display: none; }
 /* a view (Memory, Automations, Usage, Phone) opened inside Settings: no dialog chrome of its own */
 .modal.embedded { width: auto; max-height: none; overflow: visible; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; transform: none; }
 .modal.embedded header { justify-content: flex-start; gap: 10px; }

@@ -1,0 +1,13 @@
+{
+  "appId": "dev.trywisp.mobile",
+  "appName": "wisp",
+  "webDir": "www",
+  "appendUserAgent": "wispMobile",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["127.0.0.1"]
+  },
+  "plugins": {
+    "SystemBars": { "insetsHandling": "native" }
+  }
+}

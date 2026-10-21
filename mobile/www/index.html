@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>wisp</title>
+  <link rel="stylesheet" href="shared/css/tokens.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19L12 3.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.2v.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M11 12l8-8M16 7l2.5 2.5M14 9l2 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-server" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="13" width="16" height="6.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7.5 7.75h.01M7.5 16.25h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <main class="wrap">
+    <header class="brand"><span class="orb"></span><span class="word">wisp</span></header>
+
+    <section class="intro">
+      <h1>Your machines, in your pocket</h1>
+      <p>wisp runs on your computers and servers. This phone reaches one at a time over SSH; agents keep working on all of them when the app is closed.</p>
+    </section>
+
+    <section class="list" id="machines"></section>
+    <button class="add" id="addMachine" type="button"><svg class="i"><use href="#i-plus"/></svg>Add a machine</button>
+
+    <section class="keys">
+      <div class="sec-head"><span>Keys on this phone</span>
+        <span class="row">
+          <button class="ghost sm" id="newKey" type="button"><svg class="i"><use href="#i-plus"/></svg>New</button>
+          <button class="ghost sm" id="importKey" type="button"><svg class="i"><use href="#i-import"/></svg>Import</button>
+        </span>
+      </div>
+      <div class="list" id="keys"></div>
+    </section>
+  </main>
+
+  <!-- Add / edit a machine -->
+  <dialog class="sheet" id="mSheet">
+    <form method="dialog" id="mForm" autocomplete="off">
+      <header><h2 id="mTitle">Add a machine</h2><button class="icon" value="cancel" type="button" data-close aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></header>
+      <label class="field"><span>SSH</span>
+        <input id="mTarget" placeholder="you@my-server" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email" required></label>
+      <label class="field"><span>Name <em>optional</em></span><input id="mName" placeholder="Work laptop"></label>
+      <label class="field"><span>Key</span><select id="mKey"></select></label>
+      <div class="install">
+        <p>Once, on the machine, let this key in:</p>
+        <pre class="cmd" id="mCmd"></pre>
+        <button class="ghost sm" id="mCopy" type="button"><svg class="i"><use href="#i-copy"/></svg>Copy command</button>
+      </div>
+      <details class="adv" id="mAdv">
+        <summary>Advanced</summary>
+        <div class="grid">
+          <label class="field"><span>SSH port</span><input id="mSshPort" inputmode="numeric" placeholder="22"></label>
+          <label class="field"><span>wisp port</span><input id="mPort" inputmode="numeric" placeholder="4477"></label>
+        </div>
+        <label class="field"><span>Password <em>this connection only, never saved</em></span><input id="mPassword" type="password" autocomplete="off"></label>
+        <label class="field"><span>Start command <em>when wisp isn't running there yet</em></span><input id="mCommand" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="npx -y wisp-agents@latest"></label>
+      </details>
+      <div class="sheet-actions">
+        <button class="ghost danger" id="mDelete" type="button">Delete</button>
+        <span class="grow"></span>
+        <button class="ghost" id="mSave" type="button">Save</button>
+        <button class="primary" id="mConnect" type="submit">Save and connect</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- One key -->
+  <dialog class="sheet" id="kSheet">
+    <form method="dialog" id="kForm">
+      <header><h2 id="kTitle">Key</h2><button class="icon" type="button" data-close aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></header>
+      <p class="muted" id="kMeta"></p>
+      <p>On each machine that should let this phone in:</p>
+      <pre class="cmd" id="kCmd"></pre>
+      <div class="row">
+        <button class="ghost" id="kCopyCmd" type="button"><svg class="i"><use href="#i-copy"/></svg>Copy command</button>
+        <button class="ghost" id="kCopyKey" type="button"><svg class="i"><use href="#i-copy"/></svg>Copy public key</button>
+      </div>
+      <div class="sheet-actions">
+        <button class="ghost danger" id="kDelete" type="button">Delete key</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Import a key -->
+  <dialog class="sheet" id="iSheet">
+    <form method="dialog" id="iForm" autocomplete="off">
+      <header><h2>Import a key</h2><button class="icon" type="button" data-close aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></header>
+      <p class="muted">Paste a private key the machine already trusts (OpenSSH, PEM or PuTTY). It is decrypted once and kept only in this app; the passphrase isn't stored.</p>
+      <label class="field"><span>Name</span><input id="iName" placeholder="Laptop key"></label>
+      <label class="field"><span>Private key</span><textarea id="iKey" rows="6" spellcheck="false" autocapitalize="off" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" required></textarea></label>
+      <label class="field"><span>Passphrase <em>if it has one</em></span><input id="iPass" type="password" autocomplete="off"></label>
+      <div class="sheet-actions"><span class="grow"></span><button class="primary" id="iGo" type="submit">Import</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+  <script>
+    // If app.js can't even load, say so on screen instead of leaving dead buttons.
+    addEventListener('error', (e) => {
+      const t = document.getElementById('toast');
+      t.textContent = `wisp couldn’t start: ${e.message}`;
+      t.hidden = false;
+    });
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

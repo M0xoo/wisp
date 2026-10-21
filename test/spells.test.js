@@ -113,6 +113,11 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
   assert.ok(problems({ ...base0, parts: { 'card.sub': { props: { lines: 41 } } } }).some((x) => /lines: int from 1 to 40/.test(x)));
 });
 
+test('Settings → Machines → This computer is a part spells can restyle or hide', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.reachable'] }, parts: { 'settings.reachable': { style: { borderRadius: '4px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'settings.reachable': { props: { width: 400 } } } }).some((x) => /settings\.reachable/.test(x)));
+});
+
 test('style values: no url(), imports, escapes or extra declarations; tokens and colours are fine', () => {
   assert.equal(schema.styleProblem('fontWeight', '650'), '');
   assert.equal(schema.styleProblem('background', 'var(--surface-2)'), '');
