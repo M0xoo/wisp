@@ -107,7 +107,12 @@ label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu
 .input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 @media (max-width:920px){.hero .wrap,.split{grid-template-columns:1fr}.hero{padding-top:40px}.float{position:relative;left:auto;bottom:auto;width:auto;margin:-24px 16px 0}.steps,.grid4{grid-template-columns:1fr 1fr}.links{display:none}}
 @media (max-width:600px){.steps,.grid4{grid-template-columns:1fr}.wrap{padding:0 20px}.nav .right .pill:not(.dark){display:none}}
+.wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
+
+// Every form and sign-in link: the button spins at once while the next page loads (a provider's
+// redirect, Allow, Sign out), and a second press does nothing. Back from the browser cache clears it.
+const PENDING = `<script>(()=>{const go=(b)=>{if(b)setTimeout(()=>{b.classList.add('wait');b.setAttribute('aria-busy','true')})};document.addEventListener('submit',(e)=>{const b=e.submitter||e.target.querySelector('button');if(b&&b.classList.contains('wait'))return e.preventDefault();go(b)});document.addEventListener('click',(e)=>{const a=e.target.closest('a[href^="/auth/"]');if(a)go(a)});addEventListener('pageshow',()=>document.querySelectorAll('.wait').forEach((b)=>{b.classList.remove('wait');b.removeAttribute('aria-busy')}))})()</script>`;
 
 function siteHead(title, cfg) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -118,7 +123,7 @@ function siteHead(title, cfg) {
 <div class="right"><a class="pill" href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a><a class="pill dark" href="#join">Sign in</a></div></div></header>`;
 }
 const siteFoot = (cfg) => `<footer class="foot"><div class="wrap"><span>${esc(cfg.name)} · ${esc(cfg.domain)}</span><a href="https://trywisp.dev" target="_blank" rel="noopener">wisp</a><a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">Open source (MIT)</a><a href="https://github.com/M0xoo/wisp/tree/main/grid" target="_blank" rel="noopener">Run your own grid</a></div></footer>
-<script>addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('scrolled',scrollY>8),{passive:true})</script></body></html>`;
+<script>addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('scrolled',scrollY>8),{passive:true})</script>${PENDING}</body></html>`;
 
 const shot = (name, alt) => `<picture><source srcset="${A}/dark-${name}.webp" media="(prefers-color-scheme: dark)"><img src="${A}/light-${name}.webp" alt="${esc(alt)}" decoding="async"></picture>`;
 const inviteOnly = (cfg) => cfg.auth.signup === 'closed' || Object.values(cfg.auth.allow || {}).some((v) => Array.isArray(v) && v.length);
@@ -287,6 +292,7 @@ h2.sec{margin:34px 0 10px;font-size:13px;font-weight:600;color:var(--muted)}
 @keyframes pulse{0%,100%{transform:scale(.86);opacity:.75}50%{transform:scale(1);opacity:1}}
 form.inline{display:inline}
 @media (max-width:640px){.tiles{grid-template-columns:1fr}.hero .head{flex-wrap:wrap}.hero .acts{margin-left:0;width:100%}.top{padding:0 16px}.top .who{display:none}}
+.wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
 
 function appPage({ cfg, title, user = null, csrf = '', body, head = '', narrow = false }) {
@@ -295,7 +301,7 @@ function appPage({ cfg, title, user = null, csrf = '', body, head = '', narrow =
 <title>${esc(title)} · ${esc(cfg.name)}</title><meta name="referrer" content="same-origin"><link rel="icon" href="${A}/icon.svg"><style>${APP_CSS}</style>${head}</head><body>
 <header class="top"><a class="brand" href="${esc(cfg.publicUrl)}/"><span class="mark"></span>wisp</a><span class="chipx">${I.cloud.replace('<svg', '<svg width="13" height="13"')}Grid</span>
 ${user ? `<div class="me"><span class="who">${esc(user.handle)}</span><span class="av">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : initial}</span>${csrf ? `<form class="inline" method="post" action="/signout"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost">Sign out</button></form>` : ''}</div>` : ''}</header>
-<main class="main${narrow ? ' narrow' : ''}">${body}</main></body></html>`;
+<main class="main${narrow ? ' narrow' : ''}">${body}</main>${PENDING}</body></html>`;
 }
 
 const STATE = { running: 'Running', starting: 'Waking up', stopping: 'Going to sleep', stopped: 'Asleep' };

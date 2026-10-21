@@ -107,7 +107,7 @@ function run(argv, { timeout = 15_000, env = {} } = {}) {
 export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}) {
   const flows = new Map(); // harness id -> flow
 
-  const view = (id, f) => (f ? { agent: id, state: f.state, url: f.url, code: f.code, needsInput: f.needsInput, error: f.error || '', output: clean(f.out).split('\n').filter((l) => l.trim()).slice(-6).join('\n'), startedAt: f.startedAt } : { agent: id, state: 'idle' });
+  const view = (id, f) => (f ? { agent: id, state: f.state, url: f.url, code: f.code, needsInput: f.needsInput, checking: (f.state === 'running' || f.state === 'waiting') && f.after != null && !f.needsInput, error: f.error || '', output: clean(f.out).split('\n').filter((l) => l.trim()).slice(-6).join('\n'), startedAt: f.startedAt } : { agent: id, state: 'idle' });
   const changed = (id) => onChange(view(id, flows.get(id)));
 
   function spec(id) {
@@ -149,9 +149,11 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
       child.stdin.on('error', () => {});
       const take = (d) => {
         f.out = (f.out + d).slice(-MAX_OUT);
+        // After a paste, only what the CLI says since then can ask for a code again (a wrong one).
+        if (f.after != null) f.after = (f.after + d).slice(-MAX_OUT);
         const p = parse(f.out);
         const was = `${f.url}|${f.code}|${f.needsInput}`;
-        Object.assign(f, { url: p.url || f.url, code: p.code || f.code, needsInput: p.needsInput });
+        Object.assign(f, { url: p.url || f.url, code: p.code || f.code, needsInput: f.after != null ? parse(f.after).needsInput : p.needsInput });
         if (f.url && f.state === 'running') f.state = 'waiting';
         if (`${f.url}|${f.code}|${f.needsInput}` !== was) changed(id);
       };
@@ -179,6 +181,7 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
       if (!v || v.length > 4000 || /[\r\n]/.test(v)) throw bad('Paste the code the sign-in page showed.', 400);
       f.child.stdin.write(`${v}\n`);
       f.needsInput = false;
+      f.after = ''; // checking the code until the CLI finishes or asks again
       changed(id);
       return view(id, f);
     },
@@ -202,6 +205,9 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
         const r = await run([bin(s), ...s.logout]);
         if (r.code !== 0) throw bad(r.out.trim().split('\n').at(-1) || `${s.bin} exited (${r.code}).`, 502);
       }
+      // A finished sign-in no longer says signed in (it's kept a few minutes for the page).
+      const f = flows.get(id);
+      if (f && f.state !== 'running' && f.state !== 'waiting') flows.delete(id);
       onDone(id);
       return { agent: id, signedIn: false };
     },

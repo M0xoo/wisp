@@ -111,7 +111,16 @@ test('Claude: sign in with a pasted code; a wrong code fails with its message; t
 
   await api('/agents/claude/login', 'POST');
   await until(async () => (await api('/agents/claude/login')).json.needsInput, 'the paste box again');
-  await api('/agents/claude/login/input', 'POST', { code: 'good-code' });
+  // A code the CLI asks for again: the paste box comes back.
+  assert.equal((await api('/agents/claude/login/input', 'POST', { code: 'retry' })).json.checking, true);
+  const again = await until(async () => {
+    const v = (await api('/agents/claude/login')).json;
+    return v.needsInput && v;
+  }, 'the paste box after a retry');
+  assert.equal(again.checking, false);
+  const sent = (await api('/agents/claude/login/input', 'POST', { code: 'good-code' })).json;
+  assert.equal(sent.checking, true, 'checking the code: the page shows a spinner, not the paste box');
+  assert.equal(sent.needsInput, false);
   const done = await until(async () => {
     const v = (await api('/agents/claude/login')).json;
     return v.state === 'done' && v;
@@ -147,7 +156,10 @@ test('Codex: a device code to enter on its page; done when the CLI says so; sign
   assert.equal(keyed.status, 400);
   assert.match(keyed.json.error, /CODEX_API_KEY/);
   assert.equal((await api('/agents/codex/logout', 'POST')).json.signedIn, false);
-  assert.equal((await api('/agents/codex/login')).json.signedIn, false);
+  // Not the finished sign-in any more: a reload shows Sign in, not Signed in.
+  const out = (await api('/agents/codex/login')).json;
+  assert.equal(out.signedIn, false);
+  assert.equal(out.state, 'idle');
   await until(async () => (await agent('codex')).available === false, 'codex out of the picker');
 });
 

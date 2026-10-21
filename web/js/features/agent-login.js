@@ -44,11 +44,12 @@ export function loginPanel(id, scope = '') {
   if (!busy(l) && l.state !== 'failed') return `<div class="sx-login" ${attrs} hidden></div>`;
   if (l.state === 'failed') return `<div class="sx-login bad" ${attrs}><p>${esc(l.error || 'Sign-in didn’t finish.')}</p><button class="ghost sm" data-login ${at(scope, id)}>Try again</button></div>`;
   // Claude shows a code on its page to paste back here; Codex and GitHub show one to type there.
-  const paste = id === 'claude' || l.needsInput;
+  const paste = (id === 'claude' && !l.checking) || l.needsInput;
   return `<div class="sx-login" ${attrs}>
       ${l.url ? '' : '<p class="sx-login-wait"><i class="spin"></i>Starting the sign-in…</p>'}
       ${l.url ? `<p><b>1.</b> Open the sign-in page and sign in${NAMES[id] ? ` with your ${NAMES[id]} account` : ''}.</p><div class="sx-login-row"><a class="primary sm btn-link" href="${esc(l.url)}" target="_blank" rel="noopener">${icon('external')}Open the sign-in page</a></div>` : ''}
       ${l.code ? `<p><b>2.</b> Enter this code there:</p><div class="sx-login-code"><span class="mono">${esc(l.code)}</span><button class="icon-btn" data-login-copy="${esc(l.code)}" title="Copy the code">${icon('copy')}</button></div><p class="sx-login-wait"><i class="spin"></i>Waiting for you to finish there…</p>` : ''}
+      ${l.url && l.checking && !l.needsInput ? '<p class="sx-login-wait"><i class="spin"></i>Checking the code…</p>' : ''}
       ${l.url && paste && !l.code ? `<form class="sx-login-row" data-login-form ${at(scope, id)}><input class="input mono" name="code" placeholder="Paste the code the page shows" autocomplete="off" spellcheck="false" value="${esc(drafts.get(id) || '')}"><button class="primary sm" type="submit">Continue</button></form>` : ''}
     </div>`;
 }
@@ -85,7 +86,9 @@ export function wireLogins(box, places) {
   const set = (scope, id, v) => {
     const { logins } = of(scope);
     const was = logins.get(id) || {};
-    logins.set(id, { ...was, ...v, ...(v.state === 'done' && { signedIn: true }) });
+    // A wisp from before `checking` keeps saying needsInput after a paste: the spinner stays.
+    const old = was.checking && v.checking === undefined && { needsInput: false };
+    logins.set(id, { ...was, ...v, ...old, ...(v.state === 'done' && v.signedIn === undefined && { signedIn: true }) });
     if (v.state === 'done' && was.state !== 'done') toast(`Signed in to <b>${esc(NAMES[id] || id)}</b>`);
     repaint(scope, id);
     if (v.state === 'done' && was.state !== 'done') markSignedIn(scope, id, true);
@@ -129,18 +132,24 @@ export function wireLogins(box, places) {
     try {
       if (b.matches('[data-login]')) {
         // At once: the panel, filled in as the CLI talks.
-        set(scope, id, { state: 'running', url: '', code: '', error: '' });
+        set(scope, id, { state: 'running', url: '', code: '', error: '', needsInput: false, checking: false });
         set(scope, id, await api(path(scope, id), { method: 'POST', body: {} }));
         follow(scope, id);
       } else if (b.matches('[data-login-cancel]')) {
         set(scope, id, { state: 'cancelled' });
         await api(path(scope, id), { method: 'DELETE' });
       } else {
-        await api(path(scope, id, 'logout'), { method: 'POST', body: {} });
+        // At once: signed out here; signed in again if the CLI refuses (the catch looks it up).
         of(scope).logins.set(id, { state: 'idle', signedIn: false });
         repaint(scope, id);
         markSignedIn(scope, id, false);
-        toast('Signed out');
+        try {
+          await api(path(scope, id, 'logout'), { method: 'POST', body: {} });
+        } catch (err) {
+          markSignedIn(scope, id, true);
+          throw err;
+        }
+        toast(`Signed out of <b>${esc(NAMES[id] || id)}</b>`);
       }
     } catch (err) {
       toastError(err);
@@ -159,14 +168,15 @@ export function wireLogins(box, places) {
     const code = f.code.value.trim();
     if (!code) return;
     of(scope).drafts.delete(id);
-    f.querySelector('button').disabled = true;
+    // At once: the paste box gives way to a spinner while the CLI checks the code (seconds).
+    document.activeElement?.blur();
+    set(scope, id, { checking: true, needsInput: false });
     try {
-      await api(path(scope, id, 'login/input'), { method: 'POST', body: { code } });
-      document.activeElement?.blur();
+      set(scope, id, await api(path(scope, id, 'login/input'), { method: 'POST', body: { code } }));
       follow(scope, id);
     } catch (err) {
       of(scope).drafts.set(id, code);
-      f.querySelector('button').disabled = false;
+      set(scope, id, { checking: false });
       toastError(err);
     }
   });

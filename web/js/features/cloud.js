@@ -12,7 +12,7 @@ import { icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { copy } from '../blocks.js';
-import { loadMachines } from './machines.js';
+import { loadMachines, setMachines } from './machines.js';
 import { MACHINE_STATE } from './places.js';
 import { harnessLogo } from './runners.js';
 import { CAN, loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
@@ -47,8 +47,9 @@ bus.on('cloud', (f) => {
   if (!flow || f.id !== flow.id) return;
   if (f.state !== 'done') return setFlow(f);
   toast(`Signed in as <b>${esc(f.user?.handle || '')}</b> on ${esc(hostOf(f.grid))}. Your cloud computer is waking up.`);
-  setFlow(null);
-  loadMachines();
+  // Not the empty form while its card is on the way: a spinner until Machines has it.
+  setFlow({ ...f, state: 'joining' });
+  loadMachines().finally(() => flow?.id === f.id && setFlow(null));
 });
 
 function signinHtml({ title, lede }) {
@@ -58,6 +59,8 @@ function signinHtml({ title, lede }) {
         <div class="cl-codebox"><span class="mono">${esc(flow.userCode)}</span><button class="icon-btn" type="button" data-cl="copy" title="Copy the code">${icon('copy')}</button></div>
         <div class="cl-row"><button class="primary sm" type="button" data-cl="open">${icon('external')}Open the sign-in page</button><button class="ghost sm" type="button" data-cl="cancel">Cancel</button><span class="cl-wait"><i class="spin"></i>Waiting for you to allow it…</span></div>
       </div>`;
+  if (flow?.state === 'joining')
+    return `<div class="cl-signin cl-code"><p><b>Signed in${flow.user?.handle ? ` as ${esc(flow.user.handle)}` : ''}</b><small>Adding your cloud computer from ${esc(hostOf(flow.grid))}.</small></p><span class="cl-wait"><i class="spin"></i>Adding it to Machines…</span></div>`;
   const failed = flow && ['denied', 'expired', 'failed'].includes(flow.state) ? `<p class="cl-err">${esc(flow.error || 'That didn’t work.')}</p>` : '';
   return `<form class="cl-signin cl-form">
       <p><b>${title || (gridMachines().length ? 'Sign in to another grid' : 'Sign in to a wisp Grid')}</b><small>${lede || 'Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (<code>wisp grid serve</code>), your team’s, or a hosted one.'}</small></p>
@@ -170,19 +173,30 @@ export function cloudPane(box) {
     if (!b) return;
     const a = b.dataset.a;
     const m = gridMachines().find((x) => x.id === b.closest('.cl-card')?.dataset.id);
+    if (!m) return;
+    // At once: the card says what's happening; the server's list puts it right if it refuses.
+    const show = (list) => setMachines(list, { quiet: true });
     try {
-      if (a === 'wake' && m) await api(`/machines/${m.id}/connect`, { method: 'POST', body: {} });
-      if (a === 'sleep' && m) {
+      if (a === 'wake') {
+        show(S.machines.map((x) => (x.id === m.id ? { ...x, state: 'connecting', error: '' } : x)));
+        await api(`/machines/${m.id}/connect`, { method: 'POST', body: {} });
+      }
+      if (a === 'sleep') {
+        b.disabled = true;
+        b.textContent = 'Going to sleep…';
         await api(`/machines/${m.id}/stop`, { method: 'POST', body: {} });
         toast(`<b>${esc(m.name)}</b> is asleep. Sending it a task wakes it.`);
       }
-      if (a === 'signout' && m) {
+      if (a === 'signout') {
         if (!confirm(`Sign out of ${m.name} here? Its tasks stay on the grid; sign in again to see them.`)) return;
+        setMachines(S.machines.filter((x) => x.id !== m.id));
         await api(`/machines/${m.id}`, { method: 'DELETE' });
-        await loadMachines();
+        toast(`Signed out of <b>${esc(m.name)}</b>`);
       }
     } catch (err) {
       toastError(err);
+    } finally {
+      loadMachines();
     }
   });
 
