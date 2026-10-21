@@ -24,6 +24,8 @@ android/app/src/main/java/dev/trywisp/mobile/
   Tunnel.java        SSH (sshj), runs the script, forwards the port, reconnects (plain Java)
   Keys.java          the phone's keys: Ed25519 made here, or imported OpenSSH/PEM/PuTTY
   WispSshPlugin.java the Capacitor plugin the page calls
+  TunnelService.java keeps the app running while connected (foreground service)
+  MainActivity.java  window.wispAndroid: notifications for wisp's page; Alerts.java posts them
 ```
 
 ## Use it
@@ -39,6 +41,12 @@ android/app/src/main/java/dev/trywisp/mobile/
 3. **Connect.** The card shows the same steps as desktop Machines, then opens wisp. Android's
    back button returns to your machines. Connecting another machine switches to it, and wisp
    keeps running on both.
+
+**Notifications.** When a task finishes, asks or needs approval while the app is off screen,
+you get an Android notification; tapping it opens that task. The WebView has no Notification
+API, so `MainActivity` gives wisp's page a `wispAndroid` bridge (`web/js/features/notify.js`
+uses it). While a machine is connected, `TunnelService` (a foreground service with a quiet
+*Connected to …* notification) keeps the app, the tunnel and the page running in the background.
 
 The machine needs an SSH server, Node.js 20+ and the harness CLIs, signed in, just as with
 desktop Machines. With wisp installed there, Settings → Machines → *This computer* checks each
@@ -81,10 +89,9 @@ changed host key both fail with a clear message.
 
 ## Not yet
 
-- **Background.** Android may stop the tunnel when the app sits in the background. The machine
-  doesn't mind (wisp and its agents keep running), and the app reconnects. Use wisp's Phone
-  settings (ntfy / Telegram) for alerts while the app is closed. A foreground service would keep
-  the tunnel alive.
+- **Closed app, deep sleep.** Notifications come from wisp's page, so they stop when the app is
+  swiped away (that also disconnects) or Android kills it, and deep Doze can delay them. Use
+  wisp's Phone settings (ntfy / Telegram) for alerts that don't depend on the app.
 - **Key storage.** Keys are files in the app's private storage with backups off. They are not
   in the Android Keystore yet.
 - **Host keys** are trusted on first use, per `host:port`. A changed key is refused until you

@@ -268,6 +268,7 @@ ${sh('ssh-copy-id you@devbox')}</li>
         <li>Install the Tailscale app on the phone and sign in.</li>
         <li>In wisp, tap <b>Add a machine</b> and type <code>you@devbox</code>. The sheet shows a one-line command that adds the phone’s key. Run it once on the machine (from your laptop over SSH, for example). You can also import a key the machine already trusts.</li>
         <li>Tap <b>Save and connect</b>. The card shows the same steps as on the desktop, then wisp opens. Back returns to your machines.</li>
+        <li>Allow notifications when asked. While the machine is connected, a finished task or a question shows up as an Android notification, even with the screen off; tap it to open the task.</li>
       </ol>
     </section>
 

@@ -6,7 +6,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { money, pct } from '../core/format.js';
-import { S, setAgents } from '../core/state.js';
+import { MOBILE, S, setAgents } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { openRouter } from './auto.js';
@@ -15,7 +15,7 @@ import { renderLauncher } from './launcher.js';
 import { loadConfig } from './live.js';
 import { openMachines } from './machines.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
-import { notifyOn } from './notify.js';
+import { notifyOn, notifyPermission, requestNotify } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
@@ -279,16 +279,16 @@ export function openSettings(opts) {
   // granted from here, never revoked, so it surfaces as a hint when it blocks the switch.
   const sw = $('#notif', node);
   const paint = () => {
-    const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+    const perm = notifyPermission();
     const on = notifyOn();
     sw.setAttribute('aria-checked', on);
     sw.disabled = perm === 'denied' || perm === 'unsupported';
-    $('.notif-hint', node).textContent =
-      perm === 'denied' ? 'Blocked — allow notifications for this site in your browser' : perm === 'unsupported' ? 'Not supported here' : on ? 'On' : 'Off';
+    const blocked = MOBILE ? 'Blocked: allow notifications for wisp in Android settings' : 'Blocked — allow notifications for this site in your browser';
+    $('.notif-hint', node).textContent = perm === 'denied' ? blocked : perm === 'unsupported' ? 'Not supported here' : on ? 'On' : 'Off';
   };
   sw.onclick = async () => {
     let want = !notifyOn();
-    if (want && Notification.permission !== 'granted') want = (await Notification.requestPermission()) === 'granted';
+    if (want && notifyPermission() !== 'granted') want = (await requestNotify()) === 'granted';
     await tryApi(async () => {
       await api('/config', { method: 'PATCH', body: { defaults: { notify: want ? 'on' : 'off' } } });
       await loadConfig();
