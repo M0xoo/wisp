@@ -191,3 +191,14 @@
 .cl-wait { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
 .cl-wait .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 .sx-cloud > .hint { margin-top: 10px; }
+
+/* Settings → Cloud: signing in to the agents on a cloud computer (features/agent-login.js). */
+.cl-agents { grid-column: 2 / -1; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.cl-ah { margin: 0; font-size: 12px; color: var(--muted); font-weight: 600; }
+.cl-ah span { font-weight: 400; color: var(--faint); margin-left: 6px; }
+.cl-agent { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.cl-agent .model-logo { width: 18px; height: 18px; display: inline-grid; place-items: center; }
+.cl-agent .model-logo svg { width: 16px; height: 16px; }
+.cl-an { flex: 1; font-size: 13px; }
+.cl-agent .sx-login-ctl { margin-right: 0; }
+.cl-agents .sx-login { margin: 0 0 6px 26px; }

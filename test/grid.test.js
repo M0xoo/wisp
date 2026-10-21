@@ -477,6 +477,12 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
     assert.equal(online.kind, 'grid');
     assert.equal(online.url, cfg.instanceUrl('ada'));
     assert.doesNotMatch(JSON.stringify(online), /wgd_/);
+    // Signing in to an agent on it goes through to the cloud computer's own wisp.
+    const there = await api(`/machines/${mid}/agents/codex/login`);
+    assert.equal(there.status, 200, JSON.stringify(there.json));
+    assert.equal(there.json.agent, 'codex');
+    assert.equal(there.json.state, 'idle');
+    assert.equal((await api(`/machines/${mid}/agents/opencode/login`, { method: 'POST' })).status, 400);
     // A task on the cloud computer, from the desktop.
     const l = await api('/sessions', { method: 'POST', body: { prompt: 'add a test', agent: 'claude', machine: mid } });
     assert.equal(l.status, 201, JSON.stringify(l.json));

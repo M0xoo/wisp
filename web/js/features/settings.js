@@ -200,7 +200,7 @@ export function openSettings(opts) {
     $('.recheck-hint', node).textContent = `After installing a CLI, signing in or adding a provider, look for harnesses and models again${online ? `, here and on ${online} machine${online === 1 ? '' : 's'}` : ''}`;
   };
   paintAgents();
-  wireLogins($('.sx-agents', node), () => [...S.agents.filter((a) => a.available || a.signedIn === false).map((a) => a.id), 'gh']);
+  wireLogins($('.sx-agents', node), () => [['', [...S.agents.filter((a) => a.available || a.signedIn === false).map((a) => a.id), 'gh']]]);
   bus.on('agents', paintAgents, { node });
   bus.on('install', paintAgents, { node });
   $('.sx-agents', node).onclick = (e) => {

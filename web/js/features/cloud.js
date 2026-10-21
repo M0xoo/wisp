@@ -14,6 +14,12 @@ import { toast, toastError } from '../ui/toast.js';
 import { copy } from '../blocks.js';
 import { loadMachines } from './machines.js';
 import { MACHINE_STATE } from './places.js';
+import { harnessLogo } from './runners.js';
+import { CAN, loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
+
+// The harnesses on a cloud computer wisp can sign in to (installed, signed in or not), and GitHub.
+const signable = (m) => [...(m.remote?.agents || []).filter((a) => CAN.has(a.id) && (a.available || a.signedIn === false)).map((a) => a.id), 'gh'];
+const agentName = (m, id) => (id === 'gh' ? 'GitHub' : m.remote?.agents?.find((a) => a.id === id)?.name || id);
 
 let flow = null; // the sign-in in progress: { id, grid, state, userCode, verifyUrl, … }
 const LAST = 'wisp.cloud.grid';
@@ -49,7 +55,17 @@ export function cloudPane(box) {
           <button class="ghost sm danger" data-a="signout" title="Forget this cloud computer here (its tasks stay there)">Sign out</button>
         </div>
         ${st === 'error' && m.error ? `<p class="cl-err">${esc(m.hint?.title || m.error)}${m.hint?.text ? ` · ${esc(m.hint.text)}` : ''}</p>` : ''}
+        ${agents(m)}
       </div>`;
+  };
+
+  // Its agents, signed in to from here: the login runs on the cloud computer and stays there.
+  const agents = (m) => {
+    if (m.state === 'asleep') return `<p class="cl-ah cl-agents">Wake it to sign in to Claude Code, Codex or GitHub on it.</p>`;
+    if (m.state !== 'online') return '';
+    return `<div class="cl-agents"><p class="cl-ah">Agents on it <span>sign in once; the login stays on the cloud computer</span></p>${signable(m)
+      .map((id) => `<div class="cl-agent"><span class="model-logo">${id === 'gh' ? icon('github') : harnessLogo(id)}</span><span class="cl-an">${esc(agentName(m, id))}</span>${loginControl(id, m.id)}</div>${loginPanel(id, m.id)}`)
+      .join('')}</div>`;
   };
 
   const signin = () => {
@@ -68,7 +84,7 @@ export function cloudPane(box) {
   };
 
   const paint = () => {
-    if (!box.isConnected) return;
+    if (!box.isConnected || typingLogin(box)) return;
     const list = gridMachines();
     const typing = document.activeElement?.closest?.('.cl-form') && box.contains(document.activeElement);
     box.innerHTML = `${list.length ? `<div class="sx-group cl-list">${list.map(card).join('')}</div>` : ''}${typing ? '' : `<div class="sx-group">${signin()}</div>`}
@@ -144,6 +160,20 @@ export function cloudPane(box) {
     },
     { node: box },
   );
-  bus.on('machines', paint, { node: box });
+  // Sign-ins on each cloud computer that's up; looked up again when one comes up.
+  const online = () => gridMachines().filter((m) => m.state === 'online');
+  let up = '';
+  const logins = wireLogins(box, () => online().map((m) => [m.id, signable(m)]));
+  bus.on(
+    'machines',
+    () => {
+      paint();
+      const now = online().map((m) => `${m.id}:${signable(m).join(',')}`).join('|');
+      if (now !== up) logins.reload();
+      up = now;
+    },
+    { node: box },
+  );
   paint();
+  up = online().map((m) => `${m.id}:${signable(m).join(',')}`).join('|');
 }

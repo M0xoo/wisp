@@ -59,7 +59,7 @@ export function splitId(id) {
 export const updateTo = (local, remote, command) => (!command && remote && newer(local, remote) ? local : null);
 
 // What the UI needs of a machine's harness list.
-const remoteAgent = ({ id, name, available, version, models, efforts, delegates }) => ({ id, name, available, version, models, efforts, delegates });
+const remoteAgent = ({ id, name, available, version, models, efforts, delegates, signedIn }) => ({ id, name, available, version, models, efforts, delegates, ...(signedIn === false && { signedIn }) });
 
 const freePort = () =>
   new Promise((resolve, reject) => {
