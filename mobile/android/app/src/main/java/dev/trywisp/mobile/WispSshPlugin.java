@@ -18,6 +18,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
  * One machine is connected at a time (the phone's 127.0.0.1:port can only lead to one wisp), so
  * connecting another stops the first; wisp and its agents keep running on both. The tunnel is
  * static so it outlives the page: the WebView leaves this page for wisp's own and comes back.
+ * While one is connected, {@link TunnelService} keeps the app running in the background.
  */
 @CapacitorPlugin(name = "WispSsh")
 public class WispSshPlugin extends Plugin {
@@ -128,6 +129,7 @@ public class WispSshPlugin extends Plugin {
             });
             tunnel.start();
         }
+        TunnelService.start(getContext(), call.getString("name", host));
         call.resolve();
     }
 
@@ -161,11 +163,16 @@ public class WispSshPlugin extends Plugin {
 
     @PluginMethod
     public void disconnect(PluginCall call) {
+        stopTunnel();
+        TunnelService.stop(getContext());
+        call.resolve();
+    }
+
+    static void stopTunnel() {
         synchronized (WispSshPlugin.class) {
             if (tunnel != null) tunnel.stop();
             tunnel = null;
             machineId = "";
         }
-        call.resolve();
     }
 }

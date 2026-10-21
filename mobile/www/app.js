@@ -200,7 +200,7 @@ async function connect(m) {
   paint(); // at once; the plugin's lines follow
   const script = bootstrapScript({ port: m.port || 4477, command: m.command || DEFAULT_COMMAND, apiVersion: 'any' });
   try {
-    await Ssh.connect({ machineId: m.id, host, user, sshPort: port || m.sshPort || 22, port: m.port || 4477, keyId: key.id, password: passwords.get(m.id) || null, script });
+    await Ssh.connect({ machineId: m.id, name: m.name || m.target, host, user, sshPort: port || m.sshPort || 22, port: m.port || 4477, keyId: key.id, password: passwords.get(m.id) || null, script });
   } catch (err) {
     setStep('ssh', 'fail');
     Object.assign(live, { state: 'failed', failure: { id: 'ssh', message: err.message || String(err) } });

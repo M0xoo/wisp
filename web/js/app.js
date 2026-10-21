@@ -15,6 +15,7 @@ import { renderFeed, reveal, scheduleRefetch } from './features/feed.js';
 import { renderLauncher } from './features/launcher.js';
 import { connect, loadConfig, loadSessions } from './features/live.js';
 import { loadMachines, openMachines } from './features/machines.js';
+import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
 import { backToTop, onScroll, stage } from './features/scroll.js';
 import { openSettings, telemetryNotice } from './features/settings.js';
@@ -91,6 +92,7 @@ window.addEventListener('focus', () => {
   connect();
   route();
   telemetryNotice();
+  if (MOBILE) askNotify(); // alerts are what the phone is for: ask once, on the first visit
   const list = await agents;
   if (!list || JSON.stringify(list) === JSON.stringify(S.agents)) return;
   setAgents(list);
