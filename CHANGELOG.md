@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-21
+
 ### Added
 
 - **Machines for first-timers.** Machines now explains itself in three steps (get the other computer ready, add it, let this computer in) and speaks plainly: *Its address* instead of *SSH host*, and each failure says what happened and what to do (*This computer isn’t allowed in yet*, *Computer not found*, *SSH is off there*, *No answer*), with a link to the Tailscale guide when the computer is out of reach.
@@ -485,7 +487,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.27.0...HEAD
+[0.27.0]: https://github.com/M0xoo/wisp/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/M0xoo/wisp/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/M0xoo/wisp/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/M0xoo/wisp/compare/v0.24.0...v0.24.1
