@@ -78,6 +78,28 @@ public class TunnelTest {
     }
 
     @Test
+    public void startsWispAgainWhenItStops() throws Exception {
+        assumeTrue(System.getenv("WISP_SSH_TEST") != null);
+        Tunnel.WATCH_MS = 1_000;
+        List<String> lines = new CopyOnWriteArrayList<>();
+        Tunnel tn = tunnel(System.getenv("WISP_SSH_KEY"), lines, (h, p, fp) -> true);
+        tn.start();
+        waitFor(lines, "@@wisp open");
+        assertEquals("ready", tn.state());
+        // wisp quits there; SSH stays up (the script's `cat` holds the session).
+        String ready = lines.stream().filter(l -> l.startsWith("@@wisp ready")).findFirst().get();
+        new ProcessBuilder("kill", ready.substring(ready.lastIndexOf(' ') + 1)).start().waitFor();
+        for (int i = 0; i < 600 && lines.stream().filter(l -> l.startsWith("@@wisp open")).count() < 2; i++) Thread.sleep(100);
+        System.out.println(String.join("\n", lines));
+        assertTrue(lines.contains("@@wisp lost " + Tunnel.WISP_DOWN));
+        assertTrue(lines.stream().anyMatch(l -> l.startsWith("@@wisp step wisp done started")));
+        assertEquals(2, lines.stream().filter(l -> l.startsWith("@@wisp open")).count());
+        assertEquals("ready", tn.state());
+        tn.stop();
+        Tunnel.WATCH_MS = 15_000;
+    }
+
+    @Test
     public void unknownKeyAndChangedHostKeyFail() throws Exception {
         assumeTrue(System.getenv("WISP_SSH_TEST") != null);
         List<String> lines = new CopyOnWriteArrayList<>();

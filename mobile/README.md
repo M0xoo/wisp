@@ -53,6 +53,12 @@ Away from home, put the
 computers and the phone on [Tailscale](https://tailscale.com) and use the names it gives. Step by
 step: https://trywisp.dev/guides/connect-machines-with-tailscale.html
 
+**When wisp stops there.** SSH can stay up after wisp itself stopped on the computer (quit,
+crashed). While connected, `Tunnel` asks wisp's `/api/health` every 15s. After two misses, if sshd
+also refuses a channel to wisp's port, it runs the bootstrap script again, which starts wisp. A
+page that still fails to load sends the WebView back to the list (`MainActivity`, `?reopen`),
+which reopens wisp once the tunnel says `open`, so Chrome's error page never shows.
+
 **Notifications.** When a task finishes, asks or needs approval while the app is off screen,
 you get an Android notification; tapping it opens that task. The WebView has no Notification
 API, so `MainActivity` gives wisp's page a `wispAndroid` bridge (`web/js/features/notify.js`

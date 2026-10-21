@@ -24,6 +24,8 @@ import java.util.regex.Pattern;
 import net.schmizz.keepalive.KeepAliveProvider;
 import net.schmizz.sshj.DefaultConfig;
 import net.schmizz.sshj.SSHClient;
+import net.schmizz.sshj.connection.channel.OpenFailException;
+import net.schmizz.sshj.connection.channel.direct.DirectConnection;
 import net.schmizz.sshj.connection.channel.direct.LocalPortForwarder;
 import net.schmizz.sshj.connection.channel.direct.Parameters;
 import net.schmizz.sshj.connection.channel.direct.Session;
@@ -60,6 +62,11 @@ public final class Tunnel {
     }
 
     private static final long[] RETRY_MS = { 2_000, 5_000, 15_000, 30_000, 60_000 };
+    // While up, wisp is asked through the tunnel this often: SSH can stay up after wisp itself
+    // stopped there (quit, crashed, the machine's wisp updated), and then the page has nothing to load.
+    static long WATCH_MS = 15_000;
+    private static final int WATCH_MISSES = 2;
+    static final String WISP_DOWN = "wisp stopped on that computer. Starting it again…";
     private static final int MAX_LINES = 300;
     private static final Pattern VERSION = Pattern.compile("\"version\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -78,6 +85,7 @@ public final class Tunnel {
     private volatile String rejectedKey; // set when the host key changed
     private volatile boolean everUp;
     private volatile int tries; // reconnects since the tunnel was last up
+    private volatile boolean wispDown; // the watchdog cut the session: wisp stopped answering there
     private final Object wake = new Object(); // nudge() cuts a retry wait short
     private Thread thread;
     // Where the phone end listens. Tests use [::1] so a wisp on the same computer keeps 127.0.0.1.
@@ -117,6 +125,7 @@ public final class Tunnel {
      * connection only shows after keep-alives miss (about a minute), and a failed reconnect may
      * be waiting up to 60s. Meanwhile wisp's page hangs on Loading. So: retry now if waiting,
      * and if up, ask wisp through the tunnel and reconnect at once when it doesn't answer.
+     * Also called when wisp's page failed to load (MainActivity): the reconnect starts wisp again.
      */
     public void nudge() {
         if (stopped) return;
@@ -126,10 +135,11 @@ public final class Tunnel {
         }
         if (!"ready".equals(state)) return;
         Thread t = new Thread(() -> {
+            SSHClient c = ssh;
             try {
                 ping(3_000);
             } catch (IOException e) {
-                if (!stopped && "ready".equals(state)) close(); // the loop reports it lost and reconnects
+                if (!stopped && "ready".equals(state) && ssh == c) drop(c); // the loop reports it lost and reconnects
             }
         }, "wisp-nudge");
         t.setDaemon(true);
@@ -154,7 +164,7 @@ public final class Tunnel {
             String lost;
             try {
                 if (!once()) return; // the script said why it can't go on
-                lost = "Connection lost.";
+                lost = wispDown ? WISP_DOWN : "Connection lost.";
             } catch (Exception e) {
                 if (stopped) return;
                 // Before the first success, or when the machine refuses us: the user has to act.
@@ -163,11 +173,15 @@ public final class Tunnel {
                     emit("@@wisp fail " + stage + " " + message(e));
                     return;
                 }
-                lost = message(e);
+                lost = wispDown ? WISP_DOWN : message(e);
             }
             if (stopped) return;
             state = "connecting";
             emit("@@wisp lost " + lost);
+            if (wispDown) {
+                wispDown = false;
+                continue; // SSH itself is fine: run the script again now, it starts wisp
+            }
             try {
                 synchronized (wake) {
                     wake.wait(RETRY_MS[Math.min(tries++, RETRY_MS.length - 1)]);
@@ -284,6 +298,50 @@ public final class Tunnel {
         state = "ready";
         emit("@@wisp step tunnel done 127.0.0.1:" + port + " → " + port);
         emit("@@wisp open " + version);
+        watch(c);
+    }
+
+    // Asks wisp every WATCH_MS while this session lasts. Two misses in a row cut the session, and
+    // the loop runs the script again, which starts wisp when it isn't running.
+    private void watch(SSHClient c) {
+        Thread t = new Thread(() -> {
+            int misses = 0;
+            while (!stopped && ssh == c) {
+                try {
+                    Thread.sleep(WATCH_MS);
+                } catch (InterruptedException e) {
+                    return;
+                }
+                if (stopped || ssh != c || !"ready".equals(state)) return;
+                try {
+                    ping(5_000);
+                    misses = 0;
+                } catch (IOException e) {
+                    if (++misses >= WATCH_MISSES && ssh == c) {
+                        drop(c);
+                        return;
+                    }
+                }
+            }
+        }, "wisp-watch");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    // wisp didn't answer through the tunnel. Is it the network or wisp? Ask sshd for a fresh channel
+    // to wisp's port: refusing it means SSH is fine and nothing listens there, so wisp stopped and
+    // the loop runs the script again at once. Otherwise it reconnects as for any lost connection.
+    private void drop(SSHClient c) {
+        boolean gone = false;
+        try (DirectConnection d = c.newDirectConnection("127.0.0.1", port)) {
+            // it opens: wisp listens but didn't answer in time
+        } catch (OpenFailException e) {
+            gone = true;
+        } catch (IOException ignored) {
+            // the SSH connection itself is gone
+        }
+        wispDown = gone;
+        if (ssh == c) close();
     }
 
     // wisp's /api/health through the tunnel: the forward is only useful once wisp answers there.

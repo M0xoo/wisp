@@ -149,6 +149,12 @@ public class WispSshPlugin extends Plugin {
         });
     }
 
+    /** wisp's page failed to load: check the tunnel now (a reconnect starts wisp again). */
+    static void nudgeTunnel() {
+        Tunnel t = tunnel;
+        if (t != null) t.nudge();
+    }
+
     /** {state, line}: the tunnel's state and its last progress line, for wisp's page as it opens. */
     static String pageState() {
         JSObject r = new JSObject();
