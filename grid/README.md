@@ -70,12 +70,15 @@ next:
 ```json
 "auth": {
   "signup": "open",
+  "maxUsers": 50,
   "allow": { "emails": ["ada@corp.com"], "domains": ["corp.com"], "githubOrgs": ["corp"] },
   "admins": ["github:583231", "email:ops@corp.com"]
 }
 ```
 
 - **`signup`:** `closed` lets only existing users in.
+- **`maxUsers`:** the first that many accounts get in, then new sign-ups are refused (existing
+  users still sign in; deleting one frees a place). Leave it out for no limit.
 - **`allow`:** an account must match at least one rule. A verified email is required for email and
   domain rules. The allow list is checked again at every sign-in.
 - **Linking accounts:** someone can connect both Google and GitHub to one account from their

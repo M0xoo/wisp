@@ -393,6 +393,30 @@ test('an allow list keeps others out', async () => {
   }
 });
 
+test('maxUsers: the first accounts get in, then the grid is full; existing users still sign in', async () => {
+  const dataDir = tmp('grid-full');
+  ensureMaster(dataDir);
+  assert.throws(() => loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', auth: { dev: true, maxUsers: 0 } } }), /maxUsers/);
+  const port = await freePort();
+  const c2 = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true, maxUsers: 2 }, hostd: { path: fakeBin } } });
+  const g2 = await startGrid(c2, { log: () => {} });
+  try {
+    const signIn = async (email) => {
+      const b = browser();
+      const start = await b.go(`${c2.publicUrl}/auth/dev/start`);
+      return b.go(`${c2.publicUrl}/auth/dev/callback`, { method: 'POST', form: { csrf: csrfOf(start.text), email, return: '/' }, headers: { origin: c2.publicUrl } });
+    };
+    assert.equal((await signIn('a@x.test')).status, 302);
+    assert.equal((await signIn('b@x.test')).status, 302);
+    const full = await signIn('c@x.test');
+    assert.equal(full.status, 403);
+    assert.match(full.text, /full/);
+    assert.equal((await signIn('a@x.test')).status, 302);
+  } finally {
+    await g2.close();
+  }
+});
+
 test('Caddy’s on-demand TLS check: the grid and existing users only', async () => {
   const ask = async (d) => (await browser().go(`http://127.0.0.1:${cfg.listen.port}/_grid/tls-ask?domain=${d}`, { headers: { host: `127.0.0.1:${cfg.listen.port}` } })).status;
   assert.equal(await ask('wisp.localhost'), 200);

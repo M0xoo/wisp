@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **wisp Grid: cap the number of accounts.** `auth.maxUsers` in `grid.json` lets the first that many people sign up, then says the grid is full; existing users keep signing in.
 - **wisp Grid boxes come with every agent installed.** The user image now has Cursor, Grok and Antigravity next to Claude Code, Codex and opencode, so on a cloud computer you only sign in. Grok and Antigravity sign in from wisp too (a link and a code), and the model picker hides them until you do.
 - **Sign in from the model picker.** An agent that's installed but signed out shows *Signed out* in Run with; pick it and the sign-in (link, code, paste box) appears right there, on this computer or on the computer it'll run on, then *Use Claude Code* picks it. No trip to Settings.
 - **Cloud sign-in starts with grid.trywisp.dev filled in.** Settings → Cloud and the phone app's *Sign in to wisp Cloud* suggest the hosted grid; type your own grid's address to use that instead. The Machines dialog offers it too, under the SSH form: *Or use a cloud computer*. And the phone app's first screen now starts with a wisp Cloud card (address filled in, one tap to the code), above the steps for using your own computer.
