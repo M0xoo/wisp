@@ -11,6 +11,7 @@ import { COMPUTER, MOBILE, S, inGrid } from '../core/state.js';
 import { present } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
+import { keepSignIns } from './agent-login.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig, loadSessions } from './live.js';
 import { MACHINE_STATE, machineById, machinesSummary } from './places.js';
@@ -22,6 +23,7 @@ import { mountCloudSignin } from './cloud.js';
 export const loadMachines = () => api('/machines').then(setMachines).catch(() => {});
 export function setMachines(list, { quiet = false } = {}) {
   const was = new Map(S.machines.map((m) => [m.id, m.state === 'online']));
+  for (const m of list) keepSignIns(m.id, m.remote?.agents);
   S.machines = list;
   paintMachinesBtn();
   renderLaunchChips();

@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **"Use Claude" after signing in from the harness picker picks it.** The harness list could arrive from before the sign-in was checked (often on a cloud computer, which takes seconds to look again), the launcher saw the harness as still signed out and went back to the one it had, so the button seemed to do nothing. A harness you just signed in to now stays usable until wisp's list catches up.
+
 ## [0.28.1] - 2026-10-22
 
 ### Changed
