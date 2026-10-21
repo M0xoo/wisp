@@ -39,7 +39,7 @@ final class Grid {
     }
 
     /** Capacitor's client, plus the grids: load those here instead of handing them to the browser. */
-    static final class Client extends BridgeWebViewClient {
+    static class Client extends BridgeWebViewClient {
         private final Context context;
 
         Client(Bridge bridge, Context context) {
