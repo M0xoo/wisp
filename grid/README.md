@@ -36,8 +36,8 @@ DOMAIN=wisp.example.com ./grid/deploy/install.sh
 ```
 
 It installs Node.js 22, Docker with gVisor (`runsc`), Caddy and 4 GB of swap, builds the user image
-([`deploy/image/Dockerfile`](deploy/image/Dockerfile): Node, git, `gh`, Claude Code, Codex,
-opencode and wisp), makes the `wisp` user and the systemd unit, and sets up the firewall. Then:
+([`deploy/image/Dockerfile`](deploy/image/Dockerfile): Node, git, `gh`, every agent wisp
+runs (Claude Code, Codex, Cursor, Grok, Antigravity, opencode) and wisp), makes the `wisp` user and the systemd unit, and sets up the firewall. Then:
 
 ```sh
 sudo -u wisp node bin/wisp.js grid init --domain wisp.example.com --data /var/lib/wisp-grid

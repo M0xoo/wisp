@@ -14,8 +14,8 @@ import { $, icon } from '../core/dom.js';
 import { toast, toastError } from '../ui/toast.js';
 import { copy } from '../blocks.js';
 
-export const CAN = new Set(['claude', 'codex', 'cursor', 'grok', 'gh']);
-const NAMES = { claude: 'Claude', codex: 'ChatGPT', gh: 'GitHub' };
+export const CAN = new Set(['claude', 'codex', 'cursor', 'grok', 'antigravity', 'gh']);
+const NAMES = { claude: 'Claude', codex: 'ChatGPT', grok: 'xAI', antigravity: 'Google', gh: 'GitHub' };
 const scopes = new Map(); // place -> { logins: Map(harness -> state), drafts: Map(harness -> pasted code) }
 const of = (scope) => {
   if (!scopes.has(scope)) scopes.set(scope, { logins: new Map(), drafts: new Map() });

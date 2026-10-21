@@ -14,6 +14,19 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o 
 # The agents. Each person signs in to theirs inside their own wisp (or uses opencode's free models).
 RUN npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai && npm cache clean --force
 
+# Cursor, Grok and Antigravity only ship install scripts that write to $HOME, which is the user's
+# own folder at run time. Install them under /opt (read-only for the user) and put them on PATH.
+RUN mkdir -p /opt/agents \
+ && HOME=/opt/agents bash -c 'curl -fsSL https://cursor.com/install | bash' \
+ && HOME=/opt/agents bash -c 'curl -fsSL https://x.ai/cli/install.sh | bash' \
+ && HOME=/opt/agents bash -c 'curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /opt/agents/bin' \
+ && ln -sf "$(readlink -f /opt/agents/.local/bin/cursor-agent)" /usr/local/bin/cursor-agent \
+ && ln -sf "$(readlink -f /opt/agents/.grok/bin/grok)" /usr/local/bin/grok \
+ && ln -sf /opt/agents/bin/agy /usr/local/bin/agy \
+ && rm -rf /opt/agents/.cache /opt/agents/.bashrc /opt/agents/.profile \
+ && chmod -R a+rX /opt/agents \
+ && cursor-agent --version && grok --version && agy --version
+
 COPY package.json /opt/wisp/
 COPY bin /opt/wisp/bin
 COPY server /opt/wisp/server
