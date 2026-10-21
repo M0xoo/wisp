@@ -13,7 +13,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
-import { load, S, save } from '../core/state.js';
+import { load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
 import { collapse, expand, groups, headPills, renderFeed, setFocus } from './feed.js';
@@ -40,7 +40,8 @@ export function applyView() {
   save('wisp.view', viewPref());
   paintProps();
   paintViewBtn();
-  const want = viewPref() === 'split' && wide.matches;
+  // The phone app always gets the feed (its switchers are hidden), even on a wide tablet.
+  const want = viewPref() === 'split' && wide.matches && !MOBILE;
   if (want !== isSplit()) (want ? enter : leave)();
   else paintSplit();
 }
@@ -60,7 +61,9 @@ export async function setView(v) {
   }
   bus.emit('view');
 }
-export const toggleView = () => setView(viewPref() === 'split' ? 'feed' : 'split');
+export const toggleView = () => {
+  if (!MOBILE) setView(viewPref() === 'split' ? 'feed' : 'split');
+};
 
 // Nothing open: the prompt box, focused.
 export function goHome({ focus = true } = {}) {
@@ -243,7 +246,9 @@ function paintViewBtn() {
 
 // --- wiring --------------------------------------------------------------------------------------
 
-viewBtn.onclick = () => toggleView();
+viewBtn.onclick = () => {
+  toggleView();
+};
 $('#splitNew').onclick = () => goHome();
 $('#splitHead').addEventListener('click', (e) => {
   if (e.target.closest('.sh-close')) return goHome();

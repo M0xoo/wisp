@@ -67,6 +67,12 @@ public class TunnelTest {
         assertTrue(lines.contains("@@wisp step ssh run Reconnecting…"));
         assertEquals(2, lines.stream().filter(l -> l.startsWith("@@wisp open")).count());
         assertEquals("ready", tn.state());
+
+        // Back in front with a live tunnel: nudge checks it through wisp and leaves it up.
+        tn.nudge();
+        Thread.sleep(2000);
+        assertEquals(2, lines.stream().filter(l -> l.startsWith("@@wisp open")).count());
+        assertEquals("ready", tn.state());
         tn.stop();
         assertEquals("idle", tn.state());
     }

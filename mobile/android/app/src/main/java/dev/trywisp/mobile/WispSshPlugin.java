@@ -33,6 +33,13 @@ public class WispSshPlugin extends Plugin {
         Security.insertProviderAt(new BouncyCastleProvider(), 1);
     }
 
+    // Back from the background: check the tunnel now rather than when keep-alives give up.
+    @Override
+    protected void handleOnResume() {
+        Tunnel t = tunnel;
+        if (t != null) t.nudge();
+    }
+
     private synchronized Keys keys() {
         if (keys == null) keys = new Keys(new java.io.File(getContext().getFilesDir(), "keys"));
         return keys;

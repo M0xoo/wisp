@@ -408,6 +408,7 @@ export function collapse(id) {
   S.open.delete(id);
   saveOpen();
   S.full.delete(id);
+  retries.delete(id);
   if (n) {
     keepPlace(id); // split view: where it was scrolled to, for when it opens again
     n.body?.remove();
@@ -424,12 +425,18 @@ export function collapse(id) {
 }
 
 export async function fetchFull(id) {
-  const s = await api(`/sessions/${id}`).catch(() => null);
-  if (!s) {
-    S.open.delete(id);
-    saveOpen();
+  let s;
+  try {
+    s = await api(`/sessions/${id}`);
+  } catch (err) {
+    // Gone on the server: close it. Anything else is the connection (a phone back from the
+    // background waits for its tunnel): keep it open and try again, or its body says Loading
+    // forever. The `hello` after a reconnect refetches it too.
+    if (err.status === 404) return collapse(id);
+    if (S.open.has(id)) retryLater(id);
     return;
   }
+  retries.delete(id);
   if (!S.open.has(id)) return; // collapsed while loading
   const fresh = !S.full.has(id);
   S.full.set(id, s);
@@ -438,10 +445,18 @@ export async function fetchFull(id) {
 }
 
 const refetchTimers = new Map();
-export function scheduleRefetch(id) {
+export function scheduleRefetch(id, ms = 120) {
   if (!S.open.has(id)) return;
   clearTimeout(refetchTimers.get(id));
-  refetchTimers.set(id, setTimeout(() => (refetchTimers.delete(id), fetchFull(id)), 120));
+  refetchTimers.set(id, setTimeout(() => (refetchTimers.delete(id), fetchFull(id)), ms));
+}
+
+// 1s, 2s, 4s… up to 15s between tries while the server can't be reached.
+const retries = new Map();
+function retryLater(id) {
+  const n = retries.get(id) || 0;
+  retries.set(id, n + 1);
+  scheduleRefetch(id, Math.min(1000 * 2 ** n, 15000));
 }
 
 export const sectionOf = (s) => {

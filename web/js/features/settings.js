@@ -86,7 +86,7 @@ export function openSettings(opts) {
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
             ${row('Auto-fix PR conflicts', 'Without waiting for a click on Fix conflicts: when a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
           </div>
-          <div class="sx-group">
+          <div class="sx-group view-group">
             ${row('Layout', 'Feed: one column, cards open in place. Split: tasks in a sidebar, the open one beside it (in windows 900px and wider). <kbd>\\</kbd> switches', `<fieldset class="pk-seg view-seg">${[['feed', 'Feed'], ['split', 'Split']].map(([v, l]) => `<button type="button" data-view="${v}">${icon(v)}${l}</button>`).join('')}</fieldset>`)}
           </div>
           <div class="sx-group">
