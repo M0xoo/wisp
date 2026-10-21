@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Settings → Machines → This computer.** Checks whether another computer, or the phone app, can connect here over SSH: whether an SSH server answers, whether Tailscale is up (and Tailscale SSH), and how many keys are in `authorized_keys`. Each missing piece comes with this OS's command to copy (Remote Login on macOS, openssh-server on Linux, WSL on Windows), plus the `user@host` to connect with. Spells can restyle or hide it (`settings.reachable`).
 - **Guide: Connect your machines with Tailscale.** Get a machine ready, connect from the laptop and the phone, and turn on Tailscale SSH for no keys at all. Linked from the README, the Machines guide and the landing page.
 
+### Fixed
+
+- **Open tasks no longer stay on "Loading…" after the phone app comes back.** When the app returned from the background, the SSH tunnel was often down or silently dead for up to a minute, and a task that failed to load in that window stayed on *Loading…* for good. Now wisp keeps trying (and reloads every open task once the connection is back), starts a fresh live connection after a while away, and the app checks its tunnel the moment it's back in front and reconnects right away instead of waiting out keep-alives or a retry delay.
+
 ## [0.26.0] - 2026-10-21
 
 ### Added
