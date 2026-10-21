@@ -14,7 +14,7 @@ import { createAccounts, bad } from './accounts.js';
 import { createProviders, newFlow } from './auth/providers.js';
 import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
-import { accountPage, activatePage, devSignInPage, messagePage, signInPage, wakingPage } from './pages.js';
+import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
 import { createGridTelemetry } from './telemetry.js';
 
@@ -290,12 +290,18 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (req.method === 'GET') {
         const code = url.searchParams.get('code') || '';
         const device = code ? accounts.pendingCode(code) : null;
-        return page(activatePage({ cfg, user: s.user, code, device, csrf: csrfFor(s), error: code && !device ? 'That code expired or was already used. Start again on the device.' : '' }));
+        const app = url.searchParams.get('app') === 'android';
+        return page(activatePage({ cfg, user: s.user, code, device, app, csrf: csrfFor(s), error: code && !device ? 'That code expired or was already used. Start again on the device.' : '' }));
       }
       const body = await needCsrf();
       const allow = body.answer === 'allow';
       const c2 = accounts.answerCode(body.code, s.user.id, allow);
-      return page(messagePage({ cfg, title: allow ? 'Device connected' : 'Not allowed', text: allow ? `${c2.name} can use your wisp now. You can close this tab.` : `${c2.name} wasn’t let in.`, link: ['/', 'Your account'] }));
+      // From the phone app: the way back is to the app, which is waiting to open your wisp. 'Your
+      // account' would open it here in the browser instead.
+      const app = body.app === 'android';
+      const back = app ? [APP_URL, 'Back to the wisp app'] : ['/', 'Your account'];
+      const done = app ? `${c2.name} can use your wisp now. Go back to the app: it opens your wisp there.` : `${c2.name} can use your wisp now. You can close this tab.`;
+      return page(messagePage({ cfg, title: allow ? 'Device connected' : 'Not allowed', text: allow ? done : `${c2.name} wasn’t let in.`, link: back }));
     }
 
     if (req.method === 'POST') {
