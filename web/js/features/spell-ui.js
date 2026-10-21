@@ -48,7 +48,7 @@ function previewButtons(spell) {
       const where = { topbar: 'Top bar', float: 'Floating', palette: '⌘K', 'launcher.bar': 'Prompt box', 'launcher.chips': 'Under the prompt box', 'composer.bar': 'Follow-up box', 'composer.chips': 'Above the follow-up box', 'card.head': 'Card head', 'card.hover': 'Card, on hover', 'card.menu': 'Card menu' }[b.slot] || b.slot;
       const look = b.slot === 'float' ? 'sp-fab' : b.slot === 'topbar' ? 'auto-btn sp-btn' : b.slot === 'card.hover' ? 'it-quick sp-quick' : b.slot?.endsWith('chips') || b.text !== undefined ? 'sp-qr' : 'ghost sm sp-btn';
       const label = b.label || b.text || '';
-      return `<span class="sp-pv"><small>${esc(where)}</small><span class="${look}">${b.icon ? icon(b.icon) : b.slot === 'float' || b.slot === 'topbar' ? icon('spark') : ''}${label ? `<span${b.slot === 'float' ? ' class="sp-fab-l"' : ''}>${esc(label)}</span>` : ''}</span></span>`;
+      return `<span class="sp-pv"><small>${esc(where)}</small><span class="${look}">${b.icon ? icon(b.icon) : b.slot === 'float' || b.slot === 'topbar' ? icon('wizard') : ''}${label ? `<span${b.slot === 'float' ? ' class="sp-fab-l"' : ''}>${esc(label)}</span>` : ''}</span></span>`;
     })
     .join('')}</div>`;
 }
@@ -73,7 +73,7 @@ registerBlock('spell', (b, ctx) => {
   if (!b.remove && typeof b.spell?.remove === 'string' && !b.spell.wispSpell) b = { ...b, remove: b.spell.remove };
   if (b.remove) {
     const have = (S.config.spells || []).find((s) => s.id === b.remove);
-    const node = el(`<div class="b-spell card"><div class="sp-head">${icon('spark')}<b>Remove the spell ${esc(have?.name || b.remove)}</b></div><p class="sp-desc">Turns it off and deletes it. Whatever it changed goes back to how wisp was.</p><div class="sp-acts"><button class="ghost sm danger" data-a="rm">${icon('trash')}Remove</button></div></div>`);
+    const node = el(`<div class="b-spell card"><div class="sp-head">${icon('wizard')}<b>Remove the spell ${esc(have?.name || b.remove)}</b></div><p class="sp-desc">Turns it off and deletes it. Whatever it changed goes back to how wisp was.</p><div class="sp-acts"><button class="ghost sm danger" data-a="rm">${icon('trash')}Remove</button></div></div>`);
     $('[data-a="rm"]', node).onclick = async (e) => {
       const btn = e.currentTarget;
       btn.disabled = true;
@@ -86,7 +86,7 @@ registerBlock('spell', (b, ctx) => {
   const spell = b.spell && typeof b.spell === 'object' ? b.spell : {};
   const node = el(`
     <div class="b-spell card">
-      <div class="sp-head">${icon('spark')}<b>${esc(spell.name || spell.id || 'Spell')}</b><span class="sp-ver">v${esc(spell.version || '1.0.0')}</span><span class="sp-kindslot"></span><span class="sp-state"></span></div>
+      <div class="sp-head">${icon('wizard')}<b>${esc(spell.name || spell.id || 'Spell')}</b><span class="sp-ver">v${esc(spell.version || '1.0.0')}</span><span class="sp-kindslot"></span><span class="sp-state"></span></div>
       ${spell.description ? `<p class="sp-desc">${esc(spell.description)}</p>` : ''}
       <ul class="sp-lines"><li class="it-loading"><span class="orb tiny"></span>Checking it…</li></ul>
       <div class="sp-preview"></div>
@@ -100,7 +100,7 @@ registerBlock('spell', (b, ctx) => {
     </div>`);
   const pv = $('.sp-preview', node);
   pv.innerHTML = previewButtons(spell);
-  if ((spell.blocks || []).length) pv.insertAdjacentHTML('beforeend', `<p class="sp-pv-note">${icon('spark')}Agents can use ${spell.blocks.map((x) => `<code>${esc(x.type)}</code>`).join(', ')} in their reports once it's on.</p>`);
+  if ((spell.blocks || []).length) pv.insertAdjacentHTML('beforeend', `<p class="sp-pv-note">${icon('wizard')}Agents can use ${spell.blocks.map((x) => `<code>${esc(x.type)}</code>`).join(', ')} in their reports once it's on.</p>`);
   const paintState = (r) => {
     const on = (S.config.spells || []).find((s) => s.id === r.spell.id);
     const same = on && JSON.stringify(on) === JSON.stringify({ ...r.spell, kind: on.kind });
@@ -168,18 +168,18 @@ export async function cast(prompt) {
   const { renderFeed, reveal } = await import('./feed.js');
   renderFeed();
   reveal(out.id);
-  toast(`${icon('spark')} Casting: the agent writes the spell, then you try it and keep it`);
+  toast(`${icon('wizard')} Casting: the agent writes the spell, then you try it and keep it`);
   return out;
 }
 
 export function openCast(prefill = '') {
   const node = el(`
     <form class="modal sp-cast">
-      <header><h2>${icon('spark')} Cast a spell</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${icon('wizard')} Cast a spell</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
       <p class="hint">Say what to change in wisp: a button, a panel, a block for agents, a different look, how agents behave. An agent writes it as a spell; you see a preview, try it and keep it. Nothing changes until you do.</p>
       <textarea class="textarea" rows="3" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea>
       <div class="sp-examples">${EXAMPLES.slice(0, 6).map((x) => `<button type="button" class="sp-qr">${esc(x)}</button>`).join('')}</div>
-      <footer><span class="hint">Runs on ${esc(S.config.defaults.agent === 'auto' || !S.config.defaults.agent ? 'Auto' : S.config.defaults.agent)} in an empty folder of its own: it writes the spell, not your code.</span><button class="primary" type="submit">${icon('spark')}Cast</button></footer>
+      <footer><span class="hint">Runs on ${esc(S.config.defaults.agent === 'auto' || !S.config.defaults.agent ? 'Auto' : S.config.defaults.agent)} in an empty folder of its own: it writes the spell, not your code.</span><button class="primary" type="submit">${icon('wizard')}Cast</button></footer>
     </form>`);
   const ta = $('textarea', node);
   ta.value = prefill;
@@ -231,7 +231,7 @@ export async function reviewImport(body) {
   }
   const node = el(`
     <div class="modal sp-review">
-      <header><h2>${icon('spark')} ${esc(r.spell.name)} <span class="sp-ver">v${esc(r.spell.version)}</span></h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${icon('wizard')} ${esc(r.spell.name)} <span class="sp-ver">v${esc(r.spell.version)}</span></h2><button class="icon-btn close">${icon('x')}</button></header>
       ${r.spell.author ? `<p class="hint">By ${esc(r.spell.author)}</p>` : ''}
       ${r.spell.description ? `<p>${esc(r.spell.description)}</p>` : ''}
       <div class="sp-review-kind">${kindBadge(r.kind)}<span>${esc(KIND[r.kind]?.[1] || '')}</span></div>
@@ -259,7 +259,7 @@ export function spellsPane(section) {
       <div class="sx-row"><div class="sx-text"><b>Cast a spell</b><small>Ask for a change to wisp. An agent writes it; you try it and keep it.</small></div></div>
       <div class="sp-prompt">
         <textarea rows="2" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea>
-        <div class="sp-pbar"><span class="sp-pin">${icon('spark')}Writes a spell, not your code</span><span class="grow"></span><button class="send" data-a="cast" title="Cast (Enter · Shift+Enter for newline)">${icon('enter')}</button></div>
+        <div class="sp-pbar"><span class="sp-pin">${icon('wizard')}Writes a spell, not your code</span><span class="grow"></span><button class="send" data-a="cast" title="Cast (Enter · Shift+Enter for newline)">${icon('enter')}</button></div>
       </div>
       <div class="sp-examples">${EXAMPLES.map((x) => `<button type="button" class="sp-qr">${esc(x)}</button>`).join('')}</div>
     </div>
@@ -278,7 +278,7 @@ export function spellsPane(section) {
       ? `${icon('warn')} Safe mode: wisp started with <code>WISP_SAFE=1</code> (or <code>--safe</code>), so every spell is off.`
       : `Spells live in <code>~/.wisp/spells</code>. Turning one off puts back exactly what it changed. <button class="link xs" data-a="alloff">Turn every spell off</button>`;
     if (!r.spells.length && !r.broken.length) {
-      list.innerHTML = `<div class="sp-none">${icon('spark')}<div><b>No spells yet</b><p>Cast one above, or add one a colleague sent you.</p></div></div>`;
+      list.innerHTML = `<div class="sp-none">${icon('wizard')}<div><b>No spells yet</b><p>Cast one above, or add one a colleague sent you.</p></div></div>`;
       return;
     }
     list.innerHTML =

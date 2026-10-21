@@ -184,7 +184,7 @@ test('agent blocks from spells join the protocol; their summary stands in for th
   const p = systemPrompt({ extraBlocks: [{ type: 'deploy', doc: '{"type":"deploy","env":"x"} After you deploy.', spell: 'Deploy block' }] });
   assert.match(p, /- \{"type":"deploy","env":"x"\}\n {2}After you deploy\.\n {2}\(From the user's spell Deploy block\.\)\n\nStrings must be valid JSON/);
   assert.equal(systemPrompt(), systemPrompt({ extraBlocks: [] }));
-  assert.match(blocksToMarkdown([{ type: 'spell', spell: { name: 'My PRs', description: 'Opens PRs' } }]), /✨ Spell: My PRs\*\* — Opens PRs/);
+  assert.match(blocksToMarkdown([{ type: 'spell', spell: { name: 'My PRs', description: 'Opens PRs' } }]), /🧙 Spell: My PRs\*\* — Opens PRs/);
   assert.match(blocksToMarkdown([{ type: 'spell', spell: { type: 'spell', remove: 'my-prs' } }]), /remove `my-prs`/, 'a removal nested the way agents write it');
 });
 

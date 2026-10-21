@@ -204,8 +204,8 @@ async function spellCommand(wisp, [sub = 'ls', ...rest], { out, need, show }) {
     }
     case 'cast': {
       const s = await wisp.launch({ prompt: need(rest.join(' ').trim(), 'what to change'), kind: 'spell', agent: flags.agent || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined });
-      if (!flags.wait) return out(s, `  ✨ casting: ${s.title}  (${s.id})\n  Try it and keep it from its card in wisp.`);
-      if (!flags.json) console.error(`  ✨ casting: ${s.title}  (${s.id}) — waiting…`);
+      if (!flags.wait) return out(s, `  🧙 casting: ${s.title}  (${s.id})\n  Try it and keep it from its card in wisp.`);
+      if (!flags.json) console.error(`  🧙 casting: ${s.title}  (${s.id}) — waiting…`);
       return show(s.id, await wisp.wait(s.id));
     }
     case 'install':

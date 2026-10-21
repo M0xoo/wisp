@@ -9,6 +9,7 @@
 (() => {
   const ICON = {
     spark: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.4 4.1 4.1 1.4-4.1 1.4L8 12.5 6.6 8.4 2.5 7l4.1-1.4z" fill="currentColor"/><path d="M13 11l.6 1.4 1.4.6-1.4.6L13 15l-.6-1.4L11 13l1.4-.6z" fill="currentColor" opacity=".6"/></svg>',
+    wizard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 18.5L11.3 4.6c.3-.9 1.4-1.2 2.1-.6l4.3 3.6-3.2.3 2.6 10.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 19.2c5.5 1.6 11.5 1.6 17 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M11.5 10.5l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" fill="currentColor"/></svg>',
     github: '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>',
     stats: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 13V8.5M8 13V3.5M12.5 13v-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
     agent: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="5.5" r="2.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.8 13.5c.6-2.3 2.2-3.5 4.2-3.5s3.6 1.2 4.2 3.5M10.5 3.6a2.2 2.2 0 010 4.1M12 10.2c1.2.5 2 1.6 2.3 3.3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
@@ -194,7 +195,7 @@
           <label class="sr" for="${uid}-in">Cast a spell</label>
           <textarea class="sp-input" id="${uid}-in" rows="2" maxlength="160" spellcheck="false" placeholder="/spell what should wisp do differently?"></textarea>
           <div class="sp-bar">
-            <span class="sp-hint">${ICON.spark}<span data-hint>Pick one below, or type your own</span></span>
+            <span class="sp-hint">${ICON.wizard}<span data-hint>Pick one below, or type your own</span></span>
             <button class="sp-send" type="submit" aria-label="Cast the spell">↵</button>
           </div>
         </form>
@@ -255,7 +256,7 @@
       li.className = 'sp-row new';
       li.dataset.id = s.id;
       li.innerHTML = `
-        <span class="sp-ic">${ICON.spark}</span>
+        <span class="sp-ic">${ICON.wizard}</span>
         <span class="sp-name"><b>${esc(s.spell.name)}</b><small>v${s.spell.version} · ${esc(s.spell.description || s.ask)}</small></span>
         <span class="sp-reach ${reachClass(s.reach)}">${esc(s.reach)}</span>
         <button type="button" class="sp-code-btn" data-show="${s.id}" aria-label="Show ${esc(s.spell.name)} JSON" aria-pressed="false">${ICON.code}</button>

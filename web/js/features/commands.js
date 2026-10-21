@@ -99,13 +99,13 @@ function paletteItems() {
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
   items.push(
-    { group: a, label: 'Cast a spell…', icon: 'spark', keywords: 'spell customize change wisp add button panel block theme plugin extension mod', run: () => openCast() },
-    { group: a, label: 'Spells', icon: 'spark', keywords: 'spells installed manage import export share customize', run: () => openSettings({ pane: 'spells' }) },
+    { group: a, label: 'Cast a spell…', icon: 'wizard', keywords: 'spell customize change wisp add button panel block theme plugin extension mod', run: () => openCast() },
+    { group: a, label: 'Spells', icon: 'wizard', keywords: 'spells installed manage import export share customize', run: () => openSettings({ pane: 'spells' }) },
   );
   // What spells add to ⌘K: their commands, and their buttons for the palette slot.
   for (const spell of activeSpells()) {
     const cmds = [...(spell.commands || []), ...(spell.buttons || []).filter((b) => b.slot === 'palette')];
-    for (const c of cmds) items.push({ group: 'Spells', label: c.label, sub: spell.name, icon: c.icon || 'spark', kbd: c.key ? c.key.replace(/^shift\+/i, '⇧').toUpperCase() : undefined, keywords: `spell ${c.keywords || ''}`, run: () => runAction(spell, c.do, { session: S.focus }) });
+    for (const c of cmds) items.push({ group: 'Spells', label: c.label, sub: spell.name, icon: c.icon || 'wizard', kbd: c.key ? c.key.replace(/^shift\+/i, '⇧').toUpperCase() : undefined, keywords: `spell ${c.keywords || ''}`, run: () => runAction(spell, c.do, { session: S.focus }) });
   }
   if (feedbackOn()) items.push({ group: a, label: 'Send feedback…', icon: 'thumb-up', keywords: 'feedback bug report idea suggestion thumbs contact team', run: () => openFeedback() });
 

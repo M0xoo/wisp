@@ -52,7 +52,7 @@ export function createSpellHooks(app) {
         break;
       case 'notify':
         app.broadcast('spell', { toast: clip(text, 200), spell: spell.name, session: s.id });
-        await app.remote?.send?.({ title: `✨ ${spell.name}`, text, actions: [] }).catch(() => {});
+        await app.remote?.send?.({ title: `🧙 ${spell.name}`, text, actions: [] }).catch(() => {});
         break;
       case 'webhook':
         await fetch(v, {

@@ -313,7 +313,7 @@ export function openPanel(spell, panelId, ctx = {}) {
   if (!panel) return toast(`${esc(spell.name)} has no panel ${esc(panelId)}`, { tone: 'bad' });
   const node = el(`
     <div class="modal sp-panel ${panel.as === 'drawer' ? 'sp-drawer' : ''}" data-spell="${esc(spell.id)}">
-      <header><h2>${panel.icon ? icon(panel.icon) : ''}${esc(panel.title || spell.name)}</h2><span class="sp-by" title="From the spell ${esc(spell.name)}">${icon('spark')}${esc(spell.name)}</span><button class="icon-btn sp-refresh" title="Refresh">${icon('replay')}</button><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${panel.icon ? icon(panel.icon) : ''}${esc(panel.title || spell.name)}</h2><span class="sp-by" title="From the spell ${esc(spell.name)}">${icon('wizard')}${esc(spell.name)}</span><button class="icon-btn sp-refresh" title="Refresh">${icon('replay')}</button><button class="icon-btn close">${icon('x')}</button></header>
       <div class="sp-panel-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>
     </div>`);
   const body = $('.sp-panel-body', node);
@@ -405,11 +405,11 @@ export function slotHtml(slot, session = null) {
       const ic = b.icon ? icon(b.icon) : '';
       switch (slot) {
         case 'topbar':
-          return `<button class="auto-btn sp-btn" ${attrs(spell, kind, i)} title="${tip(spell, b)}">${ic || icon('spark')}${label}${n}</button>`;
+          return `<button class="auto-btn sp-btn" ${attrs(spell, kind, i)} title="${tip(spell, b)}">${ic || icon('wizard')}${label}${n}</button>`;
         case 'float':
-          return `<button class="sp-fab${b.primary ? ' primary' : ''}" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${ic || icon('spark')}${b.label ? `<span class="sp-fab-l">${esc(b.label)}</span>` : ''}${n}</button>`;
+          return `<button class="sp-fab${b.primary ? ' primary' : ''}" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${ic || icon('wizard')}${b.label ? `<span class="sp-fab-l">${esc(b.label)}</span>` : ''}${n}</button>`;
         case 'card.hover':
-          return `<button class="it-quick sp-quick" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${ic || icon('spark')}</button>`;
+          return `<button class="it-quick sp-quick" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${ic || icon('wizard')}</button>`;
         case 'launcher.chips':
         case 'composer.chips':
           return `<button type="button" class="sp-qr" ${attrs(spell, kind, i)} title="${tip(spell, b)}">${ic}${label || esc(b.icon)}${n}</button>`;
@@ -458,7 +458,7 @@ function floatHtml() {
   for (const x of list) (x.b.group ? groups.get(x.b.group)?.push(x) || groups.set(x.b.group, [x]) : loose.push(x));
   return [
     ...[...groups].map(
-      ([name, xs]) => `<div class="sp-fan" data-fan="${esc(name)}"><div class="sp-fan-items">${xs.map(renderFab).join('')}</div><button class="sp-fab sp-fan-btn" aria-expanded="false" title="${esc(name)}">${icon('spark')}<span class="sp-fab-l">${esc(name)}</span></button></div>`,
+      ([name, xs]) => `<div class="sp-fan" data-fan="${esc(name)}"><div class="sp-fan-items">${xs.map(renderFab).join('')}</div><button class="sp-fab sp-fan-btn" aria-expanded="false" title="${esc(name)}">${icon('wizard')}<span class="sp-fab-l">${esc(name)}</span></button></div>`,
     ),
     ...loose.map(renderFab),
   ].join('');
@@ -466,7 +466,7 @@ function floatHtml() {
 function renderFab({ spell, b, kind, i }) {
   const badge = badgeOf(spell, b, kind, i, null);
   const bkey = `${spell.id}:${kind}:${i}:`;
-  return `<button class="sp-fab${b.primary ? ' primary' : ''}" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${b.icon ? icon(b.icon) : icon('spark')}${b.label ? `<span class="sp-fab-l">${esc(b.label)}</span>` : ''}${b.badge ? `<b class="sp-n" data-badge="${esc(bkey)}" ${badge ? '' : 'hidden'}>${esc(badge)}</b>` : ''}</button>`;
+  return `<button class="sp-fab${b.primary ? ' primary' : ''}" ${attrs(spell, kind, i)} title="${tip(spell, b)}" aria-label="${esc(b.label || b.icon)}">${b.icon ? icon(b.icon) : icon('wizard')}${b.label ? `<span class="sp-fab-l">${esc(b.label)}</span>` : ''}${b.badge ? `<b class="sp-n" data-badge="${esc(bkey)}" ${badge ? '' : 'hidden'}>${esc(badge)}</b>` : ''}</button>`;
 }
 
 // --- parts: style, props, order, hide, tokens ------------------------------------------------
@@ -555,7 +555,7 @@ function paintFeedTop(spells) {
     const k = `${spell.id}:${p.id}`;
     let n = $(`.sp-feed[data-k="${CSS.escape(k)}"]`, host);
     if (!n) {
-      n = el(`<section class="sp-feed card" data-k="${esc(k)}"><header>${p.icon ? icon(p.icon) : icon('spark')}<b>${esc(p.title || spell.name)}</b><span class="sp-by">${esc(spell.name)}</span></header><div class="sp-feed-body"></div></section>`);
+      n = el(`<section class="sp-feed card" data-k="${esc(k)}"><header>${p.icon ? icon(p.icon) : icon('wizard')}<b>${esc(p.title || spell.name)}</b><span class="sp-by">${esc(spell.name)}</span></header><div class="sp-feed-body"></div></section>`);
       host.append(n);
       if (p.refresh?.every) {
         const t = setInterval(() => (n.isConnected ? paintPanel($('.sp-feed-body', n), spell, p, null) : clearInterval(t)), p.refresh.every * 1000);
@@ -601,7 +601,7 @@ export function paintCard(id) {
       const k = `${spell.id}:${p.id}`;
       let x = $(`.sp-cpanel[data-k="${CSS.escape(k)}"]`, host);
       if (!x) {
-        x = el(`<section class="sp-cpanel" data-k="${esc(k)}"><header>${p.icon ? icon(p.icon) : icon('spark')}<b>${esc(p.title || spell.name)}</b><span class="sp-by">${esc(spell.name)}</span></header><div class="sp-cpanel-body"></div></section>`);
+        x = el(`<section class="sp-cpanel" data-k="${esc(k)}"><header>${p.icon ? icon(p.icon) : icon('wizard')}<b>${esc(p.title || spell.name)}</b><span class="sp-by">${esc(spell.name)}</span></header><div class="sp-cpanel-body"></div></section>`);
         host.append(x);
       }
       paintPanel($('.sp-cpanel-body', x), spell, p, id);
@@ -629,7 +629,7 @@ const blockCache = new Map(); // JSON of the block -> rendered blocks
 setBlockFallback((b) => {
   const spell = activeSpells().find((s) => (s.blocks || []).some((x) => x.type === b.type));
   if (!spell) {
-    const node = el(`<div class="sp-block sp-off card"><div class="sp-off-head">${icon('spark')}<span>A <b>${esc(b.type)}</b> block from a spell that isn't on</span><button class="link xs">Show data</button></div><pre class="code" hidden><code>${esc(JSON.stringify(b, null, 2))}</code></pre></div>`);
+    const node = el(`<div class="sp-block sp-off card"><div class="sp-off-head">${icon('wizard')}<span>A <b>${esc(b.type)}</b> block from a spell that isn't on</span><button class="link xs">Show data</button></div><pre class="code" hidden><code>${esc(JSON.stringify(b, null, 2))}</code></pre></div>`);
     $('button', node).onclick = () => {
       $('pre', node).hidden = !$('pre', node).hidden;
     };
@@ -662,7 +662,7 @@ export function tryOn(spell, session = null) {
   applySpells({ force: true });
   let bar = $('#spTry');
   if (!bar) (bar = el('<div class="sp-try" id="spTry" role="status"></div>')), document.body.append(bar);
-  bar.innerHTML = `${icon('spark')}<span>Trying <b>${esc(spell.name)}</b> in this window</span><button class="primary sm" data-a="keep">Keep</button><button class="ghost sm" data-a="undo">Undo</button>`;
+  bar.innerHTML = `${icon('wizard')}<span>Trying <b>${esc(spell.name)}</b> in this window</span><button class="primary sm" data-a="keep">Keep</button><button class="ghost sm" data-a="undo">Undo</button>`;
   bar.onclick = (e) => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'keep') keep(spell, session);
@@ -687,7 +687,7 @@ export async function keep(spell, session = null) {
   applySpells({ force: true });
   try {
     await api('/spells', { method: 'POST', body: { spell, enable: true, source: { kind: session ? 'cast' : 'local', ...(session && { session }) } } });
-    toast(`${icon('spark')} <b>${esc(spell.name)}</b> is on`, { action: { label: 'Spells', run: () => import('./settings.js').then((m) => m.openSettings({ pane: 'spells' })) } });
+    toast(`${icon('wizard')} <b>${esc(spell.name)}</b> is on`, { action: { label: 'Spells', run: () => import('./settings.js').then((m) => m.openSettings({ pane: 'spells' })) } });
     bus.emit('spells:changed');
     return true;
   } catch (err) {
