@@ -58,6 +58,8 @@ export function loginPanel(id, scope = '') {
 // for the server to look them up again (seconds on a busy cloud computer). The 'agents' event
 // brings the checked list right after.
 function markSignedIn(scope, id, on) {
+  if (on) justIn.set(`${scope}|${id}`, Date.now() + JUST_IN_MS);
+  else justIn.delete(`${scope}|${id}`);
   const list = scope ? S.machines.find((m) => m.id === scope)?.remote?.agents : S.agents;
   const a = list?.find((x) => x.id === id);
   if (!a || (on ? a.available : a.signedIn === false)) return;
@@ -69,6 +71,25 @@ function markSignedIn(scope, id, on) {
   if (!scope) setAgents([...S.agents]);
   $('#launcher')?.placesChanged?.();
   bus.emit('agents');
+}
+
+// A list from before the server looked again (any 'machines' update while a cloud computer is
+// still checking) would sign it out again, and the launcher would drop it for another harness
+// right after "Use …" picked it: it stays signed in until the server agrees, or a while passes.
+const JUST_IN_MS = 120_000;
+const justIn = new Map(); // `${scope}|${id}` -> until when
+export function keepSignIns(scope, list) {
+  for (const a of list || []) {
+    const k = `${scope}|${a.id}`;
+    if (!justIn.has(k)) continue;
+    if (a.available || Date.now() > justIn.get(k)) justIn.delete(k);
+    else if (a.signedIn === false) {
+      a.available = true;
+      delete a.signedIn;
+      delete a.error;
+    }
+  }
+  return list;
 }
 
 // Whether a code is being pasted in this box: a repaint of the whole list would wipe it.

@@ -6,6 +6,7 @@ import * as bus from '../core/bus.js';
 import { $ } from '../core/dom.js';
 import { COMPUTER, MOBILE, S, nameHere, saveOpen, setAgents } from '../core/state.js';
 import { toast } from '../ui/toast.js';
+import { keepSignIns } from './agent-login.js';
 import { paintAutoBtn } from './automations.js';
 import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
@@ -84,7 +85,7 @@ export function connect() {
   });
   // A harness was installed from wisp (maybe in another tab): fetch the new list.
   es.addEventListener('agents', async () => {
-    setAgents(await api('/agents').catch(() => S.agents));
+    setAgents(keepSignIns('', await api('/agents').catch(() => S.agents)));
     $('#launcher')?.placesChanged?.();
     bus.emit('agents');
   });
