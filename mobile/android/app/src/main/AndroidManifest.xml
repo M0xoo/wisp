@@ -23,6 +23,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- dev.trywisp.mobile://…: the grid's "Device connected" page links back here. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dev.trywisp.mobile" />
+            </intent-filter>
+
         </activity>
 
         <!-- Keeps a connected machine's tunnel open in the background (see TunnelService). -->

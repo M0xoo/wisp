@@ -372,7 +372,10 @@ function cloudSheet(m = null, start = null) {
   const d = $('#gSheet');
   const body = $('#gBody');
   let flow = null; // { grid, code, url, interval, timer }
-  const stop = () => clearTimeout(flow?.timer);
+  const stop = () => {
+    clearTimeout(flow?.timer);
+    if (flow) flow.timer = null;
+  };
   const ask = (error = '') => {
     stop();
     $('#gTitle').textContent = m ? nameOf(m) : 'wisp Cloud';
@@ -388,6 +391,7 @@ function cloudSheet(m = null, start = null) {
       <p class="wait"><span class="spin"></span>Waiting for you to allow it…</p>`;
   };
   const poll = async () => {
+    flow.timer = null; // one poll at a time: back() only asks while one is scheduled
     const r = await gridPost(`${flow.grid}/api/device/token`, { device_code: flow.deviceCode }).catch(() => ({ body: { error: 'authorization_pending' } }));
     const e = r.body.error;
     if (e === 'authorization_pending' || e === 'slow_down') {
@@ -406,7 +410,22 @@ function cloudSheet(m = null, start = null) {
     toast(`Signed in as ${user.handle}`);
     openGrid(c);
   };
-  d.onclose = stop;
+  // Back from the browser: ask now rather than at the next poll, so your wisp opens at once.
+  const back = () => {
+    if (document.visibilityState !== 'visible' || !flow?.deviceCode || !flow.timer) return;
+    clearTimeout(flow.timer);
+    poll();
+  };
+  document.addEventListener('visibilitychange', back);
+  // A listener, not onclose: present() sets that one (it pops the sheet's history entry).
+  d.addEventListener(
+    'close',
+    () => {
+      stop();
+      document.removeEventListener('visibilitychange', back);
+    },
+    { once: true },
+  );
   $('#gForm').onsubmit = async (e) => {
     e.preventDefault();
     let grid;
@@ -431,7 +450,9 @@ function cloudSheet(m = null, start = null) {
   };
   body.onclick = async (e) => {
     const a = e.target.closest('[data-g]')?.dataset.g;
-    if (a === 'open' && flow?.url) await Ssh.openExternal({ url: flow.url }).catch((err) => toast(err.message));
+    // app=android: once allowed, the grid's page links back here instead of to the account page,
+    // which would open your wisp in the browser.
+    if (a === 'open' && flow?.url) await Ssh.openExternal({ url: `${flow.url}${flow.url.includes('?') ? '&' : '?'}app=android` }).catch((err) => toast(err.message));
     if (a === 'copy' && flow) copy(flow.code, 'code');
     if (a === 'signout' && m) {
       gridPost(`${m.grid}/api/device/revoke`, {}, m.token).catch(() => {});

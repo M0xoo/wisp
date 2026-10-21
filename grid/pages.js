@@ -376,7 +376,10 @@ export function accountPage({ cfg, user, instance, devices, identities, provider
   });
 }
 
-export function activatePage({ cfg, user, code = '', device = null, csrf, error = '' }) {
+// Opens the Android app (its intent filter in mobile/android/…/AndroidManifest.xml).
+export const APP_URL = 'dev.trywisp.mobile://signed-in';
+
+export function activatePage({ cfg, user, code = '', device = null, app = false, csrf, error = '' }) {
   if (!device)
     return appPage({
       cfg,
@@ -385,7 +388,7 @@ export function activatePage({ cfg, user, code = '', device = null, csrf, error 
       csrf,
       narrow: true,
       body: `<h1 class="h1">Connect a device</h1><p class="sub">Type the code wisp shows on your computer or phone.</p>${error ? `<div class="flash bad">${esc(error)}</div>` : ''}
-        <form method="get" action="/activate" style="margin-top:20px;display:flex;flex-direction:column;gap:10px"><input class="input" name="code" value="${esc(code)}" placeholder="ABCD-EFGH" autocomplete="off" autocapitalize="characters" autofocus required>
+        <form method="get" action="/activate" style="margin-top:20px;display:flex;flex-direction:column;gap:10px"><input class="input" name="code" value="${esc(code)}" placeholder="ABCD-EFGH" autocomplete="off" autocapitalize="characters" autofocus required>${app ? '<input type="hidden" name="app" value="android">' : ''}
         <button class="primary" style="height:40px">Continue</button></form>`,
     });
   return appPage({
@@ -398,7 +401,7 @@ export function activatePage({ cfg, user, code = '', device = null, csrf, error 
       <p class="sub"><b>${esc(device.name)}</b> asks to use your wisp as <b>${esc(user.handle)}</b>. Allow it only if you just started this on your own computer or phone, and the code matches.</p>
       <div class="code">${esc(device.user_code)}</div>
       <form method="post" action="/activate" style="display:flex;gap:10px">
-        <input type="hidden" name="csrf" value="${esc(csrf)}"><input type="hidden" name="code" value="${esc(device.user_code)}">
+        <input type="hidden" name="csrf" value="${esc(csrf)}"><input type="hidden" name="code" value="${esc(device.user_code)}">${app ? '<input type="hidden" name="app" value="android">' : ''}
         <button class="ghost line" style="flex:1;justify-content:center;height:40px" name="answer" value="deny">Don’t allow</button>
         <button class="primary" style="flex:1;height:40px" name="answer" value="allow">Allow</button>
       </form>`,

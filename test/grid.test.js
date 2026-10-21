@@ -278,6 +278,18 @@ test('a task runs in the user’s wisp through the edge; idle, it stops; the nex
   assert.equal(grid.hostd.state(userId), 'running');
 });
 
+test('device flow from the phone app: Allow links back to the app, not the account page', async () => {
+  const code = await browser().go(`${base}/api/device/code`, { method: 'POST', body: { name: 'Phone (wisp app)' } });
+  const b = browser();
+  await devSignIn(b, 'pia@example.com');
+  const page = await b.go(`${code.json.verification_uri_complete}&app=android`);
+  assert.match(page.text, /name="app" value="android"/);
+  const allowed = await b.go(`${base}/activate`, { method: 'POST', form: { csrf: csrfOf(page.text), code: code.json.user_code, answer: 'allow', app: 'android' }, headers: { origin: base } });
+  assert.match(allowed.text, /Device connected/);
+  assert.match(allowed.text, /href="dev\.trywisp\.mobile:\/\/signed-in"[^>]*>Back to the wisp app/);
+  assert.doesNotMatch(allowed.text, />Your account</);
+});
+
 test('device flow: code → approve in the browser → bearer token opens the wisp; slow_down; revoke', async () => {
   const code = await browser().go(`${base}/api/device/code`, { method: 'POST', body: { name: 'Test laptop' } });
   assert.equal(code.status, 200);
@@ -297,6 +309,7 @@ test('device flow: code → approve in the browser → bearer token opens the wi
   assert.equal(forged.status, 403);
   const allowed = await b.go(`${base}/activate`, { method: 'POST', form: { csrf: csrfOf(page.text), code: code.json.user_code, answer: 'allow' }, headers: { origin: base } });
   assert.match(allowed.text, /Device connected/);
+  assert.doesNotMatch(allowed.text, /dev\.trywisp\.mobile:/, 'a computer gets no link to the phone app');
 
   await sleep(2100);
   const done = await poll();
