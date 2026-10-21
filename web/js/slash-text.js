@@ -3,6 +3,7 @@
 
 export const SLASH = [
   { name: 'btw', args: 'question', hint: 'Ask on the side. The agent keeps working' },
+  { name: 'spell', args: 'what to change', hint: 'Cast a spell: change wisp itself' },
   { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or breaks', bare: true }, // alone: opens the dialog
 ];
 
@@ -14,6 +15,14 @@ export function btwQuestion(text) {
   const t = String(text || '').trim();
   return BTW_CMD.test(t) ? t.replace(BTW_CMD, '').trim() : null;
 }
+
+// What to change in "/spell a floating PR button" ('' for a bare /spell), or null when it isn't one.
+const SPELL_CMD = /^\/spell(?:\s+|$)/i;
+export function spellAsk(text) {
+  const t = String(text || '').trim();
+  return SPELL_CMD.test(t) ? t.replace(SPELL_CMD, '').trim() : null;
+}
+export const SPELL_HINT = 'Say what to change after /spell, like “/spell a floating button that opens my PRs”';
 
 // The commands a half-typed "/b" could be. Only while the box holds nothing but the command.
 export function slashMatches(text, list = SLASH) {

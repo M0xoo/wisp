@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **`/spell` works in follow-ups.** Type `/spell a floating button that opens my PRs` in any task's follow-up box to cast a spell, the same as from the prompt box; the follow-up isn't sent to that task. The `/` menu there now lists `/spell`.
 - **Spells on the site.** The landing page has a Spells section with a working copy of casting one: pick an ask (a floating PRs button, tool stats in the top bar, compact cards, quick replies, a deploy block, a violet look) or type your own, watch the agent's steps, and a small wisp window changes the way the app does. Each spell gets a switch, its reach and its real JSON file; switching it off puts the window back. The spells guide now opens with the same demo and covers what's in a spell file, every slot and action (with its reach), data sources and scripts, blocks, prompt rules and hooks, sharing, the `wisp spell` commands and what to do when something looks wrong. Its reference tables come from wisp's own spell schema.
 
 ## [0.25.0] - 2026-10-21
