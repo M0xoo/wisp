@@ -23,11 +23,15 @@ import { createSpellHooks } from './services/spell-hooks.js';
 import { Triggers } from './triggers.js';
 import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
+import { Secrets } from './secrets.js';
+import { createCloud } from './services/cloud.js';
+import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
 import { serveStatic } from './http/static.js';
+import { trustedProxy } from './http/trust.js';
 import { createAuto } from './services/auto.js';
 import { scoutNote } from './scout.js';
 import { createFeedback } from './services/feedback.js';
@@ -48,6 +52,7 @@ import * as uploadRoutes from './routes/uploads.js';
 import * as settingsRoutes from './routes/settings.js';
 import * as automationRoutes from './routes/automations.js';
 import * as machineRoutes from './routes/machines.js';
+import * as cloudRoutes from './routes/cloud.js';
 import * as proxyRoutes from './routes/proxy.js';
 import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
@@ -56,7 +61,7 @@ import * as spellRoutes from './routes/spells.js';
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes];
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -100,6 +105,9 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.spellData = createSpellData(app);
   setSpellBlocks((type) => app.spells.enabled().flatMap((x) => x.blocks || []).find((b) => b.type === type) || null);
 
+  // When something last happened here: GET /api/status reports it, so a host can stop an idle wisp.
+  app.lastActivityAt = Date.now();
+  for (const e of ['started', 'turn', 'ended']) runner.on(e, () => (app.lastActivityAt = Date.now()));
   runner.on('summary', (s) => app.broadcast('summary', s));
   runner.on('activity', (a) => app.broadcast('activity', a));
   runner.on('turn', (t) => app.broadcast('turn', t));
@@ -109,8 +117,10 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
 
   // Machines: other computers running their own wisp, reached over SSH. Their sessions show up
   // here as <id>@<machine>; their events are relayed into this stream.
+  app.secrets = new Secrets(store.home);
   app.machines = new Machines({
     store,
+    secrets: app.secrets,
     version: VERSION,
     apiVersion: API_VERSION,
     onChange: () => app.broadcast('machines', app.machines.view()),
@@ -166,6 +176,12 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
 
   app.places = createPlaces(app);
   app.mover = createMove(app);
+  app.cloud = createCloud(app);
+  // Signing in to a harness from the page; once in, its models are looked up again.
+  app.agentLogin = createAgentLogin({
+    onChange: (v) => app.broadcast('agent-login', v),
+    onDone: () => app.auto.detect({ fresh: true }).then(() => app.broadcast('agents', {}), () => {}),
+  });
   app.launcher = createLaunch(app);
   app.sendFeedback = createFeedback(app);
   app.triggers = new Triggers({ store, launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0], onChange: () => app.broadcast('config', {}) });
@@ -179,19 +195,24 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.routes = routes;
 
   const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]);
+  const proxy = trustedProxy();
+  app.publicUrl = proxy.origin;
 
   const server = http.createServer(async (req, res) => {
-    // Agents can run with broad permissions, so only same-origin local pages may talk to us.
-    if (!allowedHosts.has(req.headers.host)) return send(res, 403, { error: 'forbidden host' });
+    // Agents can run with broad permissions, so only same-origin local pages may talk to us, or a
+    // trusted proxy that has checked who is asking (server/http/trust.js).
+    const viaProxy = proxy.via(req);
+    if (!viaProxy && !allowedHosts.has(req.headers.host)) return send(res, 403, { error: 'forbidden host' });
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       const origin = req.headers.origin;
-      if (origin && !allowedHosts.has(origin.replace(/^https?:\/\//, ''))) return send(res, 403, { error: 'forbidden origin' });
+      if (viaProxy ? !proxy.originOk(req) : origin && !allowedHosts.has(origin.replace(/^https?:\/\//, ''))) return send(res, 403, { error: 'forbidden origin' });
       const ct = String(req.headers['content-type'] || '');
       const isUpload = req.url.startsWith('/api/uploads') && ct.startsWith('application/octet-stream');
       if (!ct.startsWith('application/json') && !isUpload) return send(res, 415, { error: 'json only' });
     }
 
     const url = new URL(req.url, `http://${req.headers.host}`);
+    if (req.method !== 'GET' && req.method !== 'HEAD') app.lastActivityAt = Date.now();
     try {
       if (!url.pathname.startsWith('/api/')) return serveStatic(req, res, url.pathname);
       if (!(await routes.handle(req, res, url))) send(res, 404, { error: 'not found' });
@@ -220,6 +241,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.remote.stop();
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
+    app.cloud.stop();
+    app.agentLogin.stop();
     for (const s of store.all()) runner.stop(s);
     store.flush();
     app.telemetry.persist();

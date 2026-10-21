@@ -1,0 +1,18 @@
+# Caddy in front of wisp Grid: HTTPS for the grid and every <handle>.<domain>.
+# On-demand TLS gets a certificate per name the first time it's asked for, after checking with the
+# grid that the name exists (/_grid/tls-ask), so only DNS needs a wildcard: *.wisp.example.com.
+{
+	on_demand_tls {
+		ask http://127.0.0.1:8080/_grid/tls-ask
+	}
+}
+
+wisp.example.com, *.wisp.example.com {
+	tls {
+		on_demand
+	}
+	reverse_proxy 127.0.0.1:8080 {
+		# Streams (the page's live updates) pass straight through.
+		flush_interval -1
+	}
+}

@@ -3,7 +3,8 @@
 // the page is fetched behind it. The cache only ever holds one build (x-wisp-build,
 // server/http/static.js), so files from two versions never mix: when the server has a new one, the
 // page drops the cache and reloads onto it (startShell in cache.js).
-// The API (/api/…) is never cached here.
+// The API (/api/…) is never cached here, nor a wisp Grid's own paths (/_grid/…: its sign-in link
+// and waking page must reach the grid).
 
 const CACHE = 'wisp-shell';
 
@@ -13,7 +14,7 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
-  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname === '/sw.js') return;
+  if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/_grid/') || url.pathname === '/sw.js') return;
   e.respondWith(req.mode === 'navigate' ? page() : file(req));
 });
 

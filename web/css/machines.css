@@ -157,3 +157,48 @@
 .mc-letin-err { margin: 0 !important; color: var(--bad); font-weight: 500; }
 .mc-byhand summary { cursor: pointer; width: max-content; font-size: 12px; color: var(--muted); }
 .mc-byhand p { margin: 6px 0 0 !important; }
+
+/* Settings → Cloud (features/cloud.js): cloud computers, and signing in to a wisp Grid. */
+.sx-cloud .cl-list { display: flex; flex-direction: column; }
+.cl-card { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 12px 14px; }
+.cl-card + .cl-card { border-top: 1px solid var(--line); }
+.cl-ico { position: relative; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--bg-2); color: var(--muted); }
+.cl-ico .i { width: 17px; height: 17px; }
+.cl-card.st-online .cl-ico { color: var(--accent); }
+.cl-card.st-online .mc-dot { background: var(--good); }
+.cl-card.st-asleep .mc-dot { background: var(--faint); }
+.cl-card.st-error .mc-dot { background: var(--bad); }
+.cl-card:is(.st-connecting, .st-reconnecting) .mc-dot { background: var(--warn); animation: blink 1.2s infinite; }
+.cl-text { display: flex; flex-direction: column; min-width: 0; }
+.cl-text b { font-size: 14px; font-weight: 600; }
+.cl-text small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-text .mono { font-family: var(--mono); font-size: 11.5px; }
+.cl-state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.cl-card.st-online .cl-state { color: var(--good); }
+.cl-card.st-error .cl-state { color: var(--bad); }
+.cl-acts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-acts .btn-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.cl-err { grid-column: 2 / -1; margin: 2px 0 0; font-size: 12px; color: var(--bad); }
+.cl-signin { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.cl-signin p { margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.cl-signin p b { font-size: 14px; font-weight: 600; }
+.cl-signin p small { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.cl-signin .cl-err { margin: 0; }
+.cl-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cl-row .input { flex: 1; min-width: 200px; }
+.cl-codebox { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border: 1px dashed var(--line-2); border-radius: 10px; background: var(--surface); }
+.cl-codebox .mono { font: 600 24px var(--mono); letter-spacing: .14em; }
+.cl-wait { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.cl-wait .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.sx-cloud > .hint { margin-top: 10px; }
+
+/* Settings → Cloud: signing in to the agents on a cloud computer (features/agent-login.js). */
+.cl-agents { grid-column: 2 / -1; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.cl-ah { margin: 0; font-size: 12px; color: var(--muted); font-weight: 600; }
+.cl-ah span { font-weight: 400; color: var(--faint); margin-left: 6px; }
+.cl-agent { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.cl-agent .model-logo { width: 18px; height: 18px; display: inline-grid; place-items: center; }
+.cl-agent .model-logo svg { width: 16px; height: 16px; }
+.cl-an { flex: 1; font-size: 13px; }
+.cl-agent .sx-login-ctl { margin-right: 0; }
+.cl-agents .sx-login { margin: 0 0 6px 26px; }

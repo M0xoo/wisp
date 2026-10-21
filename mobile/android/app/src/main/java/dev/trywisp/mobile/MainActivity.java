@@ -40,6 +40,8 @@ public class MainActivity extends BridgeActivity {
         // uses this instead.
         WebView web = getBridge().getWebView();
         web.addJavascriptInterface(new Notify(), "wispAndroid");
+        // Cloud computers (wisp Grid) load here too; see Grid.java.
+        getBridge().setWebViewClient(new Grid.Client(getBridge(), this));
         // Between pages (the list, then wisp's) the WebView shows its own background: the pages'
         // (--bg in web/css/tokens.css), so dark mode doesn't flash white. It also draws the parts
         // just off screen ahead of time, so a fling doesn't show blank tiles.
@@ -107,7 +109,7 @@ public class MainActivity extends BridgeActivity {
         if (task == null || getBridge() == null) return;
         WebView web = getBridge().getWebView();
         String url = web.getUrl();
-        if (url != null && url.startsWith("http://127.0.0.1:")) js("location.hash = " + JSONObject.quote("#/s/" + task));
+        if (url != null && (url.startsWith("http://127.0.0.1:") || Grid.allowed(this, android.net.Uri.parse(url).getHost()))) js("location.hash = " + JSONObject.quote("#/s/" + task));
     }
 
     private SharedPreferences prefs() {

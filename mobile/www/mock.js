@@ -21,6 +21,10 @@ const fakeKey = (name, type = 'ssh-ed25519', source = 'phone') => {
 const keys = [fakeKey('This phone')];
 
 export const WispSsh = {
+  async allowGrid() {},
+  async openExternal({ url }) {
+    window.open(url, '_blank', 'noopener');
+  },
   addListener(event, fn) {
     if (event === 'line') listeners.add(fn);
     return { remove: () => listeners.delete(fn) };

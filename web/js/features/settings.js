@@ -14,6 +14,8 @@ import { openAutomations } from './automations.js';
 import { renderLauncher } from './launcher.js';
 import { loadConfig } from './live.js';
 import { openComputers, openMachines } from './machines.js';
+import { cloudPane } from './cloud.js';
+import { loginControl, loginPanel, wireLogins } from './agent-login.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { notifyOn, notifyPermission, requestNotify } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
@@ -37,6 +39,8 @@ const SETTINGS_PANES = [
   MOBILE
     ? { id: 'machines', label: 'Computers', icon: 'server', lede: 'The computers this phone opens wisp on.' }
     : { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
+  // The phone app adds cloud computers on its own list instead.
+  ...(MOBILE ? [] : [{ id: 'cloud', label: 'Cloud', icon: 'cloud', lede: 'Your wisp on a server: it keeps working while this computer sleeps.' }]),
   { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
@@ -139,6 +143,7 @@ export function openSettings(opts) {
 `
           }
         </section>
+        ${MOBILE ? '' : '<section class="sx-pane" data-pane="cloud"><div class="sx-cloud"></div></section>'}
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">
             ${row('Learn from sessions', 'A short retro after each session keeps preferences and lessons', '<button class="switch" id="learn" role="switch"></button>')}
@@ -175,14 +180,18 @@ export function openSettings(opts) {
         const canInstall = !a.available && INSTALLABLE.has(a.id);
         const busy = isInstalling(a.id);
         // Not found: this OS's setup tip, with the command to copy unless wisp installs it itself.
-        const desc = a.available
-          ? esc([a.version, n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))
+        const out = !a.available && a.signedIn === false; // installed, signed out: hidden from the picker
+        const desc = a.available || out
+          ? esc([a.version, out ? 'Sign in to use it' : n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))
           : busy ? 'Installing into ~/.wisp/tools…' : `${esc(setupTip(a))}${a.setup?.command && !canInstall ? setupCommand(a.setup.command) : ''}`;
         const install = canInstall ? `<button class="ghost sm" data-install="${esc(a.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Installing…' : 'Install'}</button>` : '';
-        const docs = a.available ? '' : setupDocs(a);
-        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}<span class="sx-state ${a.available ? 'ok' : 'bad'}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${a.available ? 'ok' : 'bad'}"></i>${a.available ? 'Ready' : 'Not found'}</span>`);
+        const docs = a.available || out ? '' : setupDocs(a);
+        const state = a.available ? ['ok', 'Ready'] : out ? ['warn', 'Signed out'] : ['bad', 'Not found'];
+        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}${a.available || out ? loginControl(a.id) : ''}<span class="sx-state ${state[0]}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${state[0]}"></i>${state[1]}</span>`) + (a.available || out ? loginPanel(a.id) : '');
       }).join('')
       : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>';
+    // GitHub: not a harness, but what Ship it pushes and opens pull requests with.
+    $('.sx-agents', node).insertAdjacentHTML('beforeend', row(`<span class="model-logo">${icon('github')}</span>GitHub`, 'For pushing branches and opening pull requests (the gh CLI)', loginControl('gh')) + loginPanel('gh'));
     const missing = S.agents.filter((a) => !a.available).length;
     const dot = $('.sx-nav [data-pane="agents"] .dot', node);
     if (dot && !missing) dot.remove();
@@ -191,6 +200,7 @@ export function openSettings(opts) {
     $('.recheck-hint', node).textContent = `After installing a CLI, signing in or adding a provider, look for harnesses and models again${online ? `, here and on ${online} machine${online === 1 ? '' : 's'}` : ''}`;
   };
   paintAgents();
+  wireLogins($('.sx-agents', node), () => [['', [...S.agents.filter((a) => a.available || a.signedIn === false).map((a) => a.id), 'gh']]]);
   bus.on('agents', paintAgents, { node });
   bus.on('install', paintAgents, { node });
   $('.sx-agents', node).onclick = (e) => {
@@ -502,6 +512,7 @@ export function openSettings(opts) {
     };
   } else {
     $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
+    cloudPane($('.sx-cloud', node));
     $('#reachRecheck', node).onclick = () => {
       paintReachable(reachableBox(node));
     };

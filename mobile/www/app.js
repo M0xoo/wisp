@@ -8,6 +8,10 @@
 // so the list paints before the plugin answers). A password is typed for one connect:
 // the plugin then adds the phone's key there ("@@wisp keyed") and the password is dropped.
 //
+// A cloud computer (kind: 'grid') is a wisp on a wisp Grid: no SSH. The app signs in once with a
+// code you allow in the browser (the device flow), keeps the device token, and each time asks the
+// grid for a one-time link that opens that wisp's page here (Grid.java lets its pages load).
+//
 // Progress is wisp's `@@wisp …` line protocol. The plugin adds a few lines of its own:
 //   @@wisp fail ssh <message>   SSH itself failed (unreachable, auth, host key)
 //   @@wisp open <version>       the tunnel answers: load wisp
@@ -48,8 +52,9 @@ const save = () => localStorage.setItem(SAVED, JSON.stringify(machines));
 const saveKeys = () => localStorage.setItem(KEYS, JSON.stringify(keys.map(({ id, name, source, type, publicKey, fingerprint }) => ({ id, name, source, type, publicKey, fingerprint }))));
 const newId = () => Math.random().toString(36).slice(2, 10);
 const machine = (id) => machines.find((m) => m.id === id);
-const keyOf = (m) => keys.find((k) => k.id === m?.keyId) || keys[0];
-const nameOf = (m) => m.name || parseTarget(m.target).host;
+const keyOf = (m) => (m?.kind === 'grid' ? null : keys.find((k) => k.id === m?.keyId) || keys[0]);
+const isGrid = (m) => m?.kind === 'grid';
+const nameOf = (m) => m.name || (isGrid(m) ? m.handle : parseTarget(m.target).host);
 // The one the app opens when it starts: the last one used.
 const main = () => [...machines].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
 const TAILSCALE_GUIDE = 'https://trywisp.dev/guides/connect-machines-with-tailscale.html';
@@ -180,7 +185,8 @@ function paintIntro() {
         <li><span class="n">2</span><div><b>Add it here</b><span>Its address, and your password on it once.</span></div></li>
         <li><span class="n">3</span><div><b>Start working</b><span>wisp opens. Pick a coding agent there (opencode installs in one click) and give it a task. <b>Computers</b> in its top bar brings you back here.</span></div></li>
       </ol>
-      <p class="tip">${icon('arrow')}<span>Away from home? Put the computer and this phone on <a href="${TAILSCALE_GUIDE}">Tailscale</a> (free).</span></p>`;
+      <p class="tip">${icon('arrow')}<span>Away from home? Put the computer and this phone on <a href="${TAILSCALE_GUIDE}">Tailscale</a> (free).</span></p>
+      <p class="tip">${icon('cloud')}<span>No computer to keep on? Sign in to <b>wisp Cloud</b>: your wisp on a server, opened with your Google or GitHub account.</span></p>`;
   $('#addMachine span').textContent = machines.length ? 'Add another computer' : 'Add your computer';
   $('#addMachine').classList.toggle('first', !machines.length);
 }
@@ -197,6 +203,16 @@ function paintMachines() {
     .map((m) => {
       const on = live.id === m.id && live.state !== 'idle';
       const state = on ? live.state : 'idle';
+      if (isGrid(m)) {
+        const go = opening === m.id ? `<button class="primary m-go" disabled type="button"><span class="spin"></span>Opening</button>` : `<button class="primary m-go" data-a="open" type="button">Open ${icon('arrow')}</button>`;
+        return `<article class="card m cloud" data-id="${esc(m.id)}">
+          <div class="m-row">
+            <span class="m-ico">${icon('cloud')}<span class="st"></span></span>
+            <button class="m-text" data-a="edit" type="button"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub">${esc(m.signedOut ? 'Signed out: tap to sign in again' : `${m.handle} · ${hostOf(m.grid)}`)}</span></button>
+            ${go}
+          </div>
+        </article>`;
+      }
       const go = opening === m.id ? `<button class="primary m-go" disabled type="button"><span class="spin"></span>Opening</button>` : state === 'ready' ? `<button class="primary m-go" data-a="open" type="button">Open ${icon('arrow')}</button>` : state === 'connecting' ? `<button class="ghost m-go" disabled type="button">Connecting…</button>` : `<button class="ghost m-go" data-a="connect" type="button">${state === 'failed' ? 'Try again' : 'Connect'}</button>`;
       return `<article class="card m ${state}" data-id="${esc(m.id)}">
           <div class="m-row">
@@ -252,6 +268,7 @@ const openWisp = (m) => {
 };
 
 async function connect(m) {
+  if (isGrid(m)) return openGrid(m);
   const { user, host, port } = parseTarget(m.target);
   if (!user || !host) return toast('Add your user name: you@its-name');
   const key = keyOf(m);
@@ -284,6 +301,136 @@ async function disconnect() {
   openOnReady = '';
   paint();
   await Ssh.disconnect();
+}
+
+// --- wisp Cloud ----------------------------------------------------------------------------------
+
+const hostOf = (u) => {
+  try {
+    return new URL(u).host;
+  } catch {
+    return u;
+  }
+};
+const LOCAL = /(^|\.)localhost$/i;
+// "wisp.example.com" → https://wisp.example.com (http only for a grid on this phone's loopback).
+function gridUrl(raw) {
+  let s = String(raw || '').trim();
+  if (!s) throw new Error('The address of your wisp Grid, like wisp.example.com.');
+  if (!/^https?:\/\//i.test(s)) s = `${LOCAL.test(s.split(/[:/]/)[0]) ? 'http' : 'https'}://${s}`;
+  const u = new URL(s);
+  if (u.protocol === 'http:' && !LOCAL.test(u.hostname)) throw new Error('Use https:// for a grid: your sign-in goes over it.');
+  return u.origin;
+}
+async function gridPost(url, body, token) {
+  const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...(token && { authorization: `Bearer ${token}` }) }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  return { status: r.status, body: j };
+}
+
+// Into a cloud computer's wisp: a fresh one-time link each time (the grid starts it if it sleeps).
+async function openGrid(m) {
+  opening = m.id;
+  m.lastUsed = Date.now();
+  save();
+  paintMachines();
+  try {
+    if (live.state !== 'idle') await disconnect(); // one computer at a time
+    await Ssh.allowGrid({ domain: new URL(m.grid).hostname });
+    const r = await gridPost(`${m.grid}/api/device/link`, { path: `/?m=${encodeURIComponent(nameOf(m))}` }, m.token);
+    if (r.status === 401) {
+      m.signedOut = true;
+      save();
+      throw new Error('This phone was signed out of it. Tap it to sign in again.');
+    }
+    if (r.status >= 400 || !r.body.url) throw new Error(r.body.error || `The grid said ${r.status}.`);
+    if (!native) return toast(`Opens ${r.body.url.split('/_grid')[0]}`);
+    location.href = r.body.url;
+  } catch (err) {
+    opening = '';
+    paintMachines();
+    toast(err.message === 'Failed to fetch' ? `Can’t reach ${hostOf(m.grid)}` : err.message);
+  }
+}
+
+// Sign in to a grid: a code to allow in the browser, then this phone is a device there.
+function cloudSheet(m = null) {
+  const d = $('#gSheet');
+  const body = $('#gBody');
+  let flow = null; // { grid, code, url, interval, timer }
+  const stop = () => clearTimeout(flow?.timer);
+  const ask = (error = '') => {
+    stop();
+    $('#gTitle').textContent = m ? nameOf(m) : 'wisp Cloud';
+    body.innerHTML = `${m ? `<p class="muted">${esc(m.handle)} on <b>${esc(hostOf(m.grid))}</b>${m.signedOut ? ' · signed out' : ''}</p>` : '<p class="muted">Your own wisp on a server: agents keep working when your computers sleep. Sign in to a wisp Grid (yours, your team’s, or a hosted one) with Google, GitHub or what it offers.</p>'}
+      <label class="field"><span>Grid</span><input id="gUrl" placeholder="wisp.example.com" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" value="${esc(m ? m.grid.replace(/^https:\/\//, '') : localStorage.getItem('wisp.grid') || '')}" required></label>
+      ${error ? `<p class="err">${esc(error)}</p>` : ''}
+      <div class="sheet-actions">${m ? '<button class="ghost danger" data-g="signout" type="button">Sign out</button>' : ''}<span class="grow"></span><button class="primary" type="submit">${m ? 'Sign in again' : 'Sign in'}</button></div>`;
+  };
+  const waiting = () => {
+    body.innerHTML = `<p><b>Allow this phone</b></p><p class="muted">Open ${esc(hostOf(flow.grid))} in your browser, sign in, and allow the device showing this code.</p>
+      <div class="code">${esc(flow.code)}</div>
+      <div class="row"><button class="primary" data-g="open" type="button">Open the sign-in page</button><button class="ghost" data-g="copy" type="button">Copy code</button></div>
+      <p class="wait"><span class="spin"></span>Waiting for you to allow it…</p>`;
+  };
+  const poll = async () => {
+    const r = await gridPost(`${flow.grid}/api/device/token`, { device_code: flow.deviceCode }).catch(() => ({ body: { error: 'authorization_pending' } }));
+    const e = r.body.error;
+    if (e === 'authorization_pending' || e === 'slow_down') {
+      if (e === 'slow_down') flow.interval += 5;
+      flow.timer = setTimeout(poll, flow.interval * 1000);
+      return;
+    }
+    if (e) return ask(e === 'access_denied' ? 'Sign-in was declined in the browser.' : e === 'expired_token' ? 'The code expired. Sign in again.' : r.body.error_description || e);
+    const { token, user, instance } = r.body;
+    const c = m || { id: newId(), kind: 'grid' };
+    Object.assign(c, { kind: 'grid', grid: flow.grid, url: instance.url, handle: user.handle, name: m?.name || instance.name || 'wisp Cloud', token, signedOut: false });
+    if (!m) machines.push(c);
+    save();
+    paint();
+    dismiss(d);
+    toast(`Signed in as ${user.handle}`);
+    openGrid(c);
+  };
+  d.onclose = stop;
+  $('#gForm').onsubmit = async (e) => {
+    e.preventDefault();
+    let grid;
+    try {
+      grid = gridUrl($('#gUrl').value);
+    } catch (err) {
+      return ask(err.message);
+    }
+    localStorage.setItem('wisp.grid', grid.replace(/^https:\/\//, ''));
+    // At once: the code card, filled in when the grid answers.
+    flow = { grid, code: '…', interval: 5 };
+    waiting();
+    try {
+      const r = await gridPost(`${grid}/api/device/code`, { name: 'Phone (wisp app)' });
+      if (r.status >= 400 || !r.body.device_code) throw new Error(r.body.error || `${hostOf(grid)} isn’t a wisp Grid.`);
+      Object.assign(flow, { code: r.body.user_code, url: r.body.verification_uri_complete || r.body.verification_uri, deviceCode: r.body.device_code, interval: Number(r.body.interval) || 5 });
+      waiting();
+      flow.timer = setTimeout(poll, flow.interval * 1000);
+    } catch (err) {
+      ask(err.message === 'Failed to fetch' ? `Can’t reach ${hostOf(grid)}` : err.message);
+    }
+  };
+  body.onclick = async (e) => {
+    const a = e.target.closest('[data-g]')?.dataset.g;
+    if (a === 'open' && flow?.url) await Ssh.openExternal({ url: flow.url }).catch((err) => toast(err.message));
+    if (a === 'copy' && flow) copy(flow.code, 'code');
+    if (a === 'signout' && m) {
+      gridPost(`${m.grid}/api/device/revoke`, {}, m.token).catch(() => {});
+      machines = machines.filter((x) => x.id !== m.id);
+      save();
+      paint();
+      dismiss(d);
+      toast(`Signed out of ${nameOf(m)}`);
+    }
+  };
+  ask();
+  present(d);
+  setTimeout(() => !m && $('#gUrl')?.focus(), 80);
 }
 
 // --- sheets ------------------------------------------------------------------------------------
@@ -547,6 +694,11 @@ function wire() {
     const m = machine(e.target.closest('[data-id]')?.dataset.id);
     if (!b || !m) return;
     const a = b.dataset.a;
+    if (isGrid(m)) {
+      if (a === 'open') openGrid(m);
+      if (a === 'edit') cloudSheet(m);
+      return;
+    }
     if (a === 'connect') connect(m);
     if (a === 'open') openWisp(m);
     if (a === 'edit') editMachine(m);
@@ -566,6 +718,9 @@ function wire() {
   });
   $('#addMachine').onclick = () => {
     editMachine(null);
+  };
+  $('#addCloud').onclick = () => {
+    cloudSheet();
   };
   $('#newKey').onclick = () => {
     newKey(`Key ${keys.length + 1}`);

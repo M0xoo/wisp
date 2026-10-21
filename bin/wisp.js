@@ -9,6 +9,7 @@
 //   wisp spell [ls|cast|install|on|off|rm|export]  spells: changes to wisp itself
 //   wisp mcp                   stdio MCP server, so other agents and editors can use wisp
 //   wisp skill [install]       the agent skill that teaches other agents to use wisp
+//   wisp grid <dev|init|serve|…>  run wisp for many people on your own server (grid/)
 
 import { exec, spawn } from 'node:child_process';
 import fs, { existsSync } from 'node:fs';
@@ -41,13 +42,15 @@ const HELP = `usage:
   wisp spell export <id>        print the spell file to share
   wisp mcp                      run the MCP server (stdio) for other agents and editors
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)
+  wisp grid dev|init|serve|doctor  wisp Grid: wisp for many people on your server   (wisp grid help)
   wisp -- "ls the repo"         a task that starts with a command name
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok  --model ID  --effort LEVEL
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 
-const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells']);
+const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells', 'grid']);
+const GRID_SUB = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'help']);
 const argv = process.argv.slice(2);
 const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
 const words = [];
@@ -89,7 +92,7 @@ for (let i = 0; i < argv.length; i++) {
 // Newer commands are also common first words of a task ("ship the docs", "usage of X"), so they
 // only count when the rest fits; `wisp run` falls back to a task when no recipe has that name.
 const SESSION_ID = /^[a-f0-9]{12}$/;
-const FITS = { ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), btw: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, run: (w) => w.length > 1 };
+const FITS = { grid: (w) => !w[1] || GRID_SUB.has(w[1]), ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), btw: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, run: (w) => w.length > 1 };
 const command = literal !== 'task' && COMMANDS.has(words[0]) && (FITS[words[0]]?.(words) ?? true) ? words[0] : null;
 const cwd = flags.cwd || process.cwd();
 const die = (msg) => {
@@ -99,7 +102,11 @@ const die = (msg) => {
 
 // --- commands that only talk to the API (and start a headless wisp if none is running) ---
 
-if (command === 'mcp') {
+if (command === 'grid') {
+  // Its own flags (--data, --domain, …): parse from the raw arguments after `grid`.
+  const { gridCli } = await import('../grid/cli.js');
+  await gridCli(argv.slice(argv.indexOf('grid') + 1)).catch((e) => die(e.message));
+} else if (command === 'mcp') {
   const { serveMcp } = await import('../server/mcp-wisp.js');
   serveMcp(); // stdout belongs to the MCP protocol from here on
 } else if (command === 'skill') {
@@ -292,7 +299,8 @@ async function interactive() {
     console.log(`\n  ◌ wisp is open\n`);
   } else if (!running) {
     const { startServer } = await import('../server/index.js');
-    await startServer({ port: flags.port });
+    // WISP_HOST: in a wisp Grid container the edge reaches wisp through a published port.
+    await startServer({ port: flags.port, ...(process.env.WISP_HOST && { host: process.env.WISP_HOST }) });
     console.log(`\n  ◌ wisp is floating at ${base}\n`);
   }
 

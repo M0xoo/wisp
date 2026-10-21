@@ -81,7 +81,7 @@ export function createMove(app) {
     to = to || null;
     if (from === to) throw bad('The task is already there.');
     if (to) machines.get(to);
-    if (to && !machines.isOnline(to)) throw bad(`${machines.get(to).name} is offline. Connect it from Machines.`, 503);
+    if (to && !machines.usable(to)) throw bad(`${machines.get(to).name} is offline. Connect it from Machines.`, 503);
     const local = !from && store.get(id);
     if (!from && !local) throw bad('no such session', 404);
     const src = from ? await machines.json(from, 'GET', `/sessions/${at.id}`) : local;

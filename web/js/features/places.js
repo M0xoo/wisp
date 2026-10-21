@@ -31,8 +31,10 @@ export const placesOf = (p) => (p ? [placeOf(p), ...Object.keys(p.copies || {}).
 // A machine runs its own wisp; this one signs in over SSH, tunnels to it and shows its sessions
 // as <id>@<machine>. Any project runs there; the launch clones it there first if it has to.
 export const machineById = (id) => S.machines.find((m) => m.id === id);
-const machineOnline = (id) => machineById(id)?.state === 'online';
-export const MACHINE_STATE = { online: 'Online', connecting: 'Connecting…', reconnecting: 'Reconnecting…', error: 'Couldn’t connect', off: 'Not connected' };
+// A cloud computer asleep still takes tasks: sending one wakes it.
+export const usable = (m) => m?.state === 'online' || m?.state === 'asleep';
+const machineOnline = (id) => usable(machineById(id));
+export const MACHINE_STATE = { online: 'Online', asleep: 'Asleep', connecting: 'Connecting…', reconnecting: 'Reconnecting…', error: 'Couldn’t connect', off: 'Not connected' };
 // Where it is: "~/code/app", "on devbox: /srv/app", plus the other places that have it.
 export const projectTitle = (p) => {
   if (!p) return '';
@@ -51,7 +53,7 @@ export function machinePill(mt) {
 export function machinesSummary() {
   const n = S.machines.length;
   if (!n) return 'None yet · run agents on another computer over SSH';
-  const on = S.machines.filter((m) => m.state === 'online').length;
+  const on = S.machines.filter(usable).length;
   return `${n} machine${n === 1 ? '' : 's'} · ${on ? `${on} online` : 'none online'}`;
 }
 

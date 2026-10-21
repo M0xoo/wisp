@@ -62,6 +62,27 @@ public class WispSshPlugin extends Plugin {
         return getContext().getSharedPreferences("wisp.hosts", 0);
     }
 
+    // A wisp Grid signed in to: its pages (the grid and <handle>.<grid>) load in the app.
+    @PluginMethod
+    public void allowGrid(PluginCall call) {
+        Grid.allow(getContext(), call.getString("domain", ""));
+        call.resolve();
+    }
+
+    // The grid's sign-in page goes to the browser: Google and others refuse embedded WebViews.
+    @PluginMethod
+    public void openExternal(PluginCall call) {
+        String url = call.getString("url", "");
+        if (!url.startsWith("https://") && !url.startsWith("http://")) {
+            call.reject("Not a web address.");
+            return;
+        }
+        android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url));
+        i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+        call.resolve();
+    }
+
     @PluginMethod
     public void listKeys(PluginCall call) {
         try {

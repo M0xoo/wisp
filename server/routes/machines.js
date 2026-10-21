@@ -36,6 +36,20 @@ export function register(r, app) {
   r.route('POST', '/machines/:id/disconnect', known((c, id) => c.send(200, (machines.disconnect(id), one(id)))));
   // Stop wisp over there (its agents too); restart starts this version in its place.
   r.route('POST', '/machines/:id/stop', known(async (c, id) => c.send(200, (await machines.stopRemote(id, { restart: !!(await c.body()).restart }), one(id)))));
+  // Sign in to a harness over there (its own login, run on that computer): passed through to its
+  // wisp. Once it's in or out, its harness list here is looked up again.
+  const there = (method, rest, after) =>
+    known(async (c, id) => {
+      const body = method === 'GET' || method === 'DELETE' ? undefined : await c.body();
+      const v = await machines.json(id, method, `/agents/${encodeURIComponent(c.params.aid)}/${rest}`, body);
+      if (after?.(v)) machines.recheckAgents().catch(() => {});
+      c.send(200, v);
+    });
+  r.route('GET', '/machines/:id/agents/:aid/login', there('GET', 'login', (v) => v.state === 'done'));
+  r.route('POST', '/machines/:id/agents/:aid/login', there('POST', 'login'));
+  r.route('DELETE', '/machines/:id/agents/:aid/login', there('DELETE', 'login'));
+  r.route('POST', '/machines/:id/agents/:aid/login/input', there('POST', 'login/input'));
+  r.route('POST', '/machines/:id/agents/:aid/logout', there('POST', 'logout', () => true));
   r.route('GET', '/machines/:id/fs', known(async (c, id) => c.send(200, await machines.json(id, 'GET', `/fs?q=${encodeURIComponent(c.query.get('q') || '')}`))));
   r.route(
     'GET',

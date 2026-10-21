@@ -20,11 +20,14 @@ export function openapi({ version, port }) {
         'Local API of wisp, a launcher and queue for coding agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok). ' +
         'Binds to 127.0.0.1 only. Requests must carry a Host of 127.0.0.1/localhost:<port>; non-GET requests must be ' +
         'application/json (uploads: application/octet-stream) and, if they send an Origin, a local one. ' +
-        'The running server advertises { url, port, pid, version } in ~/.wisp/server.json.',
+        'The running server advertises { url, port, pid, version } in ~/.wisp/server.json. ' +
+        'Behind a reverse proxy (wisp Grid), WISP_TRUSTED_PROXY_SECRET turns on trusted-proxy mode: requests carrying it in ' +
+        'x-wisp-proxy-secret may use any Host, and a non-GET Origin must match WISP_PUBLIC_URL.',
     },
     servers: [{ url: `http://127.0.0.1:${port}/api` }],
     paths: {
       '/health': { get: { summary: 'Liveness, version and pid', responses: { 200: json(ref('Health')) } } },
+      '/status': { get: { summary: 'Whether anything is going on: turns running (live), side questions (sides), open pages (clients), lastActivityAt, and nextWakeAt (the next scheduled trigger). Used to stop an idle wisp', responses: { 200: json({ type: 'object', properties: { live: { type: 'integer' }, sides: { type: 'integer' }, clients: { type: 'integer' }, lastActivityAt: { type: ['integer', 'null'] }, nextWakeAt: { type: ['integer', 'null'] }, version: { type: 'string' } } }) } } },
       '/update': {
         get: { summary: 'Current and latest published version, and how this copy updates (global | npx | brew | git; a git clone never offers one). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
         post: { summary: 'Install the latest version and relaunch. 409 while agents run unless { force: true }', responses: { 202: json({ type: 'object' }), 409: json({ type: 'object' }) } },
@@ -51,6 +54,14 @@ export function openapi({ version, port }) {
         patch: { summary: 'Auto settings', requestBody: body({ type: 'object', properties: { goal: { enum: ['cheap', 'balanced', 'best'] }, explore: { type: 'boolean', description: 'Let Auto try new models on a few tasks' }, allowed: { type: 'array', items: { type: 'string' }, description: 'Harness ids Auto may pick; empty or null = all' }, check: { type: 'boolean', description: 'Run the project tests after an Auto run; only new failures count' }, repairs: { type: 'integer', minimum: 0, maximum: 2, description: 'Times failing tests go back to the same agent' }, escalate: { type: 'boolean', description: 'Still failing: run the task again on a stronger pick, in its own worktree' }, best2: { type: 'boolean', description: 'Goal Best: two picks side by side, the better one marked' }, scout: { enum: ['off', 'big', 'all'], description: 'A cheap model looks at the repo first' } } }), responses: { 200: json({ type: 'object' }) } },
       },
       '/router/reset': { post: { summary: 'Forget what Auto learned here (the shipped starting point stays)', responses: { 200: json({ type: 'object' }) } } },
+      '/agents/{aid}/login': {
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string', enum: ['claude', 'codex', 'cursor', 'grok', 'gh'] } }],
+        get: { summary: 'Whether this harness is signed in, and the sign-in in progress: state (idle | running | waiting | done | failed | cancelled), url to open, code to enter there, needsInput when it waits for a code pasted back', responses: { 200: json({ type: 'object' }) } },
+        post: { summary: 'Start the harness’s own login (claude auth login, codex login --device-auth, …). Its login stays where the CLI keeps it', responses: { 200: json({ type: 'object' }), 400: err[400] } },
+        delete: { summary: 'Cancel the sign-in in progress', responses: { 200: json({ type: 'object' }) } },
+      },
+      '/agents/{aid}/login/input': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Paste back the code the sign-in page showed', requestBody: body({ type: 'object', required: ['code'], properties: { code: { type: 'string' } } }), responses: { 200: json({ type: 'object' }), 409: json(ref('Error')) } } },
+      '/agents/{aid}/logout': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Sign the harness out (its own logout)', responses: { 200: json({ type: 'object' }) } } },
       '/agents/install': {
         post: {
           summary: 'Install a harness into ~/.wisp/tools with npm (only opencode: its free models need no account), then detect again',
@@ -204,6 +215,8 @@ export function openapi({ version, port }) {
           responses: { 201: json({ type: 'object' }), 400: err[400] },
         },
       },
+      '/cloud/signin': { post: { summary: 'Sign in to a wisp Grid (device flow): returns the code to approve in the browser and where; the cloud computer joins Machines once approved', requestBody: body({ type: 'object', required: ['url'], properties: { url: { type: 'string', description: 'The grid, e.g. wisp.example.com' } } }), responses: { 201: json(ref('CloudSignin')), 400: err[400] } } },
+      '/cloud/signin/{sid}': { parameters: [{ name: 'sid', in: 'path', required: true, schema: { type: 'string' } }], get: { summary: 'Where a grid sign-in is: waiting, done, denied, expired, failed or cancelled', responses: { 200: json(ref('CloudSignin')), 404: err[404] } }, delete: { summary: 'Cancel a grid sign-in', responses: { 200: json(ref('CloudSignin')), 404: err[404] } } },
       '/machines/discover': { get: { summary: 'Hosts this computer can reach: ~/.ssh/config, Tailscale peers, ~/.ssh/known_hosts', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/machines/reachable': { get: { summary: 'Whether other devices can reach this computer over SSH: SSH server, Tailscale, authorized keys, and the user@host to connect with', responses: { 200: json({ type: 'object', properties: { os: { type: 'string' }, user: { type: 'string' }, target: { type: 'string' }, supported: { type: 'boolean' }, keys: { type: 'integer' }, ssh: { type: 'object' }, tailscale: { type: 'object' } } }) } } },
       '/machines/ssh-hosts': { get: { summary: 'Hosts from ~/.ssh/config, for suggestions', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
@@ -212,6 +225,14 @@ export function openapi({ version, port }) {
       '/machines/{mid}/connect': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Connect: SSH in, start wisp there if needed, open the tunnel', responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/disconnect': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Close the tunnel; wisp and its agents keep running there', responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/stop': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Stop wisp on the machine (its agents too); restart: true starts this version in its place', requestBody: body({ type: 'object', properties: { restart: { type: 'boolean' } } }), responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/agents/{aid}/login': {
+        parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }],
+        get: { summary: 'A harness’s sign-in on the machine (as GET /agents/{aid}/login there)', responses: { 200: json({ type: 'object' }) } },
+        post: { summary: 'Start the harness’s own login on the machine', responses: { 200: json({ type: 'object' }) } },
+        delete: { summary: 'Cancel the sign-in on the machine', responses: { 200: json({ type: 'object' }) } },
+      },
+      '/machines/{mid}/agents/{aid}/login/input': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Paste back the code, on the machine', requestBody: body({ type: 'object', required: ['code'], properties: { code: { type: 'string' } } }), responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/agents/{aid}/logout': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Sign the harness out on the machine', responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/fs': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'q', in: 'query', schema: { type: 'string' } }], get: { summary: 'Folder suggestions on the machine', responses: { 200: json({ type: 'array', items: { type: 'string' } }) } } },
       '/machines/{mid}/discover': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], get: { summary: 'Git repos found on the machine that are not projects yet', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/remote/test': { post: { summary: 'Send a test message to the enabled channels', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
@@ -342,6 +363,7 @@ export function openapi({ version, port }) {
     components: {
       schemas: {
         Error: { type: 'object', properties: { error: { type: 'string' } } },
+        CloudSignin: { type: 'object', properties: { id: { type: 'string' }, grid: { type: 'string' }, state: { enum: ['waiting', 'done', 'denied', 'expired', 'failed', 'cancelled'] }, userCode: { type: 'string' }, verifyUrl: { type: 'string' }, expiresAt: { type: 'integer' }, error: { type: 'string' }, machineId: { type: ['string', 'null'] }, user: { type: ['object', 'null'] } } },
         Health: { type: 'object', properties: { ok: { type: 'boolean' }, name: { const: 'wisp' }, version: { type: 'string' }, apiVersion: { type: 'integer' }, pid: { type: 'integer' }, url: { type: 'string' } } },
         Agent: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, available: { type: 'boolean' }, version: { type: 'string' }, models: { type: 'array', items: { type: 'object' } }, efforts: { type: 'array', items: { type: 'string' } }, setup: { type: 'object', description: 'Only while not found: how to get it on that OS', properties: { tip: { type: 'string' }, command: { type: 'string' }, url: { type: 'string' } } } } },
         Project: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, path: { type: 'string' }, color: { type: 'string' } } },
