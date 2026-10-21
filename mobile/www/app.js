@@ -179,16 +179,28 @@ function paintIntro() {
   $('#intro').innerHTML = machines.length
     ? `<h1>Your computers</h1><p>Tap one to open its wisp. Your agents keep running there when the phone sleeps. <b>Computers</b> in wisp’s top bar brings you back here.</p>`
     : `<h1>wisp, on your phone</h1>
-      <p>Start tasks and answer your agents from anywhere. They run on your own computers and keep going when the phone sleeps.</p>
+      <p>Start tasks and answer your agents from anywhere. They keep going when the phone sleeps.</p>
+      <form class="card cloud-first" id="cloudFirst" autocomplete="off">
+        <div class="cf-head"><span class="cf-ico">${icon('cloud')}</span><div><b>wisp Cloud</b><span>Fastest: nothing to set up</span></div></div>
+        <p>Your own wisp on a server, signed in with GitHub or Google. Your agents keep working while every computer you own sleeps.</p>
+        <div class="cf-row"><input id="cfUrl" value="${esc(localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" aria-label="Grid"><button class="primary" type="submit">Sign in</button></div>
+      </form>
+      <p class="or"><span>Or use your own computer</span></p>
       <ol class="how">
         <li><span class="n">1</span><div><b>Get a computer ready</b><span>Turn on SSH: on a Mac, System Settings → General → Sharing → Remote Login; on Linux, install openssh-server. That’s all: the app installs Node.js and wisp there.</span></div></li>
         <li><span class="n">2</span><div><b>Add it here</b><span>Its address, and your password on it once.</span></div></li>
         <li><span class="n">3</span><div><b>Start working</b><span>wisp opens. Pick a coding agent there (opencode installs in one click) and give it a task. <b>Computers</b> in its top bar brings you back here.</span></div></li>
       </ol>
-      <p class="tip">${icon('arrow')}<span>Away from home? Put the computer and this phone on <a href="${TAILSCALE_GUIDE}">Tailscale</a> (free).</span></p>
-      <p class="tip">${icon('cloud')}<span>No computer to keep on? Sign in to <b>wisp Cloud</b>: your wisp on a server, opened with your Google or GitHub account.</span></p>`;
+      <p class="tip">${icon('arrow')}<span>Away from home? Put the computer and this phone on <a href="${TAILSCALE_GUIDE}">Tailscale</a> (free).</span></p>`;
   $('#addMachine span').textContent = machines.length ? 'Add another computer' : 'Add your computer';
-  $('#addMachine').classList.toggle('first', !machines.length);
+  // First run: wisp Cloud is the card at the top, so its button below would say it twice.
+  $('#addCloud').hidden = !machines.length;
+  const cf = $('#cloudFirst');
+  if (cf)
+    cf.onsubmit = (e) => {
+      e.preventDefault();
+      cloudSheet(null, { grid: $('#cfUrl').value.trim() });
+    };
 }
 
 function paintMachines() {
@@ -355,7 +367,8 @@ async function openGrid(m) {
 }
 
 // Sign in to a grid: a code to allow in the browser, then this phone is a device there.
-function cloudSheet(m = null) {
+// start.grid: sign in to that grid right away (the first screen's card), straight to the code.
+function cloudSheet(m = null, start = null) {
   const d = $('#gSheet');
   const body = $('#gBody');
   let flow = null; // { grid, code, url, interval, timer }
@@ -431,7 +444,10 @@ function cloudSheet(m = null) {
   };
   ask();
   present(d);
-  setTimeout(() => !m && $('#gUrl')?.focus(), 80);
+  if (start?.grid) {
+    $('#gUrl').value = start.grid;
+    $('#gForm').requestSubmit();
+  } else setTimeout(() => !m && $('#gUrl')?.focus(), 80);
 }
 
 // --- sheets ------------------------------------------------------------------------------------
