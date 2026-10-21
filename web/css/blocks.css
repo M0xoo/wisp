@@ -2,6 +2,10 @@
 .presentation { display: flex; flex-direction: column; gap: 14px; }
 .blk { animation: rise 0.45s var(--ease) var(--d) both; min-width: 0; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+/* shown before (blocks.js): no reveal, everything already in place */
+.presentation.still, .presentation.still :is(*, *::before, *::after) { animation: none !important; }
+.presentation.still :is(.wire, .g-wire) { stroke-dashoffset: 0; }
+.presentation.still .b-term .out { transition: none; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .b-title { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .b-title .count { font-weight: 500; color: var(--faint); }

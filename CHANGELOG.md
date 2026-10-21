@@ -15,6 +15,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **The prompt box no longer pops in piece by piece.** Before the page has its settings, it shows quiet placeholders the same size and shape as the folder chips, buttons and recipes, and the real ones fade in over them together, so nothing jumps.
 - **Faster page loads, especially over a tunnel.** The server keeps the page's files in memory, gzips them, answers an unchanged file with a 304, and index.html preloads all of its modules at once instead of one import level at a time.
 
+### Fixed
+
+- **A task's result reveals itself once.** The staggered entrance (blocks rising in, numbers counting up, the terminal typing its command) plays the first time you see a result; opening the task again just shows it.
+- **No keyboard shortcuts in the Android app.** The phone has no keyboard to press them on, so the app no longer shows *Keyboard shortcuts* (or the feed / split view switch) in search, the *Press ⌘L to start typing* prompt hint, the palette's ↑↓ footer, or the key hints in Settings descriptions.
+
 ## [0.27.0] - 2026-10-21
 
 ### Added

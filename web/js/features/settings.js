@@ -89,10 +89,10 @@ export function openSettings(opts) {
             ${row('Auto-fix PR conflicts', 'Without waiting for a click on Fix conflicts: when a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
           </div>
           <div class="sx-group view-group">
-            ${row('Layout', 'Feed: one column, cards open in place. Split: tasks in a sidebar, the open one beside it (in windows 900px and wider). <kbd>\\</kbd> switches', `<fieldset class="pk-seg view-seg">${[['feed', 'Feed'], ['split', 'Split']].map(([v, l]) => `<button type="button" data-view="${v}">${icon(v)}${l}</button>`).join('')}</fieldset>`)}
+            ${row('Layout', 'Feed: one column, cards open in place. Split: tasks in a sidebar, the open one beside it (in windows 900px and wider)<span class="key-hint">. <kbd>\\</kbd> switches</span>', `<fieldset class="pk-seg view-seg">${[['feed', 'Feed'], ['split', 'Split']].map(([v, l]) => `<button type="button" data-view="${v}">${icon(v)}${l}</button>`).join('')}</fieldset>`)}
           </div>
           <div class="sx-group">
-            ${row('Full transcript', 'Every message and step the agent took, with its presentation at the end. Any one card switches with its Transcript button or <kbd>V</kbd>', '<button class="switch" id="txDefault" role="switch"></button>')}
+            ${row('Full transcript', 'Every message and step the agent took, with its presentation at the end. Any one card switches with its Transcript button<span class="key-hint"> or <kbd>V</kbd></span>', '<button class="switch" id="txDefault" role="switch"></button>')}
           </div>
         </section>
         <section class="sx-pane" data-pane="notifications">

@@ -3,6 +3,7 @@
 
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
+import { load, save } from './core/state.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -13,6 +14,19 @@ const el = (html) => {
 };
 
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Set while a presentation that was already shown renders: it appears as it is, without the reveal.
+let still = false;
+const quiet = () => still || reduced();
+
+// Turns whose presentation has played its reveal once (session:turn), newest last.
+const SEEN_MAX = 2000;
+const seen = new Set(load('wisp.seen', []));
+function firstShow(key) {
+  if (seen.has(key)) return false;
+  seen.add(key);
+  save('wisp.seen', [...seen].slice(-SEEN_MAX));
+  return true;
+}
 
 function countUp(node, to, delay = 0, decimals = null) {
   const n = Number(to);
@@ -22,7 +36,7 @@ function countUp(node, to, delay = 0, decimals = null) {
   }
   const dec = decimals ?? (String(to).split('.')[1]?.length || 0);
   const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
-  if (reduced()) {
+  if (quiet()) {
     node.textContent = fmt(n);
     return;
   }
@@ -451,7 +465,7 @@ R.terminal = (b, ctx) => {
   const typed = node.querySelector('.typed');
   const out = node.querySelector('.out');
   out.textContent = String(prev ? prev.output : b.output || '').replace(/\s+$/, '');
-  if (reduced() || prev) {
+  if (quiet() || prev) {
     typed.textContent = cmd;
     node.classList.add('ran');
   } else {
@@ -940,9 +954,13 @@ export function renderPresentation(presentation, ctx) {
   const wrap = document.createElement('div');
   wrap.className = 'presentation';
   const blocks = presentation?.blocks || [];
+  // A turn's result reveals itself the first time it's shown; opening it again just shows it.
+  const own = presentation && ctx?.session?.id && ctx.turn?.id && presentation === ctx.turn.presentation;
+  still = !!own && !firstShow(`${ctx.session.id}:${ctx.turn.id}`);
+  if (still) wrap.classList.add('still');
   // Group consecutive half-width-friendly blocks? Keep it a single calm column.
   blocks.forEach((b, i) => {
-    const delay = reduced() ? 0 : Math.min(i, 10) * 110;
+    const delay = quiet() ? 0 : Math.min(i, 10) * 110;
     let node;
     try {
       node = R[b.type] ? R[b.type](b, { ...ctx, delay }) : fallback(b, { ...ctx, delay }) || R.unknown(b);
@@ -956,6 +974,7 @@ export function renderPresentation(presentation, ctx) {
     holder.append(node);
     wrap.append(holder);
   });
+  still = false;
   if (presentation?.fallback) {
     wrap.prepend(el(`<div class="blk"><div class="fallback-note">${icon('info')} The agent answered in plain text instead of a wisp presentation.</div></div>`));
   }

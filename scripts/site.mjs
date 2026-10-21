@@ -271,8 +271,11 @@ ${noindex ? '  <meta name="robots" content="noindex" />' : `  <link rel="canonic
   <meta name="twitter:title" content="${esc(title)}" />
   <meta name="twitter:description" content="${esc(description)}" />
   <meta name="twitter:image" content="${SITE}/assets/og.png" />
+  <link rel="icon" href="/favicon.ico" sizes="48x48" />
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
-  <link rel="icon" href="/assets/icon.png" type="image/png" sizes="1024x1024" />
+  <link rel="icon" href="/assets/favicon-192.png" type="image/png" sizes="192x192" />
+  <link rel="icon" href="/assets/favicon-96.png" type="image/png" sizes="96x96" />
+  <link rel="icon" href="/assets/favicon-48.png" type="image/png" sizes="48x48" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180" />
 ${graph.length ? `  <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })}</script>\n` : ''}  <link rel="stylesheet" href="/style.css?v=${CSS_V}" />
   ${POSTHOG}

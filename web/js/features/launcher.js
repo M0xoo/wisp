@@ -7,7 +7,7 @@ import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { launch, S, save, saveLaunch } from '../core/state.js';
+import { launch, MOBILE, S, save, saveLaunch } from '../core/state.js';
 import { combo } from '../ui/kbd.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
@@ -137,7 +137,8 @@ export function renderLauncher() {
   ta.value = S.drafts.get('home') || '';
   ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe()));
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
-  const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta
+  // The phone has no keyboard shortcut to advertise.
+  const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta || MOBILE
     ? 'What should I go do? Paste screenshots, drop logs or videos…'
     : `What should I go do? Press ${combo('L')} to start typing`));
   ta.addEventListener('focus', hint);
