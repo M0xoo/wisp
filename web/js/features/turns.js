@@ -79,8 +79,7 @@ export function renderBody(id, { fresh }) {
         </div>
         <button class="link xs earlier" hidden></button>
         <div class="turns"></div>
-        <div class="pr-strip" hidden></div>
-        <div class="it-dock"></div>
+        <div class="it-dock"><div class="pr-strip" hidden></div></div>
       </div>`);
     n.body ? n.body.replaceWith(body) : n.card.append(body);
     n.body = body;
@@ -117,7 +116,7 @@ export function renderBody(id, { fresh }) {
     ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
   // Ship and Done sit in the top bar and again next to the composer, so they're there on opening the
-  // card and after reading the result. The PR row sits right above the composer for the same reason.
+  // card and after reading the result. The PR row sits in the composer's dock for the same reason, so in split view it stays pinned with it.
   renderPrStrip(id);
   $$('[data-a="done"]', body).forEach((b) => {
     b.classList.toggle('on', s.state === 'done');

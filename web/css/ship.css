@@ -60,6 +60,8 @@
   font-size: 12.5px; background: color-mix(in srgb, var(--tone) 7%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
 }
 .pr-strip[hidden] { display: none; }
+/* in the dock, on top of the follow-up box (pinned with it in split view) */
+.it-dock > .pr-strip { margin: 0 0 8px; }
 .pr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tone); flex: none; }
 .pr-strip.pr-pending .pr-dot { animation: pulse 1.4s ease-in-out infinite; }
 .pr-num { font-weight: 600; color: var(--ink); white-space: nowrap; }

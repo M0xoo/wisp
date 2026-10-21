@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **The PR row stays on top of the follow-up box.** It now sits in the composer's dock, so in split view it's pinned to the bottom with the box instead of scrolling away with the transcript.
 - **Split view no longer scrolls the task list to the task you open.** Clicking a task, opening one from the home list, a notification or the palette used to slide the sidebar to it, like the feed does; the task opens in the main pane, so the list now stays where you left it. `j` / `k` still keep the focused task in view.
 - **Open tasks no longer stay on "Loading…" after the phone app comes back.** When the app returned from the background, the SSH tunnel was often down or silently dead for up to a minute, and a task that failed to load in that window stayed on *Loading…* for good. Now wisp keeps trying (and reloads every open task once the connection is back), starts a fresh live connection after a while away, and the app checks its tunnel the moment it's back in front and reconnects right away instead of waiting out keep-alives or a retry delay.
 
