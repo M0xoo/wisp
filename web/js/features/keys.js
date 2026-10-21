@@ -12,9 +12,10 @@ import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
 import { replay, toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
+import { goHome, isSplit, splitOpen, toggleView } from './split.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
-const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', ...'123456789'.split('')]);
+const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', ...'123456789'.split('')]);
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -32,6 +33,7 @@ export function onKey(e) {
   if (e.key === 'Escape') {
     if (!$('#overlay').hidden) return $('#overlay .sx-back') ? $('#overlay .sx-back').click() : closeOverlay();
     if (typing) return e.target.blur();
+    if (isSplit() && splitOpen()) return goHome({ focus: false });
     if (S.focus && S.open.has(S.focus)) {
       collapse(S.focus);
       S.nodes.get(S.focus)?.card.scrollIntoView({ block: 'nearest' });
@@ -61,6 +63,7 @@ export function onKey(e) {
     const i = ids.indexOf(id);
     const next = i < 0 ? ids[0] : ids[k === 'j' ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)];
     setFocus(next);
+    if (isSplit()) expand(next, { scroll: false }); // split view: moving opens the task beside the list
   } else if ((k === 'o' || (k === 'enter' && !e.target.closest('button, a'))) && id) {
     e.preventDefault();
     toggle(id);
@@ -91,6 +94,7 @@ export function onKey(e) {
     if (S.open.has(id)) focusReply();
     else expand(id).then(focusReply);
   } else if (k === '?') shortcuts();
+  else if (k === '\\') toggleView();
   else if (/^[1-9]$/.test(k) && id && S.open.has(id)) {
     const card = S.nodes.get(id).card;
     const opts = $$('.ask-card .opt', card).length ? $$('.ask-card .opt', card) : $$('.turn:last-child .b-question:not(.answered) .opt:not(.own)', card);

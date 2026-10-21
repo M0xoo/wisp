@@ -22,9 +22,16 @@ export const SLOTS = {
   'card.menu': "An item in a card's right-click menu.",
   'card.top': 'A panel at the top of an open card (panels only).',
   'card.bottom': 'A panel at the bottom of an open card, above the follow-up box (panels only).',
+  'sidebar.top': 'Split view: a button at the top of the task list, next to New task.',
+  'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
 };
 
-export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom']);
+export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head']);
+
+// The layouts (the `view` setting): feed = one column, cards open in place; split = cards in a
+// sidebar, the open one in the main pane. Split needs a window at least SPLIT_MIN_WIDTH wide.
+export const VIEWS = ['feed', 'split'];
+export const SPLIT_MIN_WIDTH = 900;
 
 // Parts: things a spell can restyle, give props or hide. Selectors are wisp's own markup.
 // Never here: questions, approvals, waiting pills, the spell review and Settings → Spells.
@@ -36,6 +43,7 @@ export const PARTS = {
   'topbar.automations': '#autoBtn',
   'topbar.search': '#searchBtn',
   'topbar.settings': '#settingsBtn',
+  'topbar.view': '#viewBtn',
   feed: '#feed',
   'section.done': '#secDone',
   'section.archived': '#secArchived',
@@ -77,6 +85,17 @@ export const PARTS = {
   'card.time': '#feed .it-side .q-time',
   'card.quickDone': '#feed .it-quick',
   'card.body': '#feed .it-body',
+  // Split view only (body.split): the task list on one side, the open task on the other.
+  sidebar: 'body.split .feed-wrap',
+  'sidebar.new': '#splitNew',
+  'sidebar.grip': '#splitGrip',
+  'split.main': '#splitMain',
+  'split.home': '#splitHome',
+  'split.greeting': '#splitHome .sh-hello',
+  'split.next': '#splitHome .sh-next',
+  'split.head': '#splitHead',
+  'split.title': '#splitHead .sh-title',
+  'split.body': 'body.split #feed .item.open > .it-body',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.
@@ -88,7 +107,13 @@ export const PART_PROPS = {
   'composer.input': { placeholder: 'string', rows: 'int', maxRows: 'int', monospace: 'bool', fontSize: 'int' },
   card: { density: ['compact', 'comfortable'] },
   'card.sub': { lines: 'int' },
+  sidebar: { width: 'px', side: ['left', 'right'], details: ['minimal', 'full'] }, // side: left unless set
+  'split.main': { readWidth: 'px' },
+  'split.home': { greeting: 'string' },
 };
+
+// What a prop type accepts: int is 1–40, px is a size in pixels.
+export const PROP_RANGE = { int: [1, 40], px: [160, 1600] };
 
 // CSS a spell may set on a part (camelCase or kebab-case), and what values look like.
 export const STYLE_PROPS = [
@@ -117,7 +142,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'file', 'folder', 'dots', 'copy', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'thumb-up', 'thumb-down', 'play'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'file', 'folder', 'dots', 'copy', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'thumb-up', 'thumb-down', 'play', 'split', 'feed'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -156,6 +181,7 @@ export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'notify', 'webh
 
 // Settings a spell may set (while on). Telemetry, feedback and anything secret are not here.
 export const SETTINGS = {
+  view: VIEWS,
   editor: ['vscode', 'cursor', 'windsurf', 'zed', 'idea', 'none'],
   transcript: ['on', 'off'],
   worktree: ['on', 'off'],

@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import {
-  ACTIONS, BUILTIN_BLOCKS, CARD_HEAD_ORDER, EVENTS, HOOK_ACTIONS, HOOK_IF, ICONS, PART_PROPS, PARTS, SETTINGS, SLOTS, SPELL_VERSION, TOKENS,
+  ACTIONS, BUILTIN_BLOCKS, CARD_HEAD_ORDER, EVENTS, HOOK_ACTIONS, HOOK_IF, ICONS, PART_PROPS, PARTS, PROP_RANGE, SETTINGS, SLOTS, SPELL_VERSION, TOKENS,
   ghProblem, kebab, scriptBody, scriptExports, styleProblem, wispPathProblem,
 } from '../web/js/spell-schema.js';
 import { normalizeRecipe } from './recipes.js';
@@ -161,7 +161,7 @@ export function normalizeSpell(raw) {
     else if (allowed && !allowed.includes(slot)) p.at_(where, `this goes in ${allowed.join(', ')}`);
   };
 
-  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu'];
+  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu', 'sidebar.top', 'split.head'];
   const buttons = arr(j.buttons).slice(0, MAX_ITEMS).map((b, i) => {
     const where = `buttons[${i}]`;
     const x = obj(b) || {};
@@ -265,7 +265,7 @@ export function normalizeSpell(raw) {
       for (const [k, val] of Object.entries(obj(x.props) || {})) {
         const t = allowed[k];
         if (!t) p.at_(where, `${k} isn't a prop of ${name}${Object.keys(allowed).length ? ` (${Object.keys(allowed).join(', ')})` : ''}`);
-        else if (Array.isArray(t) ? !t.includes(val) : t === 'int' ? !Number.isInteger(val) || val < 1 || val > 40 : t === 'bool' ? typeof val !== 'boolean' : typeof val !== 'string') p.at_(where, `${k}: ${Array.isArray(t) ? t.join(' | ') : t}`);
+        else if (Array.isArray(t) ? !t.includes(val) : PROP_RANGE[t] ? !Number.isInteger(val) || val < PROP_RANGE[t][0] || val > PROP_RANGE[t][1] : t === 'bool' ? typeof val !== 'boolean' : typeof val !== 'string') p.at_(where, `${k}: ${Array.isArray(t) ? t.join(' | ') : PROP_RANGE[t] ? `${t} from ${PROP_RANGE[t][0]} to ${PROP_RANGE[t][1]}` : t}`);
         else out.props[k] = typeof val === 'string' ? str(val, 160) : val;
       }
     }
