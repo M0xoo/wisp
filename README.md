@@ -56,7 +56,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🤝 **Subagents** | Give the lead agent a team on other harnesses (e.g. Claude Code hands tests to Codex ×3). It delegates through a `delegate` tool; their edits land in its worktree. See [Subagents](#subagents). |
 | ⏪ **Checkpoints & rollback** | Every turn is snapshotted first. Restore to before any turn, revert a single file, or re-run a command block from the presentation. |
 | ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
-| ✨ **Spells** | Change wisp itself while it runs: ask for a floating button that opens your PRs, a panel with your tool stats, a block agents can use in their reports, a different prompt box, quick replies, buttons on cards, a new look. An agent writes it as a *spell*; you try it in the window and keep it. Share one as a file, and turn any of them off to put wisp back as it was. See [Spells](#spells). |
+| 🧙 **Spells** | Change wisp itself while it runs: ask for a floating button that opens your PRs, a panel with your tool stats, a block agents can use in their reports, a different prompt box, quick replies, buttons on cards, a new look. An agent writes it as a *spell*; you try it in the window and keep it. Share one as a file, and turn any of them off to put wisp back as it was. See [Spells](#spells). |
 | 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.25.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
 | 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there, or start a task with `/new`. |

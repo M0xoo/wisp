@@ -35,7 +35,7 @@ const SETTINGS_PANES = [
   { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
   { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
-  { id: 'spells', label: 'Spells', icon: 'spark', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
+  { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
   { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },
   { id: 'privacy', label: 'Privacy', icon: 'info', lede: 'What wisp sends about itself. Never prompts, paths or code.' },
 ];
@@ -454,7 +454,7 @@ export function openSettings(opts) {
       if (!ctl) continue;
       const by = S.config.lockedBy?.[key];
       ctl.disabled = !!by;
-      if (by) $('.sx-text', ctl.closest('.sx-row'))?.insertAdjacentHTML('beforeend', `<small class="sp-lock">${icon('spark')}Set by the spell <b>${esc(by.name)}</b> · <button class="link xs" data-pane-go="spells">Spells</button></small>`);
+      if (by) $('.sx-text', ctl.closest('.sx-row'))?.insertAdjacentHTML('beforeend', `<small class="sp-lock">${icon('wizard')}Set by the spell <b>${esc(by.name)}</b> · <button class="link xs" data-pane-go="spells">Spells</button></small>`);
     }
   };
   paintLocks();

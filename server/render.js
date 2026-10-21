@@ -96,9 +96,9 @@ const fillFields = (tpl, o) => String(tpl).replace(/\{([a-zA-Z_][\w.]*)\}/g, (_,
 
 R.spell = (b) => {
   const remove = b.remove || (!b.spell?.wispSpell && b.spell?.remove);
-  if (remove) return `**✨ Spell:** remove \`${str(remove)}\``;
+  if (remove) return `**🧙 Spell:** remove \`${str(remove)}\``;
   const s = b.spell || {};
-  return `**✨ Spell: ${str(s.name) || str(s.id)}**${s.description ? ` — ${s.description}` : ''}\n\n_Keep it in wisp to turn it on._`;
+  return `**🧙 Spell: ${str(s.name) || str(s.id)}**${s.description ? ` — ${s.description}` : ''}\n\n_Keep it in wisp to turn it on._`;
 };
 
 // blocks: presentation blocks; turn (optional) supplies captured edits for diff blocks.
