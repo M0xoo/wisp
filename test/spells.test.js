@@ -119,6 +119,8 @@ test('Settings → Cloud is parts spells can restyle or hide', () => {
 });
 
 test('Settings → Machines → This computer is a part spells can restyle or hide', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.nav'] }, parts: { settings: { style: { borderRadius: '4px' } }, 'settings.head': { style: { background: 'var(--bg-2)' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'settings.head': { props: { width: 400 } } } }).some((x) => /settings\.head/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.reachable', 'machines.howto'] }, parts: { 'settings.reachable': { style: { borderRadius: '4px' } }, 'machines.letin': { style: { background: 'var(--surface)' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'settings.reachable': { props: { width: 400 } } } }).some((x) => /settings\.reachable/.test(x)));
 });

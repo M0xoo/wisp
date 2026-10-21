@@ -96,6 +96,10 @@ export const PARTS = {
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
   'split.body': 'body.split #feed .item.open > .it-body',
+  // Settings: the dialog, its list of sections, and the head with the pane's name and close button.
+  'settings': '.modal.sx',
+  'settings.nav': '.sx-nav',
+  'settings.head': '.sx-top',
   // Settings → Machines: whether other devices can reach this computer over SSH.
   'settings.reachable': '.sx-reach',
   // Machines: the three-step explainer, and the password box when a machine won't let this one in.

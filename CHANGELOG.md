@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Settings keeps its close button at the top.** Only the pane scrolls now: the section's name and the X stay put, also inside Memory, Usage and the other views it opens. On a phone (or any window under 640px) Settings fills the screen and starts as a list of sections; one opens with a back arrow, instead of a row of tabs to scroll sideways. On narrow panes a control that doesn't fit beside its text goes underneath it. Spells can reach the new pieces as `settings`, `settings.nav` and `settings.head`.
 - **The prompt box no longer pops in piece by piece.** Before the page has its settings, it shows quiet placeholders the same size and shape as the folder chips, buttons and recipes, and the real ones fade in over them together, so nothing jumps.
 - **Faster page loads, especially over a tunnel.** The server keeps the page's files in memory, gzips them, answers an unchanged file with a 304, and index.html preloads all of its modules at once instead of one import level at a time.
 

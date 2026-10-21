@@ -75,10 +75,16 @@ export function openSettings(opts) {
     <div class="modal settings-modal sx">
       <nav class="sx-nav" role="tablist" aria-orientation="vertical">
         <h2>Settings</h2>
-        ${SETTINGS_PANES.map((p) => `<button role="tab" data-pane="${p.id}">${icon(p.icon)}<span>${p.label}</span>${p.id === 'agents' && missing ? `<i class="dot bad" title="${missing} not found"></i>` : ''}</button>`).join('')}
+        ${SETTINGS_PANES.map((p) => `<button role="tab" data-pane="${p.id}">${icon(p.icon)}<span>${p.label}</span>${p.id === 'agents' && missing ? `<i class="dot bad" title="${missing} not found"></i>` : ''}${icon('chevron')}</button>`).join('')}
       </nav>
+      <header class="sx-top">
+        <h2 class="sx-home">Settings</h2>
+        <button class="icon-btn sx-up" title="All settings" aria-label="All settings">${icon('back')}</button>
+        <h3 class="sx-title"></h3>
+        <button class="icon-btn close" title="Close" aria-label="Close settings">${icon('x')}</button>
+      </header>
       <div class="sx-main">
-        <header><div><h3 class="sx-title"></h3><p class="sx-lede"></p></div><button class="icon-btn close">${icon('x')}</button></header>
+        <p class="sx-lede"></p>
         <section class="sx-pane" data-pane="general">
           <div class="sx-group">
             ${row('Open files in', 'File links in cards and diffs', `<select name="editor">${[['vscode', 'VS Code'], ['cursor', 'Cursor'], ['windsurf', 'Windsurf'], ['zed', 'Zed'], ['idea', 'JetBrains'], ['none', 'Copy path']]
@@ -170,7 +176,19 @@ export function openSettings(opts) {
       </div>
     </div>`);
   const close = overlay(node);
-  $('.close', node).onclick = close;
+  $('.sx-top .close', node).onclick = close;
+  // On a phone the sections are a list first and a pane opens over it (CSS shows one or the
+  // other under 640px); an explicit pane, like a toast's "Settings" link, opens straight to it.
+  const toList = (on) => {
+    node.classList.toggle('at-list', on);
+    if (!on) $('.sx-main', node).scrollTop = 0; // it was hidden, so pick() couldn't reset it
+  };
+  toList(!opts?.pane);
+  $('.sx-up', node).onclick = () => {
+    leave();
+    toList(true);
+    $(`.sx-nav [data-pane="${settingsPane}"]`, node)?.focus({ preventScroll: true });
+  };
   spellsPane($('[data-pane="spells"].sx-pane', node));
   const paintAgents = () => {
     $('.sx-agents', node).innerHTML = S.agents.length
@@ -239,6 +257,7 @@ export function openSettings(opts) {
     });
     $$('.sx-pane', node).forEach((s) => (s.hidden = s.dataset.pane !== id));
     $('.sx-title', node).textContent = p.label;
+    node.dataset.pane = id;
     $('.sx-lede', node).textContent = p.lede;
     $('.sx-main', node).scrollTop = 0;
     // Checked when the pane opens: it knocks on the SSH port and asks tailscale.
@@ -254,7 +273,7 @@ export function openSettings(opts) {
     const v = $('.sx-main > .embedded', node);
     if (!v) return;
     v.remove();
-    $('.sx-main > header', node).hidden = false;
+    $('.sx-top', node).hidden = false;
     paintHints();
   };
   const show = (id, focus) => (leave(), pick(id, focus));
@@ -265,7 +284,8 @@ export function openSettings(opts) {
     back.onclick = () => show(pane);
     $('header', view).prepend(back);
     $('.close', view).onclick = close;
-    $('.sx-main > header', node).hidden = true;
+    $('.sx-top', node).hidden = true;
+    toList(false);
     $$('.sx-pane', node).forEach((s) => (s.hidden = true));
     main.append(view);
     main.scrollTop = 0;
@@ -273,7 +293,9 @@ export function openSettings(opts) {
   };
   $('.sx-nav', node).onclick = (e) => {
     const b = e.target.closest('[data-pane]');
-    if (b) show(b.dataset.pane);
+    if (!b) return;
+    show(b.dataset.pane);
+    toList(false);
   };
   $('.sx-nav', node).onkeydown = (e) => {
     const step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
@@ -502,7 +524,7 @@ export function openSettings(opts) {
   paintLocks();
   bus.on('config', paintLocks, { node });
   node.addEventListener('click', (e) => {
-    if (e.target.closest('[data-pane-go]')) show(e.target.closest('[data-pane-go]').dataset.paneGo);
+    if (e.target.closest('[data-pane-go]')) show(e.target.closest('[data-pane-go]').dataset.paneGo), toList(false);
   });
   $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
   $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
