@@ -40,6 +40,9 @@ export const PARTS = {
   'topbar.brand': '#topbar .brand',
   'topbar.projects': '#projects',
   'topbar.machines': '#machinesBtn',
+  // In a browser tab only: the invite to the desktop app, and its card.
+  'topbar.getapp': '#getAppBtn',
+  'getapp.card': '.getapp',
   'topbar.automations': '#autoBtn',
   'topbar.search': '#searchBtn',
   'topbar.settings': '#settingsBtn',

@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Get the app, from the browser.** wisp in a browser tab (your cloud computer, or `wisp --browser`) has a *Get the app* button in the top bar: a short card on what the desktop app adds, and a link to trywisp.dev. *Hide this* puts it away; Search still has it. Not shown in the desktop or phone app.
 - **A cloud computer's Settings make sense on it.** In your wisp on a grid, Machines becomes *Connect*: its address, and how to open it from wisp on your computer or the phone app through the grid, plus where to sign devices out. No SSH, no Cloud pane (you're already in it), and *This computer* reads *Cloud computer*.
 - **wisp Grid: cap the number of accounts.** `auth.maxUsers` in `grid.json` lets the first that many people sign up, then says the grid is full; existing users keep signing in.
 - **wisp Grid boxes come with every agent installed.** The user image now has Cursor, Grok and Antigravity next to Claude Code, Codex and opencode, so on a cloud computer you only sign in. Grok and Antigravity sign in from wisp too (a link and a code), and the model picker hides them until you do.

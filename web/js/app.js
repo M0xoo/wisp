@@ -15,6 +15,7 @@ import { renderFeed, reveal, scheduleRefetch } from './features/feed.js';
 import { renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
+import { paintGetApp } from './features/getapp.js';
 import { loadMachines, openMachines, setMachines } from './features/machines.js';
 import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
@@ -63,6 +64,7 @@ setInterval(() => {
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');
 if (MOBILE) document.body.classList.add('wisp-mobile');
+paintGetApp();
 
 // #/s/<id> still works (notifications, CLI): it reveals that item in the feed.
 function route() {
