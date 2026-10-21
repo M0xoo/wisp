@@ -16,6 +16,7 @@ import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
 import { accountPage, activatePage, devSignInPage, messagePage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
+import { createGridTelemetry } from './telemetry.js';
 
 const BODY_LIMIT = 64 * 1024;
 const ASSETS = new URL('./assets/', import.meta.url);
@@ -98,7 +99,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   if (cfg.auth.dev) ensureMaster(cfg.dataDir);
   const secrets = createSecrets(db, { dataDir: cfg.dataDir });
   const providers = createProviders(cfg);
-  const accounts = createAccounts({ db, cfg, secrets });
+  const stats = createGridTelemetry(cfg);
+  const accounts = createAccounts({ db, cfg, secrets, onAudit: stats.audit });
   const limit = limiter();
   const interval = cfg.auth.dev ? 2 : 5; // device-code polling, seconds
 
@@ -107,9 +109,12 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     dataDir: cfg.dataDir,
     secretFor: (u) => secrets.ensure(u.id, 'wisp-proxy'),
     urlFor: (u) => cfg.instanceUrl(u.handle),
+    gridUrl: cfg.publicUrl,
+    telemetry: stats.on,
     log,
   });
   hostd.on('change', (e) => {
+    stats.box(e);
     const t = Date.now();
     db.run(
       `INSERT INTO instances (user_id, state, created_at, started_at, stopped_at, last_active_at, next_wake_at, stop_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -481,6 +486,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
       for (const x of servers) x.closeAllConnections?.();
       await hostd.close();
+      stats.close();
       await closed;
       db.close();
     },

@@ -34,6 +34,16 @@ android/app/src/main/java/dev/trywisp/mobile/
   MainActivity.java  window.wispAndroid: notifications for wisp's page; Alerts.java posts them
 ```
 
+## wisp Cloud
+
+No computer to keep on? The first screen starts with **wisp Cloud**: the address
+(`grid.trywisp.dev`, or your own grid's) is filled in, **Sign in** shows a code, you allow it in
+the browser (signed in with GitHub or Google), and your cloud computer joins the list. Tap it and
+you're in its wisp: no SSH, no tunnel. The app keeps a device token for it and asks the grid for a
+one-time link each time it opens; `Grid.java` lets the grid's pages load in the app, and the page's
+service worker leaves the grid's own `/_grid/…` links alone. Sign in to Claude Code, Codex or
+GitHub there in Settings → Agents. See [grid/README.md](../grid/README.md).
+
 ## Use it
 
 1. **Get a computer ready.** Turn on SSH there: on a Mac, System Settings → General → Sharing →

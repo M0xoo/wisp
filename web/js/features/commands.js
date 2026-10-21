@@ -13,6 +13,7 @@ import { compareView } from './compare.js';
 import { collapseAll, expand, feedToTop, renderFeed, reveal } from './feed.js';
 import { feedbackOn, openFeedback } from './feedback.js';
 import { focusLauncher, renderLaunchChips } from './launcher.js';
+import { inBrowser, openGetApp } from './getapp.js';
 import { openMachines } from './machines.js';
 import { openMemory } from './memory.js';
 import { openPhone } from './phone.js';
@@ -98,6 +99,7 @@ function paletteItems() {
     ...(MOBILE
       ? [{ group: a, label: 'Your computers', icon: 'server', keywords: 'switch computer machine server add', run: () => openMachines() }]
       : [
+          ...(inBrowser() ? [{ group: a, label: 'Get the desktop app', icon: 'laptop', keywords: 'download install app desktop mac windows linux electron', run: () => openGetApp() }] : []),
           { group: a, label: 'Machines', icon: 'server', keywords: 'remote ssh server computer devbox cloud vm', run: () => openMachines() },
           { group: a, label: 'Add a machine…', icon: 'server', keywords: 'remote ssh server computer connect', run: () => openMachines({ focusAdd: true }) },
         ]),

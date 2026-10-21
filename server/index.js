@@ -178,9 +178,17 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.mover = createMove(app);
   app.cloud = createCloud(app);
   // Signing in to a harness from the page; once in, its models are looked up again.
+  const loginStates = new Map();
   app.agentLogin = createAgentLogin({
-    onChange: (v) => app.broadcast('agent-login', v),
-    onDone: () => app.auto.detect({ fresh: true }).then(() => app.broadcast('agents', {}), () => {}),
+    onChange: (v) => {
+      app.broadcast('agent-login', v);
+      if (loginStates.get(v.agent) === v.state) return;
+      loginStates.set(v.agent, v.state);
+      const step = { running: 'started', done: 'done', failed: 'failed', cancelled: 'cancelled' }[v.state];
+      if (step) app.telemetry.track('agent_login', { agent: v.agent, step });
+    },
+    // Only that harness is looked up again: the rest (opencode's model list, …) would take seconds.
+    onDone: (id) => app.auto.detect({ fresh: id }).then(() => app.broadcast('agents', {}), () => {}),
   });
   app.launcher = createLaunch(app);
   app.sendFeedback = createFeedback(app);
@@ -273,5 +281,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, remote: app.remote, machines: app.machines, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, remote: app.remote, machines: app.machines, auto: app.auto, routes };
 }

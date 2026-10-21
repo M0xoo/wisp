@@ -51,6 +51,12 @@ wisp --mode plan "audit dependencies"
 - **Usage & phone**: Spend and success rate per project and model; questions and finished tasks on ntfy or Telegram.
 - **Zero runtime dependencies**: The server uses Node.js built-ins only and stores plain JSON state in `~/.wisp`.
 
+## wisp Cloud and wisp Grid
+
+- wisp Cloud (early preview, https://grid.trywisp.dev): your own wisp on a server. Sign in with GitHub; it runs in its own gVisor sandbox, sleeps when idle and wakes for you or a schedule. Use it from the browser, wisp on your computer (Settings → Cloud, or Machines → Or use a cloud computer) or the Android app (first screen).
+- Sign in to Claude Code, Codex and GitHub from Settings → Agents (a link and a code, no terminal); the model picker only offers signed-in agents.
+- wisp Grid is the same server, MIT, in the repo: `npx wisp-agents grid init --domain wisp.example.com`, then `wisp grid serve` (GitHub, Google or OpenID Connect sign-in; one container per person).
+
 ## Integrations & programmatic surfaces
 
 - **MCP server**: `wisp mcp` (stdio MCP server exposing `wisp_launch`, `wisp_wait`, `wisp_get`, `wisp_reply`, `wisp_list`, `wisp_stop`, `wisp_agents`).
@@ -75,6 +81,8 @@ wisp --mode plan "audit dependencies"
   - [Multi-agent coding: a lead delegating to other harnesses](https://trywisp.dev/guides/multi-agent-coding.html)
   - [Claude Code vs Codex, on your own repo](https://trywisp.dev/guides/claude-code-vs-codex.html)
   - [Run coding agents in the background](https://trywisp.dev/guides/run-coding-agents-in-the-background.html)
+  - [Use wisp Cloud: your own wisp on a server, from desktop, phone or browser](https://trywisp.dev/guides/use-wisp-cloud.html)
+  - [Run your own wisp Grid (self-hosted, a sandbox per person)](https://trywisp.dev/guides/self-host-wisp-grid.html)
   - [Spells: change wisp itself by asking](https://trywisp.dev/guides/customize-wisp-with-spells.html)
 - [Changelog](https://trywisp.dev/changelog.html)
 - [README](https://github.com/M0xoo/wisp/blob/main/README.md)

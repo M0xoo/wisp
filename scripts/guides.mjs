@@ -621,6 +621,209 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
     },
 
     {
+      slug: 'use-wisp-cloud',
+      title: 'Run Claude Code and Codex on a server while your laptop sleeps',
+      h1: 'Use wisp Cloud',
+      card: 'Your own wisp on a server: sign in with GitHub, close the laptop, read the report on your phone.',
+      description: 'Your own wisp on a server at grid.trywisp.dev: sign in with GitHub, connect Claude Code and Codex with a code, and agents keep working with your laptop closed.',
+      lede: 'To keep coding agents working when your laptop is closed, run them on a computer that stays on. <a href="https://grid.trywisp.dev">wisp Cloud</a> gives you one: your own wisp on a server, in a sandbox of its own, that you open from the browser, from wisp on your computer, or from your phone. It’s in early preview at <a href="https://grid.trywisp.dev">grid.trywisp.dev</a> (invite only while seats open up), and you can run the same thing on your own server.',
+      figure: `<figure class="doc-shot doc-diagram" aria-label="Your laptop, phone and browser open your own wisp on grid.trywisp.dev, in a sandbox of its own">
+  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
+    <rect x="20" y="20" width="200" height="66" rx="14" class="box"/>
+    <text x="120" y="50" text-anchor="middle" class="name">Laptop</text>
+    <text x="120" y="72" text-anchor="middle" class="sub">Settings → Cloud</text>
+    <rect x="20" y="117" width="200" height="66" rx="14" class="box"/>
+    <text x="120" y="147" text-anchor="middle" class="name">Phone</text>
+    <text x="120" y="169" text-anchor="middle" class="sub">wisp Cloud</text>
+    <rect x="20" y="214" width="200" height="66" rx="14" class="box"/>
+    <text x="120" y="244" text-anchor="middle" class="name">Browser</text>
+    <text x="120" y="266" text-anchor="middle" class="sub">grid.trywisp.dev</text>
+    <path d="M220 53 C 300 53, 330 150, 430 150 M220 150 H 430 M220 247 C 300 247, 330 150, 430 150" class="link"/>
+    <path d="M418 142 L432 150 L418 158" class="link"/>
+    <rect x="440" y="20" width="500" height="260" rx="22" class="zone"/>
+    <text x="690" y="52" text-anchor="middle" class="sub">grid.trywisp.dev · sign in with GitHub</text>
+    <rect x="540" y="82" width="300" height="164" rx="14" class="box"/>
+    <text x="690" y="116" text-anchor="middle" class="name">you.grid.trywisp.dev</text>
+    <text x="690" y="148" text-anchor="middle" class="sub">your own sandbox</text>
+    <text x="690" y="184" text-anchor="middle" class="mono">Claude Code · Codex · gh</text>
+    <text x="690" y="216" text-anchor="middle" class="sub">sleeps when idle</text>
+  </svg>
+  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
+    <rect x="10" y="10" width="100" height="62" rx="12" class="box"/>
+    <text x="60" y="47" text-anchor="middle" class="name">Laptop</text>
+    <rect x="120" y="10" width="100" height="62" rx="12" class="box"/>
+    <text x="170" y="47" text-anchor="middle" class="name">Phone</text>
+    <rect x="230" y="10" width="100" height="62" rx="12" class="box"/>
+    <text x="280" y="47" text-anchor="middle" class="name">Browser</text>
+    <path d="M60 72 C 60 120, 170 110, 170 150 M170 72 V 150 M280 72 C 280 120, 170 110, 170 150" class="link"/>
+    <path d="M162 138 L170 152 L178 138" class="link"/>
+    <rect x="20" y="160" width="300" height="296" rx="20" class="zone"/>
+    <text x="170" y="190" text-anchor="middle" class="sub">grid.trywisp.dev</text>
+    <rect x="50" y="216" width="240" height="210" rx="14" class="box"/>
+    <text x="170" y="254" text-anchor="middle" class="name">your wisp</text>
+    <text x="170" y="290" text-anchor="middle" class="sub">its own sandbox</text>
+    <text x="170" y="330" text-anchor="middle" class="mono">Claude Code · Codex</text>
+    <text x="170" y="360" text-anchor="middle" class="mono">gh</text>
+    <text x="170" y="398" text-anchor="middle" class="sub">sleeps when idle</text>
+  </svg>
+</figure>`,
+      body: `
+    <section>
+      <h2 id="signin">1. Sign in</h2>
+      <ol class="doc-steps">
+        <li>Open <a href="https://grid.trywisp.dev">grid.trywisp.dev</a> and press <b>Continue with GitHub</b>.</li>
+        <li>Your account page shows your cloud computer at <code>you.grid.trywisp.dev</code>. Press <b>Open wisp</b>: it starts in a few seconds, and you’re in the same wisp you know, in the browser.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="agents">2. Connect your agents</h2>
+      <p>Your cloud computer comes with Claude Code, Codex, opencode and <code>gh</code> installed. Sign them in with your own accounts: in your cloud wisp, Settings → <b>Agents</b> → <b>Sign in</b>.</p>
+      <ul class="doc-list">
+        <li><b>Claude Code:</b> open the sign-in page, sign in with your Claude account, and paste the code it shows back into wisp.</li>
+        <li><b>Codex:</b> open the page and type in the code wisp shows (it runs <code>codex login --device-auth</code> for you).</li>
+        <li><b>GitHub:</b> the same, with <code>gh auth login</code>. Afterwards <code>git</code> pushes with it and commits carry your GitHub name, so <b>Ship it</b> opens pull requests.</li>
+      </ul>
+      <p>The logins stay in your own folder on the server. The model picker only offers the agents you signed in to; opencode’s free models work with no account at all.</p>
+    </section>
+
+    <section>
+      <h2 id="desktop">3. Use it from your computer</h2>
+      <ol class="doc-steps">
+        <li>In wisp on your computer, open Settings → <b>Cloud</b> (or <b>Machines</b> → <i>Or use a cloud computer</i>). The address is filled in: press <b>Sign in</b>.</li>
+        <li>wisp shows a code and opens grid.trywisp.dev. Check the code and press <b>Allow</b>.</li>
+        <li>Your cloud computer joins <b>Run on</b> next to this computer and your SSH machines. Settings → Cloud also lists its agents with <b>Sign in</b> buttons, so you can sign them in from here.</li>
+      </ol>
+      <p>Watching it from your desktop doesn’t keep it awake. When it sleeps the card says <i>Asleep</i>, its tasks still show, and anything you send it wakes it.</p>
+    </section>
+
+    <section>
+      <h2 id="phone">4. Use it from your phone</h2>
+      <p>The wisp Android app starts with <b>wisp Cloud</b> on its first screen: press <b>Sign in</b>, allow the code in your browser, and your cloud computer opens in the app. No SSH and no tunnel to set up.</p>
+    </section>
+
+    <section>
+      <h2 id="private">What’s private</h2>
+      <ul class="doc-list">
+        <li><b>A sandbox per person.</b> Your wisp runs in its own gVisor container, with its own folder and network. Other people’s wisps can’t reach it, and neither can it reach theirs or the server itself.</li>
+        <li><b>Your logins stay yours.</b> Claude, ChatGPT and GitHub sign in inside your box. The grid never sees a password.</li>
+        <li><b>It sleeps when idle</b> and wakes for you, a task, or a schedule.</li>
+        <li><b>Delete your account</b> and your folder and its keys are gone.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Is wisp Cloud free?', 'Yes, during the early preview. You bring your own Claude, ChatGPT or GitHub accounts; model usage is billed by those providers.'],
+        ['Do I need wisp installed on my computer?', 'No. The browser is enough. wisp on your computer and the Android app can sign in to it too, with a code.'],
+        ['Can I run my own?', 'Yes: the grid is in the wisp repo (MIT). See Run your own wisp Grid.'],
+        ['What happens to a task when the cloud computer sleeps?', 'It only sleeps when no task is running and nobody is looking. Tasks, reports and logins are kept; it wakes in seconds.'],
+      ],
+      related: ['self-host-wisp-grid', 'run-coding-agents-in-the-background', 'run-coding-agents-on-multiple-machines'],
+    },
+
+    {
+      slug: 'self-host-wisp-grid',
+      title: 'Self-host coding agents for your team with wisp Grid',
+      h1: 'Run your own wisp Grid',
+      card: 'One small Linux server, a GitHub or Google sign-in, and every person gets their own sandboxed wisp.',
+      description: 'Run wisp Grid, the server behind wisp Cloud (MIT), on one small Linux server: each person signs in with GitHub or Google and gets their own sandboxed wisp.',
+      lede: 'wisp Grid is what runs <a href="https://grid.trywisp.dev">wisp Cloud</a>, and it’s in the wisp repo (MIT). Put it on one small Linux server and everyone you let in gets their own wisp at <code>name.wisp.example.com</code>: signed in with GitHub, Google or your company’s OpenID Connect, sandboxed from each other, asleep when idle. grid.trywisp.dev runs on a Hetzner CAX21 (4 Arm vCPUs, 8 GB) for about €12 a month, which is enough for 4 people with agents running at once.',
+      figure: `<figure class="doc-shot doc-diagram" aria-label="People sign in at your grid, and each gets their own sandboxed wisp on one server">
+  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
+    <rect x="20" y="60" width="200" height="74" rx="14" class="box"/>
+    <text x="120" y="93" text-anchor="middle" class="name">You</text>
+    <text x="120" y="117" text-anchor="middle" class="sub">GitHub · Google · SSO</text>
+    <rect x="20" y="166" width="200" height="74" rx="14" class="box"/>
+    <text x="120" y="199" text-anchor="middle" class="name">Your team</text>
+    <text x="120" y="223" text-anchor="middle" class="sub">desktop · phone · browser</text>
+    <path d="M220 97 C 290 97, 300 150, 350 150 M220 203 C 290 203, 300 150, 350 150" class="link"/>
+    <path d="M338 142 L352 150 L338 158" class="link"/>
+    <rect x="360" y="20" width="580" height="260" rx="22" class="zone"/>
+    <text x="650" y="52" text-anchor="middle" class="sub">one Linux server · wisp grid serve</text>
+    <rect x="390" y="80" width="160" height="170" rx="14" class="box"/>
+    <text x="470" y="112" text-anchor="middle" class="name">ada</text>
+    <text x="470" y="140" text-anchor="middle" class="sub">sandbox</text>
+    <text x="470" y="178" text-anchor="middle" class="mono">her logins</text>
+    <rect x="570" y="80" width="160" height="170" rx="14" class="box"/>
+    <text x="650" y="112" text-anchor="middle" class="name">bob</text>
+    <text x="650" y="140" text-anchor="middle" class="sub">sandbox</text>
+    <text x="650" y="178" text-anchor="middle" class="mono">his logins</text>
+    <rect x="750" y="80" width="160" height="170" rx="14" class="box"/>
+    <text x="830" y="112" text-anchor="middle" class="name">cy</text>
+    <text x="830" y="140" text-anchor="middle" class="sub">asleep</text>
+    <text x="830" y="178" text-anchor="middle" class="mono">wakes on use</text>
+  </svg>
+  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
+    <rect x="10" y="10" width="150" height="70" rx="14" class="box"/>
+    <text x="85" y="42" text-anchor="middle" class="name">You</text>
+    <text x="85" y="64" text-anchor="middle" class="sub">GitHub · Google</text>
+    <rect x="180" y="10" width="150" height="70" rx="14" class="box"/>
+    <text x="255" y="42" text-anchor="middle" class="name">Your team</text>
+    <text x="255" y="64" text-anchor="middle" class="sub">any device</text>
+    <path d="M85 80 C 85 120, 170 110, 170 140 M255 80 C 255 120, 170 110, 170 140" class="link"/>
+    <path d="M162 128 L170 142 L178 128" class="link"/>
+    <rect x="20" y="150" width="300" height="306" rx="20" class="zone"/>
+    <text x="170" y="180" text-anchor="middle" class="sub">one Linux server</text>
+    <rect x="45" y="200" width="250" height="64" rx="12" class="box"/>
+    <text x="170" y="238" text-anchor="middle" class="name">ada · sandbox</text>
+    <rect x="45" y="280" width="250" height="64" rx="12" class="box"/>
+    <text x="170" y="318" text-anchor="middle" class="name">bob · sandbox</text>
+    <rect x="45" y="360" width="250" height="64" rx="12" class="box"/>
+    <text x="170" y="398" text-anchor="middle" class="name">cy · asleep</text>
+  </svg>
+</figure>`,
+      body: `
+    <section>
+      <h2 id="try">Try it on your computer first</h2>
+      ${sh('npx wisp-agents grid dev --fake-agents')}
+      <p>Open <code>http://wisp.localhost:8080</code> and sign in with any email (dev sign-in). <code>--fake-agents</code> runs tasks with wisp’s test agents, so nothing needs an account.</p>
+    </section>
+
+    <section>
+      <h2 id="install">1. Install it on a server</h2>
+      <p>Debian 13 or Ubuntu 24.04, with ports 80 and 443 open. Copy the wisp repo there and run, as root:</p>
+      ${sh('DOMAIN=wisp.example.com ./grid/deploy/install.sh')}
+      <p>It installs Node.js 22, Docker with gVisor, Caddy and some swap, builds the image each person’s wisp runs in (git, <code>gh</code>, Claude Code, Codex, opencode), and sets up the firewall and the service. Then:</p>
+      ${sh('sudo -u wisp node bin/wisp.js grid init --domain wisp.example.com --data /var/lib/wisp-grid')}
+    </section>
+
+    <section>
+      <h2 id="dns">2. Point DNS at it</h2>
+      <p>Two <code>A</code> records to the server’s address: <code>wisp</code> and <code>*.wisp</code> (for <code>wisp.example.com</code>). Caddy gets a certificate for each name the first time it’s asked for, after checking with the grid that the name belongs to someone.</p>
+    </section>
+
+    <section>
+      <h2 id="signin">3. Set up sign-in</h2>
+      <ol class="doc-steps">
+        <li><b>GitHub:</b> github.com → Settings → Developer settings → OAuth Apps → New. Callback URL: <code>https://wisp.example.com/auth/github/callback</code>.</li>
+        <li><b>Google:</b> Google Cloud → APIs &amp; Services → Credentials → OAuth client ID (Web). Redirect URI: <code>https://wisp.example.com/auth/google/callback</code>.</li>
+        <li>Put each client id in <code>/var/lib/wisp-grid/grid.json</code> and each secret in its own file under <code>secrets/</code> (<code>chmod 600</code>).</li>
+        <li>Decide who gets in: <code>"allow": { "accounts": ["github:you"], "domains": ["example.com"], "githubOrgs": ["your-org"] }</code>.</li>
+        <li>Turn on the sandbox: <code>"hostd": { "driver": "container" }</code>.</li>
+      </ol>
+      ${sh('sudo -u wisp node bin/wisp.js grid doctor --data /var/lib/wisp-grid\nsudo systemctl enable --now wisp-grid')}
+    </section>
+
+    <section>
+      <h2 id="isolation">How people are kept apart</h2>
+      <ul class="doc-list">
+        <li>Each person’s wisp runs in its own Docker container with gVisor, a user-space kernel between the agents and the host’s, with no capabilities and limits on memory, CPU and processes.</li>
+        <li>Only its own home folder persists. The firewall blocks traffic between containers, to the host, to the cloud metadata service and to mail servers.</li>
+        <li>Sign-in uses PKCE, state and checked ID tokens; each person’s cookie only works on their own address; devices sign in with a code and can be removed from the account page.</li>
+        <li>Secrets the grid keeps are encrypted per person under a master key you can rotate (<code>wisp grid rotate-key</code>). Agents’ logins never leave the person’s own folder.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['How big a server do I need?', 'About 2 GB of memory per person with an agent running. A 4-core, 8 GB machine with swap handles 4 people at once.'],
+        ['Does it need KVM or bare metal?', 'No. gVisor runs on ordinary cloud VMs, Arm or x86.'],
+        ['Can people use the desktop and phone apps with my grid?', 'Yes. In Settings → Cloud, or on the phone app’s first screen, they type your grid’s address instead of grid.trywisp.dev.'],
+        ['Where is the full reference?', 'grid/README.md in the wisp repo: commands, configuration, secrets and isolation.'],
+      ],
+      related: ['use-wisp-cloud', 'run-coding-agents-on-multiple-machines', 'connect-machines-with-tailscale'],
+    },
+
+    {
       slug: 'customize-wisp-with-spells',
       title: 'Add buttons, panels and blocks to wisp by asking — spells',
       h1: 'Change wisp itself, by asking: spells',

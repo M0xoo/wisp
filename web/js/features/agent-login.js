@@ -11,11 +11,12 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, icon } from '../core/dom.js';
+import { S, setAgents } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { copy } from '../blocks.js';
 
-export const CAN = new Set(['claude', 'codex', 'cursor', 'grok', 'gh']);
-const NAMES = { claude: 'Claude', codex: 'ChatGPT', gh: 'GitHub' };
+export const CAN = new Set(['claude', 'codex', 'cursor', 'grok', 'antigravity', 'gh']);
+const NAMES = { claude: 'Claude', codex: 'ChatGPT', grok: 'xAI', antigravity: 'Google', gh: 'GitHub' };
 const scopes = new Map(); // place -> { logins: Map(harness -> state), drafts: Map(harness -> pasted code) }
 const of = (scope) => {
   if (!scopes.has(scope)) scopes.set(scope, { logins: new Map(), drafts: new Map() });
@@ -52,6 +53,23 @@ export function loginPanel(id, scope = '') {
     </div>`;
 }
 
+// Signed in (or out): the harness lists say so at once, here or for that machine, without waiting
+// for the server to look them up again (seconds on a busy cloud computer). The 'agents' event
+// brings the checked list right after.
+function markSignedIn(scope, id, on) {
+  const list = scope ? S.machines.find((m) => m.id === scope)?.remote?.agents : S.agents;
+  const a = list?.find((x) => x.id === id);
+  if (!a || (on ? a.available : a.signedIn === false)) return;
+  if (on) {
+    a.available = true;
+    delete a.signedIn;
+    delete a.error;
+  } else Object.assign(a, { available: false, signedIn: false });
+  if (!scope) setAgents([...S.agents]);
+  $('#launcher')?.placesChanged?.();
+  bus.emit('agents');
+}
+
 // Whether a code is being pasted in this box: a repaint of the whole list would wipe it.
 export const typingLogin = (box) => !!document.activeElement?.closest?.('[data-login-form]') && box.contains(document.activeElement);
 
@@ -70,6 +88,8 @@ export function wireLogins(box, places) {
     logins.set(id, { ...was, ...v, ...(v.state === 'done' && { signedIn: true }) });
     if (v.state === 'done' && was.state !== 'done') toast(`Signed in to <b>${esc(NAMES[id] || id)}</b>`);
     repaint(scope, id);
+    if (v.state === 'done' && was.state !== 'done') markSignedIn(scope, id, true);
+    bus.emit('agent-login-state', { scope, id, ...logins.get(id) });
   };
   // A machine's sign-in: ask how it's going until it's over.
   const polls = new Map();
@@ -119,6 +139,7 @@ export function wireLogins(box, places) {
         await api(path(scope, id, 'logout'), { method: 'POST', body: {} });
         of(scope).logins.set(id, { state: 'idle', signedIn: false });
         repaint(scope, id);
+        markSignedIn(scope, id, false);
         toast('Signed out');
       }
     } catch (err) {

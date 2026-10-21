@@ -59,8 +59,38 @@ function frames(stack = '') {
     .reverse(); // PostHog wants the innermost frame last
 }
 
+// PostHog's batch endpoint; true once it has them. Also used by wisp Grid (grid/telemetry.js).
+export const posthogKey = () => KEY;
+export async function postBatch(batch) {
+  if (!KEY) return false;
+  try {
+    const res = await fetch(`${HOST}/batch/`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ api_key: KEY, batch }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Events the page may send (POST /api/telemetry/event), each with the only props it may carry and
+// their allowed values. Anything else is dropped: the page can't send free text.
+export const PAGE_EVENTS = {
+  getapp_opened: { from: ['button', 'search'] },
+  getapp_clicked: {},
+  getapp_hidden: {},
+};
+export function pageEvent(event, props = {}) {
+  const allowed = Object.hasOwn(PAGE_EVENTS, event) && PAGE_EVENTS[event];
+  if (!allowed) return null;
+  return Object.fromEntries(Object.entries(allowed).filter(([k, values]) => values.includes(props[k])).map(([k]) => [k, props[k]]));
+}
+
 export class Telemetry {
-  constructor(store, { shell = process.versions.electron ? 'electron' : 'browser', post } = {}) {
+  constructor(store, { shell = process.versions.electron ? 'electron' : process.env.WISP_GRID_URL ? 'grid' : 'browser', post } = {}) {
     this.store = store;
     this.queue = [];
     this.pendingFile = path.join(store.home, 'telemetry-pending.json');
@@ -132,18 +162,8 @@ export class Telemetry {
     }
   }
 
-  async post(batch) {
-    try {
-      const res = await fetch(`${HOST}/batch/`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ api_key: KEY, batch }),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+  post(batch) {
+    return postBatch(batch);
   }
 
   async flush() {

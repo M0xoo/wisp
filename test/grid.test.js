@@ -220,6 +220,9 @@ test('dev sign-in, then /go opens the user’s own wisp at <handle>.<domain>, st
   }, { what: 'its wisp' });
   assert.equal(health.name, 'wisp');
   assert.equal(health.url, origin, 'the wisp reports its public address (trusted-proxy mode)');
+  // It knows it's a cloud computer on this grid: the page offers the grid, not SSH, to reach it.
+  const conf = await b.go(`${origin}/api/config`, { headers: { accept: 'application/json' } });
+  assert.deepEqual(conf.json.grid, { url: cfg.publicUrl, address: origin });
   const page = await b.go(`${origin}/`);
   assert.match(page.text, /<!doctype html>/i);
   assert.equal(grid.hostd.state(grid.accounts.byHandle('ada').id), 'running');
@@ -393,6 +396,30 @@ test('an allow list keeps others out', async () => {
   }
 });
 
+test('maxUsers: the first accounts get in, then the grid is full; existing users still sign in', async () => {
+  const dataDir = tmp('grid-full');
+  ensureMaster(dataDir);
+  assert.throws(() => loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', auth: { dev: true, maxUsers: 0 } } }), /maxUsers/);
+  const port = await freePort();
+  const c2 = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port }, auth: { dev: true, maxUsers: 2 }, hostd: { path: fakeBin } } });
+  const g2 = await startGrid(c2, { log: () => {} });
+  try {
+    const signIn = async (email) => {
+      const b = browser();
+      const start = await b.go(`${c2.publicUrl}/auth/dev/start`);
+      return b.go(`${c2.publicUrl}/auth/dev/callback`, { method: 'POST', form: { csrf: csrfOf(start.text), email, return: '/' }, headers: { origin: c2.publicUrl } });
+    };
+    assert.equal((await signIn('a@x.test')).status, 302);
+    assert.equal((await signIn('b@x.test')).status, 302);
+    const full = await signIn('c@x.test');
+    assert.equal(full.status, 403);
+    assert.match(full.text, /full/);
+    assert.equal((await signIn('a@x.test')).status, 302);
+  } finally {
+    await g2.close();
+  }
+});
+
 test('Caddy’s on-demand TLS check: the grid and existing users only', async () => {
   const ask = async (d) => (await browser().go(`http://127.0.0.1:${cfg.listen.port}/_grid/tls-ask?domain=${d}`, { headers: { host: `127.0.0.1:${cfg.listen.port}` } })).status;
   assert.equal(await ask('wisp.localhost'), 200);
@@ -518,4 +545,39 @@ test('the container driver: one locked-down container per user, reachable only f
   assert.match(s, /--memory 1536m .*--pids-limit 512/);
   assert.match(s, /-v \/data\/users\/1\/home:\/home\/wisp /, 'only its own home');
   assert.doesNotMatch(s, /-v \/data\/users\/1:|docker\.sock|--privileged/);
+});
+
+test('grid usage stats: off unless grid.json turns them on; fixed values, users as hashes', async () => {
+  const { createGridTelemetry } = await import('../grid/telemetry.js');
+  const sent = [];
+  const post = async (b) => (sent.push(...b), true);
+  const off = createGridTelemetry({ domain: 'wisp.example.com' }, { post, env: {} });
+  off.audit('u1', 'signup', { provider: 'github' });
+  off.close();
+  assert.equal(sent.length, 0, 'a self-hosted grid sends nothing by default');
+  assert.equal(createGridTelemetry({ telemetry: true }, { post, env: { WISP_TELEMETRY: '0' } }).on, false);
+
+  let t = 1_000_000;
+  const s = createGridTelemetry({ telemetry: true, domain: 'grid.trywisp.dev', hostd: { driver: 'container' } }, { post, env: {}, now: () => t });
+  s.audit('u1', 'signup', { provider: 'github', email: 'ada@example.com' });
+  s.audit(null, 'signup.refused', { provider: 'google', reason: 'full' });
+  s.audit('u1', 'signout.all');
+  s.box({ user: { id: 'u1' }, state: 'starting', event: 'starting' });
+  t += 2500;
+  s.box({ user: { id: 'u1' }, state: 'running', event: 'started', startedAt: t });
+  t += 12 * 60_000;
+  s.box({ user: { id: 'u1' }, state: 'stopped', event: 'idle', startedAt: t - 12 * 60_000, stoppedAt: t });
+  s.close();
+  assert.deepEqual(sent.map((e) => e.event), ['grid_signup', 'grid_signup_refused', 'grid_box_started', 'grid_box_stopped']);
+  const [signup, refused, started, stopped] = sent;
+  assert.equal(signup.properties.provider, 'github');
+  assert.equal(signup.properties.email, undefined);
+  assert.equal(signup.properties.hosted, true);
+  assert.match(signup.properties.distinct_id, /^grid-[0-9a-f]{24}$/);
+  assert.ok(!signup.properties.distinct_id.includes('u1'));
+  assert.equal(signup.properties.$process_person_profile, false);
+  assert.deepEqual([refused.properties.reason, refused.properties.distinct_id], ['full', 'grid-anonymous']);
+  assert.equal(started.properties.ms, 2500);
+  assert.deepEqual([stopped.properties.reason, stopped.properties.minutes], ['idle', 12]);
+  assert.throws(() => loadConfig({ dataDir: tmp('grid-tel'), env: {}, overrides: { domain: 'wisp.localhost', auth: { dev: true }, telemetry: 'yes' } }), /telemetry/);
 });

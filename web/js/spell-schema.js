@@ -40,6 +40,9 @@ export const PARTS = {
   'topbar.brand': '#topbar .brand',
   'topbar.projects': '#projects',
   'topbar.machines': '#machinesBtn',
+  // In a browser tab only: the invite to the desktop app, and its card.
+  'topbar.getapp': '#getAppBtn',
+  'getapp.card': '.getapp',
   'topbar.automations': '#autoBtn',
   'topbar.search': '#searchBtn',
   'topbar.settings': '#settingsBtn',
@@ -105,10 +108,13 @@ export const PARTS = {
   // Machines: the three-step explainer, and the password box when a machine won't let this one in.
   'machines.howto': '.mc-howto',
   'machines.letin': '.mc-letin',
+  'machines.cloud': '.mc-cloud',
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.cloud': '.sx-cloud',
   'settings.cloud.computer': '.cl-card',
   'settings.cloud.signin': '.cl-signin',
+  // Settings → Connect, on a cloud computer: how to open it through its grid.
+  'settings.connect': '.sx-connect',
   // Settings → Agents: signing in to a harness (its link, code and paste box).
   'settings.agent.signin': '.sx-login',
 };

@@ -2,11 +2,12 @@
 // (memory, automations, usage history) keep their own views; a pane only summarises and links.
 
 import { esc } from '../md.js';
+import { copy } from '../blocks.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { money, pct } from '../core/format.js';
-import { COMPUTER, MOBILE, S, setAgents } from '../core/state.js';
+import { COMPUTER, MOBILE, S, inGrid, setAgents } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { openRouter } from './auto.js';
@@ -14,7 +15,7 @@ import { openAutomations } from './automations.js';
 import { renderLauncher } from './launcher.js';
 import { loadConfig } from './live.js';
 import { openComputers, openMachines } from './machines.js';
-import { cloudPane } from './cloud.js';
+import { cloudPane, connectHtml } from './cloud.js';
 import { loginControl, loginPanel, wireLogins } from './agent-login.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { notifyOn, notifyPermission, requestNotify } from './notify.js';
@@ -31,16 +32,19 @@ import { setView, viewPref } from './split.js';
 
 // A sidebar of sections and one pane at a time, like every other app's settings. Big lists
 // (memory, automations, usage history) keep their own views; a pane only summarises and links.
-const SETTINGS_PANES = [
+// On a wisp Grid, Machines becomes Connect (the grid, not SSH) and Cloud goes: wisp is in the cloud.
+const settingsPanes = (grid = inGrid()) => [
   { id: 'general', label: 'General', icon: 'settings', lede: 'Where files open, where you take over, and how tasks start.' },
   { id: 'notifications', label: 'Notifications', icon: 'bolt', lede: 'Hear about questions and finished tasks, here or on your phone.' },
   { id: 'agents', label: 'Agents', icon: 'agent', lede: 'The harnesses wisp found on this machine. Pick one next to the model in the launcher.' },
   { id: 'auto', label: 'Auto', icon: 'spark', lede: 'wisp picks the harness and model for each task, and learns from how it went.' },
   MOBILE
     ? { id: 'machines', label: 'Computers', icon: 'server', lede: 'The computers this phone opens wisp on.' }
-    : { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
+    : grid
+      ? { id: 'machines', label: 'Connect', icon: 'cloud', lede: 'Open this cloud computer from your desktop, your phone or any browser. It goes through the grid: no SSH.' }
+      : { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
   // The phone app adds cloud computers on its own list instead.
-  ...(MOBILE ? [] : [{ id: 'cloud', label: 'Cloud', icon: 'cloud', lede: 'Your wisp on a server: it keeps working while this computer sleeps.' }]),
+  ...(MOBILE || grid ? [] : [{ id: 'cloud', label: 'Cloud', icon: 'cloud', lede: 'Your wisp on a server: it keeps working while this computer sleeps.' }]),
   { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
@@ -66,7 +70,10 @@ function recheckSummary(before, after) {
 }
 
 export function openSettings(opts) {
+  const SETTINGS_PANES = settingsPanes();
+  const grid = S.config.grid;
   if (SETTINGS_PANES.some((p) => p.id === opts?.pane)) settingsPane = opts.pane;
+  if (!SETTINGS_PANES.some((p) => p.id === settingsPane)) settingsPane = 'general';
   const d = S.config.defaults;
   // A row: name and a line of explanation on the left, the control on the right.
   const row = (name, desc, control, cls = '') => `<div class="sx-row ${cls}"><div class="sx-text"><b>${name}</b>${desc ? `<small>${desc}</small>` : ''}</div><div class="sx-ctl">${control}</div></div>`;
@@ -140,7 +147,9 @@ export function openSettings(opts) {
           ${
             MOBILE
               ? `<div class="sx-group">${row('Computers', `You’re on ${esc(COMPUTER || 'this computer')}. Switch to another computer, or add one, from the app’s list.`, '<button class="ghost sm" id="openComputers">Your computers</button>')}</div>`
-              : `          <div class="sx-group">
+              : grid
+                ? connectHtml(grid, row)
+                : `          <div class="sx-group">
             ${row('Machines', '<span class="machines-hint"></span>', '<button class="ghost sm" id="openMachines">Manage</button>')}
           </div>
           <p class="hint">Also in the top bar. Every project runs on every machine: pick one under Run on and wisp clones the project there the first time. A follow-up or a rerun can move a task to another one.</p>
@@ -261,7 +270,7 @@ export function openSettings(opts) {
     $('.sx-lede', node).textContent = p.lede;
     $('.sx-main', node).scrollTop = 0;
     // Checked when the pane opens: it knocks on the SSH port and asks tailscale.
-    if (id === 'machines' && !reachChecked && !MOBILE) {
+    if (id === 'machines' && !reachChecked && !MOBILE && !grid) {
       reachChecked = true;
       paintReachable(reachableBox(node));
     }
@@ -533,11 +542,17 @@ export function openSettings(opts) {
       openComputers();
     };
   } else {
-    $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
-    cloudPane($('.sx-cloud', node));
-    $('#reachRecheck', node).onclick = () => {
-      paintReachable(reachableBox(node));
-    };
+    if (grid) {
+      $('#copyAddress', node).onclick = (e) => {
+        copy(grid.address, e.currentTarget);
+      };
+    } else {
+      $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
+      cloudPane($('.sx-cloud', node));
+      $('#reachRecheck', node).onclick = () => {
+        paintReachable(reachableBox(node));
+      };
+    }
   }
 }
 

@@ -21,7 +21,7 @@ for (const name of ['claude', 'codex', 'gh']) {
 }
 Object.assign(process.env, { HOME: home, WISP_HOME: tmp('login-wisp'), WISP_CLAUDE_BIN: path.join(bins, 'claude'), WISP_CODEX_BIN: path.join(bins, 'codex'), WISP_GH_BIN: path.join(bins, 'gh'), WISP_UPDATE_CHECK: '0', WISP_TELEMETRY: '0' });
 
-const { parse, clean } = await import('../server/agent-login.js');
+const { parse, clean, LOGINS } = await import('../server/agent-login.js');
 const { startServer } = await import('../server/index.js');
 
 let srv;
@@ -62,6 +62,17 @@ test('what the real CLIs print becomes a link, a code, and "waiting for a code"'
   const claude = `If the browser didn't open, visit: \x1b]8;;${url}\x07${url}\x1b]8;;\x07\nPaste code here if prompted > `;
   assert.deepEqual(parse(claude), { url, code: '', needsInput: true });
   assert.equal(clean('\x1b[1mbold\x1b[0m\r\n'), 'bold\n');
+});
+
+test('Grok and Antigravity: their sign-in output and whether they are signed in', () => {
+  const grok = 'To sign in, open this URL in your browser:\n\n  https://accounts.x.ai/oauth2/device?user_code=QWBN-4425\n\nConfirm this code in your browser:\n\n  QWBN-4425';
+  assert.deepEqual(parse(grok), { url: 'https://accounts.x.ai/oauth2/device?user_code=QWBN-4425', code: 'QWBN-4425', needsInput: false });
+  assert.equal(LOGINS.grok.signedIn('You are not authenticated.\n\nDefault model: grok-4.6'), false);
+  assert.equal(LOGINS.grok.signedIn('You are logged in with grok.com.\n\nDefault model: grok-4.7'), true);
+  const agy = 'Authentication required. Please visit the URL to log in:\n  https://accounts.google.com/o/oauth2/auth?client_id=1&state=x\n\nWaiting for authentication (timeout 60s)...\nOr, paste the authorization code here and press Enter:';
+  assert.deepEqual(parse(agy), { url: 'https://accounts.google.com/o/oauth2/auth?client_id=1&state=x', code: '', needsInput: true });
+  assert.equal(LOGINS.antigravity.signedIn('Fetching available models...\nError: Please sign in to view available models.', 1), false);
+  assert.equal(LOGINS.antigravity.signedIn('Fetching available models...\ngemini-4-argon-medium\tGemini 4 Argon (Medium)', 0), true);
 });
 
 const agent = async (id, fresh = false) => (await api(`/agents${fresh ? '?fresh=1' : ''}`)).json.find((a) => a.id === id);
@@ -145,4 +156,18 @@ test('a harness wisp can’t sign in to says how', async () => {
   const r = await api('/agents/opencode/login', 'POST');
   assert.equal(r.status, 400);
   assert.match(r.json.error, /terminal/);
+});
+
+test('detecting again: ?fresh=<id> redoes only that harness; an older detection never overwrites a newer one', async () => {
+  const { listAgents } = await import('../server/adapters/index.js');
+  const before = await listAgents();
+  // A string that isn't a harness (gh) redoes nothing; a harness id redoes just that one.
+  assert.deepEqual((await listAgents({ fresh: 'gh' })).map((a) => a.id), before.map((a) => a.id));
+  const one = await listAgents({ fresh: 'codex' });
+  assert.equal(one.find((a) => a.id === 'codex').available, before.find((a) => a.id === 'codex').available);
+  assert.equal((await api('/agents?fresh=claude')).status, 200);
+  // Two detections at once: the one started last decides what /agents says afterwards.
+  const [a, b] = await Promise.all([srv.auto.detect(), srv.auto.detect({ fresh: 'claude' })]);
+  assert.ok(Array.isArray(a) && Array.isArray(b));
+  assert.deepEqual(await srv.auto.agents(), b);
 });

@@ -143,6 +143,9 @@
 .sx-reach .sx-text small { white-space: normal; }
 .sx-reach .sx-text a { color: var(--accent-ink); }
 .sx-reach .sx-ctl:empty { display: none; }
+.sx-connect .sx-text small { white-space: normal; }
+.sx-connect .sx-text a { color: var(--accent-ink); }
+.sx-connect .sx-ctl:empty { display: none; }
 /* a view (Memory, Automations, Usage, Phone) opened inside Settings: no dialog chrome of its own */
 .modal.embedded { width: auto; max-height: none; overflow: visible; padding: 0; border: 0; border-radius: 0; box-shadow: none; background: none; transform: none; }
 .modal.embedded header { justify-content: flex-start; gap: 10px; }

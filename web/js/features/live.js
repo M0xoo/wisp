@@ -4,12 +4,12 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $ } from '../core/dom.js';
-import { COMPUTER, MOBILE, S, saveOpen, setAgents } from '../core/state.js';
+import { COMPUTER, MOBILE, S, nameHere, saveOpen, setAgents } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { paintAutoBtn } from './automations.js';
 import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
-import { loadMachines, openComputers, setMachines } from './machines.js';
+import { loadMachines, openComputers, paintMachinesBtn, setMachines } from './machines.js';
 import { notifyFinished } from './notify.js';
 import { renderProjects } from './projects.js';
 import { feedAnchor, keepInPlace, watching } from './scroll.js';
@@ -126,6 +126,8 @@ export async function loadConfig() {
 }
 export function setConfig(config) {
   S.config = config;
+  nameHere();
+  paintMachinesBtn();
   applySpells();
   applyView();
   renderProjects();

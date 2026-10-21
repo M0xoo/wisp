@@ -55,6 +55,21 @@
     .wait input:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 4px var(--accent-soft); }
     .wait button { height: 50px; padding: 0 20px; border: 0; border-radius: 11px; background: var(--ink); color: var(--bg); font: 500 15px var(--sans); cursor: pointer; }
     .wait-note { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+    .go { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 30px; max-width: 440px; }
+    .go a { height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0 20px; border-radius: 11px; font: 500 15px var(--sans); text-decoration: none; }
+    .go a svg { width: 18px; height: 18px; }
+    .go .go-gh { flex: 1; background: var(--ink); color: var(--bg); }
+    .go .go-open { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-family: var(--mono); font-size: 14px; }
+    .go + .wait-note { margin-top: 22px; }
+    .go + .wait-note + .wait { margin-top: 8px; }
+    .soon { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line-2); font: 11px var(--mono); color: var(--muted); letter-spacing: 0; text-transform: none; vertical-align: 1px; }
+    .soon.live { border-color: color-mix(in srgb, #18794e 40%, var(--line-2)); color: #18794e; }
+    .today { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
+    .today div { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+    .today div > b { display: block; font-size: 15px; letter-spacing: -0.01em; }
+    .today p { margin-top: 6px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+    @media (max-width: 860px) { .today { grid-template-columns: 1fr; } }
+    @media (max-width: 560px) { .go a { flex: 1 1 100%; } }
     .wait-note a { color: var(--accent); }
     .free-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 26px; font-size: 14px; color: var(--muted); }
     .free-line .cmd.sm { height: 36px; padding-left: 12px; }
@@ -300,7 +315,7 @@
         <a href="#pricing">Free vs Cloud</a>
         <a href="#faq">FAQ</a>
       </nav>
-      <a class="nav-cta" href="#join" data-join>Join the waitlist</a>
+      <a class="nav-cta" href="https://grid.trywisp.dev">Sign in</a>
       <a class="gh" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         <span>GitHub</span>
@@ -313,15 +328,20 @@
     <section class="c-hero">
       <div class="wrap c-grid">
         <div>
-          <p class="kicker"><span class="dot"></span>wisp Cloud · early preview</p>
+          <p class="kicker"><span class="dot"></span>wisp Cloud · early preview · open now</p>
           <h1>Close the laptop. <span class="soft">The agents keep going.</span></h1>
-          <p class="lede">wisp Cloud runs your agents on managed machines, keeps every queue alive overnight, follows you from laptop to phone with one sign-in, and gives your team one dashboard for what shipped. The wisp you run locally doesn't change and stays free.</p>
+          <p class="lede">Your own wisp, on a server. Sign in with GitHub, give it a task, close the laptop: Claude Code, Codex and the rest keep working, and the report waits on your phone. Same app from the browser, your desktop or the phone. The wisp you run locally doesn't change and stays free.</p>
+          <div class="go">
+            <a class="go-gh" href="https://grid.trywisp.dev/auth/github/start"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Continue with GitHub</a>
+            <a class="go-open" href="https://grid.trywisp.dev">grid.trywisp.dev</a>
+          </div>
+          <p class="wait-note">Invite only while seats open up. Not invited yet? Leave your email and we'll write when one is free.</p>
           <form class="wait" id="join" novalidate>
             <label class="sr" for="email">Work email</label>
             <input id="email" type="email" placeholder="you@company.com" autocomplete="email" required />
             <button type="submit">Join the waitlist</button>
           </form>
-          <p class="wait-note" id="waitNote" aria-live="polite">No card. We'll write once, when your team's seats are ready.</p>
+          <p class="wait-note" id="waitNote" aria-live="polite"></p>
           <div class="free-line">
             <span>Just want wisp?</span>
             <button class="cmd sm" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
@@ -363,9 +383,26 @@
     </section>
 
     <!-- ───────── managed machines ───────── -->
+    <!-- ───────── what works today ───────── -->
+    <section class="sec wrap" id="today">
+      <div class="sec-head">
+        <p class="eyebrow">In the preview today</p>
+        <h2>Your own wisp on a server. Today.</h2>
+        <p>What works right now at grid.trywisp.dev. The sections after it are where Cloud is going.</p>
+      </div>
+      <div class="today">
+        <div><b>Its own sandbox</b><p>Your wisp runs in a gVisor container of its own, with its own folder and network, firewalled from the host and from everyone else.</p></div>
+        <div><b>Sign in with GitHub</b><p>You get your wisp at <code>you.grid.trywisp.dev</code>, and an account page with your devices and how you sign in.</p></div>
+        <div><b>From your desktop and phone</b><p>Settings → Cloud, or Machines → <i>Or use a cloud computer</i>, and it joins <b>Run on</b>. On the phone, wisp Cloud is the first thing on the first screen.</p></div>
+        <div><b>Your agents, your accounts</b><p>Every agent is already installed: Claude Code, Codex, Cursor, Grok, Antigravity, opencode. Sign in from the model picker or Settings → Agents with a link and a code, GitHub too. The logins stay in your box, and the picker only offers what you signed in to.</p></div>
+        <div><b>Sleeps, then wakes</b><p>Nothing running and nobody looking: it stops. It wakes in seconds when you open it, send it a task, or a schedule is due.</p></div>
+        <div><b>Or run your own</b><p>The grid is in the wisp repo (MIT). One small Linux server runs it for a team: <code>npx wisp-agents grid init</code>. <a href="guides/self-host-wisp-grid.html">How →</a></p></div>
+      </div>
+    </section>
+
     <section class="sec wrap" id="machines">
       <div class="sec-head">
-        <p class="eyebrow">01 · Managed machines</p>
+        <p class="eyebrow">01 · Managed machines <span class="soon">coming</span></p>
         <h2>Machines, without the SSH.</h2>
         <p>wisp already runs agents on your own boxes over SSH. Cloud machines show up in the same <b>Run on</b> menu, except we boot them, keep the harness CLIs current and take them down when the queue is empty. Every task still gets its own worktree, diffs, rollback and Ship it.</p>
       </div>
@@ -424,7 +461,7 @@
     <!-- ───────── team dashboard ───────── -->
     <section class="sec wrap" id="team">
       <div class="sec-head">
-        <p class="eyebrow">03 · Team dashboards</p>
+        <p class="eyebrow">03 · Team dashboards <span class="soon">coming</span></p>
         <h2>One view of what every agent shipped.</h2>
         <p>See tasks, merged PRs, success rate and spend for the whole team or one person, across every harness. Share recipes and Auto's routing data, so the team's agents learn from each other's merges.</p>
       </div>
@@ -456,7 +493,7 @@
     <!-- ───────── every device ───────── -->
     <section class="sec wrap" id="devices">
       <div class="sec-head">
-        <p class="eyebrow">04 · Every device</p>
+        <p class="eyebrow">04 · Every device <span class="soon live">partly live</span></p>
         <h2>Sign in once. Your wisp follows you.</h2>
         <p>Now that wisp runs on your phone too, one wisp account ties your devices together: the same tasks, history, settings and spells on the laptop, the desktop and wisp for Android. Each device keeps its own SSH key for your machines, so adding one is a code and a tap, and losing one is a click.</p>
       </div>
@@ -522,8 +559,8 @@
         </div>
         <div class="card plan cloud">
           <h3>wisp Cloud <span class="pill acc">preview</span></h3>
-          <p class="price">$20 <small>per seat / month + machine minutes</small></p>
-          <p>Everything in wisp, plus:</p>
+          <p class="price">Free <small>during the preview</small></p>
+          <p><b>Now:</b> your own sandboxed wisp, desktop and phone sign-in, agent sign-in, sleep and wake. <b>Coming</b>, from the list below:</p>
           <ul>
             <li>Managed machines that boot on demand and scale to zero</li>
             <li>Persistent queues that run while your laptop sleeps</li>
@@ -534,8 +571,8 @@
             <li>SSO, audit log, per-repo access</li>
             <li>Same app: Cloud shows up as places in <b>Run on</b></li>
           </ul>
-          <div class="foot-cta"><a class="btn" href="#join" data-join style="height:40px">Join the waitlist</a></div>
-          <p class="draft">Pricing is a draft and may change before launch. Model usage is billed by your own providers, not us.</p>
+          <div class="foot-cta"><a class="btn" href="https://grid.trywisp.dev" style="height:40px">Sign in at grid.trywisp.dev</a></div>
+          <p class="draft">Pricing after the preview isn't set yet. Model usage is billed by your own providers, not us.</p>
         </div>
       </div>
     </section>
@@ -545,13 +582,13 @@
       <div class="sec-head"><p class="eyebrow">FAQ</p><h2>Questions</h2></div>
       <div class="qa">
         <details open><summary>Will the local CLI ever need an account?</summary><p>No. <code>npx wisp-agents</code> keeps working with no sign-in, no telemetry you haven't turned on, and no feature moved behind Cloud. Cloud is opt-in from Settings, like every integration.</p></details>
-        <details><summary>Do you resell model usage?</summary><p>No. Harness CLIs on cloud machines sign in with your own Claude, OpenAI, Cursor or xAI accounts. You pay us for seats and machine time only.</p></details>
-        <details><summary>How is this different from Machines?</summary><p>Machines connects wisp to computers you already run, over SSH, and stays free. Cloud machines are ones we run for you: booted on demand, kept current, and asleep when nothing is queued.</p></details>
-        <details><summary>Where does my code live?</summary><p>On the machine running the task, in its worktree, for as long as the task is open. Machines are single-tenant; disks are wiped when a machine is removed.</p></details>
-        <details><summary>Can I answer questions from my phone?</summary><p>Yes, as today: <code>ask_user</code> questions reach ntfy or Telegram, and your answer goes straight back to the agent on its cloud machine.</p></details>
-        <details><summary>Does the phone app need an account?</summary><p>No. wisp for Android works today with no account: it connects to your machines over SSH with a key you make or import on the phone. An account only adds sync and managed keys across devices.</p></details>
-        <details><summary>Can you read my synced history?</summary><p>No. History is encrypted on your devices before it syncs, and relayed SSH stays end-to-end encrypted between your device and your machine. We store and forward ciphertext.</p></details>
-        <details><summary>What happens when I sign a device out?</summary><p>Its SSH keys are removed from every machine on your account, its open tunnels close and its local history locks. Your other devices and running tasks keep going.</p></details>
+        <details><summary>Do you resell model usage?</summary><p>No. Your cloud wisp signs in with your own Claude, ChatGPT or GitHub accounts, from Settings → Agents. The preview is free.</p></details>
+        <details><summary>How is this different from Machines?</summary><p>Machines connects wisp to computers you already run, over SSH, and stays free. A cloud computer is one we run for you: your own sandboxed wisp that sleeps when nothing's going on and wakes for you or a schedule.</p></details>
+        <details><summary>Where does my code live?</summary><p>In your own sandbox on the grid: a gVisor container with its own folder, which only you reach. Your agents' logins stay in that folder too. Delete your account and the folder and its keys are gone.</p></details>
+        <details><summary>Can I answer questions from my phone?</summary><p>Yes: open your cloud computer from the phone app, or have <code>ask_user</code> questions sent to ntfy or Telegram. Your answer goes straight back to the agent.</p></details>
+        <details><summary>Does the phone app need an account?</summary><p>Not for your own computers: those connect over SSH with a key on the phone. wisp Cloud is on the app's first screen: sign in once with a code.</p></details>
+        <details><summary>Can I host it myself?</summary><p>Yes. The grid is in the wisp repo (MIT): <code>npx wisp-agents grid init</code> on a small Linux server, a GitHub or Google OAuth app, and two DNS records. <a href="guides/self-host-wisp-grid.html">Step by step</a>.</p></details>
+        <details><summary>What happens when I sign a device out?</summary><p>Remove it on your account page at grid.trywisp.dev: its token stops working at once. Your other devices and running tasks keep going.</p></details>
         <details><summary>Can I mix local and cloud?</summary><p>Yes. <b>Run on</b> lists this computer, your SSH machines and cloud machines together. Pick one, or several at once.</p></details>
       </div>
     </section>
@@ -561,7 +598,7 @@
         <p class="final-clock" aria-hidden="true">03:12</p>
         <h2>Let it run while you sleep.</h2>
         <div class="cta">
-          <a class="cmd" href="#join" data-join style="text-decoration:none;padding:0 22px"><span>Join the Cloud waitlist</span></a>
+          <a class="cmd" href="https://grid.trywisp.dev" style="text-decoration:none;padding:0 22px"><span>Sign in to wisp Cloud</span></a>
           <a class="btn" href="./">Or start free with wisp</a>
         </div>
       </div>
@@ -570,7 +607,7 @@
 
   <footer class="foot wrap">
     <span class="brand"><span class="mark" aria-hidden="true"></span>wisp</span>
-    <span class="muted">MIT © M0xoo · wisp Cloud is in early preview. Dashboard and device numbers are demo data.</span>
+    <span class="muted">MIT © M0xoo · wisp Cloud is in early preview at grid.trywisp.dev. Machine, dashboard and device numbers on this page are demo data.</span>
     <span class="grow"></span>
     <a href="./">wisp</a>
     <a href="agents/">Agents</a>

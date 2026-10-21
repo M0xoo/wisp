@@ -3,7 +3,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { adapters } from '../adapters/index.js';
 import { openapi } from '../openapi.js';
+import { pageEvent } from '../telemetry.js';
 import { triggerView } from '../triggers.js';
 import { toolStats, usage } from '../usage.js';
 import { expandHome, VERSION } from '../util.js';
@@ -45,7 +47,8 @@ export function register(r, app) {
 
   r.route('GET', '/openapi.json', (c) => c.send(200, openapi({ version: VERSION, port })), { doc: false });
 
-  r.route('GET', '/agents', async (c) => c.send(200, await (c.query.has('fresh') ? app.auto.detect({ fresh: true }) : app.auto.listed())));
+  // ?fresh=1 detects every harness again; ?fresh=<id> just that one (after signing in to it).
+  r.route('GET', '/agents', async (c) => c.send(200, await (c.query.has('fresh') ? app.auto.detect({ fresh: Object.hasOwn(adapters, c.query.get('fresh')) ? c.query.get('fresh') : true }) : app.auto.listed())));
   // Re-check: detect harnesses and models again, here and on every online machine.
   r.route('POST', '/agents/recheck', async (c) => {
     const [agents] = await Promise.all([app.auto.detect({ fresh: true }), machines.recheckAgents()]);
@@ -94,4 +97,12 @@ export function register(r, app) {
 
   // Feedback for the wisp team: thumbs on a turn and/or a note. { rating?, text?, sessionId?, turnId? }
   r.route('POST', '/feedback', async (c) => c.send(200, await app.sendFeedback(await c.body())));
+
+  // A click on the page worth counting (PAGE_EVENTS in telemetry.js). Unknown events are ignored.
+  r.route('POST', '/telemetry/event', async (c) => {
+    const { event, props } = await c.body();
+    const p = pageEvent(event, props || {});
+    if (p) telemetry.track(event, p);
+    c.send(200, { ok: true, tracked: !!p && telemetry.enabled });
+  });
 }

@@ -9,6 +9,7 @@
 
 import { spawn } from 'node:child_process';
 import { bad } from './util.js';
+import { shq } from './shq.js';
 
 const TIMEOUT_MS = 15 * 60_000;
 const KEEP_MS = 5 * 60_000;
@@ -22,7 +23,11 @@ export const LOGINS = {
   claude: { bin: 'claude', env: 'WISP_CLAUDE_BIN', args: ['auth', 'login', '--claudeai'], logout: ['auth', 'logout'], status: ['auth', 'status'], keys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX'], signedIn: (out) => ({ true: true, false: false })[/"loggedIn":\s*(true|false)/.exec(out)?.[1]] ?? null },
   codex: { bin: 'codex', env: 'WISP_CODEX_BIN', args: ['login', '--device-auth'], logout: ['logout'], status: ['login', 'status'], keys: ['OPENAI_API_KEY', 'CODEX_API_KEY'], signedIn: said },
   cursor: { bin: 'cursor-agent', env: 'WISP_CURSOR_BIN', args: ['login'], logout: ['logout'], status: ['status'], keys: ['CURSOR_API_KEY'], signedIn: said, extraEnv: { NO_OPEN_BROWSER: '1' } },
-  grok: { bin: 'grok', env: 'WISP_GROK_BIN', args: ['login', '--device-auth'], logout: null, status: null, keys: ['XAI_API_KEY'], signedIn: () => null },
+  grok: { bin: 'grok', env: 'WISP_GROK_BIN', args: ['login', '--device-auth'], logout: ['logout'], status: ['models'], keys: ['XAI_API_KEY'], signedIn: (out) => (/not authenticated/i.test(out) ? false : /logged in/i.test(out) ? true : null) },
+  // agy has no login command: a first prompt without a login prints Google's link and reads the
+  // code back, then answers it. Its own wait for the code is short (about a minute). It only asks
+  // on a terminal, so on Linux (a wisp Grid) it gets one from script(1).
+  antigravity: { bin: 'agy', env: 'WISP_ANTIGRAVITY_BIN', args: ['-p', 'Reply with OK.'], tty: true, logout: null, status: ['models'], keys: ['GEMINI_API_KEY'], signedIn: (out, code) => (/sign in|authenticat/i.test(out) ? false : code === 0 ? true : null) },
   // Not a harness: GitHub for git push and pull requests (Ship it), on a box with no other way in.
   // Afterwards git uses gh's login, and commits get your GitHub name if git has none.
   gh: { bin: 'gh', env: 'WISP_GH_BIN', tool: true, args: ['auth', 'login', '--web', '--hostname', 'github.com', '--git-protocol', 'https', '--skip-ssh-key'], logout: ['auth', 'logout', '--hostname', 'github.com'], status: ['auth', 'status', '--hostname', 'github.com'], keys: ['GH_TOKEN', 'GITHUB_TOKEN'], signedIn: said, after: () => gitFromGh() },
@@ -46,11 +51,13 @@ export function parse(text) {
   const t = clean(text);
   const url = /https?:\/\/[^\s"'<>]+/.exec(t)?.[0] || '';
   const code = /\b([A-Z0-9]{4,5}-[A-Z0-9]{4,6})\b/.exec(t.replace(url, ''))?.[1] || '';
-  const needsInput = /paste (the )?code|enter (the )?(authorization )?code here|code here if prompted/i.test(t);
+  const needsInput = /paste (the )?(authorization )?code|enter (the )?(authorization )?code here|code here if prompted/i.test(t);
   return { url, code, needsInput };
 }
 
 const bin = (spec) => process.env[spec.env] || spec.bin;
+// The login's command line: under script(1) when the CLI needs a terminal (util-linux's flags).
+const loginArgv = (spec) => (spec.tty && process.platform === 'linux' ? ['script', '-qfec', [bin(spec), ...spec.args].map(shq).join(' '), '/dev/null'] : [bin(spec), ...spec.args]);
 
 // After gh signs in: git pushes with its login, and has a name and email for commits.
 async function gitFromGh() {
@@ -124,7 +131,8 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
       if (prev && (prev.state === 'running' || prev.state === 'waiting')) return view(id, prev);
       const f = { state: 'running', out: '', url: '', code: '', needsInput: false, startedAt: Date.now() };
       flows.set(id, f);
-      const child = spawn(bin(s), s.args, { env: { ...process.env, ...(s.extraEnv || {}), BROWSER: 'false', TERM: 'dumb', COLUMNS: '400' }, stdio: ['pipe', 'pipe', 'pipe'] });
+      const [cmd, ...argv] = loginArgv(s);
+      const child = spawn(cmd, argv, { env: { ...process.env, ...(s.extraEnv || {}), BROWSER: 'false', TERM: 'dumb', COLUMNS: '400' }, stdio: ['pipe', 'pipe', 'pipe'] });
       f.child = child;
       child.stdin.on('error', () => {});
       const take = (d) => {

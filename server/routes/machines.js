@@ -42,7 +42,7 @@ export function register(r, app) {
     known(async (c, id) => {
       const body = method === 'GET' || method === 'DELETE' ? undefined : await c.body();
       const v = await machines.json(id, method, `/agents/${encodeURIComponent(c.params.aid)}/${rest}`, body);
-      if (after?.(v)) machines.recheckAgents().catch(() => {});
+      if (after?.(v)) machines.recheckAgents([id, c.params.aid]).catch(() => {});
       c.send(200, v);
     });
   r.route('GET', '/machines/:id/agents/:aid/login', there('GET', 'login', (v) => v.state === 'done'));

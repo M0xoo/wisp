@@ -68,9 +68,11 @@ export const adapters = Object.fromEntries([claude, codex, opencode, cursor, ant
 const detected = new Map();
 
 // fresh: detect again even where a hit is cached (Settings → Agents → Re-check), so a newly
-// signed-in provider's models or an upgraded CLI show up without restarting wisp.
+// signed-in provider's models or an upgraded CLI show up without restarting wisp. fresh: '<id>'
+// detects only that harness again (just signed in to it): the others answer from the cache.
 export async function listAgents({ fresh = false } = {}) {
-  if (fresh) detected.clear();
+  if (typeof fresh === 'string') detected.delete(fresh); // not a harness (gh): nothing to redo
+  else if (fresh) detected.clear();
   return Promise.all(
     Object.values(adapters).map(async (a) => {
       // Installed but signed out (it says so, and no API key signs it in): not available, so the

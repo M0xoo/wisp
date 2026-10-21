@@ -15,7 +15,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
 [![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity%20·%20Grok-d97757)](#adding-a-harness)
 
-[Website](https://trywisp.dev/) · [Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
+[Website](https://trywisp.dev/) · [wisp Cloud](#wisp-cloud) · [Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
 </div>
 
@@ -60,12 +60,16 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🧙 **Spells** | Change wisp itself while it runs: ask for a floating button that opens your PRs, a panel with your tool stats, a block agents can use in their reports, a different prompt box, quick replies, buttons on cards, a new look. An agent writes it as a *spell*; you try it in the window and keep it. Share one as a file, and turn any of them off to put wisp back as it was. See [Spells](#spells). |
 | 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.27.0`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
 | 📊 **Usage** | Spend, success rate and questions per project and per harness · model. |
+| ☁️ **wisp Cloud** | Your own wisp on a server, at [grid.trywisp.dev](https://grid.trywisp.dev): sign in with GitHub and your agents keep working after you close the laptop. Use it from the browser, from wisp on your computer (Settings → Cloud) or from the phone app. Or run your own grid with `npx wisp-agents grid init`. See [wisp Cloud](#wisp-cloud). |
+| 🔑 **Sign in from wisp** | Settings → Agents signs Claude Code, Codex and GitHub in for you: a link and a code, no terminal. The model picker only offers the agents you're signed in to. |
 | 📱 **Phone** | Questions and finished tasks on ntfy or Telegram; answer from there, or start a task with `/new`. |
 | 🔐 **Permission modes** | Choose **Plan** (read-only), **Edits** (file edits auto-accepted), or **Full auto** (no permission prompts, the default) for each launch. `Shift+Tab` in the prompt cycles modes. In Edits mode, anything the permissions block comes to you: Claude Code waits for **Allow / Always / Deny**, and the other harnesses show an **Allow & retry** card. |
 | 🔌 **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
 | 🪶 **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
 
 ## Quick start
+
+> **No computer to keep on?** Open [grid.trywisp.dev](https://grid.trywisp.dev), sign in with GitHub and you get your own wisp on a server, with nothing to install. See [wisp Cloud](#wisp-cloud).
 
 > **Requirements:** macOS, Linux, or Windows; Node.js ≥ 20; and at least one harness installed and signed in: [Claude Code](https://claude.com/claude-code) (`claude`), [Codex](https://github.com/openai/codex) (`codex`), [opencode](https://opencode.ai) (`opencode`), [Cursor CLI](https://cursor.com/cli) (`cursor-agent`), [Antigravity CLI](https://antigravity.google/docs/cli/headless/) (`agy`), or [Grok Build](https://x.ai/cli) (`grok`). No CLI? The [ChatGPT desktop app](https://chatgpt.com/download) is enough for Codex on macOS and Linux, and the [Claude desktop app](https://claude.com/download) for Claude Code on macOS and Windows once you've opened its Code tab and signed that CLI in once: wisp uses the CLI each app ships when the command isn't on PATH. Override a binary path with `WISP_CLAUDE_BIN`, `WISP_CODEX_BIN`, `WISP_OPENCODE_BIN`, `WISP_CURSOR_BIN`, or `WISP_ANTIGRAVITY_BIN`.
 
@@ -304,6 +308,8 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] Cursor CLI adapter
 - [x] Antigravity CLI adapter
 - [x] Grok Build adapter
+- [x] wisp Cloud / wisp Grid: your own wisp on a server, sandboxed per user, with desktop and phone sign-in
+- [x] Sign in to Claude Code, Codex and GitHub from wisp
 
 ## Auto
 
@@ -422,6 +428,18 @@ Settings → *Phone* sends questions and finished tasks to your phone and takes 
 
 They receive titles, summaries and questions (with their context), never code or diffs.
 
+## wisp Cloud
+
+Your own wisp on a server, so the agents keep working when your laptop is closed. It's in **early preview** at [grid.trywisp.dev](https://grid.trywisp.dev) (invite only while seats open up), and the same code runs on your own server with `wisp grid` ([grid/README.md](grid/README.md)).
+
+- **Sign in** with GitHub (or Google, or your company's OpenID Connect on your own grid). You get your own wisp at `<you>.grid.trywisp.dev`, in a sandbox of its own: a gVisor container with its own folder and network, firewalled from the host and from everyone else.
+- **Use it from anywhere.** In the browser, from wisp on your computer (Settings → **Cloud**, or **Machines** → *Or use a cloud computer*: the address is filled in, you allow a code in the browser and it joins **Run on** like any machine), or from the phone app (**wisp Cloud** on its first screen).
+- **Connect your agents.** In the cloud wisp, Settings → **Agents** → **Sign in**: Claude Code (`claude auth login`), Codex (`codex login --device-auth`) and GitHub (`gh auth login`, then git pushes with it) show a link and a code, no terminal. From the desktop, Settings → Cloud lists the same Sign in buttons for each cloud computer. The logins stay in your own folder on the server; wisp never sees a password, and the model picker only offers what you've signed in to.
+- **It sleeps when nothing's going on** and wakes in seconds when you open it, send it a task, or a schedule is due. Watching it from the desktop doesn't keep it awake: the card says *Asleep*, its tasks still show, and anything you send wakes it.
+- **Your account page** at grid.trywisp.dev shows your cloud computer, the devices signed in (remove any of them) and how you sign in.
+
+The wisp you run on your own computer doesn't change and needs no account. To run a grid for yourself or your team: `npx wisp-agents grid init --domain wisp.example.com`, then follow [grid/README.md](grid/README.md) (DNS, Caddy, a GitHub or Google OAuth app, `wisp grid serve`).
+
 ## Machines
 
 **Machines** (top bar, Settings → *Machines*, or ⌘K) runs agents on your other computers over SSH. Give it `user@host` or a `Host` from `~/.ssh/config` and press **Connect**:
@@ -446,7 +464,7 @@ The machine runs macOS or Linux (on Windows, use WSL). It only needs **SSH turne
 
 ### On your phone (Android, prototype)
 
-[`mobile/`](mobile/) is wisp on Android, for your own computers. Add one with its address and your password (once; the app installs its own key there), and the app sets it up the way Machines does: Node.js if it's missing, then wisp. Tap it and you're in that computer's wisp, with every feature; the agents keep running when the phone sleeps. **Computers** in wisp's top bar goes back to the app's list to switch or add one. Build it with `cd mobile && npm install && npm run build`; see [mobile/README.md](mobile/README.md).
+[`mobile/`](mobile/) is wisp on Android, for your own computers and for wisp Cloud. Its first screen starts with **wisp Cloud** (sign in with a code, nothing to set up); below it, add one of your own computers with its address and your password (once; the app installs its own key there), and the app sets it up the way Machines does: Node.js if it's missing, then wisp. Tap it and you're in that computer's wisp, with every feature; the agents keep running when the phone sleeps. **Computers** in wisp's top bar goes back to the app's list to switch or add one. Build it with `cd mobile && npm install && npm run build`; see [mobile/README.md](mobile/README.md).
 
 ## Learning
 
@@ -465,7 +483,7 @@ The retro gets the current lists along with the digest, so when you change your 
 
 wisp sends anonymous usage stats and error reports to [PostHog](https://posthog.com) so we can see which agents people use and what breaks. The code is in [`server/telemetry.js`](server/telemetry.js).
 
-**What is sent:** a random install id (not tied to you or your machine), the wisp, OS, Node and agent CLI versions, and per run: agent, model, mode, effort, status, duration, token counts and cost, how many files changed, and which presentation block types came back. Errors include a stack trace and message with your home directory and file paths removed, cut to 500 characters.
+**What is sent:** a random install id (not tied to you or your machine), the wisp, OS, Node and agent CLI versions, and per run: agent, model, mode, effort, status, duration, token counts and cost, how many files changed, and which presentation block types came back. Also a few steps by name: signing in to an agent (started, done, failed), signing in to wisp Cloud (and whether it's the hosted grid, never your grid's address), and the *Get the app* card (opened, clicked, hidden). Errors include a stack trace and message with your home directory and file paths removed, cut to 500 characters.
 
 **Never sent:** prompts, replies, agent output, file contents, project names, paths or repo URLs.
 

@@ -3,8 +3,12 @@
 wisp for many people on your own server. Each person signs in with Google, GitHub or your
 company's OpenID Connect, and gets their own wisp at `<handle>.<your domain>`. It starts when they
 open it, sleeps when nothing's going on, and wakes for their scheduled tasks. They reach it from any
-browser, from wisp on their computer (**Settings → Cloud**) and from the phone app (**Sign in to
-wisp Cloud**). Their agents run with their own subscriptions or keys.
+browser, from wisp on their computer (**Settings → Cloud**, or **Machines** → *Or use a cloud
+computer*) and from the phone app (**wisp Cloud** on its first screen). Their agents run with their
+own subscriptions or keys, signed in from **Settings → Agents** (a link and a code, no terminal).
+
+The hosted one is [grid.trywisp.dev](https://grid.trywisp.dev) (early preview). This folder is the
+same code, for your own server.
 
 It's part of wisp (MIT), with no extra dependencies: `wisp grid …`. It needs Node.js 22.13 or newer
 (it uses the built-in SQLite).
@@ -23,8 +27,20 @@ The Android emulator reaches it with `adb reverse tcp:8080 tcp:8080`.
 
 ## Run it for real
 
+**One small server is enough for a few people.** grid.trywisp.dev runs on a Hetzner CAX21 (4 Arm
+vCPUs, 8 GB, about €12 a month) with Debian 13: enough for 4 people with agents running at once.
+Copy the repo there and run, as root:
+
 ```sh
-wisp grid init --domain wisp.example.com --data /var/lib/wisp-grid
+DOMAIN=wisp.example.com ./grid/deploy/install.sh
+```
+
+It installs Node.js 22, Docker with gVisor (`runsc`), Caddy and 4 GB of swap, builds the user image
+([`deploy/image/Dockerfile`](deploy/image/Dockerfile): Node, git, `gh`, every agent wisp
+runs (Claude Code, Codex, Cursor, Grok, Antigravity, opencode) and wisp), makes the `wisp` user and the systemd unit, and sets up the firewall. Then:
+
+```sh
+sudo -u wisp node bin/wisp.js grid init --domain wisp.example.com --data /var/lib/wisp-grid
 ```
 
 `init` writes `grid.json` and a master key (`secrets/master.json`, mode 0600), then says what's
@@ -45,25 +61,38 @@ next:
      "clientSecretFile": "secrets/corp", "label": "Corp SSO" }`.
 4. **Check.** `wisp grid doctor --data /var/lib/wisp-grid` checks Node, the config, the key,
    providers and DNS.
-5. **Run.** `wisp grid serve --data /var/lib/wisp-grid`, or as a service with
-   [`deploy/wisp-grid.service`](deploy/wisp-grid.service).
+5. **Isolate.** Set `"hostd": { "driver": "container" }` in `grid.json` (see Isolation below).
+6. **Run.** `systemctl enable --now wisp-grid` (the unit `install.sh` made from
+   [`deploy/wisp-grid.service`](deploy/wisp-grid.service)), or `wisp grid serve --data …` by hand.
 
 ### Who gets in
 
 ```json
 "auth": {
   "signup": "open",
+  "maxUsers": 50,
   "allow": { "emails": ["ada@corp.com"], "domains": ["corp.com"], "githubOrgs": ["corp"] },
   "admins": ["github:583231", "email:ops@corp.com"]
 }
 ```
 
 - **`signup`:** `closed` lets only existing users in.
+- **`maxUsers`:** the first that many accounts get in, then new sign-ups are refused (existing
+  users still sign in; deleting one frees a place). Leave it out for no limit.
 - **`allow`:** an account must match at least one rule. A verified email is required for email and
   domain rules. The allow list is checked again at every sign-in.
 - **Linking accounts:** someone can connect both Google and GitHub to one account from their
   account page. Accounts are never joined just because the email matches: that would let anyone
   who can claim an address at some provider take over the account.
+
+### Usage stats
+
+Off unless `grid.json` has `"telemetry": true`. Then the grid sends wisp's PostHog project
+anonymous counts: sign-ups (and refused ones: full or not invited), sign-ins, devices allowed or
+revoked, accounts deleted, and boxes started (how long that took), stopped (why, and after how
+long) or failed. Each user is a hash of their id: never a handle, email or address. Each user's
+wisp then keeps its own usage stats on too (they can turn them off in Settings). `WISP_TELEMETRY=0`
+or `DO_NOT_TRACK=1` in the grid's environment turns it all off.
 
 ## How it fits together
 
@@ -75,7 +104,8 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
                └── <handle>.wisp.example.com  the edge: checks the cookie or token, starts the
                     │                         user's wisp if it sleeps, proxies (HTTP + streams)
                     ▼
-                 hostd ── one wisp per user (process driver), WISP_HOME and HOME in data/users/<id>/
+                 hostd ── one wisp per user: a gVisor container (container driver), or a process
+                          (dev); its HOME is data/users/<id>/home, the only thing that persists
                           trusted-proxy mode (WISP_TRUSTED_PROXY_SECRET), a clean environment
 ```
 
@@ -114,12 +144,19 @@ own grid is the answer for that.
 
 ## Isolation: read this before you invite people
 
-hostd's `process` driver runs every user's wisp as the same OS user, on the same machine. It gives
-each one its own folder and environment, but agents can run any command. So it's for you and people
-you trust: a household, a small team. It doesn't keep users apart.
+Agents run with real permissions, so every user's wisp needs a wall around it.
 
-The `container` driver (gVisor or nspawn on a ZFS dataset per user) and the `firecracker` driver
-(a microVM per user) are next. They plug into the same hostd interface (`grid/hostd.js`).
+- **`container` (use this):** one Docker container per user with gVisor's `runsc` runtime, a
+  user-space kernel between the agents and the host's. Each gets only its own home folder, runs
+  as uid 1000 with no capabilities and `no-new-privileges`, with limits on memory (1.5 GB + swap),
+  CPU and processes, and is published on the host's loopback only.
+  [`deploy/firewall.sh`](deploy/firewall.sh) puts the containers on their own bridge, with no
+  traffic between them and none to the host, to the cloud metadata service, or to mail servers.
+  Each gets its own resolv.conf, because Docker's built-in DNS can't be reached from gVisor.
+- **`process` (dev only):** every user's wisp runs as the same OS user. Fine for `wisp grid dev`
+  and for yourself; it doesn't keep users apart.
+- **`firecracker` (next):** a microVM per user, for hosts with KVM (bare metal). It plugs into the
+  same hostd interface (`grid/hostd.js`).
 
 ## Commands
 
