@@ -1,5 +1,6 @@
 // A stand-in for the native WispSsh plugin, so the machines screen runs in a desktop browser
-// (`npm run preview`). `?fail=auth` or `?fail=node` replays a failure.
+// (`npm run preview`). `?fail=auth` refuses until a password is given, `?fail=node`
+// fails at Node.js, `?fail=bare` shows Node.js being installed.
 
 const q = new URLSearchParams(location.search);
 const listeners = new Set();
@@ -50,18 +51,23 @@ export const WispSsh = {
     lines.length = 0;
   },
   async forgetHost() {},
-  async connect({ machineId: id, host, user }) {
+  async connect({ machineId: id, host, user, password }) {
     const fail = q.get('fail');
     state = 'connecting';
     machineId = id;
     lines.length = 0;
     emit(`@@wisp step ssh run ${user}@${host}`);
     await wait(700);
-    if (fail === 'auth') return ((state = 'failed'), emit('@@wisp fail ssh Authentication failed: the machine refused this phone’s key.'));
+    if (fail === 'auth' && !password) return ((state = 'failed'), emit('@@wisp fail ssh Authentication failed: the machine refused this phone’s key.'));
+    if (password) emit('@@wisp keyed');
     emit(`@@wisp step ssh done Linux ${host}`);
     await wait(600);
     if (fail === 'node') return ((state = 'failed'), emit('@@wisp fail node Node.js isn’t installed there (or isn’t on PATH).'));
-    emit('@@wisp step node done v22.11.0');
+    if (fail === 'bare') {
+      emit('@@wisp step node run installing Node.js into ~/.wisp/node (no admin needed)');
+      await wait(1500);
+    }
+    emit('@@wisp step node done v24.22.1');
     emit('@@wisp step wisp run starting npx -y wisp-agents@latest');
     await wait(1200);
     emit('@@wisp step wisp done started · 0.26.0');

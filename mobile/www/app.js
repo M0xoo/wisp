@@ -1,7 +1,11 @@
-// The machines screen. Saved machines live in localStorage, keys in the native plugin. One machine
-// is connected at a time: the WispSsh plugin runs wisp's own bootstrap script there
-// (shared/machines/bootstrap.js, the same file desktop Machines sends), forwards 127.0.0.1:<port>
-// on this phone to wisp there, and this page hands over to wisp's page.
+// The app's own screen: your computers. Tap one and the app opens that computer's wisp: the
+// WispSsh plugin runs wisp's bootstrap script there (shared/machines/bootstrap.js, the same file
+// desktop Machines sends; it installs Node.js and starts wisp when they're missing), forwards
+// 127.0.0.1:<port> on this phone to it, and this page hands over to wisp's page. In there,
+// Computers in the top bar comes back here (web/js/features/machines.js openComputers).
+//
+// Computers live in localStorage, keys in the native plugin. A password is typed for one connect:
+// the plugin then adds the phone's key there ("@@wisp keyed") and the password is dropped.
 //
 // Progress is wisp's `@@wisp …` line protocol. The plugin adds a few lines of its own:
 //   @@wisp fail ssh <message>   SSH itself failed (unreachable, auth, host key)
@@ -41,6 +45,10 @@ const save = () => localStorage.setItem(SAVED, JSON.stringify(machines));
 const newId = () => Math.random().toString(36).slice(2, 10);
 const machine = (id) => machines.find((m) => m.id === id);
 const keyOf = (m) => keys.find((k) => k.id === m?.keyId) || keys[0];
+const nameOf = (m) => m.name || parseTarget(m.target).host;
+// The one the app opens when it starts: the last one used.
+const main = () => [...machines].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
+const TAILSCALE_GUIDE = 'https://trywisp.dev/guides/connect-machines-with-tailscale.html';
 
 // `you@host` or `you@host:2222`.
 function parseTarget(t) {
@@ -109,20 +117,27 @@ function apply(line) {
     setStep('tunnel', 'done');
     Object.assign(live, { state: 'ready', failure: null, opened: true });
     return true;
+  } else if (kind === 'keyed') {
+    passwords.delete(live.id);
+    toast('This phone is allowed in now: no password next time');
   } else if (kind === 'lost') {
     Object.assign(live, { state: 'connecting', failure: { id: 'lost', message: rest || 'Connection lost.' } });
   }
   return false;
 }
 
+// In words for someone who has never used SSH, and what to tap next.
 function hintFor(f) {
-  if (f.id === 'lost') return 'Reconnecting on its own. wisp and its agents keep running there.';
-  if (/host key/i.test(f.message)) return 'The machine’s SSH key changed since the last connect. If you reinstalled it, forget the saved key and connect again.';
-  if (/auth/i.test(f.message)) return 'Let this machine’s key in (Edit shows the command), import a key it already trusts, or enter the password under Advanced.';
-  if (/resolve|unreachable|timed out|refused/i.test(f.message)) return 'Check the address, and that this phone can reach it (same network, VPN or Tailscale).';
-  if (/key is gone/i.test(f.message)) return 'Edit the machine and pick a key.';
-  if (f.id === 'node') return 'Install Node.js 20+ there, then connect again.';
-  return '';
+  const m = f.message;
+  if (f.id === 'lost') return { text: 'Reconnecting by itself. Your tasks keep running there.' };
+  if (/host key/i.test(m)) return { text: 'That computer looks different from last time. If you reinstalled it, that’s expected: forget the saved one and connect again.', action: ['forget', 'Forget and reconnect'] };
+  if (/auth/i.test(m)) return { title: 'This phone isn’t allowed in yet', text: 'Enter your password on that computer once. The app adds its own key there, so you won’t type it again.', action: ['password', 'Enter password'] };
+  if (/resolve/i.test(m)) return { title: 'Computer not found', text: 'Check the address. Away from home? Install Tailscale on the computer and this phone, and use the name it shows.', link: [TAILSCALE_GUIDE, 'How to set up Tailscale'] };
+  if (/unreachable|timed out/i.test(m)) return { title: 'No answer', text: 'Is the computer on and awake? Is this phone on the same Wi‑Fi, or are both on Tailscale?', link: [TAILSCALE_GUIDE, 'How to set up Tailscale'] };
+  if (/refused/i.test(m)) return { title: 'SSH is off on that computer', text: 'On a Mac: System Settings → General → Sharing → Remote Login. On Linux: install openssh-server. Then Try again.' };
+  if (/key is gone/i.test(m)) return { text: 'Edit the computer and pick a key, or enter its password.', action: ['password', 'Edit'] };
+  if (f.id === 'node') return { text: 'wisp couldn’t install Node.js there by itself. Install the LTS version from nodejs.org on that computer, then Try again.', link: ['https://nodejs.org/en/download', 'Get Node.js'] };
+  return {};
 }
 
 // --- paint -------------------------------------------------------------------------------------
@@ -135,22 +150,45 @@ function runHtml() {
         <span class="label">${esc(s.label)}</span>${s.detail ? `<span class="detail">${esc(s.detail)}</span>` : ''}</li>`,
     )
     .join('');
-  const hint = f && hintFor(f);
-  return `<div class="run">
+  const h = f ? hintFor(f) : {};
+  return `<div class="runbox">
       <ol class="steps">${steps}</ol>
-      ${f ? `<div class="oops ${f.id === 'lost' ? 'lost' : ''}"><strong>${icon(f.id === 'lost' ? 'arrow' : 'warn')}<span>${esc(f.message)}</span></strong>${hint ? `<span>${esc(hint)}</span>` : ''}
-        ${/host key/i.test(f.message) ? '<div class="row"><button class="ghost sm" data-a="forget" type="button">Forget saved key</button></div>' : ''}</div>` : ''}
+      ${
+        f
+          ? `<div class="oops ${f.id === 'lost' ? 'lost' : ''}"><strong>${icon(f.id === 'lost' ? 'arrow' : 'warn')}<span>${esc(h.title || f.message)}</span></strong>${h.text ? `<span>${esc(h.text)}</span>` : ''}
+        ${h.action || h.link ? `<div class="row">${h.action ? `<button class="primary sm" data-a="${h.action[0]}" type="button">${esc(h.action[1])}</button>` : ''}${h.link ? `<a class="ghost sm" href="${h.link[0]}">${esc(h.link[1])}</a>` : ''}</div>` : ''}
+        ${h.title ? `<details class="why"><summary>Details</summary><code>${esc(f.message)}</code></details>` : ''}</div>`
+          : ''
+      }
       <div class="run-foot"><button class="ghost sm" data-a="disconnect" type="button">${live.state === 'failed' ? 'Dismiss' : 'Disconnect'}</button></div>
     </div>`;
 }
 
+// First run: what this is and the three steps. After that: your computers.
+function paintIntro() {
+  $('#intro').innerHTML = machines.length
+    ? `<h1>Your computers</h1><p>Tap one to open its wisp. Your agents keep running there when the phone sleeps. <b>Computers</b> in wisp’s top bar brings you back here.</p>`
+    : `<h1>wisp, on your phone</h1>
+      <p>Start tasks and answer your agents from anywhere. They run on your own computers and keep going when the phone sleeps.</p>
+      <ol class="how">
+        <li><span class="n">1</span><div><b>Get a computer ready</b><span>Turn on SSH: on a Mac, System Settings → General → Sharing → Remote Login; on Linux, install openssh-server. That’s all: the app installs Node.js and wisp there.</span></div></li>
+        <li><span class="n">2</span><div><b>Add it here</b><span>Its address, and your password on it once.</span></div></li>
+        <li><span class="n">3</span><div><b>Start working</b><span>wisp opens. Pick a coding agent there (opencode installs in one click) and give it a task. <b>Computers</b> in its top bar brings you back here.</span></div></li>
+      </ol>
+      <p class="tip">${icon('arrow')}<span>Away from home? Put the computer and this phone on <a href="${TAILSCALE_GUIDE}">Tailscale</a> (free).</span></p>`;
+  $('#addMachine span').textContent = machines.length ? 'Add another computer' : 'Add your computer';
+  $('#addMachine').classList.toggle('first', !machines.length);
+}
+
 function paintMachines() {
   const box = $('#machines');
+  paintIntro();
   if (!machines.length) {
-    box.innerHTML = `<div class="card empty"><strong>No machines yet</strong><span>Add the computer or server where wisp should run. It needs SSH and Node.js 20+.</span></div>`;
+    box.innerHTML = '';
     return;
   }
-  box.innerHTML = machines
+  const first = main();
+  box.innerHTML = [first, ...machines.filter((m) => m !== first)]
     .map((m) => {
       const on = live.id === m.id && live.state !== 'idle';
       const state = on ? live.state : 'idle';
@@ -158,7 +196,7 @@ function paintMachines() {
       return `<article class="card m ${state}" data-id="${esc(m.id)}">
           <div class="m-row">
             <span class="m-ico">${icon('server')}<span class="st"></span></span>
-            <button class="m-text" data-a="edit" type="button"><span class="m-name">${esc(m.name || parseTarget(m.target).host)}</span><span class="m-sub">${esc(m.target)} · ${esc(keyOf(m)?.name || 'no key')}</span></button>
+            <button class="m-text" data-a="edit" type="button"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub">${esc(m.target)}</span></button>
             ${go}
           </div>
           ${on ? runHtml() : ''}
@@ -173,7 +211,7 @@ function paintKeys() {
       const used = machines.filter((m) => keyOf(m)?.id === k.id).length;
       return `<button class="card k" data-k="${esc(k.id)}" type="button">${icon('key')}
           <span class="k-text"><span class="k-name">${esc(k.name)}</span><span class="k-fp">${esc(k.type)} · ${esc(k.fingerprint)}</span></span>
-          <span class="k-used">${used ? `${used} machine${used > 1 ? 's' : ''}` : k.source === 'imported' ? 'imported' : ''}</span></button>`;
+          <span class="k-used">${used ? `${used} computer${used > 1 ? 's' : ''}` : k.source === 'imported' ? 'imported' : ''}</span></button>`;
     })
     .join('');
 }
@@ -187,20 +225,23 @@ const paint = () => {
 
 const openWisp = (m) => {
   if (!native) return toast(`Opens wisp at 127.0.0.1:${m.port || 4477}`); // the preview has no tunnel
-  location.href = `http://127.0.0.1:${m.port || 4477}/`;
+  // ?m=: wisp's page names "here" after this computer (web/js/core/state.js HUB).
+  location.href = `http://127.0.0.1:${m.port || 4477}/?m=${encodeURIComponent(nameOf(m))}`;
 };
 
 async function connect(m) {
   const { user, host, port } = parseTarget(m.target);
-  if (!user || !host) return toast('Add the user: you@host');
+  if (!user || !host) return toast('Add your user name: you@its-name');
   const key = keyOf(m);
-  if (!key) return toast('Make or import a key first');
+  if (!key) return toast('Couldn’t read this phone’s keys. Restart the app.');
+  m.lastUsed = Date.now();
+  save();
   resetSteps(m.id);
   openOnReady = m.id;
   paint(); // at once; the plugin's lines follow
-  const script = bootstrapScript({ port: m.port || 4477, command: m.command || DEFAULT_COMMAND, apiVersion: 'any' });
+  const script = bootstrapScript({ port: m.port || 4477, command: m.command || DEFAULT_COMMAND, apiVersion: 'any', installNode: true });
   try {
-    await Ssh.connect({ machineId: m.id, name: m.name || m.target, host, user, sshPort: port || m.sshPort || 22, port: m.port || 4477, keyId: key.id, password: passwords.get(m.id) || null, script });
+    await Ssh.connect({ machineId: m.id, name: nameOf(m), host, user, sshPort: port || m.sshPort || 22, port: m.port || 4477, keyId: key.id, password: passwords.get(m.id) || null, script });
   } catch (err) {
     setStep('ssh', 'fail');
     Object.assign(live, { state: 'failed', failure: { id: 'ssh', message: err.message || String(err) } });
@@ -238,11 +279,14 @@ window.addEventListener('popstate', () => {
   document.querySelectorAll('dialog[open]').forEach((d) => d.close());
 });
 
-function editMachine(m) {
+function editMachine(m, { focusPassword = false } = {}) {
   const d = $('#mSheet');
   const isNew = !m;
   m ||= { id: newId(), target: '', name: '', keyId: keys[0]?.id, sshPort: null, port: null, command: '' };
-  $('#mTitle').textContent = isNew ? 'Add a machine' : m.name || m.target;
+  $('#mTitle').textContent = isNew ? 'Add a computer' : nameOf(m);
+  // A computer that let the phone in before only needs the password if it asks again.
+  $('#mPwLabel').textContent = isNew || focusPassword ? 'Your password on that computer' : 'Password (only if it asks again)';
+  $('#mPwHint').hidden = !(isNew || focusPassword);
   $('#mTarget').value = m.target;
   $('#mName').value = m.name || '';
   $('#mSshPort').value = m.sshPort || '';
@@ -250,6 +294,7 @@ function editMachine(m) {
   $('#mPassword').value = passwords.get(m.id) || '';
   $('#mCommand').value = m.command || '';
   $('#mAdv').open = !!(m.sshPort || m.port || m.command);
+  $('#mKeyBox').open = !!m.keyId && m.keyId !== keys[0]?.id;
   $('#mDelete').hidden = isNew;
   const paintKey = () => {
     if ($('#mKey').value === '+new') return;
@@ -264,17 +309,18 @@ function editMachine(m) {
   fillKeys(keyOf(m)?.id);
   $('#mKey').onchange = async () => {
     if ($('#mKey').value !== '+new') return paintKey();
-    const k = await newKey(`Key for ${parseTarget($('#mTarget').value).host || 'a machine'}`);
+    const k = await newKey(`Key for ${parseTarget($('#mTarget').value).host || 'a computer'}`);
     fillKeys(k?.id || keys[0]?.id);
   };
   $('#mCopy').onclick = () => {
     copy($('#mCmd').textContent, 'command');
   };
   const close = present(d);
+  setTimeout(() => (focusPassword ? $('#mPassword') : isNew ? $('#mTarget') : null)?.focus(), 80);
   const commit = () => {
     const target = $('#mTarget').value.trim();
     if (!parseTarget(target).user || !parseTarget(target).host) {
-      toast('SSH needs the user: you@host');
+      toast('Add your user name: you@its-name');
       $('#mTarget').focus();
       return null;
     }
@@ -301,7 +347,7 @@ function editMachine(m) {
     save();
     paint();
     close();
-    toast(`Removed ${m.name || m.target}`);
+    toast(`Removed ${nameOf(m)}`);
   };
 }
 
@@ -328,7 +374,7 @@ function showKey(k) {
     close();
     try {
       await Ssh.deleteKey({ id: k.id });
-      toast(users.length ? `Deleted ${k.name}; ${users.length} machine${users.length > 1 ? 's' : ''} now use ${keys[0].name}` : `Deleted ${k.name}`);
+      toast(users.length ? `Deleted ${k.name}; ${users.length} computer${users.length > 1 ? 's' : ''} now use ${keys[0].name}` : `Deleted ${k.name}`);
     } catch (err) {
       keys = before;
       paint();
@@ -396,7 +442,12 @@ async function boot() {
     resetSteps(st.machineId);
     for (const line of st.lines) apply(line);
     live.state = st.state;
+  } else if (main() && !sessionStorage.getItem('wisp.started')) {
+    // App start: straight into the wisp of the computer used last. Coming back here (Computers,
+    // Back) shows the list instead.
+    connect(main());
   }
+  sessionStorage.setItem('wisp.started', '1');
   paint();
 }
 
@@ -410,6 +461,7 @@ function wire() {
     if (a === 'connect') connect(m);
     if (a === 'open') openWisp(m);
     if (a === 'edit') editMachine(m);
+    if (a === 'password') editMachine(m, { focusPassword: true });
     if (a === 'disconnect') disconnect();
     if (a === 'forget') {
       const { host, port } = parseTarget(m.target);

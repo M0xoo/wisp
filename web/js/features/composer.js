@@ -6,7 +6,7 @@ import { mentionHtml } from '../mention-text.js';
 import { btwQuestion, isBtw, SPELL_HINT, spellAsk } from '../slash-text.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
-import { S, saveOpen } from '../core/state.js';
+import { here, S, saveOpen } from '../core/state.js';
 import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
@@ -241,7 +241,7 @@ export function updateDock(id) {
           ? `Queue a follow-up — sent when ${name} finishes. /btw asks now`
           : `Steer ${name} — interrupts and sends now. /btw asks without interrupting`
         : S.replyPlaces.has(id)
-          ? `Follow up on ${replyPlace(id) ? placeName(replyPlace(id)) : 'this computer'} with ${next}…`
+          ? `Follow up on ${replyPlace(id) ? placeName(replyPlace(id)) : here} with ${next}…`
           : s.state === 'done'
             ? next !== name
               ? `Follow up with ${next} to reopen…`
@@ -435,7 +435,7 @@ async function moveWithReply(id, text, { attachments, mode, run, place }) {
     keepInPlace(feedAnchor(), renderFeed);
     if (wasOpen) expand(next.id);
     setFocus(next.id);
-    toast(`Moved to <b>${esc(place ? placeName(place) : 'this computer')}</b> with its work and history`);
+    toast(`Moved to <b>${esc(place ? placeName(place) : here)}</b> with its work and history`);
   } catch (err) {
     undo?.();
     if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));

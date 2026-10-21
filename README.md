@@ -426,8 +426,8 @@ They receive titles, summaries and questions (with their context), never code or
 
 **Machines** (top bar, Settings → *Machines*, or ⌘K) runs agents on your other computers over SSH. Give it `user@host` or a `Host` from `~/.ssh/config` and press **Connect**:
 
-1. wisp signs in with `ssh` using your keys, agent and config (never a password; `BatchMode=yes`, new host keys are trusted on first use).
-2. On the machine it finds Node.js 20+ and starts `npx -y wisp-agents@<this version> --no-open` detached, or reuses the wisp already answering on its port (4477 by default).
+1. wisp signs in with `ssh` using your keys, agent and config (`BatchMode=yes`, new host keys are trusted on first use). If the machine doesn't know this computer yet, Machines asks for your password there **once**: wisp signs in with it for a single `ssh` call that adds this computer's key (making `~/.ssh/id_ed25519` first if you have none), then connects with the key. The password is never stored.
+2. On the machine it finds Node.js 20+, or installs the current LTS into `~/.wisp/node` when there is none (downloaded from nodejs.org and checked against its SHA-256; no admin rights, nothing else touched). Then it starts `npx -y wisp-agents@<this version> --no-open` detached, or reuses the wisp already answering on its port (4477 by default).
 3. It forwards a free local port to that wisp with `ssh -L` and relays its event stream.
 
 Every project runs on every machine. In the launcher, **Run on** (next to the harness) picks where the prompt goes: this computer, any machine, or several at once. A machine without a checkout of the project gets one first: wisp reuses a clone of the same repo it finds there, or clones the project's origin (repos without a remote can't be cloned; add their folder on the machine in Projects instead). Enter launches on every place in parallel, and the runs land as one task with a row per machine. Each run executes on its machine, with worktrees, diffs, rollback, `ask_user`, subagents, compare and Ship it all working on that machine. Its sessions join your feed with a badge, answer from your phone like any other, open in VS Code, Cursor or Windsurf through Remote - SSH, and **Take over** opens `ssh -t <host>` resuming the agent in your terminal.
@@ -438,11 +438,7 @@ A task can change computers mid-way: the **Runs on** button next to the composer
 
 ### Get a machine ready
 
-The machine runs macOS or Linux (on Windows, use WSL) and needs three things. Install wisp there and open Settings → *Machines*: **This computer** checks each one and gives this OS's command for anything missing, along with the `user@host` to connect with.
-
-1. **An SSH server.** On macOS, System Settings → General → Sharing → *Remote Login* (`sudo systemsetup -setremotelogin on`). On Debian or Ubuntu, `sudo apt install -y openssh-server && sudo systemctl enable --now ssh`.
-2. **Your key, let in once.** From the computer you connect from, run `ssh-copy-id you@host`. The phone app shows its own one-line command for this.
-3. **Node.js 20+ and the harness CLIs**, each signed in. wisp starts itself there with `npx`.
+The machine runs macOS or Linux (on Windows, use WSL). It only needs **SSH turned on**: on macOS, System Settings → General → Sharing → *Remote Login* (`sudo systemsetup -setremotelogin on`); on Debian or Ubuntu, `sudo apt install -y openssh-server && sudo systemctl enable --now ssh`. Everything else comes on its own: wisp asks for your password there once to let this computer in, installs Node.js into `~/.wisp/node` if it's missing and starts itself with `npx`. Then pick a coding agent there in Settings → *Agents* (opencode installs in one click; Claude Code, Codex and the others need their CLI signed in once). With wisp installed on the machine, Settings → *Machines* → **This computer** checks it all and shows the `user@host` to connect with.
 
 ### Tailscale
 
@@ -450,7 +446,7 @@ The machine runs macOS or Linux (on Windows, use WSL) and needs three things. In
 
 ### On your phone (Android, prototype)
 
-[`mobile/`](mobile/) is an Android app that connects to one of your machines over SSH, starts wisp there with the same script Machines uses, and shows wisp's own page through the tunnel. Every feature works the same, and the agents keep running when the phone sleeps. Save several machines, give each one a key (made on the phone, or imported), and switch between them with one tap. Build it with `cd mobile && npm install && npm run build`; see [mobile/README.md](mobile/README.md).
+[`mobile/`](mobile/) is wisp on Android, for your own computers. Add one with its address and your password (once; the app installs its own key there), and the app sets it up the way Machines does: Node.js if it's missing, then wisp. Tap it and you're in that computer's wisp, with every feature; the agents keep running when the phone sleeps. **Computers** in wisp's top bar goes back to the app's list to switch or add one. Build it with `cd mobile && npm install && npm run build`; see [mobile/README.md](mobile/README.md).
 
 ## Learning
 

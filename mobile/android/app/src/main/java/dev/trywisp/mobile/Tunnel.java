@@ -30,7 +30,9 @@ import net.schmizz.sshj.connection.channel.direct.Session;
 import net.schmizz.sshj.transport.verification.HostKeyVerifier;
 import net.schmizz.sshj.userauth.UserAuthException;
 import net.schmizz.sshj.userauth.keyprovider.KeyPairWrapper;
+import net.schmizz.sshj.userauth.method.AuthKeyboardInteractive;
 import net.schmizz.sshj.userauth.method.AuthMethod;
+import net.schmizz.sshj.userauth.method.PasswordResponseProvider;
 import net.schmizz.sshj.userauth.method.AuthNone;
 import net.schmizz.sshj.userauth.method.AuthPassword;
 import net.schmizz.sshj.userauth.method.AuthPublickey;
@@ -208,8 +210,13 @@ public final class Tunnel {
             // A regular sshd refuses it and the key is next.
             methods.add(new AuthNone());
             methods.add(new AuthPublickey(new KeyPairWrapper(key)));
-            if (password != null && !password.isEmpty()) methods.add(new AuthPassword(new OnePassword(password)));
+            if (password != null && !password.isEmpty()) {
+                methods.add(new AuthPassword(new OnePassword(password)));
+                // Some servers only ask for it through keyboard-interactive (PAM).
+                methods.add(new AuthKeyboardInteractive(new PasswordResponseProvider(new OnePassword(password))));
+            }
             c.auth(user, methods);
+            if (password != null && !password.isEmpty()) letIn(c);
 
             Session session = c.startSession();
             Session.Command cmd = session.exec("sh -s");
@@ -230,6 +237,22 @@ public final class Tunnel {
             return true;
         } finally {
             close();
+        }
+    }
+
+    // Signed in with the password: add this phone's key there once (the same command as desktop's
+    // server/machines/letin.js), so the next connect needs no password. "@@wisp keyed" tells the page.
+    static final String ADD_KEY = "sh -c 'umask 077; mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys && read -r k && { grep -qxF \"$k\" ~/.ssh/authorized_keys || printf \"%s\\n\" \"$k\" >> ~/.ssh/authorized_keys; }'";
+
+    private void letIn(SSHClient c) throws IOException {
+        try (Session s = c.startSession()) {
+            Session.Command cmd = s.exec(ADD_KEY);
+            OutputStream in = cmd.getOutputStream();
+            in.write((Keys.authorizedKey(key.getPublic()) + "\n").getBytes(StandardCharsets.UTF_8));
+            in.close();
+            cmd.join(15, java.util.concurrent.TimeUnit.SECONDS);
+            Integer code = cmd.getExitStatus();
+            if (code != null && code == 0) emit("@@wisp keyed");
         }
     }
 

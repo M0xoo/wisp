@@ -182,8 +182,8 @@ tmux new -d -s fix 'cd ../app-fix && claude -p "fix the flaky auth test"'`)}
       title: 'Reach your coding machines from anywhere with Tailscale and SSH — wisp',
       h1: 'Connect your machines with Tailscale',
       card: 'Laptop, desktop, server and phone on one private network: SSH in from anywhere, with no open ports.',
-      description: 'Put your laptop, dev box and phone on Tailscale, turn on SSH and let your key in once. Then run Claude Code and Codex there from anywhere with wisp, desktop or Android, without opening a port.',
-      lede: 'To run coding agents on another computer from anywhere, put both devices on <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a>, turn on SSH on the machine and let your key in once. wisp then connects by the machine’s tailnet name, from your laptop or from the wisp Android app, and nothing is exposed to the internet. Settings → Machines → <b>This computer</b> checks each step for you.',
+      description: 'Put your laptop, dev box and phone on Tailscale and turn on SSH. wisp installs the rest there, so you run Claude Code and Codex on it from anywhere, desktop or Android, without opening a port.',
+      lede: 'To run coding agents on another computer from anywhere, put both devices on <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a>, and turn on SSH on the machine. wisp does the rest by the machine’s tailnet name, from your laptop or the wisp Android app: your password there once, then Node.js and wisp, and nothing is exposed to the internet. Settings → Machines → <b>This computer</b> checks each step for you.',
       // Two drawings of one diagram: side by side, and stacked for phones (docs/style.css swaps them).
       figure: `<figure class="doc-shot doc-diagram" aria-label="Your laptop and phone reach a machine over SSH inside your private tailnet; wisp on the machine stays on 127.0.0.1">
   <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
@@ -246,7 +246,7 @@ ${sh('sudo systemsetup -setremotelogin on')}
         On Debian or Ubuntu:
 ${sh('sudo apt install -y openssh-server && sudo systemctl enable --now ssh')}
         On Fedora: <code>sudo dnf install openssh-server && sudo systemctl enable --now sshd</code>.</li>
-        <li><b>Install Node.js 20+ and your agent CLIs</b> (Claude Code, Codex, …) and sign each one in once. wisp starts itself there with <code>npx</code>, so it doesn’t need installing.</li>
+        <li><b>That’s it.</b> wisp installs Node.js there by itself when it’s missing (into <code>~/.wisp/node</code>, no admin needed) and starts itself with <code>npx</code>. Once connected, pick a coding agent in wisp’s Settings → Agents: opencode installs in one click; Claude Code and Codex need their CLI signed in once.</li>
       </ol>
     </section>
 
@@ -254,20 +254,20 @@ ${sh('sudo apt install -y openssh-server && sudo systemctl enable --now ssh')}
       <h2 id="laptop">2. Connect from your laptop</h2>
       <ol class="doc-steps">
         <li>Install Tailscale on the laptop and sign in with the same account.</li>
-        <li>Let your key in once (any SSH key works; make one with <code>ssh-keygen -t ed25519</code> if you have none):
-${sh('ssh-copy-id you@devbox')}</li>
-        <li>In wisp, open <b>Machines</b>. The machine is listed under <b>Found on this computer</b> with its tailnet name: pick it and press <b>Connect</b>.</li>
+        <li>In wisp, open <b>Machines</b>. The machine is listed under <b>Computers wisp found</b> with its tailnet name: pick it and press <b>Add and connect</b>.</li>
+        <li>The first time, wisp says <i>This computer isn’t allowed in yet</i>: type your password for the machine and press <b>Let me in</b>. wisp adds this computer’s SSH key there (making one if you have none) and never keeps the password. Prefer a terminal? <code>ssh-copy-id you@devbox</code> does the same.</li>
       </ol>
-      <p>wisp signs in with your SSH keys, finds Node there, starts <code>npx -y wisp-agents</code> (or reuses the one already running) and forwards a local port to it. <a href="/guides/run-coding-agents-on-multiple-machines.html">What you can do once it’s connected →</a></p>
+      <p>wisp then installs Node.js there if it’s missing, starts <code>npx -y wisp-agents</code> (or reuses the one already running) and forwards a local port to it. <a href="/guides/run-coding-agents-on-multiple-machines.html">What you can do once it’s connected →</a></p>
     </section>
 
     <section>
       <h2 id="phone">3. Connect from your phone</h2>
-      <p>The wisp Android app (a prototype; build it from <code>mobile/</code> in the repo) gives you the same wisp, connected to one of your machines at a time.</p>
+      <p>The wisp Android app (a prototype; build it from <code>mobile/</code> in the repo) opens wisp on your computers: tap one and you’re in its wisp, with every feature.</p>
       <ol class="doc-steps">
         <li>Install the Tailscale app on the phone and sign in.</li>
-        <li>In wisp, tap <b>Add a machine</b> and type <code>you@devbox</code>. The sheet shows a one-line command that adds the phone’s key. Run it once on the machine (from your laptop over SSH, for example). You can also import a key the machine already trusts.</li>
-        <li>Tap <b>Save and connect</b>. The card shows the same steps as on the desktop, then wisp opens. Back returns to your machines.</li>
+        <li>In wisp, tap <b>Add your computer</b>, type <code>you@devbox</code> and your password on it. The password is used once: the app adds its own key there and forgets it.</li>
+        <li>Tap <b>Connect</b>. The card shows the same steps as on the desktop (Node.js and wisp get installed if they’re missing), then wisp opens.</li>
+        <li><b>Computers</b> in wisp’s top bar brings you back to the list, to switch to another computer or add one.</li>
         <li>Allow notifications when asked. While the machine is connected, a finished task or a question shows up as an Android notification, even with the screen off; tap it to open the task.</li>
       </ol>
     </section>

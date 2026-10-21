@@ -20,6 +20,7 @@ import { randomBytes } from 'node:crypto';
 import { spawn, killTree } from './proc.js';
 import { newer } from './update.js';
 import { bootstrapScript, STEPS } from './machines/bootstrap.js';
+import { letIn } from './machines/letin.js';
 import { sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, TARGET } from './machines/hosts.js';
 import { HERE } from './store.js';
 import { bad, DEFAULT_PORT, shq } from './util.js';
@@ -228,7 +229,7 @@ export class Machines extends EventEmitter {
     const child = spawn(sshBin(), args, { stdio: ['pipe', 'pipe', 'pipe'] });
     c.child = child;
     child.stdin.on('error', () => {});
-    child.stdin.write(bootstrapScript({ port: m.port, command: m.command || this.defaultCommand, apiVersion: this.apiVersion }));
+    child.stdin.write(bootstrapScript({ port: m.port, command: m.command || this.defaultCommand, apiVersion: this.apiVersion, installNode: true }));
     child.stderr.on('data', (d) => {
       c.stderr = (c.stderr + d).slice(-4000);
       for (const l of String(d).split(/\r?\n/)) if (l.trim()) this.#log(c, l);
@@ -253,7 +254,7 @@ export class Machines extends EventEmitter {
     if (kind === 'fail') {
       const [, sid, msg = ''] = /^(\w+)\s*(.*)$/.exec(rest) || [];
       this.#step(c, sid, 'fail', msg);
-      const hint = sid === 'node' ? { text: 'Install Node.js 20 or newer there (nodejs.org, nvm, or the package manager), then connect again.' } : null;
+      const hint = sid === 'node' ? { title: 'Node.js is missing there', text: 'wisp couldn’t install Node.js there by itself (see above). Install the LTS version from nodejs.org on that computer, then Try again.', url: 'https://nodejs.org/en/download' } : null;
       c.giveUp = true; // retrying won't change the answer
       return this.#fail(c, msg, hint, { keep: true });
     }
@@ -278,7 +279,7 @@ export class Machines extends EventEmitter {
     const [agents, config] = await Promise.all([this.#raw(m, c, 'GET', '/agents').catch(() => []), this.#raw(m, c, 'GET', '/config').catch(() => ({}))]);
     const ready = agents.filter((a) => a.available);
     c.remote = { ...c.remote, version: health.version, pid: health.pid, home: config.home || '', agents: agents.map(remoteAgent) };
-    this.#step(c, 'agents', ready.length ? 'done' : 'warn', ready.length ? ready.map((a) => a.name).join(', ') : 'None found. Install a harness CLI there (claude, codex, opencode…) and sign in.');
+    this.#step(c, 'agents', ready.length ? 'done' : 'warn', ready.length ? ready.map((a) => a.name).join(', ') : 'No coding agent installed there yet. Install Claude Code, Codex or opencode on that computer and sign in once.');
     clearTimeout(c.readyTimer);
     Object.assign(c, { state: 'online', error: '', hint: null, attempt: 0, wasOnline: true, since: Date.now() });
     this.#listen(m, c);
@@ -325,8 +326,9 @@ export class Machines extends EventEmitter {
     if (!c.error) {
       c.error = lost ? 'Connection lost.' : String(c.stderr).trim().split('\n').filter(Boolean).at(-1) || `ssh exited (${code}).`;
       c.hint = sshHint(c.stderr, m.target);
+      // The step says it in words (the raw ssh line stays under Details).
       const running = c.steps.find((s) => s.status === 'run');
-      if (running) Object.assign(running, { status: 'fail', detail: c.error });
+      if (running) Object.assign(running, { status: 'fail', detail: c.hint?.title || c.error });
     }
     // Once it has worked, keep trying (laptop lid, Wi-Fi, VPN). A first connect that fails stops.
     if (lost && !c.giveUp) {
@@ -370,6 +372,13 @@ export class Machines extends EventEmitter {
       child.on('error', (err) => resolve({ code: -1, out: err.message }));
       child.on('close', (code) => resolve({ code, out }));
     });
+  }
+
+  // The machine refused this computer's key: sign in with the password once to add it, then connect.
+  async letIn(id, password) {
+    const m = this.get(id);
+    const r = await letIn({ target: m.target, password, ssh: sshBin() });
+    return { ...r, machine: await this.connect(id) };
   }
 
   // Stop wisp on the machine: its agents stop too. restart: connect again right after, which

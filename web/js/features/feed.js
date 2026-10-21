@@ -5,7 +5,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
-import { S, save, saveOpen } from '../core/state.js';
+import { HERE, S, save, saveOpen } from '../core/state.js';
 import { taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
 import { renderLaunchChips } from './launcher.js';
@@ -312,7 +312,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
     </span>
     <span class="it-side">
-      ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}${projectLabel(s)}` : ''}
+      ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on ${esc(HERE)}">${icon('laptop')}<span>${esc(HERE)}</span></span>`}${projectLabel(s)}` : ''}
       ${live && s.state === 'running' ? `<span class="pill st-running"><i></i>Working</span>` : pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}

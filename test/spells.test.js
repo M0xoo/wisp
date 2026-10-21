@@ -114,7 +114,7 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
 });
 
 test('Settings → Machines → This computer is a part spells can restyle or hide', () => {
-  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.reachable'] }, parts: { 'settings.reachable': { style: { borderRadius: '4px' } } } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.reachable', 'machines.howto'] }, parts: { 'settings.reachable': { style: { borderRadius: '4px' } }, 'machines.letin': { style: { background: 'var(--surface)' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'settings.reachable': { props: { width: 400 } } } }).some((x) => /settings\.reachable/.test(x)));
 });
 

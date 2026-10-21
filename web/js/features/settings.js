@@ -6,14 +6,14 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { money, pct } from '../core/format.js';
-import { MOBILE, S, setAgents } from '../core/state.js';
+import { COMPUTER, MOBILE, S, setAgents } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { openRouter } from './auto.js';
 import { openAutomations } from './automations.js';
 import { renderLauncher } from './launcher.js';
 import { loadConfig } from './live.js';
-import { openMachines } from './machines.js';
+import { openComputers, openMachines } from './machines.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { notifyOn, notifyPermission, requestNotify } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
@@ -34,7 +34,9 @@ const SETTINGS_PANES = [
   { id: 'notifications', label: 'Notifications', icon: 'bolt', lede: 'Hear about questions and finished tasks, here or on your phone.' },
   { id: 'agents', label: 'Agents', icon: 'agent', lede: 'The harnesses wisp found on this machine. Pick one next to the model in the launcher.' },
   { id: 'auto', label: 'Auto', icon: 'spark', lede: 'wisp picks the harness and model for each task, and learns from how it went.' },
-  { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
+  MOBILE
+    ? { id: 'machines', label: 'Computers', icon: 'server', lede: 'The computers this phone opens wisp on.' }
+    : { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
   { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your sessions and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'play', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
@@ -125,12 +127,17 @@ export function openSettings(opts) {
           </div>
         </section>
         <section class="sx-pane" data-pane="machines">
-          <div class="sx-group">
+          ${
+            MOBILE
+              ? `<div class="sx-group">${row('Computers', `You’re on ${esc(COMPUTER || 'this computer')}. Switch to another computer, or add one, from the app’s list.`, '<button class="ghost sm" id="openComputers">Your computers</button>')}</div>`
+              : `          <div class="sx-group">
             ${row('Machines', '<span class="machines-hint"></span>', '<button class="ghost sm" id="openMachines">Manage</button>')}
           </div>
           <p class="hint">Also in the top bar. Every project runs on every machine: pick one under Run on and wisp clones the project there the first time. A follow-up or a rerun can move a task to another one.</p>
           <div class="sx-head"><div><b>This computer</b><small>What another computer, or the wisp phone app, needs to connect here over SSH</small></div><button class="ghost sm" id="reachRecheck">${icon('replay')}Re-check</button></div>
           ${reachableHtml()}
+`
+          }
         </section>
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">
@@ -225,7 +232,7 @@ export function openSettings(opts) {
     $('.sx-lede', node).textContent = p.lede;
     $('.sx-main', node).scrollTop = 0;
     // Checked when the pane opens: it knocks on the SSH port and asks tailscale.
-    if (id === 'machines' && !reachChecked) {
+    if (id === 'machines' && !reachChecked && !MOBILE) {
       reachChecked = true;
       paintReachable(reachableBox(node));
     }
@@ -460,13 +467,13 @@ export function openSettings(opts) {
           <div><span>Questions</span><b>${x.questions}</b></div>`;
       })
       .catch(() => ($('.sx-usage', node).innerHTML = ''));
-    $('.machines-hint', node).textContent = machinesSummary();
+    if (!MOBILE) $('.machines-hint', node).textContent = machinesSummary();
     api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x) === 'Off' ? 'ntfy or Telegram: answer questions from your phone' : phoneSummary(x))).catch(() => {});
     paintLearn();
     paintAuto();
   };
   paintHints();
-  bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
+  if (!MOBILE) bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
   $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
@@ -489,10 +496,16 @@ export function openSettings(opts) {
   });
   $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
   $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
-  $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
-  $('#reachRecheck', node).onclick = () => {
-    paintReachable(reachableBox(node));
-  };
+  if (MOBILE) {
+    $('#openComputers', node).onclick = () => {
+      openComputers();
+    };
+  } else {
+    $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
+    $('#reachRecheck', node).onclick = () => {
+      paintReachable(reachableBox(node));
+    };
+  }
 }
 
 // Say once that anonymous stats are on, with a way out.

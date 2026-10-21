@@ -24,52 +24,63 @@
   <main class="wrap">
     <header class="brand"><span class="orb"></span><span class="word">wisp</span></header>
 
-    <section class="intro">
-      <h1>Your machines, in your pocket</h1>
-      <p>wisp runs on your computers and servers. This phone reaches one at a time over SSH; agents keep working on all of them when the app is closed.</p>
-    </section>
+    <section class="intro" id="intro"></section>
 
     <section class="list" id="machines"></section>
-    <button class="add" id="addMachine" type="button"><svg class="i"><use href="#i-plus"/></svg>Add a machine</button>
+    <button class="add" id="addMachine" type="button"><svg class="i"><use href="#i-plus"/></svg><span>Add a computer</span></button>
 
-    <section class="keys">
-      <div class="sec-head"><span>Keys on this phone</span>
-        <span class="row">
-          <button class="ghost sm" id="newKey" type="button"><svg class="i"><use href="#i-plus"/></svg>New</button>
-          <button class="ghost sm" id="importKey" type="button"><svg class="i"><use href="#i-import"/></svg>Import</button>
-        </span>
+    <details class="keys">
+      <summary class="sec-head"><span>Keys on this phone <em>advanced</em></span>
+      </summary>
+      <p class="muted small">The app signs in with these instead of your password. It makes and installs one for you; you only need this to use a key you already have.</p>
+      <div class="row">
+        <button class="ghost sm" id="newKey" type="button"><svg class="i"><use href="#i-plus"/></svg>New</button>
+        <button class="ghost sm" id="importKey" type="button"><svg class="i"><use href="#i-import"/></svg>Import</button>
       </div>
       <div class="list" id="keys"></div>
-    </section>
+    </details>
   </main>
 
-  <!-- Add / edit a machine -->
+  <!-- Add / edit a computer -->
   <dialog class="sheet" id="mSheet">
     <form method="dialog" id="mForm" autocomplete="off">
-      <header><h2 id="mTitle">Add a machine</h2><button class="icon" value="cancel" type="button" data-close aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></header>
-      <label class="field"><span>SSH</span>
-        <input id="mTarget" placeholder="you@my-server" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email" required></label>
-      <label class="field"><span>Name <em>optional</em></span><input id="mName" placeholder="Work laptop"></label>
-      <label class="field"><span>Key</span><select id="mKey"></select></label>
-      <div class="install">
-        <p>Once, on the machine, let this key in:</p>
-        <pre class="cmd" id="mCmd"></pre>
-        <button class="ghost sm" id="mCopy" type="button"><svg class="i"><use href="#i-copy"/></svg>Copy command</button>
-      </div>
+      <header><h2 id="mTitle">Add a computer</h2><button class="icon" value="cancel" type="button" data-close aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></header>
+      <label class="field"><span>Its address</span>
+        <input id="mTarget" placeholder="you@its-name" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email" required>
+        <small>Your user name on it, @, then its name or IP address.</small></label>
+      <details class="where">
+        <summary>Where do I find it?</summary>
+        <ul>
+          <li><b>wisp already runs there:</b> Settings → Machines → <i>This computer</i> → <i>Connect with</i>.</li>
+          <li><b>A Mac:</b> System Settings → General → Sharing → <i>Remote Login</i> shows <code>ssh you@its-name</code>. Turn it on while you’re there.</li>
+          <li><b>Away from home:</b> install <a href="https://tailscale.com/download">Tailscale</a> on the computer and this phone, and use the name it shows.</li>
+        </ul>
+      </details>
+      <label class="field"><span id="mPwLabel">Your password on that computer</span><input id="mPassword" type="password" autocomplete="off">
+        <small id="mPwHint">Used once to let this phone in: the app adds its own key there and forgets the password.</small></label>
+      <label class="field"><span>Name <em>optional</em></span><input id="mName" placeholder="Home desktop"></label>
+      <details class="adv" id="mKeyBox">
+        <summary>Use a key instead</summary>
+        <label class="field"><span>Key</span><select id="mKey"></select></label>
+        <div class="install">
+          <p>Run this once on the computer instead of typing a password:</p>
+          <pre class="cmd" id="mCmd"></pre>
+          <button class="ghost sm" id="mCopy" type="button"><svg class="i"><use href="#i-copy"/></svg>Copy command</button>
+        </div>
+      </details>
       <details class="adv" id="mAdv">
         <summary>Advanced</summary>
         <div class="grid">
           <label class="field"><span>SSH port</span><input id="mSshPort" inputmode="numeric" placeholder="22"></label>
           <label class="field"><span>wisp port</span><input id="mPort" inputmode="numeric" placeholder="4477"></label>
         </div>
-        <label class="field"><span>Password <em>this connection only, never saved</em></span><input id="mPassword" type="password" autocomplete="off"></label>
         <label class="field"><span>Start command <em>when wisp isn't running there yet</em></span><input id="mCommand" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="npx -y wisp-agents@latest"></label>
       </details>
       <div class="sheet-actions">
         <button class="ghost danger" id="mDelete" type="button">Delete</button>
         <span class="grow"></span>
         <button class="ghost" id="mSave" type="button">Save</button>
-        <button class="primary" id="mConnect" type="submit">Save and connect</button>
+        <button class="primary" id="mConnect" type="submit">Connect</button>
       </div>
     </form>
   </dialog>

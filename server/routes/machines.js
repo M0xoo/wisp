@@ -30,6 +30,8 @@ export function register(r, app) {
       c.send(200, { ok: true });
     }),
   );
+  // "Let me in": the password once, to put this computer's key on the machine. Never stored.
+  r.route('POST', '/machines/:id/let-in', known(async (c, id) => c.send(200, await machines.letIn(id, String((await c.body()).password || '')))));
   r.route('POST', '/machines/:id/connect', known(async (c, id) => c.send(200, await machines.connect(id))));
   r.route('POST', '/machines/:id/disconnect', known((c, id) => c.send(200, (machines.disconnect(id), one(id)))));
   // Stop wisp over there (its agents too); restart starts this version in its place.
