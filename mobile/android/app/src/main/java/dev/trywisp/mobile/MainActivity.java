@@ -17,7 +17,6 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
-import com.getcapacitor.BridgeWebViewClient;
 import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
@@ -40,8 +39,6 @@ public class MainActivity extends BridgeActivity {
         // uses this instead.
         WebView web = getBridge().getWebView();
         web.addJavascriptInterface(new Notify(), "wispAndroid");
-        // Cloud computers (wisp Grid) load here too; see Grid.java.
-        getBridge().setWebViewClient(new Grid.Client(getBridge(), this));
         // Between pages (the list, then wisp's) the WebView shows its own background: the pages'
         // (--bg in web/css/tokens.css), so dark mode doesn't flash white. It also draws the parts
         // just off screen ahead of time, so a fling doesn't show blank tiles.
@@ -52,7 +49,9 @@ public class MainActivity extends BridgeActivity {
         // (it was quit or crashed there), and with nothing cached the WebView would show its own
         // error page. Instead: back to the computers list, which says what's happening, while the
         // tunnel reconnects (that starts wisp again) and opens wisp once it answers.
-        getBridge().setWebViewClient(new BridgeWebViewClient(getBridge()) {
+        // One client for both: it extends Grid.Client so cloud computers (wisp Grid) load here too
+        // instead of in the browser, where the page isn't the app's (no way back to the list).
+        getBridge().setWebViewClient(new Grid.Client(getBridge(), this) {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);

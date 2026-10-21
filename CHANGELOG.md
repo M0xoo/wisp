@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Settings on a wisp Grid work again.** Opening Settings on a cloud computer stopped partway (the Connect pane has no machines summary to fill in), so Settings → Auto showed no goal, repair rounds or scout selected, and the buttons that open Memory, Automations, Usage, phone notifications and what Auto learned, plus Copy address on Connect, did nothing.
+- **Cloud computers open inside the phone app again.** They were handed to the browser, so their page wasn't the app's: its top-bar button showed a cloud and *Connect* instead of taking you back to your computers.
 
 ## [0.28.0] - 2026-10-22
 
