@@ -38,3 +38,5 @@ body.electron.mac .topbar { padding-left: 88px; }
 /* No keyboard shortcuts on a touch screen, and no grey flash on every tap. */
 body.wisp-mobile { -webkit-tap-highlight-color: transparent; }
 body.wisp-mobile kbd { display: none; }
+/* Split view needs a wide window: the phone app always shows the feed, so no layout switchers. */
+body.wisp-mobile .view-btn, body.wisp-mobile .view-group { display: none; }
