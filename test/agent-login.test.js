@@ -21,7 +21,7 @@ for (const name of ['claude', 'codex', 'gh']) {
 }
 Object.assign(process.env, { HOME: home, WISP_HOME: tmp('login-wisp'), WISP_CLAUDE_BIN: path.join(bins, 'claude'), WISP_CODEX_BIN: path.join(bins, 'codex'), WISP_GH_BIN: path.join(bins, 'gh'), WISP_UPDATE_CHECK: '0', WISP_TELEMETRY: '0' });
 
-const { parse, clean, LOGINS } = await import('../server/agent-login.js');
+const { parse, clean, LOGINS, forgetAgy } = await import('../server/agent-login.js');
 const { startServer } = await import('../server/index.js');
 
 let srv;
@@ -73,6 +73,17 @@ test('Grok and Antigravity: their sign-in output and whether they are signed in'
   assert.deepEqual(parse(agy), { url: 'https://accounts.google.com/o/oauth2/auth?client_id=1&state=x', code: '', needsInput: true });
   assert.equal(LOGINS.antigravity.signedIn('Fetching available models...\nError: Please sign in to view available models.', 1), false);
   assert.equal(LOGINS.antigravity.signedIn('Fetching available models...\ngemini-4-argon-medium\tGemini 4 Argon (Medium)', 0), true);
+});
+
+test('Antigravity sign out: its login file goes (agy has no logout command)', async () => {
+  const h = tmp('agy-home');
+  const token = path.join(h, '.gemini', 'antigravity-cli', 'antigravity-oauth-token');
+  fs.mkdirSync(path.dirname(token), { recursive: true });
+  fs.writeFileSync(token, '{}');
+  await forgetAgy(h, 'linux');
+  assert.equal(fs.existsSync(token), false);
+  await forgetAgy(h, 'linux'); // already signed out: fine
+  assert.equal(typeof LOGINS.antigravity.logout, 'function');
 });
 
 const agent = async (id, fresh = false) => (await api(`/agents${fresh ? '?fresh=1' : ''}`)).json.find((a) => a.id === id);
@@ -129,6 +140,12 @@ test('Codex: a device code to enter on its page; done when the CLI says so; sign
   }, 'codex signed in');
   assert.equal(done.signedIn, true);
   await until(async () => (await agent('codex')).available, 'codex in the picker');
+  // Signed in by a key in the environment: signing out can't undo that, so it says why.
+  process.env.CODEX_API_KEY = 'sk-test';
+  const keyed = await api('/agents/codex/logout', 'POST');
+  delete process.env.CODEX_API_KEY;
+  assert.equal(keyed.status, 400);
+  assert.match(keyed.json.error, /CODEX_API_KEY/);
   assert.equal((await api('/agents/codex/logout', 'POST')).json.signedIn, false);
   assert.equal((await api('/agents/codex/login')).json.signedIn, false);
   await until(async () => (await agent('codex')).available === false, 'codex out of the picker');
