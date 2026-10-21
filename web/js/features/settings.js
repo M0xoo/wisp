@@ -97,7 +97,7 @@ export function openSettings(opts) {
         </section>
         <section class="sx-pane" data-pane="notifications">
           <div class="sx-group">
-            ${row('Desktop notifications', '<span class="notif-hint"></span>', '<button class="switch" id="notif" role="switch"></button>')}
+            ${row(MOBILE ? 'Notifications' : 'Desktop notifications', '<span class="notif-hint"></span>', '<button class="switch" id="notif" role="switch"></button>')}
           </div>
           <div class="sx-group">
             ${row('Phone', '<span class="phone-hint">ntfy or Telegram: answer questions from your phone</span>', '<button class="ghost sm" id="openPhone">Set up</button>')}

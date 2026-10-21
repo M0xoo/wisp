@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Settings in the phone app says *Notifications*, not *Desktop notifications*.**
 - **The phone app no longer shows a browser error when wisp stops on the computer.** SSH could stay connected after wisp itself quit or crashed there, and the app then loaded a page nobody served. Now the app checks wisp through the tunnel every 15 seconds. If wisp stops answering and SSH can't reach its port either, the app starts wisp again over SSH and reopens the page. If the page fails to load anyway, the app goes back to Computers, which shows *wisp stopped on that computer. Starting it again…*, and reopens wisp once it answers.
 - **A task's result reveals itself once.** The staggered entrance (blocks rising in, numbers counting up, the terminal typing its command) plays the first time you see a result; opening the task again just shows it.
 - **No keyboard shortcuts in the Android app.** The phone has no keyboard to press them on, so the app no longer shows *Keyboard shortcuts* (or the feed / split view switch) in search, the *Press ⌘L to start typing* prompt hint, the palette's ↑↓ footer, or the key hints in Settings descriptions.
