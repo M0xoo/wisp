@@ -14,9 +14,14 @@ import { bad, newId } from '../util.js';
 export function createAuto(app) {
   const { store, router } = app;
   let agentsHere = [];
+  let detecting = 0;
 
+  // The latest detection wins: an older one still running (with what it read before a sign-in)
+  // doesn't overwrite a newer answer when it finishes.
   const detect = async (opts) => {
+    const n = ++detecting;
     const agents = await listAgents(opts);
+    if (n < detecting) return agentsHere.length ? agentsHere : agents;
     agentsHere = agents;
     const added = router.sync(agents);
     if (added.length) app.broadcast('router', { added });

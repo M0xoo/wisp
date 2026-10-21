@@ -391,12 +391,13 @@ export class Machines extends EventEmitter {
   }
 
   // Detect harnesses and models again on every online machine (after installing or signing in
-  // to something there). A machine that doesn't answer keeps what it had.
-  async recheckAgents() {
-    const online = this.list.map((m) => [m, this.conns.get(m.id)]).filter(([, c]) => c?.state === 'online');
+  // to something there). A machine that doesn't answer keeps what it had. only: [machine id,
+  // harness id] looks up just that harness on just that machine (right after signing in to it).
+  async recheckAgents(only = null) {
+    const online = this.list.map((m) => [m, this.conns.get(m.id)]).filter(([m, c]) => c?.state === 'online' && (!only || m.id === only[0]));
     await Promise.all(
       online.map(async ([m, c]) => {
-        const agents = await this.#raw(m, c, 'GET', '/agents?fresh=1').catch(() => null);
+        const agents = await this.#raw(m, c, 'GET', `/agents?fresh=${only ? encodeURIComponent(only[1]) : 1}`).catch(() => null);
         if (!Array.isArray(agents) || this.conns.get(m.id) !== c) return;
         c.remote = { ...c.remote, agents: agents.map(remoteAgent) };
       }),

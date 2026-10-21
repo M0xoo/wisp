@@ -304,7 +304,11 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
       if (use) use.hidden = v.signedIn !== true;
       if (v.signedIn === true) {
         a.available = true; // it's usable now, even before the harness list is looked up again
-        sideRows.find((r) => r.dataset.id === v.id)?.classList.remove('off');
+        const row = sideRows.find((r) => r.dataset.id === v.id);
+        row?.classList.remove('off');
+        if (row) $('small', row).textContent = sub(a);
+        const head = $('.pk-signin > b', list);
+        if (head) head.textContent = `Signed in to ${a.name}${v.scope ? ` on ${placeName(v.scope)}` : ''}`;
       }
     },
     { node },

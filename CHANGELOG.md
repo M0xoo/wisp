@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Signing in to an agent takes effect at once.** It used to read *Not installed* (and refuse a task) for a few seconds while wisp looked up every harness again. Now the picker and launcher treat it as ready as soon as the sign-in finishes, and only that harness is looked up again (here, or on the machine you signed in on).
 - **Usage stats for wisp Cloud.** Anonymous counts of agent sign-ins, cloud sign-ins and the *Get the app* card, from a fixed list (the page can't send anything else). A wisp Grid can send its own (sign-ups, sign-ins, devices, boxes starting and sleeping) with `"telemetry": true` in `grid.json`; it's off by default.
 - **Get the app, from the browser.** wisp in a browser tab (your cloud computer, or `wisp --browser`) has a *Get the app* button in the top bar: a short card on what the desktop app adds, and a link to trywisp.dev. *Hide this* puts it away; Search still has it. Not shown in the desktop or phone app.
 - **A cloud computer's Settings make sense on it.** In your wisp on a grid, Machines becomes *Connect*: its address, and how to open it from wisp on your computer or the phone app through the grid, plus where to sign devices out. No SSH, no Cloud pane (you're already in it), and *This computer* reads *Cloud computer*.

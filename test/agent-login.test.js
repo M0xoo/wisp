@@ -157,3 +157,17 @@ test('a harness wisp can’t sign in to says how', async () => {
   assert.equal(r.status, 400);
   assert.match(r.json.error, /terminal/);
 });
+
+test('detecting again: ?fresh=<id> redoes only that harness; an older detection never overwrites a newer one', async () => {
+  const { listAgents } = await import('../server/adapters/index.js');
+  const before = await listAgents();
+  // A string that isn't a harness (gh) redoes nothing; a harness id redoes just that one.
+  assert.deepEqual((await listAgents({ fresh: 'gh' })).map((a) => a.id), before.map((a) => a.id));
+  const one = await listAgents({ fresh: 'codex' });
+  assert.equal(one.find((a) => a.id === 'codex').available, before.find((a) => a.id === 'codex').available);
+  assert.equal((await api('/agents?fresh=claude')).status, 200);
+  // Two detections at once: the one started last decides what /agents says afterwards.
+  const [a, b] = await Promise.all([srv.auto.detect(), srv.auto.detect({ fresh: 'claude' })]);
+  assert.ok(Array.isArray(a) && Array.isArray(b));
+  assert.deepEqual(await srv.auto.agents(), b);
+});
