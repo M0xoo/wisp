@@ -5,11 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-21
+
 ### Added
 
 - **Split view.** A second layout: every task in a sidebar on the left (Needs you, Working, Done, Archived, as in the feed) and the open one beside it, with its title, pills and actions in a header, the conversation in a reading column and the follow-up box pinned to the bottom. With nothing open, the main pane is home: the prompt box, what needs you, and the keys. Switch with `\`, the new top bar button, ⌘K → *Split view* / *Feed view* or Settings → General → Layout (saved as the `view` setting). `J` / `K` move through tasks with each one open, `Esc` and `N` go home, `E` marks done and opens the next one. Drag the sidebar's edge to resize it (double-click resets). Each task keeps its scroll position: go back to one and it's where you left it (at the end if you were at the end, so new turns show). Windows narrower than 900px keep the feed. Spells reach all of it: `settings: { view: "split" }`, new `sidebar.top` and `split.head` slots, new parts (`sidebar`, `sidebar.new`, `split.main`, `split.home`, `split.head`, `split.title`, `split.body`, `topbar.view`, …) and props (`sidebar` `width` / `side: left|right` (left by default) / `details: minimal|full`, `split.main` `readWidth`, `split.home` `greeting`).
 - **AGENTS.md.** Notes for agents working on wisp: layout of the repo, how to test, and the rule that every new piece of UI is reachable by spells through `web/js/spell-schema.js`.
-
 - **`/spell` works in follow-ups.** Type `/spell a floating button that opens my PRs` in any task's follow-up box to cast a spell, the same as from the prompt box; the follow-up isn't sent to that task. The `/` menu there now lists `/spell`.
 - **Spells on the site.** The landing page has a Spells section with a working copy of casting one: pick an ask (a floating PRs button, tool stats in the top bar, compact cards, quick replies, a deploy block, a violet look) or type your own, watch the agent's steps, and a small wisp window changes the way the app does. Each spell gets a switch, its reach and its real JSON file; switching it off puts the window back. The spells guide now opens with the same demo and covers what's in a spell file, every slot and action (with its reach), data sources and scripts, blocks, prompt rules and hooks, sharing, the `wisp spell` commands and what to do when something looks wrong. Its reference tables come from wisp's own spell schema.
 
@@ -468,7 +469,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.25.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.26.0...HEAD
+[0.26.0]: https://github.com/M0xoo/wisp/compare/v0.25.0...v0.26.0
 [0.25.0]: https://github.com/M0xoo/wisp/compare/v0.24.1...v0.25.0
 [0.24.1]: https://github.com/M0xoo/wisp/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/M0xoo/wisp/compare/v0.23.0...v0.24.0
