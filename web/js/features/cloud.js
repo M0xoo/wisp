@@ -23,6 +23,8 @@ const agentName = (m, id) => (id === 'gh' ? 'GitHub' : m.remote?.agents?.find((a
 
 let flow = null; // the sign-in in progress: { id, grid, state, userCode, verifyUrl, … }
 const LAST = 'wisp.cloud.grid';
+// The hosted grid; yours, or your team's, is one edit away.
+export const DEFAULT_GRID = 'grid.trywisp.dev';
 
 const gridMachines = () => S.machines.filter((m) => m.kind === 'grid');
 const hostOf = (u) => {
@@ -78,7 +80,7 @@ export function cloudPane(box) {
     const failed = flow && ['denied', 'expired', 'failed'].includes(flow.state) ? `<p class="cl-err">${esc(flow.error || 'That didn’t work.')}</p>` : '';
     return `<form class="cl-signin cl-form">
         <p><b>${gridMachines().length ? 'Sign in to another grid' : 'Sign in to a wisp Grid'}</b><small>Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (<code>wisp grid serve</code>), your team’s, or a hosted one.</small></p>
-        <div class="cl-row"><input class="input mono" name="grid" placeholder="wisp.example.com" value="${esc(localStorage.getItem(LAST) || '')}" spellcheck="false" autocapitalize="off" autocomplete="url" required>
+        <div class="cl-row"><input class="input mono" name="grid" placeholder="wisp.example.com" value="${esc(localStorage.getItem(LAST) || DEFAULT_GRID)}" spellcheck="false" autocapitalize="off" autocomplete="url" required>
         <button class="primary sm" type="submit">${icon('lock')}Sign in</button></div>${failed}
       </form>`;
   };

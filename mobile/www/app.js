@@ -313,6 +313,7 @@ const hostOf = (u) => {
   }
 };
 const LOCAL = /(^|\.)localhost$/i;
+const DEFAULT_GRID = 'grid.trywisp.dev'; // the hosted grid; yours is one edit away
 // "wisp.example.com" → https://wisp.example.com (http only for a grid on this phone's loopback).
 function gridUrl(raw) {
   let s = String(raw || '').trim();
@@ -363,7 +364,7 @@ function cloudSheet(m = null) {
     stop();
     $('#gTitle').textContent = m ? nameOf(m) : 'wisp Cloud';
     body.innerHTML = `${m ? `<p class="muted">${esc(m.handle)} on <b>${esc(hostOf(m.grid))}</b>${m.signedOut ? ' · signed out' : ''}</p>` : '<p class="muted">Your own wisp on a server: agents keep working when your computers sleep. Sign in to a wisp Grid (yours, your team’s, or a hosted one) with Google, GitHub or what it offers.</p>'}
-      <label class="field"><span>Grid</span><input id="gUrl" placeholder="wisp.example.com" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" value="${esc(m ? m.grid.replace(/^https:\/\//, '') : localStorage.getItem('wisp.grid') || '')}" required></label>
+      <label class="field"><span>Grid</span><input id="gUrl" placeholder="wisp.example.com" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" value="${esc(m ? m.grid.replace(/^https:\/\//, '') : localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" required></label>
       ${error ? `<p class="err">${esc(error)}</p>` : ''}
       <div class="sheet-actions">${m ? '<button class="ghost danger" data-g="signout" type="button">Sign out</button>' : ''}<span class="grow"></span><button class="primary" type="submit">${m ? 'Sign in again' : 'Sign in'}</button></div>`;
   };
