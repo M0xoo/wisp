@@ -1,0 +1,10 @@
+<!-- Android 13+ themed icons: the orb and its sparkles as one colour (the launcher tints it). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M30,54a24,24 0,1 0,48 0a24,24 0,1 0,-48 0zM78.2,36.5a2.25,2.25 0,1 0,4.5 0a2.25,2.25 0,1 0,-4.5 0zM28.1,69.9a1.5,1.5 0,1 0,3 0a1.5,1.5 0,1 0,-3 0zM73.3,77.9a1.15,1.15 0,1 0,2.3 0a1.15,1.15 0,1 0,-2.3 0z" />
+</vector>

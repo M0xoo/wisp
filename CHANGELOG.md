@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **The Android app has wisp's icon.** The launcher shows wisp's orb instead of Capacitor's placeholder (with a themed icon on Android 13+), and the launch screen matches the page's light or dark background. Release builds sign with your Play upload key, and `mobile/README.md` walks through publishing on Google Play.
+
 ## [0.28.0] - 2026-10-22
 
 ### Added
