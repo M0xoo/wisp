@@ -101,6 +101,7 @@ export const PARTS = {
   // Machines: the three-step explainer, and the password box when a machine won't let this one in.
   'machines.howto': '.mc-howto',
   'machines.letin': '.mc-letin',
+  'machines.cloud': '.mc-cloud',
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.cloud': '.sx-cloud',
   'settings.cloud.computer': '.cl-card',

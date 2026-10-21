@@ -35,6 +35,79 @@ const hostOf = (u) => {
   }
 };
 
+// --- signing in: one flow at a time, shown wherever a sign-in box is (Settings → Cloud, Machines)
+
+const setFlow = (f) => {
+  flow = f;
+  bus.emit('cloud-flow');
+};
+
+// The server says how the sign-in went (the 'cloud' event).
+bus.on('cloud', (f) => {
+  if (!flow || f.id !== flow.id) return;
+  if (f.state !== 'done') return setFlow(f);
+  toast(`Signed in as <b>${esc(f.user?.handle || '')}</b> on ${esc(hostOf(f.grid))}. Your cloud computer is waking up.`);
+  setFlow(null);
+  loadMachines();
+});
+
+function signinHtml({ title, lede }) {
+  if (flow?.state === 'waiting')
+    return `<div class="cl-signin cl-code">
+        <p><b>Allow this computer in the browser</b><small>Open ${esc(hostOf(flow.grid))}, sign in with Google, GitHub or what it offers, and allow the device showing this code.</small></p>
+        <div class="cl-codebox"><span class="mono">${esc(flow.userCode)}</span><button class="icon-btn" type="button" data-cl="copy" title="Copy the code">${icon('copy')}</button></div>
+        <div class="cl-row"><button class="primary sm" type="button" data-cl="open">${icon('external')}Open the sign-in page</button><button class="ghost sm" type="button" data-cl="cancel">Cancel</button><span class="cl-wait"><i class="spin"></i>Waiting for you to allow it…</span></div>
+      </div>`;
+  const failed = flow && ['denied', 'expired', 'failed'].includes(flow.state) ? `<p class="cl-err">${esc(flow.error || 'That didn’t work.')}</p>` : '';
+  return `<form class="cl-signin cl-form">
+      <p><b>${title || (gridMachines().length ? 'Sign in to another grid' : 'Sign in to a wisp Grid')}</b><small>${lede || 'Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (<code>wisp grid serve</code>), your team’s, or a hosted one.'}</small></p>
+      <div class="cl-row"><input class="input mono" name="grid" placeholder="wisp.example.com" value="${esc(localStorage.getItem(LAST) || DEFAULT_GRID)}" spellcheck="false" autocapitalize="off" autocomplete="url" required>
+      <button class="primary sm" type="submit">${icon('lock')}Sign in</button></div>${failed}
+    </form>`;
+}
+
+// A sign-in box in el: the grid's address, then the code to allow in the browser.
+export function mountCloudSignin(el, text = {}) {
+  const paint = () => {
+    if (!el.isConnected) return;
+    if (el.contains(document.activeElement) && document.activeElement.matches('input')) return; // keep what's being typed
+    el.innerHTML = signinHtml(text);
+  };
+  el.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // the form is repainted at once; whatever holds this box shouldn't see it
+    const f = e.target.closest('.cl-form');
+    const raw = f?.grid.value.trim();
+    if (!raw) return;
+    // At once: the code card, waiting on the grid's answer. Back to the form if it refuses.
+    localStorage.setItem(LAST, raw);
+    document.activeElement?.blur();
+    setFlow({ id: '', grid: raw, state: 'waiting', userCode: '…', verifyUrl: '' });
+    try {
+      setFlow(await api('/cloud/signin', { method: 'POST', body: { url: raw } }));
+    } catch (err) {
+      setFlow(null);
+      toastError(err);
+    }
+  });
+  el.addEventListener('click', async (e) => {
+    const a = e.target.closest('[data-cl]')?.dataset.cl;
+    if (a === 'copy' && flow) {
+      copy(flow.userCode);
+      toast('Code copied');
+    }
+    // Opening the page is the user's click; nothing opens by itself.
+    if (a === 'open' && flow?.verifyUrl) window.open(flow.verifyUrl, '_blank', 'noopener');
+    if (a === 'cancel' && flow) {
+      const id = flow.id;
+      setFlow(null);
+      if (id) await api(`/cloud/signin/${id}`, { method: 'DELETE' }).catch(() => {});
+    }
+  });
+  bus.on('cloud-flow', paint, { node: el });
+  paint();
+}
+
 export function cloudSummary() {
   const list = gridMachines();
   if (!list.length) return 'Not signed in';
@@ -70,50 +143,14 @@ export function cloudPane(box) {
       .join('')}</div>`;
   };
 
-  const signin = () => {
-    if (flow?.state === 'waiting')
-      return `<div class="cl-signin cl-code">
-          <p><b>Allow this computer in the browser</b><small>Open ${esc(hostOf(flow.grid))}, sign in with Google, GitHub or what it offers, and allow the device showing this code.</small></p>
-          <div class="cl-codebox"><span class="mono">${esc(flow.userCode)}</span><button class="icon-btn" data-a="copy" title="Copy the code">${icon('copy')}</button></div>
-          <div class="cl-row"><button class="primary sm" data-a="open">${icon('external')}Open the sign-in page</button><button class="ghost sm" data-a="cancel">Cancel</button><span class="cl-wait"><i class="spin"></i>Waiting for you to allow it…</span></div>
-        </div>`;
-    const failed = flow && ['denied', 'expired', 'failed'].includes(flow.state) ? `<p class="cl-err">${esc(flow.error || 'That didn’t work.')}</p>` : '';
-    return `<form class="cl-signin cl-form">
-        <p><b>${gridMachines().length ? 'Sign in to another grid' : 'Sign in to a wisp Grid'}</b><small>Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (<code>wisp grid serve</code>), your team’s, or a hosted one.</small></p>
-        <div class="cl-row"><input class="input mono" name="grid" placeholder="wisp.example.com" value="${esc(localStorage.getItem(LAST) || DEFAULT_GRID)}" spellcheck="false" autocapitalize="off" autocomplete="url" required>
-        <button class="primary sm" type="submit">${icon('lock')}Sign in</button></div>${failed}
-      </form>`;
-  };
-
   const paint = () => {
     if (!box.isConnected || typingLogin(box)) return;
     const list = gridMachines();
-    const typing = document.activeElement?.closest?.('.cl-form') && box.contains(document.activeElement);
-    box.innerHTML = `${list.length ? `<div class="sx-group cl-list">${list.map(card).join('')}</div>` : ''}${typing ? '' : `<div class="sx-group">${signin()}</div>`}
+    if (document.activeElement?.closest?.('.cl-form') && box.contains(document.activeElement)) return; // an address being typed
+    box.innerHTML = `${list.length ? `<div class="sx-group cl-list">${list.map(card).join('')}</div>` : ''}<div class="sx-group cl-slot"></div>
       <p class="hint">A cloud computer shows up under Machines and in Run on, like any other computer. It sleeps when nothing’s going on (watching it from here doesn’t keep it up), and wakes when you send it something or a schedule is due.</p>`;
+    mountCloudSignin(box.querySelector('.cl-slot'));
   };
-
-  box.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const f = e.target.closest('.cl-form');
-    if (!f) return;
-    const raw = f.grid.value.trim();
-    if (!raw) return;
-    // At once: the code card, waiting on the grid's answer. Back to the form if it refuses.
-    localStorage.setItem(LAST, raw);
-    flow = { id: '', grid: raw, state: 'waiting', userCode: '…', verifyUrl: '' };
-    f.blur?.();
-    document.activeElement?.blur();
-    paint();
-    try {
-      flow = await api('/cloud/signin', { method: 'POST', body: { url: raw } });
-      paint();
-    } catch (err) {
-      flow = null;
-      paint();
-      toastError(err);
-    }
-  });
 
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-a]');
@@ -121,18 +158,6 @@ export function cloudPane(box) {
     const a = b.dataset.a;
     const m = gridMachines().find((x) => x.id === b.closest('.cl-card')?.dataset.id);
     try {
-      if (a === 'copy') {
-        copy(flow.userCode);
-        toast('Code copied');
-      }
-      // Opening the page is the user's click; nothing opens by itself.
-      if (a === 'open' && flow?.verifyUrl) window.open(flow.verifyUrl, '_blank', 'noopener');
-      if (a === 'cancel' && flow) {
-        const id = flow.id;
-        flow = null;
-        paint();
-        if (id) await api(`/cloud/signin/${id}`, { method: 'DELETE' });
-      }
       if (a === 'wake' && m) await api(`/machines/${m.id}/connect`, { method: 'POST', body: {} });
       if (a === 'sleep' && m) {
         await api(`/machines/${m.id}/stop`, { method: 'POST', body: {} });
@@ -148,20 +173,6 @@ export function cloudPane(box) {
     }
   });
 
-  bus.on(
-    'cloud',
-    (f) => {
-      if (!flow || f.id !== flow.id) return;
-      flow = f;
-      if (f.state === 'done') {
-        toast(`Signed in as <b>${esc(f.user?.handle || '')}</b> on ${esc(hostOf(f.grid))}. Your cloud computer is waking up.`);
-        flow = null;
-        loadMachines();
-      }
-      paint();
-    },
-    { node: box },
-  );
   // Sign-ins on each cloud computer that's up; looked up again when one comes up.
   const online = () => gridMachines().filter((m) => m.state === 'online');
   let up = '';

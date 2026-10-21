@@ -202,3 +202,6 @@
 .cl-an { flex: 1; font-size: 13px; }
 .cl-agent .sx-login-ctl { margin-right: 0; }
 .cl-agents .sx-login { margin: 0 0 6px 26px; }
+
+/* Machines: a cloud computer instead of SSH (features/cloud.js mountCloudSignin). */
+.mc-cloud { margin-top: 14px; }

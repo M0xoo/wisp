@@ -114,7 +114,7 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
 });
 
 test('Settings → Cloud is parts spells can restyle or hide', () => {
-  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.cloud.signin'] }, parts: { 'settings.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud.computer': { style: { background: 'var(--surface)' } } } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.cloud.signin'] }, parts: { 'machines.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud.computer': { style: { background: 'var(--surface)' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'settings.cloud': { props: { width: 400 } } } }).some((x) => /settings\.cloud/.test(x)));
 });
 

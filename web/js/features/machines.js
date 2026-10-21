@@ -17,6 +17,7 @@ import { MACHINE_STATE, machineById, machinesSummary } from './places.js';
 import { openProjects, renderProjects } from './projects.js';
 import { TAILSCALE_GUIDE } from './reachable.js';
 import { harnessLogo } from './runners.js';
+import { mountCloudSignin } from './cloud.js';
 
 export const loadMachines = () => api('/machines').then(setMachines).catch(() => {});
 export function setMachines(list, { quiet = false } = {}) {
@@ -80,9 +81,12 @@ export function openMachines({ host, focusAdd = false } = {}) {
         <div class="mc-howto-slot"></div>
         <div class="mc-list"></div>
         <section class="mc-add"></section>
+        <section class="sx-group mc-cloud"></section>
       </div>
     </div>`);
   const close = present(node, host);
+  // No computer to set up over SSH: a cloud computer instead (wisp Grid), signed in right here.
+  mountCloudSignin($('.mc-cloud', node), { title: 'Or use a cloud computer', lede: 'No SSH and nothing to keep switched on: your own wisp on wisp Grid, signed in with GitHub or Google. It keeps working when this computer sleeps, and shows up here like any machine.' });
   const body = $('.mc-body', node);
   let editing = null; // machine id whose form is open, '' = a new one, null = closed
   let hosts = []; // found on this computer: ~/.ssh/config, Tailscale peers, ~/.ssh/known_hosts
