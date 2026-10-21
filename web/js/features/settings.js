@@ -508,13 +508,13 @@ export function openSettings(opts) {
           <div><span>Questions</span><b>${x.questions}</b></div>`;
       })
       .catch(() => ($('.sx-usage', node).innerHTML = ''));
-    if (!MOBILE) $('.machines-hint', node).textContent = machinesSummary();
+    if (!MOBILE && !grid) $('.machines-hint', node).textContent = machinesSummary();
     api('/remote').then((x) => ($('.phone-hint', node).textContent = phoneSummary(x) === 'Off' ? 'ntfy or Telegram: answer questions from your phone' : phoneSummary(x))).catch(() => {});
     paintLearn();
     paintAuto();
   };
   paintHints();
-  if (!MOBILE) bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
+  if (!MOBILE && !grid) bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
   $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
