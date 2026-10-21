@@ -8,6 +8,7 @@
 //
 // Cookies never span subdomains, so one user's wisp page can't read or set another's.
 
+import fs from 'node:fs';
 import http from 'node:http';
 import { createAccounts, bad } from './accounts.js';
 import { createProviders, newFlow } from './auth/providers.js';
@@ -17,6 +18,8 @@ import { accountPage, activatePage, devSignInPage, messagePage, signInPage, waki
 import { createSecrets, ensureMaster } from './secrets.js';
 
 const BODY_LIMIT = 64 * 1024;
+const ASSETS = new URL('./assets/', import.meta.url);
+const TYPES = { webp: 'image/webp', svg: 'image/svg+xml', png: 'image/png' };
 const HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer']);
 
 // --- small HTTP helpers --------------------------------------------------------------------
@@ -422,6 +425,14 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         const d = String(url.searchParams.get('domain') || '').toLowerCase();
         const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!accounts.byHandle(d.slice(0, -cfg.domain.length - 1)));
         return json(res, ok ? 200 : 404, { ok });
+      }
+      // The grid's own images (screenshots, logos), on every address it answers.
+      const asset = /^\/_grid\/a\/([a-z0-9-]+)\.(webp|svg|png)$/.exec(url.pathname);
+      if (asset && req.method === 'GET') {
+        const file = new URL(`${asset[1]}.${asset[2]}`, ASSETS);
+        if (!fs.existsSync(file)) return json(res, 404, { error: 'not found' });
+        res.writeHead(200, { 'content-type': TYPES[asset[2]], 'cache-control': 'public, max-age=86400', 'x-content-type-options': 'nosniff' });
+        return fs.createReadStream(file).pipe(res);
       }
       const h = hostKind(req);
       if (h.kind === 'root') return await root(req, res, url);

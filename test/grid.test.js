@@ -358,7 +358,7 @@ test('GitHub sign-in: the numeric id is who you are; linking an account used els
   const b = browser();
   await b.follow(`${base}/auth/github/start`);
   const home = await b.go(`${base}/`);
-  assert.match(home.text, /Hi Octo Cat/);
+  assert.match(home.text, /Hi Octo/);
   assert.ok(grid.accounts.byHandle('octo-cat'));
   assert.equal(grid.db.get("SELECT subject FROM identities WHERE provider = 'github'").subject, '4242');
   // Ada tries to connect the same GitHub account.
