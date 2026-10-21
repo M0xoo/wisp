@@ -108,6 +108,19 @@ export function mountCloudSignin(el, text = {}) {
   paint();
 }
 
+// Settings → Connect, on a cloud computer itself: you reach it through its grid (the browser, wisp on
+// a desktop, the phone app), never over SSH. grid: { url, address } from GET /config.
+export function connectHtml(grid, row) {
+  const g = esc(hostOf(grid.url));
+  return `<div class="sx-group sx-connect">
+      ${row('In a browser', `<a href="${esc(grid.address)}" target="_blank" rel="noopener" class="mono">${esc(hostOf(grid.address))}</a> · sign in with the account you use on ${g}.`, `<button class="ghost sm" id="copyAddress">${icon('copy')}Copy link</button>`)}
+      ${row('wisp on your computer', `Settings → Cloud → Sign in, with <code>${g}</code>. This cloud computer joins Machines and Run on there, next to that computer’s own tasks.`, '')}
+      ${row('wisp phone app', `On its first screen, <i>Sign in to wisp Cloud</i> with <code>${g}</code>. No SSH and no Tailscale.`, '')}
+      ${row('Devices you let in', `Desktops and phones signed in to it. Sign one out on your ${g} account page.`, `<a class="ghost sm btn-link" href="${esc(grid.url)}/account" target="_blank" rel="noopener">${icon('external')}Account</a>`)}
+    </div>
+    <p class="hint">It sleeps when nothing’s going on, and wakes when you open it, send it a task, or a schedule is due. Your tasks, files and sign-ins stay on it.</p>`;
+}
+
 export function cloudSummary() {
   const list = gridMachines();
   if (!list.length) return 'Not signed in';

@@ -21,8 +21,15 @@ export const MOBILE = typeof navigator !== 'undefined' && /\bwispMobile\b/.test(
 // its name as ?m=: "here" goes by that name instead of "This computer".
 export const COMPUTER = MOBILE ? new URLSearchParams(location.search).get('m') || sessionStorage.getItem('wisp.computer') || '' : '';
 if (COMPUTER) sessionStorage.setItem('wisp.computer', COMPUTER);
-export const HERE = COMPUTER || 'This computer'; // in labels
-export const here = COMPUTER || 'this computer'; // mid-sentence
+export let HERE = COMPUTER || 'This computer'; // in labels
+export let here = COMPUTER || 'this computer'; // mid-sentence
+// On a wisp Grid this wisp is the user's cloud computer (GET /config says so: grid).
+export const inGrid = () => !!S.config?.grid;
+export function nameHere() {
+  if (COMPUTER) return;
+  HERE = inGrid() ? 'Cloud computer' : 'This computer';
+  here = inGrid() ? 'this cloud computer' : 'this computer';
+}
 
 export const S = {
   sessions: new Map(), // id -> summary

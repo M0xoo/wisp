@@ -106,6 +106,8 @@ export const PARTS = {
   'settings.cloud': '.sx-cloud',
   'settings.cloud.computer': '.cl-card',
   'settings.cloud.signin': '.cl-signin',
+  // Settings → Connect, on a cloud computer: how to open it through its grid.
+  'settings.connect': '.sx-connect',
   // Settings → Agents: signing in to a harness (its link, code and paste box).
   'settings.agent.signin': '.sx-login',
 };

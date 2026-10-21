@@ -220,6 +220,9 @@ test('dev sign-in, then /go opens the user’s own wisp at <handle>.<domain>, st
   }, { what: 'its wisp' });
   assert.equal(health.name, 'wisp');
   assert.equal(health.url, origin, 'the wisp reports its public address (trusted-proxy mode)');
+  // It knows it's a cloud computer on this grid: the page offers the grid, not SSH, to reach it.
+  const conf = await b.go(`${origin}/api/config`, { headers: { accept: 'application/json' } });
+  assert.deepEqual(conf.json.grid, { url: cfg.publicUrl, address: origin });
   const page = await b.go(`${origin}/`);
   assert.match(page.text, /<!doctype html>/i);
   assert.equal(grid.hostd.state(grid.accounts.byHandle('ada').id), 'running');

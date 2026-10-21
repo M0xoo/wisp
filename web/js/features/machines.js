@@ -7,7 +7,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, el, icon } from '../core/dom.js';
-import { COMPUTER, MOBILE, S } from '../core/state.js';
+import { COMPUTER, MOBILE, S, inGrid } from '../core/state.js';
 import { present } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
@@ -41,13 +41,20 @@ export function openComputers() {
   else location.replace(COMPUTERS);
 }
 
-function paintMachinesBtn() {
+export function paintMachinesBtn() {
   const b = $('#machinesBtn');
   if (!b) return;
   if (MOBILE) {
     $('span', b).textContent = COMPUTER || 'Computers'; // which one you're on; tap to switch
     $('.ab-n', b).hidden = true;
     b.title = 'Your computers: switch to another one, or add one';
+    return;
+  }
+  $('span', b).textContent = inGrid() ? 'Connect' : 'Machines';
+  $('use', b)?.setAttribute('href', inGrid() ? '#i-cloud' : '#i-server');
+  if (inGrid()) {
+    $('.ab-n', b).hidden = true;
+    b.title = 'Open this cloud computer from your desktop or phone';
     return;
   }
   const on = S.machines.filter((m) => m.state === 'online').length;
@@ -74,6 +81,8 @@ const STEP_ICON = { done: 'check', fail: 'x', warn: 'warn', run: '', pending: ''
 
 export function openMachines({ host, focusAdd = false } = {}) {
   if (MOBILE) return openComputers();
+  // A cloud computer doesn't SSH out: how to reach it through the grid instead.
+  if (inGrid()) return import('./settings.js').then((m) => m.openSettings({ pane: 'machines' }));
   const node = el(`<div class="modal machines-modal">
       <header><h2>Machines</h2><button class="icon-btn close">${icon('x')}</button></header>
       <div class="mc-body">

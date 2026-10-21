@@ -107,6 +107,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     dataDir: cfg.dataDir,
     secretFor: (u) => secrets.ensure(u.id, 'wisp-proxy'),
     urlFor: (u) => cfg.instanceUrl(u.handle),
+    gridUrl: cfg.publicUrl,
     log,
   });
   hostd.on('change', (e) => {

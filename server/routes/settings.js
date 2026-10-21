@@ -13,6 +13,10 @@ import { cloneRepo, gh, git, parseRepo } from '../git.js';
 import { checkout, cloneRoot, discoverRepos, originAt } from '../services/places.js';
 import { expand } from '../util.js';
 
+// On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
+// the page offers connecting through the grid instead of SSH.
+const gridInfo = (app) => (process.env.WISP_GRID_URL && app.publicUrl ? { url: process.env.WISP_GRID_URL.replace(/\/+$/, ''), address: app.publicUrl } : null);
+
 export { cloneRoot };
 
 export function register(r, app) {
@@ -30,7 +34,7 @@ export function register(r, app) {
     spellsSafe: app.spells.safe,
   });
   r.route('GET', '/config', (c) =>
-    c.send(200, { ...view(), home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: TERMINALS, telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
+    c.send(200, { ...view(), home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: TERMINALS, grid: gridInfo(app), telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
   );
   r.route('PATCH', '/config', async (c) => {
     const body = await c.body();
