@@ -104,10 +104,10 @@ function ensureNetwork({ network }) {
 
 export class Hostd extends EventEmitter {
   // user: { id, handle }. secretFor(user) → the trusted-proxy secret; urlFor(user) → its public URL.
-  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, gridUrl = '', wispBin = WISP_BIN, log = () => {} }) {
+  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, gridUrl = '', telemetry = false, wispBin = WISP_BIN, log = () => {} }) {
     super();
     if (driver !== 'process' && driver !== 'container') throw new Error(`hostd driver "${driver}" isn’t built yet: use "process" or "container" (see grid/README.md).`);
-    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, env, extraPath, secretFor, urlFor, gridUrl, wispBin, log, container: { ...CONTAINER, ...container } });
+    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, env, extraPath, secretFor, urlFor, gridUrl, telemetry, wispBin, log, container: { ...CONTAINER, ...container } });
     if (driver === 'container') this.network = ensureNetwork(this.container).catch((err) => log(`hostd: ${err.message}`));
     this.inst = new Map(); // user id -> { user, state, port, child, ready, lastTouch, nextWakeAt, wakeTimer }
     this.timer = setInterval(() => this.tick().catch((err) => log(`hostd: ${err.message}`)), checkMs);
@@ -179,7 +179,7 @@ export class Hostd extends EventEmitter {
     const d = this.dirs(i.user);
     for (const x of [d.wisp, d.home]) fs.mkdirSync(x, { recursive: true });
     i.port = await freePort();
-    const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), WISP_UPDATE_CHECK: '0', WISP_TELEMETRY: '0', WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
+    const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), WISP_UPDATE_CHECK: '0', ...(!this.telemetry && { WISP_TELEMETRY: '0' }), WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
     let cmd;
     let args;
     let env;

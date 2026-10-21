@@ -3,6 +3,7 @@
 // browser. Its card says what the app adds and links to trywisp.dev; "Hide this" keeps it away
 // (the command palette still has it).
 
+import { track } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { MOBILE, inGrid, load, save } from '../core/state.js';
 import { popover } from '../ui/popover.js';
@@ -18,12 +19,13 @@ export function paintGetApp() {
   if (!b) return;
   b.hidden = !inBrowser() || load(HIDDEN, false);
   b.onclick = () => {
-    openGetApp(b);
+    openGetApp(b, 'button');
   };
 }
 
-export function openGetApp(anchor = $('#getAppBtn')) {
+export function openGetApp(anchor = $('#getAppBtn'), from = 'search') {
   if ($('.getapp')) return $('.getapp').close?.();
+  track('getapp_opened', { from });
   const why = [
     ['bolt', 'Notifications when an agent needs you, with no tab to keep open'],
     ['terminal', 'Opens files in your editor and your terminal in one click'],
@@ -41,10 +43,14 @@ export function openGetApp(anchor = $('#getAppBtn')) {
   node.style.top = `${r.bottom + 8}px`;
   node.style.right = `${Math.max(12, innerWidth - r.right)}px`;
   node.addEventListener('click', (e) => {
-    if (e.target.closest('a')) node.close();
+    if (e.target.closest('a')) {
+      track('getapp_clicked');
+      node.close();
+    }
     if (!e.target.closest('[data-hide]')) return;
     node.close();
     save(HIDDEN, true);
+    track('getapp_hidden');
     paintGetApp();
     toast('Hidden. Search (⌘K) still has <b>Get the desktop app</b>.');
   });

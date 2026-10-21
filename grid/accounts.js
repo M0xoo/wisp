@@ -14,9 +14,12 @@ const TICKET_TTL_MS = 60_000;
 const USER_CODE = 'BCDFGHJKLMNPQRSTVWXZ'; // no vowels: no words; no 0/O, 1/I
 export const bad = (message, status = 400) => Object.assign(new Error(message), { status });
 
-export function createAccounts({ db, cfg, secrets }) {
+export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
   const now = () => Date.now();
-  const audit = (userId, action, meta = {}) => db.run('INSERT INTO audit (user_id, action, meta, at) VALUES (?, ?, ?, ?)', userId, action, JSON.stringify(meta), now());
+  const audit = (userId, action, meta = {}) => {
+    db.run('INSERT INTO audit (user_id, action, meta, at) VALUES (?, ?, ?, ?)', userId, action, JSON.stringify(meta), now());
+    onAudit(userId, action, meta);
+  };
   const userById = (id) => db.get('SELECT * FROM users WHERE id = ?', id);
 
   // --- who may come in ---------------------------------------------------------------------
@@ -79,10 +82,16 @@ export function createAccounts({ db, cfg, secrets }) {
       return userById(u.id);
     }
     if (cfg.auth.signup === 'closed') throw bad('Sign-ups are closed on this grid.', 403);
-    if (!allowed(idn)) throw bad('This grid only lets in invited accounts, and this isn’t one of them.', 403);
+    if (!allowed(idn)) {
+      onAudit(null, 'signup.refused', { provider: idn.provider, reason: 'not invited' });
+      throw bad('This grid only lets in invited accounts, and this isn’t one of them.', 403);
+    }
     // A cap on accounts (a preview, a small box): the first ones in get them, then it's full.
     const max = cfg.auth.maxUsers;
-    if (max && db.get('SELECT COUNT(*) AS n FROM users').n >= max) throw bad('This grid is full for now: it has all the accounts it takes.', 403);
+    if (max && db.get('SELECT COUNT(*) AS n FROM users').n >= max) {
+      onAudit(null, 'signup.refused', { provider: idn.provider, reason: 'full' });
+      throw bad('This grid is full for now: it has all the accounts it takes.', 403);
+    }
     const id = randomBytes(8).toString('hex');
     const handle = uniqueHandle(idn.login || (idn.email || '').split('@')[0] || 'user');
     db.tx(() => {

@@ -17,6 +17,8 @@ export function createCloud(app) {
 
   const view = (f) => ({ id: f.id, grid: f.grid, state: f.state, userCode: f.userCode, verifyUrl: f.verifyUrl, expiresAt: f.expiresAt, error: f.error || '', machineId: f.machineId || null, user: f.user || null });
   const changed = (f) => app.broadcast('cloud', view(f));
+  // Usage stats: how far sign-ins get. Only whether it's the hosted grid, never a grid's address.
+  const track = (f) => app.telemetry?.track?.('cloud_signin', { step: f.state === 'waiting' ? 'started' : f.state, hosted: new URL(f.grid).host === 'grid.trywisp.dev' });
 
   async function poll(f) {
     if (f.state !== 'waiting') return;
@@ -47,6 +49,7 @@ export function createCloud(app) {
     clearTimeout(f.timer);
     Object.assign(f, { state, error, deviceCode: null });
     changed(f);
+    track(f);
     setTimeout(() => flows.delete(f.id), KEEP_MS).unref?.();
   }
 
@@ -65,6 +68,7 @@ export function createCloud(app) {
       flows.set(f.id, f);
       f.timer = setTimeout(() => poll(f), f.interval * 1000);
       changed(f);
+      track(f);
       return view(f);
     },
     get(id) {

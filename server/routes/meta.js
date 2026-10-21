@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { openapi } from '../openapi.js';
+import { pageEvent } from '../telemetry.js';
 import { triggerView } from '../triggers.js';
 import { toolStats, usage } from '../usage.js';
 import { expandHome, VERSION } from '../util.js';
@@ -94,4 +95,12 @@ export function register(r, app) {
 
   // Feedback for the wisp team: thumbs on a turn and/or a note. { rating?, text?, sessionId?, turnId? }
   r.route('POST', '/feedback', async (c) => c.send(200, await app.sendFeedback(await c.body())));
+
+  // A click on the page worth counting (PAGE_EVENTS in telemetry.js). Unknown events are ignored.
+  r.route('POST', '/telemetry/event', async (c) => {
+    const { event, props } = await c.body();
+    const p = pageEvent(event, props || {});
+    if (p) telemetry.track(event, p);
+    c.send(200, { ok: true, tracked: !!p && telemetry.enabled });
+  });
 }

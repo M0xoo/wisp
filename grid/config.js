@@ -89,6 +89,7 @@ export function loadConfig({ dataDir, overrides = {}, env = process.env } = {}) 
     if (!p.clientSecret) throw new Error(`auth.providers.${id}: no client secret (clientSecretFile, or ${p.clientSecretEnv || `GRID_${id.toUpperCase()}_CLIENT_SECRET`}).`);
   }
   if (!['open', 'closed'].includes(cfg.auth.signup)) throw new Error('auth.signup: open or closed.');
+  if (cfg.telemetry != null && typeof cfg.telemetry !== 'boolean') throw new Error('telemetry: true or false.');
   if (cfg.auth.maxUsers != null && !(Number.isInteger(cfg.auth.maxUsers) && cfg.auth.maxUsers > 0)) throw new Error('auth.maxUsers: a whole number above 0, or leave it out for no limit.');
   return cfg;
 }

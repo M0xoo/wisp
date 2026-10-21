@@ -546,3 +546,38 @@ test('the container driver: one locked-down container per user, reachable only f
   assert.match(s, /-v \/data\/users\/1\/home:\/home\/wisp /, 'only its own home');
   assert.doesNotMatch(s, /-v \/data\/users\/1:|docker\.sock|--privileged/);
 });
+
+test('grid usage stats: off unless grid.json turns them on; fixed values, users as hashes', async () => {
+  const { createGridTelemetry } = await import('../grid/telemetry.js');
+  const sent = [];
+  const post = async (b) => (sent.push(...b), true);
+  const off = createGridTelemetry({ domain: 'wisp.example.com' }, { post, env: {} });
+  off.audit('u1', 'signup', { provider: 'github' });
+  off.close();
+  assert.equal(sent.length, 0, 'a self-hosted grid sends nothing by default');
+  assert.equal(createGridTelemetry({ telemetry: true }, { post, env: { WISP_TELEMETRY: '0' } }).on, false);
+
+  let t = 1_000_000;
+  const s = createGridTelemetry({ telemetry: true, domain: 'grid.trywisp.dev', hostd: { driver: 'container' } }, { post, env: {}, now: () => t });
+  s.audit('u1', 'signup', { provider: 'github', email: 'ada@example.com' });
+  s.audit(null, 'signup.refused', { provider: 'google', reason: 'full' });
+  s.audit('u1', 'signout.all');
+  s.box({ user: { id: 'u1' }, state: 'starting', event: 'starting' });
+  t += 2500;
+  s.box({ user: { id: 'u1' }, state: 'running', event: 'started', startedAt: t });
+  t += 12 * 60_000;
+  s.box({ user: { id: 'u1' }, state: 'stopped', event: 'idle', startedAt: t - 12 * 60_000, stoppedAt: t });
+  s.close();
+  assert.deepEqual(sent.map((e) => e.event), ['grid_signup', 'grid_signup_refused', 'grid_box_started', 'grid_box_stopped']);
+  const [signup, refused, started, stopped] = sent;
+  assert.equal(signup.properties.provider, 'github');
+  assert.equal(signup.properties.email, undefined);
+  assert.equal(signup.properties.hosted, true);
+  assert.match(signup.properties.distinct_id, /^grid-[0-9a-f]{24}$/);
+  assert.ok(!signup.properties.distinct_id.includes('u1'));
+  assert.equal(signup.properties.$process_person_profile, false);
+  assert.deepEqual([refused.properties.reason, refused.properties.distinct_id], ['full', 'grid-anonymous']);
+  assert.equal(started.properties.ms, 2500);
+  assert.deepEqual([stopped.properties.reason, stopped.properties.minutes], ['idle', 12]);
+  assert.throws(() => loadConfig({ dataDir: tmp('grid-tel'), env: {}, overrides: { domain: 'wisp.localhost', auth: { dev: true }, telemetry: 'yes' } }), /telemetry/);
+});

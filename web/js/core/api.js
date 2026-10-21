@@ -23,3 +23,9 @@ export async function upload(file, { name, type }) {
   if (!r.ok) throw new Error(j.error);
   return j;
 }
+
+// Counts a click in the anonymous usage stats (server/telemetry.js PAGE_EVENTS). Never waits,
+// never fails: with stats off, the server drops it.
+export function track(event, props = {}) {
+  api('/telemetry/event', { method: 'POST', body: { event, props } }).catch(() => {});
+}

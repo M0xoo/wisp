@@ -85,6 +85,15 @@ next:
   account page. Accounts are never joined just because the email matches: that would let anyone
   who can claim an address at some provider take over the account.
 
+### Usage stats
+
+Off unless `grid.json` has `"telemetry": true`. Then the grid sends wisp's PostHog project
+anonymous counts: sign-ups (and refused ones: full or not invited), sign-ins, devices allowed or
+revoked, accounts deleted, and boxes started (how long that took), stopped (why, and after how
+long) or failed. Each user is a hash of their id: never a handle, email or address. Each user's
+wisp then keeps its own usage stats on too (they can turn them off in Settings). `WISP_TELEMETRY=0`
+or `DO_NOT_TRACK=1` in the grid's environment turns it all off.
+
 ## How it fits together
 
 ```

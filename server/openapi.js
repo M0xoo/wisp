@@ -86,6 +86,13 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, sent: { type: 'boolean', description: 'false: kept in ~/.wisp/feedback-outbox.json and retried' }, available: { type: 'boolean' } } }), 400: err[400] },
         },
       },
+      '/telemetry/event': {
+        post: {
+          summary: 'Count a click on the page in the anonymous usage stats (a fixed list of events and values; anything else is ignored). Nothing is sent with usage stats off',
+          requestBody: body({ type: 'object', required: ['event'], properties: { event: { type: 'string', enum: ['getapp_opened', 'getapp_clicked', 'getapp_hidden'] }, props: { type: 'object' } } }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, tracked: { type: 'boolean' } } }) },
+        },
+      },
       '/config': {
         get: { summary: 'Launcher defaults, projects, webhooks', responses: { 200: json({ type: 'object' }) } },
         patch: {

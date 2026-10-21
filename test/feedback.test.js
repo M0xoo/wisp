@@ -131,3 +131,19 @@ test('/api/feedback: refuses empty notes and bad ratings; reports when feedback 
   assert.deepEqual((await call('/feedback', { text: 'hello' })).body, { ok: true, sent: false, available: false });
   assert.equal((await call('/config')).body.feedback, false);
 });
+
+test('page events: only the listed ones, with only their allowed values', async () => {
+  const { pageEvent } = await import('../server/telemetry.js');
+  assert.deepEqual(pageEvent('getapp_opened', { from: 'button', email: 'a@b.c' }), { from: 'button' });
+  assert.deepEqual(pageEvent('getapp_opened', { from: '/Users/me/secret' }), {});
+  assert.deepEqual(pageEvent('getapp_clicked', { anything: 'x' }), {});
+  assert.equal(pageEvent('prompt_typed', { text: 'hi' }), null);
+  assert.equal(pageEvent('__proto__'), null);
+  // The route takes them, and says nothing went out while usage stats are off (tests).
+  const sent = [];
+  srv.telemetry.post = async (b) => (sent.push(...b), true);
+  assert.deepEqual((await call('/telemetry/event', { event: 'getapp_hidden' })).body, { ok: true, tracked: false });
+  assert.deepEqual((await call('/telemetry/event', { event: 'nope' })).body, { ok: true, tracked: false });
+  await srv.telemetry.flush();
+  assert.equal(sent.length, 0);
+});
