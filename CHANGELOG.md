@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.28.2] - 2026-10-22
+
 ### Fixed
 
 - **"Use Claude" after signing in from the harness picker picks it.** The harness list could arrive from before the sign-in was checked (often on a cloud computer, which takes seconds to look again), the launcher saw the harness as still signed out and went back to the one it had, so the button seemed to do nothing. A harness you just signed in to now stays usable until wisp's list catches up.
@@ -542,7 +544,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.28.1...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.28.2...HEAD
+[0.28.2]: https://github.com/M0xoo/wisp/compare/v0.28.1...v0.28.2
 [0.28.1]: https://github.com/M0xoo/wisp/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/M0xoo/wisp/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/M0xoo/wisp/compare/v0.26.0...v0.27.0
