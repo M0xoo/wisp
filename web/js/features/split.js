@@ -260,7 +260,7 @@ $('#splitHead').addEventListener('dblclick', (e) => {
 home.addEventListener('click', (e) => {
   const id = e.target.closest('.sh-task')?.dataset.id;
   if (!id) return;
-  setFocus(id);
+  setFocus(id, { scroll: false });
   expand(id);
 });
 

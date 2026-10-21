@@ -208,8 +208,9 @@ function item(s) {
     n.head.addEventListener('click', (e) => {
       if (s.pending || n.head.querySelector('[contenteditable="true"]')) return;
       if (e.target.closest('[data-a="quick-done"]')) return toggleDone(s.id);
-      setFocus(s.id);
-      // Split view: a click opens the task beside the list; clicking it again leaves it open.
+      // Split view: a click opens the task beside the list (clicking it again leaves it open) and
+      // the list stays where it is: the task shows in the main pane, there's nothing to scroll to.
+      setFocus(s.id, { scroll: !isSplit() });
       if (isSplit()) return S.open.has(s.id) ? paintSplit() : expand(s.id);
       toggle(s.id);
     });
@@ -397,7 +398,8 @@ export async function expand(id, { scroll = true } = {}) {
   }
   renderFeedHead(groups().needs, groups().working);
   paintSplit();
-  if (scroll) requestAnimationFrame(() => n.card.scrollIntoView({ block: isSplit() ? 'nearest' : 'start', behavior: 'smooth' }));
+  // Split view opens the task in the main pane, so the list doesn't move to it.
+  if (scroll && !isSplit()) requestAnimationFrame(() => n.card.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   if (!S.full.has(id)) await fetchFull(id);
   else renderBody(id, { fresh: true });
   backToPlace(id);
@@ -487,8 +489,8 @@ export function reveal(id) {
   }
   renderFeed();
   setFocus(id, { scroll: false });
-  if (S.open.has(id)) S.nodes.get(id)?.card.scrollIntoView({ block: isSplit() ? 'nearest' : 'start', behavior: 'smooth' });
-  else expand(id);
+  if (!S.open.has(id)) expand(id);
+  else if (!isSplit()) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 export const feedIds = () => $$('#feed .item:not(.pending)').map((x) => x.dataset.id);
