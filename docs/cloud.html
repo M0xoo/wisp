@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>wisp Cloud — agents that keep working when your laptop closes</title>
-  <meta name="description" content="wisp Cloud (preview): managed remote machines, persistent queues and team dashboards for wisp. The local CLI stays free and open source." />
+  <meta name="description" content="wisp Cloud (preview): managed remote machines, persistent queues, team dashboards, and one sign-in that syncs history and SSH access across your laptop, desktop and phone. The local CLI stays free and open source." />
   <link rel="canonical" href="https://trywisp.dev/cloud.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="wisp" />
   <meta property="og:url" content="https://trywisp.dev/cloud.html" />
   <meta property="og:title" content="wisp Cloud — close the laptop, the agents keep going" />
-  <meta property="og:description" content="Managed remote machines, persistent queues and team dashboards for wisp. The local CLI stays free and open source." />
+  <meta property="og:description" content="Managed remote machines, persistent queues, team dashboards and one sign-in for every device. The local CLI stays free and open source." />
   <meta property="og:image" content="https://trywisp.dev/assets/og.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
@@ -171,6 +171,53 @@
     .tbl th, .tbl td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); }
     .tbl th:first-child, .tbl td:first-child { text-align: left; }
 
+    /* ---------- every device ---------- */
+    .dv { overflow: hidden; }
+    .dv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .dv-bar b { font-size: 14px; }
+    .dv-sync { font: 12.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .dv-bar .add { margin-left: auto; }
+    .dv-pair { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px 24px; align-items: center; padding: 18px 16px; border-bottom: 1px solid var(--line); background: var(--bg-2); animation: row-in .45s cubic-bezier(.2,.8,.2,1) both; }
+    .dv-code { font: 700 30px/1 var(--mono); letter-spacing: .08em; padding: 14px 18px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-2); }
+    .dv-pair p { margin: 0; font-size: 14px; color: var(--ink-2); }
+    .dv-pair p .muted { font-size: 13px; }
+    .dv-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; }
+    .dv-ask .grow { flex: 1; }
+    .dv-ask .ok-btn { height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--ink); color: var(--bg); font: 500 13px var(--sans); cursor: pointer; }
+    .dv-ask .add { height: 32px; }
+    .dv-wait { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .dv-wait i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .9s linear infinite; }
+    .dv-scroll { overflow-x: auto; }
+    .dv-grid { min-width: 720px; }
+    .dv-row { display: grid; grid-template-columns: minmax(190px, 1.5fr) minmax(130px, 1fr) repeat(3, minmax(92px, .8fr)) 96px; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; transition: opacity .3s, filter .3s; }
+    .dv-row.head { padding-top: 10px; padding-bottom: 10px; font: 500 12px var(--mono); color: var(--faint); }
+    .dv-row.new { animation: row-in .45s cubic-bezier(.2,.8,.2,1) both; }
+    .dv-row.gone { opacity: .5; filter: grayscale(1); }
+    .dv-name { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 10px; align-items: center; }
+    .dv-name .ic { grid-row: span 2; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); }
+    .dv-name .ic svg { width: 16px; height: 16px; }
+    .dv-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dv-name small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dv-hist { font: 12.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .dv-hist b { color: var(--ink); font-weight: 600; }
+    .dv-hist .bar { display: block; height: 3px; margin-top: 6px; border-radius: 2px; background: var(--line); overflow: hidden; }
+    .dv-hist .bar i { display: block; height: 100%; background: var(--ok); transition: width .2s linear; }
+    .dv-act { text-align: right; }
+    .dv-act button { height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); font: 500 12.5px var(--sans); cursor: pointer; }
+    .dv-act button:hover { border-color: var(--faint); color: var(--ink); }
+    .dv-act .muted { font-size: 12px; }
+    .dv-foot { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; padding: 14px 16px; font-size: 13px; color: var(--muted); }
+    .dv-foot #dvNote { flex: 1 1 320px; min-height: 1.5em; color: var(--ink-2); }
+    .dv-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+    .dv-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .hand { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 0; padding: 0; }
+    .hand li { list-style: none; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+    .hand .ic { grid-row: span 2; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); }
+    .hand .ic svg { width: 16px; height: 16px; }
+    .hand .when { font: 12px var(--mono); color: var(--muted); }
+    .hand p { margin: 0; font-size: 14.5px; }
+    .hand-cap { margin-top: 12px; font-size: 13px; color: var(--muted); }
+
     /* ---------- free vs cloud ---------- */
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .plan { padding: 28px; }
@@ -196,7 +243,7 @@
     .qa details p { margin-top: 10px; color: var(--ink-2); font-size: 15px; }
 
     @media (max-width: 960px) {
-      .c-grid, .night, .split, .qa, .dash-body { grid-template-columns: 1fr; }
+      .c-grid, .night, .split, .qa, .dash-body, .hand { grid-template-columns: 1fr; }
       .c-grid { gap: 40px; }
       .feat3 { grid-template-columns: 1fr; gap: 18px; }
       .tiles { grid-template-columns: repeat(2, 1fr); }
@@ -212,6 +259,16 @@
       .gh span:not(.stars) { display: none; }
       .wait { flex-direction: column; }
       .wait input { flex: none; }
+      .dv-pair { grid-template-columns: 1fr; }
+      .dv-bar .add { margin-left: 0; }
+      /* stack each device: name and action, history, then one cell per machine with its name */
+      .dv-grid { min-width: 0; }
+      .dv-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+      .dv-row.head { display: none; }
+      .dv-name { grid-column: 1 / 3; }
+      .dv-act { grid-column: 3; grid-row: 1; }
+      .dv-hist { grid-column: 1 / -1; }
+      .dv-cell::before { content: attr(data-h); display: block; margin-bottom: 4px; font: 11px var(--mono); color: var(--faint); }
       .gh { display: none; }
     }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
@@ -234,6 +291,7 @@
         <a href="#machines">Machines</a>
         <a href="#queues">Queues</a>
         <a href="#team">Team</a>
+        <a href="#devices">Devices</a>
         <a href="#pricing">Free vs Cloud</a>
         <a href="#faq">FAQ</a>
       </nav>
@@ -252,7 +310,7 @@
         <div>
           <p class="kicker"><span class="dot"></span>wisp Cloud · early preview</p>
           <h1>Close the laptop. <span class="soft">The agents keep going.</span></h1>
-          <p class="lede">wisp Cloud runs your agents on managed machines, keeps every queue alive overnight, and gives your team one dashboard for what shipped. The wisp you run locally doesn't change and stays free.</p>
+          <p class="lede">wisp Cloud runs your agents on managed machines, keeps every queue alive overnight, follows you from laptop to phone with one sign-in, and gives your team one dashboard for what shipped. The wisp you run locally doesn't change and stays free.</p>
           <form class="wait" id="join" novalidate>
             <label class="sr" for="email">Work email</label>
             <input id="email" type="email" placeholder="you@company.com" autocomplete="email" required />
@@ -390,12 +448,56 @@
       </div>
     </section>
 
+    <!-- ───────── every device ───────── -->
+    <section class="sec wrap" id="devices">
+      <div class="sec-head">
+        <p class="eyebrow">04 · Every device</p>
+        <h2>Sign in once. Your wisp follows you.</h2>
+        <p>Now that wisp runs on your phone too, one wisp account ties your devices together: the same tasks, history, settings and spells on the laptop, the desktop and wisp for Android. Each device keeps its own SSH key for your machines, so adding one is a code and a tap, and losing one is a click.</p>
+      </div>
+
+      <div class="card dv" id="dv">
+        <div class="dv-bar">
+          <span class="av">YO</span><b>you@acme.dev</b><span class="pill ok">signed in</span>
+          <span class="dv-sync" id="dvSync"></span>
+          <button class="add" id="dvAdd" type="button">+ Sign in on a new device</button>
+        </div>
+        <div id="dvPair" hidden></div>
+        <div class="dv-scroll">
+          <div class="dv-grid" id="dvGrid"></div>
+        </div>
+        <div class="dv-foot">
+          <span id="dvNote" aria-live="polite">Try it: sign in on a new device, or sign the phone out.</span>
+          <span class="dv-legend">
+            <span><span class="pill ok">direct</span> your network or Tailscale</span>
+            <span><span class="pill acc">relayed</span> through wisp Cloud, end-to-end encrypted, no open ports</span>
+          </span>
+        </div>
+      </div>
+
+      <ol class="hand" aria-label="One task across three devices">
+        <li><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1 12.5h14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span><span class="when">18:20 · MacBook</span><p>Queue “Migrate billing to the new API” on <b>devbox</b>, close the lid.</p></li>
+        <li><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7 12.2h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span><span class="when">23:40 · Pixel 9</span><p>The agent asks “keep v1 webhooks?”. Answer from the notification; the question clears everywhere.</p></li>
+        <li><span class="ic"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 14h4M8 11v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span><span class="when">08:55 · Linux desktop</span><p>The report, diff and the night's follow-ups are already there. Review, then Ship it.</p></li>
+      </ol>
+      <p class="hand-cap">One task, three devices, no copying anything between them.</p>
+
+      <div class="feat3">
+        <div><h3>One history everywhere</h3><p>Tasks, reports, follow-ups, recipes, settings and spells sync between devices. Start on one, pick up on another, mid-conversation.</p></div>
+        <div><h3>A key per device, never copied</h3><p>Each device makes its own SSH key and it never leaves that device. Your account tells your machines which keys to let in: no <code>ssh-copy-id</code> on every box, from every device.</p></div>
+        <div><h3>Reach machines from anywhere</h3><p>Direct when you can (same network, Tailscale), relayed through wisp Cloud when you can't. The relay only forwards encrypted SSH: it can't read your sessions, and no ports open on your machines.</p></div>
+        <div><h3>Encrypted before it syncs</h3><p>History is encrypted on your devices with a key we never see. A new device gets it only when one of yours approves the sign-in.</p></div>
+        <div><h3>Lost your phone? One click</h3><p>Sign a device out from any other and its keys are removed from every machine, its tunnels close, and its copy of your history locks.</p></div>
+        <div><h3>Notifications that know where you are</h3><p>Questions and approvals go to the device you're on. Answer on one and it disappears from the rest.</p></div>
+      </div>
+    </section>
+
     <!-- ───────── free vs cloud ───────── -->
     <section class="sec wrap" id="pricing">
       <div class="sec-head">
-        <p class="eyebrow">04 · Free vs Cloud</p>
+        <p class="eyebrow">05 · Free vs Cloud</p>
         <h2>The CLI stays free. Cloud is for when you're not there.</h2>
-        <p>Everything wisp does on your computer today stays MIT-licensed and free, with no account. Cloud only adds what needs a server: machines that keep running, queues that outlive your laptop, and a shared view for teams.</p>
+        <p>Everything wisp does on your computer today stays MIT-licensed and free, with no account. Cloud only adds what needs a server: machines that keep running, queues that outlive your laptop, one account across your devices, and a shared view for teams.</p>
       </div>
       <div class="split">
         <div class="card plan">
@@ -408,6 +510,7 @@
             <li>Ship it, PR tracking and Merge</li>
             <li>Recipes, schedules and CI / issue triggers</li>
             <li>Your own machines over SSH</li>
+            <li>wisp for Android, with your own SSH keys</li>
             <li>Phone questions on ntfy or Telegram</li>
           </ul>
           <div class="foot-cta"><button class="cmd sm" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button></div>
@@ -419,6 +522,8 @@
           <ul>
             <li>Managed machines that boot on demand and scale to zero</li>
             <li>Persistent queues that run while your laptop sleeps</li>
+            <li>One sign-in on every device: synced history, settings and spells</li>
+            <li>A key per device, managed for you, with a relay when there's no direct route</li>
             <li>Team dashboard: tasks, merges, success rate and spend</li>
             <li>Shared recipes, triggers and Auto routing</li>
             <li>SSO, audit log, per-repo access</li>
@@ -439,6 +544,9 @@
         <details><summary>How is this different from Machines?</summary><p>Machines connects wisp to computers you already run, over SSH, and stays free. Cloud machines are ones we run for you: booted on demand, kept current, and asleep when nothing is queued.</p></details>
         <details><summary>Where does my code live?</summary><p>On the machine running the task, in its worktree, for as long as the task is open. Machines are single-tenant; disks are wiped when a machine is removed.</p></details>
         <details><summary>Can I answer questions from my phone?</summary><p>Yes, as today: <code>ask_user</code> questions reach ntfy or Telegram, and your answer goes straight back to the agent on its cloud machine.</p></details>
+        <details><summary>Does the phone app need an account?</summary><p>No. wisp for Android works today with no account: it connects to your machines over SSH with a key you make or import on the phone. An account only adds sync and managed keys across devices.</p></details>
+        <details><summary>Can you read my synced history?</summary><p>No. History is encrypted on your devices before it syncs, and relayed SSH stays end-to-end encrypted between your device and your machine. We store and forward ciphertext.</p></details>
+        <details><summary>What happens when I sign a device out?</summary><p>Its SSH keys are removed from every machine on your account, its open tunnels close and its local history locks. Your other devices and running tasks keep going.</p></details>
         <details><summary>Can I mix local and cloud?</summary><p>Yes. <b>Run on</b> lists this computer, your SSH machines and cloud machines together. Pick one, or several at once.</p></details>
       </div>
     </section>
@@ -457,7 +565,7 @@
 
   <footer class="foot wrap">
     <span class="brand"><span class="mark" aria-hidden="true"></span>wisp</span>
-    <span class="muted">MIT © M0xoo · wisp Cloud is in early preview. Dashboard numbers are demo data.</span>
+    <span class="muted">MIT © M0xoo · wisp Cloud is in early preview. Dashboard and device numbers are demo data.</span>
     <span class="grow"></span>
     <a href="./">wisp</a>
     <a href="agents/">Agents</a>
@@ -772,6 +880,102 @@
       e.currentTarget.textContent = t.hidden ? 'Show as table' : 'Hide table';
     });
     renderDash();
+
+    // ---------- every device (demo) ----------
+    const DV_ICON = {
+      laptop: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1 12.5h14" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+      phone: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M7 12.2h2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+      desk: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 14h4M8 11v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>',
+    };
+    const HOSTS = ['devbox', 'gpu-box', 'mac-mini'];
+    const HISTORY = 214;
+    // route per machine: d = direct, r = relayed. The phone is off the home network, so it's relayed.
+    const devices = [
+      { id: 'mac', name: 'MacBook Pro', sub: 'macOS · this device', icon: 'laptop', routes: ['d', 'd', 'd'], synced: HISTORY, self: true },
+      { id: 'desk', name: 'Linux desktop', sub: 'Ubuntu 26.04 · office', icon: 'desk', routes: ['d', 'r', 'd'], synced: HISTORY },
+      { id: 'pixel', name: 'Pixel 9', sub: 'wisp for Android', icon: 'phone', routes: ['r', 'r', 'r'], synced: HISTORY },
+    ];
+    const NEW = { id: 'work', name: 'Work laptop', sub: 'Windows 11 · WSL', icon: 'laptop', routes: ['r', 'd', 'r'] };
+    const dvGrid = $('#dvGrid'), dvPair = $('#dvPair'), dvNote = $('#dvNote');
+    let pairTimer = null;
+    dvGrid.append(el('div', 'dv-row head', `<span>Device</span><span>History</span>${HOSTS.map((h) => `<span>${h}</span>`).join('')}<span></span>`));
+    const cells = (d) => HOSTS.map((h, i) => {
+      if (d.gone) return `<span class="dv-cell" data-h="${h}"><span class="pill">signed out</span></span>`;
+      if (d.keys < HOSTS.length && i >= (d.keys || 0)) return `<span class="dv-cell" data-h="${h}"><span class="dv-wait"><i></i>adding key</span></span>`;
+      return `<span class="dv-cell" data-h="${h}">${d.routes[i] === 'd' ? '<span class="pill ok">direct</span>' : '<span class="pill acc">relayed</span>'}</span>`;
+    }).join('');
+    const paintDevice = (d) => {
+      const pct = Math.round((d.synced / HISTORY) * 100);
+      d.n.classList.toggle('gone', !!d.gone);
+      d.n.innerHTML = `<span class="dv-name"><span class="ic">${DV_ICON[d.icon]}</span><b>${esc(d.name)}</b><small>${esc(d.sub)}</small></span>
+        <span class="dv-hist">${d.gone ? 'locked' : d.synced >= HISTORY ? `<b>${HISTORY}</b> tasks · in sync` : `syncing <b>${d.synced}</b> / ${HISTORY}`}<span class="bar"><i style="width:${d.gone ? 0 : pct}%"></i></span></span>
+        ${cells(d)}
+        <span class="dv-act">${d.self ? '<span class="muted">you are here</span>' : d.gone ? `<button type="button" data-back="${d.id}">Sign back in</button>` : `<button type="button" data-out="${d.id}">Sign out</button>`}</span>`;
+    };
+    const addRow = (d, fresh) => {
+      d.n = el('div', `dv-row${fresh ? ' new' : ''}`);
+      d.n.dataset.id = d.id;
+      paintDevice(d);
+      dvGrid.append(d.n);
+    };
+    const renderSync = () => {
+      const live = devices.filter((d) => !d.gone);
+      $('#dvSync').textContent = `${live.length} device${live.length === 1 ? '' : 's'} · ${HISTORY} tasks · ${live.length * HOSTS.length} keys`;
+      $('#dvAdd').disabled = devices.includes(NEW) || !dvPair.hidden;
+    };
+    devices.forEach((d) => { d.keys = HOSTS.length; addRow(d, false); });
+    renderSync();
+
+    const closePair = () => { clearInterval(pairTimer); pairTimer = null; dvPair.hidden = true; dvPair.className = ''; dvPair.innerHTML = ''; renderSync(); };
+    $('#dvAdd').addEventListener('click', () => {
+      const code = ['Q7K', '4MX'].join('-');
+      dvPair.hidden = false; dvPair.className = 'dv-pair';
+      dvPair.innerHTML = `<div class="dv-code" aria-label="Sign-in code">${code}</div>
+        <div><p>On the new device, open wisp, choose <b>Sign in</b> and enter this code. <span class="muted">Expires in <span id="dvLeft">60</span>s.</span></p>
+        <div class="dv-ask" id="dvAsk"><span class="dv-wait"><i></i>Waiting for the new device…</span></div></div>`;
+      renderSync();
+      let left = 60;
+      // The "new device" types the code a moment later; joining still needs a tap here.
+      setTimeout(() => {
+        const ask = $('#dvAsk'); if (!ask) return;
+        ask.innerHTML = `<span><b>${NEW.name}</b> <span class="muted">· ${NEW.sub} · Lisbon</span> wants to join.</span><span class="grow"></span>
+          <button class="add" type="button" data-deny>Deny</button><button class="ok-btn" type="button" data-approve>Approve</button>`;
+      }, reduced ? 200 : 1600);
+      pairTimer = setInterval(() => {
+        left -= 1;
+        const n = $('#dvLeft'); if (n) n.textContent = left;
+        if (left <= 0) { closePair(); dvNote.textContent = 'The code expired. Nothing was shared.'; }
+      }, 1000);
+    });
+    dvPair.addEventListener('click', (e) => {
+      if (e.target.closest('[data-deny]')) { closePair(); dvNote.textContent = 'Denied. The Work laptop got nothing: no history, no keys.'; return; }
+      if (!e.target.closest('[data-approve]')) return;
+      closePair();
+      Object.assign(NEW, { synced: 0, keys: 0, gone: false });
+      devices.push(NEW); addRow(NEW, true); renderSync();
+      dvNote.textContent = 'Approved on the MacBook. The Work laptop made its own key; your machines are letting it in.';
+      // History streams in while each machine accepts the new key.
+      const t0 = performance.now(), dur = reduced ? 300 : 2600;
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / dur);
+        NEW.synced = Math.round(k * HISTORY);
+        NEW.keys = Math.min(HOSTS.length, Math.floor(k * (HOSTS.length + 0.999)));
+        paintDevice(NEW);
+        if (k < 1) requestAnimationFrame(step);
+        else dvNote.innerHTML = `<b>Work laptop is ready.</b> ${HISTORY} tasks synced and 3 machines reachable, without touching a single <code>authorized_keys</code>.`;
+      };
+      requestAnimationFrame(step);
+    });
+    dvGrid.addEventListener('click', (e) => {
+      const out = e.target.closest('[data-out]'), back = e.target.closest('[data-back]');
+      const d = devices.find((x) => x.id === (out || back)?.dataset[out ? 'out' : 'back']);
+      if (!d) return;
+      d.gone = !!out;
+      paintDevice(d); renderSync();
+      dvNote.innerHTML = out
+        ? `<b>${esc(d.name)} signed out.</b> Its key was removed from ${HOSTS.join(', ')}, its tunnels closed and its history locked.`
+        : `${esc(d.name)} is back: a fresh key on every machine, history unlocked.`;
+    });
   })();
   </script>
 </body>
