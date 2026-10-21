@@ -45,10 +45,17 @@ export function createAuto(app) {
     const r = store.config.defaults.router || {};
     return { explore: r.explore !== 'off', allowed: Array.isArray(r.allowed) && r.allowed.length ? r.allowed : null };
   };
+  // The allowed harnesses narrow Auto's pick wherever one of them can run. A place that has none of
+  // them (a machine with other harnesses signed in) gets what it has: the list is set on this
+  // computer, from its harnesses, and shouldn't make Auto refuse to run anywhere else.
+  const allowedAt = (agents) => {
+    const { allowed } = opts();
+    return allowed && agents.some((a) => a.available && allowed.includes(a.id)) ? allowed : null;
+  };
   const goalOf = (model) => (GOALS[model] ? model : GOALS[store.config.defaults.models?.auto] ? store.config.defaults.models.auto : 'balanced');
 
   // Subagents set to Auto are routed on their first task, from this computer's harnesses.
-  app.runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf(), ...opts() });
+  app.runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf(), ...opts(), allowed: allowedAt(agentsHere) });
 
   // A routed session's outcome so far, from its summary: works the same for sessions on machines.
   // Follow-ups after the first turn count as corrections; a merged or closed PR settles it, unless
@@ -69,9 +76,17 @@ export function createAuto(app) {
   // agent 'auto' (and compare entries set to it) → a harness, model and thinking level picked by the router from
   // `agents`: this computer's, or the machine's the launch goes to. Model is the goal for Auto.
   // cwd (launches here only): the scout looks at it first, and best-of-2 needs it to be a repo.
-  const resolve = async (body, agents, { team = false, cwd = null } = {}) => {
+  // place: the machine's name, for a launch there.
+  const resolve = async (body, agents, { team = false, cwd = null, place = '' } = {}) => {
     const want = [{ agent: body.agent, model: body.model, effort: body.effort }, ...(Array.isArray(body.compare) ? body.compare : [])];
     if (!want.some((r) => r.agent === 'auto')) return body;
+    // A machine's harnesses and models join the router's arms too, or the ones only it has would
+    // stay on probation (rarely picked) for good. Nothing of this computer's is marked gone.
+    if (place) {
+      const added = router.sync(agents, { more: true });
+      if (added.length) app.broadcast('router', { added });
+    }
+    const allowed = allowedAt(agents);
     const set = autoSettings(store.config.defaults);
     // The scout: the scan is free; the cheap-model look runs for bigger tasks, every task, or never.
     let scout = null;
@@ -93,10 +108,10 @@ export function createAuto(app) {
     const out = want
       .map((r, i) => {
         if (r.agent !== 'auto') return r;
-        const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important || (best2 && i === 0), exclude: taken, needDelegate: i === 0 && team, scouted: scout?.by ? scout : null, ...opts() });
+        const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important || (best2 && i === 0), exclude: taken, needDelegate: i === 0 && team, scouted: scout?.by ? scout : null, ...opts(), allowed });
         if (!pick) {
           if (best2 && i === 1) return null; // only one option to pick from: a single run then
-          throw bad('Auto found no installed harness to run this on.');
+          throw bad(place ? `Auto found no harness installed and signed in on ${place}. Sign in to one there (Run with → pick it).` : 'Auto found no installed harness to run this on.');
         }
         taken.push(pick.key);
         return { agent: pick.agent, model: pick.model, effort: pick.effort, route: pick.route };

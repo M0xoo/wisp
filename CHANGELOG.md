@@ -33,6 +33,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Auto on a machine picks from that machine's harnesses.** The *Harnesses it may use* list in Settings → Auto came from this computer and was applied everywhere, so on a cloud computer with only opencode signed in, Auto said it found nothing to run on. A place with none of the allowed harnesses now uses what it has. The list also shows harnesses that are only on your machines, and a harness only a machine has no longer stays on probation for good.
 - **Settings in the phone app says *Notifications*, not *Desktop notifications*.**
 - **The phone app no longer shows a browser error when wisp stops on the computer.** SSH could stay connected after wisp itself quit or crashed there, and the app then loaded a page nobody served. Now the app checks wisp through the tunnel every 15 seconds. If wisp stops answering and SSH can't reach its port either, the app starts wisp again over SSH and reopens the page. If the page fails to load anyway, the app goes back to Computers, which shows *wisp stopped on that computer. Starting it again…*, and reopens wisp once it answers.
 - **A task's result reveals itself once.** The staggered entrance (blocks rising in, numbers counting up, the terminal typing its command) plays the first time you see a result; opening the task again just shows it.

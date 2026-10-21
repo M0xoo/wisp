@@ -22,7 +22,7 @@ import { notifyOn, notifyPermission, requestNotify } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
-import { AUTO_GOALS, harnessLogo } from './runners.js';
+import { AUTO_GOALS, agentsAt, harnessLogo } from './runners.js';
 import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupCommand, setupDocs, setupTip } from './setup.js';
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
@@ -130,7 +130,7 @@ export function openSettings(opts) {
           <div class="sx-group">
             ${row('Goal', 'What Auto optimises for. Also in the launcher, next to Auto', `<span class="pk-seg ro-goal">${AUTO_GOALS.map((g) => `<button data-goal="${g.id}" title="${esc(g.hint)}">${g.label}</button>`).join('')}</span>`)}
             ${row('Try new models', 'A new model or harness gets a few tasks that aren’t marked important before Auto relies on it', '<button class="switch" id="roExplore" role="switch"></button>')}
-            ${row('Harnesses it may use', 'Leave all off to let Auto use every one you have', '<span class="ro-allowed"></span>')}
+            ${row('Harnesses it may use', 'Leave all off to let Auto use every one you have. A computer with none of these on uses what it has', '<span class="ro-allowed"></span>')}
           </div>
           <div class="sx-group">
             ${row('Check with the tests', 'When the agent says it’s done, wisp runs the project’s tests itself. Only failures that are new count', '<button class="switch" id="roCheck" role="switch"></button>')}
@@ -438,8 +438,9 @@ export function openSettings(opts) {
     $$('.ro-repairs button', node).forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === r.settings.repairs));
     $$('.ro-scout button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === r.settings.scout));
     const allowed = r.settings.allowed || [];
-    $('.ro-allowed', node).innerHTML = S.agents
-      .filter((a) => a.available)
+    // Installed here or on a machine that's online: Auto runs on machines too.
+    const anywhere = [...S.agents, ...S.machines.flatMap((m) => agentsAt(m.id) || [])].filter((a) => a.available || allowed.includes(a.id));
+    $('.ro-allowed', node).innerHTML = [...new Map(anywhere.map((a) => [a.id, a])).values()]
       .map((a) => `<button class="chip-tog${allowed.includes(a.id) ? ' on' : ''}" data-id="${esc(a.id)}" aria-pressed="${allowed.includes(a.id)}" title="${esc(a.name)}"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}</button>`)
       .join('');
     $('.ro-hint', node).textContent = r.learned
