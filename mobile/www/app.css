@@ -158,8 +158,9 @@ details.keys[open] { gap: 10px; }
 .gbody .code { font: 600 28px/1 var(--mono, ui-monospace, monospace); letter-spacing: 0.14em; text-align: center; padding: 18px; border: 1px dashed var(--line-2); border-radius: 12px; background: var(--bg-2); }
 .gbody .wait { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 .gbody .err { color: var(--bad, #b91c1c); font-size: 13px; margin: 0; }
-.gbody .row { display: flex; gap: 8px; flex-wrap: wrap; }
-.gbody .row > * { flex: 1; }
+/* The sign-in page and Copy code: one above the other, full width, the same height. */
+.gbody .row { display: flex; flex-direction: column; gap: 8px; }
+.gbody .row > * { width: 100%; min-height: 48px; margin: 0; font-size: 15px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
 
 /* First screen: wisp Cloud first (no computer to set up), then your own computer. */
 .cloud-first { margin-top: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
