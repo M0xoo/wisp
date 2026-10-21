@@ -1,8 +1,12 @@
 # wisp for Android (prototype)
 
-wisp on your phone, for machines you reach over SSH. Save your computers and servers, pick one,
-and use the same wisp page you use on the desktop. The agents keep running there when the phone
-sleeps.
+wisp on your phone, for your own computers. Add a computer once (its address and your password),
+tap it, and you're in that computer's wisp: start tasks, answer your agents, read the reports. The
+agents keep running there when the phone sleeps. **Computers** in wisp's top bar brings you back
+to the list, to switch to another one or add one.
+
+*Computers* is the app's word for what it connects to; *Machines* stays the desktop feature that
+reaches other computers over SSH (it isn't shown in the app).
 
 It reuses wisp's code instead of copying it:
 
@@ -10,15 +14,17 @@ It reuses wisp's code instead of copying it:
   machine, and the WebView loads `http://127.0.0.1:<port>/` from there. Every feature, spell and
   fix in `web/` shows up on the phone, matched to the wisp version running on that machine.
 - **wisp starts with the desktop's own script.** `server/machines/bootstrap.js` is the script
-  that desktop *Machines* sends over `ssh … sh -s`. It finds Node 20+, starts
-  `npx -y wisp-agents` (or reuses a running wisp) and reports each `STEPS` entry back as an
+  that desktop *Machines* sends over `ssh … sh -s`. It finds Node 20+ (or
+  installs it into `~/.wisp/node`), starts `npx -y wisp-agents` (or reuses a running wisp) and reports each `STEPS` entry back as an
   `@@wisp …` line. `npm run shared` copies it into `www/shared/`.
 - **`web/` knows when it runs in the app.** The WebView adds `wispMobile` to its user agent.
-  `MOBILE` in `web/js/core/state.js` then hides what a phone can't do: Take over in a terminal,
-  opening an editor, keyboard hints.
+  `MOBILE` in `web/js/core/state.js` then hides what a phone can't do (Take over in a terminal,
+  opening an editor, keyboard hints, Machines), turns the Machines button into **Computers**
+  (back to the app's list) and calls the computer by its name instead of *This computer*
+  (`COMPUTER`, passed by the app as `?m=`).
 
 ```
-www/                 the machines screen (vanilla JS, no build), mock.js for the browser preview
+www/                 the computers screen (vanilla JS, no build), mock.js for the browser preview
 scripts/shared.mjs   copies server/shq.js, server/machines/bootstrap.js, web/css/tokens.css
 android/app/src/main/java/dev/trywisp/mobile/
   Tunnel.java        SSH (sshj), runs the script, forwards the port, reconnects (plain Java)
@@ -30,27 +36,28 @@ android/app/src/main/java/dev/trywisp/mobile/
 
 ## Use it
 
-1. **Add a machine:** `you@host` (or `you@host:2222`), plus an optional name. To reach it from
-   anywhere, put the phone and the machine on [Tailscale](https://tailscale.com) and use its
-   tailnet name (`you@devbox.tail1234.ts.net`). With Tailscale SSH on a Linux machine
-   (`sudo tailscale set --ssh`), no key is needed: the app tries that first.
-2. **Let the key in.** Each machine uses one of the phone's keys. The sheet shows the
-   `authorized_keys` command for it; run it once on the machine. You can also import a key the
-   machine already trusts, or type a password under *Advanced* (used for that connection only,
-   never saved).
-3. **Connect.** The card shows the same steps as desktop Machines, then opens wisp. Android's
-   back button returns to your machines. Connecting another machine switches to it, and wisp
-   keeps running on both.
+1. **Get a computer ready.** Turn on SSH there: on a Mac, System Settings → General → Sharing →
+   *Remote Login*; on Linux, `openssh-server`. That's all it needs.
+2. **Add it in the app:** its address (`you@its-name`, or `you@its-name:2222`) and your password
+   on it. The password is used once: the app signs in with it, adds the phone's own key there
+   (`@@wisp keyed`) and forgets it. Prefer a key? *Use a key instead* shows the
+   `authorized_keys` command, or import one under *Keys on this phone*. With Tailscale SSH on a
+   Linux computer (`sudo tailscale set --ssh`) nothing is needed: the app tries that first.
+3. **Connect.** The card shows the steps (SSH, Node.js, wisp, tunnel); a computer without Node.js
+   gets it in `~/.wisp/node`, and wisp comes from `npx`. Then wisp opens. Pick a coding agent there
+   (Settings → Agents: opencode installs in one click).
+4. **Switch:** **Computers** in wisp's top bar (or Settings → Computers) goes back to the list.
+   The app opens the last computer used each time it starts.
+
+Away from home, put the
+computers and the phone on [Tailscale](https://tailscale.com) and use the names it gives. Step by
+step: https://trywisp.dev/guides/connect-machines-with-tailscale.html
 
 **Notifications.** When a task finishes, asks or needs approval while the app is off screen,
 you get an Android notification; tapping it opens that task. The WebView has no Notification
 API, so `MainActivity` gives wisp's page a `wispAndroid` bridge (`web/js/features/notify.js`
 uses it). While a machine is connected, `TunnelService` (a foreground service with a quiet
 *Connected to …* notification) keeps the app, the tunnel and the page running in the background.
-
-The machine needs an SSH server, Node.js 20+ and the harness CLIs, signed in, just as with
-desktop Machines. With wisp installed there, Settings → Machines → *This computer* checks each
-one. Step by step: https://trywisp.dev/guides/connect-machines-with-tailscale.html
 
 ## Build
 

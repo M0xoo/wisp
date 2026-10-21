@@ -1,9 +1,11 @@
 // A stand-in for OpenSSH's `ssh`, for test/machines.test.js: "the machine" is this computer.
 // It honours -L <local>:<host>:<port> with a TCP relay, then runs the command with sh, its stdin
-// piped through, the way sshd would. Hosts named unknown-* and locked-* fail like real ssh does.
+// piped through, the way sshd would. Hosts named unknown-* and locked-* fail like real ssh does;
+// a locked-* host takes the password FAKE_SSH_PASSWORD (from SSH_ASKPASS, as real ssh asks it)
+// and lets keys in once its ~/.ssh/authorized_keys (under FAKE_SSH_HOME) has one.
 // Env: FAKE_SSH_HOME = where each host's WISP_HOME goes; FAKE_SSH_LOG = file to append each argv to.
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -32,7 +34,15 @@ if (target.startsWith('unknown')) {
   console.error(`ssh: Could not resolve hostname ${target}: nodename nor servname provided, or not known`);
   process.exit(255);
 }
-if (target.startsWith('locked')) {
+const lockedHome = path.join(process.env.FAKE_SSH_HOME || os.tmpdir(), target.replace(/\W+/g, '_'));
+const byPassword = args.some((a) => /^PreferredAuthentications=.*password/.test(a));
+if (target.startsWith('locked') && byPassword) {
+  const typed = execFileSync(process.env.SSH_ASKPASS, ['password:'], { encoding: 'utf8' }).trim();
+  if (process.env.SSH_ASKPASS_REQUIRE !== 'force' || typed !== process.env.FAKE_SSH_PASSWORD) {
+    console.error(`${target}: Permission denied (publickey,password).`);
+    process.exit(255);
+  }
+} else if (target.startsWith('locked') && !fs.existsSync(path.join(lockedHome, '.ssh', 'authorized_keys'))) {
   console.error(`${target}: Permission denied (publickey).`);
   process.exit(255);
 }
@@ -54,7 +64,7 @@ if (forward) {
 // harnesses on it) reaches wisp over there.
 // Each host gets its own WISP_HOME under FAKE_SSH_HOME, so two fake machines are two wisps.
 const there = process.env.FAKE_SSH_HOME ? path.join(process.env.FAKE_SSH_HOME, target.replace(/\W+/g, '_')) : process.env.WISP_HOME;
-const env = { ...process.env, SHELL: '/usr/bin/false', WISP_HOME: there };
+const env = { ...process.env, SHELL: '/usr/bin/false', WISP_HOME: there, ...(target.startsWith('locked') && { HOME: lockedHome }) };
 const child = spawn('sh', ['-c', command], { stdio: ['pipe', 'inherit', 'inherit'], env, cwd: os.homedir() }); // sshd starts in $HOME
 process.stdin.pipe(child.stdin);
 child.stdin.on('error', () => {});

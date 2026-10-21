@@ -4,7 +4,7 @@
 
 import { esc } from '../md.js';
 import { icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { HERE, S } from '../core/state.js';
 
 export const projectById = (id) => S.config.projects.find((p) => p.id === id);
 
@@ -19,7 +19,7 @@ export function projectLabel(s) {
   const names = [s.project, ...also.map((a) => a.project)];
   return `<span class="q-proj multi" title="${esc(`One task in ${names.length} folders: ${names.join(', ')}`)}">${esc(s.project)}<span class="q-also ${also.length === 1 ? `c-${also[0].color}` : ''}">${also.length === 1 ? `+ ${esc(also[0].project)}` : `+${also.length}`}</span></span>`;
 }
-export const placeName = (k) => (k ? machineById(k)?.name || 'machine' : 'This computer');
+export const placeName = (k) => (k ? machineById(k)?.name || 'machine' : HERE);
 export const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
 // Every project, on every place: one that isn't on a place yet gets cloned there on first use.
 export const projects = () => [...S.config.projects].sort(recentFirst);

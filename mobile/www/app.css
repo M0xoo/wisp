@@ -43,7 +43,7 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .m-go.primary { min-height: 38px; padding: 8px 12px; font-size: 13.5px; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
-.run { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.runbox { border-top: 1px solid var(--line); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
 .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .steps li { display: grid; grid-template-columns: 18px 1fr; column-gap: 10px; align-items: start; }
 .steps .dot { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line-2); color: var(--bg); margin-top: 2px; }
@@ -103,3 +103,29 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .cmd { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--term-bg); color: var(--term-ink); font: 11px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; max-height: 7.5em; overflow: auto; width: 100%; user-select: all; }
 
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 11px; font-size: 13.5px; box-shadow: var(--shadow-2); max-width: calc(100vw - 32px); z-index: 10; }
+
+/* --- first run and help --------------------------------------------------------------------- */
+.how { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.how li { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: start; }
+.how .n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font: 600 13px/1 var(--sans); }
+.how div { display: flex; flex-direction: column; gap: 2px; }
+.how b { font-size: 15px; }
+.how span { font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+.intro a, .where a, .oops a:not(.ghost) { color: var(--accent-ink); }
+.tip { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px !important; padding: 11px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--ink-2) !important; font-size: 13.5px; }
+.tip .i { margin-top: 3px; color: var(--accent-ink); }
+.add.first { border: 0; background: var(--ink); color: var(--bg); font-weight: 600; font-size: 15px; }
+.field small { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.where summary { cursor: pointer; color: var(--accent-ink); font-size: 13px; }
+.where ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.where code { font: 12px var(--mono); }
+details.keys > summary { list-style: none; cursor: pointer; }
+details.keys > summary::-webkit-details-marker { display: none; }
+details.keys > summary em { font-style: normal; font-weight: 400; color: var(--faint); margin-left: 4px; }
+details.keys[open] { gap: 10px; }
+.small { font-size: 12.5px; margin: 0; }
+.oops .row { margin-top: 2px; }
+.oops a.ghost { text-decoration: none; display: inline-flex; align-items: center; }
+.primary.sm { min-height: 34px; padding: 6px 12px; font-size: 13px; border-radius: 9px; }
+.why summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.why code { display: block; margin-top: 4px; font: 11.5px var(--mono); color: var(--muted); overflow-wrap: anywhere; }

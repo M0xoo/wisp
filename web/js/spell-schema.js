@@ -98,6 +98,9 @@ export const PARTS = {
   'split.body': 'body.split #feed .item.open > .it-body',
   // Settings → Machines: whether other devices can reach this computer over SSH.
   'settings.reachable': '.sx-reach',
+  // Machines: the three-step explainer, and the password box when a machine won't let this one in.
+  'machines.howto': '.mc-howto',
+  'machines.letin': '.mc-letin',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.

@@ -7,7 +7,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, el, icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { COMPUTER, MOBILE, S } from '../core/state.js';
 import { present } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
@@ -15,6 +15,7 @@ import { renderLaunchChips } from './launcher.js';
 import { loadConfig, loadSessions } from './live.js';
 import { MACHINE_STATE, machineById, machinesSummary } from './places.js';
 import { openProjects, renderProjects } from './projects.js';
+import { TAILSCALE_GUIDE } from './reachable.js';
 import { harnessLogo } from './runners.js';
 
 export const loadMachines = () => api('/machines').then(setMachines).catch(() => {});
@@ -30,9 +31,23 @@ export function setMachines(list) {
   if (list.some((m) => (was.get(m.id) || false) !== (m.state === 'online'))) loadSessions();
 }
 
+// In the phone app, Machines (SSH from this computer to others) isn't shown: the button goes back
+// to the app's own list of computers (mobile/www), where you switch or add one.
+const COMPUTERS = 'https://localhost/';
+export function openComputers() {
+  if (history.length > 1) history.back();
+  else location.replace(COMPUTERS);
+}
+
 function paintMachinesBtn() {
   const b = $('#machinesBtn');
   if (!b) return;
+  if (MOBILE) {
+    $('span', b).textContent = COMPUTER || 'Computers'; // which one you're on; tap to switch
+    $('.ab-n', b).hidden = true;
+    b.title = 'Your computers: switch to another one, or add one';
+    return;
+  }
   const on = S.machines.filter((m) => m.state === 'online').length;
   const trouble = S.machines.some((m) => m.state === 'error' || m.state === 'reconnecting');
   b.classList.toggle('live', on > 0);
@@ -56,10 +71,12 @@ export function offlineToast(id) {
 const STEP_ICON = { done: 'check', fail: 'x', warn: 'warn', run: '', pending: '' };
 
 export function openMachines({ host, focusAdd = false } = {}) {
+  if (MOBILE) return openComputers();
   const node = el(`<div class="modal machines-modal">
       <header><h2>Machines</h2><button class="icon-btn close">${icon('x')}</button></header>
       <div class="mc-body">
-        <p class="mem-lede">Run agents on your other computers: a dev box, a GPU server, a cloud VM. wisp signs in over SSH, starts itself there and tunnels back, so worktrees, diffs and Ship it work as usual, and agents keep going when this computer sleeps.</p>
+        <p class="mem-lede">Run tasks on another computer you own: a desktop at home, a server, a cloud VM. Its tasks show up here next to this computer’s, and keep going when this one sleeps.</p>
+        <div class="mc-howto-slot"></div>
         <div class="mc-list"></div>
         <section class="mc-add"></section>
       </div>
@@ -84,7 +101,7 @@ export function openMachines({ host, focusAdd = false } = {}) {
     const added = new Set(S.machines.map((m) => m.target));
     const list = hosts.filter((x) => !added.has(x.target));
     if (!list.length) return '';
-    return `<div class="mc-found"><h4>Found on this computer</h4><div class="mc-found-list">${list
+    return `<div class="mc-found"><h4>Computers wisp found</h4><div class="mc-found-list">${list
       .slice(0, 12)
       .map(
         (x) =>
@@ -115,13 +132,42 @@ export function openMachines({ host, focusAdd = false } = {}) {
   const steps = (m) => `<ol class="mc-steps">${m.steps
     .map((st) => `<li class="s-${st.status}"><span class="mc-si">${STEP_ICON[st.status] ? icon(STEP_ICON[st.status]) : ''}</span><b>${esc(st.label)}</b>${st.detail ? `<small>${esc(st.detail)}</small>` : ''}</li>`)
     .join('')}</ol>`;
-  const trouble = (m) => `<div class="mc-hint ${m.state === 'reconnecting' ? 'soft' : ''}">
-      <p><b>${esc(m.state === 'reconnecting' ? `${m.error || 'Connection lost.'} Trying again${m.attempt > 1 ? ` (attempt ${m.attempt})` : ''}…` : m.error)}</b></p>
-      ${m.hint?.text ? `<p>${esc(m.hint.text)}</p>` : ''}
-      ${m.hint?.command ? `<div class="mc-cmd"><code>${esc(m.hint.command)}</code><button class="ghost xs" data-a="copy" data-cmd="${esc(m.hint.command)}" title="Copy">${icon('copy')}</button></div>` : ''}
+  // How it works, for someone who has never done this: the same three steps as the phone app.
+  const howto = () => `<section class="mc-howto">
+      <ol>
+        <li><span class="mc-n">1</span><div><b>Get the other computer ready</b><p>Turn on SSH there. On a Mac: System Settings → General → Sharing → <i>Remote Login</i>. On Linux: install <code>openssh-server</code>. That’s all: wisp installs Node.js and itself there. You pick a coding agent once it’s connected. If wisp runs there too, its Settings → Machines → <i>This computer</i> checks all of this for you.</p></div></li>
+        <li><span class="mc-n">2</span><div><b>Add it here</b><p>Pick it below if wisp found it, or type its address: <code>you@its-name</code> or an IP address. That computer’s wisp shows the address under <i>This computer</i> → <i>Connect with</i>.</p></div></li>
+        <li><span class="mc-n">3</span><div><b>Let this computer in</b><p>The first time, type your password for that computer. wisp sets up a key there, so it won’t ask again. Then wisp starts itself there and its tasks show up here.</p></div></li>
+      </ol>
+      <p class="mc-ts">${icon('info')}<span>Not on the same network? Install <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a> (free) on both computers and use the name it gives. <a href="${TAILSCALE_GUIDE}" target="_blank" rel="noopener">Step-by-step guide</a></span></p>
+    </section>`;
+  const hostOf = (m) => m.target.replace(/^.*@/, '');
+  const trouble = (m) => {
+    const h = m.hint || {};
+    const lost = m.state === 'reconnecting';
+    const title = lost ? `${m.error || 'Connection lost.'} Trying again${m.attempt > 1 ? ` (attempt ${m.attempt})` : ''}…` : h.title || m.error;
+    return `<div class="mc-hint ${lost ? 'soft' : ''}">
+      <p><b>${esc(title)}</b></p>
+      ${h.text ? `<p>${esc(h.text)}</p>` : ''}
+      ${
+        h.letIn && !lost
+          ? `<form class="mc-letin" data-id="${m.id}">
+              <label class="mc-field"><span>Your password on ${esc(hostOf(m))}</span>
+                <span class="mc-letin-row"><input class="input" type="password" name="password" autocomplete="current-password" placeholder="The one you sign in to ${esc(hostOf(m))} with" required><button class="primary sm" type="submit">${icon('lock')}Let me in</button></span></label>
+              <small>Used once to add this computer’s key there. wisp never keeps it.</small>
+              <p class="mc-letin-err" hidden></p>
+              <details class="mc-byhand"><summary>Prefer a terminal?</summary><p>Run this here once, then connect again:</p><div class="mc-cmd"><code>${esc(h.command)}</code><button type="button" class="ghost xs" data-a="copy" data-cmd="${esc(h.command)}" title="Copy">${icon('copy')}</button></div></details>
+            </form>`
+          : h.command
+            ? `<div class="mc-cmd"><code>${esc(h.command)}</code><button class="ghost xs" data-a="copy" data-cmd="${esc(h.command)}" title="Copy">${icon('copy')}</button></div>`
+            : ''
+      }
+      ${h.url ? `<p><a href="${esc(h.url)}" target="_blank" rel="noopener">${icon('external')}Get Node.js</a></p>` : ''}
+      ${h.tailscale ? `<p><a href="${TAILSCALE_GUIDE}" target="_blank" rel="noopener">${icon('external')}Connect from anywhere with Tailscale</a></p>` : ''}
       ${m.stale ? `<button class="ghost sm" data-a="restart">${icon('rerun')}Restart wisp there</button>` : ''}
-      ${m.log.length ? `<details class="mc-log"><summary>Log</summary><pre>${esc(m.log.join('\n'))}</pre></details>` : ''}
+      ${m.log.length || (h.title && m.error) ? `<details class="mc-log"><summary>Details</summary><pre>${esc([h.title ? m.error : '', ...m.log].filter(Boolean).join('\n'))}</pre></details>` : ''}
     </div>`;
+  };
   const projects = (m) => {
     const list = S.config.projects.filter((p) => p.machine === m.id);
     return `<div class="mc-projects">${list.map((p) => `<span class="lp-chip c-${p.color}" title="${esc(p.path)}"><i class="p-dot"></i>${esc(p.name)}</span>`).join('')}
@@ -141,7 +187,7 @@ export function openMachines({ host, focusAdd = false } = {}) {
       </div>
       ${
         st === 'online'
-          ? `<div class="mc-meta"><span>wisp ${esc(m.remote?.version || '')}</span>${m.outdated ? `<button class="ghost xs mc-update" data-a="update" title="Restart wisp on ${esc(m.name)} as ${esc(m.outdated)}">${icon('rerun')}Update to ${esc(m.outdated)}</button>` : ''}${ready.length ? `<span class="mc-agents">${ready.map((a) => `<span class="model-logo" title="${esc(a.name)} ${esc(a.version || '')}">${harnessLogo(a.id)}</span>`).join('')}</span>` : '<span class="bad">no harnesses found</span>'}${m.working ? `<span>${m.working} working</span>` : ''}</div>`
+          ? `<div class="mc-meta"><span>wisp ${esc(m.remote?.version || '')}</span>${m.outdated ? `<button class="ghost xs mc-update" data-a="update" title="Restart wisp on ${esc(m.name)} as ${esc(m.outdated)}">${icon('rerun')}Update to ${esc(m.outdated)}</button>` : ''}${ready.length ? `<span class="mc-agents">${ready.map((a) => `<span class="model-logo" title="${esc(a.name)} ${esc(a.version || '')}">${harnessLogo(a.id)}</span>`).join('')}</span>` : '<span class="bad">No coding agent there yet: install Claude Code, Codex or opencode on it</span>'}${m.working ? `<span>${m.working} working</span>` : ''}</div>`
           : ''
       }
       ${busy || st === 'error' ? steps(m) : ''}
@@ -152,8 +198,8 @@ export function openMachines({ host, focusAdd = false } = {}) {
   };
   const form = (m) => `<form class="mc-form" data-id="${m?.id || ''}">
       <div class="mc-row">
-        <label class="mc-field grow"><span>SSH host</span><input class="input mono" name="target" list="sshHosts" placeholder="me@devbox, 10.0.0.5, or a Host from ~/.ssh/config" spellcheck="false" autocomplete="off" autocapitalize="off" value="${esc(m?.target || '')}" required></label>
-        <label class="mc-field"><span>Name</span><input class="input" name="name" placeholder="${esc(m?.name || 'devbox')}" value="${esc(m?.name || '')}" spellcheck="false"></label>
+        <label class="mc-field grow"><span>Its address</span><input class="input mono" name="target" list="sshHosts" placeholder="you@its-name, or you@192.168.1.20" spellcheck="false" autocomplete="off" autocapitalize="off" value="${esc(m?.target || '')}" required></label>
+        <label class="mc-field"><span>Name <em>optional</em></span><input class="input" name="name" placeholder="${esc(m?.name || 'devbox')}" value="${esc(m?.name || '')}" spellcheck="false"></label>
       </div>
       <details class="mc-adv" ${m && (m.port !== 4477 || m.command) ? 'open' : ''}><summary>Advanced</summary>
         <div class="mc-row">
@@ -163,15 +209,19 @@ export function openMachines({ host, focusAdd = false } = {}) {
         <label class="check mc-check"><input type="checkbox" name="autoConnect" ${m?.autoConnect === false ? '' : 'checked'}> Connect when wisp starts</label>
       </details>
       <div class="mc-foot">
-        <p class="hint">${m ? 'Changing the host, port or command reconnects.' : 'Uses your SSH keys, agent and ~/.ssh/config; wisp never asks for a password. The machine needs Node.js 20+ and the harness CLIs, signed in.'}</p>
+        <p class="hint">${m ? 'Changing the address, port or command reconnects.' : 'Your user name on that computer, @, then its name or IP. wisp connects over SSH with this computer’s key; the first time, it asks for your password there once.'}</p>
         ${editing !== null && (m || S.machines.length) ? '<button type="button" class="ghost sm" data-a="cancel">Cancel</button>' : ''}
-        <button class="primary sm" type="submit">${m ? 'Save' : `${icon('server')}Connect`}</button>
+        <button class="primary sm" type="submit">${m ? 'Save' : `${icon('server')}Add and connect`}</button>
       </div>
     </form>`;
 
   const paint = () => {
     if (!node.isConnected && !host) return;
     $('.mc-list', node).innerHTML = S.machines.map(card).join('');
+    // First time: the three steps up front. Later: behind a link, open if you asked for it.
+    const slot = $('.mc-howto-slot', node);
+    if (!S.machines.length) slot.innerHTML = howto();
+    else if (!$('details.mc-howto-more', slot)) slot.innerHTML = `<details class="mc-howto-more"><summary>${icon('info')}How it works</summary>${howto()}</details>`;
     const add = $('.mc-add', node);
     // The form for a new machine: open when there are none yet, else behind a button.
     if (!S.machines.length || editing === '') {
@@ -276,6 +326,7 @@ export function openMachines({ host, focusAdd = false } = {}) {
   node.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
+    if (f.matches('.mc-letin')) return letMeIn(f);
     const id = f.dataset.id;
     const v = Object.fromEntries(new FormData(f));
     const payload = { target: v.target.trim(), name: v.name.trim(), port: Number(v.port) || 4477, command: v.command.trim(), autoConnect: !!v.autoConnect };
@@ -293,10 +344,35 @@ export function openMachines({ host, focusAdd = false } = {}) {
       btn.disabled = false;
     }
   });
+  // The password goes to the server for one ssh call that adds this computer's key there, then
+  // it connects. A wrong password stays on the form with what to do.
+  const letMeIn = async (f) => {
+    const btn = $('button[type="submit"]', f);
+    const err = $('.mc-letin-err', f);
+    btn.disabled = true;
+    btn.innerHTML = `${icon('lock')}Letting you in…`;
+    err.hidden = true;
+    try {
+      await api(`/machines/${f.dataset.id}/let-in`, { method: 'POST', body: { password: f.password.value } });
+      f.password.value = '';
+      toast('This computer is allowed in now. Connecting…');
+      document.activeElement?.blur();
+      await loadMachines();
+      paint();
+    } catch (ex) {
+      err.textContent = ex.message;
+      err.hidden = false;
+      if (ex.message.includes('by hand')) $('.mc-byhand', f).open = true;
+      btn.disabled = false;
+      btn.innerHTML = `${icon('lock')}Let me in`;
+      f.password.select();
+    }
+  };
   bus.on(
     'machines',
     () => {
-      // Don't clobber a half-typed form: repaint the cards only.
+      // Don't clobber a half-typed form: repaint the cards only. A password being typed: nothing.
+      if (document.activeElement?.closest?.('.mc-letin') && node.contains(document.activeElement)) return;
       const typing = node.contains(document.activeElement) && document.activeElement.matches('input, select');
       if (typing && editing !== null && editing !== '') return;
       if (typing) $('.mc-list', node).innerHTML = S.machines.map(card).join('');

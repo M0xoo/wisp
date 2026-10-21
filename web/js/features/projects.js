@@ -4,7 +4,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { launch, S, save, saveLaunch } from '../core/state.js';
+import { HERE, launch, S, save, saveLaunch } from '../core/state.js';
 import { present } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
@@ -182,7 +182,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
 
   const paintWhere = () => {
     const tabs = $('.where', node);
-    tabs.innerHTML = `<button data-w="" class="${where ? '' : 'on'}">${icon('folder')}This computer</button>${S.machines
+    tabs.innerHTML = `<button data-w="" class="${where ? '' : 'on'}">${icon('folder')}${esc(HERE)}</button>${S.machines
       .map((m) => `<button data-w="${m.id}" class="${where === m.id ? 'on' : ''}" title="${esc(m.target)} · ${esc(MACHINE_STATE[m.state] || m.state)}">${icon('server')}${esc(m.name)}<i class="dot ${m.state === 'online' ? 'ok' : m.state === 'error' ? 'bad' : ''}"></i></button>`)
       .join('')}<i></i>${host ? '' : `<button data-w="+" title="Run agents on another computer over SSH">${icon('plus')}Machine</button>`}`;
     const m = here();

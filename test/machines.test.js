@@ -13,6 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installFakeBins, makeClone, makeRepo, records, same, tmp, until, win } from './helpers.js';
 import { sameRepo } from '../server/git.js';
 import { authorizedKeys, reachable, sshBanner, tailscaleSelf } from '../server/machines/reachable.js';
+import { nodeInstallScript } from '../server/machines/bootstrap.js';
 import { bootstrapScript, STEPS, splitId, qualify, sshHint, sshHosts, knownHosts, tailscalePeers, discoverHosts, updateTo } from '../server/machines.js';
 
 const RECORD = tmp('machines-record');
@@ -92,7 +93,9 @@ test('ids, hints, ~/.ssh/config hosts and the bootstrap script', () => {
   assert.deepEqual(splitId('abc123@m1'), { id: 'abc123', machine: 'm1' });
   assert.equal(splitId('abc123'), null);
   assert.equal(sshHint('me@box: Permission denied (publickey).', 'me@box').command, 'ssh-copy-id me@box');
-  assert.match(sshHint('ssh: Could not resolve hostname nope', 'nope').text, /doesn’t resolve/);
+  assert.match(sshHint('ssh: Could not resolve hostname nope', 'nope').text, /can’t find a computer called nope/);
+  assert.equal(sshHint('ssh: connect to host box port 22: Operation timed out', 'me@box').tailscale, true);
+  assert.match(sshHint('ssh: connect to host box port 22: Connection refused', 'me@box').text, /Remote Login/);
 
   const dir = tmp('sshcfg');
   fs.writeFileSync(path.join(dir, 'config'), `Host devbox gpu\n  HostName 10.0.0.5\n  User me\nHost *\n  ServerAliveInterval 30\nInclude extra/*.conf\n`);
@@ -126,6 +129,39 @@ test('the bootstrap script loads without Node, for the phone app', () => {
   const sh = bootstrapScript({ port: 4477, command: 'npx -y wisp-agents@latest', apiVersion: 'any' });
   assert.match(sh, /^API=any$/m);
   assert.match(sh, /\[ "\$API" != any \] && \[ "\$3" != "\$API" \]/);
+});
+
+// A computer with only SSH on: the script fetches Node.js into ~/.wisp/node. Here nodejs.org is a
+// fake curl serving a tiny "node" tarball, so this runs offline on Linux and macOS alike.
+test('no Node.js there: the script installs it into ~/.wisp/node, and refuses a bad download', { skip: win }, () => {
+  const dir = tmp('node-dist');
+  const os_ = execFileSync('uname', ['-s'], { encoding: 'utf8' }).trim() === 'Darwin' ? 'darwin' : 'linux';
+  const arch = { x86_64: 'x64', amd64: 'x64', aarch64: 'arm64', arm64: 'arm64' }[execFileSync('uname', ['-m'], { encoding: 'utf8' }).trim()];
+  const name = `node-v24.0.0-${os_}-${arch}`;
+  fs.mkdirSync(path.join(dir, name, 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(dir, name, 'bin', 'node'), '#!/bin/sh\n[ "$1" = -v ] && echo v24.0.0\nexit 0\n', { mode: 0o755 });
+  execFileSync('tar', ['-czf', `${name}.tar.gz`, name], { cwd: dir });
+  const sha = execFileSync(os_ === 'darwin' ? 'shasum' : 'sha256sum', os_ === 'darwin' ? ['-a', '256', `${name}.tar.gz`] : [`${name}.tar.gz`], { cwd: dir, encoding: 'utf8' }).split(' ')[0];
+  const bin = tmp('fake-curl');
+  fs.writeFileSync(path.join(bin, 'curl'), `#!/bin/sh\nfor a; do u=$a; done\ncat "${dir}/$(basename "$u")"\n`, { mode: 0o755 });
+  const run = (sums) => {
+    fs.writeFileSync(path.join(dir, 'SHASUMS256.txt'), `${sums}  ${name}.tar.gz\n`);
+    const home = tmp('bare-home');
+    const script = `say() { printf '@@wisp %s\\n' "$*"; }\n${nodeInstallScript({ dist: 'http://nodejs.test' })}install_node && node -v; true`;
+    const out = execFileSync('sh', ['-c', script], { env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` }, encoding: 'utf8' });
+    return { out, home };
+  };
+  const ok = run(sha);
+  assert.match(ok.out, /@@wisp step node run installing Node\.js into ~\/\.wisp\/node/);
+  assert.match(ok.out, /^v24\.0\.0$/m); // the installed one is on PATH afterwards
+  assert.ok(fs.existsSync(path.join(ok.home, '.wisp', 'node', 'bin', 'node')));
+  assert.ok(!fs.existsSync(path.join(ok.home, '.wisp', 'node-download')));
+  const bad = run('0'.repeat(64));
+  assert.match(bad.out, /@@wisp fail node The Node\.js download was damaged/);
+  assert.ok(!fs.existsSync(path.join(bad.home, '.wisp', 'node')));
+  // Machines and the phone ask for it; a script without it says what's missing instead.
+  assert.match(bootstrapScript({ port: 1, command: 'x', apiVersion: 1, installNode: true }), /^INSTALL=1$/m);
+  assert.match(bootstrapScript({ port: 1, command: 'x', apiVersion: 1 }), /^INSTALL=0$/m);
 });
 
 test('an older wisp on the machine can be updated to this version', () => {
@@ -200,8 +236,34 @@ test('a failed connect says why and what to run', { skip: win }, async () => {
   });
   assert.match(v.error, /Permission denied/);
   assert.equal(v.hint.command, 'ssh-copy-id locked-box');
+  assert.equal(v.hint.letIn, true); // the page offers the password box
+  assert.match(v.hint.title, /isn’t allowed in yet/);
   assert.equal(v.steps[0].status, 'fail');
   await call('DELETE', `/machines/${m.id}`);
+});
+
+test('let me in: the password once adds this computer’s key there, then it connects', { skip: win, timeout: 60_000 }, async () => {
+  process.env.FAKE_SSH_PASSWORD = 'open sesame';
+  process.env.WISP_SSH_DIR = tmp('ssh-here'); // this computer's ~/.ssh: no key yet
+  const m = await call('POST', '/machines', { target: 'locked-letin', port: await outsidePort() });
+  await until(async () => (await machine(m.id)).state === 'error');
+  await assert.rejects(call('POST', `/machines/${m.id}/let-in`, { password: 'wrong' }), /Wrong password/);
+  await assert.rejects(call('POST', `/machines/${m.id}/let-in`, { password: '' }), /Type your password/);
+  const r = await call('POST', `/machines/${m.id}/let-in`, { password: 'open sesame' });
+  assert.equal(r.ok, true);
+  assert.ok(fs.existsSync(path.join(process.env.WISP_SSH_DIR, 'id_ed25519'))); // there was none: wisp made one
+  const mine = fs.readFileSync(path.join(process.env.WISP_SSH_DIR, 'id_ed25519.pub'), 'utf8').trim();
+  const theirs = path.join(THERE, 'locked_letin', '.ssh', 'authorized_keys');
+  assert.equal(fs.readFileSync(theirs, 'utf8'), `${mine}\n`);
+  // Again: the key isn't added twice.
+  await call('POST', `/machines/${m.id}/let-in`, { password: 'open sesame' });
+  assert.equal(fs.readFileSync(theirs, 'utf8'), `${mine}\n`);
+  // The password never reached ssh's arguments or the log.
+  assert.ok(!fs.readFileSync(process.env.FAKE_SSH_LOG, 'utf8').includes('open sesame'));
+  await until(async () => (await machine(m.id)).state === 'online', { timeout: 30_000 });
+  await call('POST', `/machines/${m.id}/stop`, {});
+  await call('DELETE', `/machines/${m.id}`);
+  delete process.env.WISP_SSH_DIR;
 });
 
 test('connect, add a project, launch, follow up and stop wisp over there', { skip: win, timeout: 120_000 }, async () => {

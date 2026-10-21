@@ -9,15 +9,18 @@ import { execFile } from '../proc.js';
 // user@host, host, host:port-less alias, [v6]. Never an option: `-oProxyCommand=…` would run code.
 export const TARGET = /^(?!-)[\w.%+-]+(@[\w.%:[\]-]+)?$/;
 
-// What a failed `ssh` most likely needs, from its stderr.
+// What a failed `ssh` most likely needs, from its stderr, in words for someone who has never used
+// SSH. letIn: the machine doesn't know this computer yet; the page offers to sign in with the
+// password once (server/machines/letin.js). command: the by-hand way, for those who prefer it.
 export function sshHint(stderr, target) {
   const e = String(stderr || '');
+  const host = String(target).replace(/^.*@/, '');
   if (/Permission denied|Too many authentication failures|publickey/i.test(e))
-    return { text: 'SSH asked for a password or a key wisp can’t use. wisp signs in with keys only: copy yours over once, or load it into ssh-agent.', command: `ssh-copy-id ${target}` };
-  if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(e)) return { text: 'The machine’s host key changed since you last connected. Check it in a terminal before trusting it again.', command: `ssh ${target}` };
-  if (/Could not resolve hostname|Name or service not known|nodename nor servname/i.test(e)) return { text: 'That name doesn’t resolve. Use user@host, an IP address, or a Host from ~/.ssh/config.' };
-  if (/Connection refused/i.test(e)) return { text: 'Nothing accepts SSH there. Turn on its SSH server (Remote Login on macOS, sshd on Linux).' };
-  if (/timed out|No route to host|Network is unreachable|Connection closed|Broken pipe/i.test(e)) return { text: 'Can’t reach that machine right now. Check the network or VPN.' };
+    return { title: 'This computer isn’t allowed in yet', text: `${host} doesn’t know this computer yet. Type your password on ${host} once and wisp sets up a key there, so it won’t ask again.`, command: `ssh-copy-id ${target}`, letIn: true };
+  if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(e)) return { title: 'It looks different from last time', text: `${host} looks different from last time (its SSH identity changed). If you reinstalled it, that’s expected: check it once in a terminal, then connect again.`, command: `ssh ${target}` };
+  if (/Could not resolve hostname|Name or service not known|nodename nor servname/i.test(e)) return { title: 'Computer not found', text: `wisp can’t find a computer called ${host}. Check the spelling, or use its IP address. Not on the same network? Put both computers on Tailscale and use its Tailscale name.`, tailscale: true };
+  if (/Connection refused/i.test(e)) return { title: 'SSH is off there', text: `${host} answered, but SSH is off there. On a Mac: System Settings → General → Sharing → Remote Login. On Linux: install openssh-server. Then connect again.` };
+  if (/timed out|No route to host|Network is unreachable|Connection closed|Broken pipe/i.test(e)) return { title: 'No answer', text: `${host} doesn’t answer. Is it on and awake, and on the same network as this computer? From anywhere else, put both on Tailscale.`, tailscale: true };
   if (/Address already in use|forwarding failed/i.test(e)) return { text: 'The local end of the tunnel was taken. Connect again to pick another port.' };
   return null;
 }
