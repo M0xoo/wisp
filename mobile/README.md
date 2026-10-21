@@ -117,11 +117,17 @@ themed icon). The store art is in `store/`: `icon.png` (512×512) and `feature-g
    app, free. Then *Release → Testing → Internal testing → Create release*, opt in to Play App
    Signing and upload the `.aab`. Fill the store listing with `store/icon.png`,
    `store/feature-graphic.png` and 2+ phone screenshots.
-5. **App content** asks for: a privacy policy URL; data safety (the app sends nothing to wisp's
-   servers by itself: SSH goes to the user's own computers, wisp Cloud only when they sign in);
-   the foreground service (`specialUse`: keeps the user's SSH tunnel open, with a short video of
-   the *Connected to …* notification); target audience (not for children); and app access
-   (reviewers need a way in, such as a wisp Cloud test account).
+5. **App content** asks for:
+   - *Privacy policy:* https://trywisp.dev/privacy.html (`docs/privacy.md`).
+   - *Data safety:* the app's own code collects nothing. The wisp page it shows sends
+     anonymous usage stats (app info and performance, crash logs; optional, Settings → Privacy)
+     and, when you send it, feedback. wisp Cloud sign-in collects email, name and user IDs for
+     account management. Everything is encrypted in transit.
+   - *Account deletion:* https://trywisp.dev/privacy.html#delete-your-wisp-cloud-account.
+   - *Foreground service:* `specialUse` keeps the user's SSH tunnel open. Play wants a short
+     video of the *Connected to …* notification.
+   - *Target audience:* not for children. *App access:* reviewers need a way in, such as a wisp
+     Cloud test account.
 6. **Go public:** a new personal developer account has to run a closed test with 12+ testers for
    14 days before *Production* unlocks; organisation accounts can promote straight from internal
    testing.

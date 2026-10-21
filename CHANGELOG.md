@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - **The Android app has wisp's icon.** The launcher shows wisp's orb instead of Capacitor's placeholder (with a themed icon on Android 13+), and the launch screen matches the page's light or dark background. Release builds sign with your Play upload key, and `mobile/README.md` walks through publishing on Google Play.
+- **A privacy policy on trywisp.dev.** [trywisp.dev/privacy.html](https://trywisp.dev/privacy.html) says what wisp, the Android app, wisp Cloud and the site collect (and what never leaves your computer), how to turn usage stats off, and how to delete a wisp Cloud account. Every page of the site links to it.
 
 ### Fixed
 
