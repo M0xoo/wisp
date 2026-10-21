@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-10-22
+
 ### Changed
 
 - **The Android app has wisp's icon.** The launcher shows wisp's orb instead of Capacitor's placeholder (with a themed icon on Android 13+), and the launch screen matches the page's light or dark background. Release builds sign with your Play upload key, and `mobile/README.md` walks through publishing on Google Play.
@@ -536,7 +538,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.28.0...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.28.1...HEAD
+[0.28.1]: https://github.com/M0xoo/wisp/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/M0xoo/wisp/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/M0xoo/wisp/compare/v0.26.0...v0.27.0
 [0.26.0]: https://github.com/M0xoo/wisp/compare/v0.25.0...v0.26.0
