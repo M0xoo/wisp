@@ -54,6 +54,9 @@ setInterval(() => {
     const t = s && $('.q-time', n.head);
     if (t) t.textContent = ago(s.updatedAt);
   }
+  const head = $('#splitHead:not([hidden])');
+  const open = head && S.sessions.get(head.dataset.id);
+  if (open) $('.sh-meta .q-time', head).textContent = ago(open.updatedAt);
 }, 30000);
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');

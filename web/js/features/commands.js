@@ -25,6 +25,7 @@ import { replay, toggleTranscript } from './turns.js';
 import { openUsage } from './usage.js';
 import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
+import { setView, viewPref } from './split.js';
 
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
@@ -96,6 +97,9 @@ function paletteItems() {
     { group: a, label: 'Machines', icon: 'server', keywords: 'remote ssh server computer devbox cloud vm', run: () => openMachines() },
     { group: a, label: 'Add a machine…', icon: 'server', keywords: 'remote ssh server computer connect', run: () => openMachines({ focusAdd: true }) },
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
+    viewPref() === 'split'
+      ? { group: a, label: 'Feed view', sub: 'One column, cards open in place', icon: 'feed', kbd: '\\', keywords: 'layout view single column list', run: () => setView('feed') }
+      : { group: a, label: 'Split view', sub: 'Tasks in a sidebar, the open one beside it', icon: 'split', kbd: '\\', keywords: 'layout view sidebar columns panes master detail', run: () => setView('split') },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
   items.push(

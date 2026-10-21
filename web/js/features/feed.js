@@ -17,6 +17,7 @@ import { prOf, prPill, shipPill } from './ship.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
+import { isSplit, paintHead, paintSplit, sidebar } from './split.js';
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -47,7 +48,8 @@ function taskOf(s) {
   };
 }
 
-function groups() {
+// Every task in the feed (or the sidebar), by section and in its order.
+export function groups() {
   const every = [];
   const seen = new Set();
   for (const s of visible([...S.sessions.values()])) {
@@ -139,11 +141,13 @@ export function renderFeed() {
   const n = [...S.sessions.values()].filter((s) => (s.state === 'review' && s.unread) || s.state === 'waiting').length;
   document.title = n ? `(${n}) wisp` : 'wisp';
   renderProjects();
+  paintSplit();
 }
 
 // A new project filter swaps the whole list; staying at the old offset would drop the user
 // somewhere arbitrary in it, so bring the top of the feed back into view.
 export function feedToTop() {
+  if (isSplit()) return (sidebar.scrollTop = 0);
   const top = $('#feed').getBoundingClientRect().top;
   if (top < topInset()) scrollByPx(top - topInset());
 }
@@ -205,6 +209,8 @@ function item(s) {
       if (s.pending || n.head.querySelector('[contenteditable="true"]')) return;
       if (e.target.closest('[data-a="quick-done"]')) return toggleDone(s.id);
       setFocus(s.id);
+      // Split view: a click opens the task beside the list; clicking it again leaves it open.
+      if (isSplit()) return S.open.has(s.id) ? paintSplit() : expand(s.id);
       toggle(s.id);
     });
     card.addEventListener('mousedown', () => {
@@ -219,6 +225,7 @@ function item(s) {
     if (S.open.has(s.id)) expand(s.id, { scroll: false });
   }
   renderHead(n, s);
+  if (S.open.has(s.id)) paintHead(s);
   return n;
 }
 
@@ -238,9 +245,28 @@ function renderHead(n, s) {
     <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
     <span class="it-main">
       <span class="it-title">${esc(s.title)}</span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
     </span>
     <span class="it-side">
+      ${headPills(s, pill)}
+      <span class="q-time">${ago(s.updatedAt)}</span>
+      ${s.pending ? '' : slotHtml('card.hover', s)}
+      ${quickDone(s, open)}
+      ${icon('chevron', 'chev')}
+    </span>`;
+}
+
+// One-click done on review rows. A sidebar row keeps it while open, and rows without one keep its
+// space, so every row's pills and time line up and opening a row doesn't move anything.
+function quickDone(s, open) {
+  if (s.state === 'review' && !s.archived && (!open || isSplit())) return `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>`;
+  return isSplit() ? '<span class="it-quick-gap" aria-hidden="true"></span>' : '';
+}
+
+// What a card head says about its task, between the title and the time (the split view's header
+// shows the same).
+export function headPills(s, pill) {
+  return `
       ${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}
@@ -248,12 +274,7 @@ function renderHead(n, s) {
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
       ${projectLabel(s)}
-      ${s.pending ? '' : slotHtml('card.head', s)}
-      <span class="q-time">${ago(s.updatedAt)}</span>
-      ${s.pending ? '' : slotHtml('card.hover', s)}
-      ${s.state === 'review' && !open && !s.archived ? `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>` : ''}
-      ${icon('chevron', 'chev')}
-    </span>`;
+      ${s.pending ? '' : slotHtml('card.head', s)}`;
 }
 
 // What Auto found after the run: its own test check, the best-of-2 pick, a hand-over.
@@ -287,7 +308,7 @@ function renderRunHead(n, s, { open, live, pill }) {
     <span class="run-logo">${harnessLogo(s.agent)}</span>
     <span class="it-main">
       <span class="it-title"><b>${esc(a?.name || agentName(s.agent))}</b><span class="run-model">${esc(model)}${s.effort ? ` · ${esc(effortLabel(s.effort))}` : ''}</span></span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
     </span>
     <span class="it-side">
       ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on this computer">${icon('laptop')}<span>This computer</span></span>`}${projectLabel(s)}` : ''}
@@ -354,7 +375,7 @@ export function setFocus(id, { scroll = true } = {}) {
   n?.card.classList.add('focused');
   // A card taller than the screen would land with its header out of view ('nearest' aligns
   // its far edge when moving up), so bring its top in instead.
-  if (scroll && n) n.card.scrollIntoView({ block: n.card.offsetHeight > stage.clientHeight - topInset() ? 'start' : 'nearest', behavior: 'smooth' });
+  if (scroll && n) n.card.scrollIntoView({ block: !isSplit() && n.card.offsetHeight > stage.clientHeight - topInset() ? 'start' : 'nearest', behavior: 'smooth' });
 }
 
 export function toggle(id) {
@@ -364,6 +385,8 @@ export function toggle(id) {
 export async function expand(id, { scroll = true } = {}) {
   const n = S.nodes.get(id);
   if (!n) return;
+  // Split view shows one task at a time.
+  if (isSplit()) for (const o of [...S.open]) if (o !== id) collapse(o);
   S.open.add(id);
   saveOpen();
   n.card.classList.add('open');
@@ -373,7 +396,8 @@ export async function expand(id, { scroll = true } = {}) {
     n.card.append(n.body);
   }
   renderFeedHead(groups().needs, groups().working);
-  if (scroll) requestAnimationFrame(() => n.card.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  paintSplit();
+  if (scroll) requestAnimationFrame(() => n.card.scrollIntoView({ block: isSplit() ? 'nearest' : 'start', behavior: 'smooth' }));
   if (!S.full.has(id)) await fetchFull(id);
   else renderBody(id, { fresh: true });
 }
@@ -394,6 +418,7 @@ export function collapse(id) {
     if (s) renderHead(n, s);
   }
   renderFeedHead(groups().needs, groups().working);
+  paintSplit();
 }
 
 export async function fetchFull(id) {
@@ -445,7 +470,7 @@ export function reveal(id) {
   }
   renderFeed();
   setFocus(id, { scroll: false });
-  if (S.open.has(id)) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  if (S.open.has(id)) S.nodes.get(id)?.card.scrollIntoView({ block: isSplit() ? 'nearest' : 'start', behavior: 'smooth' });
   else expand(id);
 }
 
@@ -457,6 +482,19 @@ export const feedIds = () => $$('#feed .item:not(.pending)').map((x) => x.datase
 // out; the returned function applies the change locally and places the next card.
 export function handOff(id) {
   const card = S.nodes.get(id)?.card;
+  // Split view: the next task takes the main pane if this one had it.
+  if (isSplit() && card?.isConnected) {
+    const nextUp = (card.nextElementSibling || card.previousElementSibling)?.dataset.id || feedIds().find((x) => x !== id);
+    const had = S.open.has(id);
+    return (apply) => {
+      if (had) collapse(id);
+      apply();
+      renderFeed();
+      if (!nextUp || !S.nodes.has(nextUp)) return;
+      setFocus(nextUp);
+      if (had) expand(nextUp);
+    };
+  }
   if (!card?.isConnected) return (apply) => (apply(), renderFeed());
   const nextUp = (card.nextElementSibling || card.previousElementSibling)?.dataset.id || feedIds().find((x) => x !== id);
   const r = card.getBoundingClientRect();

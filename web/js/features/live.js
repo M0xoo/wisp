@@ -19,6 +19,7 @@ import { onChildSummary } from './team.js';
 import { onActivity } from './turns.js';
 import { applySpells, spellEvent } from './spells.js';
 import { loadUpdate, renderUpdate } from './update.js';
+import { applyView } from './split.js';
 
 export function connect() {
   const es = new EventSource('/api/events');
@@ -88,6 +89,7 @@ export async function loadSessions() {
 export async function loadConfig() {
   S.config = await api('/config');
   applySpells();
+  applyView();
   renderProjects();
   renderLaunchChips();
   paintAutoBtn();

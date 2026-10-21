@@ -584,6 +584,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
         <tbody>${Object.entries(SLOTS).map(([k, d]) => `<tr><td><code>${k}</code></td><td>${esc(d)}</td></tr>`).join('')}</tbody>
       </table></div>
       <p>Panels open as a <code>dialog</code>, a side <code>drawer</code>, pinned above the <code>feed</code>, or inside an open <code>card</code>. To restyle or hide something, a spell names a part (<code>card.title</code>, <code>launcher.input</code>, <code>topbar.machines</code>, …) and sets a short list of allowed CSS properties, props such as <code>density</code> or <code>monospace</code>, or the order of the card head.</p>
+      <p>The split view (tasks in a sidebar, the open one beside it) is a spell’s too: <code>settings: { "view": "split" }</code> switches to it, the <code>sidebar</code> part takes <code>width</code>, <code>side</code> (<code>left</code>, the default, or <code>right</code>) and <code>details</code> (<code>full</code> shows the model, machine and project on every row), <code>split.main</code> takes a <code>readWidth</code>, <code>split.home</code> a <code>greeting</code> over the prompt box, and the <code>sidebar.top</code> and <code>split.head</code> slots take buttons.</p>
     </section>
 
     <section>

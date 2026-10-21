@@ -30,6 +30,7 @@ import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
 import { SPELL_HINT, spellAsk } from '../slash-text.js';
+import { goHome, isSplit } from './split.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -775,6 +776,8 @@ function showLaunched(btn, card) {
 }
 
 export function focusLauncher() {
+  // Split view: the prompt box is home, in the main pane.
+  if (isSplit()) return goHome();
   // Docked under the top bar it opens where it is, so you keep your place in the feed.
   if (!$('#launcher').classList.contains('docked')) stage.scrollTo({ top: 0, behavior: 'smooth' });
   $('#prompt')?.focus({ preventScroll: true });

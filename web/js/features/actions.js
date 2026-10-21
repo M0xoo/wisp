@@ -118,7 +118,8 @@ export async function takeOver(id) {
 
 export function rename(id) {
   const n = S.nodes.get(id);
-  const title = n && $('.it-title', n.head);
+  // Split view: the open task is renamed in its header, the others in their sidebar row.
+  const title = $(`#splitHead:not([hidden])[data-id="${id}"] .sh-title`) || (n && $('.it-title', n.head));
   if (!title) return;
   title.contentEditable = 'true';
   title.focus();
