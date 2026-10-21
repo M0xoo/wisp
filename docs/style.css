@@ -230,6 +230,25 @@ h1 .off.fly { animation: off-fly 0.9s cubic-bezier(0.5, 0, 0.75, 0) both; }
 .desk-cta > [role='tabpanel'] { max-width: 100%; }
 .desk-cta.mine .cmd { box-shadow: 0 0 0 4px var(--accent-soft); }
 .desk-cta.mine .fine b { color: var(--ink); }
+/* hero: the no-install way in, drawn as the address bar of your own wisp in the cloud */
+.cloud-cta { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; max-width: 460px; text-decoration: none; color: inherit; }
+.cc-or { display: flex; align-items: center; gap: 12px; font: 12.5px var(--mono); color: var(--muted); }
+.cc-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.cc-bar { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 6px 0 14px; border-radius: 11px; background: var(--surface); border: 1px solid var(--line-2); transition: border-color 0.15s, box-shadow 0.15s; }
+.cloud-cta:hover .cc-bar, .cloud-cta:focus-visible .cc-bar { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 4px var(--accent-soft); }
+.cloud-cta:focus-visible { outline: none; }
+.cc-url { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; font: 14.5px var(--mono); color: var(--muted); }
+.cc-url svg { flex: none; width: 13px; height: 13px; color: var(--faint); }
+.cc-host { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cc-host b { font-weight: 500; color: var(--accent); }
+.cc-go { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 12px 0 14px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 500; }
+.cc-short { display: none; }
+.cc-go svg { width: 15px; height: 15px; transition: translate 0.15s; }
+.cloud-cta:hover .cc-go svg { translate: 2px 0; }
+.cc-notes { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.cc-notes span { display: inline-flex; align-items: center; gap: 7px; }
+.cc-notes span + span::before { content: '·'; color: var(--faint); }
+.cc-notes i { width: 6px; height: 6px; border-radius: 50%; background: #28c840; box-shadow: 0 0 0 3px rgba(40, 200, 64, 0.18); }
 @media (prefers-color-scheme: dark) {
   .pill.done { color: #4cc38a; background: rgba(76, 195, 138, 0.12); }
   .q-row[data-s='done'] .q-dot { background: #4cc38a; }
@@ -811,6 +830,10 @@ button.sw-tb { cursor: pointer; }
   .cmd { width: 100%; }
   .cmd code { margin-right: auto; }
   .desk-cta > [role='tabpanel'] { align-self: stretch; }
+  .cloud-cta { max-width: none; }
+  .cc-go { padding: 0 10px; }
+  .cc-long, .cc-notes span:nth-child(3) { display: none; }
+  .cc-short { display: inline; }
   .btn { width: 100%; justify-content: center; }
   .gh span:not(.stars) { display: none; }
   .strip { justify-content: flex-start; }
