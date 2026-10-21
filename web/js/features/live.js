@@ -21,8 +21,17 @@ import { applySpells, spellEvent } from './spells.js';
 import { loadUpdate, renderUpdate } from './update.js';
 import { applyView } from './split.js';
 
+let es = null;
+let hiddenAt = 0;
+
 export function connect() {
-  const es = new EventSource('/api/events');
+  es?.close();
+  es = new EventSource('/api/events');
+  // The browser retries a dropped stream by itself, but gives up for good after an HTTP error
+  // (a tunnel that is half back up can answer one): start a new one then.
+  es.addEventListener('error', function () {
+    if (this.readyState === EventSource.CLOSED && this === es) setTimeout(() => this === es && connect(), 3000);
+  });
   es.addEventListener('summary', (e) => {
     const s = JSON.parse(e.data);
     if (s.parentId) return onChildSummary(s); // a subagent: lives inside its lead's card
@@ -76,6 +85,14 @@ export function connect() {
   es.addEventListener('preferences', () => bus.emit('preferences'));
   es.addEventListener('hello', () => (loadSessions(), loadUpdate(), loadMachines())); // also after sleep/reconnect
 }
+
+// Back after a while away (the phone app was in the background, the laptop slept): the stream
+// may look open but be dead, and what it missed is gone. A new one says `hello`, which reloads
+// the list and every open task.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) hiddenAt = Date.now();
+  else if (es && hiddenAt && Date.now() - hiddenAt > 10000) connect();
+});
 
 export async function loadSessions() {
   const list = await api('/sessions');

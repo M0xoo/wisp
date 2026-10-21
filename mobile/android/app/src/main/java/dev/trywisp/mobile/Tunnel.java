@@ -76,6 +76,7 @@ public final class Tunnel {
     private volatile String rejectedKey; // set when the host key changed
     private volatile boolean everUp;
     private volatile int tries; // reconnects since the tunnel was last up
+    private final Object wake = new Object(); // nudge() cuts a retry wait short
     private Thread thread;
     // Where the phone end listens. Tests use [::1] so a wisp on the same computer keeps 127.0.0.1.
     String bindHost = "127.0.0.1";
@@ -107,6 +108,30 @@ public final class Tunnel {
 
     public String state() {
         return state;
+    }
+
+    /**
+     * The app is back in front. Android may have cut the network while it was away: a dead SSH
+     * connection only shows after keep-alives miss (about a minute), and a failed reconnect may
+     * be waiting up to 60s. Meanwhile wisp's page hangs on Loading. So: retry now if waiting,
+     * and if up, ask wisp through the tunnel and reconnect at once when it doesn't answer.
+     */
+    public void nudge() {
+        if (stopped) return;
+        tries = 0;
+        synchronized (wake) {
+            wake.notifyAll();
+        }
+        if (!"ready".equals(state)) return;
+        Thread t = new Thread(() -> {
+            try {
+                ping(3_000);
+            } catch (IOException e) {
+                if (!stopped && "ready".equals(state)) close(); // the loop reports it lost and reconnects
+            }
+        }, "wisp-nudge");
+        t.setDaemon(true);
+        t.start();
     }
 
     public synchronized List<String> lines() {
@@ -142,7 +167,9 @@ public final class Tunnel {
             state = "connecting";
             emit("@@wisp lost " + lost);
             try {
-                Thread.sleep(RETRY_MS[Math.min(tries++, RETRY_MS.length - 1)]);
+                synchronized (wake) {
+                    wake.wait(RETRY_MS[Math.min(tries++, RETRY_MS.length - 1)]);
+                }
             } catch (InterruptedException e) {
                 return;
             }
@@ -241,15 +268,7 @@ public final class Tunnel {
         IOException last = null;
         for (int i = 0; i < 6 && !stopped; i++) {
             try {
-                HttpURLConnection h = (HttpURLConnection) new URL("http://" + (bindHost.contains(":") ? "[" + bindHost + "]" : bindHost) + ":" + port + "/api/health").openConnection();
-                h.setConnectTimeout(4_000);
-                h.setReadTimeout(4_000);
-                try (InputStream in = h.getInputStream()) {
-                    Matcher m = VERSION.matcher(new String(readAll(in), StandardCharsets.UTF_8));
-                    return m.find() ? m.group(1) : "";
-                } finally {
-                    h.disconnect();
-                }
+                return ping(4_000);
             } catch (IOException e) {
                 last = e;
                 try {
@@ -260,6 +279,19 @@ public final class Tunnel {
             }
         }
         throw new IOException("The tunnel opened, but wisp doesn’t answer through it." + (last != null ? " (" + last.getMessage() + ")" : ""));
+    }
+
+    // One /api/health through the tunnel: wisp's version.
+    private String ping(int timeoutMs) throws IOException {
+        HttpURLConnection h = (HttpURLConnection) new URL("http://" + (bindHost.contains(":") ? "[" + bindHost + "]" : bindHost) + ":" + port + "/api/health").openConnection();
+        h.setConnectTimeout(timeoutMs);
+        h.setReadTimeout(timeoutMs);
+        try (InputStream in = h.getInputStream()) {
+            Matcher m = VERSION.matcher(new String(readAll(in), StandardCharsets.UTF_8));
+            return m.find() ? m.group(1) : "";
+        } finally {
+            h.disconnect();
+        }
     }
 
     private static byte[] readAll(InputStream in) throws IOException {
