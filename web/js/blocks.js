@@ -774,7 +774,7 @@ R.image = (b, ctx) => {
   const node = el(`<figure class="b-image card"><img loading="lazy" alt="${esc(b.caption || b.path || '')}">${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
   const img = node.querySelector('img');
   img.src = src;
-  img.addEventListener('click', () => ctx.zoom(src));
+  img.addEventListener('click', () => ctx.zoom(src, img.alt));
   img.addEventListener('error', () => node.classList.add('broken'));
   return node;
 };

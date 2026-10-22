@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Pictures in a reply can be zoomed, on a phone too.** Tapping one showed it a little bigger and no more: the phone app has no pinch zoom, and a pinch in a browser zoomed the whole page. It now opens full screen, where a pinch, a double tap or the wheel zooms in on that spot (up to the picture's own pixels and past), a drag moves around it, and − / + / 0 or the buttons at the bottom zoom too. A tap beside it, a swipe down, `Esc` or × closes it. Pictures attached to a task open the same way.
 - **A file dropped next to the prompt box is attached instead of opened.** Dropped anywhere else on the page, the browser opened it in place of wisp, and the desktop app handed it to Preview. It now goes to the box you most likely meant: the follow-up box of the open task you dropped it on (or the one split view shows), else the prompt box, which lights up while you drag. A screenshot pasted while no box has focus lands there too, and a `.spell.json` dropped anywhere opens its review, as it was meant to.
 - **A file dropped on the prompt box is uploaded once.** Every time the prompt box repainted (settings or harnesses loading), dropping a file uploaded it once more.
 
