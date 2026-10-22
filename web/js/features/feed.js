@@ -5,7 +5,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
-import { HERE, S, save, saveOpen } from '../core/state.js';
+import { HERE, MOBILE, S, save, saveOpen } from '../core/state.js';
 import { taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
 import { renderLaunchChips } from './launcher.js';
@@ -18,7 +18,7 @@ import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
 import { termPill } from './term.js';
-import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar } from './split.js';
+import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -399,6 +399,7 @@ export async function expand(id, { scroll = true } = {}) {
   }
   renderFeedHead(groups().needs, groups().working);
   paintSplit();
+  syncUrl();
   // Split view opens the task in the main pane, so the list doesn't move to it.
   if (scroll && !isSplit()) requestAnimationFrame(() => n.card.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   if (!S.full.has(id)) await fetchFull(id);
@@ -425,6 +426,21 @@ export function collapse(id) {
   }
   renderFeedHead(groups().needs, groups().working);
   paintSplit();
+  syncUrl();
+}
+
+// The address names the open task (#/s/<id>; in the feed, the one opened last), so a reload or a
+// copied link opens it again. Off until route() has read the address the page was loaded with. The
+// phone has no address bar: there it's only cleared, so a tapped notification always routes.
+let urlOn = false;
+export function syncUrl({ start = false } = {}) {
+  urlOn ||= start;
+  if (!urlOn) return;
+  const id = MOBILE ? null : isSplit() ? splitOpen() : [...S.open].at(-1);
+  const h = location.hash;
+  if (id) {
+    if (h !== `#/s/${id}`) history.replaceState(null, '', `#/s/${id}`);
+  } else if (h.startsWith('#/s/')) history.replaceState(null, '', location.pathname + location.search);
 }
 
 export async function fetchFull(id) {
@@ -490,8 +506,13 @@ export function reveal(id) {
   }
   renderFeed();
   setFocus(id, { scroll: false });
-  if (!S.open.has(id)) expand(id);
-  else if (!isSplit()) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  if (!S.open.has(id)) return expand(id);
+  // Already open: it's the one the address names now (the last opened).
+  S.open.delete(id);
+  S.open.add(id);
+  saveOpen();
+  syncUrl();
+  if (!isSplit()) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 export const feedIds = () => $$('#feed .item:not(.pending)').map((x) => x.dataset.id);
