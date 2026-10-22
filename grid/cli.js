@@ -7,13 +7,14 @@
 //   wisp grid doctor     check the setup: Node, config, keys, DNS, providers
 //   wisp grid rotate-key a new master key; re-wraps every user's data key
 //   wisp grid backup     a consistent copy of the database
-//   wisp grid users      who's here
+//   wisp grid users      who's here; --delete <handle> --yes deletes one, box and files included
 
 import dns from 'node:dns/promises';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { BOXD, CONTAINER, boxdCall } from './boxd.js';
 import { loadConfig, writeConfig } from './config.js';
 import { addMasterKey, createSecrets, ensureMaster, masterFile, pruneMasterKeys } from './secrets.js';
 
@@ -23,6 +24,7 @@ export const GRID_HELP = `usage:
   wisp grid serve [--data DIR]                                run it
   wisp grid doctor [--data DIR]                               check the setup
   wisp grid rotate-key | backup [file] | users [--data DIR]
+  wisp grid users --delete HANDLE --yes [--data DIR]         delete an account, its box and files
 
   Data: --data DIR, or GRID_DATA (default ~/.wisp-grid). Guide: grid/README.md`;
 
@@ -33,6 +35,7 @@ function opts(args) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--fake-agents') o.fakeAgents = true;
+    else if (a === '--yes') o.yes = true;
     else if (a.startsWith('--')) o[a.slice(2).replace(/-(\w)/g, (_, c) => c.toUpperCase())] = args[++i];
     else o._.push(a);
   }
@@ -110,7 +113,9 @@ export async function gridCli(args) {
         allow: { emails: [], domains: [], githubOrgs: [] },
         admins: [],
       },
-      hostd: { driver: 'process', idleMs: 300_000, checkMs: 5_000, maxRunning: 50 },
+      // boxd running (grid/deploy/install.sh sets it up): containers through it. Else 'process',
+      // until you set up isolation (grid/README.md).
+      hostd: fs.existsSync(BOXD.socket) ? { driver: 'container', container: { boxd: BOXD.socket }, idleMs: 300_000, checkMs: 5_000, maxRunning: 50 } : { driver: 'process', idleMs: 300_000, checkMs: 5_000, maxRunning: 50 },
       sessionDays: 30,
     };
     writeConfig(cfg);
@@ -124,7 +129,8 @@ export async function gridCli(args) {
        GitHub  callback URL  https://${o.domain}/auth/github/callback   secret → ${path.join(dir, 'secrets/github-oauth')}
        Google  redirect URI  https://${o.domain}/auth/google/callback   secret → ${path.join(dir, 'secrets/google-oauth')}
   4. wisp grid doctor --data ${dir}
-  5. wisp grid serve --data ${dir}   (grid/deploy/wisp-grid.service runs it under systemd)`);
+  5. wisp grid serve --data ${dir}   (grid/deploy/wisp-grid.service runs it under systemd)
+  Users' boxes: ${cfg.hostd.driver === 'container' ? `containers, through boxd (${BOXD.socket})` : 'processes (no isolation): see grid/README.md → Isolation'}`);
     return;
   }
 
@@ -173,6 +179,20 @@ export async function gridCli(args) {
     }
     if (cfg.scheme !== 'https' && !/(^|\.)localhost$/.test(cfg.domain)) no('scheme is http on a real domain: sign-in cookies and device tokens would travel in the clear');
     if (cfg.hostd.driver === 'process') console.log('  ! hostd driver "process": users share one OS user. Fine for you and people you trust; not isolation.');
+    if (cfg.hostd.driver === 'container') {
+      const c = { ...CONTAINER, ...cfg.hostd.container };
+      let runtime = c.runtime;
+      if (c.boxd) {
+        try {
+          const r = await boxdCall(c.boxd, { op: 'ping' }, { timeout: 5000 });
+          runtime = r.runtime;
+          ok(`boxd at ${c.boxd}: boxes in ${r.boxes}, image ${r.image}, runtime ${r.runtime || 'runc'}`);
+        } catch (err) {
+          no(err.message);
+        }
+      } else console.log('  ! hostd runs docker itself: the grid’s user is root in effect, and the boxes’ homes (agent logins) sit in its data folder. Set up boxd (grid/README.md → Isolation).');
+      if (process.getuid?.() === c.uid && runtime !== 'runsc') console.log(`  ! the grid runs as uid ${c.uid}, the boxes’ user: without gVisor it could look into them. Give the grid its own user (useradd --system).`);
+    }
     return;
   }
 
@@ -205,8 +225,37 @@ export async function gridCli(args) {
     const cfg = loadConfig({ dataDir });
     const { openDb } = await import('./db.js');
     const db = await openDb(cfg.dataDir);
+    if (o.delete) {
+      try {
+        return await deleteUser(cfg, db, String(o.delete).toLowerCase(), o.yes);
+      } finally {
+        db.close();
+      }
+    }
     const rows = db.all('SELECT u.handle, u.email, u.created_at, i.state, (SELECT group_concat(provider) FROM identities WHERE user_id = u.id) AS via FROM users u LEFT JOIN instances i ON i.user_id = u.id ORDER BY u.created_at');
     db.close();
     console.log(rows.map((r) => `${r.handle.padEnd(20)} ${String(r.email || '').padEnd(30)} ${String(r.via || '').padEnd(14)} ${r.state || 'stopped'}`).join('\n') || 'No users yet.');
   }
+}
+
+// `wisp grid users --delete <handle> --yes`: the same as Delete on their account page.
+async function deleteUser(cfg, db, handle, yes) {
+  const u = db.get('SELECT * FROM users WHERE handle = ?', handle);
+  if (!u) throw new Error(`Nobody here is called ${handle}.`);
+  const what = `${u.handle}${u.email ? ` (${u.email})` : ''}: their box, its files and their agents’ sign-ins, their secrets, sessions and devices`;
+  if (!yes) return console.log(`  This deletes ${what}.\n  To go ahead: wisp grid users --delete ${u.handle} --yes`);
+  // A process can only be stopped by the grid that started it.
+  if (cfg.hostd.driver === 'process' && db.get('SELECT state FROM instances WHERE user_id = ?', u.id)?.state === 'running') throw new Error(`${u.handle}'s wisp is running: put it to sleep from their account page, or stop the grid, then try again.`);
+  const { createAccounts } = await import('./accounts.js');
+  const { deleteBox } = await import('./hostd.js');
+  const accounts = createAccounts({ db, cfg, secrets: createSecrets(db, { dataDir: cfg.dataDir }) });
+  accounts.setDisabled(u.id, true);
+  try {
+    await deleteBox({ dataDir: cfg.dataDir, driver: cfg.hostd.driver, container: cfg.hostd.container, user: u });
+  } catch (err) {
+    accounts.setDisabled(u.id, !!u.disabled);
+    throw err;
+  }
+  accounts.remove(u.id);
+  console.log(`  ✓ deleted ${what}`);
 }

@@ -40,7 +40,7 @@ export function createGridTelemetry(cfg, { post = postBatch, now = () => Date.no
 
   // Box timings: from asking for it to its wisp answering, and how long it stayed up.
   const starting = new Map();
-  const reasonOf = (r = '') => (r === 'idle' ? 'idle' : r === 'put to sleep' ? 'user' : r === 'grid stopped' ? 'grid' : /^exited/.test(r) ? 'crashed' : 'other');
+  const reasonOf = (r = '') => (r === 'idle' ? 'idle' : r === 'put to sleep' ? 'user' : r === 'grid stopped' ? 'grid' : r === 'deleted' ? 'deleted' : /^exited/.test(r) ? 'crashed' : 'other');
 
   return {
     on,

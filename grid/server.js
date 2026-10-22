@@ -109,6 +109,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     dataDir: cfg.dataDir,
     secretFor: (u) => secrets.ensure(u.id, 'wisp-proxy'),
     urlFor: (u) => cfg.instanceUrl(u.handle),
+    exists: (u) => !!accounts.userById(u.id),
     gridUrl: cfg.publicUrl,
     telemetry: stats.on,
     log,
@@ -116,19 +117,27 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   hostd.on('change', (e) => {
     stats.box(e);
     const t = Date.now();
-    db.run(
-      `INSERT INTO instances (user_id, state, created_at, started_at, stopped_at, last_active_at, next_wake_at, stop_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, started_at = coalesce(excluded.started_at, started_at), stopped_at = coalesce(excluded.stopped_at, stopped_at),
-         last_active_at = coalesce(excluded.last_active_at, last_active_at), next_wake_at = excluded.next_wake_at, stop_reason = excluded.stop_reason`,
-      e.user.id,
-      e.state,
-      t,
-      e.startedAt,
-      e.state === 'stopped' ? e.stoppedAt || t : null,
-      e.lastActiveAt,
-      e.nextWakeAt,
-      e.state === 'stopped' ? e.event : null,
-    );
+    // A box can stop after its account is gone (deleted from the command line, maybe between
+    // these two lines): nothing to record, and nothing to throw from a child's exit handler.
+    if (accounts.userById(e.user.id)) {
+      try {
+        db.run(
+          `INSERT INTO instances (user_id, state, created_at, started_at, stopped_at, last_active_at, next_wake_at, stop_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, started_at = coalesce(excluded.started_at, started_at), stopped_at = coalesce(excluded.stopped_at, stopped_at),
+             last_active_at = coalesce(excluded.last_active_at, last_active_at), next_wake_at = excluded.next_wake_at, stop_reason = excluded.stop_reason`,
+          e.user.id,
+          e.state,
+          t,
+          e.startedAt,
+          e.state === 'stopped' ? e.stoppedAt || t : null,
+          e.lastActiveAt,
+          e.nextWakeAt,
+          e.state === 'stopped' ? e.event : null,
+        );
+      } catch (err) {
+        log(`grid: ${e.user.handle} ${e.event}: ${err.message}`);
+      }
+    }
     if (e.event === 'started' || e.event === 'idle' || e.event === 'failed') log(`grid: ${e.user.handle} ${e.event}${e.error ? `: ${e.error}` : ''}`);
   });
   // After a restart: nothing runs, but scheduled tasks still wake their wisp.
@@ -323,6 +332,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         accounts.unlink(s.user.id, String(body.provider || ''));
         return redirect(res, '/');
       }
+      if (p === '/account/delete') {
+        const body = await needCsrf();
+        const u = s.user;
+        if (String(body.confirm || '').trim().toLowerCase() !== u.handle) throw bad(`Type ${u.handle} to delete your account.`);
+        await deleteAccount(u);
+        return page(messagePage({ cfg, title: 'Account deleted', text: 'Your wisp, its files and your agents’ sign-ins are gone from this grid. To revoke those sign-ins as well, sign out of them at Anthropic, OpenAI or GitHub.', link: ['/', 'Done'] }), 200, { 'set-cookie': setCookie(names.grid, '', 0) });
+      }
       if (p === '/signout') {
         await needCsrf();
         if (url.searchParams.get('all')) accounts.endAll(s.user.id);
@@ -331,6 +347,21 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       }
     }
     return page(messagePage({ cfg, title: 'Not found', text: 'There’s nothing here.', link: ['/', 'Home'] }), 404);
+  }
+
+  // Delete an account: disabled first, so no session or device starts its box again meanwhile; then
+  // the box and its files (agent logins included); then the account and its sealed secrets.
+  async function deleteAccount(u) {
+    accounts.setDisabled(u.id, true);
+    try {
+      await hostd.remove(u);
+    } catch (err) {
+      accounts.setDisabled(u.id, !!u.disabled);
+      log(`grid: deleting ${u.handle}: ${err.message}`);
+      throw bad('Your files couldn’t be deleted just now, so your account is still here. Try again in a minute.', 409);
+    }
+    accounts.remove(u.id);
+    log(`grid: ${u.handle} deleted their account`);
   }
 
   // ---- the edge: a user's own wisp ----

@@ -3,6 +3,7 @@
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -84,7 +85,7 @@ export const same = (a, b) => fs.realpathSync.native(a).toLowerCase() === fs.rea
 
 // Poll fn until it returns something truthy. Errors count as "not yet" (a polled local HTTP
 // request can be reset under load, notably on Windows CI); the last one is reported on timeout.
-export async function until(fn, { timeout = 20_000, every = 50 } = {}) {
+export async function until(fn, { timeout = 20_000, every = 50, what = '' } = {}) {
   const end = Date.now() + timeout;
   let last;
   for (;;) {
@@ -94,7 +95,7 @@ export async function until(fn, { timeout = 20_000, every = 50 } = {}) {
     } catch (err) {
       last = err;
     }
-    if (Date.now() > end) throw new Error(`timed out waiting${last ? `: ${last.cause?.code || last.message}` : ''}`);
+    if (Date.now() > end) throw new Error(`timed out waiting${what ? ` for ${what}` : ''}${last ? `: ${last.cause?.code || last.message}` : ''}`);
     await new Promise((r) => setTimeout(r, every));
   }
 }
@@ -126,4 +127,61 @@ export function makeClone() {
   git(dir, 'push', '-q', '-u', 'origin', 'main');
   git(dir, 'remote', 'set-head', 'origin', 'main');
   return { dir, remote, git: (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8' }).trim() };
+}
+
+// --- for the grid tests ----------------------------------------------------------------------
+
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A tiny browser: *.localhost goes to 127.0.0.1, cookies per host, no redirect following.
+export function browser() {
+  const jar = new Map(); // host -> Map(name -> value)
+  async function go(url, { method = 'GET', headers = {}, body, form } = {}) {
+    const u = new URL(url);
+    const c = jar.get(u.host);
+    const data = form ? new URLSearchParams(form).toString() : body !== undefined ? JSON.stringify(body) : undefined;
+    const h = {
+      accept: 'text/html',
+      ...(c && c.size && { cookie: [...c].map(([k, v]) => `${k}=${v}`).join('; ') }),
+      ...(form && { 'content-type': 'application/x-www-form-urlencoded' }),
+      ...(body !== undefined && { 'content-type': 'application/json', accept: 'application/json' }),
+      ...headers,
+    };
+    return new Promise((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port: u.port, path: u.pathname + u.search, method, headers: { host: u.host, ...h } }, (res) => {
+        for (const sc of [].concat(res.headers['set-cookie'] || [])) {
+          const [kv, ...attrs] = sc.split(';');
+          const i = kv.indexOf('=');
+          const name = kv.slice(0, i).trim();
+          const val = kv.slice(i + 1).trim();
+          if (!jar.has(u.host)) jar.set(u.host, new Map());
+          if (attrs.some((a) => /max-age=0/i.test(a))) jar.get(u.host).delete(name);
+          else jar.get(u.host).set(name, val);
+        }
+        let t = '';
+        res.on('data', (d) => (t += d));
+        res.on('end', () => {
+          let j = null;
+          try {
+            j = JSON.parse(t);
+          } catch {}
+          resolve({ status: res.statusCode, headers: res.headers, text: t, json: j, location: res.headers.location });
+        });
+      });
+      req.on('error', reject);
+      req.end(data);
+    });
+  }
+  // Follow redirects (absolute or relative), like a browser does.
+  async function follow(url, opts = {}, hops = 8) {
+    let r = await go(url, opts);
+    let at = url;
+    while (r.status >= 300 && r.status < 400 && r.location && hops--) {
+      at = new URL(r.location, at).toString();
+      if (!at.startsWith('http://')) return { ...r, at };
+      r = await go(at);
+    }
+    return { ...r, at };
+  }
+  return { go, follow, jar };
 }

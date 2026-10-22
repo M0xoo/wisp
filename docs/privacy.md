@@ -77,7 +77,14 @@ policy, not this one.
 
 ## Delete your wisp Cloud account
 
-Email **[hello@trywisp.dev](mailto:hello@trywisp.dev)** from the address you sign in with and ask us to delete your account.
+Delete it yourself at any time: at the bottom of your account page on
+[grid.trywisp.dev](https://grid.trywisp.dev), choose **Delete your account** and type your handle.
+That deletes at once your cloud computer and its files (your agents' sign-ins included), your
+account, sign-ins, devices, stored secrets and the record of your account's actions. Your agents'
+sign-ins stay valid at Anthropic, OpenAI or GitHub until you sign out of them there. Server backups
+that still contain them are overwritten within 30 days.
+
+Or email **[hello@trywisp.dev](mailto:hello@trywisp.dev)** from the address you sign in with and ask us to delete your account.
 Within 30 days we delete your account, sign-ins, devices, stored secrets, your cloud computer and
 its files, and the record of your account's actions, and we confirm by email. Server backups that
 still contain them are overwritten within a further 30 days.

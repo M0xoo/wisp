@@ -241,13 +241,20 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
   const byHandle = (h) => db.get('SELECT * FROM users WHERE handle = ?', String(h || '').toLowerCase());
   const instance = (userId) => db.get('SELECT * FROM instances WHERE user_id = ?', userId) || { state: 'stopped' };
 
-  // Delete a user: their sessions, devices, and (crypto-shredded) secrets. Their files are the
-  // host's to remove.
+  // Disabled: no session or device lets them in (set while their account is being deleted).
+  const setDisabled = (userId, on) => db.run('UPDATE users SET disabled = ? WHERE id = ?', on ? 1 : 0, userId);
+
+  // Delete a user: their sessions, devices, codes, tickets, the record of what they did, and
+  // (crypto-shredded) secrets. Their box and files go first, through hostd.remove or deleteBox
+  // (grid/hostd.js). What stays is one line saying an account (by its random id) was deleted.
   function remove(userId) {
     secrets.forget(userId);
-    db.run('DELETE FROM users WHERE id = ?', userId);
+    db.tx(() => {
+      for (const t of ['tickets', 'device_codes', 'audit']) db.run(`DELETE FROM ${t} WHERE user_id = ?`, userId);
+      db.run('DELETE FROM users WHERE id = ?', userId);
+    });
     audit(userId, 'user.delete');
   }
 
-  return { allowed, seats, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, identities, byHandle, userById, instance, remove, audit, normalCode };
+  return { allowed, seats, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, identities, byHandle, userById, instance, setDisabled, remove, audit, normalCode };
 }
