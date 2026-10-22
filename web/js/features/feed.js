@@ -137,7 +137,7 @@ export function renderFeed() {
   $('#feedEmpty').hidden = !empty;
   if (empty)
     $('#feedEmpty').innerHTML = `<div class="orb big"><i></i><i></i><i></i></div><p>${S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.'}</p>`;
-  renderFeedHead(needs, working);
+  placeCollapseAll();
 
   const n = [...S.sessions.values()].filter((s) => (s.state === 'review' && s.unread) || s.state === 'waiting').length;
   document.title = n ? `(${n}) wisp` : 'wisp';
@@ -151,16 +151,6 @@ export function feedToTop() {
   if (isSplit()) return (sidebar.scrollTop = 0);
   const top = $('#feed').getBoundingClientRect().top;
   if (top < topInset()) scrollByPx(top - topInset());
-}
-
-function renderFeedHead(needs, working) {
-  const parts = [];
-  if (working.length) parts.push(`<span class="hs working"><i></i>${working.length} working</span>`);
-  if (needs.length) parts.push(`<span class="hs needs"><i></i>${needs.length} need${needs.length === 1 ? 's' : ''} you</span>`);
-  // Group headings already carry the counts; only say something when the feed is calm.
-  $('#feedHead').innerHTML = parts.length ? '' : '<span class="hs calm"><i></i>Nothing needs you</span>';
-  $('#feedHead').hidden = !!parts.length;
-  placeCollapseAll();
 }
 
 // "Collapse all" floats over the page instead of living in the flow: showing it
@@ -397,7 +387,7 @@ export async function expand(id, { scroll = true } = {}) {
     n.body = el(`<div class="it-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>`);
     n.card.append(n.body);
   }
-  renderFeedHead(groups().needs, groups().working);
+  placeCollapseAll();
   paintSplit();
   syncUrl();
   // Split view opens the task in the main pane, so the list doesn't move to it.
@@ -424,7 +414,7 @@ export function collapse(id) {
     const s = S.sessions.get(id);
     if (s) renderHead(n, s);
   }
-  renderFeedHead(groups().needs, groups().working);
+  placeCollapseAll();
   paintSplit();
   syncUrl();
 }

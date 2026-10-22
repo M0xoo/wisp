@@ -72,8 +72,7 @@ body.split.side-right .split-grip { left: auto; right: calc(var(--side-w) - 4px)
 .sp-side { display: flex; gap: 4px; }
 .sp-side:empty { display: none; }
 
-body.split .feed-head { margin: 6px 0 8px; padding: 0 6px; font-size: 12px; }
-body.split .feed-head[hidden] ~ .feed { margin-top: 8px; }
+body.split .feed { margin-top: 8px; }
 body.split .f-group { margin-bottom: 14px; }
 body.split .f-group.collapsed { margin-bottom: 2px; }
 body.split .f-group h4 { padding: 0 6px; }
