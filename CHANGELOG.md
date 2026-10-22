@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- **wisp Grid says how many seats are left.** With `auth.maxUsers` set, the sign-in page shows *3 of 5 seats left*. Once the grid is full it says so before anyone goes through GitHub, instead of turning them away after. People who already have an account still sign in below. On grid.trywisp.dev the first button becomes *Get the next free seat*, which leads to the waitlist. `GET /api/seats` returns `{ open, invite, max, left }` so other pages can show the same count.
+- **wisp Grid says how many seats are left.** With `auth.maxUsers` set, the sign-in page shows *3 seats left*. Once the grid is full it says so before anyone goes through GitHub, instead of turning them away after. People who already have an account still sign in below. On grid.trywisp.dev the first button becomes *Get the next free seat*, which leads to the waitlist. `GET /api/seats` returns `{ open, invite, max, left }` so other pages can show the same count.
 - **A guide for keeping Claude Code running overnight.** [Run Claude Code 24/7 without a VPS](https://trywisp.dev/guides/run-claude-code-24-7-without-a-vps.html) compares running your own server (tmux, SSH from the phone, upkeep) with wisp Cloud. The landing page's FAQ answers *Can my agents keep working when my laptop is closed?*
 
 ### Changed

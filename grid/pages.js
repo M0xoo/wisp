@@ -143,8 +143,8 @@ function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = f
   // Full: new people get the waitlist first; the few with an account still sign in below it.
   const buttons = list.map((p, i) => `<a class="btn${i === 0 && !wl ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}Continue with ${esc(p.label)}</a>`).join('');
   const invite = seats.invite || seats.open === false;
-  const left = seats.max && !full && !invite ? `<span class="seats"><i></i>${seats.left} of ${seats.max} seats left</span>` : '';
-  const fullNote = wl ? `<b>All ${seats.max} preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in below.` : `<b>This grid is full:</b> it has all the ${seats.max} accounts it takes. Already have one? Sign in below.`;
+  const left = seats.max && !full && !invite ? `<span class="seats"><i></i>${seats.left} seat${seats.left === 1 ? '' : 's'} left</span>` : '';
+  const fullNote = wl ? `<b>All preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in below.` : `<b>This grid is full:</b> it has all the accounts it takes. Already have one? Sign in below.`;
   return `<div class="join" id="join">${error ? `<p class="err">${esc(error)}</p>` : ''}
     ${full ? `<p class="full">${fullNote}</p>` : ''}
     ${wl ? `<a class="btn first" href="${wl}">${I.arrow}Get the next free seat</a>` : ''}
