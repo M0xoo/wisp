@@ -52,6 +52,20 @@ export function keepInPlace(card, change) {
   else scrollByPx(dy);
 }
 
+// A re-render that moves a card the user is watching (a follow-up sends it to Working): the view
+// follows it. In split view that card is the open task's row in the sidebar, and if it lands where
+// it still shows, the list stays where it was rather than scrolling to it.
+export function keepFollowing(card, change) {
+  if (!split() || !card?.isConnected) return keepInPlace(card, change);
+  const top = card.getBoundingClientRect().top;
+  keepInPlace(feedAnchor(card.dataset.id), change);
+  if (!card.isConnected) return;
+  const box = sideBox().getBoundingClientRect();
+  const r = card.getBoundingClientRect();
+  if (r.top >= box.top + ($('#splitTop')?.offsetHeight || 0) && r.bottom <= box.bottom) return;
+  sideBox().scrollTop += r.top - top;
+}
+
 // Any write to scrollTop cancels a smooth scroll in flight (j/k, Open, a launch), so only
 // write when there's an actual shift to undo.
 export function scrollByPx(dy) {
