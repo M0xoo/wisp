@@ -17,9 +17,10 @@ const ACCOUNT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', grok: 'x
 // right, and its thinking levels underneath. Clicking (or arrowing to) a harness previews its
 // models; picking a model commits harness + model, picking a thinking level commits it in place.
 // places: the "Run on" picks, so the list is what's installed there rather than only on this computer.
-export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, places, auto = false }, pick) {
+// back: the prompt it's for, where the caret goes once it closes.
+export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, places, auto = false, back }, pick) {
   const open = $('.picker');
-  if (open) return open.close();
+  if (open) return open.close(), back?.focus();
   const agents = places ? harnessesAt(places, { auto }) : auto ? [AUTO, ...S.agents] : S.agents;
   const remote = places?.length > 1 || !!places?.[0];
   const sub = (a) => {
@@ -228,7 +229,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
 
   const choose = (m) => {
     close();
-    anchor.focus();
+    (back || anchor).focus();
     // Carry the thinking level over when the new model accepts it, else fall back to the saved one.
     const cur = effortOf(focusAgent);
     const e = effortsFor(focusAgent, m).includes(cur) ? cur : savedEffort(focusAgent, m);
@@ -288,7 +289,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
     if (e.target.closest('.pk-use')) {
       const id = focusAgent;
       close();
-      anchor.focus();
+      (back || anchor).focus();
       const m = savedModel(id);
       pick(id, m, savedEffort(id, m));
     }
@@ -322,6 +323,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   paintModels();
   const close = popover(node, {
     anchor,
+    back,
     onClose: () => {
       anchor.classList.remove('open');
       document.removeEventListener('keydown', keys, true);

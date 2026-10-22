@@ -314,7 +314,7 @@ export async function rerun(id) {
   paintRunner();
   paintPlace();
   placeBtn.onclick = () =>
-    placeMenu(placeBtn, { title: 'Rerun on', current: place, from: s.machine?.id || '' }, (k) => {
+    placeMenu(placeBtn, { title: 'Rerun on', current: place, from: s.machine?.id || '', back: ta }, (k) => {
       place = k;
       if (k && machineById(k)?.state === 'off') connectMachine(k);
       // The harness has to be there too: keep it if it is, else the first one that is.
@@ -325,12 +325,11 @@ export async function rerun(id) {
         paintRunner();
       }
       paintPlace();
-      ta.focus();
     });
-  modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode(), ta.focus()));
+  modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode()), ta);
   // Picks here only apply to this rerun; the launcher's remembered defaults are left alone.
   runnerBtn.onclick = () =>
-    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort, places: [place], auto: true }, (a, m, e) => {
+    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort, places: [place], auto: true, back: ta }, (a, m, e) => {
       [agent, model, effort] = [a, m, e];
       paintRunner();
     });
