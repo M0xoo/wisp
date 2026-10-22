@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Rerun… is in the open task's bar**, where Replay was (and in split view's details column): the same dialog as the task's right-click menu, `⇧R`. Replay presentation is under *More*, and `R` still does it.
+- **An open task's *More* has everything its right-click menu has:** besides Rename, Copy task ID, Archive and Delete, now Save as recipe…, Merge PR, Compare runs, Replay presentation and the menu items spells add. With Rerun, Ship it and Mark done on the bar, split view's details column needs no right-click. *More* opens upwards when there's no room under it.
+
+### Fixed
+
+- **Picking a model, mode or computer keeps the follow-up box open in split view.** It folded back to one line as soon as the picker closed, so you had to click it again; it now stays open until you click or tab somewhere else, and after picking a model you're back typing in it.
+- **Split view no longer throws an error every 30 seconds** while a task is open (its time moved to the details column; the refresh still looked in the header).
+
 ## [0.30.0] - 2026-10-22
 
 ### Added

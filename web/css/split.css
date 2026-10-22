@@ -239,7 +239,8 @@ body.split #feed .item.open > .it-body > .it-dock {
 }
 body.split #feed .item.open > .it-body .turns { padding-left: 0; padding-right: 0; }
 body.split #feed .item.open > .it-body .composer { box-shadow: var(--shadow-1); }
-/* The follow-up box is one quiet line until you click into it (or it has something in it). */
-body.split #feed .item.open .composer:not(:focus-within):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
-body.split #feed .item.open .composer:not(:focus-within) { box-shadow: none; }
+/* The follow-up box is one quiet line until you click into it (or it has something in it); once
+   you're in it, it stays open through its pickers (.awake, composer.js) until you move elsewhere. */
+body.split #feed .item.open .composer:not(.awake):not(:focus-within):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
+body.split #feed .item.open .composer:not(.awake):not(:focus-within) { box-shadow: none; }
 body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }

@@ -24,6 +24,7 @@ import { agentById, agentName, DEFAULT_MODE, effortsFor, harnessesAt, modeMenu, 
 import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
+import { replay } from './turns.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
 
 export async function toggleDone(id) {
@@ -151,9 +152,12 @@ export function rename(id) {
   title.onblur = () => done(true);
 }
 
+// The open card's More: with the bar's own buttons (Transcript, Rerun, Take over, Ship, Done), what
+// the task's right-click menu offers is all here too, so the open task never needs a right-click.
 export function moreMenu(id, anchor) {
   const s = S.full.get(id);
-  if (!s) return;
+  const sum = S.sessions.get(id);
+  if (!s || !sum) return;
   const lastTurn = s.turns?.at(-1);
   const canRollback = s.agent !== 'wisp' && s.state !== 'running' && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit);
   const rolledBack = !!lastTurn?.rolledBackAt;
@@ -164,15 +168,25 @@ export function moreMenu(id, anchor) {
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
+      <button data-a="replay">${icon('replay')}Replay presentation${keyHint('R')}</button>
+      ${sum.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${sum.pr.number}…</button>` : ''}
+      ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
+      <button data-a="recipe">${icon('spark')}Save as recipe…</button>
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
+      ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
       <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
     </div>`);
   menu.onclick = async (e) => {
+    if (e.target.closest('[data-sp]')) return close();
     const a = e.target.closest('button')?.dataset.a;
     close();
     if (a === 'rename') rename(id);
     if (a === 'copy-id') copyTaskId(id);
+    if (a === 'replay') replay(id);
+    if (a === 'merge') mergePr(id);
+    if (a === 'compare') compareView(id);
+    if (a === 'recipe') saveAsRecipe(id);
     if (a === 'copy') {
       await tryApi(async () => {
         const { command } = await api(`/sessions/${id}/takeover`);
@@ -186,6 +200,8 @@ export function moreMenu(id, anchor) {
     if (a === 'delete') deleteSession(id);
   };
   const close = popover(menu);
+  // More room above than under its button (the details column's More sits low): open upwards.
+  if (r.bottom + 6 + menu.offsetHeight > innerHeight - 8) menu.style.top = `${Math.max(8, r.top - 6 - menu.offsetHeight)}px`;
 }
 
 // Right-click on a feed item.

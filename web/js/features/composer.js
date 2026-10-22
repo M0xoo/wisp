@@ -37,6 +37,16 @@ export function draftInto(id, text) {
   ta.setSelectionRange(text.length, text.length);
 }
 
+// Split view folds an empty follow-up box to one line while you read. Once you're in it, it stays
+// open through its own pickers (harness, mode, computer: they open on <body> and take focus) until
+// you click or tab somewhere else on the page.
+const OWN_POPUPS = '.picker, .menu, .overlay';
+function settle(e) {
+  for (const c of document.querySelectorAll('.composer.awake')) if (!c.contains(e.target) && !e.target.closest?.(OWN_POPUPS)) c.classList.remove('awake');
+}
+document.addEventListener('pointerdown', settle, true);
+document.addEventListener('focusin', settle, true);
+
 export function renderDock(id) {
   const n = S.nodes.get(id);
   const dock = $('.it-dock', n.body);
@@ -57,6 +67,11 @@ export function renderDock(id) {
       </div>
     </div>`);
   dock.append(comp);
+  const wake = () => {
+    comp.classList.add('awake');
+  };
+  comp.addEventListener('pointerdown', wake);
+  comp.addEventListener('focusin', wake);
   n.tray = attachTray();
   comp.prepend(n.tray.node);
   const ta = mentionBox($('.reply', comp));
@@ -143,6 +158,7 @@ function pickReplyRunner(id, btn) {
   const effort = (a, m) => (a === s.agent && m === s.model && effortsFor(a, m).includes(s.effort) ? s.effort : savedEffort(a, m));
   runnerPicker(btn, { agent: cur.agent, model: cur.model, effort: cur.effort, savedModel: model, savedEffort: effort, places: [replyPlace(id)] }, (agent, m, e) => {
     setReplyRunner(id, { agent, model: m, effort: e });
+    $('.reply', S.nodes.get(id)?.card)?.focus(); // back to typing the follow-up
   });
 }
 

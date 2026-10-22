@@ -57,9 +57,12 @@ setInterval(() => {
     const t = s && $('.q-time', n.head);
     if (t) t.textContent = ago(s.updatedAt);
   }
+  // Split view: the open task's time is in its details column.
   const head = $('#splitHead:not([hidden])');
   const open = head && S.sessions.get(head.dataset.id);
-  if (open) $('.sh-meta .q-time', head).textContent = ago(open.updatedAt);
+  const body = open && S.nodes.get(open.id)?.body;
+  const t = body && $('.it-props .q-time', body);
+  if (t) t.textContent = ago(open.updatedAt);
 }, 30000);
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');
