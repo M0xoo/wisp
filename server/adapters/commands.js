@@ -800,6 +800,7 @@ function host(url) {
 function short(p, cwd) {
   if (!p) return '';
   let s = cwd ? rel(p, cwd) : p;
+  if (!p.includes('\\')) s = s.replace(/\\/g, '/'); // path.relative on Windows turns server/a.js into server\a.js
   if (s.length > 48) {
     const parts = s.split(/[\\/]/).filter(Boolean);
     s = parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : clip(s, 48);

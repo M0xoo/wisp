@@ -41,6 +41,14 @@ node --test test/spells.test.js            # one file
 npm run dev:web                            # the server with the page, restarts on server changes
 ```
 
+CI has three tiers, from fast to thorough (`.github/workflows/`, all calling `suite.yml`):
+`pr.yml` runs the suite once on Linux with Node 22 (about a minute). Label a PR `ci:full` to get
+the main matrix when it touches process launching, paths, shells or terminals. `main.yml` runs
+every OS on Node 20 and 22, plus the real CLIs (`real-clis.yml`) after each merge. `nightly.yml`
+adds the Node LTS and the newest Node and runs the suite three times per job. A test that fails
+there only some of the time is flaky: fix it, don't retry it. Tests can't rely on the network
+(no `npx` downloads) or on which harness Auto picks.
+
 ## Everything is customizable by spells
 
 A spell is JSON that wisp layers over itself at runtime (README → Spells). Users rely on being able

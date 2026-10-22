@@ -66,6 +66,8 @@ const realpath = (p) => {
     return path.resolve(p);
   }
 };
+// git prints C:/Users/runneradmin/…, the folder may be C:\Users\RUNNER~1\…: same folder.
+const samePath = (a, b) => !!a && (process.platform === 'win32' ? realpath(a).toLowerCase() === realpath(b).toLowerCase() : realpath(a) === realpath(b));
 
 // A fresh worktree + branch for one session, under <home>/worktrees. Returns null outside a repo.
 // Where a launch's worktrees come from: { root, base }, or null outside a repo with commits.
@@ -300,7 +302,7 @@ export async function cloneRepo(repo, parent, { timeout = 10 * 60_000 } = {}) {
   let dir = path.join(parent, repo.name);
   for (let n = 2; fs.existsSync(dir); n++) {
     const origin = await quiet(git(dir, ['remote', 'get-url', 'origin']));
-    if (origin && (await repoRoot(dir)) === fs.realpathSync(dir) && sameRepo(origin, repo.url)) return { dir, existed: true };
+    if (origin && samePath(await repoRoot(dir), dir) && sameRepo(origin, repo.url)) return { dir, existed: true };
     dir = path.join(parent, `${repo.name}-${n}`);
   }
   const attempts = [];

@@ -1,0 +1,18 @@
+name: main
+
+# After a merge: every OS on the oldest Node wisp supports (package.json engines) and Node 22,
+# plus the real harness CLIs, so a break the Linux-only PR run can't see (Windows paths and
+# shims, macOS) shows up on the commit that made it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # also any branch, from the Actions tab or `gh workflow run main --ref <branch>`
+
+jobs:
+  test:
+    uses: ./.github/workflows/suite.yml
+    with:
+      os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
+      node: '["20", "22"]'
+  real-clis:
+    uses: ./.github/workflows/real-clis.yml

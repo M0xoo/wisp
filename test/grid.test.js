@@ -9,7 +9,7 @@ import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { createHash, generateKeyPairSync, sign as rsaSign } from 'node:crypto';
-import { browser, installFakeBins, sleep, tmp, until } from './helpers.js';
+import { browser, installFakeBins, sleep, tmp, until, win } from './helpers.js';
 
 // The grid needs node:sqlite (Node 22.13+): on older Node it won't start, and these are skipped.
 const sqlite = await import('node:sqlite').then(
@@ -554,7 +554,7 @@ test('secrets: sealed per user, bound to user and purpose, re-wrapped on key rot
   s.seal('u2', 'api-key', 'sk-u2');
   db.run("UPDATE user_secrets SET sealed = ? WHERE user_id = 'u2'", raw);
   assert.throws(() => s.open('u2', 'api-key'));
-  assert.equal(fs.statSync(path.join(dataDir, 'secrets', 'master.json')).mode & 0o777, 0o600);
+  if (!win) assert.equal(fs.statSync(path.join(dataDir, 'secrets', 'master.json')).mode & 0o777, 0o600); // Windows has no POSIX modes
   addMasterKey(dataDir);
   s = createSecrets(db, { dataDir, env: {} });
   assert.equal(s.rewrap(), 2);
@@ -605,7 +605,7 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
     const mid = done.machineId;
     // The token is in secrets.json (0600), not config.json, and never in what the page gets.
     const secretsFile = path.join(process.env.WISP_HOME, 'secrets.json');
-    assert.equal(fs.statSync(secretsFile).mode & 0o777, 0o600);
+    if (!win) assert.equal(fs.statSync(secretsFile).mode & 0o777, 0o600);
     assert.match(fs.readFileSync(secretsFile, 'utf8'), /wgd_/);
     assert.doesNotMatch(fs.readFileSync(path.join(process.env.WISP_HOME, 'config.json'), 'utf8'), /wgd_/);
     const online = await until(async () => {

@@ -22,6 +22,7 @@ const { startServer } = await import('../server/index.js');
 const { parseCron, nextRun, cronMatches } = await import('../server/triggers.js');
 const { fill, params, positional } = await import('../server/recipes.js');
 const { usage, toolStats, toolStatsText } = await import('../server/usage.js');
+const { adapters } = await import('../server/adapters/index.js');
 
 const freePort = () =>
   new Promise((resolve) => {
@@ -689,7 +690,8 @@ test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are
     tgUpdate({ message: { message_id: 18, chat: { id: 42 }, text: '/btw what changed?', reply_to_message: { message_id: startedId } } });
     await until(() => tg.sent.find((m) => m.reply_to_message_id === 18 && /Asking on the side/.test(m.text)));
     const btwMsg = await until(() => tg.sent.find((m) => m.reply_to_message_id === 18 && m.text.startsWith('btw: ')));
-    assert.equal(btwMsg.text, 'btw: Side answer (forked): what changed?');
+    // /new is routed by Auto, so the harness varies: one that can't fork answers from wisp's record.
+    assert.equal(btwMsg.text, `btw: Side answer (${adapters[t1.agent].fork ? 'forked' : 'digest'}): what changed?`);
     assert.equal((await session(t1.id)).turns.length, 2);
 
     // The default project from settings, for /new without @.
