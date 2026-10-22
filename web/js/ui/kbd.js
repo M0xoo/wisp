@@ -19,7 +19,6 @@ export function shortcuts() {
     ['M', 'Rename item'],
     ['⌫', 'Delete item'],
     ['T', 'Take over in terminal'],
-    ['R', 'Replay presentation'],
     ['V', 'Full transcript / presentation'],
     ['⇧R', 'Rerun with another harness, model or thinking level'],
     ['S', 'Ship it: commit, push and open a PR (worktree tasks)'],

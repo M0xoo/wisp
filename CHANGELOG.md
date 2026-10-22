@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Removed
+
+- **Replay presentation.** It re-drew the task's report, which shows the same as before since reports reveal only the first time, so it looked like it did nothing. It's gone from *More*, ⌘K and the `R` key (`⇧R` still reruns).
+
 ### Fixed
 
 - **No stray dot on flow diagrams.** Each wire's moving dot sat in the diagram's top-left corner until its animation started; it now stays hidden until it begins moving.

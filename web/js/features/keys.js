@@ -10,7 +10,7 @@ import { collapse, collapseAll, expand, feedIds, setFocus, toggle } from './feed
 import { focusLauncher } from './launcher.js';
 import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
-import { replay, toggleTranscript } from './turns.js';
+import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
 import { goHome, isSplit, splitOpen, toggleView } from './split.js';
 
@@ -86,7 +86,6 @@ export function onKey(e) {
   } else if (k === 't' && id) takeOver(id);
   else if (k === 'r' && e.shiftKey && id) rerun(id);
   else if (k === 's' && id && shippable(S.sessions.get(id))) shipDialog(id);
-  else if (k === 'r' && id) replay(id);
   else if (k === 'v' && id) toggleTranscript(id);
   else if (k === '/' && id) {
     e.preventDefault();

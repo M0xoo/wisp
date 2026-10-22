@@ -519,12 +519,3 @@ export function onActivity({ sessionId, turnId, item, update }) {
   const c = $('.w-count', node);
   if (c && turn) c.textContent = `${turn.activity.filter((a) => a.kind !== 'text').length} actions`;
 }
-
-export function replay(id) {
-  const n = S.nodes.get(id);
-  if (!n?.body) return;
-  for (const v of n.turnNodes.values()) v.node.remove();
-  n.turnNodes.clear();
-  renderBody(id, { fresh: false });
-  $('.turns', n.body).lastElementChild?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-}

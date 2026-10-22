@@ -24,7 +24,6 @@ import { agentById, agentName, DEFAULT_MODE, effortsFor, harnessesAt, modeMenu, 
 import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
-import { replay } from './turns.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
 
 export async function toggleDone(id) {
@@ -168,7 +167,6 @@ export function moreMenu(id, anchor) {
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
-      <button data-a="replay">${icon('replay')}Replay presentation${keyHint('R')}</button>
       ${sum.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${sum.pr.number}…</button>` : ''}
       ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('spark')}Save as recipe…</button>
@@ -183,7 +181,6 @@ export function moreMenu(id, anchor) {
     close();
     if (a === 'rename') rename(id);
     if (a === 'copy-id') copyTaskId(id);
-    if (a === 'replay') replay(id);
     if (a === 'merge') mergePr(id);
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
