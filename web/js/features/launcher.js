@@ -137,8 +137,8 @@ export function renderLauncher() {
   ta.value = S.drafts.get('home') || '';
   ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe()));
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
-  // The phone has no keyboard shortcut to advertise.
-  const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta || MOBILE
+  // The phone (or any touch-only screen) has no keyboard shortcut to advertise.
+  const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta || MOBILE || matchMedia('(hover: none)').matches
     ? 'What should I go do? Paste screenshots, drop logs or videos…'
     : `What should I go do? Press ${combo('L')} to start typing`));
   ta.addEventListener('focus', hint);

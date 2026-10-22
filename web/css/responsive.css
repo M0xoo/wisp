@@ -1,12 +1,20 @@
 /* ---------- responsive ---------- */
 @media (max-width: 720px) {
-  .topbar { padding: 0 12px; gap: 10px; }
+  /* icon buttons sit close so the project picker keeps room for its name; the layout switch goes:
+     split view needs a 900px window, so here it could only say so */
+  .topbar { padding: 0 12px; gap: 2px; }
+  .topbar .brand { margin-right: 8px; }
+  .topbar .projects { min-width: 64px; margin-right: 4px; }
+  .view-btn { display: none; }
   .search-btn span, .search-btn kbd, .update-btn span, .auto-btn span { display: none; }
   .auto-btn { padding: 0 8px; border-color: transparent; background: none; }
   .search-btn { padding: 0 8px; border-color: transparent; background: none; }
   .feed-wrap { padding: 14px 16px 80px; }
   .launcher.docked { width: calc(100% - 32px); }
   .it-side .q-proj, .it-actions span, .c-done span, .q-machine span { display: none; }
+  /* a phone row has little width: the title gets two lines instead of a few words */
+  .item:not(.open) .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+  .it-side { gap: 8px; }
   .mc-row { flex-direction: column; }
   .mc-field { width: auto; }
   .mc-meta, .mc-steps, .mc-hint, .mc-projects, .mc-edit { margin-left: 0; }
@@ -18,6 +26,11 @@
   .cols { flex-direction: column; gap: 30px; align-items: stretch; }
   .col { max-width: none; flex-direction: row; justify-content: center; }
   .col .node { flex: 1; max-width: 260px; }
+}
+
+/* Touch screens have no keys to press: drop the shortcut hints on floating buttons. */
+@media (hover: none) and (pointer: coarse) {
+  :is(.collapse-all, .to-top, .split-new, .search-btn) kbd, .key-hint, .pal-foot { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
