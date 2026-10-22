@@ -262,7 +262,7 @@ function renderHead(n, s) {
 // space, so every row's pills and time line up and opening a row doesn't move anything.
 function quickDone(s, open) {
   if (s.state === 'review' && !s.archived && (!open || isSplit())) return `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>`;
-  return isSplit() ? '<span class="it-quick-gap" aria-hidden="true"></span>' : '';
+  return '<span class="it-quick-gap" aria-hidden="true"></span>';
 }
 
 // What a card head says about its task, between the title and the time (the split view's header

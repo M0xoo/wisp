@@ -96,6 +96,8 @@
 .item:hover .it-quick, .item.focused .it-quick, .it-quick:focus-visible { opacity: 1; }
 .it-quick:hover { background: var(--bg-2); color: var(--good); }
 @media (hover: none) { .it-quick { opacity: 1; } }
+/* holds the button's place (24px less its -6px margin) on rows without one, so nothing moves on open */
+.it-quick-gap { flex: none; width: 18px; }
 
 /* expanded body */
 .it-body { animation: rise 0.3s var(--ease); }
