@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-22
+
 ### Added
 
 - **↑ brings back the tasks you launched before.** In an empty prompt box, `↑` puts the last task you sent back in it, `↑` again the one before (the last 50 are kept); `↓` goes forward, and past the newest empties the box. Send one again with a tweak, or to another project, without typing it out. Once you edit it, the arrows move the caret as usual.
