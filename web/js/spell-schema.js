@@ -124,6 +124,9 @@ export const PARTS = {
   'settings.connect': '.sx-connect',
   // Settings → Agents: signing in to a harness (its link, code and paste box).
   'settings.agent.signin': '.sx-login',
+  // The image viewer: a picture from a reply or an attachment, full screen to zoom into, and its zoom buttons.
+  viewer: '.lb',
+  'viewer.bar': '.lb-bar',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.

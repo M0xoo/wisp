@@ -7,8 +7,8 @@ import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
-import { overlay } from '../ui/overlay.js';
 import { toastError } from '../ui/toast.js';
+import { viewImage } from '../ui/viewer.js';
 import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
@@ -31,7 +31,7 @@ export function ctxFor(s, turn, isLatest) {
     draft: (text) => draftInto(s.id, text),
     openFile: (p, line) => openInEditor(s, p, line),
     fileUrl: (p) => `/api/sessions/${s.id}/file?path=${encodeURIComponent(p)}`,
-    zoom: (src) => overlay(el(`<img class="lightbox" src="${esc(src)}">`)),
+    zoom: (src, alt) => viewImage(src, alt),
     revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
     exec: (command, key) => execAction(s.id, turn.id, command, key),
     approve: (allow) => approveBlocked(s, turn, allow),
@@ -265,7 +265,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
     ask.querySelector('.ask-text').classList.toggle('clamped');
     e.target.textContent = ask.querySelector('.ask-text').classList.contains('clamped') ? 'Show all' : 'Show less';
   });
-  ask.querySelectorAll('.ask-atts img').forEach((img) => img.addEventListener('click', () => overlay(el(`<img class="lightbox" src="${img.src}">`))));
+  ask.querySelectorAll('.ask-atts img').forEach((img) => img.addEventListener('click', () => viewImage(img.src, img.alt)));
   node.append(ask);
 
   if (t.status === 'running') {

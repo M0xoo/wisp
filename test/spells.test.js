@@ -141,6 +141,11 @@ test('Settings → Machines → This computer is a part spells can restyle or hi
   assert.ok(problems({ ...base0, parts: { 'settings.reachable': { props: { width: 400 } } } }).some((x) => /settings\.reachable/.test(x)));
 });
 
+test('the image viewer is a part spells can restyle or hide', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['viewer.bar'] }, parts: { viewer: { style: { background: 'var(--bg)' } }, 'viewer.bar': { style: { borderRadius: '4px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { viewer: { props: { zoom: 4 } } } }).some((x) => /viewer/.test(x)));
+});
+
 test('style values: no url(), imports, escapes or extra declarations; tokens and colours are fine', () => {
   assert.equal(schema.styleProblem('fontWeight', '650'), '');
   assert.equal(schema.styleProblem('background', 'var(--surface-2)'), '');

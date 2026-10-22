@@ -376,7 +376,6 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .b-image img { display: block; width: 100%; max-height: 520px; object-fit: contain; background: var(--surface-2); cursor: zoom-in; }
 .b-image figcaption { padding: 10px 16px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
 .b-image.broken img { min-height: 80px; }
-.lightbox { max-width: 92vw; max-height: 90vh; border-radius: 12px; box-shadow: var(--shadow-2); }
 
 /* next */
 .b-next { padding-top: 6px; }
