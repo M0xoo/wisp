@@ -37,7 +37,10 @@ DOMAIN=wisp.example.com ./grid/deploy/install.sh
 
 It installs Node.js 22, Docker with gVisor (`runsc`), Caddy and 4 GB of swap, builds the user image
 ([`deploy/image/Dockerfile`](deploy/image/Dockerfile): Node, git, `gh`, every agent wisp
-runs (Claude Code, Codex, Cursor, Grok, Antigravity, opencode) and wisp), makes the `wisp` user and the systemd unit, and sets up the firewall. Then:
+runs (Claude Code, Codex, Cursor, Grok, Antigravity, opencode) and wisp), makes the `wisp` system
+user, starts boxd (the root helper that runs the users' containers, see Isolation), writes the
+grid's systemd unit, and sets up the firewall. Keep the repo root's (e.g. `/opt/wisp-grid`): boxd
+runs its code as root. Then:
 
 ```sh
 sudo -u wisp node bin/wisp.js grid init --domain wisp.example.com --data /var/lib/wisp-grid
@@ -61,7 +64,9 @@ next:
      "clientSecretFile": "secrets/corp", "label": "Corp SSO" }`.
 4. **Check.** `wisp grid doctor --data /var/lib/wisp-grid` checks Node, the config, the key,
    providers and DNS.
-5. **Isolate.** Set `"hostd": { "driver": "container" }` in `grid.json` (see Isolation below).
+5. **Isolate.** `init` already chose containers through boxd when boxd was running
+   (`"hostd": { "driver": "container", "container": { "boxd": "/run/wisp-grid/box.sock" } }`). See
+   Isolation below.
 6. **Run.** `systemctl enable --now wisp-grid` (the unit `install.sh` made from
    [`deploy/wisp-grid.service`](deploy/wisp-grid.service)), or `wisp grid serve --data …` by hand.
 
@@ -106,9 +111,11 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
                └── <handle>.wisp.example.com  the edge: checks the cookie or token, starts the
                     │                         user's wisp if it sleeps, proxies (HTTP + streams)
                     ▼
-                 hostd ── one wisp per user: a gVisor container (container driver), or a process
-                          (dev); its HOME is data/users/<id>/home, the only thing that persists
-                          trusted-proxy mode (WISP_TRUSTED_PROXY_SECRET), a clean environment
+                 hostd ── one wisp per user, in trusted-proxy mode (WISP_TRUSTED_PROXY_SECRET)
+                    │     with a clean environment: a process (dev), or
+                    ▼
+                 boxd (root) ── a gVisor container; its HOME, the only thing that persists, is
+                                /var/lib/wisp-grid-boxes/<id>/home (root only, out of the grid's reach)
 ```
 
 - **Sign-in.** OAuth 2 / OpenID Connect with state, PKCE (S256) and a nonce. ID tokens are checked
@@ -120,6 +127,11 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
 - **Devices.** wisp on a computer or a phone signs in with the device flow (RFC 8628). It shows a
   code, you allow it at `/activate`, and the device gets a `wgd_…` token. Your account page lists
   every device with a Remove button.
+- **Deleting an account.** The account page has *Delete your account* (type your handle), and
+  `wisp grid users --delete <handle> --yes` does the same for an admin. The account is disabled
+  first (no session or device gets in), then its box stops and its files go (home, agent logins,
+  the log), then its sessions, devices, sealed secrets and the account itself. The logins stay
+  valid at Anthropic, OpenAI or GitHub until you revoke them there.
 - **Idle.** Every few seconds hostd asks each wisp `GET /api/status`. When no turn is running, no
   page is open and nothing has happened for `hostd.idleMs`, it stops that wisp. It also notes when
   the wisp's next scheduled task is due and starts it for that. A desktop watching a cloud computer
@@ -132,17 +144,21 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
 | Master key | `secrets/master.json` (0600), or `GRID_MASTER_KEY` / `GRID_MASTER_KEY_FILE` |
 | OAuth client secrets | files referenced by `clientSecretFile`, or `GRID_GITHUB_CLIENT_SECRET(_FILE)` / `GRID_GOOGLE_CLIENT_SECRET(_FILE)` |
 | Per-user secrets the grid keeps (each wisp's proxy secret, …) | sealed in the database with AES-256-GCM, using a data key per user that is wrapped by the master key |
-| Agent logins (Claude, Codex, …) | the user's own folder: their wisp's `HOME`. They never pass through the grid |
+| A box's proxy secret on its way in | a 0600 env file for `docker run --env-file` (boxd's folder, or the user's), never the command line |
+| Agent logins (Claude, Codex, …) | files in the box's `HOME`, the way each CLI keeps them (`~/.claude`, `~/.codex`, `~/.config/gh`, …), not encrypted. With boxd that home is in `/var/lib/wisp-grid-boxes/<id>` (root only), out of the grid user's reach. They never pass through the grid, and are deleted with the account |
 | A device's token on a desktop | `~/.wisp/secrets.json` (0600), never `config.json` |
 
 - **`wisp grid rotate-key`** makes a new master key, re-wraps every user's data key and retires the
   old master key.
-- **Deleting a user** deletes their data key, so nothing sealed with it can be read again.
+- **Deleting a user** deletes their box and files, and their data key, so nothing sealed with it can
+  be read again.
 - **`wisp grid backup`** makes a consistent copy of the database. Keep it together with the master
   key.
 
-Whoever runs the grid can read what it stores; that is true of any hosted service. Running your
-own grid is the answer for that.
+Whoever runs the grid can read what it stores, the boxes' homes included; that is true of any
+hosted service. Running your own grid is the answer for that. Someone who took over the grid
+process itself couldn't read the homes from disk or become root (it has no Docker), but it holds
+every box's proxy secret, so it could still drive a user's wisp.
 
 ## Isolation: read this before you invite people
 
@@ -152,6 +168,15 @@ Agents run with real permissions, so every user's wisp needs a wall around it.
   user-space kernel between the agents and the host's. Each gets only its own home folder, runs
   as uid 1000 with no capabilities and `no-new-privileges`, with limits on memory (1.5 GB + swap),
   CPU and processes, and is published on the host's loopback only.
+- **boxd** ([`boxd.js`](boxd.js), [`deploy/wisp-grid-boxd.service`](deploy/wisp-grid-boxd.service)):
+  whoever can run `docker` is root, so the grid doesn't. boxd, a small root service with no
+  dependencies, runs, stops and deletes the containers for it over `/run/wisp-grid/box.sock`
+  (0660, group `wisp`). It builds `docker run` from its own settings (image, runtime, network,
+  mounts, uid; `--image`, `--runtime`, … on its command line), and only takes a user id, a port,
+  limits and the box's environment from the grid. The boxes' homes live in its folder,
+  `/var/lib/wisp-grid-boxes` (root, 0700). Without `hostd.container.boxd`, hostd runs `docker`
+  itself, the homes stay in `data/users/<id>/home`, and the grid's user needs the `docker` group:
+  `wisp grid doctor` says so.
   [`deploy/firewall.sh`](deploy/firewall.sh) puts the containers on their own bridge, with no
   traffic between them and none to the host, to the cloud metadata service, or to mail servers.
   Each gets its own resolv.conf, because Docker's built-in DNS can't be reached from gVisor.
@@ -159,6 +184,27 @@ Agents run with real permissions, so every user's wisp needs a wall around it.
   and for yourself; it doesn't keep users apart.
 - **`firecracker` (next):** a microVM per user, for hosts with KVM (bare metal). It plugs into the
   same hostd interface (`grid/hostd.js`).
+
+### Moving an existing grid to boxd
+
+Grids set up before boxd run `docker` as the `wisp` user and keep homes in `data/users/<id>/home`.
+As root, from a root-owned checkout at `/opt/wisp-grid`:
+
+```sh
+cp grid/deploy/wisp-grid-boxd.service /etc/systemd/system/
+mkdir -p /etc/systemd/system/wisp-grid.service.d     # the grid starts after boxd
+printf '[Unit]\nAfter=wisp-grid-boxd.service\nWants=wisp-grid-boxd.service\n' > /etc/systemd/system/wisp-grid.service.d/boxd.conf
+systemctl daemon-reload && systemctl enable --now wisp-grid-boxd
+systemctl stop wisp-grid                        # stops every box
+node /opt/wisp-grid/grid/boxd.js migrate        # data/users/<id>/home → /var/lib/wisp-grid-boxes/<id>/home
+# grid.json: "hostd": { "driver": "container", "container": { "boxd": "/run/wisp-grid/box.sock" }, … }
+gpasswd -d wisp docker
+systemctl start wisp-grid
+sudo -u wisp node /opt/wisp-grid/bin/wisp.js grid doctor --data /var/lib/wisp-grid
+```
+
+A box whose home is still at the old place won't start through boxd (it says to run `migrate`), so
+nobody gets an empty home by mistake.
 
 ## Commands
 
@@ -168,6 +214,8 @@ wisp grid init --domain D [--data DIR] [--force]
 wisp grid serve [--data DIR]
 wisp grid doctor [--data DIR]
 wisp grid rotate-key | backup [file] | users [--data DIR]
+wisp grid users --delete HANDLE --yes [--data DIR]
+node grid/boxd.js serve | migrate [--data DIR] [--boxes DIR]   (as root)
 ```
 
 The data folder is `--data DIR`, or `GRID_DATA`, or `~/.wisp-grid` (`~/.wisp-grid-dev` for `dev`).

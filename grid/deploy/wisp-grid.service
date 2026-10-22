@@ -3,8 +3,9 @@
 # Secrets stay out of the environment: grid.json points at files in /var/lib/wisp-grid/secrets.
 [Unit]
 Description=wisp Grid
-After=network-online.target
-Wants=network-online.target
+# boxd runs the users' containers for it (grid/deploy/wisp-grid-boxd.service).
+After=network-online.target wisp-grid-boxd.service
+Wants=network-online.target wisp-grid-boxd.service
 
 [Service]
 User=wisp

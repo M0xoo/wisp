@@ -2,7 +2,8 @@
 # Set up wisp Grid on a fresh Debian 12 / Ubuntu 24.04 server, as root:
 #   DOMAIN=wisp.example.com ./install.sh          (run from a copy of the wisp repo)
 # Installs Node 22, Docker with gVisor (runsc), Caddy; builds the user image; makes the "wisp"
-# user (uid 1000, in the docker group), /var/lib/wisp-grid, the service and the Caddyfile.
+# system user (not in the docker group: boxd runs the containers for it), /var/lib/wisp-grid,
+# boxd and the grid's services, and the Caddyfile.
 set -eu
 : "${DOMAIN:?DOMAIN=wisp.example.com}"
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
@@ -42,12 +43,20 @@ if [ ! -f /swapfile ]; then
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-id wisp >/dev/null 2>&1 || useradd --uid 1000 --create-home --shell /bin/bash wisp
-usermod -aG docker wisp
+# The grid's own user: a system account, so not uid 1000 (the boxes' user), and not in the docker
+# group (that is root in effect): boxd, below, runs the boxes for it.
+id wisp >/dev/null 2>&1 || useradd --system --create-home --home-dir /home/wisp --shell /bin/bash wisp
 mkdir -p /var/lib/wisp-grid && chown wisp:wisp /var/lib/wisp-grid
 
 docker build -q -f "$REPO/grid/deploy/image/Dockerfile" -t wisp-grid-user "$REPO"
 "$REPO/grid/deploy/firewall.sh"
+
+# boxd runs this checkout's grid/boxd.js as root: nobody but root may be able to change it.
+[ "$(stat -c %u "$REPO/grid/boxd.js")" = 0 ] && [ "$(stat -c %u "$REPO/grid")" = 0 ] ||
+  echo "! $REPO isn't root's: boxd runs its code as root, so chown -R root: it (or copy it to /opt/wisp-grid)." >&2
+sed "s#/opt/wisp-grid#$REPO#g" "$REPO/grid/deploy/wisp-grid-boxd.service" > /etc/systemd/system/wisp-grid-boxd.service
+systemctl daemon-reload
+systemctl enable --now wisp-grid-boxd
 
 sed "s#wisp.example.com#$DOMAIN#g" "$REPO/grid/deploy/Caddyfile" > /etc/caddy/Caddyfile
 systemctl reload caddy || systemctl restart caddy

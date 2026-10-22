@@ -5,7 +5,10 @@
 //                NOT isolation between them.
 //   container    one container per user (Docker, with gVisor's runsc runtime when it's there):
 //                its own kernel boundary, filesystem, network namespace and limits; only its
-//                home folder persists (data/users/<id>/home → /home/wisp). Image: grid/deploy/image
+//                home folder persists (→ /home/wisp). Image: grid/deploy/image. With
+//                container.boxd set, boxd (grid/boxd.js, root) runs them and keeps the homes
+//                (/var/lib/wisp-grid-boxes): the grid needs no Docker. Without, hostd runs docker
+//                itself and the homes are data/users/<id>/home
 //   firecracker  (next) one microVM per user, on hosts with KVM; see grid/README.md
 //
 // A user's wisp runs in trusted-proxy mode (server/http/trust.js) behind the edge, with a clean
@@ -22,6 +25,9 @@ import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CONTAINER, boxdCall, boxdRun, containerName, containerRun, ensureNetwork, writeEnvFile } from './boxd.js';
+
+export { CONTAINER, containerName, containerRun };
 
 const WISP_BIN = fileURLToPath(new URL('../bin/wisp.js', import.meta.url));
 const WAKE_EARLY_MS = 30_000;
@@ -49,66 +55,39 @@ function getJson(port, p, timeout = 5000) {
   });
 }
 
-// --- the container driver ------------------------------------------------------------------
-
-export const CONTAINER = {
-  image: 'wisp-grid-user',
-  runtime: 'runsc', // gVisor: a user-space kernel between the agents and the host's. 'runc' without it
-  network: 'wisp-users',
-  memory: '1536m',
-  memorySwap: '3g',
-  cpus: 1.5,
-  pids: 512,
-  uid: 1000,
-  // Docker's built-in resolver (127.0.0.11) isn't reachable from gVisor's network stack, and on a
-  // network of its own Docker keeps pointing at it even with --dns: each container gets its own
-  // resolv.conf with these instead.
-  dns: ['1.1.1.1', '9.9.9.9'],
-};
-export const containerName = (user) => `wisp-u-${user.id}`;
-
-// `docker run` for one user's wisp. Attached (no -d) with --rm: the docker process lives as long as
-// the container, so hostd watches it like any child.
-export function containerRun({ image, runtime, network, memory, memorySwap, cpus, pids, resolv = null, name, port, home, env }) {
-  return {
-    cmd: 'docker',
-    args: [
-      'run', '--rm', '--init', '--name', name,
-      ...(runtime ? ['--runtime', runtime] : []),
-      '--network', network,
-      ...(resolv ? ['-v', `${resolv}:/etc/resolv.conf:ro`] : []),
-      // Only this box's loopback reaches it, on the same port number inside, so Host headers match.
-      '-p', `127.0.0.1:${port}:${port}`,
-      '--memory', memory, '--memory-swap', memorySwap, '--cpus', String(cpus), '--pids-limit', String(pids),
-      '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
-      '-v', `${home}:/home/wisp`, '-w', '/home/wisp',
-      '-e', 'HOME=/home/wisp', '-e', 'WISP_HOST=0.0.0.0',
-      ...Object.entries(env).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
-      image, 'node', '/opt/wisp/bin/wisp.js', '--no-open', '--port', String(port),
-    ],
-  };
-}
-
-// The users' network: containers can't talk to each other (no inter-container traffic).
-function ensureNetwork({ network }) {
-  return new Promise((resolve, reject) => {
-    const p = spawn('docker', ['network', 'inspect', network], { stdio: 'ignore' });
-    p.on('error', () => reject(new Error('The container driver needs Docker (grid/deploy/install.sh sets it up).')));
-    p.on('exit', (code) => {
-      if (code === 0) return resolve();
-      const c = spawn('docker', ['network', 'create', '--driver', 'bridge', '-o', 'com.docker.network.bridge.enable_icc=false', '-o', 'com.docker.network.bridge.name=br-wisp', network], { stdio: 'ignore' });
-      c.on('exit', (x) => (x === 0 ? resolve() : reject(new Error(`docker network create ${network} failed`))));
-    });
+const docker = (args) =>
+  new Promise((resolve) => {
+    const p = spawn('docker', args, { stdio: 'ignore' });
+    p.on('error', () => resolve(127));
+    p.on('exit', resolve);
   });
+
+// A user's box and files, gone for good (their account is being deleted): the container, its home
+// (with boxd, in boxd's folder), and data/users/<id>. Also what `wisp grid users --delete` runs.
+export async function deleteBox({ dataDir, driver, container = {}, user }) {
+  if (!/^[A-Za-z0-9_-]+$/.test(String(user.id))) throw new Error(`"${user.id}" isn’t a user id.`);
+  const c = { ...CONTAINER, ...container };
+  if (driver === 'container') {
+    if (c.boxd) await boxdCall(c.boxd, { op: 'remove', id: user.id });
+    else await docker(['rm', '-f', containerName(user)]);
+  }
+  const root = path.join(dataDir, 'users', user.id);
+  try {
+    fs.rmSync(root, { recursive: true, force: true });
+  } catch (err) {
+    throw new Error(`Couldn’t delete ${root} (${err.code || err.message}): its files may belong to the box’s user; remove it as root.`);
+  }
 }
 
 export class Hostd extends EventEmitter {
-  // user: { id, handle }. secretFor(user) → the trusted-proxy secret; urlFor(user) → its public URL.
-  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, gridUrl = '', telemetry = false, wispBin = WISP_BIN, log = () => {} }) {
+  // user: { id, handle }. secretFor(user) → the trusted-proxy secret; urlFor(user) → its public URL;
+  // exists(user): still has an account (a scheduled wake doesn't start a deleted user's box).
+  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, exists = () => true, gridUrl = '', telemetry = false, wispBin = WISP_BIN, log = () => {} }) {
     super();
     if (driver !== 'process' && driver !== 'container') throw new Error(`hostd driver "${driver}" isn’t built yet: use "process" or "container" (see grid/README.md).`);
-    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, env, extraPath, secretFor, urlFor, gridUrl, telemetry, wispBin, log, container: { ...CONTAINER, ...container } });
-    if (driver === 'container') this.network = ensureNetwork(this.container).catch((err) => log(`hostd: ${err.message}`));
+    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, env, extraPath, secretFor, urlFor, exists, gridUrl, telemetry, wispBin, log, container: { ...CONTAINER, ...container } });
+    this.boxd = driver === 'container' ? this.container.boxd || null : null;
+    if (driver === 'container' && !this.boxd) this.network = ensureNetwork(this.container).catch((err) => log(`hostd: ${err.message}`));
     this.inst = new Map(); // user id -> { user, state, port, child, ready, lastTouch, nextWakeAt, wakeTimer }
     this.timer = setInterval(() => this.tick().catch((err) => log(`hostd: ${err.message}`)), checkMs);
     this.timer.unref?.();
@@ -152,16 +131,18 @@ export class Hostd extends EventEmitter {
 
   dirs(user) {
     const root = path.join(this.dataDir, 'users', user.id);
-    return { root, wisp: path.join(root, 'wisp'), home: path.join(root, 'home'), log: path.join(root, 'wisp.log') };
+    return { root, wisp: path.join(root, 'wisp'), home: path.join(root, 'home'), log: path.join(root, 'wisp.log'), env: path.join(root, 'box.env') };
   }
 
   // Running, or started and waited for. Several callers share one start.
   async ensure(user) {
     const i = this.#of(user);
+    if (i.gone) throw Object.assign(new Error('This account is being deleted.'), { status: 410 });
     i.lastTouch = Date.now();
     if (i.state === 'running') return i;
     if (i.state === 'starting') return i.ready;
     if (i.state === 'stopping') await i.stopped;
+    if (i.gone) throw Object.assign(new Error('This account is being deleted.'), { status: 410 });
     const running = [...this.inst.values()].filter((x) => x.state === 'running' || x.state === 'starting').length;
     if (running >= this.maxRunning) throw Object.assign(new Error('This grid is full right now. Try again in a few minutes.'), { status: 503 });
     i.state = 'starting';
@@ -177,37 +158,49 @@ export class Hostd extends EventEmitter {
 
   async #start(i) {
     const d = this.dirs(i.user);
-    for (const x of [d.wisp, d.home]) fs.mkdirSync(x, { recursive: true });
+    const c = this.container;
+    // With boxd, the home is boxd's to make, in its own folder: only the log lives here.
+    const dirs = this.boxd ? [d.root] : this.driver === 'container' ? [d.home] : [d.wisp, d.home];
+    for (const x of dirs) fs.mkdirSync(x, { recursive: true });
     i.port = await freePort();
     const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), WISP_UPDATE_CHECK: '0', ...(!this.telemetry && { WISP_TELEMETRY: '0' }), WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
-    let cmd;
-    let args;
-    let env;
-    if (this.driver === 'container') {
-      await this.network;
-      const resolv = path.join(d.root, 'resolv.conf');
-      fs.writeFileSync(resolv, this.container.dns.map((x) => `nameserver ${x}\n`).join(''));
-      ({ cmd, args } = containerRun({ ...this.container, resolv, name: containerName(i.user), port: i.port, home: d.home, env: { ...this.env, ...wisp } }));
-      env = { PATH: process.env.PATH };
-      // The image runs as uid 1000; its home is this folder.
-      try {
-        fs.chownSync(d.home, this.container.uid, this.container.uid);
-      } catch {}
+    let child;
+    if (this.boxd) {
+      child = boxdRun(this.boxd, { id: i.user.id, port: i.port, env: { ...this.env, ...wisp }, limits: { memory: c.memory, memorySwap: c.memorySwap, cpus: c.cpus, pids: c.pids }, dns: c.dns }, d.log);
     } else {
-      env = Object.fromEntries(BASE_ENV.filter((k) => process.env[k]).map((k) => [k, process.env[k]]));
-      if (this.extraPath) env.PATH = `${this.extraPath}${path.delimiter}${env.PATH || ''}`;
-      Object.assign(env, this.env, { HOME: d.home, USERPROFILE: d.home, WISP_HOME: d.wisp, ...wisp });
-      [cmd, args] = [process.execPath, [this.wispBin, '--no-open', '--port', String(i.port)]];
+      let cmd;
+      let args;
+      let env;
+      if (this.driver === 'container') {
+        await this.network;
+        const resolv = path.join(d.root, 'resolv.conf');
+        fs.writeFileSync(resolv, c.dns.map((x) => `nameserver ${x}\n`).join(''));
+        writeEnvFile(d.env, { ...this.env, ...wisp });
+        ({ cmd, args } = containerRun({ ...c, resolv, envFile: d.env, name: containerName(i.user), port: i.port, home: d.home }));
+        env = { PATH: process.env.PATH };
+        // The image runs as uid 1000; its home is this folder.
+        try {
+          fs.chownSync(d.home, c.uid, c.uid);
+        } catch {}
+      } else {
+        env = Object.fromEntries(BASE_ENV.filter((k) => process.env[k]).map((k) => [k, process.env[k]]));
+        if (this.extraPath) env.PATH = `${this.extraPath}${path.delimiter}${env.PATH || ''}`;
+        Object.assign(env, this.env, { HOME: d.home, USERPROFILE: d.home, WISP_HOME: d.wisp, ...wisp });
+        [cmd, args] = [process.execPath, [this.wispBin, '--no-open', '--port', String(i.port)]];
+      }
+      const out = fs.openSync(d.log, 'a');
+      child = spawn(cmd, args, { cwd: d.home, env, stdio: ['ignore', out, out] });
+      fs.closeSync(out);
     }
-    const out = fs.openSync(d.log, 'a');
-    const child = spawn(cmd, args, { cwd: d.home, env, stdio: ['ignore', out, out] });
-    fs.closeSync(out);
+    // The env file only has to last until docker has read it: by the time the box answers.
+    const dropEnv = () => this.driver === 'container' && !this.boxd && fs.rmSync(d.env, { force: true });
     i.child = child;
     i.startedAt = Date.now();
     let exited = false;
     i.stopped = new Promise((resolve) =>
       child.on('exit', (code, signal) => {
         exited = true;
+        dropEnv();
         const was = i.state;
         Object.assign(i, { state: 'stopped', child: null, port: null, stoppedAt: Date.now() });
         if (was === 'running' && !i.stopReason) i.stopReason = `exited (${signal || code})`;
@@ -219,9 +212,10 @@ export class Hostd extends EventEmitter {
     );
     const until = Date.now() + this.startMs;
     while (Date.now() < until) {
-      if (exited) throw new Error(`Its wisp quit while starting; see ${d.log}.`);
+      if (exited) throw new Error(child.error || `Its wisp quit while starting; see ${d.log}.`);
       try {
         await getJson(i.port, '/api/health', 2000);
+        dropEnv();
         i.state = 'running';
         i.error = '';
         this.#changed(i, 'started');
@@ -244,12 +238,28 @@ export class Hostd extends EventEmitter {
     this.#changed(i);
     i.child.kill('SIGTERM'); // `docker run` passes it on to the container
     const kill = setTimeout(() => {
-      if (this.driver === 'container') spawn('docker', ['kill', containerName(i.user)], { stdio: 'ignore' });
-      i.child?.kill('SIGKILL');
+      if (this.driver === 'container' && !this.boxd) docker(['kill', containerName(i.user)]);
+      i.child?.kill('SIGKILL'); // with boxd: it kills the container
     }, KILL_AFTER_MS);
     await i.stopped;
     clearTimeout(kill);
     return true;
+  }
+
+  // The account is being deleted: no more starts, then the box and its files go (deleteBox).
+  async remove(user) {
+    const i = this.#of(user);
+    i.gone = true;
+    clearTimeout(i.wakeTimer);
+    i.nextWakeAt = null;
+    try {
+      await this.stop(user.id, 'deleted');
+      await deleteBox({ dataDir: this.dataDir, driver: this.driver, container: this.container, user });
+    } catch (err) {
+      i.gone = false;
+      throw err;
+    }
+    this.inst.delete(user.id);
   }
 
   async tick() {
@@ -280,7 +290,7 @@ export class Hostd extends EventEmitter {
     if (!i.nextWakeAt) return;
     const wait = Math.max(0, i.nextWakeAt - Date.now() - WAKE_EARLY_MS);
     i.wakeTimer = setTimeout(() => {
-      if (i.state === 'stopped') this.ensure(i.user).catch((err) => this.log(`hostd: wake ${i.user.handle}: ${err.message}`));
+      if (i.state === 'stopped' && !i.gone && this.exists(i.user)) this.ensure(i.user).catch((err) => this.log(`hostd: wake ${i.user.handle}: ${err.message}`));
     }, wait);
     i.wakeTimer.unref?.();
   }

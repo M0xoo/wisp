@@ -19,6 +19,7 @@ const I = {
   check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
   shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.4-7.5 9.5-4.3-1.1-7.5-4.9-7.5-9.5V6L12 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.2a1.5 1.5 0 001.5 1.3h6.2a1.5 1.5 0 001.5-1.3L17.5 7M10 11v5.5M14 11v5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
 };
 const logo = (id) => I[id] || I[id.split(':')[0]] || (id === 'dev' ? I.code : I.key);
@@ -307,7 +308,8 @@ h2.sec{margin:34px 0 10px;font-size:13px;font-weight:600;color:var(--muted)}
 .center{text-align:center}.orb{width:46px;height:46px;border-radius:50%;margin:10px auto 22px;background:radial-gradient(circle at 35% 35%,#c7d2fe,var(--accent) 60%,#1e3a8a);animation:pulse 1.6s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(.86);opacity:.75}50%{transform:scale(1);opacity:1}}
 form.inline{display:inline}
-@media (max-width:640px){.tiles{grid-template-columns:1fr}.hero .head{flex-wrap:wrap}.hero .acts{margin-left:0;width:100%}.top{padding:0 16px}.top .who{display:none}}
+.r.del .input{width:170px;height:32px;font:13px var(--sans);letter-spacing:0;text-transform:none}
+@media (max-width:640px){.tiles{grid-template-columns:1fr}.hero .head{flex-wrap:wrap}.hero .acts{margin-left:0;width:100%}.top{padding:0 16px}.top .who{display:none}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
 .wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
 
@@ -393,6 +395,9 @@ export function accountPage({ cfg, user, instance, devices, identities, provider
         .join('')}
         ${canLink.map((p) => `<div class="r"><span class="ic">${logo(p.id)}</span><div class="tx"><b>${esc(p.label)}</b><small>Connect it too, and either one signs you in</small></div><a class="ghost line" href="/auth/${encodeURIComponent(p.id)}/start?link=1">Connect</a></div>`).join('')}
       </div>
+      <h2 class="sec">Delete your account</h2>
+      <div class="group"><form class="r del" method="post" action="/account/delete"><span class="ic">${I.trash}</span><div class="tx"><b>Delete your account and your wisp</b><small>Your box, its files and your agents’ sign-ins are deleted from this grid for good.</small></div>
+        <input type="hidden" name="csrf" value="${esc(csrf)}"><input class="input" name="confirm" placeholder="Type ${esc(user.handle)}" aria-label="Type ${esc(user.handle)} to confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required pattern="${esc(user.handle)}"><button class="ghost line danger">Delete</button></form></div>
       <div class="foot"><form class="inline" method="post" action="/signout?all=1"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost">Sign out everywhere</button></form></div>
       <script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.textContent;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>`,
   });

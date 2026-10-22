@@ -9,7 +9,7 @@ import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
 import { createHash, generateKeyPairSync, sign as rsaSign } from 'node:crypto';
-import { installFakeBins, tmp } from './helpers.js';
+import { browser, installFakeBins, sleep, tmp, until } from './helpers.js';
 
 const fakeBin = installFakeBins();
 process.env.WISP_HOME = tmp('grid-desktop');
@@ -29,70 +29,6 @@ const freePort = () =>
       s.close(() => resolve(port));
     });
   });
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(fn, { timeout = 20_000, every = 150, what = 'condition' } = {}) {
-  const end = Date.now() + timeout;
-  let last;
-  while (Date.now() < end) {
-    last = await fn();
-    if (last) return last;
-    await sleep(every);
-  }
-  throw new Error(`timed out waiting for ${what}`);
-}
-
-// A tiny browser: *.localhost goes to 127.0.0.1, cookies per host, no redirect following.
-function browser() {
-  const jar = new Map(); // host -> Map(name -> value)
-  async function go(url, { method = 'GET', headers = {}, body, form } = {}) {
-    const u = new URL(url);
-    const c = jar.get(u.host);
-    const data = form ? new URLSearchParams(form).toString() : body !== undefined ? JSON.stringify(body) : undefined;
-    const h = {
-      accept: 'text/html',
-      ...(c && c.size && { cookie: [...c].map(([k, v]) => `${k}=${v}`).join('; ') }),
-      ...(form && { 'content-type': 'application/x-www-form-urlencoded' }),
-      ...(body !== undefined && { 'content-type': 'application/json', accept: 'application/json' }),
-      ...headers,
-    };
-    return new Promise((resolve, reject) => {
-      const req = http.request({ host: '127.0.0.1', port: u.port, path: u.pathname + u.search, method, headers: { host: u.host, ...h } }, (res) => {
-        for (const sc of [].concat(res.headers['set-cookie'] || [])) {
-          const [kv, ...attrs] = sc.split(';');
-          const i = kv.indexOf('=');
-          const name = kv.slice(0, i).trim();
-          const val = kv.slice(i + 1).trim();
-          if (!jar.has(u.host)) jar.set(u.host, new Map());
-          if (attrs.some((a) => /max-age=0/i.test(a))) jar.get(u.host).delete(name);
-          else jar.get(u.host).set(name, val);
-        }
-        let t = '';
-        res.on('data', (d) => (t += d));
-        res.on('end', () => {
-          let j = null;
-          try {
-            j = JSON.parse(t);
-          } catch {}
-          resolve({ status: res.statusCode, headers: res.headers, text: t, json: j, location: res.headers.location });
-        });
-      });
-      req.on('error', reject);
-      req.end(data);
-    });
-  }
-  // Follow redirects (absolute or relative), like a browser does.
-  async function follow(url, opts = {}, hops = 8) {
-    let r = await go(url, opts);
-    let at = url;
-    while (r.status >= 300 && r.status < 400 && r.location && hops--) {
-      at = new URL(r.location, at).toString();
-      if (!at.startsWith('http://')) return { ...r, at };
-      r = await go(at);
-    }
-    return { ...r, at };
-  }
-  return { go, follow, jar };
-}
 const csrfOf = (html) => /name="csrf" value="([^"]+)"/.exec(html)?.[1];
 
 // --- fake providers ----------------------------------------------------------------------
@@ -276,6 +212,74 @@ test('a task runs in the user’s wisp through the edge; idle, it stops; the nex
   assert.equal(again.status, 200, again.text);
   assert.equal(again.json.id, id);
   assert.equal(grid.hostd.state(userId), 'running');
+});
+
+test('deleting an account: typed handle and CSRF, then its box, files, secrets, sessions and devices are gone', async () => {
+  const b = browser();
+  await devSignIn(b, 'eve@example.com');
+  const { origin } = await openWisp(b);
+  const eve = grid.accounts.byHandle('eve');
+  await until(async () => (await b.go(`${origin}/api/health`, { headers: { accept: 'application/json' } })).status === 200, { what: 'eve’s wisp' });
+  const folder = path.join(cfg.dataDir, 'users', eve.id);
+  assert.ok(fs.existsSync(path.join(folder, 'home')));
+  const code = grid.accounts.deviceCode('Eve’s laptop');
+  grid.accounts.answerCode(code.user_code, eve.id, true);
+  const token = grid.accounts.pollCode(code.device_code, 5).token;
+  const me = () => browser().go(`${base}/api/me`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' } });
+  assert.equal((await me()).status, 200);
+
+  const page = await b.go(`${base}/`);
+  assert.match(page.text, /action="\/account\/delete"/);
+  assert.match(page.text, /placeholder="Type eve"/);
+  const csrf = csrfOf(page.text);
+  const wrong = await b.go(`${base}/account/delete`, { method: 'POST', form: { csrf, confirm: 'ada' }, headers: { origin: base } });
+  assert.equal(wrong.status, 400);
+  assert.match(wrong.text, /Type eve to delete your account/);
+  const forged = await b.go(`${base}/account/delete`, { method: 'POST', form: { csrf: 'nope', confirm: 'eve' }, headers: { origin: base } });
+  assert.equal(forged.status, 403);
+  assert.ok(grid.accounts.byHandle('eve'));
+  assert.equal(grid.hostd.state(eve.id), 'running');
+
+  const done = await b.go(`${base}/account/delete`, { method: 'POST', form: { csrf, confirm: ' Eve ' }, headers: { origin: base } });
+  assert.equal(done.status, 200, done.text);
+  assert.match(done.text, /Account deleted/);
+  assert.match(String(done.headers['set-cookie']), /Max-Age=0/);
+  assert.ok(!grid.accounts.byHandle('eve'));
+  assert.ok(!fs.existsSync(folder), 'the box’s files, agent logins included');
+  for (const t of ['sessions', 'devices', 'identities', 'instances', 'user_secrets', 'keys', 'tickets', 'device_codes']) assert.equal(grid.db.get(`SELECT COUNT(*) AS n FROM ${t} WHERE user_id = ?`, eve.id).n, 0, t);
+  assert.deepEqual(grid.db.all('SELECT action FROM audit WHERE user_id = ?', eve.id).map((r) => r.action), ['user.delete'], 'only that it happened');
+  assert.equal(grid.hostd.inst.has(eve.id), false);
+  assert.equal((await b.go(`${origin}/`)).status, 404, 'its address is gone');
+  assert.equal((await me()).status, 401, 'and its devices');
+  assert.doesNotMatch((await b.go(`${base}/`)).text, /account\/delete/, 'signed out');
+});
+
+test('wisp grid users --delete: asks for --yes, leaves a running process to the grid, then deletes', async () => {
+  const { gridCli } = await import('../grid/cli.js');
+  const b = browser();
+  await devSignIn(b, 'fay@example.com');
+  const { origin } = await openWisp(b);
+  const fay = grid.accounts.byHandle('fay');
+  await until(async () => (await b.go(`${origin}/api/health`, { headers: { accept: 'application/json' } })).status === 200, { what: 'fay’s wisp' });
+  const out = [];
+  const log = console.log;
+  console.log = (m) => out.push(String(m));
+  try {
+    await gridCli(['users', '--delete', 'fay', '--data', cfg.dataDir]);
+    assert.match(out.join('\n'), /--delete fay --yes/);
+    assert.ok(grid.accounts.byHandle('fay'), 'nothing happens without --yes');
+    await assert.rejects(gridCli(['users', '--delete', 'fay', '--yes', '--data', cfg.dataDir]), /running/);
+    assert.equal(grid.accounts.byHandle('fay').disabled, 0);
+    await grid.hostd.stop(fay.id);
+    await gridCli(['users', '--delete', 'fay', '--yes', '--data', cfg.dataDir]);
+    assert.match(out.at(-1), /✓ deleted fay/);
+    await assert.rejects(gridCli(['users', '--delete', 'nobody', '--yes', '--data', cfg.dataDir]), /Nobody here is called nobody/);
+  } finally {
+    console.log = log;
+  }
+  assert.ok(!grid.accounts.byHandle('fay'));
+  assert.ok(!fs.existsSync(path.join(cfg.dataDir, 'users', fay.id)));
+  assert.equal(grid.db.get('SELECT COUNT(*) AS n FROM user_secrets WHERE user_id = ?', fay.id).n, 0);
 });
 
 test('device flow from the phone app: Allow links back to the app, not the account page', async () => {
@@ -592,8 +596,9 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
 
 test('the container driver: one locked-down container per user, reachable only from this box', async () => {
   const { containerRun, CONTAINER } = await import('../grid/hostd.js');
-  const { args } = containerRun({ ...CONTAINER, resolv: '/data/users/1/resolv.conf', name: 'wisp-u-1', port: 47001, home: '/data/users/1/home', env: { WISP_TRUSTED_PROXY_SECRET: 's'.repeat(40) } });
+  const { args } = containerRun({ ...CONTAINER, resolv: '/data/users/1/resolv.conf', envFile: '/data/users/1/box.env', name: 'wisp-u-1', port: 47001, home: '/data/users/1/home' });
   const s = args.join(' ');
+  assert.match(s, /--env-file \/data\/users\/1\/box\.env/, 'its secrets come from a file, not the command line');
   assert.match(s, /--runtime runsc/);
   assert.match(s, /-v \/data\/users\/1\/resolv\.conf:\/etc\/resolv\.conf:ro/, 'a resolver gVisor can reach');
   assert.match(s, /-p 127\.0\.0\.1:47001:47001/, 'published on loopback only');

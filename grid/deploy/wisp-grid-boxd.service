@@ -1,0 +1,21 @@
+# systemd unit for boxd (grid/boxd.js): runs, stops and deletes the users' containers for wisp
+# Grid, which itself runs as the "wisp" user without Docker. The only part of the grid that runs as
+# root, so its code must be root's too (install.sh puts the repo's path here). Install: copy to
+# /etc/systemd/system/, then
+#   systemctl daemon-reload && systemctl enable --now wisp-grid-boxd
+# and set "hostd": { "container": { "boxd": "/run/wisp-grid/box.sock" } } in grid.json.
+[Unit]
+Description=wisp Grid boxd (the users' containers)
+After=docker.service
+Requires=docker.service
+
+[Service]
+ExecStart=/usr/bin/node /opt/wisp-grid/grid/boxd.js serve --group wisp --data /var/lib/wisp-grid --boxes /var/lib/wisp-grid-boxes
+Restart=on-failure
+# /run/wisp-grid, for the socket.
+RuntimeDirectory=wisp-grid
+# Running boxes stop on SIGTERM; give them time to save.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
