@@ -245,7 +245,9 @@ test('a failed connect says why and what to run', { skip: win }, async () => {
 test('let me in: the password once adds this computer’s key there, then it connects', { skip: win, timeout: 60_000 }, async () => {
   process.env.FAKE_SSH_PASSWORD = 'open sesame';
   process.env.WISP_SSH_DIR = tmp('ssh-here'); // this computer's ~/.ssh: no key yet
-  const m = await call('POST', '/machines', { target: 'locked-letin', port: await outsidePort() });
+  // This checkout's wisp, not the default `npx -y wisp-agents@<version>`: that downloads from npm
+  // (into an empty HOME) and fails outright while the version isn't published yet.
+  const m = await call('POST', '/machines', { target: 'locked-letin', port: await outsidePort(), command: `${JSON.stringify(process.execPath)} ${JSON.stringify(WISP_BIN)}` });
   await until(async () => (await machine(m.id)).state === 'error');
   await assert.rejects(call('POST', `/machines/${m.id}/let-in`, { password: 'wrong' }), /Wrong password/);
   await assert.rejects(call('POST', `/machines/${m.id}/let-in`, { password: '' }), /Type your password/);

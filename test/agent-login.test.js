@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { tmp } from './helpers.js';
+import { npmCmdShim, tmp, win } from './helpers.js';
 
 const home = tmp('login-home');
 const bins = tmp('login-bin');
@@ -16,8 +16,12 @@ const FAKE = fileURLToPath(new URL('./fixtures/fake-login.mjs', import.meta.url)
 for (const name of ['claude', 'codex', 'gh']) {
   const exe = path.join(bins, name);
   fs.copyFileSync(FAKE, `${exe}.mjs`);
-  fs.writeFileSync(exe, `#!${process.execPath}\nprocess.argv[1] = ${JSON.stringify(exe)};\nawait import(${JSON.stringify(`file://${exe}.mjs`)});\n`);
-  fs.chmodSync(exe, 0o755);
+  // On Windows an npm .cmd shim, the way the real CLIs are installed there.
+  if (win) fs.writeFileSync(`${exe}.cmd`, npmCmdShim(`${name}.mjs`));
+  else {
+    fs.writeFileSync(exe, `#!${process.execPath}\nprocess.argv[1] = ${JSON.stringify(exe)};\nawait import(${JSON.stringify(`file://${exe}.mjs`)});\n`);
+    fs.chmodSync(exe, 0o755);
+  }
 }
 Object.assign(process.env, { HOME: home, WISP_HOME: tmp('login-wisp'), WISP_CLAUDE_BIN: path.join(bins, 'claude'), WISP_CODEX_BIN: path.join(bins, 'codex'), WISP_GH_BIN: path.join(bins, 'gh'), WISP_UPDATE_CHECK: '0', WISP_TELEMETRY: '0' });
 

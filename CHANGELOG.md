@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Signing in to a harness from Settings → Agents works on Windows.** wisp started `claude`, `codex` and `gh` directly, which can't run the `.cmd` shims npm installs them as there, so the sign-in failed at once. It now unwraps them the way it does for tasks.
+- **Pasting a repo you already cloned reuses the clone on Windows** instead of cloning it again into `<name>-2`: git spells the folder `C:/Users/…`, Windows sometimes by its short name (`C:\Users\JOHNSM~1\…`), and wisp took them for two folders.
+
 ## [0.29.1] - 2026-10-22
 
 ### Changed

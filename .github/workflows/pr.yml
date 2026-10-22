@@ -1,0 +1,25 @@
+name: pr
+
+# Fast feedback on a pull request: the whole suite once, on Linux and the Node most people run.
+# main.yml runs every OS after the merge and nightly.yml goes wider still. A change that may
+# break Windows or macOS (process launching, paths, shells, terminals) can get the main matrix
+# here too: add the `ci:full` label.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  # A new push makes the old run moot; adding a label mustn't cancel the run a push started.
+  group: pr-${{ github.event.pull_request.number }}-${{ github.event.action == 'labeled' && 'label' || 'push' }}
+  cancel-in-progress: true
+
+jobs:
+  quick:
+    if: github.event.action != 'labeled'
+    uses: ./.github/workflows/suite.yml
+  full:
+    if: contains(github.event.pull_request.labels.*.name, 'ci:full')
+    uses: ./.github/workflows/suite.yml
+    with:
+      os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
+      node: '["20", "22"]'

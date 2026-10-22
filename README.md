@@ -516,7 +516,7 @@ npm test         # adapters, process launching, terminals, and the full ask_user
 npm run test:real  # smoke test against the real CLIs installed on this machine
 ```
 
-`npm test` needs no network or accounts. A fake CLI (`test/fixtures/fake-agent.mjs`) speaks each harness's real output format, edits files, and calls `ask_user` through the real MCP bridge. On Windows the fakes are installed as npm-style `.cmd` shims, which is how npm installs the real CLIs. CI (`.github/workflows/test.yml`) runs the suite on Linux, macOS, and Windows with Node 20 and 22, then runs `test:real` against freshly installed Claude Code, Codex, opencode, Cursor, and Antigravity CLIs.
+`npm test` needs no network or accounts. A fake CLI (`test/fixtures/fake-agent.mjs`) speaks each harness's real output format, edits files, and calls `ask_user` through the real MCP bridge. On Windows the fakes are installed as npm-style `.cmd` shims, which is how npm installs the real CLIs. CI runs in three tiers (`.github/workflows/`): a pull request runs the suite once on Linux with Node 22 (`pr.yml`; the `ci:full` label adds every OS). Every merge to main runs it on Linux, macOS, and Windows with Node 20 and 22, plus `test:real` against freshly installed Claude Code, Codex, opencode, Cursor, and Antigravity CLIs (`main.yml`). Every night all of that runs again, also on the current Node LTS and the newest Node, with the suite three times per job to catch flaky tests (`nightly.yml`).
 
 ## License
 

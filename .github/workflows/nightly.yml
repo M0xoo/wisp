@@ -1,0 +1,22 @@
+name: nightly
+
+# The slowest tier, once a day: every OS on every Node line (oldest supported, LTS, current), the
+# whole suite three times per job to catch flaky tests, and the real harness CLIs at their latest
+# versions, which change upstream whether or not wisp does. A failure here emails whoever last
+# edited this schedule; run it by hand from the Actions tab or with `gh workflow run nightly`.
+on:
+  schedule:
+    - cron: '17 3 * * *' # 03:17 UTC
+  workflow_dispatch:
+
+jobs:
+  test:
+    uses: ./.github/workflows/suite.yml
+    with:
+      os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
+      node: '["20", "22", "lts/*", "current"]'
+      repeat: 3
+
+  # The latest releases: they change upstream whether or not wisp does.
+  real-clis:
+    uses: ./.github/workflows/real-clis.yml

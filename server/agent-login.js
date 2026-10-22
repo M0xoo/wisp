@@ -7,7 +7,7 @@
 // way, and read a pasted code from stdin. One login per harness at a time; it gives up after 15
 // minutes.
 
-import { spawn } from 'node:child_process';
+import { spawn } from './proc.js'; // runs npm's .cmd shims on Windows
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
