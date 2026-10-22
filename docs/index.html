@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=27" />
+  <link rel="stylesheet" href="style.css?v=28" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -215,7 +215,7 @@
         <a href="guides/">Guides</a>
         <a href="cloud.html">Cloud</a>
       </nav>
-      <button class="nav-cmd" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span>npx wisp-agents<span class="copy">Copy</span></button>
+      <button class="nav-cmd" data-copy="npx wisp-agents" aria-label="Copy install command"><code><span class="p">$</span>npx wisp-agents</code><span class="copy">Copy</span></button>
       <a class="gh" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         <span>GitHub</span><span class="stars" data-stars hidden></span>
@@ -227,9 +227,11 @@
     <!-- ───────── hero: a working copy of the launcher ───────── -->
     <section class="hero">
       <div class="wrap hero-grid">
-      <div class="hero-top">
-        <p class="kicker"><span class="dot"></span>v0.31.0 · free and open source</p>
+      <div class="hero-head">
         <h1>Send coding agents <span class="off">off</span>. <span class="soft">Read what they did.</span></h1>
+        <p class="lede">Claude Code, Codex and five more run in parallel, in the background, on any of your machines. Each one hands back a one-screen report instead of a transcript. Free and open source, v0.31.0.</p>
+      </div>
+      <div class="hero-top">
         <div class="desk-cta" id="deskCta" data-tabs>
           <div class="hero-tabs" role="tablist" aria-label="How to get wisp">
             <button class="tab" role="tab" id="htab-npx" aria-controls="heroPanel" aria-selected="true" tabindex="0" data-tab="npx" data-cmd="npx wisp-agents" data-note="macOS · Linux and Windows in beta · Node 20+ · MIT">npx</button>
@@ -245,7 +247,7 @@
           <p class="fine" id="deskFine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
         </div>
         <a class="cloud-cta" href="https://grid.trywisp.dev" data-cloud-cta="hero" aria-label="Open wisp Cloud at grid.trywisp.dev">
-          <span class="cc-or">or skip the install</span>
+          <span class="cc-or">Or skip the install:</span>
           <span class="cc-bar">
             <span class="cc-url"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.6" fill="currentColor"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span class="cc-host"><b>you</b>.grid.trywisp.dev</span></span>
             <span class="cc-go"><span class="cc-long" data-seats-cta="Get the next seat">Use wisp Cloud</span><span class="cc-short">Open</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -254,13 +256,13 @@
         </a>
       </div>
 
-      <div class="desk" id="desk">
+      <div class="desk" id="desk" data-ui>
         <form class="launch" id="launch" autocomplete="off">
           <div class="l-projects" aria-hidden="true"><span class="in">in</span><span class="chip on"><i class="c-violet"></i>api-server</span><span class="chip"><i class="c-teal"></i>web-app</span><span class="chip"><i class="c-amber"></i>mobile</span></div>
           <label class="sr" for="task">Describe a task</label>
           <input id="task" class="l-input" placeholder="What should I go do?" spellcheck="false" maxlength="140" />
           <div class="l-bar">
-            <span class="l-runner" id="runner"><b class="spark">✦</b>Auto<span class="muted">Balanced</span></span>
+            <span class="l-runner" id="runner"><svg class="spark" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" fill="currentColor"/></svg>Auto<span class="muted">Balanced</span></span>
             <span class="l-wt"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10M11 3v3a3 3 0 0 1-3 3H5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="5" cy="3" r="1.6" fill="currentColor"/><circle cx="11" cy="3" r="1.6" fill="currentColor"/><circle cx="5" cy="13" r="1.6" fill="currentColor"/></svg>Worktree</span>
             <span class="grow"></span>
             <span class="l-hint" id="hint">Try it: type a task, press ↵</span>
@@ -293,8 +295,8 @@
     <!-- ───────── a morning (sticky story) ───────── -->
     <section class="morning" id="morning">
       <div class="wrap m-intro">
-        <p class="eyebrow">A morning with wisp</p>
-        <h2>Three tasks, ninety minutes,<br />about four minutes of your attention.</h2>
+        <h2>Three tasks. Four minutes of you.</h2>
+        <p>A morning with wisp: ninety minutes of agent work, from the hand-off to the merge.</p>
       </div>
       <div class="m-track" id="mTrack">
         <div class="m-sticky">
@@ -311,7 +313,7 @@
               <div class="rail" aria-hidden="true"><i id="railFill"></i></div>
             </div>
             <div class="m-stage">
-              <div class="window">
+              <div class="window" data-ui>
                 <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">wisp</span></div>
                 <div class="scenes" id="scenes">
                   <div class="zoom" id="zoom">
@@ -338,7 +340,6 @@
     <!-- ───────── transcript vs report ───────── -->
     <section class="report wrap" id="report">
       <div class="r-head">
-        <p class="eyebrow">The report</p>
         <h2>Same run. Pick what you'd rather read.</h2>
         <div class="seg" role="tablist" aria-label="View">
           <button role="tab" data-v="log" aria-selected="false">Transcript <small id="logCount"></small></button>
@@ -347,9 +348,9 @@
         </div>
       </div>
       <div class="r-body" data-view="report" id="rBody">
-        <div class="r-log" aria-hidden="true"><pre id="log"></pre></div>
+        <div class="r-log" aria-hidden="true" data-ui><pre id="log"></pre></div>
         <div class="r-report">
-          <div class="window">
+          <div class="window" data-ui>
             <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">Fix the flaky session-expiry test</span></div>
             <div class="scroll" tabindex="0" aria-label="Report screenshot, scrollable">
               <picture>
@@ -371,12 +372,11 @@
     <!-- ───────── compare ───────── -->
     <section class="compare" id="compare">
       <div class="wrap c-head">
-        <p class="eyebrow">Compare</p>
-        <h2>Not sure which agent?<br />Run both and keep the winner.</h2>
+        <h2>Run two agents. Keep the winner.</h2>
         <p>Click <b>vs</b> in the launcher and one prompt runs on two harnesses at once, each in its own worktree. wisp lines them up: time, cost, files, tests, and both reports. <b>Keep this</b> archives the other. <a class="more-link" href="guides/claude-code-vs-codex.html">Claude Code vs Codex on your own repo →</a></p>
       </div>
       <div class="wrap-wide">
-        <div class="cmp-shot"><picture>
+        <div class="cmp-shot" data-ui><picture>
             <source srcset="assets/shots/story-dark-compare.webp" media="(prefers-color-scheme: dark)" />
             <img src="assets/shots/story-light-compare.webp" width="1240" height="550" loading="lazy" alt="Compare view: Claude Code finished in 16 minutes for $0.94 with 341 tests passing; Codex finished in 11 minutes for $0.38 with 2 failing tests. Each column has a Keep this button." />
           </picture></div>
@@ -387,7 +387,6 @@
     <section class="relay wrap" id="machines">
       <div class="relay-grid">
         <div class="relay-text">
-          <p class="eyebrow">Machines · follow-ups</p>
           <h2>Start on your laptop. Finish on the dev box.</h2>
           <p>Connect any computer you can SSH into and launch on it, or on several at once. Mid-task, the button next to the follow-up box moves the task: its branch, uncommitted changes and history go along, and the agent there carries on. The same follow-up can switch from Claude Code to Codex.</p>
           <dl class="relay-facts">
@@ -397,15 +396,14 @@
           </dl>
           <p class="relay-links"><a href="guides/move-a-task-to-another-machine-or-agent.html">Move a task mid-way →</a><a href="guides/run-coding-agents-on-multiple-machines.html">Agents on multiple machines →</a><a href="guides/connect-machines-with-tailscale.html">Reach them with Tailscale →</a></p>
         </div>
-        <div data-relay id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>
+        <div data-relay data-ui id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>
       </div>
     </section>
 
     <!-- ───────── spells: change wisp itself by asking (spells.js) ───────── -->
     <section class="spells wrap" id="spells">
       <div class="spells-head">
-        <p class="eyebrow">Spells</p>
-        <h2>Want wisp to work your way? Ask it.</h2>
+        <h2>Want wisp to work your way? Cast a spell.</h2>
         <p>A button for your open PRs, a panel with your stats, a block agents can end their reports with, quick replies, a whole new look. Say what you want and an agent writes it as a <b>spell</b>: a small file wisp layers over itself. Try it in the window, keep it, send it to your team. Switch it off and wisp is back as it was.</p>
       </div>
       <div class="spells-grid">
@@ -422,21 +420,20 @@
     <!-- ───────── control ───────── -->
     <section class="control wrap" id="control">
       <div class="sec-head">
-        <p class="eyebrow">You stay in control</p>
-        <h2>Pick the agent. Set the leash.<br />Take the wheel whenever you like.</h2>
+        <h2>Pick the agent, set the leash, take the wheel.</h2>
       </div>
       <div class="duo">
         <figure class="tile">
-          <div class="tile-img">
+          <div class="tile-img" data-ui>
             <picture>
               <source srcset="assets/shots/dark-picker.webp" media="(prefers-color-scheme: dark)" />
               <img src="assets/shots/light-picker.webp" width="800" height="650" loading="lazy" alt="The launcher's harness picker: Auto, Claude Code, Codex, opencode, Cursor, Antigravity and Grok, with Balanced, Cheap and Best goals." />
             </picture>
           </div>
-          <figcaption><b>Auto, or your pick.</b> Choose a harness, model and thinking level per task, or let <b>Auto</b> choose from what worked before. It learns from what you merge, your 👍/👎 and how many follow-ups a run needed.</figcaption>
+          <figcaption><b>Auto, or your pick.</b> Choose a harness, model and thinking level per task, or let <b>Auto</b> choose from what worked before. It learns from what you merge, your thumbs up or down and how many follow-ups a run needed.</figcaption>
         </figure>
         <figure class="tile">
-          <div class="tile-img">
+          <div class="tile-img" data-ui>
             <picture>
               <source srcset="assets/shots/dark-auto.webp" media="(prefers-color-scheme: dark)" />
               <img src="assets/shots/light-auto.webp" width="720" height="570" loading="lazy" alt="The Automations dialog listing three recipes (release, deps-audit, triage) with Run buttons." />
@@ -447,9 +444,9 @@
       </div>
 
       <div class="modes">
-        <div class="mode"><span class="m-k">Plan</span><p>Read-only. It investigates and proposes; nothing on disk changes. Issue triggers always start here.</p></div>
-        <div class="mode"><span class="m-k">Edits</span><p>File edits are accepted; shell commands that need approval are denied.</p></div>
-        <div class="mode on def"><span class="m-k">Full auto</span><p>No prompts. The default: each task runs in its own worktree with checkpoints before every turn.</p></div>
+        <div class="mode"><h3 class="m-k">Plan</h3><p>Read-only. It investigates and proposes; nothing on disk changes. Issue triggers always start here.</p></div>
+        <div class="mode"><h3 class="m-k">Edits</h3><p>File edits are accepted; shell commands that need approval are denied.</p></div>
+        <div class="mode on def"><h3 class="m-k">Full auto</h3><p>No prompts. The default: each task runs in its own worktree with checkpoints before every turn.</p></div>
       </div>
 
       <div class="takeover">
@@ -476,12 +473,11 @@
     <section class="cli" id="cli">
       <div class="wrap cli-grid">
         <div class="cli-text">
-          <p class="eyebrow">From the terminal</p>
           <h2>Or never leave your shell.</h2>
           <p><code>wisp "…"</code> launches a task in the current folder and starts the app if it isn't running. <code>--wait</code> blocks until the run is done and prints the report as markdown, so scripts, CI and other agents can use wisp too.</p>
           <p class="small">Also: an MCP server (<code>wisp mcp</code>), an agent skill, a JS SDK, an HTTP API and webhooks. <a href="integrations.html">Integrations →</a></p>
         </div>
-        <div class="term-win">
+        <div class="term-win" data-ui>
           <div class="win-bar dark"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">~/code/api-server</span><button class="replay" id="termReplay" aria-label="Replay">↻</button></div>
           <pre class="term" id="term" aria-label="Example CLI session"></pre>
         </div>
@@ -490,7 +486,7 @@
 
     <!-- ───────── also ───────── -->
     <section class="more wrap" id="more">
-      <p class="eyebrow">Also in the box</p>
+      <h2>Also in the box</h2>
       <dl class="grid">
         <div><dt>Several folders</dt><dd>One task can span the API and the web app that uses it. Each repo gets its own worktree, and Ship it opens a PR in each.</dd></div>
         <div><dt>Subagents</dt><dd>Give the lead a team on other harnesses. Claude Code can hand tests to three Codex copies through a <code>delegate</code> tool. <a href="guides/multi-agent-coding.html">Multi-agent coding →</a></dd></div>
@@ -505,12 +501,10 @@
     </section>
 
     <!-- ───────── wisp Cloud teaser ───────── -->
-    <section class="final cloud-band" id="cloud">
+    <section class="final cloud-band" id="cloud" data-clock="03:12">
       <div class="wrap">
-        <p class="final-clock" aria-hidden="true">03:12</p>
-        <p class="eyebrow">wisp Cloud · free early preview<span data-seats-note=" · {seats} left" data-seats-full=" · all seats taken"> · a few seats at a time</span></p>
         <h2>Let it run while you sleep.</h2>
-        <p class="sub">Your own wisp on a server: sign in with GitHub, give it a task, close the laptop, and read the report on your phone. Open it from the browser, the desktop app or the phone app. wisp on your computer stays free.</p>
+        <p class="sub"><b>wisp Cloud</b> is a free early preview<span data-seats-note=" with {seats} left" data-seats-full=", all seats taken for now">, a few seats at a time</span>. Your own wisp on a server: sign in with GitHub, give it a task, close the laptop, and read the report on your phone. Open it from the browser, the desktop app or the phone app. wisp on your computer stays free.</p>
         <div class="cta">
           <a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="band" data-seats-cta="Get the next seat">Try wisp Cloud</a>
           <a class="btn" href="cloud.html">How it works</a>
@@ -550,9 +544,8 @@
     </section>
 
     <!-- ───────── final ───────── -->
-    <section class="final">
+    <section class="final" data-clock="09:02">
       <div class="wrap">
-        <p class="final-clock" aria-hidden="true">09:02</p>
         <h2>Tomorrow morning, start here.</h2>
         <div class="cta">
           <button class="cmd" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
@@ -576,8 +569,8 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=11"></script>
-  <script src="relay.js?v=1" defer></script>
-  <script src="spells.js?v=2" defer></script>
+  <script src="main.js?v=12"></script>
+  <script src="relay.js?v=2" defer></script>
+  <script src="spells.js?v=3" defer></script>
 </body>
 </html>

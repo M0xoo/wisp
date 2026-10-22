@@ -68,7 +68,7 @@
       input.disabled = false;
       input.value = FOLLOW_UP;
       input.placeholder = 'Follow up…';
-      $('[data-turns]').innerHTML = turn({ n: 1, agent: 'claude', at: '', title: '9 of 14 call sites on Stripe v2', sub: '212 tests ✓ · stopped: the laptop is at 6%', state: 'done' });
+      $('[data-turns]').innerHTML = turn({ n: 1, agent: 'claude', at: '', title: '9 of 14 call sites on Stripe v2', sub: '212 tests pass · stopped: the laptop is at 6%', state: 'done' });
       $('[data-steps]').hidden = true;
       $('[data-steps]').innerHTML = '';
       $('[data-foot]').textContent = '';
@@ -191,7 +191,7 @@
       await wait(1100);
       tn.dataset.s = 'done';
       if (first) tn.querySelector('b').textContent = 'All 14 call sites on Stripe v2';
-      tn.querySelector('small').textContent = '231 tests ✓ · ready to ship';
+      tn.querySelector('small').textContent = '231 tests pass · ready to ship';
       steps.hidden = true;
       steps.innerHTML = '';
       $('[data-foot]').innerHTML = moving

@@ -116,7 +116,7 @@
 
   function windowHtml() {
     return `
-      <div class="sw-win" data-win>
+      <div class="sw-win" data-win data-ui>
         <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">wisp</span></div>
         <div class="sw-app">
           <div class="sw-top">
@@ -190,7 +190,7 @@
   function mount(root) {
     const uid = root.id || 'spells';
     root.innerHTML = `
-      <div class="sp-book">
+      <div class="sp-book" data-ui>
         <form class="sp-cast" autocomplete="off">
           <label class="sr" for="${uid}-in">Cast a spell</label>
           <textarea class="sp-input" id="${uid}-in" rows="2" maxlength="160" spellcheck="false" placeholder="/spell what should wisp do differently?"></textarea>
