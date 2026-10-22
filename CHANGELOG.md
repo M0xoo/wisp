@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Opening a task in the feed no longer shifts its state pill and time sideways, and Done rows line up with the rows above them.
+- In split view, the Mark done button on a selected or hovered row no longer leaves a clipped letter of the time beside it.
+
 ## [0.30.4] - 2026-10-23
 
 ### Changed
