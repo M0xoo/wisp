@@ -26,6 +26,7 @@ export function shortcuts() {
     ['1–9', 'Pick an answer when asked'],
     ['↵', 'Launch / send'],
     ['⇧↵', 'New line'],
+    ['↑ / ↓', 'Earlier prompts (in an empty prompt box)'],
     ['/feedback', 'Send feedback to the wisp team (in any prompt box)'],
     ['C', 'Collapse all'],
     ['U', 'Back to top'],

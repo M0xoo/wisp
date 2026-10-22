@@ -520,13 +520,18 @@ export function handOff(id) {
   const r = card.getBoundingClientRect();
   const inset = topInset();
   const slot = r.bottom > inset && r.top < innerHeight ? Math.max(inset, r.top) : null;
+  const had = S.open.has(id);
   return (apply) => {
-    if (S.open.has(id)) collapse(id);
+    if (had) collapse(id);
     apply(); // don't wait for the live update to drop the card
     renderFeed();
     if (!nextUp || !S.nodes.has(nextUp)) return;
     setFocus(nextUp, { scroll: slot === null });
     const next = S.nodes.get(nextUp).card;
     if (slot !== null && next.isConnected) scrollByPx(next.getBoundingClientRect().top - slot);
+    // Reading one report after another: done with an open one, the next one that needs you opens
+    // in its place, as split view does.
+    const ns = S.sessions.get(nextUp);
+    if (had && ns && !ns.pending && !S.open.has(nextUp) && sectionOf(ns) === 'needs') expand(nextUp, { scroll: false });
   };
 }

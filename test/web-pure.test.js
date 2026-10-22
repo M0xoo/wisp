@@ -1,6 +1,7 @@
 // The page's DOM-free modules: markdown and highlighting (web/js/md.js), line diffs
-// (web/js/diff.js), display formatters (web/js/core/format.js), the event bus (web/js/core/bus.js)
-// and what the transcript shows (web/js/features/transcript.js).
+// (web/js/diff.js), display formatters (web/js/core/format.js), the event bus (web/js/core/bus.js),
+// what the transcript shows (web/js/features/transcript.js), the launcher's ↑ history
+// (web/js/prompt-history.js) and the drafts kept across reloads (web/js/core/state.js).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,6 +10,7 @@ import { diffLines, hunks, countChanges } from '../web/js/diff.js';
 import { ago, fmtSize, money, pct } from '../web/js/core/format.js';
 import * as bus from '../web/js/core/bus.js';
 import { finalAnswer, layout, messageText, sameStep } from '../web/js/features/transcript.js';
+import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
 
 test('esc escapes HTML and treats null as empty', () => {
   assert.equal(esc(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -179,4 +181,63 @@ test('transcript: an update finds its step by call id, else by time and label', 
   assert.ok(!sameStep({ call: 't1' }, { call: 't2' }));
   assert.ok(sameStep({ t: 5, kind: 'edit', label: 'Editing a' }, { t: 5, kind: 'edit', label: 'Editing a' }));
   assert.ok(!sameStep({ t: 5, kind: 'edit', label: 'Editing a' }, { t: 6, kind: 'edit', label: 'Editing a' }));
+});
+
+test('prompt history: the newest last, each prompt once, at most MAX_SENT', () => {
+  assert.deepEqual(remember([], '  fix the tests  '), ['fix the tests']);
+  assert.deepEqual(remember(['a', 'b', 'c'], 'a'), ['b', 'c', 'a'], 'sent again: it moves to the newest');
+  assert.deepEqual(remember(['a'], '   '), ['a'], 'nothing to remember');
+  const full = Array.from({ length: MAX_SENT }, (_, i) => `p${i}`);
+  const next = remember(full, 'new');
+  assert.equal(next.length, MAX_SENT);
+  assert.equal(next[0], 'p1', 'the oldest goes');
+  assert.equal(next.at(-1), 'new');
+});
+
+test('prompt history: ↑ from an empty box walks back, ↓ walks forward to an empty box', () => {
+  const list = ['first', 'second', 'third'];
+  const key = (k, value, at, lines = {}) => historyStep({ key: k, value, list, at, ...lines });
+  assert.deepEqual(key('ArrowUp', '', null), { at: 2, value: 'third' });
+  assert.deepEqual(key('ArrowUp', 'third', 2), { at: 1, value: 'second' });
+  assert.deepEqual(key('ArrowUp', 'first', 0), null, 'nothing older: the key moves the caret');
+  assert.deepEqual(key('ArrowDown', 'second', 1), { at: 2, value: 'third' });
+  assert.deepEqual(key('ArrowDown', 'third', 2), { at: null, value: '' }, 'past the newest: an empty box');
+  assert.equal(key('ArrowDown', '', null), null, 'not browsing: ↓ is the caret');
+  assert.equal(key('ArrowUp', 'thirds', 2), null, 'edited: the arrows move the caret');
+  assert.equal(key('ArrowUp', 'a draft', null), null, 'never over something typed');
+  assert.equal(historyStep({ key: 'ArrowUp', value: '', list: [], at: null }), null, 'nothing sent yet');
+  // A prompt of several lines: the caret goes through its lines before the next prompt shows.
+  assert.equal(key('ArrowUp', 'third', 2, { firstLine: false }), null);
+  assert.equal(key('ArrowDown', 'second', 1, { lastLine: false }), null);
+  assert.equal(key('Enter', '', null), null);
+});
+
+test('drafts: kept as typed, back after a reload; emptied ones go, and the oldest past 50', async () => {
+  const { Drafts } = await import('../web/js/core/state.js');
+  const store = new Map();
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, writable: true, value: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) } });
+  try {
+    const d = new Drafts();
+    d.set('home', 'fix the flaky auth test');
+    d.set('abc123', 'and update the docs');
+    assert.deepEqual(JSON.parse(store.get('wisp.drafts')), { home: 'fix the flaky auth test', abc123: 'and update the docs' });
+    assert.equal(new Drafts().get('home'), 'fix the flaky auth test', 'a reload reads them back');
+    d.set('abc123', '');
+    assert.equal(d.has('abc123'), false, 'an emptied box keeps no draft');
+    assert.equal(d.delete('home'), true);
+    assert.equal(d.delete('home'), false);
+    assert.deepEqual(JSON.parse(store.get('wisp.drafts')), {});
+    for (let i = 0; i < 55; i++) d.set(`s${i}`, `draft ${i}`); // s0–s4 go
+    d.set('s5', 'typed in again'); // the newest now, so it stays
+    for (let i = 55; i < 58; i++) d.set(`s${i}`, `draft ${i}`); // s6–s8 go
+    assert.equal(d.size, 50);
+    assert.deepEqual([d.has('s4'), d.get('s5'), d.has('s8'), d.has('s9'), d.get('s57')], [false, 'typed in again', false, true, 'draft 57']);
+    assert.equal(Object.keys(JSON.parse(store.get('wisp.drafts'))).length, 50);
+    store.set('wisp.drafts', '{"home":"ok","bad":42,"none":""}');
+    assert.deepEqual([...new Drafts()], [['home', 'ok']], 'only text survives a bad store');
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'localStorage', had);
+    else delete globalThis.localStorage;
+  }
 });

@@ -7,7 +7,7 @@ import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { launch, MOBILE, S, save, saveLaunch } from '../core/state.js';
+import { launch, load, MOBILE, S, save, saveLaunch } from '../core/state.js';
 import { combo } from '../ui/kbd.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
@@ -30,6 +30,7 @@ import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
 import { SPELL_HINT, spellAsk } from '../slash-text.js';
+import { historyStep, remember } from '../prompt-history.js';
 import { goHome, isSplit } from './split.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
@@ -51,6 +52,8 @@ const CHIPS = 5;
 
 // Only a change of feed filter moves the launcher, so a "No folder" pick survives re-renders.
 let filterSeen = null;
+// The earlier prompt ↑ / ↓ put in the box (an index into wisp.sent), while browsing them.
+let sentAt = null;
 
 function syncWhere() {
   launch.where = launch.where.filter((k, i) => (!k || machineById(k)) && launch.where.indexOf(k) === i);
@@ -96,11 +99,12 @@ export function renderLauncher() {
   const chosen = here.find((a) => a.id === (S.config.defaults.agent || 'auto'));
   let agent = chosen?.available ? chosen : here.find((a) => a.available) || chosen || here[0];
   // Rendered over what's there (index.html's first paint, or fresh settings or harnesses): what
-  // was typed, and the caret if you're typing, carry over.
+  // was typed, and the caret if you're typing, carry over. An empty first paint leaves the draft
+  // kept from before the reload alone.
   const old = $('#prompt', box);
   const typing = old && document.activeElement === old && [old.selectionStart, old.selectionEnd];
-  if (old) S.drafts.set('home', old.value);
   const first = box.classList.contains('skel');
+  if (old && (old.value || !first)) S.drafts.set('home', old.value);
   box.classList.remove('skel');
   box.removeAttribute('aria-busy');
   if (first) {
@@ -350,6 +354,8 @@ export function renderLauncher() {
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
+    save('wisp.sent', remember(load('wisp.sent', []), prompt));
+    sentAt = null;
     if (S.filter !== 'all' && targets.some((t) => t.project?.scratch || (t.project?.id !== S.filter && !t.also.some((p) => p.id === S.filter)))) {
       S.filter = 'all';
       save('wisp.filter', S.filter);
@@ -424,6 +430,17 @@ export function renderLauncher() {
     if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
       setMode(MODES[(MODES.findIndex((m) => m.id === curMode) + 1) % MODES.length].id);
+    }
+    // ↑ in an empty box: the prompts launched before (prompt-history.js).
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && !e.isComposing) {
+      const shown = plain(ta.value); // what the box shows: mentions read as @Title
+      const step = ta.selectionStart === ta.selectionEnd && historyStep({ key: e.key, value: ta.value, list: load('wisp.sent', []), at: sentAt, firstLine: !shown.slice(0, ta.selectionStart).includes('\n'), lastLine: !shown.slice(ta.selectionEnd).includes('\n') });
+      if (!step) return;
+      e.preventDefault();
+      sentAt = step.at;
+      ta.value = step.value;
+      ta.dispatchEvent(new Event('input'));
+      ta.setSelectionRange(ta.value.length, ta.value.length);
     }
   });
 }
