@@ -47,13 +47,18 @@ export const splitOpen = () => (isSplit() ? [...S.open].find((id) => S.nodes.get
 export const splitBody = () => (isSplit() ? $('#feed .item.open > .it-body') : null);
 export const sidebar = $('#feedWrap');
 
+// index.html lays split view out before the scripts load: the first applyView() still enters it.
+let booted = false;
+
 export function applyView() {
   save('wisp.view', viewPref());
   paintProps();
   paintViewBtn();
   // The phone app always gets the feed (its switchers are hidden), even on a wide tablet.
   const want = viewPref() === 'split' && wide.matches && !MOBILE;
-  if (want !== isSplit()) (want ? enter : leave)();
+  const first = !booted;
+  booted = true;
+  if (want !== isSplit() || (want && first)) (want ? enter : leave)();
   else paintSplit();
 }
 
@@ -101,8 +106,9 @@ function enter() {
   const box = $('#launcher');
   box?.classList.remove('docked');
   launchSlot.style.height = '';
-  $('.sh-launch', home).append(launchSlot, feedTop);
-  foot.append(...FOOT.map((sel) => $(sel)));
+  // Already in place when index.html laid it out: re-inserting would replay their entrances.
+  if (launchSlot.parentNode !== $('.sh-launch', home)) $('.sh-launch', home).append(launchSlot, feedTop);
+  if (foot.childElementCount !== FOOT.length) foot.append(...FOOT.map((sel) => $(sel)));
   document.body.classList.add('split');
   $('#splitMain').hidden = false;
   $('#splitGrip').hidden = false;
