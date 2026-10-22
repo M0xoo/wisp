@@ -23,33 +23,31 @@
   <link rel="icon" href="/assets/favicon-96.png" type="image/png" sizes="96x96" />
   <link rel="icon" href="/assets/favicon-48.png" type="image/png" sizes="48x48" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180" />
-  <link rel="stylesheet" href="style.css?v=27" />
+  <link rel="stylesheet" href="style.css?v=28" />
   <style>
-    /* ---------- cloud page: same paper, ink and one blue as the main site ---------- */
+    /* ---------- cloud page: same paper, ink and one blue as the main site. The demos are the app's own
+       interface (data-ui) and keep its lines; the page around them uses tone steps, like style.css ---------- */
     :root { --ok: #18794e; --ok-soft: rgba(24, 121, 78, 0.12); --sleep: #8d8c86; }
     @media (prefers-color-scheme: dark) { :root { --ok: #3fb67b; --ok-soft: rgba(63, 182, 123, 0.14); } }
     section { scroll-margin-top: 72px; }
     .sec { padding: 120px 0 0; }
     .sec-head { max-width: 760px; margin-bottom: 48px; }
-    .sec-head p { margin-top: 18px; font-size: 17.5px; line-height: 1.55; color: var(--ink-2); max-width: 60ch; }
-    .card { background: var(--surface); border: 1px solid var(--line-2); border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 24px 60px -36px rgba(30,28,20,.35); }
-    .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font: 500 11.5px/1 var(--mono); border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+    .sec-head p { margin-top: 18px; font-size: 18px; line-height: 1.55; color: var(--ink); max-width: 60ch; }
+    .sec-head p .state { color: var(--accent); font-weight: 600; }
+    .card { background: var(--surface); border: 1px solid var(--line-2); border-radius: 16px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font: 500 12px/1 var(--sans); border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
     .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); background: var(--ok-soft); }
     .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
     .pill.acc { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-soft); }
     .nav-cta { margin-left: auto; display: inline-flex; align-items: center; height: 34px; padding: 0 14px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap; }
     .nav-cta + .gh { margin-left: 0; }
+    .brand-sub { font-weight: 500; color: var(--accent); }
 
     /* ---------- hero ---------- */
     .c-hero { position: relative; padding: 56px 0 0; }
-    .c-hero::before {
-      content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-      background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1.2px);
-      background-size: 22px 22px; mask-image: radial-gradient(ellipse 50% 60% at 72% 40%, #000 30%, transparent 75%);
-      -webkit-mask-image: radial-gradient(ellipse 50% 60% at 72% 40%, #000 30%, transparent 75%);
-    }
-    .c-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6.4fr); gap: 64px; align-items: start; }
-    .c-hero .kicker .dot { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .c-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6.4fr); gap: 40px 64px; align-items: start; }
+    .c-grid .hero-head { grid-column: 1 / -1; }
+    .c-grid .lede { max-width: 66ch; }
     .wait { display: flex; gap: 8px; margin-top: 30px; max-width: 440px; }
     .wait input { flex: 1; min-width: 0; height: 50px; padding: 0 16px; font: 15px var(--sans); color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); border-radius: 11px; outline: 0; }
     .wait.flash input { animation: join-flash 1.2s ease-out; }
@@ -62,23 +60,22 @@
     .seats[data-s='open'] i { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
     .seats[data-s='full'] i { background: var(--warn); }
     .seats b { color: var(--ink); font-weight: 600; }
-    .go.full .go-gh { background: var(--surface); color: var(--ink); border: 1px solid var(--line-2); }
+    .go.full .go-gh { background: var(--tone); color: var(--ink); }
     .seats + .wait { margin-top: 12px; }
     .wait[hidden] { display: none; }
     .go { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 30px; max-width: 440px; }
     .go a { height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0 20px; border-radius: 11px; font: 500 15px var(--sans); text-decoration: none; }
     .go a svg { width: 18px; height: 18px; }
     .go .go-gh { flex: 1; background: var(--ink); color: var(--bg); }
-    .go .go-open { border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-family: var(--mono); font-size: 14px; }
+    .go .go-open { background: var(--tone); color: var(--ink); }
+    .go .go-open:hover { background: var(--tone-2); }
     .go + .wait-note { margin-top: 22px; }
     .go + .wait-note + .wait { margin-top: 8px; }
-    .soon { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line-2); font: 11px var(--mono); color: var(--muted); letter-spacing: 0; text-transform: none; vertical-align: 1px; }
-    .soon.live { border-color: color-mix(in srgb, #18794e 40%, var(--line-2)); color: #18794e; }
-    .today { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 28px; }
-    .today div { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
-    .today div > b { display: block; font-size: 15px; letter-spacing: -0.01em; }
-    .today p { margin-top: 6px; color: var(--muted); font-size: 14px; line-height: 1.55; }
-    @media (max-width: 860px) { .today { grid-template-columns: 1fr; } }
+    /* what works today: a plain list in three columns on one field of tone, not six boxes */
+    .today { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px 48px; margin-top: 28px; padding: 40px; border-radius: 18px; background: var(--tone); }
+    .today div > b { display: block; font-size: 19px; letter-spacing: -0.01em; }
+    .today p { margin-top: 8px; color: var(--ink-2); font-size: 16px; line-height: 1.55; }
+    @media (max-width: 860px) { .today { grid-template-columns: 1fr; padding: 28px 22px; gap: 24px; } }
     @media (max-width: 560px) { .go a { flex: 1 1 100%; } }
     .wait-note a { color: var(--accent); }
     .free-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 26px; font-size: 14px; color: var(--muted); }
@@ -88,7 +85,7 @@
     .lid { padding: 18px; }
     .lid-top { display: flex; align-items: center; gap: 12px; padding: 2px 4px 14px; border-bottom: 1px solid var(--line); }
     .lid-top b { font-size: 14px; font-weight: 600; }
-    .lid-clock { margin-left: auto; font: 500 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .lid-clock { margin-left: auto; font: 500 13px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; }
     .switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; font-size: 13.5px; color: var(--ink-2); background: none; border: 0; padding: 0; }
     .switch .track { position: relative; width: 38px; height: 22px; border-radius: 999px; background: var(--line-2); transition: background .2s; }
     .switch .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: translate .2s cubic-bezier(.2,.8,.2,1); }
@@ -103,7 +100,7 @@
     .task { position: relative; overflow: hidden; display: grid; grid-template-columns: 14px minmax(0,1fr); gap: 4px 10px; align-items: center; padding: 9px 11px; margin-top: 7px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
     .task:first-of-type { margin-top: 0; }
     .task .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .task .s { grid-column: 2; font: 11.5px var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task .s { grid-column: 2; font: 11.5px var(--sans); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .task .bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); transition: width .5s linear; }
     .dot { width: 10px; height: 10px; border-radius: 50%; justify-self: center; background: var(--faint); }
     .task[data-s='run'] .dot { width: 12px; height: 12px; background: none; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .9s linear infinite; }
@@ -119,16 +116,16 @@
     .fleet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
     .seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); }
     .seg button { height: 28px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--muted); font: 500 13px var(--sans); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+    .seg button[aria-pressed='true'] { background: var(--surface); color: var(--ink); }
     .add { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: 500 13.5px var(--sans); cursor: pointer; }
     .add:hover { border-color: var(--faint); }
     .add:disabled { opacity: .45; cursor: default; }
-    .fleet-sum { margin-left: auto; font: 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .fleet-sum { margin-left: auto; font: 13px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; }
     .fleet { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; padding: 16px; }
     .mach { padding: 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
     .mach.boot { animation: row-in .45s cubic-bezier(.2,.8,.2,1) both; }
     .mach-h { display: flex; align-items: center; gap: 8px; }
-    .mach-h b { font: 600 13.5px var(--mono); }
+    .mach-h b { font: 600 13.5px var(--sans); }
     .mach-h .pill { margin-left: auto; }
     .mach-m { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
     .mach-logos { display: flex; gap: 6px; margin-top: 12px; }
@@ -141,26 +138,26 @@
     .provisioning .load i { background: var(--line-2); animation: boot-pulse 1s ease-in-out infinite; }
     @keyframes boot-pulse { 50% { opacity: .35; } }
     .feat3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; margin-top: 36px; }
-    .feat3 h3 { font-size: 17px; letter-spacing: -0.02em; }
-    .feat3 p { margin-top: 8px; font-size: 15px; color: var(--muted); }
+    .feat3 h3 { font-size: 19px; letter-spacing: -0.02em; }
+    .feat3 p { margin-top: 8px; font-size: 16px; color: var(--ink-2); }
 
     /* ---------- persistent queues ---------- */
     .night { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: start; }
     .tl { padding: 20px; }
     .tl-head { display: flex; align-items: baseline; gap: 12px; }
-    .tl-time { font: 700 44px/1 var(--mono); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+    .tl-time { font: 700 44px/1 var(--sans); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
     .tl-where { font-size: 13.5px; color: var(--muted); }
     .scrub { position: relative; margin: 26px 0 8px; }
     .scrub input { width: 100%; accent-color: var(--accent); }
-    .ticks { display: flex; justify-content: space-between; font: 11.5px var(--mono); color: var(--faint); }
+    .ticks { display: flex; justify-content: space-between; font: 12px var(--sans); font-variant-numeric: tabular-nums; color: var(--muted); }
     .events { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 7px; }
     .events li { display: grid; grid-template-columns: 50px 18px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-size: 13.5px; transition: opacity .25s; }
     .events li.future { opacity: .32; }
-    .events li .tm { font: 12px var(--mono); color: var(--muted); }
+    .events li .tm { font: 12px var(--sans); color: var(--muted); }
     .events li .ic { font-size: 13px; text-align: center; }
     .events li .tx { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .morning-shot { position: sticky; top: 90px; }
-    .morning-shot .cap { margin-top: 12px; font-size: 13px; color: var(--muted); }
+    .morning-shot .cap { margin-top: 14px; font-size: 15px; color: var(--ink-2); }
 
     /* ---------- team dashboard ---------- */
     .dash { overflow: hidden; }
@@ -182,12 +179,12 @@
     .chart h5, .feed h5 { margin: 0 0 14px; font-size: 13px; font-weight: 500; color: var(--muted); }
     .bars { position: relative; display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; align-items: end; height: 170px; border-bottom: 1px solid var(--line-2); }
     .bars .gl { position: absolute; z-index: 0; left: 0; right: 0; border-top: 1px dashed var(--line); pointer-events: none; }
-    .bars .gl span { position: absolute; right: 0; top: -16px; font: 10.5px var(--mono); color: var(--faint); }
+    .bars .gl span { position: absolute; right: 0; top: -16px; font: 10.5px var(--sans); color: var(--muted); }
     .bcol { position: relative; z-index: 1; height: 100%; display: flex; align-items: flex-end; cursor: default; }
     .bcol i { display: block; width: 100%; max-width: 22px; margin: 0 auto; border-radius: 4px 4px 0 0; background: var(--accent); transition: height .45s cubic-bezier(.2,.8,.2,1), opacity .15s; }
     .bars:hover .bcol i { opacity: .45; }
     .bars .bcol:hover i { opacity: 1; }
-    .xl { display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; margin-top: 6px; font: 10.5px var(--mono); color: var(--faint); text-align: center; }
+    .xl { display: grid; grid-template-columns: repeat(14, 1fr); gap: 2px; margin-top: 6px; font: 10.5px var(--sans); color: var(--muted); text-align: center; }
     .tip { position: absolute; z-index: 3; pointer-events: none; padding: 7px 10px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 12.5px; white-space: nowrap; translate: -50% -100%; opacity: 0; transition: opacity .12s; }
     .tip.on { opacity: 1; }
     .tip b { font-variant-numeric: tabular-nums; }
@@ -205,10 +202,10 @@
     .dv { overflow: hidden; }
     .dv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
     .dv-bar b { font-size: 14px; }
-    .dv-sync { font: 12.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+    .dv-sync { font: 12.5px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; }
     .dv-bar .add { margin-left: auto; }
     .dv-pair { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px 24px; align-items: center; padding: 18px 16px; border-bottom: 1px solid var(--line); background: var(--bg-2); animation: row-in .45s cubic-bezier(.2,.8,.2,1) both; }
-    .dv-code { font: 700 30px/1 var(--mono); letter-spacing: .08em; padding: 14px 18px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-2); }
+    .dv-code { font: 700 30px/1 var(--sans); letter-spacing: .08em; padding: 14px 18px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-2); }
     .dv-pair p { margin: 0; font-size: 14px; color: var(--ink-2); }
     .dv-pair p .muted { font-size: 13px; }
     .dv-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; }
@@ -220,7 +217,7 @@
     .dv-scroll { overflow-x: auto; }
     .dv-grid { min-width: 720px; }
     .dv-row { display: grid; grid-template-columns: minmax(190px, 1.5fr) minmax(130px, 1fr) repeat(3, minmax(92px, .8fr)) 96px; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; transition: opacity .3s, filter .3s; }
-    .dv-row.head { padding-top: 10px; padding-bottom: 10px; font: 500 12px var(--mono); color: var(--faint); }
+    .dv-row.head { padding-top: 10px; padding-bottom: 10px; font: 500 12px var(--sans); color: var(--muted); }
     .dv-row.new { animation: row-in .45s cubic-bezier(.2,.8,.2,1) both; }
     .dv-row.gone { opacity: .5; filter: grayscale(1); }
     .dv-name { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 2px 10px; align-items: center; }
@@ -228,7 +225,7 @@
     .dv-name .ic svg { width: 16px; height: 16px; }
     .dv-name b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dv-name small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .dv-hist { font: 12.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .dv-hist { font: 12.5px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .dv-hist b { color: var(--ink); font-weight: 600; }
     .dv-hist .bar { display: block; height: 3px; margin-top: 6px; border-radius: 2px; background: var(--line); overflow: hidden; }
     .dv-hist .bar i { display: block; height: 100%; background: var(--ok); transition: width .2s linear; }
@@ -240,37 +237,40 @@
     .dv-foot #dvNote { flex: 1 1 320px; min-height: 1.5em; color: var(--ink-2); }
     .dv-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
     .dv-legend span { display: inline-flex; align-items: center; gap: 6px; }
-    .hand { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 0; padding: 0; }
-    .hand li { list-style: none; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 4px 12px; align-items: start; padding: 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
-    .hand .ic { grid-row: span 2; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--line); color: var(--ink-2); }
-    .hand .ic svg { width: 16px; height: 16px; }
-    .hand .when { font: 12px var(--mono); color: var(--muted); }
-    .hand p { margin: 0; font-size: 14.5px; }
-    .hand-cap { margin-top: 12px; font-size: 13px; color: var(--muted); }
+    /* one task across three devices: a timeline read left to right, the device and time leading each step */
+    .hand { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin: 40px 0 0; padding: 0; }
+    .hand li { list-style: none; }
+    .hand .ic { display: inline-grid; vertical-align: -3px; margin-right: 8px; color: var(--accent); }
+    .hand .ic svg { width: 18px; height: 18px; }
+    .hand .when { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+    .hand p { margin: 8px 0 0; font-size: 16px; color: var(--ink-2); }
+    .hand-cap { margin-top: 20px; font-size: 15px; color: var(--ink-2); }
 
     /* ---------- free vs cloud ---------- */
     .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .plan { padding: 28px; }
-    .plan.cloud { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); }
+    .card.plan { padding: 32px; border: 0; background: var(--tone); }
+    .card.plan.cloud { background: var(--accent-soft); }
     .plan h3 { display: flex; align-items: center; gap: 10px; font-size: 22px; }
     .price { margin-top: 14px; font: 650 40px/1 var(--display); letter-spacing: -0.04em; }
     .price small { font: 400 15px var(--sans); color: var(--muted); letter-spacing: 0; }
-    .plan > p { margin-top: 10px; color: var(--muted); font-size: 15px; }
-    .plan ul { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 10px; font-size: 15px; }
-    .plan li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; }
-    .plan li::before { content: '✓'; color: var(--ok); font-weight: 600; }
-    .plan.cloud li::before { content: '+'; color: var(--accent); }
+    .plan > p { margin-top: 10px; color: var(--ink-2); font-size: 16px; }
+    .plan ul { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 10px; font-size: 16px; }
+    .plan li { position: relative; padding-left: 28px; }
+    /* a tick drawn in CSS (two sides of a rotated box), not a glyph */
+    .plan li::before { content: ''; position: absolute; left: 2px; top: 8px; width: 10px; height: 5px; border: solid var(--ok); border-width: 0 0 2px 2px; rotate: -45deg; }
+    .plan.cloud li::before { content: '+'; top: 0; width: auto; height: auto; border: 0; rotate: none; color: var(--accent); font-weight: 600; }
     .plan .foot-cta { margin-top: 26px; }
-    .draft { margin-top: 14px; font-size: 12.5px; color: var(--faint); }
+    .draft { margin-top: 16px; font-size: 14px; color: var(--ink-2); }
 
     /* ---------- faq ---------- */
-    .qa { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; }
-    .qa details { border-top: 1px solid var(--line); padding: 18px 0; }
-    .qa summary { cursor: pointer; font-weight: 600; font-size: 16px; list-style: none; }
+    .qa { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: start; }
+    .qa details { padding: 18px 22px; border-radius: 12px; background: var(--tone); }
+    .qa details:hover, .qa details[open] { background: var(--tone-2); }
+    .qa summary { cursor: pointer; font-weight: 600; font-size: 17px; list-style: none; }
     .qa summary::-webkit-details-marker { display: none; }
-    .qa summary::after { content: '+'; float: right; color: var(--faint); font-weight: 400; }
+    .qa summary::after { content: '+'; float: right; color: var(--muted); font-weight: 400; }
     .qa details[open] summary::after { content: '–'; }
-    .qa details p { margin-top: 10px; color: var(--ink-2); font-size: 15px; }
+    .qa details p { margin-top: 10px; color: var(--ink); font-size: 16px; }
 
     @media (max-width: 960px) {
       .c-grid, .night, .split, .qa, .dash-body, .hand { grid-template-columns: 1fr; }
@@ -298,7 +298,7 @@
       .dv-name { grid-column: 1 / 3; }
       .dv-act { grid-column: 3; grid-row: 1; }
       .dv-hist { grid-column: 1 / -1; }
-      .dv-cell::before { content: attr(data-h); display: block; margin-bottom: 4px; font: 11px var(--mono); color: var(--faint); }
+      .dv-cell::before { content: attr(data-h); display: block; margin-bottom: 4px; font: 12px var(--sans); color: var(--muted); }
       .gh { display: none; }
     }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
@@ -316,7 +316,7 @@
 <body>
   <header class="nav">
     <div class="wrap nav-in">
-      <a class="brand" href="./" aria-label="wisp home"><span class="mark" aria-hidden="true"></span>wisp <span class="pill acc" style="margin-left:2px">Cloud</span></a>
+      <a class="brand" href="./" aria-label="wisp home"><span class="mark" aria-hidden="true"></span>wisp <span class="brand-sub">Cloud</span></a>
       <nav class="links" aria-label="Cloud">
         <a href="#machines">Machines</a>
         <a href="#queues">Queues</a>
@@ -337,10 +337,11 @@
     <!-- ───────── hero: close the lid ───────── -->
     <section class="c-hero">
       <div class="wrap c-grid">
-        <div>
-          <p class="kicker"><span class="dot"></span>wisp Cloud · free early preview</p>
+        <div class="hero-head">
           <h1>Close the laptop. <span class="soft">The agents keep going.</span></h1>
-          <p class="lede">Your own wisp, on a server. Sign in with GitHub, give it a task, close the laptop: Claude Code, Codex and the rest keep working, and the report waits on your phone. Same app from the browser, your desktop or the phone. The wisp you run locally doesn't change and stays free.</p>
+          <p class="lede">wisp Cloud is a free early preview: your own wisp, on a server. Sign in with GitHub, give it a task, close the laptop: Claude Code, Codex and the rest keep working, and the report waits on your phone. Same app from the browser, your desktop or the phone. The wisp you run locally doesn't change and stays free.</p>
+        </div>
+        <div>
           <div class="go" id="go">
             <a class="go-gh" href="https://grid.trywisp.dev/auth/github/start" data-cloud-cta="hero-github"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Continue with GitHub</a>
             <a class="go-open" href="https://grid.trywisp.dev" data-cloud-cta="hero-open">grid.trywisp.dev</a>
@@ -359,7 +360,7 @@
           </div>
         </div>
 
-        <div class="card lid" id="lid">
+        <div class="card lid" id="lid" data-ui>
           <div class="lid-top">
             <button class="switch" id="lidSwitch" aria-pressed="false" type="button"><span class="track"></span><span id="lidLabel">Close the laptop</span></button>
             <span class="lid-clock" id="lidClock">18:40</span>
@@ -396,8 +397,7 @@
     <!-- ───────── what works today ───────── -->
     <section class="sec wrap" id="today">
       <div class="sec-head">
-        <p class="eyebrow">In the preview today</p>
-        <h2>Your own wisp on a server. Today.</h2>
+        <h2>In the preview today: your own wisp on a server.</h2>
         <p>What works right now at grid.trywisp.dev. The sections after it are where Cloud is going.</p>
       </div>
       <div class="today">
@@ -412,12 +412,11 @@
 
     <section class="sec wrap" id="machines">
       <div class="sec-head">
-        <p class="eyebrow">01 · Managed machines <span class="soon">coming</span></p>
-        <h2>Machines, without the SSH.</h2>
-        <p>wisp already runs agents on your own boxes over SSH. Cloud machines show up in the same <b>Run on</b> menu, except we boot them, keep the harness CLIs current and take them down when the queue is empty. Every task still gets its own worktree, diffs, rollback and Ship it.</p>
+        <h2>Managed machines, without the SSH.</h2>
+        <p><span class="state">Coming.</span> wisp already runs agents on your own boxes over SSH. Cloud machines show up in the same <b>Run on</b> menu, except we boot them, keep the harness CLIs current and take them down when the queue is empty. Every task still gets its own worktree, diffs, rollback and Ship it.</p>
       </div>
 
-      <div class="card">
+      <div class="card" data-ui>
         <div class="fleet-bar">
           <div class="seg" role="group" aria-label="Machine size" id="sizeSeg">
             <button type="button" data-size="s" aria-pressed="false">2 vCPU</button>
@@ -440,13 +439,12 @@
     <!-- ───────── persistent queues ───────── -->
     <section class="sec wrap" id="queues">
       <div class="sec-head">
-        <p class="eyebrow">02 · Persistent queues</p>
         <h2>A queue that works the night shift.</h2>
         <p>Your queue lives in the cloud, not in a process on your laptop. Tasks you queue from your phone, recipes on a schedule and CI-failure triggers keep landing and running while you're away. Drag through one night.</p>
       </div>
 
       <div class="night">
-        <div class="card tl">
+        <div class="card tl" data-ui>
           <div class="tl-head"><span class="tl-time" id="tlTime">18:00</span><span class="tl-where" id="tlWhere">Laptop closed. 0 done, 0 running.</span></div>
           <div class="scrub">
             <label class="sr" for="scrub">Time of night</label>
@@ -456,7 +454,7 @@
           <ul class="events" id="events"></ul>
         </div>
         <div class="morning-shot">
-          <div class="window">
+          <div class="window" data-ui>
             <div class="win-bar"><div class="lights"><i></i><i></i><i></i></div><span class="win-title">wisp · 09:00</span></div>
             <picture>
               <source srcset="assets/shots/dark-app.webp" media="(prefers-color-scheme: dark)" />
@@ -471,12 +469,11 @@
     <!-- ───────── team dashboard ───────── -->
     <section class="sec wrap" id="team">
       <div class="sec-head">
-        <p class="eyebrow">03 · Team dashboards <span class="soon">coming</span></p>
         <h2>One view of what every agent shipped.</h2>
-        <p>See tasks, merged PRs, success rate and spend for the whole team or one person, across every harness. Share recipes and Auto's routing data, so the team's agents learn from each other's merges.</p>
+        <p><span class="state">Coming.</span> See tasks, merged PRs, success rate and spend for the whole team or one person, across every harness. Share recipes and Auto's routing data, so the team's agents learn from each other's merges.</p>
       </div>
 
-      <div class="card dash">
+      <div class="card dash" data-ui>
         <div class="dash-bar">
           <b>acme / platform</b><span class="pill">last 14 days</span>
           <span class="grow"></span>
@@ -503,12 +500,11 @@
     <!-- ───────── every device ───────── -->
     <section class="sec wrap" id="devices">
       <div class="sec-head">
-        <p class="eyebrow">04 · Every device <span class="soon live">partly live</span></p>
         <h2>Sign in once. Your wisp follows you.</h2>
-        <p>Now that wisp runs on your phone too, one wisp account ties your devices together: the same tasks, history, settings and spells on the laptop, the desktop and wisp for Android. Each device keeps its own SSH key for your machines, so adding one is a code and a tap, and losing one is a click.</p>
+        <p><span class="state">Partly live.</span> Now that wisp runs on your phone too, one wisp account ties your devices together: the same tasks, history, settings and spells on the laptop, the desktop and wisp for Android. Each device keeps its own SSH key for your machines, so adding one is a code and a tap, and losing one is a click.</p>
       </div>
 
-      <div class="card dv" id="dv">
+      <div class="card dv" id="dv" data-ui>
         <div class="dv-bar">
           <span class="av">YO</span><b>you@acme.dev</b><span class="pill ok">signed in</span>
           <span class="dv-sync" id="dvSync"></span>
@@ -547,8 +543,7 @@
     <!-- ───────── free vs cloud ───────── -->
     <section class="sec wrap" id="pricing">
       <div class="sec-head">
-        <p class="eyebrow">05 · Free vs Cloud</p>
-        <h2>The CLI stays free. Cloud is for when you're not there.</h2>
+        <h2>The CLI stays free. Cloud keeps it running.</h2>
         <p>Everything wisp does on your computer today stays MIT-licensed and free, with no account. Cloud only adds what needs a server: machines that keep running, queues that outlive your laptop, one account across your devices, and a shared view for teams.</p>
       </div>
       <div class="split">
@@ -589,7 +584,7 @@
 
     <!-- ───────── faq ───────── -->
     <section class="sec wrap" id="faq">
-      <div class="sec-head"><p class="eyebrow">FAQ</p><h2>Questions</h2></div>
+      <div class="sec-head"><h2>Questions</h2></div>
       <div class="qa">
         <details open><summary>Will the local CLI ever need an account?</summary><p>No. <code>npx wisp-agents</code> keeps working with no sign-in, no telemetry you haven't turned on, and no feature moved behind Cloud. Cloud is opt-in from Settings, like every integration.</p></details>
         <details><summary>How many people can use the preview?</summary><p>A few at a time: it runs on one small server, so it takes a set number of accounts and the page above says how many are left. When they're taken, leave your email and you get the next free seat. Already signed up? Your account keeps working.</p></details>
@@ -604,9 +599,8 @@
       </div>
     </section>
 
-    <section class="final" style="margin-top:120px">
+    <section class="final" style="margin-top:120px" data-clock="03:12">
       <div class="wrap">
-        <p class="final-clock" aria-hidden="true">03:12</p>
         <h2>Let it run while you sleep.</h2>
         <div class="cta">
           <a class="cmd" href="https://grid.trywisp.dev" style="text-decoration:none;padding:0 22px" data-cloud-cta="final"><span>Sign in to wisp Cloud</span></a>
@@ -831,13 +825,13 @@
     // t = minutes since 18:00. Each event: when it happens, icon, text, where, and the badge it ends with.
     const EVENTS = [
       { t: 10, ic: '⏾', tx: 'Laptop closed', tag: '' },
-      { t: 35, ic: '✦', tx: '“Fix the flaky auth test” · queued from your phone', tag: 'cloud-1', done: 110 },
+      { t: 35, ic: '+', tx: '“Fix the flaky auth test” · queued from your phone', tag: 'cloud-1', done: 110 },
       { t: 120, ic: '↻', tx: 'Schedule · nightly dependency bumps', tag: 'cloud-2', done: 210 },
-      { t: 260, ic: '✕', tx: 'CI failed on main → fix-ci recipe started', tag: 'cloud-1', done: 330 },
+      { t: 260, ic: '×', tx: 'CI failed on main → fix-ci recipe started', tag: 'cloud-1', done: 330 },
       { t: 360, ic: '#', tx: 'Issue labelled “agent” → plan written', tag: 'cloud-3', done: 400 },
       { t: 450, ic: '?', tx: 'Migration agent asks: keep v1 webhooks?', tag: 'needs you', ask: true },
-      { t: 560, ic: '✓', tx: 'Release recipe 0.18.1 drafted', tag: 'cloud-2', done: 620 },
-      { t: 880, ic: '☕', tx: 'You open wisp', tag: '' },
+      { t: 560, ic: '→', tx: 'Release recipe 0.18.1 drafted', tag: 'cloud-2', done: 620 },
+      { t: 880, ic: '◐', tx: 'You open wisp', tag: '' },
     ];
     const evHost = $('#events');
     const fmt = (t) => { const m = (18 * 60 + t) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };

@@ -173,7 +173,7 @@ if (desk) {
     const el = document.createElement('div');
     el.className = `q-row new${mine ? ' mine' : ''}`;
     el.dataset.s = 'working';
-    const logo = agent === 'auto' ? '<span class="q-logo auto">✦</span>' : `<img class="q-logo" src="${LOGO[agent]}" alt="" width="16" height="16" />`;
+    const logo = agent === 'auto' ? '<svg class="q-logo auto" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" fill="currentColor"/></svg>' : `<span class="q-logo" style="background-image: url(${LOGO[agent]})"></span>`;
     el.innerHTML = `<span class="q-dot"></span><span class="q-main"><span class="q-title">${esc(title)}</span><span class="q-sub">Starting up</span></span>
       <span class="q-side"><span class="pill working"></span>${logo}<span class="q-proj"><i class="${PROJ[project]}"></i>${project}</span><span class="q-time">now</span></span>`;
     let min = 0;
@@ -414,6 +414,7 @@ if (small()) {
     const pic = scenes[i]?.cloneNode(true);
     if (!pic) return;
     pic.className = 'ch-shot';
+    pic.dataset.ui = '';
     $('img', pic).loading = 'lazy';
     li.append(pic);
   });
