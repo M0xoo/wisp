@@ -444,6 +444,7 @@ export async function fetchFull(id) {
   const fresh = !S.full.has(id);
   S.full.set(id, s);
   renderBody(id, { fresh });
+  if (fresh) backToPlace(id); // it was loading when it opened, or failed and came back
   if (s.unread && s.state !== 'running' && document.hasFocus()) api(`/sessions/${id}`, { method: 'PATCH', body: { unread: false } }).catch(() => {});
 }
 

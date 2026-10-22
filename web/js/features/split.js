@@ -22,7 +22,7 @@ import { load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
 import { collapse, expand, groups, headPills, renderFeed, setFocus } from './feed.js';
-import { barCover, stage } from './scroll.js';
+import { barCover, scrollByPx, stage, topInset } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 
@@ -136,28 +136,77 @@ function leave() {
 // Where each task was scrolled to when it closed, so going back to it lands on the same spot. Held
 // by the turn at the top of the pane (and how far into it), so a turn landing meanwhile or older
 // ones folding away don't shift what was being read. At the end: back to the end, new turns and all.
-const places = new Map();
+// Kept in localStorage (the most recent MAX_PLACES), and the open task's is written as the page
+// goes away, so a reload (wisp updating, ⌘R) opens it where it was.
+const MAX_PLACES = 100;
+const places = new Map(Object.entries(load('wisp.places', {})));
+const savePlaces = () => {
+  while (places.size > MAX_PLACES) places.delete(places.keys().next().value);
+  save('wisp.places', Object.fromEntries(places));
+};
+// The tasks open when the page loaded: in the feed, only the one being read as it went away goes
+// back to its place, once (an Open there scrolls to the card's top).
+const reloaded = new Set(S.open);
 
 export function keepPlace(id) {
   const n = S.nodes.get(id);
   const body = n?.body;
   if (!isSplit() || !body?.isConnected || !body.querySelector('.turns')) return;
-  if (body.scrollTop < 1) return places.delete(id);
+  places.delete(id); // the newest go last, so the oldest go first
+  if (body.scrollTop < 1) return savePlaces();
   const end = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
   const top = body.getBoundingClientRect().top + barCover(body);
   const turn = $$('.turn', body).find((t) => t.getBoundingClientRect().bottom > top);
   places.set(id, { end, turn: turn?.dataset.turn, dy: turn ? turn.getBoundingClientRect().top - top : 0, top: body.scrollTop, showAll: n.showAll });
+  savePlaces();
 }
 
+// The feed has one scroller for every card: the place kept is the open card's under the top bar.
+function keepFeedPlace() {
+  const top = topInset();
+  for (const id of S.open) {
+    const n = S.nodes.get(id);
+    const r = n?.card.isConnected && n.body?.querySelector('.turns') && n.card.getBoundingClientRect();
+    if (!r || r.top > top || r.bottom <= top) continue;
+    const turn = $$('.turn', n.body).find((t) => t.getBoundingClientRect().bottom > top);
+    if (!turn) return;
+    places.delete(id);
+    places.set(id, { feed: true, end: false, turn: turn.dataset.turn, dy: turn.getBoundingClientRect().top - top, showAll: n.showAll });
+    return savePlaces();
+  }
+}
+
+const leaving = () => {
+  const id = splitOpen();
+  if (id) keepPlace(id);
+  else if (!isSplit()) keepFeedPlace();
+};
+addEventListener('pagehide', leaving);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) leaving();
+});
+
 // Once the task's body has rendered on opening it. Used once: a later re-open keeps its own place.
-export function backToPlace(id) {
+export function backToPlace(id, again = true) {
   const p = places.get(id);
   const n = S.nodes.get(id);
   const body = n?.body;
-  if (!p || !isSplit() || splitOpen() !== id || !body?.querySelector('.turns')) return;
+  if (!p || !body?.querySelector('.turns') || (!isSplit() && !(p.feed && reloaded.has(id)))) return;
+  // On a reload the open tasks render before their cards are in the list.
+  if (!n.card.isConnected) return again && requestAnimationFrame(() => backToPlace(id, false));
+  reloaded.delete(id);
+  if (isSplit() && splitOpen() !== id) return;
   places.delete(id);
+  savePlaces();
   // It was reading turns behind "Show earlier": show them again.
   if (p.showAll && !n.showAll) (n.showAll = true), renderBody(id, { fresh: false });
+  if (!isSplit()) {
+    const turn = p.turn && $(`.turn[data-turn="${p.turn}"]`, body);
+    // Measured without the body's entry animation (it rises 6px into place).
+    const rise = new DOMMatrixReadOnly(getComputedStyle(body).transform).m42 || 0;
+    if (turn) scrollByPx(turn.getBoundingClientRect().top - rise - topInset() - p.dy);
+    return;
+  }
   if (p.end) return (body.scrollTop = body.scrollHeight);
   const turn = p.turn && $(`.turn[data-turn="${p.turn}"]`, body);
   if (!turn) return (body.scrollTop = p.top);

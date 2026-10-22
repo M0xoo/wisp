@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Each task keeps its scroll position across reloads.** Split view already took you back to where you were in a task when you opened it again; that place is now saved in the browser, and the open task's is written as the page goes away, so a reload (⌘R, wisp updating, the phone dropping the page) opens it on the same spot. In the feed, the open task you were reading comes back where it was too.
+
 ## [0.31.0] - 2026-10-23
 
 ### Added
