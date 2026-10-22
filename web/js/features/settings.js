@@ -98,7 +98,7 @@ export function openSettings(opts) {
             ${row('Open files in', 'File links in cards and diffs', `<select name="editor">${[['vscode', 'VS Code'], ['cursor', 'Cursor'], ['windsurf', 'Windsurf'], ['zed', 'Zed'], ['idea', 'JetBrains'], ['none', 'Copy path']]
               .map(([v, l]) => `<option value="${v}" ${d.editor === v || (!d.editor && v === 'vscode') ? 'selected' : ''}>${l}</option>`)
               .join('')}</select>`)}
-            ${(S.config.terminals || []).length > 1 && !MOBILE ? row('Take over in', 'Where you carry on a task yourself: a terminal inside wisp, or a terminal app', `<select name="terminal">${S.config.terminals.map((t) => `<option value="${t.id}" ${(d.terminal || 'auto') === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}</select>`) : ''}
+            ${(S.config.terminals || []).length > 1 && !MOBILE ? row('Take over in', 'Where you carry on a task yourself: a terminal inside wisp, or a terminal app', `<select name="terminal">${S.config.terminals.map((t) => `<option value="${t.id}" ${(d.terminal || S.config.defaultTerminal || 'auto') === t.id ? 'selected' : ''}>${t.label}</option>`).join('')}</select>`) : ''}
             <div class="sx-row custom-term" ${d.terminal === 'custom' ? '' : 'hidden'}><div class="sx-text"><b>Terminal command</b><small><code>{cwd}</code> and <code>{cmd}</code> are filled in</small></div>
               <div class="sx-ctl"><input class="input mono" name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></div></div>
           </div>

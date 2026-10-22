@@ -7,7 +7,7 @@ import { adapters } from '../adapters/index.js';
 import { KINDS } from '../preferences.js';
 import { normalizePreset } from '../subagents.js';
 import { envDisabled, feedbackAvailable } from '../telemetry.js';
-import { inWisp, TERMINALS } from '../terminal.js';
+import { defaultTerminal, inWisp, TERMINALS } from '../terminal.js';
 import { normalizeWebhooks } from '../services/webhooks.js';
 import { cloneRepo, gh, git, parseRepo } from '../git.js';
 import { checkout, cloneRoot, discoverRepos, originAt } from '../services/places.js';
@@ -36,7 +36,7 @@ export function register(r, app) {
     spellsSafe: app.spells.safe,
   });
   r.route('GET', '/config', (c) =>
-    c.send(200, { ...view(), home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: terminals(), takeoverInline: inWisp(store.config.defaults.terminal || 'auto'), grid: gridInfo(app), telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
+    c.send(200, { ...view(), home: os.homedir(), cwd: process.cwd(), cloneDir: cloneRoot(store.config), terminals: terminals(), defaultTerminal: defaultTerminal(), takeoverInline: inWisp(store.config.defaults.terminal || defaultTerminal()), grid: gridInfo(app), telemetry: { available: !envDisabled(), enabled: telemetry.enabled }, feedback: feedbackAvailable() }),
   );
   r.route('PATCH', '/config', async (c) => {
     const body = await c.body();

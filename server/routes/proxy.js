@@ -5,7 +5,7 @@ import os from 'node:os';
 import { btwQuestion } from '../btw.js';
 import { pipeFrom } from '../http/respond.js';
 import { splitId, qualify } from '../machines.js';
-import { inWisp, openInTerminal, shq } from '../terminal.js';
+import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { MAX_WAIT_S } from './sessions.js';
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
@@ -32,7 +32,7 @@ export function register(r, app) {
     if (action === 'takeover') {
       const d = store.config.defaults;
       const body = m === 'POST' ? await c.body() : {};
-      if (m === 'POST' && (body.inline === true || inWisp(d.terminal || 'auto') || machines.get(mid)?.kind === 'grid')) {
+      if (m === 'POST' && (body.inline === true || inWisp(d.terminal || defaultTerminal()) || machines.get(mid)?.kind === 'grid')) {
         const out = await machines.json(mid, 'POST', `/sessions/${at.id}/takeover`, { inline: true, cols: body.cols, rows: body.rows });
         // An older wisp over there opened its own terminal app instead.
         if (!out.inline) return c.send(409, { error: `Update wisp on ${machines.get(mid)?.name || mid} to take over in the page.` });
@@ -45,8 +45,8 @@ export function register(r, app) {
       if (m === 'POST') {
         const s = await machines.json(mid, 'GET', `/sessions/${at.id}`);
         if (s.state === 'running' || s.state === 'waiting') await machines.json(mid, 'POST', `/sessions/${at.id}/stop`, {});
-        openInTerminal({ cwd: os.homedir(), argv, terminal: d.terminal || 'auto', custom: d.terminalCommand });
-        telemetry.track('takeover', { agent: s.agent, terminal: d.terminal || 'auto', machine: true });
+        openInTerminal({ cwd: os.homedir(), argv, terminal: d.terminal || defaultTerminal(), custom: d.terminalCommand });
+        telemetry.track('takeover', { agent: s.agent, terminal: d.terminal || defaultTerminal(), machine: true });
       }
       return c.send(200, { command: argv.map(shq).join(' ') });
     }

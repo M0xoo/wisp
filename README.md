@@ -47,7 +47,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🔎 **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
 | ✨ **Auto** | The default harness: wisp picks the harness, model and thinking level per task from what worked before, and learns from merges, 👍 / 👎 and follow-ups. See [Auto](#auto). |
 | 🤖 **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, or GitHub Copilot CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
-| 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
+| 🖥️ **Take over** | Resumes the harness's own session (`claude --resume <id>`, `codex resume <id>`, …) in the project folder, in a terminal inside wisp by default (macOS and Linux). Settings → General → **Take over in** can open it in a terminal app instead: Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | 🧠 **Learns as you go** | After a session goes quiet, a background retro records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later runs get them in their prompt. See [Learning](#learning). |
 | 🗂️ **One task, several folders** | ⌘-click a second project in the launcher (or its **+**) and one agent works in both, e.g. the API and the web app that uses it. Each git repo gets its own worktree, and **Ship it** opens a PR in each. |
@@ -201,7 +201,7 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 | `O` / `↵` | Open or collapse the focused session |
 | `/` | Reply to the focused session |
 | `1`–`9` | Pick an option in a pending question |
-| `T` | Take over in your terminal |
+| `T` | Take over (in wisp, or the terminal app from Settings) |
 | `S` | Ship it: commit, push and open a PR (worktree tasks) |
 | `⇧ R` | Rerun with another harness, model or thinking level |
 | `E` | Mark done and jump to the next session that needs you (it opens if you were reading this one) |

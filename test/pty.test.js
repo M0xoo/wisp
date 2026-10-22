@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import { installFakeBins, makeRepo, tmp } from './helpers.js';
 import { ptyCommand, python, Terms } from '../server/pty.js';
-import { inWisp, terminalsFor } from '../server/terminal.js';
+import { defaultTerminal, inWisp, terminalsFor } from '../server/terminal.js';
 import { keyBytes, Screen } from '../web/js/term-emu.js';
 
 const win = process.platform === 'win32';
@@ -29,6 +29,13 @@ test('inWisp: asked for, or auto where there is no desktop (a wisp Grid, a headl
   assert.equal(inWisp('iterm', { platform: 'linux', env: {} }), false);
   assert.equal(inWisp('wisp', { platform: 'win32', env: {} }), false, 'no pty on Windows');
   assert.ok(terminalsFor('linux').some((t) => t.id === 'wisp') && !terminalsFor('win32').some((t) => t.id === 'wisp'));
+});
+
+test('defaultTerminal: in wisp unless the computer has no pty (Windows)', () => {
+  assert.equal(defaultTerminal('darwin'), 'wisp');
+  assert.equal(defaultTerminal('linux'), 'wisp');
+  assert.equal(defaultTerminal('win32'), 'auto');
+  assert.equal(inWisp(defaultTerminal('darwin'), { platform: 'darwin', env: {} }), true);
 });
 
 test('ptyCommand: the Python helper when there is one, else script(1) at a fixed size', () => {
