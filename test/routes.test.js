@@ -97,6 +97,24 @@ test('Full auto is the default mode; a saved Edits switches once, Plan sticks', 
   assert.equal(new Store(home('plan')).config.defaults.mode, 'plan');
 });
 
+test('no layout picked: the page chooses (split on big screens); a saved feed resets once, a pick after sticks', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { Store } = await import('../server/store.js');
+  assert.equal(new Store(tmp('view-fresh')).config.defaults.view, undefined);
+  const home = (view) => {
+    const h = tmp(`view-${view}`);
+    fs.writeFileSync(path.join(h, 'config.json'), JSON.stringify({ autoIntroduced: true, fullAutoIntroduced: true, defaults: { agent: 'claude', mode: 'auto', view } }));
+    return h;
+  };
+  const feed = new Store(home('feed'));
+  assert.equal(feed.config.defaults.view, undefined);
+  feed.config.defaults.view = 'feed';
+  feed.saveConfig();
+  assert.equal(new Store(feed.home).config.defaults.view, 'feed', 'picked after the switch: kept');
+  assert.equal(new Store(home('split')).config.defaults.view, 'split');
+});
+
 test('a scratch launch runs in its own empty folder, without a project or worktree', async () => {
   // A project that contains the scratch folder (like one at ~) must not claim the task.
   const home = await fetch(`${base}/api/projects`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: process.env.WISP_HOME }) });

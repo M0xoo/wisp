@@ -55,7 +55,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 🚢 **Ship it** | One click commits, pushes and opens the PR. The card follows CI and reviews; **Merge** squash-merges and syncs your local main. |
 | 🤝 **Subagents** | Give the lead agent a team on other harnesses (e.g. Claude Code hands tests to Codex ×3). It delegates through a `delegate` tool; their edits land in its worktree. See [Subagents](#subagents). |
 | ⏪ **Checkpoints & rollback** | Every turn is snapshotted first. Restore to before any turn, revert a single file, or re-run a command block from the presentation. |
-| 🪟 **Split view** | Tasks in a sidebar, the open one beside it with room to read, and the prompt box as home. `\` (or the top bar button, ⌘K, Settings → General → Layout) switches between it and the one-column feed; `J` / `K` move through tasks with each one open. Drag the sidebar's edge to resize it. |
+| 🪟 **Split view** | Tasks in a sidebar, the open one beside it with room to read, and the prompt box as home. The default on screens 1280px and wider. On a wide window the task's details (harness, branch, its PR with Merge, the actions) sit in a column beside it that stays put as you scroll. `\` (or the sidebar's layout button, ⌘K, Settings → General → Layout) switches between it and the one-column feed; `J` / `K` move through tasks with each one open. Drag the sidebar's edge to resize it. |
 | ⚖️ **Compare** | Run one task on two harnesses side by side, and keep the better run. |
 | 🧙 **Spells** | Change wisp itself while it runs: ask for a floating button that opens your PRs, a panel with your tool stats, a block agents can use in their reports, a different prompt box, quick replies, buttons on cards, a new look. An agent writes it as a *spell*; you try it in the window and keep it. Share one as a file, and turn any of them off to put wisp back as it was. See [Spells](#spells). |
 | 🧾 **Recipes & triggers** | Saved prompts with `{params}` (`wisp run release 0.29.1`), run by hand, on a schedule, when CI fails, or when an issue is labelled. |
@@ -400,7 +400,7 @@ An agent (in an empty folder of its own) reads the spell reference, samples the 
 
 | | |
 |---|---|
-| Add | Buttons in the top bar, floating in a corner (grouped into a menu), in the prompt box and the follow-up box, on cards (on hover, in the head, in the menu), in split view's sidebar and task header, and in ⌘K. Chips and quick replies. Panels as a dialog, a drawer, above the feed or inside each card. |
+| Add | Buttons in the top bar, floating in a corner (grouped into a menu), in the prompt box and the follow-up box, on cards (on hover, in the head, in the menu), in split view's sidebar, task header and details column, and in ⌘K. Chips and quick replies. Panels as a dialog, a drawer, above the feed or inside each card. |
 | Change | Restyle or hide named parts (`card.title`, `launcher.compare`, `topbar.machines`, `sidebar`, `split.head`, …), reorder a card's head, set the prompt box's placeholder, rows and font, switch the layout (`view: split`), size and side of the split view's sidebar, recolour wisp (`--accent`, …). |
 | Agents | New block types for reports (`deploy`, …), rules added to agents' prompts (all or per project / harness), `/commands`, settings while the spell is on. |
 | On its own | Hooks: when a turn finishes or fails, a task starts or waits for you, reply once, mark done, archive, notify or POST to a URL. |

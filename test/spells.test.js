@@ -93,22 +93,35 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
   const ok = {
     ...base0,
     settings: { view: 'split' },
-    parts: { sidebar: { props: { width: 420, side: 'right', details: 'full' }, style: { background: '#fafafa' } }, 'split.main': { props: { readWidth: 1100 } }, 'split.home': { props: { greeting: 'Hi' } }, 'split.title': { style: { fontSize: '22px' } } },
-    ui: { hide: ['sidebar.new', 'topbar.view'] },
+    parts: {
+      sidebar: { props: { width: 420, side: 'right', details: 'full' }, style: { background: '#fafafa' } },
+      'split.main': { props: { readWidth: 1100 } },
+      'split.home': { props: { greeting: 'Hi' } },
+      'split.title': { style: { fontSize: '22px' } },
+      'split.details': { props: { width: 280 }, style: { fontSize: '12px' } },
+      'split.pr': { style: { borderRadius: '6px' } },
+    },
+    ui: { hide: ['sidebar.new', 'topbar.view', 'sidebar.foot', 'split.actions'] },
     buttons: [
       { slot: 'sidebar.top', icon: 'github', do: { open: 'https://github.com/pulls' } },
       { slot: 'split.head', label: 'PR', when: { hasPr: true }, do: { open: '{pr.url}' } },
+      { slot: 'split.details', icon: 'copy', label: 'Branch', do: { copy: '{branch}' } },
     ],
   };
   assert.deepEqual(problems(ok), []);
   assert.deepEqual(normalizeSpell(ok).spell.parts.sidebar.props, { width: 420, side: 'right', details: 'full' });
-  assert.ok(schema.SLOTS['sidebar.top'] && schema.CARD_SLOTS.has('split.head'));
+  assert.deepEqual(normalizeSpell(ok).spell.parts['split.details'].props, { width: 280 });
+  assert.ok(schema.SLOTS['sidebar.top'] && schema.CARD_SLOTS.has('split.head') && schema.CARD_SLOTS.has('split.details'));
   assert.ok(spellReference().settings.view.includes('split'));
-  const p = problems({ ...base0, settings: { view: 'grid' }, parts: { sidebar: { props: { width: 40, side: 'top' } }, 'split.main': { props: { readWidth: 5000 } } } });
+  const p = problems({ ...base0, settings: { view: 'grid' }, parts: { sidebar: { props: { width: 40, side: 'top' } }, 'split.main': { props: { readWidth: 5000 } }, 'split.details': { props: { width: 90, side: 'left' } } } });
   assert.ok(p.some((x) => /settings\.view/.test(x) && /feed \| split/.test(x)), p.join('\n'));
   assert.ok(p.some((x) => /width: px from 160 to 1600/.test(x)), p.join('\n'));
   assert.ok(p.some((x) => /readWidth: px from 160 to 1600/.test(x)), p.join('\n'));
   assert.ok(p.some((x) => /side: left \| right/.test(x)), p.join('\n'));
+  assert.ok(p.some((x) => /split\.details.*width: px from 160 to 1600/.test(x)), p.join('\n'));
+  assert.ok(p.some((x) => /split\.details.*side/.test(x)), p.join('\n'));
+  // the details slot takes buttons, not panels
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'split.details', panel: 'x' }] }).length);
   // int props keep their 1–40 range
   assert.ok(problems({ ...base0, parts: { 'card.sub': { props: { lines: 41 } } } }).some((x) => /lines: int from 1 to 40/.test(x)));
 });

@@ -76,9 +76,15 @@ export class Store {
         if (cfg.defaults.mode === 'edits') cfg.defaults.mode = 'auto';
         cfg.fullAutoIntroduced = true;
       }
+      // Split view became the default on big screens: a feed saved before then goes back to the
+      // default once (the page picks the layout from the window's width); a pick after that sticks.
+      if (!cfg.splitIntroduced) {
+        if (cfg.defaults.view === 'feed') delete cfg.defaults.view;
+        cfg.splitIntroduced = true;
+      }
       return cfg;
     } catch {
-      return { ...structuredClone(DEFAULT_CONFIG), autoIntroduced: true, fullAutoIntroduced: true };
+      return { ...structuredClone(DEFAULT_CONFIG), autoIntroduced: true, fullAutoIntroduced: true, splitIntroduced: true };
     }
   }
 

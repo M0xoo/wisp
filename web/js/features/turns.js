@@ -18,6 +18,7 @@ import { projectById } from './places.js';
 import { agentName, DEFAULT_MODE, effortLabel, modelBadge, MODES } from './runners.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
+import { paintSplit } from './split.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 import { paintCard } from './spells.js';
@@ -67,15 +68,17 @@ export function renderBody(id, { fresh }) {
     const body = el(`
       <div class="it-body">
         <div class="it-bar">
+          <div class="it-props"></div>
           <div class="it-meta"></div>
           <div class="it-actions">
-            <button class="ghost xs tx-toggle" data-a="transcript" aria-pressed="false">${icon('transcript')}<span>Transcript</span></button>
-            <button class="ghost xs" data-a="replay" title="Replay presentation (R)">${icon('replay')}</button>
-            <button class="ghost xs" data-a="takeover" title="Take over: carry on with the agent yourself, in a terminal (T)">${icon('terminal')}</button>
-            <button class="ghost xs" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
-            <button class="ghost xs it-done" data-a="done" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
-            <button class="ghost xs" data-a="more" title="More">${icon('dots')}</button>
+            <button class="ghost xs tx-toggle" data-a="transcript" data-key="V" aria-pressed="false">${icon('transcript')}<span>Transcript</span></button>
+            <button class="ghost xs" data-a="replay" data-key="R" title="Replay presentation (R)">${icon('replay')}<i class="it-lbl">Replay</i></button>
+            <button class="ghost xs" data-a="takeover" data-key="T" title="Take over: carry on with the agent yourself, in a terminal (T)">${icon('terminal')}<i class="it-lbl">Take over</i></button>
+            <button class="ghost xs" data-a="ship" data-key="S" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
+            <button class="ghost xs it-done" data-a="done" data-key="E" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
+            <button class="ghost xs" data-a="more" title="More">${icon('dots')}<i class="it-lbl">More</i></button>
           </div>
+          <div class="it-slot"></div>
         </div>
         <button class="link xs earlier" hidden></button>
         <div class="turns"></div>
@@ -95,6 +98,7 @@ export function renderBody(id, { fresh }) {
     });
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
     renderDock(id);
+    placePr(body);
   }
 
   const body = n.body;
@@ -116,7 +120,8 @@ export function renderBody(id, { fresh }) {
     ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
   const live = s.state === 'running' || s.state === 'waiting';
   // Ship and Done sit in the top bar and again next to the composer, so they're there on opening the
-  // card and after reading the result. The PR row sits in the composer's dock for the same reason, so in split view it stays pinned with it.
+  // card and after reading the result. The PR row sits in the composer's dock for the same reason;
+  // in split view it's in the details column with them (placePr).
   renderPrStrip(id);
   $$('[data-a="done"]', body).forEach((b) => {
     b.classList.toggle('on', s.state === 'done');
@@ -174,10 +179,25 @@ export function renderBody(id, { fresh }) {
   paintBtw(id); // side questions update in place, so they don't re-render their turn
 
   updateDock(id);
+  if (fresh) paintSplit(); // split view: the header and details column fill in from the summary
   if (dock?.isConnected) scrollByPx(dock.getBoundingClientRect().top - dockTop);
   // A transcript was being read at its tail: its result lands right there, so show that, not the prompt.
   const landing = firstNew && tx ? $('.tx-end', firstNew) || firstNew : firstNew;
   if (landing && watched) requestAnimationFrame(() => landing.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+}
+
+// The PR row: in the feed it rides on top of the follow-up box; in split view it sits in the open
+// task's details column, above its actions, so it's in reach wherever the task is scrolled to.
+export function placePr(body) {
+  const strip = body && $('.pr-strip', body);
+  if (!strip) return;
+  if (document.body.classList.contains('split')) {
+    const acts = $('.it-actions', body);
+    if (strip.nextElementSibling !== acts) acts.before(strip);
+  } else {
+    const dock = $('.it-dock', body);
+    if (dock.firstElementChild !== strip) dock.prepend(strip);
+  }
 }
 
 // The full transcript or the presentation, for one card. The turn being read keeps its place: its
@@ -243,7 +263,10 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const node = el(`<article class="turn ${t.rolledBackAt ? 'is-rolled-back' : ''}" data-turn="${t.id}"></article>`);
   const long = t.prompt.length > 360 || t.prompt.split('\n').length > 5;
   const cp = t.checkpoint;
-  const cpLabel = cp?.head ? `${cp.branch ? `${cp.branch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
+  // The task's worktree branch shows once, with the task: a turn names its branch only when it ran
+  // on another one (a task in the project folder, where the branch can change between turns).
+  const cpBranch = cp?.branch && cp.branch !== s.worktree?.branch ? cp.branch : '';
+  const cpLabel = cp?.head ? `${cpBranch ? `${cpBranch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const ask = el(`
     <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
       ${t.by === 'wisp' ? `<div class="ask-by">${icon('spark')}Sent by wisp after its test run</div>` : ''}
@@ -255,7 +278,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
         ${modeSwitch(s, t)}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}, before the task moved`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
-        ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
+        ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn${cp.branch ? ` on ${esc(cp.branch)}` : ''} (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
       </div>
       ${fold ? `<button class="ghost xs t-unfold" title="Collapse this exchange">${icon('chevron', 'chev')}</button>` : ''}

@@ -2,11 +2,16 @@
 // own (same nodes, same code paths): in split view at most one is open, its head stays in the
 // sidebar and its body is laid over the main pane (position: fixed to #splitStage's box), so
 // everything that looks things up through the card keeps working. Home, with nothing open, is the
-// prompt box. Below SPLIT_MIN_WIDTH the page falls back to the feed; the setting stays.
+// prompt box. Below SPLIT_MIN_WIDTH the page falls back to the feed; the setting stays. With no
+// layout picked, windows SPLIT_DEFAULT_WIDTH and wider get split view, narrower ones the feed.
+// The top bar becomes the sidebar's head (its Update, Get the app, Machines and Automations move to
+// the sidebar's foot), so the open task has the window's full height: its header is just the title,
+// and on a wide pane what the card says about it, its PR and its actions sit in a details column on
+// the right that stays put while the task scrolls.
 //
-// Spells reach all of it through spell-schema.js: the `view` setting, the sidebar.top and
-// split.head slots, the sidebar / split.* parts and their props (width, side, details, readWidth,
-// greeting).
+// Spells reach all of it through spell-schema.js: the `view` setting, the sidebar.top, split.head
+// and split.details slots, the sidebar / split.* parts and their props (width, side, details,
+// readWidth, greeting, the details column's width).
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
@@ -14,21 +19,27 @@ import * as bus from '../core/bus.js';
 import { $, $$, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
 import { load, MOBILE, S, save } from '../core/state.js';
-import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
+import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
 import { collapse, expand, groups, headPills, renderFeed, setFocus } from './feed.js';
-import { stage } from './scroll.js';
-import { renderBody } from './turns.js';
+import { barCover, stage } from './scroll.js';
+import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
+const big = matchMedia(`(min-width: ${SPLIT_DEFAULT_WIDTH}px)`);
 const SIDE_W = 340;
 const READ_W = 860;
+const DETAILS_W = 232;
+// The main pane gets the details column from this width; narrower, they're a bar over the task.
+const DETAILS_PANE = 860;
 
 export const isSplit = () => document.body.classList.contains('split');
-// The layout asked for: the setting (yours, or a spell's while it's on), else the last one seen,
-// so the first paint before /config lands is already the right one.
-export const viewPref = () => S.config.defaults?.view || load('wisp.view', 'feed');
+// The layout asked for: the setting (yours, or a spell's while it's on); none picked, split view on
+// big screens and the feed elsewhere. Before /config lands (it always has `home`): the last one
+// seen, so the first paint is already the right one.
+const autoView = () => (big.matches ? 'split' : 'feed');
+export const viewPref = () => S.config.defaults?.view || ('home' in S.config ? autoView() : load('wisp.view', autoView()));
 
 // The task open in the main pane (null on home).
 export const splitOpen = () => (isSplit() ? [...S.open].find((id) => S.nodes.get(id)?.card.isConnected) || null : null);
@@ -47,16 +58,17 @@ export function applyView() {
 }
 
 export async function setView(v) {
-  const was = viewPref();
-  if (v === was) return;
+  if (v === viewPref()) return;
   const by = S.config.lockedBy?.view;
   if (by) return toast(`${icon('wizard')} The layout is set by the spell <b>${esc(by.name)}</b>. Turn it off in Settings → Spells to change it.`);
+  const was = S.config.defaults.view; // unset: the default for the window's width
   S.config.defaults.view = v;
   applyView();
   if (v === 'split' && !wide.matches) toast(`Split view needs a window at least ${SPLIT_MIN_WIDTH}px wide: it starts once there's room.`);
   const ok = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { view: v } } }));
   if (!ok) {
-    S.config.defaults.view = was;
+    if (was) S.config.defaults.view = was;
+    else delete S.config.defaults.view;
     applyView();
   }
   bus.emit('view');
@@ -77,6 +89,9 @@ export function goHome({ focus = true } = {}) {
 const home = $('#splitHome');
 const launchSlot = $('#launchSlot');
 const feedTop = $('#spFeedTop');
+const foot = $('#splitFoot');
+// The top bar's buttons that sit in the sidebar's foot in split view, in the bar's order.
+const FOOT = ['#updateBtn', '#getAppBtn', '#machinesBtn', '#autoBtn'];
 
 function enter() {
   // One task at a time: keep the focused one if it's open, else the first.
@@ -87,24 +102,30 @@ function enter() {
   box?.classList.remove('docked');
   launchSlot.style.height = '';
   $('.sh-launch', home).append(launchSlot, feedTop);
+  foot.append(...FOOT.map((sel) => $(sel)));
   document.body.classList.add('split');
   $('#splitMain').hidden = false;
   $('#splitGrip').hidden = false;
   $('#splitTop').hidden = false;
+  foot.hidden = false;
   if (S.sessions.size) renderFeed(); // heads show their preview line again, open or not
   paintSplit();
-  const card = S.nodes.get(splitOpen())?.card;
-  card?.scrollIntoView({ block: 'nearest' });
+  const n = S.nodes.get(splitOpen());
+  placePr(n?.body);
+  n?.card.scrollIntoView({ block: 'nearest' });
 }
 
 function leave() {
   const open = splitOpen();
   sidebar.insertBefore(launchSlot, $('#feedHead'));
   $('#feedHead').after(feedTop);
-  document.body.classList.remove('split');
+  $('#spTop').before(...FOOT.map((sel) => $(sel)));
+  document.body.classList.remove('split', 'pane-wide');
   $('#splitMain').hidden = true;
   $('#splitGrip').hidden = true;
   $('#splitTop').hidden = true;
+  foot.hidden = true;
+  for (const id of S.open) placePr(S.nodes.get(id)?.body);
   if (S.sessions.size) renderFeed();
   const card = open && S.nodes.get(open)?.card;
   if (card) requestAnimationFrame(() => card.scrollIntoView({ block: 'start' }));
@@ -123,7 +144,7 @@ export function keepPlace(id) {
   if (!isSplit() || !body?.isConnected || !body.querySelector('.turns')) return;
   if (body.scrollTop < 1) return places.delete(id);
   const end = body.scrollTop + body.clientHeight >= body.scrollHeight - 4;
-  const top = body.getBoundingClientRect().top + ($('.it-bar', body)?.offsetHeight || 0);
+  const top = body.getBoundingClientRect().top + barCover(body);
   const turn = $$('.turn', body).find((t) => t.getBoundingClientRect().bottom > top);
   places.set(id, { end, turn: turn?.dataset.turn, dy: turn ? turn.getBoundingClientRect().top - top : 0, top: body.scrollTop, showAll: n.showAll });
 }
@@ -140,7 +161,7 @@ export function backToPlace(id) {
   if (p.end) return (body.scrollTop = body.scrollHeight);
   const turn = p.turn && $(`.turn[data-turn="${p.turn}"]`, body);
   if (!turn) return (body.scrollTop = p.top);
-  const top = body.getBoundingClientRect().top + ($('.it-bar', body)?.offsetHeight || 0);
+  const top = body.getBoundingClientRect().top + barCover(body);
   body.scrollTop += turn.getBoundingClientRect().top - top - p.dy;
 }
 
@@ -163,7 +184,9 @@ export function paintSplit() {
   measure();
 }
 
-// The open task's header: its title and everything the card head says about it, with room to read.
+// The open task's header is its title (and the split.head slot). What the card head says about the
+// task (state, PR, harness, project, time) goes in its details, with the split.details slot: both
+// are painted after every feed render, and when the task's body arrives (renderBody).
 export function paintHead(s) {
   const h = $('#splitHead');
   if (!isSplit() || splitOpen() !== s.id || h.querySelector('[contenteditable="true"]')) return;
@@ -182,9 +205,20 @@ export function paintHead(s) {
       <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
       <h2 class="sh-title" title="Rename (M)">${esc(s.title)}</h2>
       <span class="sh-acts">${slotHtml('split.head', s)}<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button></span>
-    </div>
-    <div class="sh-meta">${headPills(s, pill)}<span class="q-time">${ago(s.updatedAt)}</span></div>`;
+    </div>`;
   if (h.dataset.h !== html) (h.innerHTML = html), (h.dataset.h = html);
+  paintDetails(s, pill);
+}
+
+function paintDetails(s, pill) {
+  const body = S.nodes.get(s.id)?.body;
+  const props = body && $('.it-props', body);
+  if (!props) return;
+  const html = `${headPills(s, pill)}<span class="q-time">${ago(s.updatedAt)}</span>`;
+  if (props.dataset.h !== html) (props.innerHTML = html), (props.dataset.h = html);
+  const slot = $('.it-slot', body);
+  const btns = slotHtml('split.details', s);
+  if (slot.dataset.h !== btns) (slot.innerHTML = btns), (slot.dataset.h = btns);
 }
 
 function paintHome() {
@@ -219,6 +253,7 @@ function measure() {
   st.setProperty('--sb-left', `${r.left}px`);
   st.setProperty('--sb-w', `${r.width}px`);
   st.setProperty('--sb-h', `${r.height}px`);
+  document.body.classList.toggle('pane-wide', isSplit() && r.width >= DETAILS_PANE);
 }
 new ResizeObserver(measure).observe($('#splitStage'));
 addEventListener('resize', measure);
@@ -230,6 +265,7 @@ function paintProps() {
   const root = document.documentElement.style;
   root.setProperty('--side-w', `${clampW(load('wisp.sideW', null) ?? spellProp('sidebar', 'width') ?? SIDE_W)}px`);
   root.setProperty('--read-w', `${spellProp('split.main', 'readWidth') ?? READ_W}px`);
+  root.setProperty('--det-w', `${spellProp('split.details', 'width') ?? DETAILS_W}px`);
   // The list sits on the left unless a spell asks for the right.
   document.body.classList.toggle('side-right', spellProp('sidebar', 'side') === 'right');
   document.body.classList.toggle('side-full', spellProp('sidebar', 'details') === 'full');
@@ -292,6 +328,7 @@ grip.addEventListener('dblclick', () => {
 });
 
 wide.addEventListener('change', applyView);
+big.addEventListener('change', applyView); // the default follows the window while none is picked
 bus.on('spells', applyView);
 // Before the config lands, from the last layout seen (no flash of the feed on reload).
 queueMicrotask(applyView);

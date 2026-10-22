@@ -24,15 +24,18 @@ export const SLOTS = {
   'card.bottom': 'A panel at the bottom of an open card, above the follow-up box (panels only).',
   'sidebar.top': 'Split view: a button at the top of the task list, next to New task.',
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
+  'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
 };
 
-export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'term.head']);
+export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head']);
 
 // The layouts (the `view` setting): feed = one column, cards open in place; split = cards in a
 // sidebar, the open one in the main pane. Split needs a window at least SPLIT_MIN_WIDTH wide.
 export const VIEWS = ['feed', 'split'];
 export const SPLIT_MIN_WIDTH = 900;
+// With no layout picked, windows this wide open in split view and narrower ones in the feed.
+export const SPLIT_DEFAULT_WIDTH = 1280;
 
 // Parts: things a spell can restyle, give props or hide. Selectors are wisp's own markup.
 // Never here: questions, approvals, waiting pills, the spell review and Settings → Spells.
@@ -91,6 +94,8 @@ export const PARTS = {
   'card.body': '#feed .it-body',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
+  // The top bar is the sidebar's head there; Get the app, Machines and Automations sit in its foot.
+  'sidebar.foot': '#splitFoot',
   'sidebar.new': '#splitNew',
   'sidebar.grip': '#splitGrip',
   'split.main': '#splitMain',
@@ -100,6 +105,11 @@ export const PARTS = {
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
   'split.body': 'body.split #feed .item.open > .it-body',
+  // The open task's details column, fixed on the right while its body scrolls: what the card head
+  // says (state, PR, harness, project, time), how it runs (branch, mode, …), its PR and its actions.
+  'split.details': 'body.split #feed .item.open > .it-body > .it-bar',
+  'split.pr': 'body.split #feed .item.open .it-bar > .pr-strip',
+  'split.actions': 'body.split #feed .item.open .it-bar > .it-actions',
   // Take over in wisp: the task's terminal (a sheet, over the open task in split view, full
   // screen on a phone), its header, the screen and the phone's row of keys (Esc, Tab, Ctrl, arrows).
   term: '#term .tm-box',
@@ -140,6 +150,7 @@ export const PART_PROPS = {
   'card.sub': { lines: 'int' },
   sidebar: { width: 'px', side: ['left', 'right'], details: ['minimal', 'full'] }, // side: left unless set
   'split.main': { readWidth: 'px' },
+  'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
   term: { fontSize: 'int' },
 };
