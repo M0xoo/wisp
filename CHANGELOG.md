@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **No stray dot on flow diagrams.** Each wire's moving dot sat in the diagram's top-left corner until its animation started; it now stays hidden until it begins moving.
+
 ## [0.30.2] - 2026-10-22
 
 ### Changed
