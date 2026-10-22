@@ -4,6 +4,8 @@
 // the node; this appends it and owns closing.
 //
 //   anchor   the button that opened it
+//   back     the text box it serves: Escape, or a click elsewhere in that box, puts the caret back
+//            there instead of on the anchor, so you go on typing
 //   keep     selector for other floating parts (a picker it opened) whose clicks keep it open
 //   capture  watch for outside clicks in the capture phase
 //   onClose  runs once it's gone
@@ -22,18 +24,21 @@ document.addEventListener(
     e.stopImmediatePropagation();
     const top = stack.at(-1);
     top.close();
-    top.anchor?.focus();
+    (top.back || top.anchor)?.focus();
   },
   true,
 );
 
-export function popover(node, { anchor, keep, capture = false, onClose } = {}) {
+export function popover(node, { anchor, keep, capture = false, back, onClose } = {}) {
   let open = true;
   const outside = (e) => {
     if (node.contains(e.target) || anchor?.contains(e.target) || (keep && e.target.closest?.(keep))) return;
     close();
+    // A click on the box around the text (not one of its buttons): after the click's own focus change.
+    const box = back?.closest('.launcher, .composer');
+    if (box?.contains(e.target) && !e.target.closest('button, a, input, textarea, select')) setTimeout(() => back.focus());
   };
-  const entry = { close, anchor };
+  const entry = { close, anchor, back };
   function close() {
     if (!open) return;
     open = false;

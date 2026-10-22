@@ -83,7 +83,7 @@ export function renderDock(id) {
   $('.c-ship', comp).onclick = () => shipDialog(id);
   $('.c-queue', comp).onclick = toggleQueue;
   const modeBtn = $('.c-mode', comp);
-  modeBtn.onclick = () => modeMenu(modeBtn, replyMode(id), (m) => (setReplyMode(id, m), ta.focus()));
+  modeBtn.onclick = () => modeMenu(modeBtn, replyMode(id), (m) => setReplyMode(id, m), ta);
   const runnerBtn = $('.c-runner', comp);
   runnerBtn.onclick = () => {
     pickReplyRunner(id, runnerBtn);
@@ -156,9 +156,9 @@ function pickReplyRunner(id, btn) {
   // The session's own harness offers its own model first; other harnesses their remembered one.
   const model = (a) => (a === s.agent && (agentById(a)?.models || []).some((m) => m.id === s.model) ? s.model : savedModel(a));
   const effort = (a, m) => (a === s.agent && m === s.model && effortsFor(a, m).includes(s.effort) ? s.effort : savedEffort(a, m));
-  runnerPicker(btn, { agent: cur.agent, model: cur.model, effort: cur.effort, savedModel: model, savedEffort: effort, places: [replyPlace(id)] }, (agent, m, e) => {
+  const back = $('.reply', S.nodes.get(id)?.card); // back to typing the follow-up
+  runnerPicker(btn, { agent: cur.agent, model: cur.model, effort: cur.effort, savedModel: model, savedEffort: effort, places: [replyPlace(id)], back }, (agent, m, e) => {
     setReplyRunner(id, { agent, model: m, effort: e });
-    $('.reply', S.nodes.get(id)?.card)?.focus(); // back to typing the follow-up
   });
 }
 
@@ -216,10 +216,10 @@ function pickReplyPlace(id, btn) {
       from: placeNow(s),
       note: 'Another computer takes the task with it: its branch, uncommitted changes and history. wisp clones the project there if it has to.',
       locked: busy ? 'Stop the task or let it finish to move it to another computer.' : '',
+      back: $('.reply', S.nodes.get(id)?.card),
     },
     (k) => {
       setReplyPlace(id, k);
-      $('.reply', S.nodes.get(id)?.card)?.focus();
     },
   );
 }

@@ -8,6 +8,7 @@
 //   onPick    (id) => …, a project's id or an extra's
 //   also      { has(id), toggle(id) }: each row gets a + that adds the project to the task (✓ once
 //             it's in) without closing the list; ⌘/Ctrl/Shift+Enter does the same from the keyboard
+//   back      the prompt it's for, where the caret goes once it closes
 
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
@@ -15,8 +16,8 @@ import { fuzzy, highlight } from '../fuzzy.js';
 import { popover } from '../ui/popover.js';
 import { projectTitle } from './places.js';
 
-export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, also = null, label = 'Projects' }) {
-  if ($('.menu.pm')) return $('.menu.pm').close();
+export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, also = null, label = 'Projects', back }) {
+  if ($('.menu.pm')) return $('.menu.pm').close(), back?.focus();
   const node = el(`
     <div class="menu pm" role="dialog" aria-label="${esc(label)}">
       <label class="field pm-search">${icon('search')}<input spellcheck="false" autocomplete="off" placeholder="Search ${projects.length} projects" aria-label="Search projects"></label>
@@ -94,6 +95,7 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
 
   const close = popover(node, {
     anchor,
+    back,
     onClose: () => {
       anchor.classList.remove('open');
       anchor.setAttribute('aria-expanded', 'false');

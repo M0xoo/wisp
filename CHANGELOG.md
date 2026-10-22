@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Picking a project, or closing the harness / model, computer or mode picker (with or without a pick, by Escape, clicking its button again or clicking the box), puts the caret back in the prompt or follow-up box so you can keep typing.
 - Opening a task in the feed no longer shifts its state pill and time sideways, and Done rows line up with the rows above them.
 - In split view, the Mark done button on a selected or hovered row no longer leaves a clipped letter of the time beside it.
 

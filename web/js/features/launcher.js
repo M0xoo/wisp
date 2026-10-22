@@ -157,7 +157,7 @@ export function renderLauncher() {
     ta.focus();
   };
   $('#attach', box).onclick = tray.pick;
-  $('#whereBtn', box).onclick = (e) => whereMenu(e.currentTarget);
+  $('#whereBtn', box).onclick = (e) => whereMenu(e.currentTarget, ta);
   paintWhereBtn();
 
   // Mode is set-and-forget, so it's one small button: just an icon on the default (Full auto),
@@ -177,7 +177,7 @@ export function renderLauncher() {
     api('/config', { method: 'PATCH', body: { defaults: { mode: id } } }).catch(() => {});
   };
   paintMode();
-  modeBtn.onclick = () => modeMenu(modeBtn, curMode, setMode);
+  modeBtn.onclick = () => modeMenu(modeBtn, curMode, setMode, ta);
   box.mode = () => curMode;
   let curModel = savedModel(agent?.id);
   let curEffort = savedEffort(agent?.id, curModel);
@@ -270,7 +270,7 @@ export function renderLauncher() {
       (compare.length ? $$('.vs-del', runners)[Math.min(i, compare.length - 1)] : vsBtn).focus();
       return;
     }
-    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launch.where }, (id, model, effort) => {
+    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launch.where, back: ta }, (id, model, effort) => {
       compare = compare.map((c, k) => (k === i ? { agent: id, model, effort } : c));
       paintCompare();
     });
@@ -289,7 +289,7 @@ export function renderLauncher() {
       Object.assign(d, { agent: id, model, models, effort, efforts });
       api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models, effort, efforts } } }).catch(() => {});
   };
-  runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launch.where, auto: true }, pickRun);
+  runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launch.where, auto: true, back: ta }, pickRun);
   // Spells: set the pickers (setLaunch), or launch once with other settings (launchWith).
   box.spellSet = (v) => {
     if (v.agent && harnessesAt(launch.where, { auto: true }).some((a) => a.id === v.agent)) pickRun(v.agent, v.model ?? savedModel(v.agent), v.effort ?? savedEffort(v.agent, v.model ?? savedModel(v.agent)));
@@ -527,6 +527,7 @@ export function renderLaunchChips() {
     if (chip) {
       choose(chip.dataset.id, { add: !!e.target.closest('[data-also]') || e.metaKey || e.ctrlKey || e.shiftKey });
       renderLaunchChips(); // the + and × badges follow the picks
+      $('#prompt')?.focus(); // picked: go on typing
       return;
     }
     const more = e.target.closest('[data-more]');
@@ -543,6 +544,7 @@ export function renderLaunchChips() {
           },
         },
         label: 'Projects',
+        back: $('#prompt'),
         extras: [
           { id: NO_FOLDER, label: 'No folder', icon: 'spark' },
           { id: '+add', label: addOn ? `Another folder on ${placeName(addOn)}…` : 'Other folder…', icon: 'folder' },
@@ -611,8 +613,8 @@ function paintWhereBtn() {
   b.title = n > 1 ? `Runs in parallel on ${launch.where.map(placeName).join(', ')}` : S.machines.length ? `Runs on ${placeName(launch.where[0])}. Pick several to run in parallel.` : 'Runs on this computer. Add a machine to run on other computers too.';
 }
 
-function whereMenu(anchor) {
-  if ($('.menu.where-menu')) return $('.menu.where-menu').close();
+function whereMenu(anchor, back) {
+  if ($('.menu.where-menu')) return $('.menu.where-menu').close(), back?.focus();
   const box = el(`<div class="menu where-menu" role="menu"></div>`);
   const paint = () => {
     const row = (k, m) => {
@@ -656,7 +658,7 @@ function whereMenu(anchor) {
     openMachines({ focusAdd: a === 'add' });
   };
   paint();
-  const shut = popover(box, { anchor, onClose: () => anchor.setAttribute('aria-expanded', 'false') });
+  const shut = popover(box, { anchor, back, onClose: () => anchor.setAttribute('aria-expanded', 'false') });
   bus.on('machines', paint, { node: box });
   anchor.setAttribute('aria-expanded', 'true');
   const r = anchor.getBoundingClientRect();

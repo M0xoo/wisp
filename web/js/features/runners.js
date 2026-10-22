@@ -133,9 +133,10 @@ export function paintRunnerBtn(btn, agentId, model, effort) {
     : `<span class="rb-logo">${icon('spark')}</span><span class="rb-h">Launcher default</span>${icon('chevron', 'chev')}`;
 }
 
-export function modeMenu(anchor, current, pick) {
+// back: the prompt it's for, where the caret goes once it closes.
+export function modeMenu(anchor, current, pick, back) {
   const open = $('.menu.mode');
-  if (open) return open.close();
+  if (open) return open.close(), back?.focus();
   const menu = el(`
     <div class="menu mode" role="menu">
       ${MODES.map((m) => `<button role="menuitemradio" aria-checked="${m.id === current}" data-mode="${m.id}" class="m-${m.id}${m.id === current ? ' on' : ''}">
@@ -147,7 +148,7 @@ export function modeMenu(anchor, current, pick) {
     if (!b) return;
     close();
     pick(b.dataset.mode);
-    if (anchor.id === 'mode') $('#prompt')?.focus();
+    back?.focus();
   };
   menu.addEventListener('keydown', (ev) => {
     const items = $$('button', menu);
@@ -157,7 +158,7 @@ export function modeMenu(anchor, current, pick) {
       items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus();
     }
   });
-  const close = popover(menu, { anchor, onClose: () => anchor.classList.remove('open') });
+  const close = popover(menu, { anchor, back, onClose: () => anchor.classList.remove('open') });
   anchor.classList.add('open');
   const r = anchor.getBoundingClientRect();
   const h = menu.offsetHeight;
