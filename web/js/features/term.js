@@ -497,11 +497,12 @@ function wireInput() {
     },
     { passive: true },
   );
-  // Full-screen programs (claude, codex: the alternate screen) scroll themselves: the wheel, or a
-  // swipe on a phone, goes to them as mouse wheel events (or arrow keys when they don't take the mouse).
-  const wheelTo = (t, steps, up) => {
+  // Full-screen programs (claude, codex, opencode: the alternate screen) scroll themselves: the
+  // wheel, or a swipe on a phone, goes to them as mouse wheel events (or arrow keys when they don't
+  // take the mouse). At the cell under the pointer: opencode scrolls the pane that's there.
+  const wheelTo = (t, steps, up, at) => {
     const { mouse, sgrMouse, appCursor } = t.screen.modes;
-    if (mouse && sgrMouse) send(t, `\x1b[<${up ? 64 : 65};1;1M`.repeat(steps));
+    if (mouse && sgrMouse) send(t, `\x1b[<${up ? 64 : 65};${at[0]};${at[1]}M`.repeat(steps));
     else send(t, (up ? (appCursor ? '\x1bOA' : '\x1b[A') : appCursor ? '\x1bOB' : '\x1b[B').repeat(steps));
   };
   const appScrolls = (t) => t && t.code === null && (t.screen.alt || t.screen.modes.mouse);
@@ -511,7 +512,7 @@ function wireInput() {
       const t = cur;
       if (!appScrolls(t)) return;
       e.preventDefault();
-      wheelTo(t, Math.max(1, Math.min(5, Math.round(Math.abs(e.deltaY) / 40))), e.deltaY < 0);
+      wheelTo(t, Math.max(1, Math.min(5, Math.round(Math.abs(e.deltaY) / 40))), e.deltaY < 0, cellAt(e));
     },
     { passive: false },
   );
@@ -530,7 +531,7 @@ function wireInput() {
       const n = Math.trunc((y - swipeY) / step);
       if (!n) return;
       swipeY += n * step;
-      wheelTo(t, Math.min(Math.abs(n), 10), n > 0); // finger down: see what's above
+      wheelTo(t, Math.min(Math.abs(n), 10), n > 0, cellAt(e.touches[0])); // finger down: see what's above
     },
     { passive: false },
   );

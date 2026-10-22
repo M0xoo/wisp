@@ -33,7 +33,10 @@
   scrollbar-color: #3a3a3a transparent;
 }
 .tm-rows { font: var(--tm-fs, 13px) / 1.3 var(--mono); font-variant-ligatures: none; white-space: pre; }
-.tm-rows > div > div { height: var(--tm-lh, 1.3em); overflow: hidden; }
+.tm-rows > div > div { height: var(--tm-lh, 1.3em); line-height: var(--tm-lh, 1.3em); overflow: hidden; }
+/* Coloured cells fill the whole row, not just the glyphs: TUIs that paint their own background
+   (opencode) would otherwise show stripes between rows. */
+.tm-rows > div > div > span { display: inline-block; height: 100%; vertical-align: top; }
 .tm-rows .b { font-weight: 650; }
 .tm-rows .d { opacity: 0.6; }
 .tm-rows .i { font-style: italic; }
