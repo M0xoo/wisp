@@ -65,6 +65,7 @@ const HARNESS_LOGO = {
   cursor: { file: 'cursor', mono: true },
   antigravity: { file: 'antigravity-color' },
   grok: { file: 'grok', mono: true },
+  copilot: { file: 'githubcopilot', mono: true },
 };
 export function harnessLogo(agent) {
   if (agent === 'auto') return `<i class="auto-mark">${icon('spark')}</i>`;

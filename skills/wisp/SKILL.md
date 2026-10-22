@@ -1,6 +1,6 @@
 ---
 name: wisp
-description: Delegate coding tasks to background agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok) through wisp, then read back their presentation (summary, diffs, tests). Use when the user asks to "send this to wisp", run something in the background or in parallel, fan a task out to other agents, or check on / follow up a wisp session.
+description: Delegate coding tasks to background agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok, Copilot) through wisp, then read back their presentation (summary, diffs, tests). Use when the user asks to "send this to wisp", run something in the background or in parallel, fan a task out to other agents, or check on / follow up a wisp session.
 ---
 
 # wisp: hand tasks to background agents
@@ -22,7 +22,7 @@ wisp "audit dependencies for known CVEs" --mode plan --agent codex --json
 wisp "add pagination to /api/users" --cwd ~/code/api --wait     # block until done, print the result
 ```
 
-Options: `--agent claude|codex|opencode|cursor|antigravity|grok`, `--mode plan|edits|auto`, `--model ID`,
+Options: `--agent claude|codex|opencode|cursor|antigravity|grok|copilot`, `--mode plan|edits|auto`, `--model ID`,
 `--effort low|medium|high`, `--cwd DIR` (default: current folder), `--also DIR` (another folder the
 same agent works in, repeatable: e.g. the API and its web app), `--wait`, `--json`.
 `--json` prints the session summary; its `id` is what every other command takes.

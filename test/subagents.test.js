@@ -53,7 +53,7 @@ const TEAM = [
   { name: 'Researcher', agent: 'opencode', model: 'fake/model-a', use: 'research' },
 ];
 
-for (const lead of ['claude', 'codex', 'opencode', 'grok']) {
+for (const lead of ['claude', 'codex', 'opencode', 'grok', 'copilot']) {
   test(`${lead} lead delegates to codex and opencode subagents and gets their reports`, async () => {
     const cwd = makeRepo();
     const s = await api('/sessions', { prompt: 'DELEGATE the review', cwd, agent: lead, worktree: false, subagents: TEAM });
@@ -71,6 +71,7 @@ for (const lead of ['claude', 'codex', 'opencode', 'grok']) {
     assert.match(told, /use `delegate` instead: don't use built-in subagents/);
     if (lead === 'claude') assert.deepEqual(leadRun.argv.slice(leadRun.argv.indexOf('--disallowedTools') + 1, -1), ['Task', 'Agent', 'Workflow']);
     if (lead === 'opencode') assert.equal(JSON.parse(leadRun.opencodeConfig).permission.task, 'deny');
+    if (lead === 'copilot') assert.ok(leadRun.argv.includes('--excluded-tools=task'));
 
     // One delegation per member, in this turn, each its own hidden child session.
     assert.deepEqual(turn.delegations.map((d) => d.name), ['codex', 'researcher']);

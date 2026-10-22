@@ -46,7 +46,7 @@ export async function openUsage({ days = 30, host } = {}) {
       <div class="us-axis"><span>${esc(fmtDay(u.daily[0].date))}</span><span>${byCost ? `max ${money(max)}/day` : `max ${max}/day`}</span><span>today</span></div>
       <h4>By project</h4>${table(u.projects, (r) => `<span class="us-proj c-${esc(r.color)}"><i class="p-dot"></i>${esc(r.name)}</span>`)}
       <h4>By harness · model</h4>${table(u.runners, (r) => `<span class="us-runner"><span class="model-logo">${harnessLogo(r.agent)}</span>${esc(agentName(r.agent))} · ${esc(r.model || 'default')}</span>`)}
-      ${unpriced ? '<p class="hint">Codex, Cursor and Antigravity report tokens but not cost, so their turns count in turns and outcomes but not in spend.</p>' : ''}`;
+      ${unpriced ? '<p class="hint">Codex, Cursor, Antigravity and Copilot report tokens but not cost (Copilot bills in premium requests), so their turns count in turns and outcomes but not in spend.</p>' : ''}`;
   };
   // One floating tooltip for the bars (they are too thin to label).
   const tip = el('<div class="us-tip" hidden></div>');

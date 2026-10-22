@@ -13,7 +13,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Electron](https://img.shields.io/badge/desktop-Electron-47848f?logo=electron&logoColor=white)](https://www.electronjs.org)
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
-[![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity%20·%20Grok-d97757)](#adding-a-harness)
+[![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity%20·%20Grok%20·%20Copilot-d97757)](#adding-a-harness)
 
 [Website](https://trywisp.dev/) · [wisp Cloud](#wisp-cloud) · [Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
@@ -23,7 +23,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 
 ## Why wisp?
 
-Agent transcripts are long, and you rarely need them. wisp runs agent harnesses (Claude Code, Codex, opencode, Cursor, Antigravity, and Grok) on your projects in the background. When an agent finishes, it hands you a short, animated **presentation**: diffs, test results, commits, flows, and decisions. The session then waits in your queue.
+Agent transcripts are long, and you rarely need them. wisp runs agent harnesses (Claude Code, Codex, opencode, Cursor, Antigravity, Grok, and GitHub Copilot) on your projects in the background. When an agent finishes, it hands you a short, animated **presentation**: diffs, test results, commits, flows, and decisions. The session then waits in your queue.
 
 From there you can **follow up**, **answer its questions**, **take it over** in your terminal, or **mark it done**.
 
@@ -46,7 +46,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | 💬 **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. To ask without interrupting, start with `/btw` (`/btw did you update the docs too?`): a separate read-only run answers on a copy of the conversation, and the agent keeps working. |
 | 🔎 **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
 | ✨ **Auto** | The default harness: wisp picks the harness, model and thinking level per task from what worked before, and learns from merges, 👍 / 👎 and follow-ups. See [Auto](#auto). |
-| 🤖 **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, or Grok Build. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
+| 🤖 **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, or GitHub Copilot CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
 | 🖥️ **Take over** | Opens your terminal with the harness's resume command (`claude --resume <id>`, `codex resume <id>`, …) in the project folder. Works with Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
 | 📎 **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | 🧠 **Learns as you go** | After a session goes quiet, a background retro records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later runs get them in their prompt. See [Learning](#learning). |
@@ -71,7 +71,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 
 > **No computer to keep on?** Open [grid.trywisp.dev](https://grid.trywisp.dev), sign in with GitHub and you get your own wisp on a server, with nothing to install. See [wisp Cloud](#wisp-cloud).
 
-> **Requirements:** macOS, Linux, or Windows; Node.js ≥ 20; and at least one harness installed and signed in: [Claude Code](https://claude.com/claude-code) (`claude`), [Codex](https://github.com/openai/codex) (`codex`), [opencode](https://opencode.ai) (`opencode`), [Cursor CLI](https://cursor.com/cli) (`cursor-agent`), [Antigravity CLI](https://antigravity.google/docs/cli/headless/) (`agy`), or [Grok Build](https://x.ai/cli) (`grok`). No CLI? The [ChatGPT desktop app](https://chatgpt.com/download) is enough for Codex on macOS and Linux, and the [Claude desktop app](https://claude.com/download) for Claude Code on macOS and Windows once you've opened its Code tab and signed that CLI in once: wisp uses the CLI each app ships when the command isn't on PATH. Override a binary path with `WISP_CLAUDE_BIN`, `WISP_CODEX_BIN`, `WISP_OPENCODE_BIN`, `WISP_CURSOR_BIN`, or `WISP_ANTIGRAVITY_BIN`.
+> **Requirements:** macOS, Linux, or Windows; Node.js ≥ 20; and at least one harness installed and signed in: [Claude Code](https://claude.com/claude-code) (`claude`), [Codex](https://github.com/openai/codex) (`codex`), [opencode](https://opencode.ai) (`opencode`), [Cursor CLI](https://cursor.com/cli) (`cursor-agent`), [Antigravity CLI](https://antigravity.google/docs/cli/headless/) (`agy`), [Grok Build](https://x.ai/cli) (`grok`), or [GitHub Copilot CLI](https://github.com/features/copilot/cli) (`copilot`, with a Copilot plan). No CLI? The [ChatGPT desktop app](https://chatgpt.com/download) is enough for Codex on macOS and Linux, and the [Claude desktop app](https://claude.com/download) for Claude Code on macOS and Windows once you've opened its Code tab and signed that CLI in once: wisp uses the CLI each app ships when the command isn't on PATH. Override a binary path with `WISP_CLAUDE_BIN`, `WISP_CODEX_BIN`, `WISP_OPENCODE_BIN`, `WISP_CURSOR_BIN`, `WISP_ANTIGRAVITY_BIN`, `WISP_GROK_BIN`, or `WISP_COPILOT_BIN`.
 
 ```sh
 npx wisp-agents                          # open the wisp desktop app
@@ -126,7 +126,7 @@ wisp "fix the flaky auth test"    # launch a task in this folder (it becomes a p
 wisp add [path]                   # add a folder as a project (default: cwd)
 wisp add <repo-url>               # clone a repo (GitHub URL, git@…, any git URL) into ~/code, then add it
 wisp --mode plan "audit deps"     # permission mode: plan | edits | auto
-wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor | antigravity | grok
+wisp --agent codex "add a test"   # harness: claude | codex | opencode | cursor | antigravity | grok | copilot
 ```
 
 Scripting (every command takes `--json`):
@@ -152,7 +152,7 @@ wisp skill install                # install the wisp skill for Claude Code (--ag
 |---|---|
 | `--port`, `-p N` | Port to use (default `4477`, or `WISP_PORT`) |
 | `--mode`, `-m` | `plan` · `edits` · `auto` |
-| `--agent`, `-a` | `claude` · `codex` · `opencode` · `cursor` · `antigravity` · `grok` (default: the agent last picked in the launcher) |
+| `--agent`, `-a` | `claude` · `codex` · `opencode` · `cursor` · `antigravity` · `grok` · `copilot` (default: the agent last picked in the launcher) |
 | `--model` · `--effort` | Model id and thinking level for the launch |
 | `--cwd`, `-C DIR` | Project folder (default: the current one) |
 | `--also DIR` | Another folder the same task works in; repeat for more (each git repo gets its own worktree and PR) |
@@ -226,6 +226,7 @@ web/ (UI) ⇄ HTTP + SSE ⇄ server/ ── adapters/claude.js   ── claude -
                                  ├─ adapters/cursor.js   ── cursor-agent -p --output-format stream-json
                                  ├─ adapters/antigravity.js ── agy --output-format stream-json
                                  ├─ adapters/grok.js     ── grok --output-format streaming-messages-json
+                                 ├─ adapters/copilot.js  ── copilot --output-format json (prompt on stdin)
                                  └─ mcp-ask.js  (ask_user MCP tool, injected per run)
 ```
 
@@ -266,7 +267,8 @@ wisp/
 │       ├── opencode.js    # opencode adapter
 │       ├── cursor.js      # Cursor CLI adapter
 │       ├── antigravity.js # Antigravity CLI adapter
-│       └── grok.js        # Grok Build adapter
+│       ├── grok.js        # Grok Build adapter
+│       └── copilot.js     # GitHub Copilot CLI adapter
 ├── skills/wisp/SKILL.md   # agent skill: how other agents use wisp
 ├── web/                   # vanilla JS UI, native ES modules, no build step
 │   ├── index.html
@@ -308,6 +310,7 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] Cursor CLI adapter
 - [x] Antigravity CLI adapter
 - [x] Grok Build adapter
+- [x] GitHub Copilot CLI adapter
 - [x] wisp Cloud / wisp Grid: your own wisp on a server, sandboxed per user, with desktop and phone sign-in
 - [x] Sign in to Claude Code, Codex and GitHub from wisp
 
@@ -349,7 +352,7 @@ Turn worktrees off in Settings → *Worktree per task*, with the launcher's **Wo
 
 ## Subagents
 
-The launcher's **Subagents** button gives the lead agent a team: up to 6 members, each with its own harness, model, thinking level, name, a **Use for** note that tells the lead when to pick it, and a **×N** copies count (`Codex ×3` → `codex#1`…`codex#3`). The lead gets a `delegate` tool on wisp's MCP server; tasks sent in one call run in parallel in the lead's folder, and delegating to the same member again resumes its conversation. Claude Code, Codex, opencode and Grok can lead; Cursor and Antigravity can be members. **Save as preset** stores a team for later. Subagent edits count as the lead's, so they show up in its diffs, rollback and Ship it. API: `subagents` / `preset` on `POST /sessions`, `/teams`.
+The launcher's **Subagents** button gives the lead agent a team: up to 6 members, each with its own harness, model, thinking level, name, a **Use for** note that tells the lead when to pick it, and a **×N** copies count (`Codex ×3` → `codex#1`…`codex#3`). The lead gets a `delegate` tool on wisp's MCP server; tasks sent in one call run in parallel in the lead's folder, and delegating to the same member again resumes its conversation. Claude Code, Codex, opencode, Grok and Copilot can lead; Cursor and Antigravity can be members. **Save as preset** stores a team for later. Subagent edits count as the lead's, so they show up in its diffs, rollback and Ship it. API: `subagents` / `preset` on `POST /sessions`, `/teams`.
 
 ## Checkpoints and rollback
 
@@ -416,7 +419,7 @@ wisp spell off --all
 
 ## Usage
 
-⌘K → *Usage* shows spend per day and, per project and per harness · model: spend, turns, how often the run worked (finished, not partial or blocked), how often the agent had to ask you, and the average time. Claude Code, opencode and Grok report cost (Grok only when its plan does); Codex, Cursor and Antigravity only report tokens, so their turns are counted but not priced. Also `wisp usage` and `GET /api/usage?days=30`.
+⌘K → *Usage* shows spend per day and, per project and per harness · model: spend, turns, how often the run worked (finished, not partial or blocked), how often the agent had to ask you, and the average time. Claude Code, opencode and Grok report cost (Grok only when its plan does); Codex, Cursor, Antigravity and Copilot only report tokens (Copilot bills in premium requests), so their turns are counted but not priced. Also `wisp usage` and `GET /api/usage?days=30`.
 
 ## Phone
 

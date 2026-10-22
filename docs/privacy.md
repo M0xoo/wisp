@@ -103,7 +103,7 @@ is stored in PostHog so we can write to you when a seat is free; ask us to remov
 
 These receive data only when you use them, under their own privacy policies:
 
-- **Your coding agents** (Claude Code, Codex, opencode, Cursor, Grok, Antigravity) send your
+- **Your coding agents** (Claude Code, Codex, opencode, Cursor, Grok, Antigravity, Copilot) send your
   prompts and code to their makers with your own account. wisp starts them; it doesn't see that
   traffic.
 - **Phone alerts** through [ntfy](https://ntfy.sh) or Telegram, if you set them up, carry task

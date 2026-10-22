@@ -13,7 +13,7 @@ process.env.WISP_FEEDBACK = '0';
 
 const FAKE = fileURLToPath(new URL('./fixtures/fake-agent.mjs', import.meta.url));
 const FAKE_GH = fileURLToPath(new URL('./fixtures/fake-gh.mjs', import.meta.url));
-export const BINS = ['claude', 'codex', 'opencode', 'cursor-agent', 'agy', 'grok'];
+export const BINS = ['claude', 'codex', 'opencode', 'cursor-agent', 'agy', 'grok', 'copilot'];
 export const win = process.platform === 'win32';
 
 export const tmp = (prefix) => fs.mkdtempSync(path.join(os.tmpdir(), `wisp-${prefix}-`));

@@ -88,7 +88,8 @@ test('there is a page for every harness, and its mode flags match the adapter', 
       const word = flag.match(/--[\w-]+$|[\w-]+(?="?$)/)?.[0];
       if (!flag.startsWith('(')) assert.ok(word && src.includes(word.replace(/^--/, '')), `${a.id}: ${flag}`);
     }
-    assert.ok(src.includes(a.resume.split(' ')[1].replace(/^--/, '')), `${a.id}: ${a.resume}`);
+    // The resume flag (`--resume <id>`, or copilot's `--resume=<id>`) is in the adapter too.
+    assert.ok(src.includes(a.resume.split(/[ =]/)[1].replace(/^--/, '')), `${a.id}: ${a.resume}`);
   }
 });
 

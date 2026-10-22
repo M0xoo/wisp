@@ -17,7 +17,7 @@ export function openapi({ version, port }) {
       title: 'wisp',
       version,
       description:
-        'Local API of wisp, a launcher and queue for coding agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok). ' +
+        'Local API of wisp, a launcher and queue for coding agents (Claude Code, Codex, opencode, Cursor, Antigravity, Grok, Copilot). ' +
         'Binds to 127.0.0.1 only. Requests must carry a Host of 127.0.0.1/localhost:<port>; non-GET requests must be ' +
         'application/json (uploads: application/octet-stream) and, if they send an Origin, a local one. ' +
         'The running server advertises { url, port, pid, version } in ~/.wisp/server.json. ' +
@@ -384,7 +384,7 @@ export function openapi({ version, port }) {
             also: { type: 'array', maxItems: 8, items: { type: 'string' }, description: 'More folders the same task works in (absolute; ~ allowed). The agent gets each; git repos get their own worktree, and Ship it opens a PR in each' },
             scratch: { type: 'boolean', description: 'No project folder: run in an empty scratch directory (no worktree). Overrides cwd' },
             kind: { type: 'string', enum: ['spell'], description: 'spell: Cast a spell. The agent writes a spell that changes wisp (an empty scratch folder, Edits mode, this computer); its report ends with a spell block to keep' },
-            agent: { enum: ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'], default: 'auto', description: 'auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)' },
+            agent: { enum: ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok', 'copilot'], default: 'auto', description: 'auto: wisp picks the harness and model from what worked before; model is then the goal (cheap, balanced, best)' },
             important: { type: 'boolean', description: 'With agent auto: no exploring, take the pick with the best record' },
             mode: { enum: ['plan', 'edits', 'auto'], default: 'auto' },
             model: { type: 'string' },

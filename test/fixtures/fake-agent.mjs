@@ -1,10 +1,10 @@
-// A stand-in for the claude / codex / opencode / cursor-agent / agy / grok CLIs. It speaks each one's real
+// A stand-in for the claude / codex / opencode / cursor-agent / agy / grok / copilot CLIs. It speaks each one's real
 // output format (captured from the actual CLIs), edits files for real, and — when the prompt
 // says ASK and an MCP server was injected — calls wisp's ask_user tool like a real agent would.
 //
 // Which harness it plays comes from the script's file name (test/helpers.js installs copies as
 // claude.mjs, codex.mjs, …). Behaviour knobs, via env:
-//   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid, opencodeConfig } to <name>.jsonl
+//   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid, opencodeConfig, allowAll } to <name>.jsonl
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_LIMIT_ONCE=<file>  the first run hits a usage limit (stderr, exit 1); later runs work
@@ -12,6 +12,8 @@
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
+//   FAKE_MCP_POLICY=1  copilot: warn that an organization policy blocked wisp's MCP server
+//   FAKE_SESSION_ERROR  copilot: report this session.error (a quota) and end with exit code 1
 //   FAKE_LEAVE_CONFLICTS=1  asked to merge the base in (wisp's conflict fix): leave the conflicts
 //   FAKE_BACKGROUND  claude only: end the turn with a background task still running ("I'll report
 //                once it has finished"), then report again <ms> later the way the real CLI does;
@@ -33,7 +35,8 @@
 // Permissions: with APPROVE, claude asks wisp's `approve` tool (its --permission-prompt-tool)
 // before `npm publish` (twice with APPROVE TWICE). With BLOCKED, `npm publish` is refused unless
 // the run allows it (claude --allowedTools Bash(npm publish), or a Full auto run): claude reports
-// it in permission_denials, opencode on stderr, codex in a `blocked` block of its presentation.
+// it in permission_denials, opencode on stderr, codex in a `blocked` block of its presentation,
+// copilot as a denied permission request (unless --allow-tool=shell(npm publish) or --allow-all).
 
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -70,6 +73,10 @@ if (name === 'grok' && argv[0] === 'models') {
   console.log('You are logged in with grok.com.\n\nDefault model: grok-9\n\nAvailable models:\n  * grok-9 (default)\n  - grok-9-fast');
   process.exit(0);
 }
+if (name === 'copilot' && argv[0] === 'help' && argv[1] === 'config') {
+  console.log('Configuration Settings:\n\n  `logLevel`: log level for CLI; defaults to "default".\n\n  `model`: AI model to use for Copilot CLI; can be changed with /model command or --model flag option.\n    - "claude-opus-9.5"\n    - "gpt-9.1-sol"\n\n  `contextTier`: context window tier for tiered-pricing models.');
+  process.exit(0);
+}
 if (name === 'agy' && argv[0] === 'models') {
   console.log('Fetching available models...\ngemini-9-pro-high\tGemini 9 Pro (High)\ngemini-9-flash          Gemini 9 Flash');
   process.exit(0);
@@ -92,7 +99,7 @@ const btw = stdin.includes('# wisp btw');
 
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL }) + '\n');
 }
 
 if (retro) {
@@ -175,6 +182,10 @@ function injectedMcp() {
     const line = file && fs.readFileSync(file, 'utf8').match(/^mcpServers: (.*)$/m);
     return line ? JSON.parse(line[1]).find((s) => s.name === 'wisp') : null;
   }
+  if (name === 'copilot') {
+    const cfg = flag('--additional-mcp-config');
+    return cfg ? JSON.parse(cfg).mcpServers?.wisp : null;
+  }
   return null; // cursor-agent and agy can't take one
 }
 
@@ -210,10 +221,16 @@ const cwd = process.cwd();
 const target = path.join(cwd, 'math.js');
 const before = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : '';
 const after = before.replace('a - b', 'a + b');
-const resumeId = name === 'claude' || name === 'cursor-agent' || name === 'grok' ? flag('--resume') : name === 'opencode' ? flag('--session') : name === 'agy' ? flag('--conversation') : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
-const session = resumeId || `${name}-session-1`;
-const fullAuto = argv.includes('--dangerously-bypass-approvals-and-sandbox') || argv.includes('--auto') || flag('--permission-mode') === 'bypassPermissions';
-const allowedPublish = fullAuto || argv.slice(argv.indexOf('--allowedTools') + 1).includes('Bash(npm publish)') || JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || '{}').permission?.bash?.['npm publish'] === 'allow';
+const resumeId =
+  name === 'claude' || name === 'cursor-agent' || name === 'grok' ? flag('--resume')
+  : name === 'opencode' ? flag('--session')
+  : name === 'agy' ? flag('--conversation')
+  : name === 'copilot' ? argv.find((a) => a.startsWith('--resume='))?.slice(9)
+  : argv.includes('resume') ? argv[argv.indexOf('resume') + 1] : undefined;
+// copilot is handed the id of a new session (--session-id) rather than making one up.
+const session = resumeId || (name === 'copilot' && flag('--session-id')) || `${name}-session-1`;
+const fullAuto = argv.includes('--dangerously-bypass-approvals-and-sandbox') || argv.includes('--auto') || argv.includes('--allow-all') || flag('--permission-mode') === 'bypassPermissions';
+const allowedPublish = fullAuto || argv.slice(argv.indexOf('--allowedTools') + 1).includes('Bash(npm publish)') || argv.includes('--allow-tool=shell(npm publish)') || JSON.parse(process.env.OPENCODE_CONFIG_CONTENT || '{}').permission?.bash?.['npm publish'] === 'allow';
 const publishing = /BLOCKED|blocked by your permissions/.test(stdin); // the task, or wisp's retry of it
 const refused = publishing && !allowedPublish;
 const final = (answer) => {
@@ -424,5 +441,60 @@ if (name === 'claude') {
       result('c5', answer);
     }
     out({ type: 'result', subtype: 'success', is_error: false, duration_ms: 5, num_turns: 3, result: final(answer), stop_reason: 'end_turn', total_cost_usd: 0.02, usage: { input_tokens: 10, output_tokens: 5 }, session_id: session });
+  }
+} else if (name === 'copilot') {
+  // --output-format json: copilot's session events (as captured from copilot 1.0.86), deltas left
+  // out, then one `result` line. Tools announce themselves before they run and report when done.
+  let n = 0;
+  const ev = (type, data, extra = {}) => out({ type, data, id: `e${++n}`, timestamp: new Date().toISOString(), parentId: n > 1 ? `e${n - 1}` : null, ...extra });
+  const start = (id, toolName, args, extra = {}) => ev('tool.execution_start', { toolCallId: id, toolName, arguments: args, turnId: '0', ...extra });
+  const done = (id, result, success = true) => ev('tool.execution_complete', { toolCallId: id, success, ...(success ? { result } : { error: result }), turnId: '0' });
+  const notes = path.join(cwd, 'notes.txt');
+  ev('session.mcp_server_status_changed', { serverName: 'github-mcp-server', status: 'connected' }, { ephemeral: true });
+  // FAKE_MCP_POLICY: an organization that turned third-party MCP servers off (copilot's own words).
+  if (process.env.FAKE_MCP_POLICY && injectedMcp()) ev('session.warning', { message: "1 MCP server was blocked by policy: 'wisp'", warningType: 'mcp' }, { ephemeral: true });
+  ev('user.message', { content: stdin, turnId: '0' });
+  ev('assistant.turn_start', { turnId: '0' });
+  ev('assistant.message', { messageId: 'm1', content: 'Reading math.js first.', toolRequests: [{ toolCallId: 'c1', name: 'view', arguments: { path: target } }] });
+  start('c1', 'view', { path: target });
+  if (process.env.FAKE_HANG) hang();
+  else {
+    done('c1', { content: before });
+    ev('assistant.reasoning', { reasoningId: 'r1', content: 'fixing' });
+    // A subagent's own steps carry its agent id.
+    ev('assistant.message', { messageId: 's1', content: 'subagent chatter' }, { agentId: 'sub-1' });
+    start('c2', 'edit', { path: target, old_str: 'a - b', new_str: 'a + b' });
+    fs.writeFileSync(target, after);
+    done('c2', { content: `File ${target} updated with changes.` });
+    start('c3', 'create', { path: notes, file_text: 'new file\n' });
+    fs.writeFileSync(notes, 'new file\n');
+    done('c3', { content: `Created file ${notes} with 9 characters` });
+    start('c4', 'bash', { command: 'npm test', description: 'Run the tests' });
+    done('c4', { content: '1 failing\n<exited with exit code 1>' });
+    if (publishing) {
+      start('c6', 'bash', { command: 'npm publish', description: 'Publish the package' });
+      if (refused) {
+        ev('permission.requested', { requestId: 'p1', permissionRequest: { kind: 'shell', toolCallId: 'c6', fullCommandText: 'npm publish', intention: 'Publish the package', commands: [{ identifier: 'npm publish', readOnly: false }], possiblePaths: [] } });
+        ev('permission.completed', { requestId: 'p1', result: { kind: 'denied-no-approval-rule-and-could-not-request-from-user' } });
+        done('c6', { message: 'Permission denied and could not request permission from user' }, false);
+      } else done('c6', { content: '+ fake@1.0.0' });
+    }
+    const answer = await ask();
+    if (answer) {
+      start('c5', 'wisp-ask_user', { question: 'Proceed with the fix?' }, { mcpServerName: 'wisp', mcpToolName: 'ask_user' });
+      done('c5', { content: answer });
+    }
+    ev('assistant.turn_end', { turnId: '0' });
+    ev('assistant.turn_start', { turnId: '1' });
+    ev('assistant.message', { messageId: 'm2', content: final(answer), toolRequests: [] });
+    ev('assistant.turn_end', { turnId: '1' });
+    ev('assistant.idle', {}, { ephemeral: true });
+    // FAKE_SESSION_ERROR: the run hit a quota after its work (copilot then exits 1).
+    if (process.env.FAKE_SESSION_ERROR) ev('session.error', { errorType: 'quota', message: process.env.FAKE_SESSION_ERROR });
+    // The usage file counts the whole session: a follow-up's totals include the turns before it.
+    const prior = resumeId ? 1 : 0;
+    const usage = flag('--usage-output-file');
+    if (usage) fs.writeFileSync(usage, JSON.stringify({ totalPremiumRequestCost: 1 + prior, modelMetrics: { 'fake-model': { requests: { count: 2, cost: 1 }, usage: { inputTokens: 10 + 15 * prior, outputTokens: 5 + 7 * prior } } } }));
+    out({ type: 'result', timestamp: new Date().toISOString(), sessionId: session, exitCode: process.env.FAKE_SESSION_ERROR ? 1 : 0, usage: { premiumRequests: 1 + prior, totalApiDurationMs: 4, sessionDurationMs: 6, codeChanges: { linesAdded: 2, linesRemoved: 1, filesModified: [target, notes] } } });
   }
 }
