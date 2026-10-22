@@ -222,13 +222,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
 
     if (p === '/healthz') return json(res, 200, { ok: true });
     if (req.method === 'GET' && (p === '/' || p === '/account')) {
-      if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '' }));
+      if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages }));
       const u = s.user;
       return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, devices: accounts.devices(u.id), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
     if (req.method === 'GET' && p === '/signin') {
       if (s && !url.searchParams.get('link')) return redirect(res, safePath(url.searchParams.get('return')));
-      return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: safePath(url.searchParams.get('return'), '') }));
+      return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: safePath(url.searchParams.get('return'), ''), analytics: stats.pages }));
     }
 
     // Sign in with a provider: out to it with state + PKCE (+ nonce), back with a code.
@@ -242,9 +242,11 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const ret = safePath(url.searchParams.get('return'), '/');
       if (prov.kind === 'dev') return page(devSignInPage({ cfg, ret, csrf: secrets.sign('dev-signin') }));
       const f = newFlow();
-      const st = { p: prov.id, s: f.state, v: f.verifier, n: f.nonce, r: ret, l: link ? s.user.id : null, t: Date.now() };
+      const visitor = stats.visitorId(c);
+      const st = { p: prov.id, s: f.state, v: f.verifier, n: f.nonce, r: ret, l: link ? s.user.id : null, t: Date.now(), a: visitor };
       const raw = Buffer.from(JSON.stringify(st)).toString('base64url');
       const to = await prov.start({ redirectUri: `${cfg.publicUrl}/auth/${encodeURIComponent(prov.id)}/callback`, state: f.state, verifier: f.verifier, nonce: f.nonce });
+      if (!link) stats.funnel('grid_auth_started', visitor, { provider: prov.id });
       return redirect(res, to, { 'set-cookie': setCookie(names.oauth, `${raw}.${secrets.sign(raw)}`, 600) });
     }
     m = /^\/auth\/([^/]+)\/callback$/.exec(p);
@@ -255,6 +257,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       let identity;
       let ret = '/';
       let linkTo = null;
+      let visitor = null;
       const clear = setCookie(names.oauth, '', 0);
       try {
         if (prov.kind === 'dev') {
@@ -274,9 +277,12 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
           identity = await prov.finish({ code: url.searchParams.get('code'), redirectUri: `${cfg.publicUrl}/auth/${encodeURIComponent(id)}/callback`, verifier: st.v, nonce: st.n });
           ret = safePath(st.r);
           linkTo = st.l;
+          visitor = st.a || null;
         }
         if (linkTo && s?.user.id !== linkTo) throw bad('You were signed out while connecting it. Sign in and try again.');
+        const t0 = Date.now();
         const user = accounts.signIn(identity, { linkTo });
+        if (!linkTo) stats.funnel('grid_auth_finished', visitor, { provider: id, signup: user.created_at >= t0 });
         const headers = { 'set-cookie': [clear] };
         if (!linkTo) {
           if (s) accounts.endSession(cookies(req)[names.grid]);
@@ -285,7 +291,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         return redirect(res, linkTo ? `/?m=${encodeURIComponent(`${prov.label} connected.`)}` : ret, headers);
       } catch (err) {
         log(`grid: sign-in with ${id} failed: ${err.message}`);
-        return page(signInPage({ cfg, providers, seats: accounts.seats(), error: err.full ? '' : err.message, linking: !!linkTo }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
+        if (!linkTo) stats.funnel('grid_auth_failed', visitor, { provider: id, reason: err.full ? 'full' : err.status === 403 ? 'refused' : 'error' });
+        return page(signInPage({ cfg, providers, seats: accounts.seats(), error: err.full ? '' : err.message, linking: !!linkTo, analytics: stats.pages }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
       }
     }
 

@@ -101,6 +101,13 @@ long) or failed. Each user is a hash of their id: never a handle, email or addre
 wisp then keeps its own usage stats on too (they can turn them off in Settings). `WISP_TELEMETRY=0`
 or `DO_NOT_TRACK=1` in the grid's environment turns it all off.
 
+On wisp's own hosted grid (`grid.trywisp.dev`) only, the sign-in page also loads PostHog like
+trywisp.dev does, so the sign-up funnel reads: site → sign-in page → *Continue with GitHub*
+(`grid_signin_clicked`) → off to GitHub (`grid_auth_started`) → back signed in or up
+(`grid_auth_finished`, `signup: true|false`) or turned away (`grid_auth_failed`). The server's steps
+use the page's anonymous PostHog id from its cookie, never the user. A self-hosted grid loads no
+script, whatever `telemetry` says.
+
 ## How it fits together
 
 ```

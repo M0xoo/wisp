@@ -489,6 +489,49 @@ test('the hosted grid, once full, sends new people to the waitlist first and sti
   assert.doesNotMatch(invite, /seats left/);
 });
 
+test('the sign-in funnel: only the hosted grid loads PostHog on its page and ties the GitHub steps to that visitor', async () => {
+  const { signInPage } = await import('../grid/pages.js');
+  const { createGridTelemetry } = await import('../grid/telemetry.js');
+  const { posthogKey } = await import('../server/telemetry.js');
+  const providers = new Map([['github', { id: 'github', label: 'GitHub' }]]);
+  const hosted = { name: 'wisp Grid', domain: 'grid.trywisp.dev', publicUrl: 'https://grid.trywisp.dev' };
+  assert.match(signInPage({ cfg: hosted, providers, analytics: true }), /posthog\.init\("phc_[^"]+",\{api_host:'https:\/\/us\.i\.posthog\.com'.*grid_signin_clicked/s);
+  assert.doesNotMatch(signInPage({ cfg: hosted, providers }), /posthog/);
+  assert.doesNotMatch((await browser().go(`${base}/`)).text, /posthog/, 'a self-hosted grid loads nothing');
+
+  const sent = [];
+  const post = async (b) => (sent.push(...b), true);
+  const cookie = { [`ph_${posthogKey()}_posthog`]: JSON.stringify({ distinct_id: '019a0b6c-1d2e-7f00-8a00-0123456789ab', $sesid: [] }) };
+  const self = createGridTelemetry({ telemetry: true, domain: 'wisp.example.com' }, { post, env: {} });
+  assert.equal(self.pages, false);
+  assert.equal(self.visitorId(cookie), null);
+  self.funnel('grid_auth_started', 'x', { provider: 'github' });
+  self.close();
+  assert.equal(sent.length, 0, 'no funnel events from a self-hosted grid');
+  assert.equal(createGridTelemetry({ telemetry: true, domain: 'grid.trywisp.dev' }, { post, env: { DO_NOT_TRACK: '1' } }).pages, false);
+
+  const s = createGridTelemetry({ telemetry: true, domain: 'grid.trywisp.dev' }, { post, env: {} });
+  assert.equal(s.pages, true);
+  const v = s.visitorId(cookie);
+  assert.equal(v, '019a0b6c-1d2e-7f00-8a00-0123456789ab');
+  assert.equal(s.visitorId({ [`ph_${posthogKey()}_posthog`]: '{"distinct_id":"<script>"}' }), null, 'only an id-shaped value');
+  assert.equal(s.visitorId({ [`ph_${posthogKey()}_posthog`]: 'not json' }), null);
+  s.funnel('grid_auth_started', v, { provider: 'github' });
+  s.funnel('grid_auth_finished', v, { provider: 'github', signup: true });
+  s.funnel('grid_auth_failed', null, { provider: 'github', reason: 'full' });
+  s.close();
+  assert.deepEqual(sent.map((e) => [e.event, e.properties.distinct_id]), [['grid_auth_started', v], ['grid_auth_finished', v], ['grid_auth_failed', 'grid-anonymous']]);
+  assert.equal(sent[1].properties.signup, true);
+});
+
+test('GitHub sign-in still works with a PostHog cookie from trywisp.dev', async () => {
+  const { posthogKey } = await import('../server/telemetry.js');
+  const b = browser();
+  b.jar.set(new URL(base).host, new Map([[`ph_${posthogKey()}_posthog`, encodeURIComponent(JSON.stringify({ distinct_id: 'abcdef0123456789' }))]]));
+  await b.follow(`${base}/auth/github/start`);
+  assert.match((await b.go(`${base}/`)).text, /Hi Octo/);
+});
+
 test('Caddy’s on-demand TLS check: the grid and existing users only', async () => {
   const ask = async (d) => (await browser().go(`http://127.0.0.1:${cfg.listen.port}/_grid/tls-ask?domain=${d}`, { headers: { host: `127.0.0.1:${cfg.listen.port}` } })).status;
   assert.equal(await ask('wisp.localhost'), 200);
