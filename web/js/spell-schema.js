@@ -76,6 +76,7 @@ export const PARTS = {
   'composer.hint': '.composer .c-hint',
   'composer.ship': '.composer .c-ship',
   'composer.done': '.composer .c-done',
+  'composer.queue': '.composer .c-queue',
   'composer.send': '.composer .send',
   'composer.btwTip': '.w-tip',
   card: '#feed .item',

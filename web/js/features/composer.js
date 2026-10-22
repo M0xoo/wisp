@@ -62,7 +62,7 @@ export function renderDock(id) {
         <span class="c-hint"></span>
         <button class="ghost sm c-ship" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
         <button class="ghost sm c-done" data-a="done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
-        <button class="ghost xs c-queue" hidden>${icon('queue')}<span>Queue</span></button>
+        <button class="ghost xs c-queue" aria-pressed="false" hidden>${icon('queue')}<span>Queue</span><i class="c-switch"></i></button>
         <button class="send" title="Send (Enter · Shift+Enter for newline)">${icon('enter')}</button>
       </div>
     </div>`);
@@ -275,6 +275,7 @@ export function updateDock(id) {
   const q = $('.c-queue', n.card);
   q.hidden = tour || s.state !== 'running';
   q.classList.toggle('on', queueing());
+  q.setAttribute('aria-pressed', queueing());
   q.title = queueing()
     ? `Queueing: follow-ups wait until ${name} finishes. Click to send now instead.`
     : `Sending now: follow-ups interrupt ${name}. Click to queue them instead.`;
