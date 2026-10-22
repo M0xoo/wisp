@@ -361,6 +361,26 @@ test('connect, add a project, launch, follow up and stop wisp over there', { ski
   const take = await call('GET', `/sessions/${s.id}/takeover`);
   assert.match(take.command, /'-t' 'me@devbox' 'sh -c '/);
   assert.match(take.command, /--resume/);
+  // Take over in wisp: the terminal runs over there; its stream and keys pass through here.
+  if (process.platform !== 'win32') {
+    const inl = await call('POST', `/sessions/${s.id}/takeover`, { inline: true, cols: 90, rows: 20 });
+    assert.equal(inl.inline, true);
+    await until(async () => (await call('GET', '/sessions')).find((x) => x.id === s.id)?.term === true);
+    const ctl = new AbortController();
+    const tr = await fetch(`${base}/api/sessions/${s.id}/term`, { signal: ctl.signal });
+    assert.match(tr.headers.get('content-type'), /text\/event-stream/);
+    const reader = tr.body.getReader();
+    let text = '';
+    const saw = async (re) => {
+      while (!re.test(text)) text += new TextDecoder().decode((await reader.read()).value);
+    };
+    await saw(/event: hello/);
+    await call('POST', `/sessions/${s.id}/term`, { data: 'from here\r' });
+    await saw(/from here/);
+    ctl.abort();
+    await call('DELETE', `/sessions/${s.id}/term`);
+    await until(async () => !(await call('GET', '/sessions')).find((x) => x.id === s.id)?.term);
+  }
 
   // One prompt, here and on the machine at once: a shared groupId makes them one task.
   const gid = 'ab12cd34ef56';

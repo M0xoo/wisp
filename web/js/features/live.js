@@ -8,6 +8,7 @@ import { COMPUTER, MOBILE, S, nameHere, saveOpen, setAgents } from '../core/stat
 import { toast } from '../ui/toast.js';
 import { keepSignIns } from './agent-login.js';
 import { paintAutoBtn } from './automations.js';
+import { updateDock } from './composer.js';
 import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
 import { loadMachines, openComputers, paintMachinesBtn, setMachines } from './machines.js';
@@ -52,6 +53,7 @@ export function connect() {
     const follow = moved && s.state !== 'done' && !s.archived && watching(s.id);
     keepInPlace(follow ? S.nodes.get(s.id).card : feedAnchor(s.id), renderFeed);
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
+    if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal
     if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
     if (prev?.state !== s.state || prev?.pr?.state !== s.pr?.state) spellEvent('summary');
   });

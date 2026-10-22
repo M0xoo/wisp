@@ -16,6 +16,7 @@ import { welcomeSession } from './welcome.js';
 import { Telemetry } from './telemetry.js';
 import { Updater } from './update.js';
 import { Preferences, Retro } from './preferences.js';
+import { Terms } from './pty.js';
 import { Spells, overlayDefaults } from './spells.js';
 import { createSpellData } from './spells-data.js';
 import { setSpellBlocks } from './render.js';
@@ -191,6 +192,12 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     onDone: (id) => app.auto.detect({ fresh: id }).then(() => app.broadcast('agents', {}), () => {}),
   });
   app.launcher = createLaunch(app);
+  app.terms = new Terms({
+    onChange: (id) => {
+      const s = store.get(id);
+      if (s) app.broadcast('summary', summarize(s, store));
+    },
+  });
   app.sendFeedback = createFeedback(app);
   app.triggers = new Triggers({ store, launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0], onChange: () => app.broadcast('config', {}) });
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
@@ -251,6 +258,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.ship.stop();
     app.cloud.stop();
     app.agentLogin.stop();
+    app.terms.closeAll();
     for (const s of store.all()) runner.stop(s);
     store.flush();
     app.telemetry.persist();

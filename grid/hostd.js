@@ -276,7 +276,7 @@ export class Hostd extends EventEmitter {
       i.lastActiveAt = Math.max(s.lastActivityAt || 0, i.lastTouch || 0);
       // Checked after the await: a request may have arrived meanwhile. stop() flips the state
       // before it yields, so a request after this point waits for a fresh start instead.
-      const quiet = i.state === 'running' && !i.inflight && !s.live && !s.sides && !s.clients && Date.now() - Math.max(i.lastActiveAt, i.lastTouch || 0) > this.idleMs;
+      const quiet = i.state === 'running' && !i.inflight && !s.live && !s.sides && !s.terms && !s.clients && Date.now() - Math.max(i.lastActiveAt, i.lastTouch || 0) > this.idleMs;
       if (quiet) {
         this.log(`hostd: ${i.user.handle} idle, stopping${i.nextWakeAt ? ` (wakes ${new Date(i.nextWakeAt).toISOString()})` : ''}`);
         await this.stop(i.user.id, 'idle');

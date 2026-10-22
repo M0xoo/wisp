@@ -1,0 +1,77 @@
+/* Take over in wisp (features/term.js): a terminal sheet; over the open task in split view; the
+   whole screen on a phone, with a row of keys above the keyboard. */
+
+.term { position: fixed; inset: 0; z-index: 35; }
+.term[hidden] { display: none; }
+.tm-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.22); animation: fade-in 0.15s var(--ease); }
+.tm-box {
+  position: absolute; top: 64px; bottom: 16px; left: 50%; translate: -50% 0; width: min(1080px, calc(100vw - 32px));
+  display: flex; flex-direction: column; overflow: hidden; border-radius: 14px;
+  background: var(--term-bg); border: 1px solid var(--line-2); box-shadow: var(--shadow-2);
+  animation: ga-in 0.18s var(--ease);
+}
+
+/* Split view: in the open task's place, under its header. The sidebar stays usable. */
+.term.over-stage { pointer-events: none; }
+.term.over-stage .tm-scrim { display: none; }
+.term.over-stage .tm-box {
+  pointer-events: auto; position: fixed; top: var(--sb-top); left: var(--sb-left); width: var(--sb-w); height: var(--sb-h); bottom: auto; translate: none;
+  border-radius: 0; border: 0; border-top: 1px solid var(--line); box-shadow: none; animation: none;
+}
+.term.over-stage .tm-title { display: none; }
+
+.tm-head { display: flex; align-items: center; gap: 8px; flex: none; height: 42px; padding: 0 8px 0 6px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.tm-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
+.tm-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.tm-sub { flex: none; color: var(--muted); font-size: 12px; }
+.tm-acts { display: flex; gap: 2px; flex: none; }
+.tm-end:hover { color: var(--bad); background: var(--del-bg); }
+
+.tm-screen {
+  position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px;
+  background: var(--term-bg); color: var(--term-ink); cursor: text;
+  scrollbar-color: #3a3a3a transparent;
+}
+.tm-rows { font: var(--tm-fs, 13px) / 1.3 var(--mono); font-variant-ligatures: none; white-space: pre; }
+.tm-rows > div > div { height: var(--tm-lh, 1.3em); overflow: hidden; }
+.tm-rows .b { font-weight: 650; }
+.tm-rows .d { opacity: 0.6; }
+.tm-rows .i { font-style: italic; }
+.tm-rows .u { text-decoration: underline; }
+.tm-rows .s { text-decoration: line-through; }
+.tm-rows .w2 { display: inline-block; width: 2ch; }
+.tm-rows .cur { background: var(--term-ink); color: var(--term-bg); }
+.term:not(.focused) .tm-rows .cur { background: transparent; color: inherit; outline: 1px solid color-mix(in srgb, var(--term-ink) 60%, transparent); outline-offset: -1px; }
+.tm-probe { position: absolute; visibility: hidden; white-space: pre; }
+/* The input the keys go to: on the cursor (for the IME), invisible. 16px keeps phones from zooming. */
+.tm-input {
+  position: absolute; width: 2px; height: var(--tm-lh, 17px); padding: 0; border: 0; margin: 0; opacity: 0; resize: none; overflow: hidden;
+  font-size: 16px; color: transparent; background: transparent; caret-color: transparent; outline: none;
+}
+
+.tm-keys { display: none; flex: none; gap: 6px; overflow-x: auto; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); scrollbar-width: none; }
+.term.touch .tm-keys { display: flex; }
+.tm-keys button {
+  flex: none; min-width: 44px; height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--bg-2); color: var(--ink); font: 500 13px var(--mono); touch-action: manipulation; -webkit-user-select: none; user-select: none;
+}
+.tm-keys button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+
+/* Phones: the whole screen, sized to what the keyboard leaves (--vv-*, from visualViewport). */
+@media (max-width: 700px) {
+  .term .tm-box, .term.over-stage .tm-box {
+    position: fixed; top: var(--vv-top, 0); left: 0; width: 100vw; height: var(--vv-h, 100dvh); bottom: auto; translate: none;
+    border: 0; border-radius: 0; box-shadow: none; animation: none;
+  }
+  .term .tm-scrim { display: none; }
+  .tm-head { height: calc(46px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
+  .tm-rows { font-size: var(--tm-fs, 12px); }
+  .tm-sub { display: none; }
+  .tm-screen { padding: 8px; }
+  body.term-open { overflow: hidden; }
+}
+
+/* The card's "In terminal" pill, which opens it. */
+button.pill.st-term { --tone: var(--ink-2); gap: 4px; border: 0; font-family: inherit; cursor: pointer; }
+button.pill.st-term:hover { background: color-mix(in srgb, var(--tone) 15%, transparent); }
+.pill.st-term .i { width: 12px; height: 12px; }

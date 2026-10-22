@@ -17,6 +17,7 @@ import { prOf, prPill, shipPill } from './ship.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
+import { termPill } from './term.js';
 import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar } from './split.js';
 
 function visible(list) {
@@ -268,7 +269,7 @@ function quickDone(s, open) {
 // shows the same).
 export function headPills(s, pill) {
   return `
-      ${pill}
+      ${termPill(s)}${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
