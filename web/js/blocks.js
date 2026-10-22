@@ -418,7 +418,9 @@ R.flow = (b) => {
         ly = (a.cy + z.cy) / 2 - 8;
       }
       out += `<path class="wire ${back ? 'back' : ''}" d="${d}" pathLength="1" style="--k:${i}"/>`;
-      if (!reduced()) out += `<circle r="3" class="spark ${back ? 'back' : ''}"><animateMotion dur="${back ? 3.2 : 2.2}s" begin="${0.8 + i * 0.35}s" repeatCount="indefinite" path="${d}"/></circle>`;
+      // Hidden until its motion begins: before that the circle sits at 0,0, the stage's top-left corner.
+      const begin = `${0.8 + i * 0.35}s`;
+      if (!reduced()) out += `<circle r="3" class="spark ${back ? 'back' : ''}" visibility="hidden"><set attributeName="visibility" to="visible" begin="${begin}"/><animateMotion dur="${back ? 3.2 : 2.2}s" begin="${begin}" repeatCount="indefinite" path="${d}"/></circle>`;
       const side = vertical || (snake && (back ? Math.abs(a.cy - z.cy) > 4 : z.t >= a.b));
       if (e.label) out += `<text x="${lx}" y="${ly}" class="wire-label" text-anchor="${side ? 'start' : 'middle'}">${esc(e.label)}</text>`;
     });
