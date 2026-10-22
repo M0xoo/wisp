@@ -373,7 +373,16 @@ export function migrate({ data = BOXD.data, boxes = BOXD.boxes, docker = 'docker
       continue;
     }
     fs.mkdirSync(path.dirname(to), { recursive: true, mode: 0o700 });
-    fs.renameSync(from, to);
+    try {
+      fs.renameSync(from, to);
+    } catch (err) {
+      // Another disk: mv copies it across (owners, modes and links kept) and removes the old one.
+      const mv = err.code === 'EXDEV' ? spawnSync('mv', [from, to], { stdio: 'inherit' }) : null;
+      if (mv?.status !== 0) {
+        fs.rmSync(path.dirname(to), { recursive: true, force: true });
+        throw mv ? new Error(`mv ${from} ${to} failed`) : err;
+      }
+    }
     out.moved.push(id);
     log(`  ✓ ${id}: ${from} → ${to}`);
   }
