@@ -446,3 +446,8 @@ test('the spell tools only answer a Cast a spell task with the right token', asy
   const r2 = await fetch(`${base}/api/internal/spell-schema/${s.id}`, { headers: { 'x-wisp-token': 'nope' } });
   assert.equal(r2.status, 403);
 });
+
+test('the follow-up Queue switch is a part spells can restyle or hide', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['composer.queue'] }, parts: { 'composer.queue': { style: { borderRadius: '4px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'composer.queue': { props: { width: 400 } } } }).some((x) => /composer\.queue/.test(x)));
+});
