@@ -78,7 +78,9 @@ next:
 
 - **`signup`:** `closed` lets only existing users in.
 - **`maxUsers`:** the first that many accounts get in, then new sign-ups are refused (existing
-  users still sign in; deleting one frees a place). Leave it out for no limit.
+  users still sign in; deleting one frees a place). Leave it out for no limit. The sign-in page
+  says how many seats are left, or that the grid is full, and `GET /api/seats` answers
+  `{ open, invite, max, left }` to any site that wants to show it.
 - **`allow`:** an account must match at least one rule. A verified email is required for email and
   domain rules. The allow list is checked again at every sign-in.
 - **Linking accounts:** someone can connect both Google and GitHub to one account from their

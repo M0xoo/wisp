@@ -430,7 +430,7 @@ They receive titles, summaries and questions (with their context), never code or
 
 ## wisp Cloud
 
-Your own wisp on a server, so the agents keep working when your laptop is closed. It's in **early preview** at [grid.trywisp.dev](https://grid.trywisp.dev) (invite only while seats open up), and the same code runs on your own server with `wisp grid` ([grid/README.md](grid/README.md)).
+Your own wisp on a server, so the agents keep working when your laptop is closed. It's **free in early preview** at [grid.trywisp.dev](https://grid.trywisp.dev), a few accounts at a time (the sign-in page says how many seats are left; when they're gone, [leave your email](https://trywisp.dev/cloud.html#join) for the next one), and the same code runs on your own server with `wisp grid` ([grid/README.md](grid/README.md)).
 
 - **Sign in** with GitHub (or Google, or your company's OpenID Connect on your own grid). You get your own wisp at `<you>.grid.trywisp.dev`, in a sandbox of its own: a gVisor container with its own folder and network, firewalled from the host and from everyone else.
 - **Use it from anywhere.** In the browser, from wisp on your computer (Settings → **Cloud**, or **Machines** → *Or use a cloud computer*: the address is filled in, you allow a code in the browser and it joins **Run on** like any machine), or from the phone app (**wisp Cloud** on its first screen).

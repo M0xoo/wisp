@@ -40,6 +40,15 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     return false;
   }
 
+  // Room for new people: whether sign-ups are open, invite-only (an allow list), and how many of
+  // maxUsers are left (null with no cap). The sign-in page and trywisp.dev (GET /api/seats) show it.
+  function seats() {
+    const a = cfg.auth.allow || {};
+    const max = cfg.auth.maxUsers || null;
+    const left = max ? Math.max(0, max - db.get('SELECT COUNT(*) AS n FROM users').n) : null;
+    return { open: cfg.auth.signup !== 'closed', invite: Object.values(a).some((v) => Array.isArray(v) && v.length), max, left };
+  }
+
   function isAdmin(userId) {
     const want = new Set((cfg.auth.admins || []).map((x) => String(x).toLowerCase()));
     if (!want.size) return false;
@@ -87,10 +96,9 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
       throw bad('This grid only lets in invited accounts, and this isn’t one of them.', 403);
     }
     // A cap on accounts (a preview, a small box): the first ones in get them, then it's full.
-    const max = cfg.auth.maxUsers;
-    if (max && db.get('SELECT COUNT(*) AS n FROM users').n >= max) {
+    if (seats().left === 0) {
       onAudit(null, 'signup.refused', { provider: idn.provider, reason: 'full' });
-      throw bad('This grid is full for now: it has all the accounts it takes.', 403);
+      throw Object.assign(bad('This grid is full for now: it has all the accounts it takes.', 403), { full: true });
     }
     const id = randomBytes(8).toString('hex');
     const handle = uniqueHandle(idn.login || (idn.email || '').split('@')[0] || 'user');
@@ -241,5 +249,5 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     audit(userId, 'user.delete');
   }
 
-  return { allowed, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, identities, byHandle, userById, instance, remove, audit, normalCode };
+  return { allowed, seats, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, identities, byHandle, userById, instance, remove, audit, normalCode };
 }
