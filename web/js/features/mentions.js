@@ -119,7 +119,11 @@ document.addEventListener('click', (e) => {
   const a = e.target.closest?.('a.mn[href^="#/s/"]');
   if (!a) return;
   const id = a.getAttribute('href').slice(4);
-  if (S.sessions.has(id)) return; // the #/s/ route reveals it
+  if (S.sessions.has(id)) {
+    // the #/s/ route reveals it; the address may already name it (it's open), so no hashchange
+    if (location.hash === `#/s/${id}`) window.dispatchEvent(new HashChangeEvent('hashchange'));
+    return;
+  }
   e.preventDefault();
   toast('That task is no longer in wisp.', { tone: 'bad' });
 });
