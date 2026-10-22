@@ -377,6 +377,22 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .b-image img { display: block; width: 100%; max-height: 520px; object-fit: contain; background: var(--surface-2); cursor: zoom-in; }
 .b-image figcaption { padding: 10px 16px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
 .b-image.broken img { min-height: 80px; }
+/* Copy and Download on the picture, top right, on hover (ui/image.js), like Slack's. A touch screen
+   has no hover, so they stay there. */
+.b-image .img-box { position: relative; }
+.img-tools {
+  position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; padding: 3px; border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); box-shadow: var(--shadow-1);
+  opacity: 0; transform: translateY(-2px); transition: opacity 0.15s, transform 0.15s; pointer-events: none;
+}
+.b-image .img-box:hover .img-tools, .img-tools:focus-within { opacity: 1; transform: none; pointer-events: auto; }
+.img-tools button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; color: var(--muted); }
+.img-tools button:hover { background: var(--surface-2); color: var(--ink); }
+.img-tools .i { width: 15px; height: 15px; }
+.img-tools button.copied { color: var(--good); }
+.lb-bar button.copied { color: #4cc38a; }
+.b-image.broken .img-tools { display: none; }
+@media (hover: none) { .img-tools { opacity: 1; transform: none; pointer-events: auto; } }
 
 /* next */
 .b-next { padding-top: 6px; }
