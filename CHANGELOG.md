@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Opening a task in the feed no longer shifts its state pill and time sideways, and Done rows line up with the rows above them.
 - In split view, the Mark done button on a selected or hovered row no longer leaves a clipped letter of the time beside it.
 - The Queue toggle in a running task's follow-up box is now a switch: accent-coloured with the knob on the right when follow-ups queue, faint with the knob on the left when they send now. Spells can restyle it as `composer.queue`.
+- In split view, when the open task moves to Working and its row is still in sight, the sidebar no longer scrolls to follow it.
 
 ## [0.30.4] - 2026-10-23
 

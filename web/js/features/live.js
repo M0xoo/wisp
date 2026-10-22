@@ -14,7 +14,7 @@ import { dropPending, renderLaunchChips } from './launcher.js';
 import { loadMachines, openComputers, paintMachinesBtn, setMachines } from './machines.js';
 import { notifyFinished } from './notify.js';
 import { renderProjects } from './projects.js';
-import { feedAnchor, keepInPlace, watching } from './scroll.js';
+import { feedAnchor, keepFollowing, keepInPlace, watching } from './scroll.js';
 import { openSettings } from './settings.js';
 import { renderPrStrip } from './ship.js';
 import { onChildSummary } from './team.js';
@@ -52,7 +52,7 @@ export function connect() {
     // list and focus goes to the next one instead.
     const moved = prev && was !== sectionOf(s);
     const follow = moved && s.state !== 'done' && !s.archived && watching(s.id);
-    keepInPlace(follow ? S.nodes.get(s.id).card : feedAnchor(s.id), renderFeed);
+    follow ? keepFollowing(S.nodes.get(s.id).card, renderFeed) : keepInPlace(feedAnchor(s.id), renderFeed);
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
     if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal
     if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
