@@ -123,8 +123,7 @@ function enter() {
 
 function leave() {
   const open = splitOpen();
-  sidebar.insertBefore(launchSlot, $('#feedHead'));
-  $('#feedHead').after(feedTop);
+  sidebar.insertBefore(launchSlot, feedTop);
   $('#spTop').before(...FOOT.map((sel) => $(sel)));
   document.body.classList.remove('split', 'pane-wide');
   $('#splitMain').hidden = true;

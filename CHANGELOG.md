@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The "Nothing needs you" line above the task list is gone, in the feed and in split view's sidebar: the group headings already say what needs you.
+
 ### Added
 
 - **The address bar follows the open task** (`#/s/<id>`, the task opened last in the feed), so reloading keeps it open and a copied link opens it in another tab or browser. Opening a `#/s/<id>` address opens that task, as before.
