@@ -2,7 +2,7 @@
 // behind the edge, cookies that stay on their own address, CSRF, the device flow, idle stop and
 // waking, envelope-encrypted secrets, and wisp on a desktop signing in to it (Settings → Cloud).
 
-import { test, before, after } from 'node:test';
+import { test as nodeTest, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -10,6 +10,13 @@ import net from 'node:net';
 import path from 'node:path';
 import { createHash, generateKeyPairSync, sign as rsaSign } from 'node:crypto';
 import { browser, installFakeBins, sleep, tmp, until } from './helpers.js';
+
+// The grid needs node:sqlite (Node 22.13+): on older Node it won't start, and these are skipped.
+const sqlite = await import('node:sqlite').then(
+  () => true,
+  () => false,
+);
+const test = (name, fn) => nodeTest(name, { skip: !sqlite && 'the grid needs node:sqlite (Node 22.13+)' }, fn);
 
 const fakeBin = installFakeBins();
 process.env.WISP_HOME = tmp('grid-desktop');
@@ -100,6 +107,7 @@ const gh = fakeGithub();
 const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(`http://127.0.0.1:${srv.address().port}`)));
 
 before(async () => {
+  if (!sqlite) return;
   oidc.st.base = await listen(oidc.srv);
   gh.st.base = await listen(gh.srv);
   const port = await freePort();
