@@ -130,6 +130,14 @@
           },
           {
             "@type": "Question",
+            "name": "Can my agents keep working when my laptop is closed?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, if they run on a computer that stays on. Connect a desktop or VM through Machines, or use wisp Cloud: your own wisp on a server, free during the preview. Sign in with GitHub, sign in to Claude Code or Codex with a code, give it a task and close the laptop; the report waits on your phone."
+            }
+          },
+          {
+            "@type": "Question",
             "name": "Can I move a task to another computer or agent mid-way?",
             "acceptedAnswer": {
               "@type": "Answer",
@@ -181,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=26" />
+  <link rel="stylesheet" href="style.css?v=27" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -236,13 +244,13 @@
           </div>
           <p class="fine" id="deskFine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
         </div>
-        <a class="cloud-cta" href="https://grid.trywisp.dev" aria-label="Open wisp Cloud at grid.trywisp.dev">
+        <a class="cloud-cta" href="https://grid.trywisp.dev" data-cloud-cta="hero" aria-label="Open wisp Cloud at grid.trywisp.dev">
           <span class="cc-or">or skip the install</span>
           <span class="cc-bar">
             <span class="cc-url"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.6" fill="currentColor"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span class="cc-host"><b>you</b>.grid.trywisp.dev</span></span>
-            <span class="cc-go"><span class="cc-long">Use wisp Cloud</span><span class="cc-short">Open</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="cc-go"><span class="cc-long" data-seats-cta="Get the next seat">Use wisp Cloud</span><span class="cc-short">Open</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </span>
-          <span class="cc-notes"><span><i></i>Sign in with GitHub</span><span>Runs with your laptop shut</span><span>Free preview</span></span>
+          <span class="cc-notes"><span><i></i>Sign in with GitHub</span><span>Runs with your laptop shut</span><span data-seats-note="Free · {seats} left" data-seats-full="Preview full">Free preview</span></span>
         </a>
       </div>
 
@@ -498,11 +506,11 @@
     <section class="final cloud-band" id="cloud">
       <div class="wrap">
         <p class="final-clock" aria-hidden="true">03:12</p>
-        <p class="eyebrow">wisp Cloud · early preview · open now</p>
+        <p class="eyebrow">wisp Cloud · free early preview<span data-seats-note=" · {left} of {max} seats left" data-seats-full=" · all {max} seats taken"> · a few seats at a time</span></p>
         <h2>Let it run while you sleep.</h2>
         <p class="sub">Your own wisp on a server: sign in with GitHub, give it a task, close the laptop, and read the report on your phone. Open it from the browser, the desktop app or the phone app. wisp on your computer stays free.</p>
         <div class="cta">
-          <a class="cmd link" href="https://grid.trywisp.dev">Try wisp Cloud</a>
+          <a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="band" data-seats-cta="Get the next seat">Try wisp Cloud</a>
           <a class="btn" href="cloud.html">How it works</a>
         </div>
       </div>
@@ -529,6 +537,7 @@
         <details><summary>Which coding agents does wisp support?</summary><p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>), Antigravity CLI (<code>agy</code>) and Grok Build (<code>grok</code>). Each harness is one adapter file, so adding another is small.</p></details>
         <details><summary>Can I run Claude Code and Codex in parallel?</summary><p>Yes. Every task runs in its own git worktree and branch, so Claude Code, Codex and the other agents can work on the same repo at the same time without colliding. Click <b>vs</b> in the launcher (or pass <code>--compare codex</code>) to run one task on both and keep the better run. <a href="guides/run-claude-code-and-codex-in-parallel.html">Guide →</a></p></details>
         <details><summary>Can wisp run agents on several machines?</summary><p>Yes. <b>Machines</b> connects to your other computers over SSH and starts wisp there. One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps. To reach them from anywhere, put them on Tailscale: <a href="guides/connect-machines-with-tailscale.html">Tailscale guide →</a> <a href="guides/run-coding-agents-on-multiple-machines.html">Machines guide →</a></p></details>
+        <details><summary>Can my agents keep working when my laptop is closed?</summary><p>Yes, if they run on a computer that stays on. Connect a desktop or VM through <b>Machines</b>, or use <a href="cloud.html">wisp Cloud</a>: your own wisp on a server, free during the preview. Sign in with GitHub, sign in to Claude Code or Codex with a code, give it a task and close the laptop; the report waits on your phone. <a href="guides/run-claude-code-24-7-without-a-vps.html">Run Claude Code 24/7 without a VPS →</a></p></details>
         <details><summary>Can I move a task to another computer or agent mid-way?</summary><p>Yes. Pick another computer with the <b>Runs on</b> button next to the follow-up box, and your next follow-up moves the task there: the branch and uncommitted changes travel as a git bundle into a worktree on the same branch, and the agent gets the earlier turns. The harness button next to it switches agents, say from Claude Code to Codex, in the same follow-up. <a href="guides/move-a-task-to-another-machine-or-agent.html">Guide →</a></p></details>
         <details><summary>Is wisp free?</summary><p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity or Grok account, and those providers bill as usual.</p></details>
         <details><summary>Does my code leave my machine?</summary><p>wisp itself is a local server. Sessions and state are plain JSON in <code>~/.wisp</code>. Your code only goes to the agent provider you choose, same as running that CLI directly. wisp sends anonymous usage stats with no prompts, paths or agent output. Turn them off with <code>WISP_TELEMETRY=0</code> or <code>DO_NOT_TRACK=1</code>.</p></details>
@@ -565,7 +574,7 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=10"></script>
+  <script src="main.js?v=11"></script>
   <script src="relay.js?v=1" defer></script>
   <script src="spells.js?v=2" defer></script>
 </body>

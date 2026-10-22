@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **wisp Grid says how many seats are left.** With `auth.maxUsers` set, the sign-in page shows *3 of 5 seats left*. Once the grid is full it says so before anyone goes through GitHub, instead of turning them away after. People who already have an account still sign in below. On grid.trywisp.dev the first button becomes *Get the next free seat*, which leads to the waitlist. `GET /api/seats` returns `{ open, invite, max, left }` so other pages can show the same count.
+- **A guide for keeping Claude Code running overnight.** [Run Claude Code 24/7 without a VPS](https://trywisp.dev/guides/run-claude-code-24-7-without-a-vps.html) compares running your own server (tmux, SSH from the phone, upkeep) with wisp Cloud. The landing page's FAQ answers *Can my agents keep working when my laptop is closed?*
+
+### Changed
+
+- **trywisp.dev is upfront about wisp Cloud's seats.** The Cloud page, the landing page and the Cloud guide used to say *invite only* in some places and *open now* in others. They now show the live seat count. When the seats are gone, the Cloud links lead to the waitlist instead of a sign-in that turns people away. Clicks on them are counted (`cloud_cta_clicked`).
+- **New link previews.** Links to the Cloud page, the Cloud guides and the grid's sign-in page show a preview card with the real app on a cloud computer. The main card shows the current tagline and the report.
+- **The grid's sign-in page lists only the sign-ins that grid has set up.** It no longer shows a Google button on a grid that only offers GitHub.
+
 ## [0.28.2] - 2026-10-22
 
 ### Fixed

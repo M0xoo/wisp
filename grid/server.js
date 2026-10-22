@@ -181,6 +181,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         return res.end();
       }
       const send = (status, body) => json(res, status, body, cors);
+      // Public: how many accounts are left, for the site that links here (trywisp.dev/cloud.html).
+      if (req.method === 'GET' && p === '/api/seats') return send(200, accounts.seats());
       if (req.method === 'POST' && p === '/api/device/code') {
         limit(`code|${clientIp(req)}`, 20);
         const body = await readBody(req);
@@ -211,13 +213,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
 
     if (p === '/healthz') return json(res, 200, { ok: true });
     if (req.method === 'GET' && (p === '/' || p === '/account')) {
-      if (!s) return page(signInPage({ cfg, providers, ret: url.searchParams.get('return') || '' }));
+      if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '' }));
       const u = s.user;
       return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, devices: accounts.devices(u.id), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
     if (req.method === 'GET' && p === '/signin') {
       if (s && !url.searchParams.get('link')) return redirect(res, safePath(url.searchParams.get('return')));
-      return page(signInPage({ cfg, providers, ret: safePath(url.searchParams.get('return'), '') }));
+      return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: safePath(url.searchParams.get('return'), '') }));
     }
 
     // Sign in with a provider: out to it with state + PKCE (+ nonce), back with a code.
@@ -274,7 +276,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         return redirect(res, linkTo ? `/?m=${encodeURIComponent(`${prov.label} connected.`)}` : ret, headers);
       } catch (err) {
         log(`grid: sign-in with ${id} failed: ${err.message}`);
-        return page(signInPage({ cfg, providers, error: err.message, linking: !!linkTo }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
+        return page(signInPage({ cfg, providers, seats: accounts.seats(), error: err.full ? '' : err.message, linking: !!linkTo }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
       }
     }
 

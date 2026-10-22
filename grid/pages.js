@@ -61,6 +61,8 @@ h1.big{font-size:clamp(40px,5.4vw,64px);line-height:1.02;font-weight:700}h1.big 
 .join .btn.first{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .join .btn+.btn{margin-top:10px}
 .join .fine{margin-top:12px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px}.join .fine span{display:inline-flex;align-items:center;gap:5px}.join .fine svg{width:14px;height:14px;color:var(--good)}
+.join .fine .seats i{width:7px;height:7px;margin:0 2px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 18%,transparent)}
+.join .full{margin:0 0 14px;font-size:14.5px;color:var(--ink-2)}.join .full b{color:var(--ink)}.final .join .full{text-align:center}
 .err{margin:0 0 14px;padding:11px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--bad) 35%,var(--line));color:var(--bad);font-size:14px;background:color-mix(in srgb,var(--bad) 6%,transparent)}
 .stage{position:relative}
 .win{border-radius:14px;overflow:hidden;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
@@ -114,9 +116,12 @@ label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu
 // redirect, Allow, Sign out), and a second press does nothing. Back from the browser cache clears it.
 const PENDING = `<script>(()=>{const go=(b)=>{if(b)setTimeout(()=>{b.classList.add('wait');b.setAttribute('aria-busy','true')})};document.addEventListener('submit',(e)=>{const b=e.submitter||e.target.querySelector('button');if(b&&b.classList.contains('wait'))return e.preventDefault();go(b)});document.addEventListener('click',(e)=>{const a=e.target.closest('a[href^="/auth/"]');if(a)go(a)});addEventListener('pageshow',()=>document.querySelectorAll('.wait').forEach((b)=>{b.classList.remove('wait');b.removeAttribute('aria-busy')}))})()</script>`;
 
+const DESC = 'Your own wisp on a server: Claude Code, Codex and the rest keep working when your laptop closes, and the report waits on your phone.';
+
 function siteHead(title, cfg) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title><meta name="referrer" content="same-origin"><meta name="description" content="Your own wisp on a server: coding agents keep working when your laptop closes. Sign in with GitHub or Google.">
+<title>${esc(title)}</title><meta name="referrer" content="same-origin"><meta name="description" content="${DESC}">
+<meta property="og:type" content="website"><meta property="og:url" content="${esc(cfg.publicUrl)}/"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${DESC}"><meta property="og:image" content="${esc(cfg.publicUrl)}${A}/og.png"><meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="${A}/icon.svg"><style>${SITE_CSS}</style></head><body>
 <header class="nav" id="nav"><div class="wrap"><a class="brand" href="/"><span class="mark"></span>wisp<span class="tag">Grid</span></a>
 <nav class="links"><a href="#how">How it works</a><a href="#report">What you get back</a><a href="#private">Private by design</a></nav>
@@ -126,19 +131,30 @@ const siteFoot = (cfg) => `<footer class="foot"><div class="wrap"><span>${esc(cf
 <script>addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('scrolled',scrollY>8),{passive:true})</script>${PENDING}</body></html>`;
 
 const shot = (name, alt) => `<picture><source srcset="${A}/dark-${name}.webp" media="(prefers-color-scheme: dark)"><img src="${A}/light-${name}.webp" alt="${esc(alt)}" decoding="async"></picture>`;
-const inviteOnly = (cfg) => cfg.auth.signup === 'closed' || Object.values(cfg.auth.allow || {}).some((v) => Array.isArray(v) && v.length);
+// The hosted grid's waitlist lives on trywisp.dev; a self-hosted grid that's full just says so.
+const waitlist = (cfg) => (cfg.domain === 'grid.trywisp.dev' ? 'https://trywisp.dev/cloud.html#join' : '');
+const signInWith = (providers) => [...providers.values()].filter((p) => p.id !== 'dev');
 
-function joinBox({ cfg, providers, ret = '', error = '', linking = false }) {
+function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = false }) {
   const q = ret ? `?return=${encodeURIComponent(ret)}` : '';
+  const full = !linking && seats.left === 0;
+  const wl = full && waitlist(cfg);
   const list = [...providers.values()].sort((a, b) => (a.id === 'github' ? -1 : b.id === 'github' ? 1 : a.id === 'dev' ? 1 : 0));
-  const buttons = list.map((p, i) => `<a class="btn${i === 0 ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}Continue with ${esc(p.label)}</a>`).join('');
+  // Full: new people get the waitlist first; the few with an account still sign in below it.
+  const buttons = list.map((p, i) => `<a class="btn${i === 0 && !wl ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}Continue with ${esc(p.label)}</a>`).join('');
+  const invite = seats.invite || seats.open === false;
+  const left = seats.max && !full && !invite ? `<span class="seats"><i></i>${seats.left} of ${seats.max} seats left</span>` : '';
+  const fullNote = wl ? `<b>All ${seats.max} preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in below.` : `<b>This grid is full:</b> it has all the ${seats.max} accounts it takes. Already have one? Sign in below.`;
   return `<div class="join" id="join">${error ? `<p class="err">${esc(error)}</p>` : ''}
+    ${full ? `<p class="full">${fullNote}</p>` : ''}
+    ${wl ? `<a class="btn first" href="${wl}">${I.arrow}Get the next free seat</a>` : ''}
     ${buttons || '<p class="err">No sign-in is set up on this grid yet. Its operator adds GitHub or Google in grid.json.</p>'}
-    <div class="fine">${linking ? '<span>Sign in with it once; after that either one opens your account.</span>' : `<span>${I.check}Nothing to install</span><span>${I.check}Your own agent accounts</span><span>${I.check}${inviteOnly(cfg) ? 'Invite only' : 'Free while in preview'}</span>`}</div></div>`;
+    <div class="fine">${linking ? '<span>Sign in with it once; after that either one opens your account.</span>' : `<span>${I.check}Nothing to install</span><span>${I.check}Your own agent accounts</span><span>${I.check}${invite ? 'Invite only' : 'Free while in preview'}</span>${left}`}</div></div>`;
 }
 
-export function signInPage({ cfg, providers, ret = '', error = '', linking = false }) {
-  const join = joinBox({ cfg, providers, ret, error, linking });
+export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', linking = false }) {
+  const join = joinBox({ cfg, providers, seats, ret, error, linking });
+  const ways = signInWith(providers);
   return `${siteHead(`${cfg.name} · your agents keep working when your laptop closes`, cfg)}
 <main>
 <section class="hero"><div class="wrap">
@@ -168,7 +184,7 @@ export function signInPage({ cfg, providers, ret = '', error = '', linking = fal
   <p class="num">01 · HOW IT WORKS</p>
   <h2 class="t">Three minutes from here<br><span>to your first task.</span></h2>
   <div class="steps">
-    <div class="step"><span class="k">1</span><h3>Sign in</h3><p>With GitHub or Google. You get your own wisp at <code>you.${esc(cfg.domain)}</code>, in a box nobody else can touch.</p><div class="chips"><span class="chip">${I.github}GitHub</span><span class="chip">${I.google}Google</span></div></div>
+    <div class="step"><span class="k">1</span><h3>Sign in</h3><p>${ways.length ? `With ${esc(ways.map((p) => p.label).join(' or '))}. ` : ''}You get your own wisp at <code>you.${esc(cfg.domain)}</code>, in a box nobody else can touch.</p><div class="chips">${ways.map((p) => `<span class="chip">${logo(p.id)}${esc(p.label)}</span>`).join('')}</div></div>
     <div class="step"><span class="k">2</span><h3>Connect your agents</h3><p>Sign in to Claude Code, Codex and GitHub from Settings → Agents: a link and a code, no terminal. Only what you sign in to shows up.</p><div class="chips">${AGENTS.slice(0, 2).map(([f, n]) => `<span class="chip"><img src="${A}/${f}" alt="">${n}</span>`).join('')}<span class="chip">${I.github}gh</span></div></div>
     <div class="step"><span class="k">3</span><h3>Send tasks from anywhere</h3><p>From the browser, from wisp on your computer (Settings → Cloud) or from the phone app. It sleeps when idle and wakes for you and your schedules.</p><div class="chips"><span class="chip">${I.globe}Browser</span><span class="chip">${I.laptop}Desktop</span><span class="chip">${I.phone}Phone</span></div></div>
   </div>
@@ -203,7 +219,7 @@ export function signInPage({ cfg, providers, ret = '', error = '', linking = fal
 
 <section class="final"><div class="wrap">
   <h2>Leave the agents working.<br><span style="color:var(--faint)">Go have dinner.</span></h2>
-  ${joinBox({ cfg, providers, ret })}
+  ${joinBox({ cfg, providers, seats, ret })}
 </div></section>
 </main>
 <script>

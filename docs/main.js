@@ -24,6 +24,34 @@ for (const btn of $$('[data-copy]')) {
   });
 }
 
+// ---------- wisp Cloud seats ----------
+// The preview takes a few accounts at a time. Say how many are left next to every Cloud link, and
+// once they're gone send people to the waitlist instead of a sign-in that turns them away.
+const cloudLinks = $$('[data-cloud-cta]');
+for (const a of cloudLinks) {
+  a.addEventListener('click', () => {
+    window.posthog?.capture?.('cloud_cta_clicked', { where: a.dataset.cloudCta, full: a.dataset.full === '1' }, { transport: 'sendBeacon' });
+  });
+}
+if (cloudLinks.length) {
+  fetch('https://grid.trywisp.dev/api/seats', { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((s) => {
+      if (!s?.max || s.invite || !s.open) return;
+      const full = s.left === 0;
+      const fill = (t) => t.replace('{seats}', `${s.left} seat${s.left === 1 ? '' : 's'}`).replace('{left}', s.left).replace('{max}', s.max);
+      for (const n of $$('[data-seats-note]')) n.textContent = fill(full ? n.dataset.seatsFull : n.dataset.seatsNote);
+      if (!full) return;
+      for (const a of cloudLinks) {
+        a.href = 'cloud.html#join';
+        a.dataset.full = '1';
+        a.setAttribute('aria-label', 'Join the wisp Cloud waitlist');
+      }
+      for (const n of $$('[data-seats-cta]')) n.textContent = n.dataset.seatsCta;
+    })
+    .catch(() => {});
+}
+
 // ---------- install tabs ----------
 // The hero and the install section each have npx / npm / curl / brew tabs. Picking one updates the
 // command, its copy button and the note, and the other box follows. A box with data-task set (the

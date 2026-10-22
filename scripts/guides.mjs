@@ -593,7 +593,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       <ul class="doc-list">
         <li><b>Phone.</b> Questions and finished tasks go to ntfy or Telegram. Tap an option to answer, or start a task from Telegram with <code>/new</code>.</li>
         <li><b>Ask without interrupting.</b> <code>/btw did you update the docs too?</code> gets an answer from a copy of the conversation while the run keeps going.</li>
-        <li><b>Keep it running.</b> Run tasks on a desktop or VM so they don’t stop when the laptop sleeps: <a href="/guides/run-coding-agents-on-multiple-machines.html">agents on other machines</a>.</li>
+        <li><b>Keep it running.</b> Run tasks on a desktop or VM so they don’t stop when the laptop sleeps (<a href="/guides/run-coding-agents-on-multiple-machines.html">agents on other machines</a>), or on <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>, your own wisp on a server.</li>
       </ul>
     </section>
 
@@ -615,18 +615,131 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       faq: [
         ['Is Full auto safe?', 'Each task runs in its own git worktree, so your checkout is untouched, and every turn is checkpointed so you can roll back. For anything you are unsure about, use Plan (read-only) or Edits, where anything else the agent wants to run comes to you first.'],
         ['Can I watch what it is doing?', 'Yes. A working card shows a live one-line status, the full transcript is one click (or V) away, and T opens the session in your own terminal.'],
-        ['Does it need to stay open?', 'wisp runs the agents, so it has to be running somewhere. Run it on a desktop or a VM through Machines and your laptop can sleep.'],
+        ['Does it need to stay open?', 'wisp runs the agents, so it has to be running somewhere. Run it on a desktop or a VM through Machines, or use wisp Cloud (your own wisp on a server), and your laptop can sleep.'],
       ],
-      related: ['run-coding-agents-on-multiple-machines', 'run-multiple-claude-code-agents-in-parallel', 'multi-agent-coding'],
+      related: ['run-claude-code-24-7-without-a-vps', 'run-coding-agents-on-multiple-machines', 'multi-agent-coding'],
+    },
+
+    {
+      slug: 'run-claude-code-24-7-without-a-vps',
+      cloud: true,
+      title: 'Run Claude Code 24/7 without setting up a VPS — wisp',
+      h1: 'Run Claude Code 24/7 without a VPS',
+      card: 'Keep Claude Code and Codex working with the laptop shut: rent and run a server, or open a free box on wisp Cloud.',
+      description: 'Keep Claude Code and Codex running while your laptop sleeps: a DIY VPS (tmux, SSH from your phone, upkeep) next to wisp Cloud, your own sandboxed box that is free during the preview.',
+      lede: 'Claude Code runs where you start it, so it stops when your laptop sleeps or the SSH session drops. To keep it going overnight it needs a computer that stays on. You can rent one and run it yourself, or open <a href="https://grid.trywisp.dev" data-cloud-cta="guide-lede">wisp Cloud</a> and get your own box with Claude Code, Codex and Cursor already installed, free during the preview.',
+      figure: `<figure class="doc-shot doc-diagram" aria-label="On the laptop, the run stops when the lid closes at 18:40. On wisp Cloud it keeps going and the report is ready at 02:14.">
+  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
+    <text x="20" y="66" class="name">Laptop</text>
+    <text x="20" y="88" class="sub">Claude Code in a terminal</text>
+    <path d="M250 74 H 281" class="link"/>
+    <circle cx="288" cy="74" r="7" class="box"/>
+    <path d="M300 74 H 940" class="zone"/>
+    <text x="300" y="56" class="sub">18:40 · the lid closes and the run stops with it</text>
+    <text x="20" y="186" class="name">wisp Cloud</text>
+    <text x="20" y="208" class="sub">your own box on a server</text>
+    <path d="M250 194 H 610" class="link"/>
+    <path d="M598 186 L612 194 L598 202" class="link"/>
+    <text x="300" y="176" class="sub">keeps going with the lid shut</text>
+    <rect x="620" y="162" width="250" height="64" rx="14" class="box"/>
+    <text x="745" y="190" text-anchor="middle" class="name">Report ready</text>
+    <text x="745" y="212" text-anchor="middle" class="sub">02:14 · waiting on your phone</text>
+    <text x="250" y="282" class="mono">18:00</text>
+    <text x="388" y="282" text-anchor="middle" class="mono">21:00</text>
+    <text x="526" y="282" text-anchor="middle" class="mono">00:00</text>
+    <text x="664" y="282" text-anchor="middle" class="mono">03:00</text>
+    <text x="802" y="282" text-anchor="middle" class="mono">06:00</text>
+    <text x="940" y="282" text-anchor="end" class="mono">09:00</text>
+  </svg>
+  <svg class="tall" viewBox="0 0 340 440" aria-hidden="true">
+    <rect x="10" y="10" width="320" height="170" rx="16" class="box"/>
+    <text x="30" y="46" class="name">Laptop</text>
+    <text x="30" y="68" class="sub">Claude Code in a terminal</text>
+    <path d="M30 108 H 84" class="link"/>
+    <circle cx="92" cy="108" r="7" class="box"/>
+    <path d="M104 108 H 310" class="zone"/>
+    <text x="30" y="150" class="sub">18:40 · the lid closes, the run stops</text>
+    <rect x="10" y="200" width="320" height="230" rx="16" class="box"/>
+    <text x="30" y="236" class="name">wisp Cloud</text>
+    <text x="30" y="258" class="sub">your own box on a server</text>
+    <path d="M30 298 H 300" class="link"/>
+    <path d="M290 290 L304 298 L290 306" class="link"/>
+    <text x="30" y="340" class="sub">keeps going with the lid shut</text>
+    <rect x="30" y="358" width="280" height="52" rx="12" class="box"/>
+    <text x="170" y="390" text-anchor="middle" class="mono">02:14 · report on your phone</text>
+  </svg>
+</figure>`,
+      body: `
+    <section>
+      <h2 id="why">Why it stops</h2>
+      <p>A coding agent is a process on the computer you started it on. When that computer sleeps, the process sleeps; when your SSH session drops, the process goes with it unless something like <code>tmux</code> holds it. Driving it from your phone doesn’t change that: the run still lives on the machine that has to stay awake. So the fix is a computer that never closes its lid.</p>
+    </section>
+
+    <section>
+      <h2 id="vps">Option 1: run your own server</h2>
+      <ol class="doc-steps">
+        <li><b>Rent a small Linux VM.</b> 2–4 GB of RAM is a floor once the agent runs your builds and tests.</li>
+        <li><b>Set it up:</b> a user that isn’t root, Node.js, Claude Code, <code>git</code> and <code>gh</code>, and your repo cloned.</li>
+        <li><b>Sign in on the server</b> with <code>claude auth login</code>: open the link it prints and paste the code back.</li>
+        <li><b>Run it inside tmux</b> so it survives the connection dropping, and attach from your phone’s SSH app.</li>
+      </ol>
+      ${sh(`ssh you@your-server
+tmux new -s agent      # keeps running when the connection drops
+claude                 # sign in once with: claude auth login
+
+# later, from your phone's SSH app
+tmux attach -t agent`)}
+      <p>It works. What you get on the phone is the terminal: the transcript, permission prompts and diffs at phone size. You also keep the box patched, watch its disk, update the CLIs, and do it all again for Codex.</p>
+    </section>
+
+    <section>
+      <h2 id="cloud">Option 2: wisp Cloud, nothing to set up</h2>
+      <ol class="doc-steps">
+        <li>Open <a href="https://grid.trywisp.dev" data-cloud-cta="guide-steps">grid.trywisp.dev</a> and press <b>Continue with GitHub</b>. You get your own wisp at <code>you.grid.trywisp.dev</code>, in a gVisor sandbox of its own.</li>
+        <li><b>Sign in to Claude Code</b> from the model picker or Settings → Agents: a link to Claude’s own sign-in page and a code, no terminal. Codex, Cursor, Grok, Antigravity and <code>gh</code> sign in the same way; opencode’s free models need no account.</li>
+        <li><b>Give it a task and close the laptop.</b> It keeps running. Questions and the finished report reach you in the browser, wisp on your computer, or the Android app.</li>
+      </ol>
+      <p>The preview is free. It runs on one small server, so it takes a few accounts at a time: <a href="/cloud.html">the Cloud page</a> says how many seats are left, and takes your email when they’re gone. The full walkthrough is in <a href="/guides/use-wisp-cloud.html">Use wisp Cloud</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="compare">Side by side</h2>
+      <div class="table"><table>
+        <thead><tr><th></th><th>Your own server</th><th>wisp Cloud</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Setup</th><td>A VM, a user, Node, the CLIs, sign-ins, tmux</td><td>Sign in with GitHub, then sign in to Claude Code with a code</td></tr>
+          <tr><th scope="row">Cost</th><td>The VM every month, plus your Claude plan</td><td>Free during the preview, plus your Claude plan</td></tr>
+          <tr><th scope="row">Agents</th><td>The ones you install</td><td>Claude Code, Codex, Cursor, opencode, Grok and Antigravity, installed</td></tr>
+          <tr><th scope="row">From the phone</th><td>An SSH app and a terminal</td><td>wisp in the browser or the Android app: cards, reports, a button per question</td></tr>
+          <tr><th scope="row">When the agent asks</th><td>It waits in the terminal until you attach</td><td>A notification; answer from whichever device you’re on</td></tr>
+          <tr><th scope="row">When nothing runs</th><td>The VM stays up</td><td>It sleeps, and wakes in seconds for you, a task or a schedule</td></tr>
+          <tr><th scope="row">Upkeep</th><td>OS patches, disk, CLI updates</td><td>None on your side</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section>
+      <h2 id="own">Option 3: a computer you already have</h2>
+      <p>A desktop or home server that stays on works too. wisp’s <b>Machines</b> starts the agents there over SSH from your laptop, and every run lands in the same queue: <a href="/guides/run-coding-agents-on-multiple-machines.html">agents on multiple machines</a>. For a team, run the same server wisp Cloud runs on: <a href="/guides/self-host-wisp-grid.html">run your own wisp Grid</a>.</p>
+    </section>
+`,
+      faq: [
+        ['Which Claude plan do I need?', 'Your own, the same as on your laptop: Claude Code signs in with your Claude account. wisp doesn’t resell model usage, so your plan’s limits apply wherever it runs.'],
+        ['What happens when I close the laptop mid-task?', 'On wisp Cloud, nothing: the task runs on the server. Your box only sleeps when no task is running and nobody is looking, and it wakes in seconds when you open it, send a task, or a schedule is due.'],
+        ['Is wisp Cloud really free?', 'Yes, during the early preview. It runs on one small server, so it takes a set number of accounts; the Cloud page says how many are left, and when they’re taken you can leave your email for the next one.'],
+        ['Does it work for Codex and Cursor too?', 'Yes. Codex, Cursor, opencode, Grok and Antigravity are installed next to Claude Code, each signs in with a link and a code, and one queue holds all of them.'],
+      ],
+      related: ['use-wisp-cloud', 'run-coding-agents-in-the-background', 'self-host-wisp-grid'],
     },
 
     {
       slug: 'use-wisp-cloud',
+      cloud: true,
       title: 'Run Claude Code and Codex on a server while your laptop sleeps',
       h1: 'Use wisp Cloud',
       card: 'Your own wisp on a server: sign in with GitHub, close the laptop, read the report on your phone.',
       description: 'Your own wisp on a server at grid.trywisp.dev: sign in with GitHub, connect Claude Code and Codex with a code, and agents keep working with your laptop closed.',
-      lede: 'To keep coding agents working when your laptop is closed, run them on a computer that stays on. <a href="https://grid.trywisp.dev">wisp Cloud</a> gives you one: your own wisp on a server, in a sandbox of its own, that you open from the browser, from wisp on your computer, or from your phone. It’s in early preview at <a href="https://grid.trywisp.dev">grid.trywisp.dev</a> (invite only while seats open up), and you can run the same thing on your own server.',
+      lede: 'To keep coding agents working when your laptop is closed, run them on a computer that stays on. <a href="https://grid.trywisp.dev">wisp Cloud</a> gives you one: your own wisp on a server, in a sandbox of its own, that you open from the browser, from wisp on your computer, or from your phone. It’s free in early preview at <a href="https://grid.trywisp.dev">grid.trywisp.dev</a>, a few accounts at a time, and you can run the same thing on your own server.',
       figure: `<figure class="doc-shot doc-diagram" aria-label="Your laptop, phone and browser open your own wisp on grid.trywisp.dev, in a sandbox of its own">
   <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
     <rect x="20" y="20" width="200" height="66" rx="14" class="box"/>
@@ -714,11 +827,12 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
 `,
       faq: [
         ['Is wisp Cloud free?', 'Yes, during the early preview. You bring your own Claude, ChatGPT or GitHub accounts; model usage is billed by those providers.'],
+        ['Why can’t I sign up?', 'The preview runs on one small server, so it takes a set number of accounts. When they’re all taken, the sign-in page says so and trywisp.dev/cloud.html takes your email for the next free seat. People who already have an account keep signing in.'],
         ['Do I need wisp installed on my computer?', 'No. The browser is enough. wisp on your computer and the Android app can sign in to it too, with a code.'],
         ['Can I run my own?', 'Yes: the grid is in the wisp repo (MIT). See Run your own wisp Grid.'],
         ['What happens to a task when the cloud computer sleeps?', 'It only sleeps when no task is running and nobody is looking. Tasks, reports and logins are kept; it wakes in seconds.'],
       ],
-      related: ['self-host-wisp-grid', 'run-coding-agents-in-the-background', 'run-coding-agents-on-multiple-machines'],
+      related: ['run-claude-code-24-7-without-a-vps', 'self-host-wisp-grid', 'run-coding-agents-in-the-background'],
     },
 
     {

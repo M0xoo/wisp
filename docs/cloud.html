@@ -4,14 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>wisp Cloud — agents that keep working when your laptop closes</title>
-  <meta name="description" content="wisp Cloud (preview): managed remote machines, persistent queues, team dashboards, and one sign-in that syncs history and SSH access across your laptop, desktop and phone. The local CLI stays free and open source." />
+  <meta name="description" content="wisp Cloud (free preview): your own wisp on a server. Sign in with GitHub, give Claude Code, Codex or Cursor a task, close the laptop, and read the report on your phone. The local CLI stays free and open source." />
   <link rel="canonical" href="https://trywisp.dev/cloud.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="wisp" />
   <meta property="og:url" content="https://trywisp.dev/cloud.html" />
   <meta property="og:title" content="wisp Cloud — close the laptop, the agents keep going" />
-  <meta property="og:description" content="Managed remote machines, persistent queues, team dashboards and one sign-in for every device. The local CLI stays free and open source." />
-  <meta property="og:image" content="https://trywisp.dev/assets/og.png" />
+  <meta property="og:description" content="Your own wisp on a server, free during the preview. Sign in with GitHub, hand Claude Code or Codex a task, and read the report on your phone." />
+  <meta property="og:image" content="https://trywisp.dev/assets/og-cloud.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#0f0f0f" media="(prefers-color-scheme: dark)" />
@@ -21,7 +23,7 @@
   <link rel="icon" href="/assets/favicon-96.png" type="image/png" sizes="96x96" />
   <link rel="icon" href="/assets/favicon-48.png" type="image/png" sizes="48x48" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180" />
-  <link rel="stylesheet" href="style.css?v=19" />
+  <link rel="stylesheet" href="style.css?v=27" />
   <style>
     /* ---------- cloud page: same paper, ink and one blue as the main site ---------- */
     :root { --ok: #18794e; --ok-soft: rgba(24, 121, 78, 0.12); --sleep: #8d8c86; }
@@ -55,6 +57,14 @@
     .wait input:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 4px var(--accent-soft); }
     .wait button { height: 50px; padding: 0 20px; border: 0; border-radius: 11px; background: var(--ink); color: var(--bg); font: 500 15px var(--sans); cursor: pointer; }
     .wait-note { margin-top: 10px; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+    .seats { display: flex; align-items: baseline; gap: 10px; margin-top: 16px; max-width: 440px; font-size: 14px; color: var(--ink-2); }
+    .seats i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); translate: 0 -1px; }
+    .seats[data-s='open'] i { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+    .seats[data-s='full'] i { background: var(--warn); }
+    .seats b { color: var(--ink); font-weight: 600; }
+    .go.full .go-gh { background: var(--surface); color: var(--ink); border: 1px solid var(--line-2); }
+    .seats + .wait { margin-top: 12px; }
+    .wait[hidden] { display: none; }
     .go { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 30px; max-width: 440px; }
     .go a { height: 50px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 0 20px; border-radius: 11px; font: 500 15px var(--sans); text-decoration: none; }
     .go a svg { width: 18px; height: 18px; }
@@ -315,7 +325,7 @@
         <a href="#pricing">Free vs Cloud</a>
         <a href="#faq">FAQ</a>
       </nav>
-      <a class="nav-cta" href="https://grid.trywisp.dev">Sign in</a>
+      <a class="nav-cta" href="https://grid.trywisp.dev" data-cloud-cta="nav">Sign in</a>
       <a class="gh" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         <span>GitHub</span>
@@ -328,18 +338,18 @@
     <section class="c-hero">
       <div class="wrap c-grid">
         <div>
-          <p class="kicker"><span class="dot"></span>wisp Cloud · early preview · open now</p>
+          <p class="kicker"><span class="dot"></span>wisp Cloud · free early preview</p>
           <h1>Close the laptop. <span class="soft">The agents keep going.</span></h1>
           <p class="lede">Your own wisp, on a server. Sign in with GitHub, give it a task, close the laptop: Claude Code, Codex and the rest keep working, and the report waits on your phone. Same app from the browser, your desktop or the phone. The wisp you run locally doesn't change and stays free.</p>
-          <div class="go">
-            <a class="go-gh" href="https://grid.trywisp.dev/auth/github/start"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Continue with GitHub</a>
-            <a class="go-open" href="https://grid.trywisp.dev">grid.trywisp.dev</a>
+          <div class="go" id="go">
+            <a class="go-gh" href="https://grid.trywisp.dev/auth/github/start" data-cloud-cta="hero-github"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Continue with GitHub</a>
+            <a class="go-open" href="https://grid.trywisp.dev" data-cloud-cta="hero-open">grid.trywisp.dev</a>
           </div>
-          <p class="wait-note">Invite only while seats open up. Not invited yet? Leave your email and we'll write when one is free.</p>
-          <form class="wait" id="join" novalidate>
+          <p class="seats" id="seats"><i></i><span id="seatsText">Free during the preview. It takes a few accounts at a time, on one small server.</span></p>
+          <form class="wait" id="join" novalidate hidden>
             <label class="sr" for="email">Work email</label>
             <input id="email" type="email" placeholder="you@company.com" autocomplete="email" required />
-            <button type="submit">Join the waitlist</button>
+            <button type="submit">Get the next seat</button>
           </form>
           <p class="wait-note" id="waitNote" aria-live="polite"></p>
           <div class="free-line">
@@ -571,8 +581,8 @@
             <li>SSO, audit log, per-repo access</li>
             <li>Same app: Cloud shows up as places in <b>Run on</b></li>
           </ul>
-          <div class="foot-cta"><a class="btn" href="https://grid.trywisp.dev" style="height:40px">Sign in at grid.trywisp.dev</a></div>
-          <p class="draft">Pricing after the preview isn't set yet. Model usage is billed by your own providers, not us.</p>
+          <div class="foot-cta"><a class="btn" href="https://grid.trywisp.dev" style="height:40px" data-cloud-cta="pricing">Sign in at grid.trywisp.dev</a></div>
+          <p class="draft">The preview takes a few accounts at a time while it runs on one small server. Pricing after it isn't set yet. Model usage is billed by your own providers, not us.</p>
         </div>
       </div>
     </section>
@@ -582,6 +592,7 @@
       <div class="sec-head"><p class="eyebrow">FAQ</p><h2>Questions</h2></div>
       <div class="qa">
         <details open><summary>Will the local CLI ever need an account?</summary><p>No. <code>npx wisp-agents</code> keeps working with no sign-in, no telemetry you haven't turned on, and no feature moved behind Cloud. Cloud is opt-in from Settings, like every integration.</p></details>
+        <details><summary>How many people can use the preview?</summary><p>A few at a time: it runs on one small server, so it takes a set number of accounts and the page above says how many are left. When they're taken, leave your email and you get the next free seat. Already signed up? Your account keeps working.</p></details>
         <details><summary>Do you resell model usage?</summary><p>No. Your cloud wisp signs in with your own Claude, ChatGPT or GitHub accounts, from Settings → Agents. The preview is free.</p></details>
         <details><summary>How is this different from Machines?</summary><p>Machines connects wisp to computers you already run, over SSH, and stays free. A cloud computer is one we run for you: your own sandboxed wisp that sleeps when nothing's going on and wakes for you or a schedule.</p></details>
         <details><summary>Where does my code live?</summary><p>In your own sandbox on the grid: a gVisor container with its own folder, which only you reach. Your agents' logins stay in that folder too. Delete your account and the folder and its keys are gone.</p></details>
@@ -598,7 +609,7 @@
         <p class="final-clock" aria-hidden="true">03:12</p>
         <h2>Let it run while you sleep.</h2>
         <div class="cta">
-          <a class="cmd" href="https://grid.trywisp.dev" style="text-decoration:none;padding:0 22px"><span>Sign in to wisp Cloud</span></a>
+          <a class="cmd" href="https://grid.trywisp.dev" style="text-decoration:none;padding:0 22px" data-cloud-cta="final"><span>Sign in to wisp Cloud</span></a>
           <a class="btn" href="./">Or start free with wisp</a>
         </div>
       </div>
@@ -654,8 +665,35 @@
       ph.identify(email, { email, waitlist: 'cloud' }, { cloud_waitlist_since: new Date().toISOString() });
       ph.capture('cloud_waitlist_joined', { email, $set: { email } }, { send_instantly: true });
       input.value = '';
-      note.textContent = "You're on the list. We'll write when seats open.";
+      note.textContent = "You're on the list. We'll write when a seat is free.";
     });
+
+    // ---------- seats ----------
+    // The preview takes a set number of accounts. Say how many are left; once they're gone the waitlist
+    // shows and the GitHub button steps back (it still signs in the people who have a seat).
+    const seats = $('#seats'), seatsText = $('#seatsText');
+    const ctas = [...document.querySelectorAll('[data-cloud-cta]')];
+    for (const a of ctas) {
+      a.addEventListener('click', () => {
+        window.posthog?.capture?.('cloud_cta_clicked', { where: `cloud-${a.dataset.cloudCta}`, full: a.dataset.full === '1' }, { transport: 'sendBeacon' });
+      });
+    }
+    fetch('https://grid.trywisp.dev/api/seats', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (!s?.max || s.invite || !s.open) return;
+        if (s.left > 0) {
+          seats.dataset.s = 'open';
+          seatsText.innerHTML = `<b>${s.left} of ${s.max} preview seats left.</b> Free: sign in with GitHub and your wisp starts in seconds.`;
+          return;
+        }
+        seats.dataset.s = 'full';
+        seatsText.innerHTML = `<b>All ${s.max} preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in above.`;
+        $('#go').classList.add('full');
+        $('#join').hidden = false;
+        for (const a of ctas) a.dataset.full = '1';
+      })
+      .catch(() => {});
 
     // Every "Join the waitlist" link brings the form into view and puts the cursor in the email field.
     for (const a of document.querySelectorAll('[data-join]')) {
@@ -668,9 +706,11 @@
       });
     }
 
-    // Arriving from the main site's "Join the Cloud waitlist" (cloud.html#join): put the cursor in the field.
+    // Arriving at cloud.html#join (a full grid's "Get the next free seat", or the main site's Cloud links
+    // once seats are gone): show the form and put the cursor in the field.
     // Wait for load: the browser's own jump to #join runs after this script and would take focus back.
     if (location.hash === '#join') {
+      $('#join').hidden = false;
       addEventListener('load', () => {
         $('#join').scrollIntoView({ block: 'center' });
         $('#email').focus({ preventScroll: true });

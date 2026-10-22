@@ -87,9 +87,10 @@ Uninstalling the Android app deletes everything it stored on your phone.
 
 ## This site
 
-trywisp.dev uses PostHog to count page views and clicks, such as copying the install command. If
-you join the wisp Cloud waitlist, your email is stored there so we can write to you when it opens;
-ask us to remove it at any time.
+trywisp.dev uses PostHog to count page views and clicks, such as copying the install command or
+opening wisp Cloud. To show how many wisp Cloud seats are left, its pages ask grid.trywisp.dev for
+the count; that request carries nothing about you. If you join the wisp Cloud waitlist, your email
+is stored in PostHog so we can write to you when a seat is free; ask us to remove it at any time.
 
 ## Services wisp works with
 

@@ -422,15 +422,58 @@ test('maxUsers: the first accounts get in, then the grid is full; existing users
       const start = await b.go(`${c2.publicUrl}/auth/dev/start`);
       return b.go(`${c2.publicUrl}/auth/dev/callback`, { method: 'POST', form: { csrf: csrfOf(start.text), email, return: '/' }, headers: { origin: c2.publicUrl } });
     };
+    const seats = async () => (await browser().go(`${c2.publicUrl}/api/seats`, { headers: { accept: 'application/json' } })).json;
+    assert.deepEqual(await seats(), { open: true, invite: false, max: 2, left: 2 });
     assert.equal((await signIn('a@x.test')).status, 302);
+    // The sign-in page counts what's left, and the site can read it from another origin.
+    assert.match((await browser().go(`${c2.publicUrl}/`)).text, /1 of 2 seats left/);
+    const r = await browser().go(`${c2.publicUrl}/api/seats`, { headers: { accept: 'application/json', origin: 'https://trywisp.dev' } });
+    assert.equal(r.headers['access-control-allow-origin'], '*');
+    assert.equal(r.json.left, 1);
     assert.equal((await signIn('b@x.test')).status, 302);
+    assert.equal((await seats()).left, 0);
+    const landing = (await browser().go(`${c2.publicUrl}/`)).text;
+    assert.match(landing, /This grid is full/);
+    assert.doesNotMatch(landing, /seats left/);
+    // A self-hosted grid has no waitlist to send people to.
+    assert.doesNotMatch(landing, /Get the next free seat/);
     const full = await signIn('c@x.test');
     assert.equal(full.status, 403);
     assert.match(full.text, /full/);
+    assert.doesNotMatch(full.text, /class="err"/, 'the full note says it once, not twice');
     assert.equal((await signIn('a@x.test')).status, 302);
   } finally {
     await g2.close();
   }
+});
+
+test('the sign-in page offers only the sign-ins this grid has, and links shared from it get a preview', async () => {
+  const page = (await browser().go(`${base}/`)).text;
+  assert.match(page, /With Corp SSO or GitHub\./);
+  assert.doesNotMatch(page, /Google/);
+  assert.match(page, /Free while in preview/);
+  assert.doesNotMatch(page, /seats left/, 'no cap, no count');
+  assert.match(page, new RegExp(`<meta property="og:image" content="${cfg.publicUrl}/_grid/a/og.png">`));
+  const og = await browser().go(`${base}/_grid/a/og.png`);
+  assert.equal(og.status, 200);
+  assert.equal(og.headers['content-type'], 'image/png');
+});
+
+test('the hosted grid, once full, sends new people to the waitlist first and still signs in the rest', async () => {
+  const { signInPage } = await import('../grid/pages.js');
+  const providers = new Map([['github', { id: 'github', label: 'GitHub' }]]);
+  const hosted = { name: 'wisp Grid', domain: 'grid.trywisp.dev', publicUrl: 'https://grid.trywisp.dev' };
+  const full = signInPage({ cfg: hosted, providers, seats: { open: true, invite: false, max: 5, left: 0 } });
+  assert.match(full, /All 5 preview seats are taken/);
+  assert.match(full, /<a class="btn first" href="https:\/\/trywisp\.dev\/cloud\.html#join">/);
+  assert.match(full, /<a class="btn" href="\/auth\/github\/start">/, 'GitHub stays, as the second button');
+  const open = signInPage({ cfg: hosted, providers, seats: { open: true, invite: false, max: 5, left: 3 } });
+  assert.match(open, /3 of 5 seats left/);
+  assert.doesNotMatch(open, /cloud\.html#join/);
+  // An allow list or closed sign-ups say so; no count.
+  const invite = signInPage({ cfg: hosted, providers, seats: { open: true, invite: true, max: 5, left: 3 } });
+  assert.match(invite, /Invite only/);
+  assert.doesNotMatch(invite, /seats left/);
 });
 
 test('Caddy’s on-demand TLS check: the grid and existing users only', async () => {

@@ -232,6 +232,7 @@ const COPY_JS = `<script>
       try { await navigator.clipboard.writeText(b.dataset.copy); b.classList.add('copied'); if (l) l.textContent = 'Copied'; window.posthog?.capture?.('install_copied', { method: b.dataset.copy.split(' ')[0] }); } catch { if (l) l.textContent = 'Select'; }
       setTimeout(() => { b.classList.remove('copied'); if (l) l.textContent = 'Copy'; }, 1600);
     });
+    for (const a of document.querySelectorAll('[data-cloud-cta]')) a.addEventListener('click', () => { window.posthog?.capture?.('cloud_cta_clicked', { where: a.dataset.cloudCta }, { transport: 'sendBeacon' }); });
     const nav = document.querySelector('.nav');
     addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 8), { passive: true });
   </script>`;
@@ -241,7 +242,8 @@ const installButton = (cmd = 'npx wisp-agents') =>
 
 // path: site path ('/agents/codex.html'); crumbs: [[label, path], …] after Home.
 // scripts: extra <script> tags for the end of <body> (a guide's demo).
-function page({ path: p, title, description, crumbs = [], body, schema = [], noindex = false, scripts = '' }) {
+// image: the social preview (Cloud pages get their own).
+function page({ path: p, title, description, crumbs = [], body, schema = [], noindex = false, scripts = '', image = '/assets/og.png' }) {
   const url = `${SITE}${p}`;
   const trail = [['wisp', '/'], ...crumbs];
   const breadcrumb = {
@@ -265,13 +267,13 @@ ${noindex ? '  <meta name="robots" content="noindex" />' : `  <link rel="canonic
   <meta property="og:url" content="${url}" />
   <meta property="og:title" content="${esc(title)}" />
   <meta property="og:description" content="${esc(description)}" />
-  <meta property="og:image" content="${SITE}/assets/og.png" />
+  <meta property="og:image" content="${SITE}${image}" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${esc(title)}" />
   <meta name="twitter:description" content="${esc(description)}" />
-  <meta name="twitter:image" content="${SITE}/assets/og.png" />
+  <meta name="twitter:image" content="${SITE}${image}" />
   <link rel="icon" href="/favicon.ico" sizes="48x48" />
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
   <link rel="icon" href="/assets/favicon-192.png" type="image/png" sizes="192x192" />
@@ -490,8 +492,9 @@ function guidePage(g) {
       <p class="eyebrow">Guide</p>
       <h1>${esc(g.h1)}</h1>
       <p class="doc-lede">${g.lede}</p>
-      <div class="doc-cta">${installButton()}<a class="btn" href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a></div>
-      <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build · macOS, Linux, Windows (beta) · Node 20+</p>
+      ${g.cloud ? `<div class="doc-cta"><a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-${esc(g.slug)}">Try wisp Cloud</a>${installButton()}</div>
+      <p class="fine muted">wisp Cloud: free during the preview, sign in with GitHub · or run wisp on your own computers, MIT</p>` : `<div class="doc-cta">${installButton()}<a class="btn" href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a></div>
+      <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build · macOS, Linux, Windows (beta) · Node 20+</p>`}
     </header>
 
     ${DEMOS[g.demo]?.html || g.figure || shot(...g.shot)}
@@ -513,13 +516,14 @@ ${g.body}
     crumbs: [['Guides', '/guides/'], [g.h1, guideUrl(g)]],
     body,
     scripts: DEMOS[g.demo]?.script || '',
+    image: g.cloud ? '/assets/og-cloud.png' : undefined,
     schema: [
       {
         '@type': 'TechArticle',
         headline: g.h1,
         description: g.description,
         url: `${SITE}${guideUrl(g)}`,
-        image: `${SITE}/assets/og.png`,
+        image: `${SITE}/assets/${g.cloud ? 'og-cloud' : 'og'}.png`,
         inLanguage: 'en',
         dateModified: lastmod(['scripts/guides.mjs']),
         author: { '@type': 'Person', name: 'M0xoo', url: 'https://github.com/M0xoo' },
