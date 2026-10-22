@@ -5,7 +5,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **↑ brings back the tasks you launched before.** In an empty prompt box, `↑` puts the last task you sent back in it, `↑` again the one before (the last 50 are kept); `↓` goes forward, and past the newest empties the box. Send one again with a tweak, or to another project, without typing it out. Once you edit it, the arrows move the caret as usual.
+
+### Changed
+
+- **What you type survives a reload.** A task half-written in the prompt box and unsent follow-ups are kept as you type, so wisp updating itself, `⌘R`, or the phone dropping the page no longer throws them away.
+- **Marking an open task done opens the next one that needs you**, in the feed too (split view already did): read one report after another with `E`.
+
 ### Fixed
+
+- **A file dropped next to the prompt box is attached instead of opened.** Dropped anywhere else on the page, the browser opened it in place of wisp, and the desktop app handed it to Preview. It now goes to the box you most likely meant: the follow-up box of the open task you dropped it on (or the one split view shows), else the prompt box, which lights up while you drag. A screenshot pasted while no box has focus lands there too, and a `.spell.json` dropped anywhere opens its review, as it was meant to.
+- **A file dropped on the prompt box is uploaded once.** Every time the prompt box repainted (settings or harnesses loading), dropping a file uploaded it once more.
 
 - **Signing in to a harness from Settings → Agents works on Windows.** wisp started `claude`, `codex` and `gh` directly, which can't run the `.cmd` shims npm installs them as there, so the sign-in failed at once. It now unwraps them the way it does for tasks.
 - **Pasting a repo you already cloned reuses the clone on Windows** instead of cloning it again into `<name>-2`: git spells the folder `C:/Users/…`, Windows sometimes by its short name (`C:\Users\JOHNSM~1\…`), and wisp took them for two folders.

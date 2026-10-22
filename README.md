@@ -196,6 +196,7 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 | `N` · `⌘ L` / `Ctrl L` | New task (focus the launcher; `⌘ L` works from anywhere) |
 | `⇧ Tab` | Cycle permission mode (in the launcher) |
 | `⌘ ↵` | Launch and keep the launcher open for the next task |
+| `↑` / `↓` | Bring back the tasks you launched before, newest first (in an empty launcher) |
 | `J` / `K` | Move down / up through the queue |
 | `O` / `↵` | Open or collapse the focused session |
 | `/` | Reply to the focused session |
@@ -203,7 +204,7 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 | `T` | Take over in your terminal |
 | `S` | Ship it: commit, push and open a PR (worktree tasks) |
 | `⇧ R` | Rerun with another harness, model or thinking level |
-| `E` | Mark done and jump to the next session that needs you |
+| `E` | Mark done and jump to the next session that needs you (it opens if you were reading this one) |
 | `A` | Archive / unarchive |
 | `M` | Rename |
 | `⌫` | Delete |

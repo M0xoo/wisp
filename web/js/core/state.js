@@ -31,6 +31,29 @@ export function nameHere() {
   here = inGrid() ? 'this cloud computer' : 'this computer';
 }
 
+// What's typed and not sent yet: the prompt box's ('home') and each task's follow-up box. Kept in
+// localStorage as you type, so a reload (wisp updating, ⌘R, the phone dropping the page) doesn't
+// lose a half-written task. The most recent MAX_DRAFTS are kept.
+const MAX_DRAFTS = 50;
+export class Drafts extends Map {
+  constructor() {
+    super();
+    for (const [k, v] of Object.entries(load('wisp.drafts', {}))) if (v && typeof v === 'string') super.set(k, v);
+  }
+  set(k, v) {
+    super.delete(k); // the newest go last, so the oldest go first
+    if (v) super.set(k, v);
+    while (this.size > MAX_DRAFTS) super.delete(this.keys().next().value);
+    save('wisp.drafts', Object.fromEntries(this));
+    return this;
+  }
+  delete(k) {
+    if (!super.delete(k)) return false;
+    save('wisp.drafts', Object.fromEntries(this));
+    return true;
+  }
+}
+
 export const S = {
   sessions: new Map(), // id -> summary
   full: new Map(), // id -> full session, for expanded items
@@ -44,7 +67,7 @@ export const S = {
   filter: load('wisp.filter', 'all'),
   showDone: load('wisp.showDone', false),
   showArchived: false,
-  drafts: new Map(),
+  drafts: new Drafts(),
   replyModes: new Map(), // session id → the mode its next follow-up switches to
   replyRunners: new Map(), // session id → { agent, model, effort } its next follow-up switches to
   replyPlaces: new Map(), // session id → the place ('' = this computer) its next follow-up moves it to
