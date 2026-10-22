@@ -684,11 +684,11 @@
         if (!s?.max || s.invite || !s.open) return;
         if (s.left > 0) {
           seats.dataset.s = 'open';
-          seatsText.innerHTML = `<b>${s.left} of ${s.max} preview seats left.</b> Free: sign in with GitHub and your wisp starts in seconds.`;
+          seatsText.innerHTML = `<b>${s.left} preview seat${s.left === 1 ? '' : 's'} left.</b> Free: sign in with GitHub and your wisp starts in seconds.`;
           return;
         }
         seats.dataset.s = 'full';
-        seatsText.innerHTML = `<b>All ${s.max} preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in above.`;
+        seatsText.innerHTML = `<b>All preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in above.`;
         $('#go').classList.add('full');
         $('#join').hidden = false;
         for (const a of ctas) a.dataset.full = '1';
