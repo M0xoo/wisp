@@ -89,6 +89,14 @@ test('spells are refused for what they may not do, with every problem listed', (
   has(/script: doesn't compile/);
 });
 
+test('theme: the theme setting takes system, light or dark, and its icons exist', () => {
+  for (const theme of ['system', 'light', 'dark']) assert.deepEqual(problems({ ...base0, settings: { theme } }), []);
+  assert.deepEqual(spellReference().settings.theme, ['system', 'light', 'dark']);
+  const p = problems({ ...base0, settings: { theme: 'sepia' } });
+  assert.ok(p.some((x) => /settings\.theme/.test(x) && /system \| light \| dark/.test(x)), p.join('\n'));
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'topbar', icon: 'moon', do: { copy: 'x' } }, { slot: 'topbar', icon: 'sun', do: { copy: 'x' } }] }), []);
+});
+
 test('split view: the view setting, sidebar and split slots, parts and pixel props', () => {
   const ok = {
     ...base0,

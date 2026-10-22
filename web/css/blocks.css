@@ -350,6 +350,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .b-graph { --g-1: #6d8dff; --g-2: #2fd0b4; --g-3: #a78bfa; --g-4: #f472b6; --g-merged: #b48cff; }
 }
+:root[data-theme='dark'] .b-graph { --g-1: #6d8dff; --g-2: #2fd0b4; --g-3: #a78bfa; --g-4: #f472b6; --g-merged: #b48cff; }
 
 /* checklist */
 .b-check { padding: 16px 20px 12px; }

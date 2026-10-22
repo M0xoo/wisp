@@ -33,6 +33,8 @@ export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head'
 // The layouts (the `view` setting): feed = one column, cards open in place; split = cards in a
 // sidebar, the open one in the main pane. Split needs a window at least SPLIT_MIN_WIDTH wide.
 export const VIEWS = ['feed', 'split'];
+// Light or dark: system follows the OS (the page's `prefers-color-scheme`).
+export const THEMES = ['system', 'light', 'dark'];
 export const SPLIT_MIN_WIDTH = 900;
 // With no layout picked, windows this wide open in split view and narrower ones in the feed.
 export const SPLIT_DEFAULT_WIDTH = 1280;
@@ -185,7 +187,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'file', 'folder', 'dots', 'copy', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'file', 'folder', 'dots', 'copy', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -225,6 +227,7 @@ export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'notify', 'webh
 // Settings a spell may set (while on). Telemetry, feedback and anything secret are not here.
 export const SETTINGS = {
   view: VIEWS,
+  theme: THEMES,
   editor: ['vscode', 'cursor', 'windsurf', 'zed', 'idea', 'none'],
   // Take over in: wisp (a terminal in the page), auto, or a terminal app (not a custom command).
   terminal: ['auto', 'wisp', 'terminal', 'iterm', 'warp', 'cmux', 'wt', 'powershell', 'cmd', 'ghostty', 'kitty', 'wezterm', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'alacritty', 'xterm'],
