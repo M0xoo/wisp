@@ -101,6 +101,10 @@ body.split #feed .it-side .pill { height: 19px; padding: 0; background: none; fo
 body.split #feed .it-side .pill i { width: 5px; height: 5px; }
 body.split #feed .it-quick { position: absolute; top: 6px; right: 6px; margin: 0; background: var(--bg-2); }
 body.split #feed .it-quick-gap { display: none; }
+/* The button stands in for the time: hide the time under it, or its first letters peek out beside it. */
+body.split #feed .item:is(:hover, .focused) .it-side:has(> .it-quick) .q-time,
+body.split #feed .it-side:has(> .it-quick:focus-visible) .q-time { visibility: hidden; }
+@media (hover: none) { body.split #feed .it-side:has(> .it-quick) .q-time { visibility: hidden; } }
 body.split #feed .item.open:not(.unread):not(.st-waiting) .it-title { color: var(--ink-2); font-weight: 500; }
 body.split #feed .item.open.st-done .it-title { color: var(--muted); }
 body.split #feed .it-side .chev { display: none; }
