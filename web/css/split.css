@@ -228,7 +228,7 @@ body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-acts { order: 3; }
 body.split.pane-wide .it-bar > .it-actions { flex-direction: column; align-items: stretch; gap: 1px; padding-top: 12px; border-top: 1px solid var(--line); }
 body.split.pane-wide .it-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 8px; gap: 10px; font-size: 13px; color: var(--muted); }
 body.split.pane-wide .it-actions .ghost:hover { color: var(--ink); }
-body.split.pane-wide .it-actions .ghost.on { color: var(--good); }
+body.split.pane-wide .it-actions :is(.ghost.on, .it-done) { color: var(--good); }
 body.split.pane-wide .it-actions .ghost .i { width: 15px; height: 15px; }
 body.split.pane-wide .it-actions .ghost > .it-lbl { display: inline; }
 body.split.pane-wide .it-actions .ghost[data-key]::after {

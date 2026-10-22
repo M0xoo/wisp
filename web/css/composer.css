@@ -26,7 +26,7 @@
 .send.busy { opacity: 1; position: relative; color: transparent; }
 .send.busy::after { content: ''; position: absolute; inset: 8px; border-radius: 50%; border: 2px solid var(--bg); border-right-color: transparent; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.c-done { color: var(--muted); }
+.c-done { color: var(--good); } /* green like Reopen, easy to spot */
 .c-ship { color: var(--accent-ink); }
 .c-queue { color: var(--faint); font-size: 12px; }
 .c-queue.on { color: var(--ink); background: var(--bg-2); }
