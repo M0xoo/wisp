@@ -18,9 +18,13 @@ const mainBox = () => (split() ? $('#feed .item.open > .it-body') : null);
 // In split view: where the open task's body starts showing, under its sticky bar.
 export function topInset() {
   const box = mainBox();
-  if (box) return box.getBoundingClientRect().top + ($('.it-bar', box)?.offsetHeight || 0);
+  if (box) return box.getBoundingClientRect().top + barCover(box);
   return parseFloat(getComputedStyle(stage).scrollPaddingTop) || 0;
 }
+
+// How much of an open split-view body its sticky bar covers: on a narrow pane, its height; on a wide
+// one nothing, the bar is the details column beside the task (and has no height of its own).
+export const barCover = (body) => $('.it-bar', body)?.offsetHeight || 0;
 
 // Whether the user is reading a card, not just catching its edge at the top or bottom of the
 // screen: it crosses the middle of the viewport, or it's focused and a fair share of it shows.

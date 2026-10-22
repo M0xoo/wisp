@@ -1,27 +1,54 @@
 /* ---------- split view (features/split.js): tasks in a sidebar, the open one in the main pane ---------- */
-/* The page stops scrolling as a whole: the sidebar and the open task scroll on their own. */
-:root { --side-w: 340px; --read-w: 860px; }
+/* The page stops scrolling as a whole: the sidebar and the open task scroll on their own. The top
+   bar is the sidebar's head and its foot holds the rest, so the open task has the full height. */
+:root { --side-w: 340px; --read-w: 860px; --det-w: 232px; }
 .view-btn[aria-pressed='true'] { color: var(--ink); }
 
 body.split .stage {
-  display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+  display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden; scrollbar-gutter: auto;
 }
-body.split .topbar { grid-column: 1 / -1; border-bottom-color: var(--line); }
 body.split .feed-wrap {
   grid-row: 2; grid-column: 1; min-height: 0; max-width: none; margin: 0; padding: 0 10px 40px;
   overflow-y: auto; border-right: 1px solid var(--line); background: var(--bg);
 }
-body.split .split-main { grid-row: 2; grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+body.split .split-main { grid-row: 1 / -1; grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) var(--side-w); }
-body.split.side-right .feed-wrap { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
+body.split.side-right :is(.topbar, .feed-wrap, .split-foot) { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
 body.split.side-right .split-main { grid-column: 1; }
+
+/* The sidebar's head: the brand and the icon buttons on one line, the project filter under them. */
+body.split .topbar {
+  grid-row: 1; grid-column: 1; height: auto; flex-wrap: wrap; gap: 2px; padding: 10px 10px 4px 14px;
+  border-bottom: 0; border-right: 1px solid var(--line); background: var(--bg); backdrop-filter: none;
+}
+body.split .topbar .brand { height: 32px; margin-right: auto; }
+body.split .topbar .sp-top { order: 1; }
+body.split .topbar .search-btn { order: 2; width: 32px; padding: 0; justify-content: center; border-color: transparent; background: none; }
+body.split .topbar .search-btn:hover { background: var(--bg-2); }
+body.split .topbar .search-btn :is(span, kbd) { display: none; }
+body.split .topbar .view-btn { order: 3; }
+body.split .topbar #settingsBtn { order: 4; }
+body.split .topbar .projects { order: 5; flex: 1 0 100%; margin: 6px 0 2px -4px; }
+
+/* The sidebar's foot: Update, Get the app, Machines and Automations, out of the way. */
+.split-foot[hidden] { display: none; }
+.split-foot {
+  grid-row: 3; grid-column: 1; container: foot / inline-size; display: flex; align-items: center; gap: 2px; min-width: 0;
+  padding: 8px 10px; border-top: 1px solid var(--line); border-right: 1px solid var(--line); background: var(--bg);
+}
+.split-foot > * { flex: none; }
+.split-foot .auto-btn { padding: 0 8px; border-color: transparent; background: none; }
+.split-foot .auto-btn:hover { background: var(--bg-2); border-color: transparent; }
+/* less room: Get the app goes to its icon first, then the rest (their tooltips name them) */
+@container foot (max-width: 340px) { .split-foot .getapp-btn > span { display: none; } }
+@container foot (max-width: 250px) { .split-foot :is(.auto-btn, .update-btn) > span { display: none; } }
 body.split :is(.collapse-all, .to-top) { display: none; }
 body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
 
 /* The grip: an invisible strip on the sidebar's edge, a hairline when grabbed. */
 .split-grip {
-  position: absolute; z-index: 6; top: 52px; bottom: 0; left: calc(var(--side-w) - 3px); width: 7px; cursor: col-resize;
+  position: absolute; z-index: 6; top: 0; bottom: 0; left: calc(var(--side-w) - 3px); width: 7px; cursor: col-resize;
   touch-action: none;
 }
 .split-grip::after { content: ''; position: absolute; inset: 0 3px; background: transparent; transition: background 0.15s; }
@@ -37,13 +64,11 @@ body.split.side-right .split-grip { left: auto; right: calc(var(--side-w) - 4px)
 .split-top[hidden] { display: none; }
 .split-new {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px 0 11px;
-  border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
-  font-size: 13px; font-weight: 500; transition: border-color 0.15s, color 0.15s, background 0.15s;
+  border-radius: 9px; color: var(--muted); font-size: 13px; font-weight: 500; transition: color 0.15s, background 0.15s;
 }
 .split-new .i { width: 15px; height: 15px; }
 .split-new span { flex: 1; text-align: left; }
-.split-new:hover { border-color: var(--line-2); color: var(--ink); }
-.split-new.on { border-color: var(--line-2); color: var(--ink); box-shadow: var(--shadow-1); }
+.split-new:hover, .split-new.on { background: var(--bg-2); color: var(--ink); }
 .sp-side { display: flex; gap: 4px; }
 .sp-side:empty { display: none; }
 
@@ -56,26 +81,31 @@ body.split .f-list { gap: 2px; }
 body.split .feed-empty { padding: 32px 12px; }
 body.split .feed-empty .orb.big { display: none; }
 
-body.split #feed .item { border-color: transparent; background: transparent; box-shadow: none; }
+/* Rows: the title with the time beside it, the summary with the state and PR beside that. The title
+   gets the width the pills used to take; the done button shows over the time on hover. */
+body.split #feed .item { position: relative; border-color: transparent; background: transparent; box-shadow: none; }
 body.split #feed .item:hover { background: var(--bg-2); }
 body.split #feed .item.focused { border-color: var(--line); box-shadow: none; }
-body.split #feed .item.open { background: var(--surface); border-color: var(--line-2); box-shadow: var(--shadow-1); }
-body.split #feed .it-head { gap: 10px; padding: 8px 10px 8px 12px; align-items: start; }
-body.split #feed .it-head .q-dot { margin-top: 6px; }
+body.split #feed .item.open { background: var(--bg-2); border-color: transparent; box-shadow: none; }
+body.split #feed .it-head { grid-template-columns: 10px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 1px; padding: 9px 12px; align-items: center; }
+body.split #feed .it-main { display: contents; }
+body.split #feed .it-head .q-dot { grid-row: 1; }
+body.split #feed .it-title { grid-row: 1; grid-column: 2; font-size: 13.5px; }
+body.split #feed :is(.it-sub, .q-live) { grid-row: 2; grid-column: 2; }
+body.split #feed .it-sub { color: var(--faint); }
 body.split #feed .item.open .it-head { border-bottom: 0; border-radius: var(--radius); }
-body.split #feed .it-title { font-size: 13.5px; }
 body.split #feed .item.open .it-title { white-space: nowrap; }
-body.split #feed .it-side { gap: 6px; min-height: 19px; justify-content: flex-end; }
-/* Every row ends the same way (time, then the done button or its space), so pills and times
-   line up down the list, and opening a row changes its background only. */
-body.split #feed .it-side .q-time { flex: none; min-width: 30px; }
-body.split #feed .it-quick-gap { flex: none; width: 24px; margin-right: -6px; }
+body.split #feed .it-side { grid-row: 1 / 3; grid-column: 3; flex-wrap: wrap; justify-content: flex-end; align-content: space-between; gap: 2px 6px; align-self: stretch; }
+body.split #feed .it-side .q-time { order: -1; flex: 0 0 100%; min-width: 0; text-align: right; }
+body.split #feed .it-side .pill { height: 19px; padding: 0; background: none; font-size: 11.5px; }
+body.split #feed .it-side .pill i { width: 5px; height: 5px; }
+body.split #feed .it-quick { position: absolute; top: 6px; right: 6px; margin: 0; background: var(--bg-2); }
+body.split #feed .it-quick-gap { display: none; }
 body.split #feed .item.open:not(.unread):not(.st-waiting) .it-title { color: var(--ink-2); font-weight: 500; }
 body.split #feed .item.open.st-done .it-title { color: var(--muted); }
 body.split #feed .it-side .chev { display: none; }
 /* Rows say what needs saying (state, PR, time); details: "full" (a spell's) brings back the rest. */
 body.split:not(.side-full) #feed .it-side > :is(.model-logo, .team-stack, .q-machine, .q-proj) { display: none; }
-body.split #feed .it-side .pill { font-size: 11px; }
 body.split .task-item { background: transparent; border-color: var(--line); box-shadow: none; }
 body.split .task-item:has(.item.open) { box-shadow: none; }
 body.split .task-head { padding: 8px 10px 6px 12px; gap: 10px; }
@@ -85,7 +115,8 @@ body.split .task-runs { padding: 0 4px 4px; }
 /* ---------- the main pane ---------- */
 .split-main[hidden], .split-home[hidden], .split-head[hidden], .split-stage[hidden] { display: none; }
 
-/* Home: the prompt box, with what's waiting on you under it. */
+/* Home: the prompt box. What's waiting on you is in the sidebar beside it (a spell can bring the
+   list back here through the split.next part). */
 .split-home {
   flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center;
   padding: clamp(32px, 14vh, 140px) 32px 48px;
@@ -94,7 +125,7 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-hello { margin: 0 0 18px; padding: 0 4px; font: 600 26px/1.2 var(--display); letter-spacing: -0.02em; color: var(--ink); }
 .sh-hello:empty { display: none; }
 .sh-launch .sp-feedtop { margin-top: 18px; }
-.sh-next { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
+.sh-next { margin-top: 30px; display: none; flex-direction: column; gap: 2px; }
 .sh-next[hidden] { display: none; }
 .sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .sh-next h4 .n { color: var(--faint); }
@@ -106,23 +137,35 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-t { font-size: 13.5px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-s { font-size: 12px; color: var(--muted); }
 .sh-s.asking { color: var(--warn); font-weight: 500; }
-.sh-keys { margin: 26px 0 0; padding: 0 8px; font-size: 12px; color: var(--faint); line-height: 2; }
+.sh-keys { margin: 18px 0 0; padding: 0 8px; font-size: 12px; color: var(--faint); line-height: 2; }
+/* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */
+.split-home .launcher .lp-chip:not(.add) { border-color: transparent; }
+.split-home .launcher .lp-chip.on { background: var(--bg-2); }
+.split-home .launcher .l-recipes { border-top: 0; margin-top: 2px; padding-top: 2px; }
+.split-home .launcher .l-recipes .lp-chip.rc { background: none; color: var(--muted); }
+.split-home .launcher .runners:not(:hover):not(:has(.open)) { border-color: transparent; }
 .sh-keys kbd { margin-right: 2px; }
 
-/* The open task's header: its title with room to read, and what the card head says about it. */
+/* The open task's header: its title, one line, over the reading column (and the details beside it). */
 .split-head {
-  flex: none; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line);
-  padding: 16px max(24px, calc((100% - var(--read-w)) / 2)) 12px;
+  flex: none; display: flex; align-items: center; min-height: 60px; border-bottom: 1px solid var(--line);
+  padding: 10px max(24px, calc((100% - var(--read-w)) / 2));
 }
-.sh-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sh-row { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
 .sh-row .q-dot { flex: none; }
-.sh-title { flex: 1; min-width: 0; margin: 0; font: 600 19px/1.3 var(--display); letter-spacing: -0.015em; color: var(--ink); outline: 0; border-radius: 5px; overflow-wrap: anywhere; }
-.sh-title[contenteditable='true'] { background: var(--surface-2); box-shadow: 0 0 0 3px var(--accent-soft); padding: 0 4px; cursor: text; }
+.sh-title {
+  flex: 1; min-width: 0; margin: 0; font: 600 17px/1.3 var(--display); letter-spacing: -0.015em; color: var(--ink); outline: 0; border-radius: 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sh-title[contenteditable='true'] { white-space: normal; background: var(--surface-2); box-shadow: 0 0 0 3px var(--accent-soft); padding: 0 4px; cursor: text; }
 .split-head.st-done .sh-title { color: var(--ink-2); } /* done, but still the heading you read */
 .sh-acts { flex: none; display: flex; align-items: center; gap: 4px; }
-.sh-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding-left: 19px; font-size: 12px; min-height: 20px; }
-.sh-meta .model-logo::after { left: -6px; right: auto; bottom: auto; top: calc(100% + 6px); transform: translateY(-2px); }
-.sh-meta .model-logo:hover::after { transform: none; }
+body.electron.split .split-head { -webkit-app-region: drag; }
+body.electron.split .split-head :is(button, a, .sh-title) { -webkit-app-region: no-drag; }
+/* the Mac window buttons sit over the top-left corner: beside the brand, or the title when the list is on the right */
+body.electron.mac.split .topbar { padding-left: 14px; }
+body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
+body.electron.mac.split.side-right .split-head { padding-left: max(88px, var(--pad, 24px)); }
 .split-stage { flex: 1; min-height: 0; }
 
 /* The open card's body, laid over #splitStage (split.js keeps --sb-* on its box). */
@@ -135,11 +178,68 @@ body.split #feed .item.open > .it-body {
 }
 body.split #feed .item.open > .it-body > * { flex-shrink: 0; }
 body.split #feed .item.open > .it-body > .it-bar {
-  position: sticky; top: 0; z-index: 2; margin: 0 -8px; padding: 8px; background: var(--bg);
+  position: sticky; top: 0; z-index: 2; flex-wrap: wrap; row-gap: 6px; margin: 0 -8px; padding: 8px; background: var(--bg);
 }
+/* On a narrow pane the details are this bar: what the card says, how it runs, the actions, the PR. */
+body.split .it-bar > .it-props { display: flex; flex: none; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--muted); }
+body.split .it-bar > .pr-strip { order: 9; flex: 1 0 100%; margin: 0; }
+body.split .it-bar > .it-slot:not(:empty) { display: flex; align-items: center; gap: 2px; }
+body.split .it-bar:has(> .pr-strip:not([hidden])) .it-props :is(.pill.pr, .ship-pill) { display: none; }
+
+/* A wide pane: the reading column, and beside it the details column, which stays put while the task
+   scrolls, so the controls are in reach at any point of a long report. It's a sticky bar of no
+   height at the body's right edge, beside the column the rest keeps to, so the wheel over it still
+   scrolls the task (a fixed one would scroll the page behind it instead). */
+body.split.pane-wide { --pad: max(24px, calc((var(--sb-w) - var(--det-w) - 48px - var(--read-w)) / 2)); }
+body.split.pane-wide .split-head { padding-left: var(--pad); padding-right: calc(var(--pad) - 8px); }
+body.split.pane-wide #feed .item.open > .it-body { padding: 0 var(--pad); }
+body.split.pane-wide #feed .item.open > .it-body > :not(.it-bar) { margin-right: calc(var(--det-w) + 48px); }
+body.split.pane-wide #feed .item.open > .it-body > .it-bar {
+  top: 18px; z-index: 4; align-self: flex-end; width: var(--det-w); height: 0; overflow: visible;
+  margin: 0; padding: 0; background: none;
+  display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px;
+}
+body.split.pane-wide .it-bar > .it-props { flex-wrap: wrap; }
+/* the harness by name: there's room, and a tooltip would run off the column */
+body.split.pane-wide .it-props .model-logo { flex: 1 0 100%; order: 1; width: auto; height: auto; align-items: flex-start; gap: 7px; color: var(--ink-2); line-height: 1.45; }
+body.split.pane-wide .it-props .model-logo > * { width: 13px; height: 13px; flex: none; margin-top: 3px; }
+body.split.pane-wide .it-props .model-logo::after { content: attr(data-tip); position: static; opacity: 1; transform: none; transition: none; padding: 0; background: none; color: var(--ink-2); font-size: 12.5px; white-space: normal; }
+body.split.pane-wide .it-props .model-logo.routed::before { right: auto; bottom: auto; left: 9px; top: 12px; }
+body.split.pane-wide .it-props :is(.q-proj, .q-machine, .q-time, .sp-chip) { order: 2; }
+body.split.pane-wide .it-bar > .it-meta { flex: none; flex-direction: column; align-items: flex-start; gap: 6px; overflow: visible; }
+body.split.pane-wide .it-meta .m { max-width: 100%; }
+body.split.pane-wide .it-meta .m.branch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.split.pane-wide .it-meta:empty { display: none; }
+/* the PR: a card of its own, its number and GitHub, its state, then Merge / Fix conflicts / Check now */
+body.split.pane-wide .it-bar > .pr-strip { order: 0; flex: none; flex-wrap: wrap; gap: 6px 8px; padding: 10px 10px 10px 12px; border-radius: 10px; }
+body.split.pane-wide .it-bar > .pr-strip > .grow { display: none; }
+body.split.pane-wide .it-bar > .pr-strip > a.ghost { margin-left: auto; }
+body.split.pane-wide .it-bar > .pr-strip > .pr-line { order: 2; flex: 1 0 100%; white-space: normal; color: var(--muted); }
+body.split.pane-wide .it-bar > .pr-strip > button { order: 3; }
+body.split.pane-wide .it-bar > .pr-strip > .pr-merge { flex: 1; justify-content: center; height: 28px; background: color-mix(in srgb, var(--good) 12%, transparent); }
+body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-what { flex: 1 1 0; white-space: normal; }
+body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-track { order: 2; flex: 1 0 100%; margin: 2px 0 0; }
+body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-track li + li::before { width: 8px; }
+body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-acts { order: 3; }
+/* the actions: a list with their names and keys */
+body.split.pane-wide .it-bar > .it-actions { flex-direction: column; align-items: stretch; gap: 1px; padding-top: 12px; border-top: 1px solid var(--line); }
+body.split.pane-wide .it-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 8px; gap: 10px; font-size: 13px; color: var(--muted); }
+body.split.pane-wide .it-actions .ghost:hover { color: var(--ink); }
+body.split.pane-wide .it-actions .ghost.on { color: var(--good); }
+body.split.pane-wide .it-actions .ghost .i { width: 15px; height: 15px; }
+body.split.pane-wide .it-actions .ghost > .it-lbl { display: inline; }
+body.split.pane-wide .it-actions .ghost[data-key]::after {
+  content: attr(data-key); margin-left: auto; font: 10.5px/1.4 var(--mono); padding: 0 5px; border-radius: 5px;
+  border: 1px solid var(--line-2); border-bottom-width: 2px; color: var(--faint);
+}
+body.split.pane-wide .it-bar > .it-slot:not(:empty) { flex-direction: column; align-items: stretch; }
 body.split #feed .item.open > .it-body > .it-dock {
   position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 22px 0 18px;
   background: linear-gradient(to bottom, transparent, var(--bg) 22px);
 }
 body.split #feed .item.open > .it-body .turns { padding-left: 0; padding-right: 0; }
 body.split #feed .item.open > .it-body .composer { box-shadow: var(--shadow-1); }
+/* The follow-up box is one quiet line until you click into it (or it has something in it). */
+body.split #feed .item.open .composer:not(:focus-within):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
+body.split #feed .item.open .composer:not(:focus-within) { box-shadow: none; }
+body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }
