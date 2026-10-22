@@ -54,6 +54,10 @@ export function detectTerminal({ platform = process.platform, env = process.env,
   return LINUX_ORDER.find((t) => has(t)) || 'xterm';
 }
 
+// Take over in the page by default where it can run one (no pty on Windows); Settings can pick a
+// terminal app or Auto-detect instead.
+export const defaultTerminal = (platform = process.platform) => (platform === 'win32' ? 'auto' : 'wisp');
+
 // Take over in the page (server/pty.js) instead of a terminal app: when asked to, or on auto where
 // there's no desktop to open one on (a wisp Grid, a Linux server reached over SSH).
 export function inWisp(terminal = 'auto', { platform = process.platform, env = process.env } = {}) {

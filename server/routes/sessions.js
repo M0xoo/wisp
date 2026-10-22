@@ -14,7 +14,7 @@ import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
 import { alsoDirs, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
 import { ptySupported } from '../pty.js';
-import { inWisp, openInTerminal, shq } from '../terminal.js';
+import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
@@ -350,7 +350,7 @@ export function register(r, app) {
     takeover(async (s, argv, c) => {
       const body = await c.body();
       const d = store.config.defaults;
-      const inline = body.inline === true || inWisp(d.terminal || 'auto');
+      const inline = body.inline === true || inWisp(d.terminal || defaultTerminal());
       if (inline && !ptySupported()) throw bad('Taking over inside wisp needs macOS or Linux on the computer the task runs on. Pick a terminal app in Settings → General.');
       // Already open in the page: show it again, the agent in it carries on.
       if (inline && app.terms.get(s.id)?.code === null) return { inline };
@@ -359,9 +359,9 @@ export function register(r, app) {
         await runner.live.get(s.id)?.done;
       }
       if (inline) app.terms.open(s.id, { argv, cwd: workdir(s), cols: body.cols, rows: body.rows });
-      else openInTerminal({ cwd: workdir(s), argv, terminal: d.terminal || 'auto', custom: d.terminalCommand });
+      else openInTerminal({ cwd: workdir(s), argv, terminal: d.terminal || defaultTerminal(), custom: d.terminalCommand });
       s.takenOverAt = Date.now();
-      telemetry.track('takeover', { agent: s.agent, terminal: inline ? 'wisp' : d.terminal || 'auto' });
+      telemetry.track('takeover', { agent: s.agent, terminal: inline ? 'wisp' : d.terminal || defaultTerminal() });
       store.save(s);
       return { inline };
     }),

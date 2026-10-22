@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Take over opens in a terminal inside wisp by default** on macOS and Linux, instead of a terminal app. Pick Auto-detect or a terminal app in Settings → General → Take over in to go back; a setting you already chose is kept. Windows still opens a terminal app.
 - **Each task keeps its scroll position across reloads.** Split view already took you back to where you were in a task when you opened it again; that place is now saved in the browser, and the open task's is written as the page goes away, so a reload (⌘R, wisp updating, the phone dropping the page) opens it on the same spot. In the feed, the open task you were reading comes back where it was too.
 - The "Nothing needs you" line above the task list is gone, in the feed and in split view's sidebar: the group headings already say what needs you.
 
