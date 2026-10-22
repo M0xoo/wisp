@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.30.3] - 2026-10-22
+
 ### Removed
 
 - **Replay presentation.** It re-drew the task's report, which shows the same as before since reports reveal only the first time, so it looked like it did nothing. It's gone from *More*, ⌘K and the `R` key (`⇧R` still reruns).
