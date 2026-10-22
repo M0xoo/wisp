@@ -144,7 +144,6 @@
           <div class="l-recipes"><i class="sk sk-line short"></i><i class="sk sk-line"></i></div>
         </section>
       </div>
-      <div class="feed-head" id="feedHead"></div>
       <div class="sp-feedtop" id="spFeedTop" hidden></div>
       <div class="feed" id="feed">
         <section class="f-group needs" id="secNeeds" hidden><h4>Needs you<span class="n"></span></h4><div class="f-list"></div></section>
@@ -161,7 +160,7 @@
          here and its body is laid over #splitStage. -->
     <section class="split-main" id="splitMain" hidden>
       <div class="split-home" id="splitHome">
-        <h2 class="sh-hello"></h2>
+        <h2 class="sh-hello">What should wisp do next?</h2>
         <div class="sh-launch"></div>
         <div class="sh-next"></div>
         <p class="sh-keys"></p>
@@ -180,6 +179,22 @@
   <div class="overlay" id="overlay" hidden></div>
   <div class="toasts" id="toasts"></div>
 
+  <!-- Split view from the first paint, not when app.js has loaded (slow over the network, e.g. on
+       Grid): the last layout seen, else split on big screens. Mirrors viewPref() and enter() in
+       features/split.js (900 = SPLIT_MIN_WIDTH, 1280 = SPLIT_DEFAULT_WIDTH); applyView() takes over. -->
+  <script>try {
+    var v = JSON.parse(localStorage.getItem('wisp.view')) || (matchMedia('(min-width: 1280px)').matches ? 'split' : 'feed');
+    if (v === 'split' && matchMedia('(min-width: 900px)').matches && !document.body.classList.contains('wisp-mobile')) {
+      var q = function (s) { return document.querySelector(s); };
+      var w = JSON.parse(localStorage.getItem('wisp.sideW'));
+      if (w > 0) document.documentElement.style.setProperty('--side-w', w + 'px');
+      q('#splitHome .sh-launch').append(q('#launchSlot'), q('#spFeedTop'));
+      q('#splitFoot').append(q('#updateBtn'), q('#getAppBtn'), q('#machinesBtn'), q('#autoBtn'));
+      q('#viewBtn use').setAttribute('href', '#i-feed');
+      document.body.classList.add('split');
+      ['#splitMain', '#splitGrip', '#splitTop', '#splitFoot'].forEach(function (s) { q(s).hidden = false; });
+    }
+  } catch {}</script>
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>

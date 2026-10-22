@@ -5,7 +5,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
-import { HERE, S, save, saveOpen } from '../core/state.js';
+import { HERE, MOBILE, S, save, saveOpen } from '../core/state.js';
 import { taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
 import { renderLaunchChips } from './launcher.js';
@@ -18,7 +18,7 @@ import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
 import { termPill } from './term.js';
-import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar } from './split.js';
+import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -137,7 +137,7 @@ export function renderFeed() {
   $('#feedEmpty').hidden = !empty;
   if (empty)
     $('#feedEmpty').innerHTML = `<div class="orb big"><i></i><i></i><i></i></div><p>${S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.'}</p>`;
-  renderFeedHead(needs, working);
+  placeCollapseAll();
 
   const n = [...S.sessions.values()].filter((s) => (s.state === 'review' && s.unread) || s.state === 'waiting').length;
   document.title = n ? `(${n}) wisp` : 'wisp';
@@ -151,16 +151,6 @@ export function feedToTop() {
   if (isSplit()) return (sidebar.scrollTop = 0);
   const top = $('#feed').getBoundingClientRect().top;
   if (top < topInset()) scrollByPx(top - topInset());
-}
-
-function renderFeedHead(needs, working) {
-  const parts = [];
-  if (working.length) parts.push(`<span class="hs working"><i></i>${working.length} working</span>`);
-  if (needs.length) parts.push(`<span class="hs needs"><i></i>${needs.length} need${needs.length === 1 ? 's' : ''} you</span>`);
-  // Group headings already carry the counts; only say something when the feed is calm.
-  $('#feedHead').innerHTML = parts.length ? '' : '<span class="hs calm"><i></i>Nothing needs you</span>';
-  $('#feedHead').hidden = !!parts.length;
-  placeCollapseAll();
 }
 
 // "Collapse all" floats over the page instead of living in the flow: showing it
@@ -397,8 +387,9 @@ export async function expand(id, { scroll = true } = {}) {
     n.body = el(`<div class="it-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>`);
     n.card.append(n.body);
   }
-  renderFeedHead(groups().needs, groups().working);
+  placeCollapseAll();
   paintSplit();
+  syncUrl();
   // Split view opens the task in the main pane, so the list doesn't move to it.
   if (scroll && !isSplit()) requestAnimationFrame(() => n.card.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   if (!S.full.has(id)) await fetchFull(id);
@@ -423,8 +414,23 @@ export function collapse(id) {
     const s = S.sessions.get(id);
     if (s) renderHead(n, s);
   }
-  renderFeedHead(groups().needs, groups().working);
+  placeCollapseAll();
   paintSplit();
+  syncUrl();
+}
+
+// The address names the open task (#/s/<id>; in the feed, the one opened last), so a reload or a
+// copied link opens it again. Off until route() has read the address the page was loaded with. The
+// phone has no address bar: there it's only cleared, so a tapped notification always routes.
+let urlOn = false;
+export function syncUrl({ start = false } = {}) {
+  urlOn ||= start;
+  if (!urlOn) return;
+  const id = MOBILE ? null : isSplit() ? splitOpen() : [...S.open].at(-1);
+  const h = location.hash;
+  if (id) {
+    if (h !== `#/s/${id}`) history.replaceState(null, '', `#/s/${id}`);
+  } else if (h.startsWith('#/s/')) history.replaceState(null, '', location.pathname + location.search);
 }
 
 export async function fetchFull(id) {
@@ -491,8 +497,13 @@ export function reveal(id) {
   }
   renderFeed();
   setFocus(id, { scroll: false });
-  if (!S.open.has(id)) expand(id);
-  else if (!isSplit()) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  if (!S.open.has(id)) return expand(id);
+  // Already open: it's the one the address names now (the last opened).
+  S.open.delete(id);
+  S.open.add(id);
+  saveOpen();
+  syncUrl();
+  if (!isSplit()) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 export const feedIds = () => $$('#feed .item:not(.pending)').map((x) => x.dataset.id);

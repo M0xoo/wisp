@@ -11,7 +11,7 @@ import { MOBILE, S, save, setAgents } from './core/state.js';
 import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
-import { renderFeed, reveal, scheduleRefetch } from './features/feed.js';
+import { renderFeed, reveal, scheduleRefetch, syncUrl } from './features/feed.js';
 import { renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
@@ -69,13 +69,12 @@ if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron'
 if (MOBILE) document.body.classList.add('wisp-mobile');
 paintGetApp();
 
-// #/s/<id> still works (notifications, CLI): it reveals that item in the feed.
+// #/s/<id> (notifications, CLI, links, the address bar) opens that task; from then on the address
+// follows the open task (syncUrl).
 function route() {
-  if (routeSpell()) return; // #/spell?src=…: a shared spell to review
-  const m = location.hash.match(/^#\/s\/(\w+)/);
-  if (!m) return;
-  history.replaceState(null, '', '#/');
-  reveal(m[1]);
+  const m = !routeSpell() && location.hash.match(/^#\/s\/(\w+)/); // #/spell?src=…: a shared spell to review
+  if (m) reveal(m[1]);
+  syncUrl({ start: true });
 }
 
 window.addEventListener('hashchange', route);
