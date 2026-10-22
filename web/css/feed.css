@@ -106,7 +106,8 @@
 /* Split view's details only: what the card head says, spell buttons, and names for the icon actions. */
 .it-props, .it-slot { display: none; }
 .it-actions .it-lbl { display: none; font-style: normal; }
-.it-done:hover { color: var(--good); }
+/* Mark done is green like Reopen: the step that ends a task is easy to spot */
+.it-done, .it-done:hover { color: var(--good); }
 .it-body .earlier { display: block; margin: 4px 0 0 18px; }
 .it-dock { padding: 4px 14px 14px; }
 

@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Mark done is green, like Reopen**, on the open task's bar, in split view's details column and next to the follow-up box, so the step that ends a task is easy to find.
+
 ## [0.30.3] - 2026-10-22
 
 ### Removed
