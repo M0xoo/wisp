@@ -11,7 +11,7 @@ const dir = tmp('exit-bin');
 const bin = path.join(dir, 'quits');
 fs.writeFileSync(bin, `#!${process.execPath}\nprocess.stderr.write('bad flag');\nprocess.exit(3);\n`);
 fs.chmodSync(bin, 0o755);
-for (const k of ['CLAUDE', 'CODEX', 'OPENCODE', 'CURSOR', 'ANTIGRAVITY', 'GROK']) process.env[`WISP_${k}_BIN`] = bin;
+for (const k of ['CLAUDE', 'CODEX', 'OPENCODE', 'CURSOR', 'ANTIGRAVITY', 'GROK', 'COPILOT']) process.env[`WISP_${k}_BIN`] = bin;
 const { adapters } = await import('../server/adapters/index.js');
 
 for (const id of Object.keys(adapters)) {

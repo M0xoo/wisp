@@ -1,6 +1,6 @@
 # wisp
 
-> Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build) in parallel and in the background, each in its own git worktree, on this computer or other machines over SSH, and hands back a 30-second animated presentation instead of a 4,000-line transcript.
+> Open-source launcher that runs AI coding agents (Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, GitHub Copilot CLI) in parallel and in the background, each in its own git worktree, on this computer or other machines over SSH, and hands back a 30-second animated presentation instead of a 4,000-line transcript.
 
 - Website: https://trywisp.dev/
 - GitHub: https://github.com/M0xoo/wisp
@@ -32,6 +32,7 @@ wisp --mode plan "audit dependencies"
 - **Cursor CLI** (`cursor-agent`)
 - **Antigravity CLI** (`agy`)
 - **Grok Build** (`grok`)
+- **GitHub Copilot CLI** (`copilot`)
 
 ## Key features
 
@@ -71,7 +72,7 @@ wisp --mode plan "audit dependencies"
 - [Landing Page](https://trywisp.dev/)
 - [Integrations Guide (MCP, CLI, SDK, HTTP API, Webhooks)](https://trywisp.dev/integrations.html)
 - [Supported agents: how wisp runs each CLI](https://trywisp.dev/agents/)
-- [Claude Code](https://trywisp.dev/agents/claude-code.html) · [Codex](https://trywisp.dev/agents/codex.html) · [Cursor CLI](https://trywisp.dev/agents/cursor.html) · [opencode](https://trywisp.dev/agents/opencode.html) · [Antigravity CLI](https://trywisp.dev/agents/antigravity.html) · [Grok Build](https://trywisp.dev/agents/grok.html)
+- [Claude Code](https://trywisp.dev/agents/claude-code.html) · [Codex](https://trywisp.dev/agents/codex.html) · [Cursor CLI](https://trywisp.dev/agents/cursor.html) · [opencode](https://trywisp.dev/agents/opencode.html) · [Antigravity CLI](https://trywisp.dev/agents/antigravity.html) · [Grok Build](https://trywisp.dev/agents/grok.html) · [Copilot CLI](https://trywisp.dev/agents/copilot.html)
 - [Guides](https://trywisp.dev/guides/)
   - [Run Claude Code and Codex in parallel](https://trywisp.dev/guides/run-claude-code-and-codex-in-parallel.html)
   - [Run multiple Claude Code agents in parallel](https://trywisp.dev/guides/run-multiple-claude-code-agents-in-parallel.html)

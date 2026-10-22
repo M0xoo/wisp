@@ -10,6 +10,7 @@ const CHEAP = [
   ['codex', ''],
   ['opencode', ''],
   ['grok', ''],
+  ['copilot', 'gpt-5-mini'],
   ['claude', ''],
 ];
 

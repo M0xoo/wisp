@@ -220,6 +220,23 @@ export const AGENTS = [
       'Auto-updates are off during a run, so a task never stalls on one.',
     ],
   },
+  {
+    id: 'copilot', slug: 'copilot', name: 'Copilot CLI', vendor: 'GitHub', bin: 'copilot', logo: 'githubcopilot.svg', mono: true,
+    docs: 'https://docs.github.com/copilot/how-tos/copilot-cli',
+    lede: 'Put the GitHub Copilot CLI to work in the background, with any model your Copilot plan includes. wisp hands <code>copilot</code> the task on stdin, adds wisp’s tools for the run, and turns its JSON event stream into a report you can ship from.',
+    run: 'copilot --output-format json --allow-tool=write \\\n  --session-id <uuid> --no-ask-user \\\n  --additional-mcp-config \'{"mcpServers":{"wisp":…}}\' < task',
+    modes: { plan: '--mode plan', edits: '--allow-tool=write', auto: '--allow-all' },
+    ask: 'An MCP tool, reached as <code>wisp-ask_user</code>, added with <code>--additional-mcp-config</code> and allowed with <code>--allow-tool=wisp</code>. Copilot’s own question tool is off (<code>--no-ask-user</code>), so its questions come to you.',
+    approve: 'Copilot can’t hand a permission prompt to wisp, so in Edits mode the commands its permissions refuse come back on the card with <b>Allow &amp; retry</b>, which re-runs the turn with exactly those commands allowed (<code>--allow-tool=shell(npm publish)</code>).',
+    btw: 'answered from wisp’s record of the task (requests, reports, actions and files changed)',
+    resume: 'copilot --resume=<id>',
+    models: 'The models <code>copilot help config</code> lists (Claude, GPT, Gemini, Grok…), plus a thinking level passed as <code>--reasoning-effort</code>.',
+    extras: [
+      'The task goes in on stdin, so long prompts and pasted logs aren’t cut by the shell.',
+      'Several folders in one task: the others are passed as <code>--add-dir</code>. Pasted screenshots go in with <code>--attachment</code>.',
+      'Subagents: a Copilot lead delegates through wisp’s <code>delegate</code> tool, with its own <code>task</code> subagents turned off.',
+    ],
+  },
 ];
 
 // ---------- page shell ----------
@@ -429,7 +446,7 @@ function agentsIndex() {
     <header class="doc-head">
       <p class="eyebrow">Agents</p>
       <h1>Every coding agent CLI, one queue</h1>
-      <p class="doc-lede">wisp runs the agent CLIs you already pay for: Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI and Grok Build. Each runs headless on its own branch, and each hands back the same one-screen report.</p>
+      <p class="doc-lede">wisp runs the agent CLIs you already pay for: Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build and GitHub Copilot CLI. Each runs headless on its own branch, and each hands back the same one-screen report.</p>
       <div class="doc-cta">${installButton()}</div>
     </header>
 
@@ -455,8 +472,8 @@ function agentsIndex() {
 `;
   return page({
     path: '/agents/',
-    title: 'Coding agents wisp runs: Claude Code, Codex, Cursor, opencode, Antigravity, Grok',
-    description: 'Run Claude Code, OpenAI Codex, Cursor CLI, opencode, Antigravity CLI and Grok Build in the background with wisp. How each one is driven, its permission flags, questions and take over.',
+    title: 'Coding agents wisp runs: Claude Code, Codex, Cursor, opencode, Antigravity, Grok, Copilot',
+    description: 'Run Claude Code, OpenAI Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build and GitHub Copilot CLI in the background with wisp. How each one is driven, its permission flags, questions and take over.',
     crumbs: [['Agents', '/agents/']],
     body,
     schema: [{
@@ -494,7 +511,7 @@ function guidePage(g) {
       <p class="doc-lede">${g.lede}</p>
       ${g.cloud ? `<div class="doc-cta"><a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-${esc(g.slug)}">Try wisp Cloud</a>${installButton()}</div>
       <p class="fine muted">wisp Cloud: free during the preview, sign in with GitHub · or run wisp on your own computers, MIT</p>` : `<div class="doc-cta">${installButton()}<a class="btn" href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a></div>
-      <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build · macOS, Linux, Windows (beta) · Node 20+</p>`}
+      <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build, Copilot CLI · macOS, Linux, Windows (beta) · Node 20+</p>`}
     </header>
 
     ${DEMOS[g.demo]?.html || g.figure || shot(...g.shot)}

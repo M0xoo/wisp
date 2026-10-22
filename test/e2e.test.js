@@ -52,7 +52,7 @@ after(() => {
 
 test('every fake harness is detected through /api/agents', async () => {
   const agents = await api('/agents');
-  assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true], ['antigravity', true], ['grok', true]]);
+  assert.deepEqual(agents.map((a) => [a.id, a.available]), [['claude', true], ['codex', true], ['opencode', true], ['cursor', true], ['antigravity', true], ['grok', true], ['copilot', true]]);
 });
 
 test('re-check finds models added after wisp cached the detection', async () => {
@@ -79,7 +79,7 @@ test('/api/update reports the current version; a git checkout never offers or ru
   assert.equal(r.status, 400);
 });
 
-for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
+for (const agent of ['claude', 'codex', 'opencode', 'grok', 'copilot']) {
   test(`${agent}: ask_user round trip, then a follow-up resumes the same agent session`, async () => {
     const cwd = makeRepo();
     const s = await api('/sessions', { prompt: 'ASK before fixing add()', cwd, agent, mode: 'edits' });
@@ -105,7 +105,10 @@ for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
     assert.match(hero.summary, /The user answered: Yes, go ahead/);
     assert.ok(turn.changes.some((c) => c.file === 'math.js'), 'diff recorded');
     assert.ok(turn.activity.some((a) => a.kind === 'answer'), 'answer shown in the trail');
-    assert.equal(done.agentSessionId, `${agent}-session-1`);
+    // copilot gets a fresh session id from wisp; the fakes of the others make up their own.
+    const sid = agent === 'copilot' ? done.agentSessionId : `${agent}-session-1`;
+    if (agent === 'copilot') assert.match(sid, /^[0-9a-f-]{36}$/);
+    else assert.equal(done.agentSessionId, sid);
 
     // Follow-up: same agent session, no protocol re-sent.
     await api(`/sessions/${s.id}/reply`, { text: 'now add a test' });
@@ -115,7 +118,7 @@ for (const agent of ['claude', 'codex', 'opencode', 'grok']) {
     });
     assert.equal(again.turns.at(-1).status, 'done');
     const last = records(RECORD, agent).at(-1);
-    assert.ok(last.argv.includes(`${agent}-session-1`), 'resumed by id');
+    assert.ok(last.argv.includes(sid) || last.argv.includes(`--resume=${sid}`), 'resumed by id');
   });
 }
 

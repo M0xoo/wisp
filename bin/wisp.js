@@ -45,7 +45,7 @@ const HELP = `usage:
   wisp grid dev|init|serve|doctor  wisp Grid: wisp for many people on your server   (wisp grid help)
   wisp -- "ls the repo"         a task that starts with a command name
 
-launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok  --model ID  --effort LEVEL
+launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok|copilot  --model ID  --effort LEVEL
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 

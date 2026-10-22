@@ -488,7 +488,7 @@ git worktree remove ../app-auth`)}
       faq: [
         ['Is Claude Code or Codex better?', 'It depends on the task, the repo and the current models. Run the same task on both, each on its own branch, and compare whether the tests pass, the diff, the time and the cost. wisp’s Compare view does that side by side.'],
         ['Can I use Claude Code and Codex together?', 'Yes. Run different tasks on each at the same time, run the same task on both and keep the better result, or let a Claude Code lead delegate parts of a task to Codex subagents.'],
-        ['Can I compare Cursor, opencode, Antigravity or Grok too?', 'Yes. wisp runs Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI and Grok Build, and --compare takes any of them.'],
+        ['Can I compare Cursor, opencode, Antigravity, Grok or Copilot too?', 'Yes. wisp runs Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build and GitHub Copilot CLI, and --compare takes any of them.'],
       ],
       related: ['run-claude-code-and-codex-in-parallel', 'multi-agent-coding', 'run-multiple-claude-code-agents-in-parallel'],
     },
@@ -527,7 +527,7 @@ git worktree remove ../app-auth`)}
           <tr><td><code>docs</code></td><td>opencode, a cheap model</td><td>README and changelog</td></tr>
         </tbody>
       </table></div>
-      <p>Claude Code, Codex, opencode and Grok Build can lead; Cursor CLI and Antigravity CLI can be members too. <b>Save as preset</b> keeps a team for later.</p>
+      <p>Claude Code, Codex, opencode, Grok Build and Copilot CLI can lead; Cursor CLI and Antigravity CLI can be members too. <b>Save as preset</b> keeps a team for later.</p>
     </section>
 
     <section>
@@ -552,7 +552,7 @@ npx wisp-agents skill install --agent all`)}
       faq: [
         ['Do subagents work in the same worktree?', 'Yes. Members work in the lead’s folder, so their edits are part of one branch, one diff and one pull request. Separate tasks get separate worktrees.'],
         ['Can the team run on another machine?', 'Yes. When a task runs on a machine, the lead and its team run there, with the harnesses that machine has.'],
-        ['Which agents can lead?', 'Claude Code, Codex, opencode and Grok Build can lead a team. Cursor CLI and Antigravity CLI can be members.'],
+        ['Which agents can lead?', 'Claude Code, Codex, opencode, Grok Build and Copilot CLI can lead a team. Cursor CLI and Antigravity CLI can be members.'],
       ],
       related: ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines', 'claude-code-vs-codex'],
     },
@@ -1103,7 +1103,7 @@ wisp spell off --all`)}
 `,
       faq: [
         ['Do spells change wisp’s code?', 'No. A spell is a JSON file in ~/.wisp/spells that wisp reads at runtime. Your wisp install stays as it is, updates keep working, and turning a spell off removes everything it added.'],
-        ['Which agents can cast spells?', 'Any harness wisp runs: Claude Code, Codex, opencode, Cursor, Antigravity or Grok. The agent works in an empty folder of its own and uses wisp’s spell tools to read the reference and check its spell.'],
+        ['Which agents can cast spells?', 'Any harness wisp runs: Claude Code, Codex, opencode, Cursor, Antigravity, Grok or Copilot. The agent works in an empty folder of its own and uses wisp’s spell tools to read the reference and check its spell.'],
         ['Can a spell I get from someone else run code on my computer?', 'Only if it says so: a spell whose buttons run commands is marked Runs commands and lists each command, and asks before the first run. Spell scripts run in a sandbox with no network or file access.'],
         ['Can I write a spell by hand?', 'Yes. Write the JSON, then run wisp spell install ./my.spell.json: wisp checks it the same way it checks a cast spell and tells you, in plain words, what it does or what is wrong.'],
         ['What if I ask for something spells can’t do?', 'The agent says so in its report and does the closest thing spells can. Spells can only use the slots, parts, actions and data sources in wisp’s reference, so they can’t reach further than that.'],

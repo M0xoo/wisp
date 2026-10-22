@@ -14,7 +14,7 @@
   <meta property="og:site_name" content="wisp" />
   <meta property="og:url" content="https://trywisp.dev/" />
   <meta property="og:title" content="wisp — Send coding agents off. Read the highlights." />
-  <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in parallel, in the background, on any of your machines. Get diffs, tests and decisions back as a one-screen report — no transcript." />
+  <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity, Grok and Copilot in parallel, in the background, on any of your machines. Get diffs, tests and decisions back as a one-screen report — no transcript." />
   <meta property="og:image" content="https://trywisp.dev/assets/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -22,7 +22,7 @@
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="wisp — Send coding agents off. Read the highlights." />
-  <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity and Grok in parallel, on any of your machines. Read a one-screen report instead of the transcript." />
+  <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity, Grok and Copilot in parallel, on any of your machines. Read a one-screen report instead of the transcript." />
   <meta name="twitter:image" content="https://trywisp.dev/assets/og.png" />
   <meta name="twitter:image:alt" content="wisp — Send agents off. Read the highlights." />
   <link rel="icon" href="/favicon.ico" sizes="48x48" />
@@ -53,7 +53,7 @@
         "name": "wisp",
         "alternateName": "wisp-agents",
         "softwareVersion": "0.28.2",
-        "description": "Run Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI and Grok Build in parallel, each in its own git worktree, on this computer or your other machines over SSH. Skip the transcript and read the report they hand back: diffs, test results, commits and decisions.",
+        "description": "Run Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build and GitHub Copilot CLI in parallel, each in its own git worktree, on this computer or your other machines over SSH. Skip the transcript and read the report they hand back: diffs, test results, commits and decisions.",
         "url": "https://trywisp.dev/",
         "downloadUrl": "https://www.npmjs.com/package/wisp-agents",
         "installUrl": "https://www.npmjs.com/package/wisp-agents",
@@ -71,9 +71,9 @@
         "isAccessibleForFree": true,
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "author": { "@type": "Person", "name": "M0xoo", "url": "https://github.com/M0xoo" },
-        "keywords": "Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, AI coding agents, parallel coding agents, run Claude Code and Codex in parallel, multi-agent coding, coding agents on multiple machines, SSH, git worktrees, background agents, MCP server, developer tools",
+        "keywords": "Claude Code, OpenAI Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, GitHub Copilot CLI, AI coding agents, parallel coding agents, run Claude Code and Codex in parallel, multi-agent coding, coding agents on multiple machines, SSH, git worktrees, background agents, MCP server, developer tools",
         "featureList": [
-          "Runs Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI and Grok Build in parallel, in the background",
+          "Runs Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build and GitHub Copilot CLI in parallel, in the background",
           "Animated presentations instead of transcripts",
           "Real diffs captured from the agent's own tool calls",
           "ask_user tool so agents can ask questions mid-run",
@@ -109,7 +109,7 @@
             "name": "Which coding agents does wisp support?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Claude Code (claude), OpenAI Codex (codex), opencode, Cursor CLI (cursor-agent), Antigravity CLI (agy) and Grok Build (grok). Each harness is one adapter file, so adding another is small."
+              "text": "Claude Code (claude), OpenAI Codex (codex), opencode, Cursor CLI (cursor-agent), Antigravity CLI (agy), Grok Build (grok) and GitHub Copilot CLI (copilot). Each harness is one adapter file, so adding another is small."
             }
           },
           {
@@ -157,7 +157,7 @@
             "name": "Is wisp free?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity or Grok account, and those providers bill as usual."
+              "text": "Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity, Grok or GitHub Copilot account, and those providers bill as usual."
             }
           },
           {
@@ -286,6 +286,7 @@
         <li><a href="agents/opencode.html"><img src="assets/logos/opencode.svg" alt="" width="18" height="18" class="mono" />opencode</a></li>
         <li><a href="agents/antigravity.html"><img src="assets/logos/antigravity-color.svg" alt="" width="18" height="18" />Antigravity</a></li>
         <li><a href="agents/grok.html"><img src="assets/logos/grok.svg" alt="" width="18" height="18" class="mono" />Grok</a></li>
+        <li><a href="agents/copilot.html"><img src="assets/logos/githubcopilot.svg" alt="" width="18" height="18" class="mono" />Copilot</a></li>
       </ul>
     </section>
 
@@ -465,6 +466,7 @@
             <tr><td><img src="assets/logos/opencode.svg" alt="" width="16" height="16" class="mono" />opencode</td><td><code>opencode --session &lt;id&gt;</code></td></tr>
             <tr><td><img src="assets/logos/antigravity-color.svg" alt="" width="16" height="16" />Antigravity</td><td><code>agy --conversation &lt;id&gt;</code></td></tr>
             <tr><td><img src="assets/logos/grok.svg" alt="" width="16" height="16" class="mono" />Grok</td><td><code>grok --resume &lt;id&gt;</code></td></tr>
+            <tr><td><img src="assets/logos/githubcopilot.svg" alt="" width="16" height="16" class="mono" />Copilot</td><td><code>copilot --resume=&lt;id&gt;</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -522,7 +524,7 @@
         <h2>Pick the task you've been putting off.</h2>
         <p class="sub">A flaky test, a dependency bump, a small bug. You'll be set up in about a minute.</p>
         <ol class="steps">
-          <li><span class="n">1</span><b>Node 20+ and one agent CLI, signed in</b><p>Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI or Grok Build.</p></li>
+          <li><span class="n">1</span><b>Node 20+ and one agent CLI, signed in</b><p>Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build or GitHub Copilot CLI.</p></li>
           <li><span class="n">2</span><b>Run wisp</b><div class="tabs" data-tabs><div class="tablist" role="tablist" aria-label="How to get wisp"><button class="tab" role="tab" id="tab-npx" aria-controls="tabpanel-install" data-tab="npx" aria-selected="true" tabindex="0" data-cmd="npx wisp-agents" data-note="Opens the desktop app. Add --browser for localhost:4477.">npx</button><button class="tab" role="tab" id="tab-npm" aria-controls="tabpanel-install" data-tab="npm" aria-selected="false" tabindex="-1" data-cmd="npm install -g wisp-agents" data-note="Installs the wisp command everywhere. The desktop app comes with it.">npm</button><button class="tab" role="tab" id="tab-curl" aria-controls="tabpanel-install" data-tab="curl" aria-selected="false" tabindex="-1" data-cmd="curl -fsSL https://trywisp.dev/install.sh | bash" data-note="macOS and Linux. Checks for Node 20+ first, then runs npm install -g.">curl</button><button class="tab" role="tab" id="tab-brew" aria-controls="tabpanel-install" data-tab="brew" aria-selected="false" tabindex="-1" data-cmd="brew install m0xoo/tap/wisp-agents" data-note="Homebrew: CLI and browser mode. The desktop app comes from npm.">brew</button></div><div class="tabpanel" role="tabpanel" id="tabpanel-install" aria-labelledby="tab-npx"><code data-tab-code>npx wisp-agents</code><button class="copy-ico" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy command"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div></div><p class="muted" data-tab-note>Opens the desktop app. Add --browser for localhost:4477.</p></li>
           <li><span class="n">3</span><b>Describe it, pick the folder, press Enter</b><p>Then go do something else. wisp tells you when it's done or needs you.</p></li>
         </ol>
@@ -534,12 +536,12 @@
       <h2>Questions</h2>
       <div class="qa-list">
         <details><summary>What is wisp?</summary><p>wisp is a free, open-source launcher for AI coding agents. It runs agents like Claude Code and Codex on your projects in the background. When one finishes, it hands you a short report (the diff, test results, commits and next steps) instead of a long transcript.</p></details>
-        <details><summary>Which coding agents does wisp support?</summary><p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>), Antigravity CLI (<code>agy</code>) and Grok Build (<code>grok</code>). Each harness is one adapter file, so adding another is small.</p></details>
+        <details><summary>Which coding agents does wisp support?</summary><p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>), Antigravity CLI (<code>agy</code>), Grok Build (<code>grok</code>) and GitHub Copilot CLI (<code>copilot</code>). Each harness is one adapter file, so adding another is small.</p></details>
         <details><summary>Can I run Claude Code and Codex in parallel?</summary><p>Yes. Every task runs in its own git worktree and branch, so Claude Code, Codex and the other agents can work on the same repo at the same time without colliding. Click <b>vs</b> in the launcher (or pass <code>--compare codex</code>) to run one task on both and keep the better run. <a href="guides/run-claude-code-and-codex-in-parallel.html">Guide →</a></p></details>
         <details><summary>Can wisp run agents on several machines?</summary><p>Yes. <b>Machines</b> connects to your other computers over SSH and starts wisp there. One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps. To reach them from anywhere, put them on Tailscale: <a href="guides/connect-machines-with-tailscale.html">Tailscale guide →</a> <a href="guides/run-coding-agents-on-multiple-machines.html">Machines guide →</a></p></details>
         <details><summary>Can my agents keep working when my laptop is closed?</summary><p>Yes, if they run on a computer that stays on. Connect a desktop or VM through <b>Machines</b>, or use <a href="cloud.html">wisp Cloud</a>: your own wisp on a server, free during the preview. Sign in with GitHub, sign in to Claude Code or Codex with a code, give it a task and close the laptop; the report waits on your phone. <a href="guides/run-claude-code-24-7-without-a-vps.html">Run Claude Code 24/7 without a VPS →</a></p></details>
         <details><summary>Can I move a task to another computer or agent mid-way?</summary><p>Yes. Pick another computer with the <b>Runs on</b> button next to the follow-up box, and your next follow-up moves the task there: the branch and uncommitted changes travel as a git bundle into a worktree on the same branch, and the agent gets the earlier turns. The harness button next to it switches agents, say from Claude Code to Codex, in the same follow-up. <a href="guides/move-a-task-to-another-machine-or-agent.html">Guide →</a></p></details>
-        <details><summary>Is wisp free?</summary><p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity or Grok account, and those providers bill as usual.</p></details>
+        <details><summary>Is wisp free?</summary><p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity, Grok or GitHub Copilot account, and those providers bill as usual.</p></details>
         <details><summary>Does my code leave my machine?</summary><p>wisp itself is a local server. Sessions and state are plain JSON in <code>~/.wisp</code>. Your code only goes to the agent provider you choose, same as running that CLI directly. wisp sends anonymous usage stats with no prompts, paths or agent output. Turn them off with <code>WISP_TELEMETRY=0</code> or <code>DO_NOT_TRACK=1</code>.</p></details>
         <details><summary>Can I take over a session in my terminal?</summary><p>Yes. Press <kbd>T</kbd> and wisp opens your terminal in the project with the agent's resume command, for example <code>claude --resume &lt;id&gt;</code>. It works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, Windows Terminal and more.</p></details>
         <details><summary>Can other tools send tasks to wisp?</summary><p>Yes. wisp ships an MCP server (<code>wisp mcp</code>), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API and webhooks. You can hand tasks to it from other agents, editors, scripts or CI.</p></details>

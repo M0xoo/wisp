@@ -43,6 +43,7 @@ import opencode from './opencode.js';
 import cursor from './cursor.js';
 import antigravity from './antigravity.js';
 import grok from './grok.js';
+import copilot from './copilot.js';
 import { signedIn } from '../agent-login.js';
 
 // The shape above, checked when wisp starts: a missing piece fails loudly here, not mid-run.
@@ -63,7 +64,7 @@ function checked(a) {
 }
 
 
-export const adapters = Object.fromEntries([claude, codex, opencode, cursor, antigravity, grok].map((a) => [a.id, checked(a)]));
+export const adapters = Object.fromEntries([claude, codex, opencode, cursor, antigravity, grok, copilot].map((a) => [a.id, checked(a)]));
 
 const detected = new Map();
 

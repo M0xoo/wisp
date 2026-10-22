@@ -17,7 +17,7 @@ installFakeBins();
 const { adapters } = await import('../server/adapters/index.js');
 const { systemPrompt } = await import('../server/protocol.js');
 
-const BIN = { claude: 'claude', codex: 'codex', opencode: 'opencode', cursor: 'cursor-agent', antigravity: 'agy', grok: 'grok' };
+const BIN = { claude: 'claude', codex: 'codex', opencode: 'opencode', cursor: 'cursor-agent', antigravity: 'agy', grok: 'grok', copilot: 'copilot' };
 
 // What each permission mode must put on the command line.
 const MODE_ARGS = {
@@ -27,9 +27,10 @@ const MODE_ARGS = {
   cursor: { plan: ['--mode', 'plan'], edits: [], auto: ['--force'] },
   antigravity: { plan: ['--mode', 'plan'], edits: ['--mode', 'accept-edits'], auto: ['--dangerously-skip-permissions'] },
   grok: { plan: ['--permission-mode', 'plan'], edits: ['--permission-mode', 'acceptEdits'], auto: ['--permission-mode', 'bypassPermissions'] },
+  copilot: { plan: ['--mode', 'plan'], edits: ['--allow-tool=write'], auto: ['--allow-all'] },
 };
-const EFFORT_ARGS = { claude: ['--effort', 'high'], codex: ['-c', 'model_reasoning_effort="high"'], opencode: ['--variant', 'high'], cursor: null, antigravity: ['--effort', 'high'], grok: ['--reasoning-effort', 'high'] };
-const RESUME_ARGS = { claude: ['--resume', 'prev-1'], codex: ['resume', 'prev-1'], opencode: ['--session', 'prev-1'], cursor: ['--resume', 'prev-1'], antigravity: ['--conversation', 'prev-1'], grok: ['--resume', 'prev-1'] };
+const EFFORT_ARGS = { claude: ['--effort', 'high'], codex: ['-c', 'model_reasoning_effort="high"'], opencode: ['--variant', 'high'], cursor: null, antigravity: ['--effort', 'high'], grok: ['--reasoning-effort', 'high'], copilot: ['--reasoning-effort', 'high'] };
+const RESUME_ARGS = { claude: ['--resume', 'prev-1'], codex: ['resume', 'prev-1'], opencode: ['--session', 'prev-1'], cursor: ['--resume', 'prev-1'], antigravity: ['--conversation', 'prev-1'], grok: ['--resume', 'prev-1'], copilot: ['--resume=prev-1'] };
 
 // agy takes the prompt as a stream-json `user` event; the rest read it raw.
 const promptOf = (id, stdin) => (id === 'antigravity' ? JSON.parse(stdin.split('\n')[0]).message.content : stdin);
@@ -49,6 +50,8 @@ afterEach(() => {
   delete process.env.FAKE_ORPHANS;
   delete process.env.FAKE_RATE_LIMIT;
   delete process.env.WISP_RATE_LIMIT_GRACE_MS;
+  delete process.env.FAKE_MCP_POLICY;
+  delete process.env.FAKE_SESSION_ERROR;
 });
 
 for (const id of Object.keys(BIN)) {
@@ -72,6 +75,10 @@ for (const id of Object.keys(BIN)) {
       assert.deepEqual(found.models.map((m) => m.label), ['Default', 'Grok 9', 'grok-9-fast'], 'names from the catalog cache');
       assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'high', 'xhigh'], undefined], 'cached levels, low to high');
     }
+    if (id === 'copilot') {
+      assert.deepEqual(models.slice(1), ['claude-opus-9.5', 'gpt-9.1-sol'], 'the `model` list from copilot help config');
+      assert.deepEqual(found.models.map((m) => m.label), ['Default', 'Claude Opus 9.5', 'GPT-9.1 Sol']);
+    }
   });
 
   test(`${id}: a turn yields session, tools, real diffs and the final presentation`, async () => {
@@ -87,7 +94,9 @@ for (const id of Object.keys(BIN)) {
     if (PROMPT_FLAG[id]) assert.match(rec.argv[rec.argv.indexOf(PROMPT_FLAG[id]) + 1], /running inside wisp/);
     else assert.match(promptOf(id, rec.stdin), /running inside wisp[\s\S]*# Task\n\nfix the add bug/);
 
-    assert.deepEqual(events.find((e) => e.type === 'session'), { type: 'session', id: `${BIN[id]}-session-1` });
+    // copilot is handed a fresh session id rather than making one up.
+    const sid = id === 'copilot' ? rec.argv[rec.argv.indexOf('--session-id') + 1] : `${BIN[id]}-session-1`;
+    assert.deepEqual(events.find((e) => e.type === 'session'), { type: 'session', id: sid });
     assert.ok(events.some((e) => e.type === 'tool' && e.kind === 'run' && /Running tests|Run the tests/.test(e.label)), 'shell command shown');
     assert.ok(events.some((e) => e.type === 'tool' && e.kind === 'edit' && e.file === 'math.js'), 'edit shown with a project-relative path');
 
@@ -99,7 +108,7 @@ for (const id of Object.keys(BIN)) {
       // Only told "math.js changed": the before side must include the uncommitted line.
       assert.match(change.edits[0].before, /\/\/ uncommitted/);
     }
-    if (id === 'codex' || id === 'grok') {
+    if (id === 'codex' || id === 'grok' || id === 'copilot') {
       const created = events.find((e) => e.type === 'change' && e.file === 'notes.txt');
       assert.equal(created?.op, 'create');
     }
@@ -111,7 +120,7 @@ for (const id of Object.keys(BIN)) {
   });
 
   // The transcript: what a finished call returned, matched to the call that made it.
-  if (['claude', 'codex', 'opencode', 'grok'].includes(id)) {
+  if (['claude', 'codex', 'opencode', 'grok', 'copilot'].includes(id)) {
     test(`${id}: a finished call's output comes back with its call`, async () => {
       const events = await run(id).done;
       const out = events.find((e) => e.type === 'tool_output');
@@ -124,7 +133,7 @@ for (const id of Object.keys(BIN)) {
       const call = events.find((e) => e.type === 'tool' && e.id === out.id);
       assert.ok(call, `tool_output ${out.id} names a call that was announced`);
       if (id === 'codex') assert.deepEqual([call.kind, out.text], ['run', ' M math.js']);
-      if (id === 'claude') assert.match(out.text, /a - b/);
+      if (id === 'claude' || id === 'copilot') assert.match(out.text, /a - b/);
       if (id === 'claude') assert.ok(!events.some((e) => e.type === 'tool_output' && e.id === 't3'), 'a failed call is an error, not output');
     });
   }
@@ -316,4 +325,72 @@ test('grok, cursor, antigravity: what their permissions refused comes out as blo
   assert.deepEqual(cursor.filter((e) => e.type === 'blocked'), [{ type: 'blocked', tool: 'shell', detail: 'npm test' }]);
   const agy = await run('antigravity').done;
   assert.deepEqual(agy.filter((e) => e.type === 'blocked'), [{ type: 'blocked', tool: 'run_command', detail: 'npm test' }]);
+});
+
+test('copilot: prompt on stdin, MCP server through --additional-mcp-config, its own asking off', async () => {
+  const wisp = { wisp: { command: process.execPath, args: ['/x/mcp-ask.js'], env: { WISP_SESSION: 's1' } } };
+  const events = await run('copilot', { mcpServers: wisp }).done;
+  const { argv } = records(RECORD, 'copilot').at(-1);
+  assert.ok(!argv.includes('-p') && !argv.some((a) => /fix the add bug/.test(a)), 'the prompt is not on the command line');
+  const cfg = JSON.parse(argv[argv.indexOf('--additional-mcp-config') + 1]);
+  assert.deepEqual(cfg.mcpServers.wisp, { type: 'local', command: process.execPath, args: ['/x/mcp-ask.js'], env: { WISP_SESSION: 's1' }, tools: ['*'], timeout: 7 * 24 * 3600 * 1000 });
+  assert.ok(argv.includes('--allow-tool=wisp'), 'wisp’s tools need no permission outside Full auto');
+  assert.ok(argv.includes('--no-ask-user'), "copilot's own question tool can't be answered headless");
+  assert.ok(!events.some((e) => e.type === 'text' && e.text === 'subagent chatter'), 'subagent steps stay out of the trail');
+  assert.ok(events.some((e) => e.type === 'thinking'));
+  assert.deepEqual(events.find((e) => e.type === 'result').stats, { durationMs: 6, inputTokens: 10, outputTokens: 5 });
+  assert.equal(adapters.copilot.askTool, 'wisp-ask_user', 'how copilot names an MCP tool: <server>-<tool>');
+
+  await run('copilot').done;
+  const plain = records(RECORD, 'copilot').at(-1).argv;
+  assert.ok(!plain.includes('--additional-mcp-config') && !plain.includes('--allow-tool=wisp'), 'nothing to add without a server');
+});
+
+test('copilot: a follow-up reports only its own tokens, though copilot counts the whole session', async () => {
+  const first = await run('copilot').done;
+  const id = first.find((e) => e.type === 'session').id;
+  const next = await run('copilot', { resumeId: id, prompt: 'and add a test' }).done;
+  assert.deepEqual(next.find((e) => e.type === 'result').stats, { durationMs: 6, inputTokens: 15, outputTokens: 7 });
+  const unseen = await run('copilot', { resumeId: 'from-before-a-restart', prompt: 'more' }).done;
+  assert.deepEqual(unseen.find((e) => e.type === 'result').stats, { durationMs: 6 }, 'no baseline: no tokens rather than the whole session');
+});
+
+test('copilot: a refused command comes back blocked with its --allow-tool rule, which the retry passes', async () => {
+  const events = await run('copilot', { prompt: 'BLOCKED publish it' }).done;
+  assert.deepEqual(events.filter((e) => e.type === 'blocked'), [{ type: 'blocked', tool: 'shell', detail: 'npm publish', rule: ['shell(npm publish)'] }]);
+  assert.ok(events.some((e) => e.type === 'tool_error' && /Permission denied/.test(e.text)));
+  const retry = await run('copilot', { prompt: 'BLOCKED publish it', grants: [['shell(npm publish)']] }).done;
+  assert.ok(records(RECORD, 'copilot').at(-1).argv.includes('--allow-tool=shell(npm publish)'));
+  assert.deepEqual(retry.filter((e) => e.type === 'blocked'), []);
+  assert.match(retry.find((e) => e.type === 'result').text, /Published/);
+});
+
+test('copilot: a lead with a team turns its own subagents off; Take over resumes the session', async () => {
+  await run('copilot', { delegating: true }).done;
+  assert.ok(records(RECORD, 'copilot').at(-1).argv.includes('--excluded-tools=task'));
+  assert.deepEqual(adapters.copilot.resumeCommand({ resumeId: 'r1', model: 'gpt-9.1-sol', effort: 'high' }), ['copilot', '--resume=r1', '--model', 'gpt-9.1-sol', '--reasoning-effort', 'high']);
+});
+
+test('copilot: a COPILOT_ALLOW_ALL in the environment does not lift Plan or Edits', async () => {
+  process.env.COPILOT_ALLOW_ALL = 'true';
+  try {
+    await run('copilot', { mode: 'plan' }).done;
+    const { argv } = records(RECORD, 'copilot').at(-1);
+    assert.ok(!argv.includes('--allow-all'));
+    assert.equal(records(RECORD, 'copilot').at(-1).allowAll, undefined);
+  } finally {
+    delete process.env.COPILOT_ALLOW_ALL;
+  }
+});
+
+test('copilot: a policy that blocks wisp’s MCP server, and a session error, say so on the card', async () => {
+  process.env.FAKE_MCP_POLICY = '1';
+  const blocked = await run('copilot', { mcpServers: { wisp: { command: process.execPath, args: ['-e', ''] } } }).done;
+  assert.match(blocked.find((e) => e.type === 'tool_error' && e.name === 'wisp')?.text || '', /blocked by policy: 'wisp'.*can't ask you mid-run/);
+  delete process.env.FAKE_MCP_POLICY;
+  process.env.FAKE_SESSION_ERROR = 'You have exceeded your premium request allowance.';
+  const results = (await run('copilot').done).filter((e) => e.type === 'result');
+  assert.equal(results.length, 1);
+  assert.equal(results[0].isError, true);
+  assert.equal(results[0].text, 'You have exceeded your premium request allowance.');
 });
