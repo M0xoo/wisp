@@ -69,7 +69,7 @@ function paletteItems() {
   for (const s of sessions) {
     const state = s.archived ? 'Archived' : s.state === 'review' ? STATUS_LABEL[s.status] || 'Review' : STATE_LABEL[s.state] || s.state;
     items.push({
-      group: 'Wisps',
+      group: 'Tasks',
       label: s.title,
       sub: `${s.project} · ${state} · ${ago(s.updatedAt)}`,
       dot: s.color,
@@ -82,7 +82,7 @@ function paletteItems() {
 
   const a = 'Actions';
   items.push(
-    { group: a, label: 'New wisp', icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: focusLauncher },
+    { group: a, label: 'New task', icon: 'plus', kbd: 'N', keywords: 'launch create prompt task', run: focusLauncher },
     { group: a, label: S.showDone ? 'Hide done' : 'Show done', icon: 'done', keywords: 'toggle finished', run: () => $('#secDone .toggle-done').click() },
     { group: a, label: S.showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', keywords: 'toggle', run: () => $('#secArchived .toggle-done').click() },
   );

@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **A tidier page on phones and keyboards.** On a phone the top bar's project picker shows its name again (it was squeezed to an empty pill), the prompt box's send button stays inside the box (where the task runs folds to its icon), the *in* label no longer takes a row of its own, task titles get two lines instead of a few words, and the open task's branch shortens before the labels after it. The layout switch is hidden below 720px, where split view can't start anyway, and touch screens don't show keyboard hints. Cards scrolling under the docked prompt box fade out instead of peeking around it. Every button and link shows a focus ring when you move with the keyboard, small grey text (times, counts, hints) has more contrast, Search calls tasks *Tasks* like the rest of the page, Settings → Notifications has a bell and Automations the same bolt as the top bar, and an open done task's title is no longer greyed out.
+
 ## [0.29.0] - 2026-10-22
 
 ### Added

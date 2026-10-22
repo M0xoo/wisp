@@ -279,3 +279,7 @@
 .sx-login-code .mono { font: 600 18px var(--mono); letter-spacing: .12em; }
 .sx-login-wait { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
 .sx-login-wait .spin { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+
+/* Settings → Layout: each choice's icon and name, spaced like the other segmented controls */
+.view-seg button { display: inline-flex; align-items: center; gap: 6px; }
+.view-seg button .i { width: 14px; height: 14px; }

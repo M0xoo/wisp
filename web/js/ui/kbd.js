@@ -10,7 +10,7 @@ export const keyHint = (k) => `<kbd class="menu-kbd">${k}</kbd>`;
 export function shortcuts() {
   const rows = [
     [combo('K'), 'Search & commands'],
-    [`N · ${combo('L')}`, 'New wisp (focus the launcher)'],
+    [`N · ${combo('L')}`, 'New task (focus the prompt box)'],
     ['J / K', 'Next / previous item'],
     ['O / ↵', 'Expand / collapse item'],
     ['/', 'Follow up on item'],

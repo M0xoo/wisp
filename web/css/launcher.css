@@ -37,6 +37,7 @@
 .l-setup.nudge { animation: nudge 0.42s ease; }
 @keyframes nudge { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
 .l-in { font-size: 12.5px; color: var(--faint); margin-right: 2px; }
+@container launcher (max-width: 480px) { .l-projects > .l-in { display: none; } }
 .lp-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 27px; padding: 0 10px; border-radius: 99px;
   font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line); transition: all 0.15s;
@@ -97,6 +98,13 @@
   flex: 1; min-width: 0; min-height: 0; height: 30px !important; padding: 4px; font-size: 14px; white-space: pre; overflow: hidden; cursor: text;
 }
 @keyframes dock-in { from { opacity: 0; transform: translateY(-8px); } }
+/* Cards scroll away under the docked launcher: the page behind it is solid, then fades out just below
+   it, instead of half a line of text peeking around its edges. */
+.stage:has(> .feed-wrap .launcher.docked) .topbar { border-bottom-color: transparent; }
+.stage:has(> .feed-wrap .launcher.docked) .topbar::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 76px; pointer-events: none;
+  background: linear-gradient(var(--bg) 60px, color-mix(in srgb, var(--bg) 0%, transparent));
+}
 body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: none; }
 .l-bar { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
 .l-bar > :not(.runners) { flex: none; }
@@ -125,6 +133,13 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 @container launcher (max-width: 640px) { .runners.cmp .rb-m { display: none; } }
 @container launcher (max-width: 520px) {
   .l-bar .mode-btn span, .l-bar #wtBtn span, .runners .rb-m { display: none; }
+  /* a phone: the place goes to its icon (its tooltip and menu name it), so the harness keeps its logo
+     and the send button stays inside the box */
+  .l-bar { gap: 2px; }
+  .l-bar .where-btn span { display: none; }
+  .runners { flex: none; }
+  .runners .rb-h { display: none; }
+  .runners .rb-logo { margin-right: 2px; }
   .runners.cmp .rb-h { display: none; }
   .runners.cmp .runner-btn .chev { margin-left: 0; }
   .runners.cmp .rb-logo { margin-right: 4px; }
