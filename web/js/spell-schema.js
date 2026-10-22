@@ -24,9 +24,10 @@ export const SLOTS = {
   'card.bottom': 'A panel at the bottom of an open card, above the follow-up box (panels only).',
   'sidebar.top': 'Split view: a button at the top of the task list, next to New task.',
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
+  'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
 };
 
-export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head']);
+export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'term.head']);
 
 // The layouts (the `view` setting): feed = one column, cards open in place; split = cards in a
 // sidebar, the open one in the main pane. Split needs a window at least SPLIT_MIN_WIDTH wide.
@@ -99,6 +100,12 @@ export const PARTS = {
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
   'split.body': 'body.split #feed .item.open > .it-body',
+  // Take over in wisp: the task's terminal (a sheet, over the open task in split view, full
+  // screen on a phone), its header, the screen and the phone's row of keys (Esc, Tab, Ctrl, arrows).
+  term: '#term .tm-box',
+  'term.head': '#term .tm-head',
+  'term.screen': '#term .tm-screen',
+  'term.keys': '#term .tm-keys',
   // Settings: the dialog, its list of sections, and the head with the pane's name and close button.
   'settings': '.modal.sx',
   'settings.nav': '.sx-nav',
@@ -131,6 +138,7 @@ export const PART_PROPS = {
   sidebar: { width: 'px', side: ['left', 'right'], details: ['minimal', 'full'] }, // side: left unless set
   'split.main': { readWidth: 'px' },
   'split.home': { greeting: 'string' },
+  term: { fontSize: 'int' },
 };
 
 // What a prop type accepts: int is 1–40, px is a size in pixels.
@@ -204,6 +212,8 @@ export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'notify', 'webh
 export const SETTINGS = {
   view: VIEWS,
   editor: ['vscode', 'cursor', 'windsurf', 'zed', 'idea', 'none'],
+  // Take over in: wisp (a terminal in the page), auto, or a terminal app (not a custom command).
+  terminal: ['auto', 'wisp', 'terminal', 'iterm', 'warp', 'cmux', 'wt', 'powershell', 'cmd', 'ghostty', 'kitty', 'wezterm', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'alacritty', 'xterm'],
   transcript: ['on', 'off'],
   worktree: ['on', 'off'],
   followUp: ['queue', 'interrupt'],

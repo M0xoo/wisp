@@ -13,7 +13,8 @@ import { MIME } from '../http/static.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
 import { alsoDirs, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
-import { openInTerminal, shq } from '../terminal.js';
+import { ptySupported } from '../pty.js';
+import { inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
@@ -129,6 +130,7 @@ export function register(r, app) {
       }
       // Its worktree goes with it; the branch only if it holds nothing beyond its base.
       for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: true }).catch(() => {});
+      app.terms.close(s.id);
       store.delete(s.id);
       app.broadcast('removed', { id: s.id });
       c.send(200, { ok: true });
@@ -191,6 +193,8 @@ export function register(r, app) {
       const { text, attachments, queue, mode, agent, model, effort, machine } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
+      // Two agents on one conversation would trample each other.
+      if (app.terms.get(s.id)?.code === null && btwQuestion(text) === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
       // machine: carry the task on on a machine instead (services/move.js). '' is here, where it is.
       // A /btw side question never moves it.
@@ -328,6 +332,8 @@ export function register(r, app) {
   );
 
   // Take over: continue this exact agent session interactively in a terminal. GET: the command.
+  // POST stops the run and opens it: in the terminal app from Settings, or in the page (inline:
+  // a terminal here that the page streams from /term; always on a cloud computer).
   const takeover = (fn) =>
     one(async (c, s) => {
       const adapter = adapters[s.agent];
@@ -335,25 +341,47 @@ export function register(r, app) {
       const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort, dirs: alsoDirs(s) });
       await ensureTrees(s);
       const command = `cd ${shq(workdir(s))} && ${argv.map(shq).join(' ')}`;
-      await fn(s, argv);
-      c.send(200, { command });
+      c.send(200, { command, ...(await fn(s, argv, c)) });
     });
   r.route('GET', '/sessions/:id/takeover', takeover(() => {}));
   r.route(
     'POST',
     '/sessions/:id/takeover',
-    takeover(async (s, argv) => {
+    takeover(async (s, argv, c) => {
+      const body = await c.body();
+      const d = store.config.defaults;
+      const inline = body.inline === true || inWisp(d.terminal || 'auto');
+      if (inline && !ptySupported()) throw bad('Taking over inside wisp needs macOS or Linux on the computer the task runs on. Pick a terminal app in Settings → General.');
+      // Already open in the page: show it again, the agent in it carries on.
+      if (inline && app.terms.get(s.id)?.code === null) return { inline };
       if (runner.live.has(s.id)) {
         runner.stop(s);
         await runner.live.get(s.id)?.done;
       }
-      const d = store.config.defaults;
-      openInTerminal({ cwd: workdir(s), argv, terminal: d.terminal || 'auto', custom: d.terminalCommand });
+      if (inline) app.terms.open(s.id, { argv, cwd: workdir(s), cols: body.cols, rows: body.rows });
+      else openInTerminal({ cwd: workdir(s), argv, terminal: d.terminal || 'auto', custom: d.terminalCommand });
       s.takenOverAt = Date.now();
-      telemetry.track('takeover', { agent: s.agent, terminal: d.terminal || 'auto' });
+      telemetry.track('takeover', { agent: s.agent, terminal: inline ? 'wisp' : d.terminal || 'auto' });
       store.save(s);
+      return { inline };
     }),
   );
+
+  // The terminal a take over opened in the page. GET: its output as server-sent events. POST:
+  // { data } typed into it, or { cols, rows } when the page resized it. DELETE: close it.
+  r.route('GET', '/sessions/:id/term', one((c, s) => app.terms.attach(s.id, c.req, c.res)));
+  r.route(
+    'POST',
+    '/sessions/:id/term',
+    one(async (c, s) => {
+      const body = await c.body();
+      if (app.terms.get(s.id)?.code !== null) return c.send(404, { error: 'This task has no terminal open.' });
+      if (typeof body.data === 'string') app.terms.input(s.id, body.data);
+      if (body.cols && body.rows) app.terms.resize(s.id, body.cols, body.rows);
+      c.send(200, { ok: true });
+    }),
+  );
+  r.route('DELETE', '/sessions/:id/term', one((c, s) => c.send(200, { ok: app.terms.close(s.id) })));
 
   r.route(
     'POST',

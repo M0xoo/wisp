@@ -12,6 +12,7 @@ import { spellGuide } from './spell-guide.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
 import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
 import { handoffNote } from './handoff.js';
+import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
 import { bad, clip, MODES, newId } from './util.js';
@@ -128,6 +129,7 @@ export function summarize(s, store) {
     status: last?.status === 'running' || s.auto?.busy ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
     preview: hero?.summary || '',
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : '',
+    term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)

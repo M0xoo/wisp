@@ -6,7 +6,7 @@ import { esc, inlineMd, md } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { MOBILE, S } from '../core/state.js';
+import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toastError } from '../ui/toast.js';
 import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
@@ -71,7 +71,7 @@ export function renderBody(id, { fresh }) {
           <div class="it-actions">
             <button class="ghost xs tx-toggle" data-a="transcript" aria-pressed="false">${icon('transcript')}<span>Transcript</span></button>
             <button class="ghost xs" data-a="replay" title="Replay presentation (R)">${icon('replay')}</button>
-            <button class="ghost xs" data-a="takeover" title="Take over in your terminal (T)">${icon('terminal')}</button>
+            <button class="ghost xs" data-a="takeover" title="Take over: carry on with the agent yourself, in a terminal (T)">${icon('terminal')}</button>
             <button class="ghost xs" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
             <button class="ghost xs it-done" data-a="done" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
             <button class="ghost xs" data-a="more" title="More">${icon('dots')}</button>
@@ -123,7 +123,7 @@ export function renderBody(id, { fresh }) {
     b.hidden = s.state === 'running' || s.state === 'waiting';
     $('span', b).textContent = s.state === 'done' ? 'Reopen' : 'Mark done';
   });
-  $('[data-a="takeover"]', body).hidden = !s.agentSessionId || MOBILE;
+  $('[data-a="takeover"]', body).hidden = !s.agentSessionId;
   const tx = transcriptOn(id);
   const txBtn = $('[data-a="transcript"]', body);
   txBtn.classList.toggle('on', tx);

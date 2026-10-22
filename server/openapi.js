@@ -346,7 +346,21 @@ export function openapi({ version, port }) {
       '/sessions/{id}/takeover': {
         parameters: [id],
         get: { summary: 'The shell command that resumes this agent session interactively', responses: { 200: json({ type: 'object', properties: { command: { type: 'string' } } }) } },
-        post: { summary: 'Stop the run and open the resume command in the user’s terminal', responses: { 200: json({ type: 'object', properties: { command: { type: 'string' } } }) } },
+        post: {
+          summary: 'Stop the run and open the resume command in the user’s terminal, or in the page (inline: then stream it from /term)',
+          requestBody: body({ type: 'object', properties: { inline: { type: 'boolean', description: 'Open it in the page, whatever the terminal setting' }, cols: { type: 'integer' }, rows: { type: 'integer' } } }),
+          responses: { 200: json({ type: 'object', properties: { command: { type: 'string' }, inline: { type: 'boolean' } } }) },
+        },
+      },
+      '/sessions/{id}/term': {
+        parameters: [id],
+        get: { summary: 'Server-sent events from the session’s terminal in the page: hello, data (output, a JSON string), exit ({ code }), gone', responses: { 200: { description: 'text/event-stream', content: { 'text/event-stream': { schema: { type: 'string' } } } } } },
+        post: {
+          summary: 'Type into the terminal (data) or resize it (cols, rows)',
+          requestBody: body({ type: 'object', properties: { data: { type: 'string' }, cols: { type: 'integer' }, rows: { type: 'integer' } } }),
+          responses: { 200: ok, 404: err[404] },
+        },
+        delete: { summary: 'Close the terminal (ends what runs in it)', responses: { 200: ok } },
       },
       '/uploads': {
         post: {

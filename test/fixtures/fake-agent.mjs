@@ -82,6 +82,28 @@ if (name === 'agy' && argv[0] === 'models') {
   process.exit(0);
 }
 
+// On a terminal (take over in wisp): a little prompt that echoes each line, in colour, until /exit.
+if (process.stdin.isTTY && process.stdout.isTTY) {
+  const id = flag('--resume') || flag('--session') || flag('--conversation') || '';
+  process.stdout.write(`\x1b[1mfake ${name}\x1b[0m interactive · session ${id} · ${process.stdout.columns}x${process.stdout.rows}\r\n\x1b[36m>\x1b[0m `);
+  process.stdin.setRawMode(true);
+  process.stdin.setEncoding('utf8');
+  let line = '';
+  process.stdin.on('data', (d) => {
+    for (const ch of d) {
+      if (ch === '\r') {
+        if (line === '/exit') process.exit(0);
+        process.stdout.write(`\r\nyou said: \x1b[32m${line}\x1b[0m\r\n\x1b[36m>\x1b[0m `);
+        line = '';
+      } else if (ch === '\x7f') line && ((line = line.slice(0, -1)), process.stdout.write('\b \b'));
+      else if (ch === '\x03') process.exit(130);
+      else if (ch >= ' ') (line += ch), process.stdout.write(ch);
+    }
+  });
+  process.stdout.on('resize', () => process.stdout.write(`\r\n[resized ${process.stdout.columns}x${process.stdout.rows}]\r\n\x1b[36m>\x1b[0m ${line}`));
+  await new Promise(() => {});
+}
+
 // grok takes its prompt as --prompt-file (it never reads stdin); it's recorded as stdin.
 const stdin =
   name === 'grok'

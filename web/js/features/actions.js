@@ -24,6 +24,7 @@ import { agentById, agentName, DEFAULT_MODE, effortsFor, harnessesAt, modeMenu, 
 import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
+import { openTerm, termFailed, termSize, termStarted } from './term.js';
 
 export async function toggleDone(id) {
   const s = S.sessions.get(id);
@@ -106,15 +107,24 @@ export async function execAction(id, turnId, command, key) {
   return (await tryApi(() => api(`/sessions/${id}/exec`, { method: 'POST', body: { command, turnId, key } }))) ?? null;
 }
 
+// Take over: carry on the agent's own session interactively. In a terminal in the page when
+// there's no terminal app to open (a wisp Grid, a server, the phone app; or Settings says so),
+// else in the terminal app. The page's terminal shows at once and fills in when it's started.
 export async function takeOver(id) {
-  if (MOBILE) return; // no terminal on the phone (the button and command are hidden there)
+  if (S.sessions.get(id)?.term) return void openTerm(id); // already open: show it again
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(() => null));
   if (!s?.agentSessionId) return;
-  if (s.state === 'running' && !confirm(`${agentName(s.agent)} is still running. Stop it and take over in your terminal?`)) return;
-  await tryApi(async () => {
-    const { command } = await api(`/sessions/${id}/takeover`, { method: 'POST', body: {} });
-    toast(`${icon('terminal')} Opened in your terminal`, { action: { label: 'Copy command', run: () => copy(command) } });
-  });
+  if (s.state === 'running' && !confirm(`${agentName(s.agent)} is still running. Stop it and take over?`)) return;
+  const inline = MOBILE || S.config.takeoverInline || machineById(S.sessions.get(id)?.machine?.id)?.kind === 'grid';
+  if (inline) openTerm(id, { starting: true });
+  try {
+    const out = await api(`/sessions/${id}/takeover`, { method: 'POST', body: { ...(MOBILE && { inline: true }), ...termSize(id) } });
+    termStarted(id, out.inline);
+    if (!out.inline) toast(`${icon('terminal')} Opened in your terminal`, { action: { label: 'Copy command', run: () => copy(out.command) } });
+  } catch (err) {
+    termFailed(id);
+    toastError(err);
+  }
 }
 
 export function rename(id) {

@@ -113,6 +113,22 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
   assert.ok(problems({ ...base0, parts: { 'card.sub': { props: { lines: 41 } } } }).some((x) => /lines: int from 1 to 40/.test(x)));
 });
 
+test('take over in wisp: the terminal setting, its parts, font size and header slot', () => {
+  const ok = {
+    ...base0,
+    settings: { terminal: 'wisp' },
+    parts: { term: { props: { fontSize: 15 }, style: { borderRadius: '4px' } }, 'term.head': { style: { background: 'var(--bg-2)' } }, 'term.screen': { style: { padding: '4px' } } },
+    ui: { hide: ['term.keys'] },
+    buttons: [{ slot: 'term.head', icon: 'copy', label: 'Branch', do: { copy: '{branch}' } }],
+  };
+  assert.deepEqual(problems(ok), []);
+  assert.ok(schema.CARD_SLOTS.has('term.head'));
+  const p = problems({ ...base0, settings: { terminal: 'custom' }, parts: { term: { props: { fontSize: 99, height: 3 } } } });
+  assert.ok(p.some((x) => /settings\.terminal/.test(x) && /wisp/.test(x)), p.join('\n'));
+  assert.ok(p.some((x) => /fontSize: int from 1 to 40/.test(x)), p.join('\n'));
+  assert.ok(p.some((x) => /height/.test(x)), p.join('\n'));
+});
+
 test('Settings → Cloud is parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'machines.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud.computer': { style: { background: 'var(--surface)' } }, 'settings.connect': { style: { borderRadius: '4px' } }, 'getapp.card': { style: { borderRadius: '4px' } } }, ui: { hide: ['settings.cloud.signin', 'topbar.getapp'] } }), []);
   assert.ok(problems({ ...base0, parts: { 'settings.cloud': { props: { width: 400 } } } }).some((x) => /settings\.cloud/.test(x)));

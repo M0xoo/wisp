@@ -11,6 +11,7 @@ import { shq } from './util.js';
 // os: which platforms list the entry (all if omitted).
 const ALL_TERMINALS = [
   { id: 'auto', label: 'Auto-detect' },
+  { id: 'wisp', label: 'In wisp', os: ['darwin', 'linux'] },
   { id: 'terminal', label: 'Terminal.app', os: ['darwin'] },
   { id: 'iterm', label: 'iTerm', os: ['darwin'] },
   { id: 'warp', label: 'Warp', os: ['darwin'] },
@@ -51,6 +52,14 @@ export function detectTerminal({ platform = process.platform, env = process.env,
   }
   if (platform === 'win32') return env.WT_SESSION || has('wt') ? 'wt' : 'powershell';
   return LINUX_ORDER.find((t) => has(t)) || 'xterm';
+}
+
+// Take over in the page (server/pty.js) instead of a terminal app: when asked to, or on auto where
+// there's no desktop to open one on (a wisp Grid, a Linux server reached over SSH).
+export function inWisp(terminal = 'auto', { platform = process.platform, env = process.env } = {}) {
+  if (platform === 'win32') return false;
+  if (terminal === 'wisp') return true;
+  return terminal === 'auto' && (!!env.WISP_GRID_URL || (platform === 'linux' && !env.DISPLAY && !env.WAYLAND_DISPLAY));
 }
 
 // Returns a list of steps: { command, args, options? } to spawn, { osa } to run as AppleScript,
@@ -118,6 +127,8 @@ export function terminalPlan({ cwd, argv, terminal = 'auto', custom = '', platfo
       const full = custom.replaceAll('{cwd}', shq(cwd)).replaceAll('{cmd}', cmd).replaceAll('{line}', shq(line));
       return [{ command: 'sh', args: ['-c', full], options: detached }];
     }
+    case 'wisp':
+      throw new Error('In wisp: the page opens the terminal (server/pty.js), not a terminal app.');
     default: // x-terminal-emulator (Debian/Ubuntu alternatives), xterm
       return [{ command: t, args: ['-e', ...keepOpen], options: detached }];
   }

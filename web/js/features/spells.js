@@ -431,7 +431,7 @@ document.addEventListener(
     if (!item?.do) return;
     e.preventDefault();
     e.stopPropagation();
-    const card = n.closest('.item[data-id], #splitHead[data-id]');
+    const card = n.closest('.item[data-id], #splitHead[data-id], #term[data-id]');
     const input = n.closest('.composer')?.querySelector('.reply') || n.closest('#launcher')?.querySelector('#prompt') || null;
     n.closest('.menu')?.close?.();
     runAction(spell, item.do, { session: card?.dataset.id || n.dataset.task || (n.closest('.sp-float, #topbar') ? null : S.focus), input });

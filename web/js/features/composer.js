@@ -236,6 +236,8 @@ export function updateDock(id) {
       ? s.ask.permission
         ? `Or tell ${name} what to do instead (denies this call)…`
         : `Answer ${name}…`
+      : S.sessions.get(id)?.term
+        ? `${name} is open in a terminal: carry on there, or end it to follow up here. /btw asks on the side`
       : s.state === 'running'
         ? queueing()
           ? `Queue a follow-up — sent when ${name} finishes. /btw asks now`
