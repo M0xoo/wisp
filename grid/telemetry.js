@@ -4,10 +4,13 @@
 // each user as a hash of their id, never a handle, email or address.
 
 import { createHash } from 'node:crypto';
-import { postBatch } from '../server/telemetry.js';
+import { postBatch, posthogKey } from '../server/telemetry.js';
 import { VERSION } from '../server/util.js';
 
 const FLUSH_MS = 15_000;
+// The browser analytics on the sign-in page, and the funnel events tied to it, are for wisp's own
+// hosted grid only: a self-hosted grid never loads a script from PostHog.
+export const HOSTED = 'grid.trywisp.dev';
 
 // Audit actions (grid/accounts.js) that become events, and the meta they may carry.
 const FROM_AUDIT = {
@@ -27,10 +30,24 @@ export function createGridTelemetry(cfg, { post = postBatch, now = () => Date.no
   const who = (userId) => (userId ? `grid-${createHash('sha256').update(`wisp-grid:${userId}`).digest('hex').slice(0, 24)}` : 'grid-anonymous');
   const common = { $lib: 'wisp-grid', $process_person_profile: false, version: VERSION, driver: cfg.hostd?.driver, hosted: cfg.domain === 'grid.trywisp.dev' };
 
-  function track(event, userId, props = {}) {
+  function send(event, distinctId, props) {
     if (!on) return;
-    queue.push({ event, timestamp: new Date(now()).toISOString(), properties: { ...common, ...props, distinct_id: who(userId) } });
+    queue.push({ event, timestamp: new Date(now()).toISOString(), properties: { ...common, ...props, distinct_id: distinctId } });
     if (queue.length >= 50) flush();
+  }
+  const track = (event, userId, props = {}) => send(event, who(userId), props);
+  const pages = on && cfg.domain === HOSTED && !!posthogKey();
+  // The sign-in page's PostHog id, from its cookie: the anonymous random id the page made, so the
+  // server's steps (off to GitHub, back signed in) join the page's in one funnel.
+  const cookieName = `ph_${posthogKey()}_posthog`;
+  function visitorId(cookies = {}) {
+    if (!pages) return null;
+    try {
+      const id = JSON.parse(cookies[cookieName] || '{}').distinct_id;
+      return typeof id === 'string' && /^[\w-]{8,64}$/.test(id) ? id : null;
+    } catch {
+      return null;
+    }
   }
   function flush() {
     if (queue.length) post(queue.splice(0)).catch?.(() => {});
@@ -44,7 +61,14 @@ export function createGridTelemetry(cfg, { post = postBatch, now = () => Date.no
 
   return {
     on,
+    pages,
     track,
+    visitorId,
+    // A sign-in step for the funnel: started (off to the provider), finished (back, signed in or
+    // signed up) or failed. Only on the hosted grid, as the page's anonymous id.
+    funnel(event, visitor, props = {}) {
+      if (pages) send(event, visitor || 'grid-anonymous', props);
+    },
     audit(userId, action, meta = {}) {
       const m = FROM_AUDIT[action];
       if (m) track(m[0], userId, Object.fromEntries(m[1].filter((k) => meta[k] != null).map((k) => [k, meta[k]])));
