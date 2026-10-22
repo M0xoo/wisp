@@ -123,7 +123,8 @@ export function renderBody(id, { fresh }) {
     b.hidden = s.state === 'running' || s.state === 'waiting';
     $('span', b).textContent = s.state === 'done' ? 'Reopen' : 'Mark done';
   });
-  $('[data-a="takeover"]', body).hidden = !s.agentSessionId;
+  // While it works, the session id may still be on its way: takeOver asks for it.
+  $('[data-a="takeover"]', body).hidden = !s.agentSessionId && !live;
   const tx = transcriptOn(id);
   const txBtn = $('[data-a="transcript"]', body);
   txBtn.classList.toggle('on', tx);

@@ -112,8 +112,9 @@ export async function execAction(id, turnId, command, key) {
 // else in the terminal app. The page's terminal shows at once and fills in when it's started.
 export async function takeOver(id) {
   if (S.sessions.get(id)?.term) return void openTerm(id); // already open: show it again
-  const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(() => null));
-  if (!s?.agentSessionId) return;
+  let s = S.full.get(id);
+  if (!s?.agentSessionId) s = await api(`/sessions/${id}`).catch(() => null); // a run that just started
+  if (!s?.agentSessionId) return void toast(`${(s && agentName(s.agent)) || 'The agent'} hasn't started its session yet. Try again in a moment.`);
   if (s.state === 'running' && !confirm(`${agentName(s.agent)} is still running. Stop it and take over?`)) return;
   const inline = MOBILE || S.config.takeoverInline || machineById(S.sessions.get(id)?.machine?.id)?.kind === 'grid';
   if (inline) openTerm(id, { starting: true });
