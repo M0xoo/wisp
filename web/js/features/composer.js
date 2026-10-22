@@ -67,11 +67,10 @@ export function renderDock(id) {
       </div>
     </div>`);
   dock.append(comp);
-  const wake = () => {
-    comp.classList.add('awake');
-  };
-  comp.addEventListener('pointerdown', wake);
-  comp.addEventListener('focusin', wake);
+  // Only typing opens it: a chip pressed in the folded box would move before the click landed.
+  comp.addEventListener('focusin', (e) => {
+    if (e.target.classList.contains('reply')) comp.classList.add('awake');
+  });
   n.tray = attachTray();
   comp.prepend(n.tray.node);
   const ta = mentionBox($('.reply', comp));

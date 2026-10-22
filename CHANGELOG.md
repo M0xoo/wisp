@@ -9,12 +9,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Light and dark mode in Settings → General → Theme**: System (follows your computer, as before), Light or Dark. It also switches from ⌘K, and a spell can set it (`settings.theme`). The page paints the chosen theme from the first frame.
 
+### Changed
+
+- **The top of split view's details column is a tidy list:** one fact a row (state and time, the harness, the project with its colour, the branch), each behind a small dot or icon so the text lines up. Before, a pill, a tag and the time sat on uneven lines.
+
 ### Fixed
 
 - Opening a task in the feed no longer shifts its state pill and time sideways, and Done rows line up with the rows above them.
 - In split view, the Mark done button on a selected or hovered row no longer leaves a clipped letter of the time beside it.
 - The Queue toggle in a running task's follow-up box is now a switch: accent-coloured with the knob on the right when follow-ups queue, faint with the knob on the left when they send now. Spells can restyle it as `composer.queue`.
 - In split view, when the open task moves to Working and its row is still in sight, the sidebar no longer scrolls to follow it.
+- **Spell chips over the follow-up box work in split view.** Pressing one unfolded the box, the chip moved before the click landed, and nothing happened. Now only typing in the box unfolds it.
 
 ## [0.30.4] - 2026-10-23
 

@@ -203,16 +203,31 @@ body.split.pane-wide #feed .item.open > .it-body > .it-bar {
   margin: 0; padding: 0; background: none;
   display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px;
 }
-body.split.pane-wide .it-bar > .it-props { flex-wrap: wrap; }
+/* What the task is and how it runs, one fact a row (state and time, harness, project, branch, …),
+   each behind a 14px dot or icon so the text lines up down the column. */
+body.split.pane-wide .it-bar > .it-props { flex-wrap: wrap; gap: 8px 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+body.split.pane-wide .it-props > * { order: 4; }
+body.split.pane-wide .it-props > .pill:not(.pr) { order: 0; height: auto; padding: 0; gap: 0; background: none; font-size: 12.5px; }
+body.split.pane-wide .it-props > .pill:not(.pr) i { width: 6px; height: 6px; margin: 0 12px 0 4px; }
+body.split.pane-wide .it-props > .q-time { order: 1; flex: 1 0 auto; min-width: 0; text-align: left; font-size: 12.5px; color: var(--muted); }
+body.split.pane-wide .it-props:has(> .pill:not(.pr)) > .q-time::before { content: '\00a0·\00a0'; }
+body.split.pane-wide .it-props:not(:has(> .pill:not(.pr))) > .q-time { padding-left: 22px; }
+body.split.pane-wide .it-props:not(:has(> .pill:not(.pr))) > .q-time::before { content: 'Updated '; }
 /* the harness by name: there's room, and a tooltip would run off the column */
-body.split.pane-wide .it-props .model-logo { flex: 1 0 100%; order: 1; width: auto; height: auto; align-items: flex-start; gap: 7px; color: var(--ink-2); line-height: 1.45; }
-body.split.pane-wide .it-props .model-logo > * { width: 13px; height: 13px; flex: none; margin-top: 3px; }
+body.split.pane-wide .it-props .model-logo { flex: 1 0 100%; order: 2; width: auto; height: auto; align-items: flex-start; gap: 9px; color: var(--ink-2); }
+body.split.pane-wide .it-props .model-logo > * { width: 13px; height: 13px; flex: none; margin-top: 2px; }
 body.split.pane-wide .it-props .model-logo::after { content: attr(data-tip); position: static; opacity: 1; transform: none; transition: none; padding: 0; background: none; color: var(--ink-2); font-size: 12.5px; white-space: normal; }
-body.split.pane-wide .it-props .model-logo.routed::before { right: auto; bottom: auto; left: 9px; top: 12px; }
-body.split.pane-wide .it-props :is(.q-proj, .q-machine, .q-time, .sp-chip) { order: 2; }
-body.split.pane-wide .it-bar > .it-meta { flex: none; flex-direction: column; align-items: flex-start; gap: 6px; overflow: visible; }
-body.split.pane-wide .it-meta .m { max-width: 100%; }
-body.split.pane-wide .it-meta .m.branch { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.split.pane-wide .it-props .model-logo.routed::before { right: auto; bottom: auto; left: 9px; top: 11px; }
+body.split.pane-wide .it-props > :is(.q-proj, .q-machine) {
+  flex: 1 0 100%; order: 3; position: relative; max-width: none; padding: 0 0 0 22px; background: none; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+}
+body.split.pane-wide .it-props > .q-proj::before { content: ''; position: absolute; left: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--pc); }
+body.split.pane-wide .it-bar > .it-meta { flex: none; flex-direction: column; align-items: stretch; gap: 8px; margin-top: -6px; overflow: visible; font-size: 12.5px; }
+body.split.pane-wide .it-meta .m { display: flex; align-items: center; max-width: 100%; min-width: 0; }
+body.split.pane-wide .it-meta .m > .i { width: 13px; height: 13px; flex: none; margin: 0 9px 0 0; color: var(--faint); }
+body.split.pane-wide .it-meta .m.branch { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+body.split.pane-wide .it-meta .m.branch > .i { margin-right: 9px; vertical-align: -2px; }
+body.split.pane-wide .it-meta .m.also .p-dot { margin: 0 12px 0 4px; }
 body.split.pane-wide .it-meta:empty { display: none; }
 /* the PR: a card of its own, its number and GitHub, its state, then Merge / Fix conflicts / Check now */
 body.split.pane-wide .it-bar > .pr-strip { order: 0; flex: none; flex-wrap: wrap; gap: 6px 8px; padding: 10px 10px 10px 12px; border-radius: 10px; }
@@ -248,6 +263,6 @@ body.split #feed .item.open > .it-body .turns { padding-left: 0; padding-right: 
 body.split #feed .item.open > .it-body .composer { box-shadow: var(--shadow-1); }
 /* The follow-up box is one quiet line until you click into it (or it has something in it); once
    you're in it, it stays open through its pickers (.awake, composer.js) until you move elsewhere. */
-body.split #feed .item.open .composer:not(.awake):not(:focus-within):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
-body.split #feed .item.open .composer:not(.awake):not(:focus-within) { box-shadow: none; }
+body.split #feed .item.open .composer:not(.awake):not(:has(.reply:focus)):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
+body.split #feed .item.open .composer:not(.awake):not(:has(.reply:focus)) { box-shadow: none; }
 body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }
