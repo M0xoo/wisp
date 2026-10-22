@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Merge and Fix conflicts sit in the same place on a PR.** The PR's next step always comes last: in split view's details column a full-width button after *Check now* (green Merge, red Fix conflicts), in the feed's PR row at its right end. Before, Fix conflicts came first and Merge last, so the button moved when the state changed.
+
 ## [0.30.1] - 2026-10-22
 
 ### Changed

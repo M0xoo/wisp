@@ -81,6 +81,7 @@ export function renderPrStrip(id) {
   const open = prs.filter((x) => x.pr.state === 'OPEN');
   const conflict = open.some((x) => x.pr.conflict);
   node.className = `pr-strip pr-${tone}${landed ? ' landed' : ''}`;
+  // The row's next step comes last, always in the same place: Fix conflicts while there are some, else Merge.
   node.innerHTML = `
     <span class="pr-dot"></span>
     <a href="${esc(pr.url)}" target="_blank" class="pr-num">${several ? `${esc(prs[0].repo)} #${pr.number}` : `PR #${pr.number}`}</a>
@@ -90,9 +91,9 @@ export function renderPrStrip(id) {
       .join('')}
     <span class="pr-line">${esc(prLine(pr, fix))}</span>
     <span class="grow"></span>
-    ${pr.state === 'OPEN' && pr.conflict && s.pr && !fixing(fix) && s.state !== 'running' ? `<button class="ghost xs pr-fix" data-pr="fix" title="Send the task a follow-up to merge the base in and resolve the conflicts; wisp pushes the fix to the PR">${icon('merge')}<span>Fix conflicts</span></button>` : ''}
     ${open.length ? `<button class="ghost xs" data-pr="refresh" title="Check now (wisp also checks every minute)">${icon('replay')}</button>` : ''}
     ${several ? '' : `<a class="ghost xs" href="${esc(pr.url)}" target="_blank">${icon('external')}<span>GitHub</span></a>`}
+    ${pr.state === 'OPEN' && pr.conflict && s.pr && !fixing(fix) && s.state !== 'running' ? `<button class="ghost xs pr-fix" data-pr="fix" title="Send the task a follow-up to merge the base in and resolve the conflicts; wisp pushes the fix to the PR">${icon('merge')}<span>Fix conflicts</span></button>` : ''}
     ${open.length && !conflict ? `<button class="ghost xs pr-merge" data-pr="merge" title="Squash-merge${open.length > 1 ? ` all ${open.length} PRs` : ''}, then fast-forward your local base branch${open.length > 1 ? 'es' : ''}">${icon('check')}<span>Merge${open.length > 1 ? ' all' : ''}</span></button>` : ''}`;
   node.onclick = (e) => {
     const a = e.target.closest('[data-pr]')?.dataset.pr;
