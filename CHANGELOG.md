@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Light and dark mode in Settings → General → Theme**: System (follows your computer, as before), Light or Dark. It also switches from ⌘K, and a spell can set it (`settings.theme`). The page paints the chosen theme from the first frame.
+
 ## [0.30.4] - 2026-10-23
 
 ### Changed

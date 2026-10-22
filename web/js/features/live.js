@@ -22,6 +22,7 @@ import { onActivity } from './turns.js';
 import { applySpells, spellEvent } from './spells.js';
 import { loadUpdate, renderUpdate } from './update.js';
 import { applyView } from './split.js';
+import { applyTheme } from './theme.js';
 import { checkBuild, syncing } from './cache.js';
 
 let es = null;
@@ -132,6 +133,7 @@ export function setConfig(config) {
   nameHere();
   paintMachinesBtn();
   applySpells();
+  applyTheme();
   applyView();
   renderProjects();
   renderLaunchChips();

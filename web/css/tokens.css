@@ -41,6 +41,7 @@
   color-scheme: light;
 }
 
+/* Dark: the OS asks for it (Theme: System), or Settings → Theme says Dark. Keep the two in step. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --bg: #111111;
@@ -76,6 +77,41 @@
     --tk-t: #d2a8ff;
     color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #111111;
+  --bg-2: #1e1e1e;
+  --rail: #151515;
+  --surface: #171717;
+  --surface-2: #1a1a1a;
+  --ink: #ededed;
+  --ink-2: #c7c7c7;
+  --muted: #8f8f8f;
+  --faint: #6e6e6e;
+  --line: #262626;
+  --line-2: #333333;
+  --accent: #6d8dff;
+  --accent-ink: #94adff;
+  --accent-soft: rgba(109, 141, 255, 0.12);
+  --good: #4cc38a;
+  --warn: #f0a33a;
+  --bad: #ff6369;
+  --info: #6d8dff;
+  --add: #4cc38a;
+  --del: #ff6369;
+  --add-bg: rgba(76, 195, 138, 0.08);
+  --del-bg: rgba(255, 99, 105, 0.08);
+  --add-strong: rgba(76, 195, 138, 0.16);
+  --term-bg: #0c0c0c;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  --tk-k: #ff7b72;
+  --tk-s: #a5d6ff;
+  --tk-c: #6e7681;
+  --tk-n: #79c0ff;
+  --tk-t: #d2a8ff;
+  color-scheme: dark;
 }
 
 /* project colours — muted, distinguishable, never neon */

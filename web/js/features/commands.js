@@ -27,6 +27,7 @@ import { openUsage } from './usage.js';
 import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
 import { setView, viewPref } from './split.js';
+import { setTheme, themePref } from './theme.js';
 
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
@@ -111,6 +112,10 @@ function paletteItems() {
       : { group: a, label: 'Split view', sub: 'Tasks in a sidebar, the open one beside it', icon: 'split', kbd: '\\', keywords: 'layout view sidebar columns panes master detail', run: () => setView('split') },
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
+  // Theme: the two you're not on.
+  for (const [t, label, ic] of [['system', 'System theme', 'laptop'], ['light', 'Light theme', 'sun'], ['dark', 'Dark theme', 'moon']]) {
+    if (t !== themePref()) items.push({ group: a, label, icon: ic, keywords: 'theme appearance light dark mode system colors night', run: () => setTheme(t) });
+  }
   items.push(
     { group: a, label: 'Cast a spell…', icon: 'wizard', keywords: 'spell customize change wisp add button panel block theme plugin extension mod', run: () => openCast() },
     { group: a, label: 'Spells', icon: 'wizard', keywords: 'spells installed manage import export share customize', run: () => openSettings({ pane: 'spells' }) },
