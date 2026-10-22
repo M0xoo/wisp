@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-10-22
+
 ### Changed
 
 - **Rerun… is in the open task's bar**, where Replay was (and in split view's details column): the same dialog as the task's right-click menu, `⇧R`. Replay presentation is under *More*, and `R` still does it.
