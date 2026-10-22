@@ -97,6 +97,7 @@ function build() {
           <button class="ghost xs tm-end" title="End the terminal and the agent in it">${icon('stop')}<span>End</span></button>
         </header>
         <div class="tm-screen">
+          <div class="tm-wait" aria-live="polite"><span class="tm-wait-l"></span><i></i><i></i><i></i><i></i></div>
           <div class="tm-rows"><div class="tm-scroll"></div><div class="tm-live"></div></div>
           <textarea class="tm-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Terminal input"></textarea>
         </div>
@@ -144,6 +145,7 @@ function paintHead() {
   panel.dataset.id = cur.id;
   $('.tm-title', panel).textContent = s.title || 'Terminal';
   $('.tm-sub', panel).textContent = cur.code !== null ? 'Ended' : cur.ready ? `${agentName(s.agent)} · in a terminal` : 'Starting…';
+  $('.tm-wait-l', panel).textContent = `${cur.ready ? 'Resuming' : 'Opening'} the session in ${agentName(s.agent)}…`;
   $('.tm-end', panel).hidden = cur.code !== null;
   const acts = $('.tm-acts', panel);
   const html = slotHtml('term.head', s);
@@ -162,6 +164,7 @@ function show(t) {
   place();
   paintHead();
   if (fresh) t.painted = { cleared: -1, back: 0, dropped: 0, rows: [], vers: [], cx: [] };
+  if (fresh) lastTop = 0;
   fit();
   paint();
   focus();
@@ -183,7 +186,8 @@ const focus = () => {
 function termFor(id) {
   let t = terms.get(id);
   if (t) return t;
-  t = { id, es: null, code: null, ready: false, replay: false, queue: '', sending: false, size: null, painted: null };
+  // stick: the view follows new output (until you scroll up). drawn: something's on screen yet.
+  t = { id, es: null, code: null, ready: false, replay: false, queue: '', sending: false, size: null, painted: null, stick: true, drawn: false };
   t.screen = new Screen(80, 24, {
     // What the terminal answers the program (cursor position and the like); not for old output replayed.
     onReply: (r) => !t.replay && send(t, r),
@@ -200,6 +204,7 @@ function connect(t) {
   es.addEventListener('hello', () => {
     t.ready = true;
     t.screen.reset();
+    t.drawn = false;
     t.replay = true; // the next data is what it printed so far
     t.size = null;
     fit();
@@ -308,7 +313,6 @@ function paint() {
   const sc = t.screen;
   const P = t.painted;
   const box = $('.tm-screen', panel);
-  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 4;
   const backEl = $('.tm-scroll', panel);
   const liveEl = $('.tm-live', panel);
   backEl.hidden = !!sc.alt;
@@ -347,7 +351,10 @@ function paint() {
     P.cx[y] = cx;
   }
   P.rows.length = P.vers.length = P.cx.length = rows.length;
-  if (atBottom || sc.alt) box.scrollTop = box.scrollHeight;
+  if (t.stick || sc.alt) box.scrollTop = box.scrollHeight;
+  lastTop = box.scrollTop;
+  if (!t.drawn && (sc.back.length || rows.some((r) => r.c.some((c) => c !== ' ')))) t.drawn = true;
+  $('.tm-wait', panel).hidden = t.drawn || t.code !== null;
   placeInput();
 }
 
@@ -365,6 +372,7 @@ function placeInput() {
 // --- input ----------------------------------------------------------------------------------
 
 let ctrlOnce = false; // the key row's Ctrl: applies to the next key
+let lastTop = 0; // the screen's scrollTop after the last paint or scroll
 function wireInput() {
   const ta = $('.tm-input', panel);
   const screen = $('.tm-screen', panel);
@@ -380,6 +388,7 @@ function wireInput() {
       paintCtrl();
       if (b) data = b;
     }
+    t.stick = true;
     $('.tm-screen', panel).scrollTop = 1e9;
     send(t, data);
   };
@@ -437,24 +446,97 @@ function wireInput() {
   screen.addEventListener('mouseup', () => {
     if (!String(getSelection())) focus();
   });
+  // A program that takes the mouse (claude's full screen: jump to bottom, select, …) gets clicks,
+  // taps and drags as SGR mouse events at the cell under the pointer. Shift keeps the page's own
+  // text selection, as in other terminals.
+  const cellAt = (e) => {
+    const r = $('.tm-live', panel).getBoundingClientRect();
+    const m = cell || measureCell();
+    return [Math.max(1, Math.min(cur.screen.cols, Math.floor((e.clientX - r.left) / m.w) + 1)), Math.max(1, Math.min(cur.screen.rows, Math.floor((e.clientY - r.top) / m.h) + 1))];
+  };
+  const mouseOn = (e) => cur && cur.code === null && cur.screen.modes.mouse && cur.screen.modes.sgrMouse && !e.shiftKey && e.button === 0;
+  let pressed = null;
+  screen.addEventListener('pointerdown', (e) => {
+    if (!mouseOn(e) || e.pointerType === 'touch') return; // a touch may be a swipe: sent on tap (click)
+    e.preventDefault();
+    pressed = cellAt(e);
+    send(cur, `\x1b[<0;${pressed[0]};${pressed[1]}M`);
+    focus();
+  });
+  screen.addEventListener('pointermove', (e) => {
+    if (!pressed || !cur || cur.screen.modes.mouse < 1002) return;
+    const at = cellAt(e);
+    if (at[0] === pressed[0] && at[1] === pressed[1]) return;
+    pressed = at;
+    send(cur, `\x1b[<32;${at[0]};${at[1]}M`);
+  });
+  addEventListener('pointerup', (e) => {
+    if (!pressed || !cur) return;
+    const at = cellAt(e);
+    pressed = null;
+    send(cur, `\x1b[<0;${at[0]};${at[1]}m`);
+  });
+  screen.addEventListener('click', (e) => {
+    if (!mouseOn(e) || e.pointerType !== 'touch') return;
+    const [x, y] = cellAt(e);
+    send(cur, `\x1b[<0;${x};${y}M\x1b[<0;${x};${y}m`);
+  });
   screen.addEventListener('click', () => {
     if (cur?.code !== null) hide();
   });
-  // Full-screen programs (the alternate screen) get the wheel as arrow keys or mouse events.
+  // Scrolled up, the view stays where you put it while output comes in; back at the bottom, it
+  // follows again. Only a move up counts: new output and trimmed scrollback move it too.
+  screen.addEventListener(
+    'scroll',
+    () => {
+      const t = cur;
+      if (!t) return;
+      if (screen.scrollTop < lastTop - 1) t.stick = false;
+      else if (screen.scrollHeight - screen.scrollTop - screen.clientHeight < (cell?.h || 17)) t.stick = true;
+      lastTop = screen.scrollTop;
+    },
+    { passive: true },
+  );
+  // Full-screen programs (claude, codex: the alternate screen) scroll themselves: the wheel, or a
+  // swipe on a phone, goes to them as mouse wheel events (or arrow keys when they don't take the mouse).
+  const wheelTo = (t, steps, up) => {
+    const { mouse, sgrMouse, appCursor } = t.screen.modes;
+    if (mouse && sgrMouse) send(t, `\x1b[<${up ? 64 : 65};1;1M`.repeat(steps));
+    else send(t, (up ? (appCursor ? '\x1bOA' : '\x1b[A') : appCursor ? '\x1bOB' : '\x1b[B').repeat(steps));
+  };
+  const appScrolls = (t) => t && t.code === null && (t.screen.alt || t.screen.modes.mouse);
   screen.addEventListener(
     'wheel',
     (e) => {
       const t = cur;
-      if (!t?.screen.alt || t.code !== null) return;
+      if (!appScrolls(t)) return;
       e.preventDefault();
-      const n = Math.max(1, Math.min(5, Math.round(Math.abs(e.deltaY) / 40)));
-      const up = e.deltaY < 0;
-      const { mouse, sgrMouse, appCursor } = t.screen.modes;
-      if (mouse && sgrMouse) send(t, `\x1b[<${up ? 64 : 65};1;1M`.repeat(n));
-      else send(t, (up ? (appCursor ? '\x1bOA' : '\x1b[A') : appCursor ? '\x1bOB' : '\x1b[B').repeat(n));
+      wheelTo(t, Math.max(1, Math.min(5, Math.round(Math.abs(e.deltaY) / 40))), e.deltaY < 0);
     },
     { passive: false },
   );
+  let swipeY = null;
+  screen.addEventListener('touchstart', (e) => {
+    swipeY = e.touches.length === 1 ? e.touches[0].clientY : null;
+  }, { passive: true });
+  screen.addEventListener(
+    'touchmove',
+    (e) => {
+      const t = cur;
+      if (swipeY === null || !appScrolls(t)) return;
+      e.preventDefault();
+      const y = e.touches[0].clientY;
+      const step = (cell?.h || 17) * 1.5; // a finger moves further than a wheel notch
+      const n = Math.trunc((y - swipeY) / step);
+      if (!n) return;
+      swipeY += n * step;
+      wheelTo(t, Math.min(Math.abs(n), 10), n > 0); // finger down: see what's above
+    },
+    { passive: false },
+  );
+  screen.addEventListener('touchend', () => {
+    swipeY = null;
+  });
   // The key row: it mustn't take the focus (the phone keyboard would close).
   const keys = $('.tm-keys', panel);
   keys.addEventListener('pointerdown', (e) => e.target.closest('button') && e.preventDefault());

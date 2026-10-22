@@ -42,6 +42,18 @@
 .tm-rows .w2 { display: inline-block; width: 2ch; }
 .tm-rows .cur { background: var(--term-ink); color: var(--term-bg); }
 .term:not(.focused) .tm-rows .cur { background: transparent; color: inherit; outline: 1px solid color-mix(in srgb, var(--term-ink) 60%, transparent); outline-offset: -1px; }
+/* Until the agent draws its first screen (a second or more to resume, longer on a cloud computer):
+   the shape of a terminal filling in, not a black box. */
+.tm-wait { position: absolute; inset: 10px 12px auto; display: flex; flex-direction: column; gap: 9px; pointer-events: none; font: 13px var(--mono); color: color-mix(in srgb, var(--term-ink) 55%, transparent); }
+.tm-wait[hidden] { display: none; }
+.tm-wait:not([hidden]) ~ .tm-rows { visibility: hidden; }
+.tm-wait i { display: block; height: 10px; border-radius: 3px; background: linear-gradient(90deg, #232323 0%, #2e2e2e 40%, #232323 80%) 0 0 / 300% 100%; animation: tm-shimmer 1.4s linear infinite; }
+.tm-wait i:nth-of-type(1) { width: 38%; margin-top: 6px; }
+.tm-wait i:nth-of-type(2) { width: 72%; }
+.tm-wait i:nth-of-type(3) { width: 56%; }
+.tm-wait i:nth-of-type(4) { width: 64%; }
+@keyframes tm-shimmer { to { background-position: -300% 0; } }
+@media (prefers-reduced-motion: reduce) { .tm-wait i { animation: none; } }
 .tm-probe { position: absolute; visibility: hidden; white-space: pre; }
 /* The input the keys go to: on the cursor (for the IME), invisible. 16px keeps phones from zooming. */
 .tm-input {
