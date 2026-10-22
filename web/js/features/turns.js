@@ -9,7 +9,7 @@ import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { toastError } from '../ui/toast.js';
 import { viewImage } from '../ui/viewer.js';
-import { execAction, moreMenu, openInEditor, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
+import { execAction, moreMenu, openInEditor, rerun, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
 import { expand, fetchFull, renderFeed, scheduleRefetch, setFocus } from './feed.js';
@@ -72,7 +72,7 @@ export function renderBody(id, { fresh }) {
           <div class="it-meta"></div>
           <div class="it-actions">
             <button class="ghost xs tx-toggle" data-a="transcript" data-key="V" aria-pressed="false">${icon('transcript')}<span>Transcript</span></button>
-            <button class="ghost xs" data-a="replay" data-key="R" title="Replay presentation (R)">${icon('replay')}<i class="it-lbl">Replay</i></button>
+            <button class="ghost xs" data-a="rerun" data-key="⇧R" title="Rerun: the same task again, on any harness, model or computer (⇧R)">${icon('rerun')}<i class="it-lbl">Rerun…</i></button>
             <button class="ghost xs" data-a="takeover" data-key="T" title="Take over: carry on with the agent yourself, in a terminal (T)">${icon('terminal')}<i class="it-lbl">Take over</i></button>
             <button class="ghost xs" data-a="ship" data-key="S" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
             <button class="ghost xs it-done" data-a="done" data-key="E" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
@@ -89,7 +89,7 @@ export function renderBody(id, { fresh }) {
     $('.it-bar', body).addEventListener('click', (e) => {
       const a = e.target.closest('[data-a]')?.dataset.a;
       if (a === 'transcript') toggleTranscript(id);
-      if (a === 'replay') replay(id);
+      if (a === 'rerun') rerun(id);
       if (a === 'takeover') takeOver(id);
       if (a === 'ship') shipDialog(id);
       if (a === 'done') toggleDone(id);
