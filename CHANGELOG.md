@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Copy a picture from a reply and paste it anywhere** (Slack, a doc, an issue): hover it for **Copy image** and **Download**, or open it and use the same buttons in the viewer, where ⌘C / Ctrl+C copies too. Any format is copied as a PNG, which every app pastes. A spell can restyle or hide the buttons (`image.tools`).
 - **The address bar follows the open task** (`#/s/<id>`, the task opened last in the feed), so reloading keeps it open and a copied link opens it in another tab or browser. Opening a `#/s/<id>` address opens that task, as before.
 
 ### Fixed

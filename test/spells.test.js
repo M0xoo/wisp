@@ -163,6 +163,8 @@ test('Settings → Machines → This computer is a part spells can restyle or hi
 });
 
 test('the image viewer is a part spells can restyle or hide', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['viewer.bar', 'image.tools'] }, parts: { 'image.tools': { style: { borderRadius: '4px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'image.tools': { props: { size: 4 } } } }).some((x) => /image\.tools/.test(x)));
   assert.deepEqual(problems({ ...base0, ui: { hide: ['viewer.bar'] }, parts: { viewer: { style: { background: 'var(--bg)' } }, 'viewer.bar': { style: { borderRadius: '4px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { viewer: { props: { zoom: 4 } } } }).some((x) => /viewer/.test(x)));
 });

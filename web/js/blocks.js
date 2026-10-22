@@ -4,6 +4,7 @@
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
 import { load, save } from './core/state.js';
+import { imageButtons, bindImageButtons } from './ui/image.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -773,9 +774,10 @@ R.callout = (b) => {
 
 R.image = (b, ctx) => {
   const src = /^https?:/.test(b.src || '') ? b.src : ctx.fileUrl(b.path || b.src || '');
-  const node = el(`<figure class="b-image card"><img loading="lazy" alt="${esc(b.caption || b.path || '')}">${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
+  const node = el(`<figure class="b-image card"><div class="img-box"><img loading="lazy" alt="${esc(b.caption || b.path || '')}"><div class="img-tools">${imageButtons()}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
   const img = node.querySelector('img');
   img.src = src;
+  bindImageButtons(node, src, b.path || b.caption || '');
   img.addEventListener('click', () => ctx.zoom(src, img.alt));
   img.addEventListener('error', () => node.classList.add('broken'));
   return node;

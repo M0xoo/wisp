@@ -1,11 +1,12 @@
 import { el, icon } from '../core/dom.js';
 import { esc } from '../md.js';
 import { overlay } from './overlay.js';
+import { imageButtons, bindImageButtons, copyImage } from './image.js';
 
 // A picture from a reply or an attachment, full screen, to zoom into. Pinch, double-tap (a click
 // with a mouse) or the wheel zoom at that point, a drag pans, a tap beside it, a swipe down,
-// Escape or × closes. The phone app's WebView has no pinch zoom of its own, so this is the only
-// way to read a screenshot there.
+// Escape or × closes. Copy (also ⌘C / Ctrl+C) and Download take it elsewhere. The phone app's
+// WebView has no pinch zoom of its own, so this is the only way to read a screenshot there.
 
 const MAX = 8;
 
@@ -17,6 +18,8 @@ export function viewImage(src, alt = '') {
         <button class="lb-out" title="Zoom out" aria-label="Zoom out">${icon('minus')}</button>
         <button class="lb-pct" title="Zoom to fit or in"></button>
         <button class="lb-in" title="Zoom in" aria-label="Zoom in">${icon('plus')}</button>
+        <span class="lb-sep"></span>
+        ${imageButtons()}
         <a class="lb-open" href="${esc(src)}" target="_blank" rel="noopener" title="Open the original" aria-label="Open the original">${icon('external')}</a>
         <button class="lb-close" title="Close" aria-label="Close">${icon('x')}</button>
       </div>
@@ -155,6 +158,10 @@ export function viewImage(src, alt = '') {
   // The page's keys stand down while a dialog is open (Escape still closes it).
   const onKey = (e) => {
     if (!node.isConnected) return cleanup();
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      return copyImage(src, node.querySelector('.img-copy'));
+    }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '+' || e.key === '=') zoomAt(s * 1.6, ...centre());
     else if (e.key === '-') zoomAt(s / 1.6, ...centre());
@@ -171,6 +178,7 @@ export function viewImage(src, alt = '') {
   addEventListener('keydown', onKey);
   addEventListener('resize', onResize);
   img.addEventListener('load', () => paint());
+  bindImageButtons(node, src, alt);
   const close = overlay(node, { onClose: cleanup });
   node.querySelector('.lb-close').onclick = () => {
     close();
