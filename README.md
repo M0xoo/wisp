@@ -208,7 +208,6 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 | `A` | Archive / unarchive |
 | `M` | Rename |
 | `⌫` | Delete |
-| `R` | Replay the presentation |
 | `V` | Switch between the full transcript and the presentation |
 | `C` | Collapse all |
 | `U` | Back to top (also `Home`) |
