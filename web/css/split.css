@@ -216,7 +216,10 @@ body.split.pane-wide .it-bar > .pr-strip > .grow { display: none; }
 body.split.pane-wide .it-bar > .pr-strip > a.ghost { margin-left: auto; }
 body.split.pane-wide .it-bar > .pr-strip > .pr-line { order: 2; flex: 1 0 100%; white-space: normal; color: var(--muted); }
 body.split.pane-wide .it-bar > .pr-strip > button { order: 3; }
-body.split.pane-wide .it-bar > .pr-strip > .pr-merge { flex: 1; justify-content: center; height: 28px; background: color-mix(in srgb, var(--good) 12%, transparent); }
+/* the next step, Merge or Fix conflicts, in one place: a full-width button after Check now */
+body.split.pane-wide .it-bar > .pr-strip > :is(.pr-merge, .pr-fix) { flex: 1; justify-content: center; height: 28px; }
+body.split.pane-wide .it-bar > .pr-strip > .pr-merge { background: color-mix(in srgb, var(--good) 12%, transparent); }
+body.split.pane-wide .it-bar > .pr-strip > .pr-fix { background: color-mix(in srgb, var(--bad) 12%, transparent); }
 body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-what { flex: 1 1 0; white-space: normal; }
 body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-track { order: 2; flex: 1 0 100%; margin: 2px 0 0; }
 body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-track li + li::before { width: 8px; }
