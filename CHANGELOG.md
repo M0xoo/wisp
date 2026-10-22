@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-22
+
 ### Added
 
 - **Take over inside wisp.** *Take over* (`T`) can open the agent's own session in a terminal inside the page instead of a terminal app. On wisp Cloud, where there is no terminal app to open, it always does. In split view the terminal lies over the open task, in the feed it opens as a sheet, and on a phone it fills the screen with a row of keys a phone keyboard lacks (Esc, Tab, ⇧Tab, Ctrl, arrows, Paste). *Back* hides it and the agent keeps going. The card says *In terminal*, so you can open it again on any device: start on your laptop, carry on from your phone. Scrolling works with a wheel, a trackpad or a swipe, also in the full-screen modes of Claude Code and opencode, which scroll themselves and takes clicks (*Jump to bottom*). While the agent starts, the terminal shows a placeholder instead of a black box. You can take over a task that is still working: it stops the run and resumes it in the terminal. It ends when the agent exits, or with *End*. While it is open, follow-ups from the card wait for it. From your desktop, a cloud computer's tasks take over this way too (before, take over didn't work there), and so do an SSH machine's when Settings → General → *Take over in* is set to *In wisp*. Headless Linux servers pick it on their own. It needs macOS or Linux on the computer the task runs on, with Python 3 to resize the terminal. Spells can restyle it (`term`, `term.head`, `term.screen`, `term.keys`, `fontSize`), add buttons to its header (`term.head`) and set `terminal`.
@@ -563,7 +565,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Session queue with follow-ups, answers to agent questions, terminal takeover and mark-as-done.
 - Older turns are folded, with a floating collapse-all button and back-to-top.
 
-[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.28.2...HEAD
+[Unreleased]: https://github.com/M0xoo/wisp/compare/v0.29.0...HEAD
+[0.29.0]: https://github.com/M0xoo/wisp/compare/v0.28.2...v0.29.0
 [0.28.2]: https://github.com/M0xoo/wisp/compare/v0.28.1...v0.28.2
 [0.28.1]: https://github.com/M0xoo/wisp/compare/v0.28.0...v0.28.1
 [0.28.0]: https://github.com/M0xoo/wisp/compare/v0.27.0...v0.28.0
