@@ -8,7 +8,9 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign as rsaSign } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { browser, installFakeBins, sleep, tmp, until, win } from './helpers.js';
 
 // The grid needs node:sqlite (Node 22.13+): on older Node it won't start, and these are skipped.
@@ -260,6 +262,19 @@ test('deleting an account: typed handle and CSRF, then its box, files, secrets, 
   assert.equal((await b.go(`${origin}/`)).status, 404, 'its address is gone');
   assert.equal((await me()).status, 401, 'and its devices');
   assert.doesNotMatch((await b.go(`${base}/`)).text, /account\/delete/, 'signed out');
+});
+
+test('every `wisp grid` subcommand reaches the grid, not a task: `wisp grid waitlist` lists it', async () => {
+  const { GRID_COMMANDS } = await import('../grid/cli.js');
+  const src = fs.readFileSync(new URL('../bin/wisp.js', import.meta.url), 'utf8');
+  const sub = new Set(JSON.parse(/const GRID_SUB = new Set\((\[[^\]]*\])\)/.exec(src)[1].replace(/'/g, '"')));
+  assert.deepEqual([...GRID_COMMANDS].sort(), [...sub].sort());
+  grid.accounts.waitFor('cli@x.test');
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../bin/wisp.js', import.meta.url)), 'grid', 'waitlist', '--data', cfg.dataDir], { encoding: 'utf8', env: { ...process.env, WISP_HOME: tmp('grid-cli'), WISP_TELEMETRY: '0' }, timeout: 20_000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /seats: no cap/);
+  assert.match(r.stdout, /cli@x\.test\s+site/);
+  assert.doesNotMatch(r.stdout, /floating at/, 'no wisp started for it');
 });
 
 test('wisp grid users --delete: asks for --yes, leaves a running process to the grid, then deletes', async () => {
