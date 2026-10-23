@@ -394,6 +394,65 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .img-tools button.copied { color: var(--good); }
 .lb-bar button.copied { color: #4cc38a; }
 .b-image.broken .img-tools { display: none; }
+/* preview: a live web page framed as a phone, tablet or browser window, scaled to fit
+   (preview-frame.js reads the stage's padding and max-height to size it) */
+.b-preview { margin: 0; overflow: hidden; }
+.pv-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 10px; border-bottom: 1px solid var(--line); }
+.pv-addr { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); font: 12px var(--mono); color: var(--ink-2); }
+.pv-addr .i { width: 12px; height: 12px; flex: none; color: var(--muted); }
+.pv-host { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-seg { display: flex; flex: none; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-2); }
+.pv-seg button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 0; border-radius: 7px; background: none; font: 500 12px var(--sans); color: var(--muted); white-space: nowrap; cursor: pointer; outline: 0; transition: background 0.12s, color 0.12s; }
+.pv-seg button:hover { color: var(--ink); }
+.pv-seg button:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.pv-seg button.on { background: var(--surface); color: var(--accent-ink); box-shadow: var(--shadow-1); }
+.pv-seg .i { width: 13px; height: 13px; flex: none; }
+.pv-tools { display: flex; flex: none; }
+.pv-btn { display: inline-flex; padding: 6px; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
+.pv-btn:hover { background: var(--bg-2); color: var(--ink); }
+.pv-btn .i { width: 14px; height: 14px; }
+.pv-stage { display: flex; justify-content: center; align-items: flex-start; max-height: 640px; padding: 24px; overflow: hidden; background: var(--bg-2) radial-gradient(var(--line-2) 1px, transparent 1.2px) 0 0 / 16px 16px; }
+.pv-device { position: relative; flex: none; }
+.pv-screen { position: relative; overflow: hidden; background: #fff; transition: width 0.3s var(--ease), height 0.3s var(--ease), border-radius 0.3s var(--ease); }
+.pv-screen iframe { position: absolute; top: 0; left: 0; border: 0; background: #fff; transform-origin: 0 0; opacity: 0; transition: opacity 0.25s, transform 0.3s var(--ease); }
+.pv-screen.loaded iframe { opacity: 1; }
+@keyframes pv-wait { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+.pv-wait { position: absolute; inset: 0; background: linear-gradient(100deg, var(--surface-2) 35%, var(--surface) 50%, var(--surface-2) 65%) 0 0 / 200% 100%; animation: pv-wait 1.4s linear infinite; transition: opacity 0.25s; }
+.pv-screen.loaded .pv-wait { opacity: 0; animation: none; pointer-events: none; }
+/* Phone and tablet: a dark bezel with side buttons. Desktop or any WxH: a browser window. */
+.dev-mobile, .dev-tablet { padding: 10px; border-radius: 40px; background: #111114; box-shadow: inset 0 0 0 1.5px #2c2c33, 0 0 0 1px var(--line-2), 0 22px 44px -22px rgba(0, 0, 0, 0.5); }
+.dev-mobile .pv-screen { border-radius: 30px; }
+.dev-tablet { padding: 14px; border-radius: 28px; }
+.dev-tablet .pv-screen { border-radius: 14px; }
+.dev-mobile::before, .dev-mobile::after, .dev-tablet::before { content: ''; position: absolute; width: 3px; border-radius: 3px 0 0 3px; background: #2c2c33; }
+.dev-mobile::before { left: -3px; top: 20%; height: 12%; }
+.dev-mobile::after { right: -3px; top: 28%; height: 14%; border-radius: 0 3px 3px 0; }
+.dev-tablet::before { right: 12%; top: -3px; width: 9%; height: 3px; border-radius: 3px 3px 0 0; }
+.dev-mobile.land::before, .dev-mobile.land::after { display: none; }
+.dev-desktop, .dev-custom { overflow: hidden; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-2); }
+/* The window's title bar, with three neutral dots. */
+.dev-desktop::before, .dev-custom::before { content: ''; display: block; height: 30px; border-bottom: 1px solid var(--line); background: radial-gradient(circle at 16px 50%, var(--line-2) 4px, transparent 4.5px), radial-gradient(circle at 31px 50%, var(--line-2) 4px, transparent 4.5px), radial-gradient(circle at 46px 50%, var(--line-2) 4px, transparent 4.5px), var(--surface-2); }
+.pv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 9px 10px 9px 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.pv-cap { flex: 1 1 14em; min-width: 0; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.pv-cap b { color: var(--ink); font-weight: 600; }
+.pv-meta { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.pv-dims { font: 11.5px var(--mono); color: var(--faint); white-space: nowrap; }
+.pv-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px; font: 500 11px var(--sans); color: var(--muted); }
+.pv-tag .i { width: 11px; height: 11px; }
+.pv-note { flex-basis: 100%; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.pv-note .i { width: 13px; height: 13px; flex: none; color: var(--warn); }
+.pv-bad { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 13px; color: var(--muted); }
+.pv-bad .i { width: 15px; height: 15px; color: var(--warn); flex: none; }
+@media (prefers-reduced-motion: reduce) { .pv-screen, .pv-screen iframe { transition: none; } .pv-wait { animation: none; } }
+@media (max-width: 520px) {
+  .pv-head { flex-wrap: wrap; }
+  .pv-addr { flex-basis: 100%; }
+  .pv-seg { flex: 1; }
+  .pv-seg button { flex: 1; justify-content: center; }
+  .pv-seg button span { display: none; }
+  .pv-stage { padding: 14px; }
+}
+
 /* app: an interactive page from the agent or a spell, in a sandboxed frame (app-frame.js) */
 .b-app { overflow: hidden; }
 .app-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line); font-size: 13px; }

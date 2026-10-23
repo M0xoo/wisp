@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Live page previews in the chat.** An agent can answer with a `preview` block: the page it's working on (your dev server, a deployed URL), live in the reply, framed as a phone, tablet or browser window at the size it picked (`mobile`, `tablet`, `desktop` or any `WxH`) and scaled to fit. Switch sizes, rotate, reload or open it in a new tab from the block's bar. The page runs in a sandboxed frame on its own origin: it can't reach wisp, navigate it or open dialogs over it, and only http(s) links load.
+
 ### Changed
 
 - **The phone app is easier to use with one thumb.** In wisp's page, the prompt box waits at the bottom, one line until you tap it; its buttons keep their names and scroll sideways, with Send always in view. A task's title gets the whole row, with its status, harness and time on the line under it. A question shows its choices (Yes / No, Allow / Deny) right in the row, so you answer it without opening the task. One task is open at a time, and every button is at least 44px. On the computers screen, tap anywhere on a row to open that computer (its settings are behind ⋯), the list no longer jumps when you tap one, wisp Cloud shows as online, and the first-run explanation goes away once you've opened a computer. Text and spacing follow one scale. Only the app changes: wisp in a browser or the desktop app looks the same.

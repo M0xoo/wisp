@@ -79,6 +79,7 @@ const R = {
   checklist: (b) => `${b.title ? `**${b.title}**\n\n` : ''}${list(b.items).map((i) => `- [${i.done ? 'x' : ' '}] ${str(i.text)}`).join('\n')}`,
   callout: (b) => `> **${b.tone === 'danger' ? '⛔' : b.tone === 'warn' ? '⚠️' : b.tone === 'success' ? '✅' : 'ℹ️'} ${str(b.title)}**\n> ${str(b.text).replace(/\n/g, '\n> ')}`,
   image: (b) => `🖼️ \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
+  preview: (b) => `🌐 ${str(b.url)}${b.device ? ` (${b.device})` : ''}${b.caption || b.title ? ` — ${b.caption || b.title}` : ''}`,
   video: (b) => `🎬 \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
   doc: (b) => `📄 **${str(b.title) || `\`${str(b.path)}\``}**${b.title && b.path ? ` \`${str(b.path)}\`` : ''}${b.caption ? ` — ${b.caption}` : ''}${b.text ? `\n\n<details><summary>Show the file</summary>\n\n${str(b.text)}\n\n</details>` : ''}`,
   question: (b) => `**❓ ${str(b.question)}**\n${list(b.options).map((o, i) => `${i + 1}. ${str(o.label || o)}`).join('\n')}`,

@@ -69,6 +69,10 @@ diff, the test run, the command output — over prose. Use file paths relative t
   A screenshot or generated image on disk.
 - {"type":"video","path":"relative/or/absolute.mp4","caption":"…"}
   A video you made or recorded (mp4, webm, mov), played inline. Use it instead of linking the file.
+- {"type":"preview","url":"http://localhost:5173/settings","device":"mobile|tablet|desktop|1280x720","title":"…","caption":"…"}
+  A live web page shown in the answer, in a sandboxed frame at that screen size: a dev server you
+  started, a deployed page you changed. Pick the device that shows the change (mobile for a
+  responsive fix); the user can switch sizes. Keep the server running and say so.
 - {"type":"doc","path":"docs/plan.md","title":"…","caption":"…"}
   A markdown file you wrote for the user to read (a plan, report, spec, ADR). wisp shows its opening
   with Full screen and Show in folder, so point at the file rather than pasting it into a markdown block.
