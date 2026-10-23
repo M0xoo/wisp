@@ -193,6 +193,10 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-acts { flex: none; display: flex; align-items: center; gap: 4px; }
 body.electron.split .split-head { -webkit-app-region: drag; }
 body.electron.split .split-head :is(button, a, .sh-title) { -webkit-app-region: no-drag; }
+/* With the list hidden the top bar's buttons float over the header's corner, and a drag region
+   takes clicks even under what's on top of it: only the title row drags then, clear of them. */
+body.electron.split.side-hidden .split-head { -webkit-app-region: no-drag; }
+body.electron.split.side-hidden .split-head .sh-row { -webkit-app-region: drag; }
 /* the Mac window buttons sit over the top-left corner: beside the brand, or the title when the list is on the right */
 body.electron.mac.split .topbar { padding-left: 14px; }
 body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
