@@ -42,7 +42,16 @@ export function draftInto(id, text) {
 // open through its own pickers (harness, mode, computer: they open on <body> and take focus) until
 // you click or tab somewhere else on the page.
 const OWN_POPUPS = '.picker, .menu, .overlay';
+// Moving to another task in the list from an open box keeps it open: the old one goes with its
+// task without folding first, and the new task's box is drawn open (feed.js then focuses it).
+let carry = false;
+let carryTo = null;
+export function carryDock(id) {
+  carryTo = carry ? id : null;
+}
 function settle(e) {
+  if (e.type === 'pointerdown') carry = !!e.target.closest?.('body.split #feed .it-head') && !!document.querySelector('.composer:is(.awake, :has(.reply:focus))');
+  if (carry && e.target.closest?.('.it-head')) return;
   for (const c of document.querySelectorAll('.composer.awake')) if (!c.contains(e.target) && !e.target.closest?.(OWN_POPUPS)) c.classList.remove('awake');
 }
 document.addEventListener('pointerdown', settle, true);
@@ -67,6 +76,7 @@ export function renderDock(id) {
         <button class="send" title="Send (Enter · Shift+Enter for newline)">${icon('enter')}</button>
       </div>
     </div>`);
+  if (carryTo === id) (comp.classList.add('awake'), (carryTo = null));
   dock.append(comp);
   // Only typing opens it: a chip pressed in the folded box would move before the click landed.
   comp.addEventListener('focusin', (e) => {
