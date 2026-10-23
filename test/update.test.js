@@ -148,7 +148,8 @@ test('an AppImage update checks the sha256, replaces the file and reopens it', a
   u.fetch = download;
   await u.fetchApp();
   assert.equal(fs.readFileSync(image, 'utf8'), 'new build');
-  assert.equal(fs.statSync(image).mode & 0o111, 0o111);
+  // Windows has no exec bits: chmod there only toggles read-only, so the mode can't show 0o755
+  if (process.platform !== 'win32') assert.equal(fs.statSync(image).mode & 0o111, 0o111);
   assert.equal(u.relaunchCommand(true), `"${image}" >/dev/null 2>&1`);
 });
 
