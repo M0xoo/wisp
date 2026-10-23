@@ -206,6 +206,16 @@ test('cli: launch --wait --json, ls --json, show, reply', async () => {
   assert.equal(s.presentation.blocks[0].title, 'Fake claude finished');
   const list = JSON.parse((await cli(['ls', '--json', '--port', String(port), '--cwd', cwd])).stdout);
   assert.deepEqual(list.map((x) => x.id), [s.id]);
+  // --state=x is --state x, needs is review + waiting, archived only with --all, a typo is refused.
+  const ls = async (...a) => JSON.parse((await cli(['ls', '--json', '--port', String(port), '--cwd', cwd, ...a])).stdout).map((x) => x.id);
+  assert.deepEqual(await ls('--state=review'), [s.id]);
+  assert.deepEqual(await ls('--state', 'needs'), [s.id]);
+  assert.deepEqual(await ls('--state', 'done'), []);
+  await wisp.update(s.id, { archived: true });
+  assert.deepEqual(await ls('--state', 'review'), []);
+  assert.deepEqual(await ls('--state', 'review', '--all'), [s.id]);
+  await wisp.update(s.id, { archived: false });
+  await assert.rejects(cli(['ls', '--port', String(port), '--state', 'reviw']), (e) => /unknown state reviw/.test(e.stderr));
   assert.match((await cli(['show', s.id, '--port', String(port)])).stdout, /## Fake claude finished/);
   assert.match((await cli(['reply', s.id, 'and', 'a', 'test', '--wait', '--port', String(port)])).stdout, /Fake claude finished/);
   assert.equal((await wisp.session(s.id)).turns.length, 2);

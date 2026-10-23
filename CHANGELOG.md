@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **`wisp ls --state` lists what the page does.** `--state=review` (with `=`) was dropped and listed everything, a misspelt state printed "No sessions.", and `--state review` included archived tasks the page no longer counts. Every `--flag=value` now works, an unknown state is an error, `--state needs` is review + waiting (the page's *Needs you*), and archived tasks only show with `--all`.
 - **Desktop app: drag the window from the new task page.** In split view with no task open there was no header to grab, so the window wouldn't move from the main pane. The top of that pane now moves it again (beside the floating buttons when the task list is hidden).
 
 - **Phone app: a way back from your computers.** *Add a machine* under the prompt, **Computers** in the top bar or *Your computers* in Settings now open the list on top of the wisp you were in: a **‹ <computer>** button at its top, or the phone's Back (button or edge swipe), takes you back to your prompt as you left it.
