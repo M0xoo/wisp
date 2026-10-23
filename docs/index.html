@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=31" />
+  <link rel="stylesheet" href="style.css?v=32" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -330,10 +330,7 @@
         <p>Click <b>vs</b> in the launcher and one prompt runs on two harnesses at once, each in its own worktree. wisp lines them up: time, cost, files, tests, and both reports. <b>Keep this</b> archives the other. <a class="more-link" href="guides/claude-code-vs-codex.html">Claude Code vs Codex on your own repo →</a></p>
       </div>
       <div class="wrap-wide">
-        <div class="cmp-shot" data-ui><picture>
-            <source srcset="assets/shots/story-dark-compare.webp" media="(prefers-color-scheme: dark)" />
-            <img src="assets/shots/story-light-compare.webp" width="1240" height="550" loading="lazy" alt="Compare view: Claude Code finished in 16 minutes for $0.94 with 341 tests passing; Codex finished in 11 minutes for $0.38 with 2 failing tests. Each column has a Keep this button." />
-          </picture></div>
+<div class="cmp-shot cm" data-compare data-ui id="race" aria-label="Try it: race two agents on the same prompt and keep the winner"></div>
       </div>
     </section>
 
@@ -379,56 +376,21 @@
       <p class="relay-links"><a href="guides/customize-wisp-with-spells.html">The spells guide →</a><a href="guides/customize-wisp-with-spells.html#anatomy">What’s in a spell file →</a></p>
     </section>
 
-    <!-- ───────── control ───────── -->
+    <!-- ───────── control: agent, permission mode and take over (control.js) ───────── -->
     <section class="control wrap" id="control">
-      <div class="sec-head">
+      <div class="spells-head">
         <h2>Pick the agent, set the leash, take the wheel.</h2>
+        <p>Choose who runs a task and how much it may do on its own. When you’d rather drive, the same session opens in your terminal.</p>
       </div>
-      <div class="duo">
-        <figure class="tile">
-          <div class="tile-img" data-ui>
-            <picture>
-              <source srcset="assets/shots/dark-picker.webp" media="(prefers-color-scheme: dark)" />
-              <img src="assets/shots/light-picker.webp" width="800" height="650" loading="lazy" alt="The launcher's harness picker: Auto, Claude Code, Codex, opencode, Cursor, Antigravity and Grok, with Balanced, Cheap and Best goals." />
-            </picture>
-          </div>
-          <figcaption><b>Auto, or your pick.</b> Choose a harness, model and thinking level per task, or let <b>Auto</b> choose from what worked before. It learns from what you merge, your thumbs up or down and how many follow-ups a run needed.</figcaption>
-        </figure>
-        <figure class="tile">
-          <div class="tile-img" data-ui>
-            <picture>
-              <source srcset="assets/shots/dark-auto.webp" media="(prefers-color-scheme: dark)" />
-              <img src="assets/shots/light-auto.webp" width="720" height="570" loading="lazy" alt="The Automations dialog listing three recipes (release, deps-audit, triage) with Run buttons." />
-            </picture>
-          </div>
-          <figcaption><b>Recipes and triggers.</b> Save the prompts you keep retyping; <code>{version}</code> becomes a field. Run them on a schedule, when CI fails on main, or when an issue gets a label.</figcaption>
-        </figure>
+      <div class="spells-grid">
+        <div data-control id="leash" aria-label="Try it: pick a harness and a permission mode, and take a task over in a terminal"></div>
       </div>
-
-      <div class="modes">
-        <div class="mode"><h3 class="m-k">Plan</h3><p>Read-only. It investigates and proposes; nothing on disk changes. Issue triggers always start here.</p></div>
-        <div class="mode"><h3 class="m-k">Edits</h3><p>File edits are accepted; shell commands that need approval are denied.</p></div>
-        <div class="mode on def"><h3 class="m-k">Full auto</h3><p>No prompts. The default: each task runs in its own worktree with checkpoints before every turn.</p></div>
-      </div>
-
-      <div class="takeover">
-        <div class="to-text">
-          <h3>Press <kbd>T</kbd> to take over.</h3>
-          <p>wisp opens your terminal in the task's worktree with the harness's own resume command. Ghostty, iTerm, Warp, kitty, WezTerm, Terminal, Windows Terminal and more.</p>
-        </div>
-        <table class="harness-table">
-          <thead><tr><th>Harness</th><th>Take over runs</th></tr></thead>
-          <tbody>
-            <tr><td><img src="assets/logos/claudecode-color.svg" alt="" width="16" height="16" />Claude Code</td><td><code>claude --resume &lt;id&gt;</code></td></tr>
-            <tr><td><img src="assets/logos/codex-color.svg" alt="" width="16" height="16" />Codex</td><td><code>codex resume &lt;id&gt;</code></td></tr>
-            <tr><td><img src="assets/logos/cursor.svg" alt="" width="16" height="16" class="mono" />Cursor</td><td><code>cursor-agent --resume &lt;id&gt;</code></td></tr>
-            <tr><td><img src="assets/logos/opencode.svg" alt="" width="16" height="16" class="mono" />opencode</td><td><code>opencode --session &lt;id&gt;</code></td></tr>
-            <tr><td><img src="assets/logos/antigravity-color.svg" alt="" width="16" height="16" />Antigravity</td><td><code>agy --conversation &lt;id&gt;</code></td></tr>
-            <tr><td><img src="assets/logos/grok.svg" alt="" width="16" height="16" class="mono" />Grok</td><td><code>grok --resume &lt;id&gt;</code></td></tr>
-            <tr><td><img src="assets/logos/githubcopilot.svg" alt="" width="16" height="16" class="mono" />Copilot</td><td><code>copilot --resume=&lt;id&gt;</code></td></tr>
-          </tbody>
-        </table>
-      </div>
+      <dl class="relay-facts spells-facts">
+        <div><dt>Auto learns</dt><dd>It picks a harness and model from what worked before: what you merged, your thumbs up or down, how many follow-ups a run needed.</dd></div>
+        <div><dt>Recipes and triggers</dt><dd>Save the prompts you keep retyping; <code>{version}</code> becomes a field. Run them on a schedule, when CI fails on main, or when an issue gets a label.</dd></div>
+        <div><dt>Switch mid-task</dt><dd>Model and thinking level are per task, and a follow-up can hand the task to another harness with its history.</dd></div>
+      </dl>
+      <p class="relay-links"><a href="guides/run-claude-code-and-codex-in-parallel.html">Run Claude Code and Codex in parallel →</a><a href="guides/run-coding-agents-in-the-background.html">Agents in the background →</a></p>
     </section>
 
     <!-- ───────── cli ───────── -->
@@ -437,11 +399,16 @@
         <div class="cli-text">
           <h2>Or never leave your shell.</h2>
           <p><code>wisp "…"</code> launches a task in the current folder and starts the app if it isn't running. <code>--wait</code> blocks until the run is done and prints the report as markdown, so scripts, CI and other agents can use wisp too.</p>
+          <p class="small">Try it in the terminal: type a command, or pick one under it.</p>
           <p class="small">Also: an MCP server (<code>wisp mcp</code>), an agent skill, a JS SDK, an HTTP API and webhooks. <a href="integrations.html">Integrations →</a></p>
         </div>
         <div class="term-win" data-ui>
-          <div class="win-bar dark"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">~/code/api-server</span><button class="replay" id="termReplay" aria-label="Replay">↻</button></div>
-          <pre class="term" id="term" aria-label="Example CLI session"></pre>
+          <div class="win-bar dark"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">~/code/api-server</span><button class="replay" id="termReplay" aria-label="Start over" title="Start over">↻</button></div>
+          <div class="term" id="term">
+            <pre id="termOut" aria-live="polite"></pre>
+            <form class="term-line" id="termForm" autocomplete="off"><span class="p">$</span><input id="termIn" aria-label="Type a wisp command" spellcheck="false" autocapitalize="off" placeholder="type a wisp command…" /></form>
+          </div>
+          <div class="term-chips" id="termChips" aria-label="Try a command"></div>
         </div>
       </div>
     </section>
@@ -531,8 +498,10 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=13"></script>
+  <script src="main.js?v=14"></script>
   <script src="relay.js?v=2" defer></script>
   <script src="spells.js?v=4" defer></script>
+  <script src="control.js?v=1" defer></script>
+  <script src="compare.js?v=1" defer></script>
 </body>
 </html>
