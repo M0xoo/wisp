@@ -767,6 +767,48 @@ test('a computer added to the grid: reached through its tunnel, signed in like t
   }
 });
 
+test('the account page keeps up by itself: its event stream says when a computer comes online, goes offline or is added', async () => {
+  const { dialTunnel } = await import('../server/grid-tunnel.js');
+  const local = http.createServer((req, res) => res.end('{}'));
+  const port = (await listen(local)).split(':').pop();
+  const acct = browser();
+  await devSignIn(acct, 'gus@example.com');
+  assert.match((await acct.go(`${base}/`)).text, /data-live="computers"/);
+  // Signed out: no stream.
+  assert.equal((await browser().go(`${base}/events`, { headers: { accept: 'text/event-stream' } })).status, 401);
+  const u = new URL(base);
+  const cookie = [...acct.jar.get(u.host)].map(([k, v]) => `${k}=${v}`).join('; ');
+  let got = '';
+  const stream = await new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port: u.port, path: '/events', headers: { host: u.host, cookie, accept: 'text/event-stream' } }, (res) => {
+      assert.equal(res.headers['content-type'], 'text/event-stream');
+      res.setEncoding('utf8');
+      res.on('data', (d) => (got += d));
+      resolve(res);
+    }).on('error', reject);
+  });
+  const changes = () => got.split('event: change').length - 1;
+  let t = null;
+  try {
+    const laptop = await deviceToken('gus@example.com', 'Gus’s laptop (wisp)');
+    await until(() => changes() >= 1, { what: 'a change for the new device' });
+    const c = (await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Gus’s laptop' }, headers: { authorization: `Bearer ${laptop}`, accept: 'application/json' } })).json;
+    await until(() => changes() >= 2, { what: 'a change for the added computer' });
+    const states = [];
+    t = dialTunnel({ url: base, id: c.id, token: laptop, port, onState: (s) => states.push(s.state) });
+    await until(() => states.includes('online') && changes() >= 3, { what: 'a change for the computer online' });
+    assert.match((await acct.go(`${base}/`)).text, /Gus’s laptop<\/b>[\s\S]*?Online/);
+    const before = changes();
+    t.close();
+    await until(() => changes() > before, { what: 'a change for the computer offline' });
+    assert.match((await acct.go(`${base}/`)).text, /Gus’s laptop<\/b>[\s\S]*?Offline/);
+  } finally {
+    t?.close();
+    stream.destroy();
+    local.close();
+  }
+});
+
 test('a computer’s tunnel over https (TLS in front of the grid, like Caddy): HTTP/2 comes up on the TLS socket', async () => {
   const tls = await import('node:tls');
   const { dialTunnel } = await import('../server/grid-tunnel.js');

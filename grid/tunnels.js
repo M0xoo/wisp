@@ -26,6 +26,9 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
     live.get(id)?.session.destroy(); // a computer that reconnected: its new tunnel wins
     live.set(id, t);
     session.on('error', () => {});
+    // The computer hung up. The HTTP server's sockets are half-open, so without this the tunnel
+    // would count as up until the next ping failed, and the computer show as online meanwhile.
+    socket.on('end', () => session.destroy());
     const ping = setInterval(() => session.ping(() => {}), PING_MS);
     ping.unref();
     session.on('close', () => {
