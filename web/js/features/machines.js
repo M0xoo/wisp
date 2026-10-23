@@ -18,7 +18,7 @@ import { MACHINE_STATE, machineById, machinesSummary } from './places.js';
 import { openProjects, renderProjects } from './projects.js';
 import { TAILSCALE_GUIDE } from './reachable.js';
 import { harnessLogo } from './runners.js';
-import { mountCloudSignin } from './cloud.js';
+import { mountGridHere } from './cloud.js';
 import { ask } from '../ui/confirm.js';
 
 // Never throws; only a load that worked counts for since() (live.js), so a failed one is retried.
@@ -93,15 +93,16 @@ export function openMachines({ host, focusAdd = false } = {}) {
       <header><h2>Machines</h2><button class="icon-btn close">${icon('x')}</button></header>
       <div class="mc-body">
         <p class="mem-lede">Run tasks on another computer you own: a desktop at home, a server, a cloud VM. Its tasks show up here next to this computer’s, and keep going when this one sleeps.</p>
+        <section class="sx-group mc-grid"></section>
         <div class="mc-howto-slot"></div>
         <div class="mc-list"></div>
         <section class="mc-add"></section>
-        <section class="sx-group mc-cloud"></section>
       </div>
     </div>`);
   const close = present(node, host);
-  // No computer to set up over SSH: a cloud computer instead (wisp Grid), signed in right here.
-  mountCloudSignin($('.mc-cloud', node), { title: 'Or use a cloud computer', lede: 'No SSH and nothing to keep switched on: your own wisp on wisp Grid, signed in with GitHub or Google. It keeps working when this computer sleeps, and shows up here like any machine.' });
+  // This computer on your wisp Grid (or signing in to one): your phone and your other computers
+  // reach it through there, and theirs show up here.
+  mountGridHere($('.mc-grid', node));
   const body = $('.mc-body', node);
   let editing = null; // machine id whose form is open, '' = a new one, null = closed
   let hosts = []; // found on this computer: ~/.ssh/config, Tailscale peers, ~/.ssh/known_hosts
@@ -162,6 +163,7 @@ export function openMachines({ host, focusAdd = false } = {}) {
       <p class="mc-ts">${icon('info')}<span>Not on the same network? Install <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a> (free) on both computers and use the name it gives. <a href="${TAILSCALE_GUIDE}" target="_blank" rel="noopener">Step-by-step guide</a></span></p>
     </section>`;
   const hostOf = (m) => m.target.replace(/^.*@/, '');
+  const gridHost = (m) => String(m.grid || '').replace(/^https?:\/\//, '');
   const trouble = (m) => {
     const h = m.hint || {};
     const lost = m.state === 'reconnecting';
@@ -193,16 +195,22 @@ export function openMachines({ host, focusAdd = false } = {}) {
     return `<div class="mc-projects">${list.map((p) => `<span class="lp-chip c-${p.color}" title="${esc(p.path)}"><i class="p-dot"></i>${esc(p.name)}</span>`).join('')}
       <button class="lp-chip add" data-a="projects">${icon(list.length ? 'plus' : 'folder')}${list.length ? 'Add' : 'Pick projects on it…'}</button></div>`;
   };
+  // Where a machine comes from, said on its card: a cloud computer the grid runs, one of your
+  // computers reached through the grid, or one this computer reaches over SSH.
+  const kind = (m) => (m.kind !== 'grid' ? ['ssh', 'Over SSH', 'server'] : m.computer ? ['grid', 'Your computer · via grid', 'laptop'] : ['cloud', 'Cloud · on grid', 'cloud']);
+  const where = (m) => (m.kind === 'grid' ? `${m.computer ? 'through' : 'on'} ${gridHost(m)}` : `${m.target}${m.port !== 4477 ? ` · port ${m.port}` : ''}`);
+  const stateText = (m) => (m.computer && m.state === 'asleep' ? 'Offline' : MACHINE_STATE[m.state] || m.state);
   const card = (m) => {
     const st = m.state;
     const busy = st === 'connecting' || st === 'reconnecting';
     const ready = (m.remote?.agents || []).filter((a) => a.available);
+    const [k, label, ico] = kind(m);
     return `<div class="mc st-${st}" data-id="${m.id}">
       <div class="mc-head">
-        <span class="mc-icon">${icon('server')}<i class="mc-dot"></i></span>
-        <div class="mc-title"><b>${esc(m.name)}</b><span>${esc(m.target)}${m.port !== 4477 ? ` · port ${m.port}` : ''}</span></div>
-        <span class="mc-state">${MACHINE_STATE[st] || st}</span>
-        ${st === 'online' || busy ? `<button class="ghost sm" data-a="disconnect">${busy ? 'Cancel' : 'Disconnect'}</button>` : `<button class="primary sm" data-a="connect">${st === 'error' ? 'Try again' : st === 'asleep' ? 'Wake' : 'Connect'}</button>`}
+        <span class="mc-icon">${icon(ico)}<i class="mc-dot"></i></span>
+        <div class="mc-title"><b>${esc(m.name)}<span class="mc-kind ${k}">${label}</span></b><span>${esc(where(m))}</span></div>
+        <span class="mc-state">${stateText(m)}</span>
+        ${st === 'online' || busy ? `<button class="ghost sm" data-a="disconnect">${busy ? 'Cancel' : 'Disconnect'}</button>` : `<button class="primary sm" data-a="connect">${st === 'error' ? 'Try again' : st === 'asleep' ? (m.computer ? 'Check again' : 'Wake') : 'Connect'}</button>`}
         <button class="icon-btn" data-a="menu" title="More">${icon('dots')}</button>
       </div>
       ${
@@ -255,10 +263,10 @@ export function openMachines({ host, focusAdd = false } = {}) {
     $('.menu.machine')?.close();
     const r = anchor.getBoundingClientRect();
     const box = el(`<div class="menu machine" style="top:${r.bottom + 4}px;left:${Math.max(8, r.right - 230)}px">
-        <button data-m="edit">${icon('pen')}Edit…</button>
+        ${m.kind === 'grid' ? '' : `<button data-m="edit">${icon('pen')}Edit…</button>`}
         <button data-m="projects">${icon('folder')}Projects on it…</button>
-        ${m.state === 'online' ? `<button data-m="restart">${icon('rerun')}Restart wisp there</button><button data-m="stop" class="danger">${icon('stop')}Stop wisp there</button>` : ''}
-        <button data-m="remove" class="danger">${icon('trash')}Remove machine</button>
+        ${m.state === 'online' && !m.computer ? `<button data-m="restart">${icon('rerun')}Restart wisp there</button><button data-m="stop" class="danger">${icon('stop')}Stop wisp there</button>` : ''}
+        <button data-m="remove" class="danger">${icon('trash')}${m.computer ? 'Remove from grid' : m.kind === 'grid' ? 'Sign out of the grid' : 'Remove machine'}</button>
       </div>`);
     box.onclick = (ev) => {
       const a = ev.target.closest('button')?.dataset.m;
@@ -289,7 +297,12 @@ export function openMachines({ host, focusAdd = false } = {}) {
         toast(`Stopped wisp on <b>${esc(m.name)}</b>`);
       }
       if (a === 'remove') {
-        if (!(await ask(`Remove ${m.name} from wisp?\n\nIts projects leave the launcher. Nothing on the machine is touched, and wisp keeps running there until you stop it.`, { ok: 'Remove machine', danger: true }))) return;
+        const q = m.computer
+          ? [`Remove ${m.name} from your grid?\n\nYour phone and other computers stop reaching it. wisp on ${m.name} keeps running; add it again from its Machines.`, 'Remove from grid']
+          : m.kind === 'grid'
+            ? [`Sign out of ${gridHost(m)} here?\n\nThis computer leaves the grid too, and your other computers there leave this list. Your cloud computer’s tasks stay there.`, 'Sign out']
+            : [`Remove ${m.name} from wisp?\n\nIts projects leave the launcher. Nothing on the machine is touched, and wisp keeps running there until you stop it.`, 'Remove machine'];
+        if (!(await ask(q[0], { ok: q[1], danger: true }))) return;
         await api(`/machines/${m.id}`, { method: 'DELETE' });
         await loadConfig();
         await loadMachines();

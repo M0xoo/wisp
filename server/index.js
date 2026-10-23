@@ -26,6 +26,7 @@ import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
 import { Secrets } from './secrets.js';
 import { createCloud } from './services/cloud.js';
+import { createComputer } from './services/computer.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
@@ -178,6 +179,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.places = createPlaces(app);
   app.mover = createMove(app);
   app.cloud = createCloud(app);
+  app.computer = createComputer(app);
   // Signing in to a harness from the page; once in, its models are looked up again.
   const loginStates = new Map();
   app.agentLogin = createAgentLogin({
@@ -259,6 +261,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
     app.cloud.stop();
+    app.computer.stop();
     app.agentLogin.stop();
     app.terms.closeAll();
     for (const s of store.all()) runner.stop(s);
@@ -281,6 +284,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.triggers.start();
   app.remote.start();
   app.machines.start();
+  app.computer.start();
 
   app.auto.detect().catch(() => {});
   const { telemetry } = app;
@@ -291,5 +295,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, remote: app.remote, machines: app.machines, auto: app.auto, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
 }

@@ -5,6 +5,9 @@
 //   <handle>.<domain>   the edge: that user's own wisp, started on demand by hostd and proxied
 //                       (HTTP + SSE) in trusted-proxy mode. Signed in by a host-only cookie (set
 //                       from a one-time ticket) or a device's bearer token.
+//   <name>--<handle>.<domain>
+//                       a computer the user added (wisp on their desktop), signed in the same way
+//                       and sent through the tunnel that computer holds open (grid/tunnels.js).
 //
 // Cookies never span subdomains, so one user's wisp page can't read or set another's.
 
@@ -17,6 +20,7 @@ import { Hostd } from './hostd.js';
 import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
 import { createGridTelemetry } from './telemetry.js';
+import { TUNNEL_PROTOCOL, createTunnels } from './tunnels.js';
 
 const BODY_LIMIT = 64 * 1024;
 const ASSETS = new URL('./assets/', import.meta.url);
@@ -102,6 +106,15 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   const stats = createGridTelemetry(cfg);
   const accounts = createAccounts({ db, cfg, secrets, onAudit: stats.audit });
   const limit = limiter();
+  const tunnels = createTunnels({
+    log,
+    onChange: (id, up) => {
+      if (accounts.computer(id)) accounts.seenComputer(id);
+      if (!up) return;
+      const c = accounts.computer(id);
+      if (c) log(`grid: computer ${c.label} connected`);
+    },
+  });
   const interval = cfg.auth.dev ? 2 : 5; // device-code polling, seconds
 
   const hostd = new Hostd({
@@ -152,6 +165,14 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const row = accounts.instance(u.id);
     return { url: cfg.instanceUrl(u.handle), name: cfg.name, state: hostd.state(u.id), startedAt: row.started_at || null, stoppedAt: row.stopped_at || null, nextWakeAt: row.next_wake_at || null };
   };
+  // dev: the device asking, so a computer can tell itself apart in the list.
+  const computerView = (c, dev = null) => ({ id: c.id, name: c.name, url: cfg.instanceUrl(c.label), online: tunnels.online(c.id), lastSeenAt: tunnels.online(c.id) ? Date.now() : c.last_seen_at || null, mine: !!dev && c.device_id === dev.device.id });
+  // A user's computer, or a 404.
+  const ownComputer = (userId, id) => {
+    const c = accounts.computer(id);
+    if (!c || c.user_id !== userId) throw bad('No such computer.', 404);
+    return c;
+  };
 
   // Which part of the grid a Host header is for: the grid itself, or a handle.
   const rootHosts = new Set([cfg.domain, `${cfg.domain}${cfg.portSuffix}`, `${cfg.domain}:${cfg.listen.port}`]);
@@ -161,6 +182,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const bare = host.replace(/:\d+$/, '');
     if (bare.endsWith(`.${cfg.domain}`)) {
       const handle = bare.slice(0, -cfg.domain.length - 1);
+      const computer = handle.includes('--') ? accounts.computerByLabel(handle) : null;
+      if (computer) return { kind: 'computer', computer };
       if (/^[a-z0-9-]+$/.test(handle)) return { kind: 'edge', handle };
     }
     return { kind: 'unknown' };
@@ -184,7 +207,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     // Device API: other origins (the phone app) call it with a bearer token, so CORS is open
     // and cookies are never involved.
     if (p.startsWith('/api/')) {
-      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-max-age': '600' };
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS', 'access-control-max-age': '600' };
       if (req.method === 'OPTIONS') {
         res.writeHead(204, cors);
         return res.end();
@@ -208,13 +231,29 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const dev = accounts.device(req.headers.authorization);
       if (!dev) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
       if (req.method === 'GET' && p === '/api/me') return send(200, { user: userView(dev.user), instance: instanceView(dev.user), device: { id: dev.device.id, name: dev.device.name } });
-      // A one-time link that signs a browser (the phone app's page) in to the user's wisp.
+      // A one-time link that signs a browser (the phone app's page) in to the user's wisp, or to
+      // one of their computers (computer: its id).
       if (req.method === 'POST' && p === '/api/device/link') {
         const body = await readBody(req).catch(() => ({}));
-        return send(200, { url: `${cfg.instanceUrl(dev.user.handle)}/_grid/auth?t=${accounts.ticket(dev.user.id)}&r=${encodeURIComponent(safePath(body.path))}` });
+        const to = body.computer ? cfg.instanceUrl(ownComputer(dev.user.id, body.computer).label) : cfg.instanceUrl(dev.user.handle);
+        return send(200, { url: `${to}/_grid/auth?t=${accounts.ticket(dev.user.id)}&r=${encodeURIComponent(safePath(body.path))}` });
+      }
+      // Computers: wisp on a desktop adds itself (POST, named after the computer), every device
+      // lists them (GET), and any of them can take one off (DELETE).
+      if (req.method === 'GET' && p === '/api/computers') return send(200, { computers: accounts.computers(dev.user.id).map((c) => computerView(c, dev)) });
+      if (req.method === 'POST' && p === '/api/computers') {
+        const body = await readBody(req);
+        return send(200, computerView(accounts.addComputer(dev, body.name), dev));
+      }
+      const del = req.method === 'DELETE' && /^\/api\/computers\/([a-f0-9]+)$/.exec(p);
+      if (del) {
+        const c = ownComputer(dev.user.id, del[1]);
+        accounts.removeComputer(dev.user.id, c.id);
+        tunnels.close(c.id);
+        return send(200, { ok: true });
       }
       if (req.method === 'POST' && p === '/api/device/revoke') {
-        accounts.revokeDevice(dev.user.id, dev.device.id);
+        revokeDevice(dev.user.id, dev.device.id);
         return send(200, { ok: true });
       }
       return send(404, { error: 'not found' });
@@ -224,7 +263,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if (req.method === 'GET' && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages }));
       const u = s.user;
-      return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, devices: accounts.devices(u.id), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
+      return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
     if (req.method === 'GET' && p === '/signin') {
       if (s && !url.searchParams.get('link')) return redirect(res, safePath(url.searchParams.get('return')));
@@ -296,10 +335,14 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       }
     }
 
-    // Into the user's own wisp: a one-time ticket to its address, which sets that address's cookie.
+    // Into the user's own wisp (or ?computer=<id>, one of their computers): a one-time ticket to
+    // its address, which sets that address's cookie.
     if (req.method === 'GET' && p === '/go') {
       if (!s) return signInFirst(`/go${url.search}`);
-      return redirect(res, `${cfg.instanceUrl(s.user.handle)}/_grid/auth?t=${accounts.ticket(s.user.id)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}`);
+      const cid = url.searchParams.get('computer');
+      const c = cid ? accounts.computer(cid) : null;
+      const to = c && c.user_id === s.user.id ? cfg.instanceUrl(c.label) : cfg.instanceUrl(s.user.handle);
+      return redirect(res, `${to}/_grid/auth?t=${accounts.ticket(s.user.id)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}`);
     }
 
     if (p === '/activate') {
@@ -331,8 +374,15 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       }
       if ((m = /^\/devices\/([a-f0-9]+)\/revoke$/.exec(p))) {
         await needCsrf();
-        accounts.revokeDevice(s.user.id, m[1]);
+        revokeDevice(s.user.id, m[1]);
         return redirect(res, `/?m=${encodeURIComponent('Device removed.')}`);
+      }
+      if ((m = /^\/computers\/([a-f0-9]+)\/remove$/.exec(p))) {
+        await needCsrf();
+        const c = ownComputer(s.user.id, m[1]);
+        accounts.removeComputer(s.user.id, c.id);
+        tunnels.close(c.id);
+        return redirect(res, `/?m=${encodeURIComponent(`${c.name} removed.`)}`);
       }
       if (p === '/identities/unlink') {
         const body = await needCsrf();
@@ -356,6 +406,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     return page(messagePage({ cfg, title: 'Not found', text: 'There’s nothing here.', link: ['/', 'Home'] }), 404);
   }
 
+  // A device removed: its computer too, and the tunnel that computer holds.
+  function revokeDevice(userId, deviceId) {
+    const gone = accounts.computers(userId).filter((c) => c.device_id === deviceId);
+    accounts.revokeDevice(userId, deviceId);
+    for (const c of gone) tunnels.close(c.id);
+  }
+
   // Delete an account: disabled first, so no session or device starts its box again meanwhile; then
   // the box and its files (agent logins included); then the account and its sealed secrets.
   async function deleteAccount(u) {
@@ -367,7 +424,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       log(`grid: deleting ${u.handle}: ${err.message}`);
       throw bad('Your files couldn’t be deleted just now, so your account is still here. Try again in a minute.', 409);
     }
+    const gone = accounts.computers(u.id);
     accounts.remove(u.id);
+    for (const c of gone) tunnels.close(c.id);
     log(`grid: ${u.handle} deleted their account`);
   }
 
@@ -435,6 +494,42 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     proxy(req, res, port, user);
   }
 
+  // ---- a computer the user added: the same sign-in as their wisp, then through its tunnel ----
+
+  async function computerEdge(req, res, url, c) {
+    const user = accounts.userById(c.user_id);
+    if (!user || user.disabled) return html(res, 404, messagePage({ cfg, title: 'No such computer', text: 'Nothing answers at this address.', link: [cfg.publicUrl, 'Home'] }));
+    const origin = cfg.instanceUrl(c.label);
+    const p = url.pathname;
+    const back = `${cfg.publicUrl}/go?computer=${c.id}`;
+    if (p === '/_grid/auth') {
+      const u = accounts.useTicket(url.searchParams.get('t'));
+      if (!u || u.id !== user.id) return redirect(res, back);
+      const t = accounts.createSession(user.id, `i:${user.id}`, req.headers['user-agent']);
+      return redirect(res, safePath(url.searchParams.get('r')), { 'set-cookie': setCookie(names.wisp, t, cfg.sessionDays * 86400) });
+    }
+    if (p === '/_grid/signout') {
+      accounts.endSession(cookies(req)[names.wisp]);
+      return redirect(res, cfg.publicUrl, { 'set-cookie': setCookie(names.wisp, '', 0) });
+    }
+    const who = edgeAuth(req, user);
+    if (!who) {
+      if (wantsHtml(req)) return redirect(res, `${back}&path=${encodeURIComponent(p + url.search)}`);
+      return json(res, 401, { error: 'Sign in again.' });
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD' && who.via === 'cookie' && req.headers.origin !== origin) return json(res, 403, { error: 'forbidden origin' });
+    // Whether it's connected, without asking it anything (what wisp elsewhere polls while it's off).
+    if (p === '/_grid/state') return json(res, 200, { state: tunnels.online(c.id) ? 'running' : 'offline', name: c.name });
+    // Like the wisp edge: the grid's own sign-in stays here; the computer only learns who asked where.
+    const headers = {};
+    for (const [k, v] of Object.entries(req.headers)) if (k !== 'cookie' && k !== 'authorization' && !k.startsWith('x-wisp-proxy') && !k.startsWith('x-forwarded')) headers[k] = v;
+    Object.assign(headers, { 'x-forwarded-host': String(req.headers.host || ''), 'x-forwarded-proto': cfg.scheme, 'x-forwarded-for': clientIp(req) });
+    if (tunnels.forward(c.id, req, res, headers)) return;
+    const text = `wisp on ${c.name} isn’t connected to the grid right now. It comes back when that computer is on and wisp runs there.`;
+    if (wantsHtml(req)) return html(res, 503, messagePage({ cfg, title: `${c.name} is offline`, text, link: [cfg.publicUrl, 'Your account'] }), { 'retry-after': '10' });
+    return json(res, 503, { error: `${c.name} is offline.`, offline: true }, { 'retry-after': '10' });
+  }
+
   function proxy(req, res, port, user) {
     // A request on its way keeps its wisp up; a page's event stream doesn't (it stays open for
     // hours): wisp counts open pages itself, and leaves out a desktop relaying them (/api/status).
@@ -474,7 +569,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       // only the grid itself and existing users. Loopback only.
       if (url.pathname === '/_grid/tls-ask' && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(clientIp(req))) {
         const d = String(url.searchParams.get('domain') || '').toLowerCase();
-        const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!accounts.byHandle(d.slice(0, -cfg.domain.length - 1)));
+        const label = d.slice(0, -cfg.domain.length - 1);
+        const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!(accounts.byHandle(label) || accounts.computerByLabel(label)));
         return json(res, ok ? 200 : 404, { ok });
       }
       // The grid's own images (screenshots, logos), on every address it answers.
@@ -488,6 +584,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const h = hostKind(req);
       if (h.kind === 'root') return await root(req, res, url);
       if (h.kind === 'edge') return await edge(req, res, url, h.handle);
+      if (h.kind === 'computer') return await computerEdge(req, res, url, h.computer);
       json(res, 421, { error: `This grid answers at ${cfg.domain}.` });
     } catch (err) {
       const status = err.status && err.status < 600 ? err.status : 500;
@@ -498,11 +595,34 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
   };
 
+  // A computer opening its tunnel: GET /api/computers/:id/tunnel on the grid's own address, with
+  // the token of the device that added it (only that computer can be it).
+  function upgrade(req, socket, head) {
+    const refuse = (status, error) => {
+      socket.end(`HTTP/1.1 ${status} ${http.STATUS_CODES[status]}\r\ncontent-type: application/json\r\nconnection: close\r\n\r\n${JSON.stringify({ error })}`);
+    };
+    socket.on('error', () => {});
+    try {
+      const url = new URL(req.url, 'http://grid');
+      const m = /^\/api\/computers\/([a-f0-9]+)\/tunnel$/.exec(url.pathname);
+      if (hostKind(req).kind !== 'root' || !m || String(req.headers.upgrade || '').toLowerCase() !== TUNNEL_PROTOCOL) return refuse(404, 'not found');
+      limit(`tunnel|${clientIp(req)}`, 60);
+      const dev = accounts.device(req.headers.authorization);
+      if (!dev) return refuse(401, 'Sign in again: this device isn’t known here.');
+      const c = accounts.computer(m[1]);
+      if (!c || c.device_id !== dev.device.id) return refuse(404, 'This computer was removed from the grid.');
+      tunnels.accept(c.id, socket, head);
+    } catch (err) {
+      refuse(err.status || 500, err.status ? err.message : 'Something went wrong on the grid.');
+    }
+  }
+
   // "loopback": both 127.0.0.1 and ::1 (Node and browsers resolve *.localhost to either).
   const hosts = cfg.listen.host === 'loopback' ? ['127.0.0.1', '::1'] : [cfg.listen.host];
   const servers = [];
   for (const host of hosts) {
     const srv = http.createServer(handler);
+    srv.on('upgrade', upgrade);
     srv.keepAliveTimeout = 65_000;
     srv.headersTimeout = 66_000;
     srv.requestTimeout = 0; // SSE streams stay open
@@ -526,10 +646,12 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     accounts,
     secrets,
     hostd,
+    tunnels,
     server,
     url: cfg.publicUrl,
     async close() {
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
+      tunnels.closeAll();
       for (const x of servers) x.closeAllConnections?.();
       await hostd.close();
       stats.close();

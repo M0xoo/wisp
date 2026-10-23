@@ -129,7 +129,11 @@ export const PARTS = {
   // Machines: the three-step explainer, and the password box when a machine won't let this one in.
   'machines.howto': '.mc-howto',
   'machines.letin': '.mc-letin',
-  'machines.cloud': '.mc-cloud',
+  // wisp Grid in Machines: this computer on your grid, or signing in to one.
+  'machines.cloud': '.mc-grid',
+  'machines.grid.here': '.gh-row',
+  // The pill on each machine saying where it comes from (Over SSH, Cloud, Your computer · via grid).
+  'machines.kind': '.mc-kind',
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.
   'settings.cloud': '.sx-cloud',
   'settings.cloud.computer': '.cl-card',

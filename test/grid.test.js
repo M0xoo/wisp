@@ -639,9 +639,131 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
     const opened = await api(`/sessions/${encodeURIComponent(l.json.id)}`);
     assert.equal(opened.status, 200, JSON.stringify(opened.json));
     await until(() => grid.hostd.state(adaId) === 'running', { what: 'woken by the desktop' });
+
+    // This computer on the grid: Machines → Reach this computer from anywhere.
+    const on = await api('/computer', { method: 'POST', body: { on: true } });
+    assert.equal(on.status, 200, JSON.stringify(on.json));
+    assert.ok(on.json.url.includes(`--ada.${cfg.domain}`), on.json.url);
+    await until(async () => (await api('/computer')).json.state === 'online', { what: 'the desktop’s tunnel' });
+    // The phone, signed in as ada, opens the desktop's own wisp through the grid.
+    const phone = await deviceToken('ada@example.com', 'Phone (wisp app)');
+    const health = await browser().go(`${on.json.url}/api/health`, { headers: { authorization: `Bearer ${phone}`, accept: 'application/json' } });
+    assert.equal(health.status, 200, health.text);
+    assert.equal(health.json.pid, process.pid, 'the desktop’s own wisp answered');
+    const listed = await browser().go(`${base}/api/computers`, { headers: { authorization: `Bearer ${phone}` } });
+    assert.deepEqual(listed.json.computers.map((x) => [x.url, x.online, x.mine]), [[on.json.url, true, false]]);
+    // Another of ada's computers joins this desktop's Machines (and not this one itself).
+    const other = await deviceToken('ada@example.com', 'Studio (wisp)');
+    const studio = await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Studio' }, headers: { authorization: `Bearer ${other}` } });
+    await desk.computer.sync();
+    const ms = (await api('/machines')).json.filter((x) => x.computer);
+    assert.deepEqual(ms.map((x) => [x.name, x.url, x.state]), [['Studio', studio.json.url, 'asleep']], 'offline until its tunnel is up');
+    assert.equal((await api('/sessions', { method: 'POST', body: { prompt: 'hi', agent: 'claude', machine: ms[0].id } })).status, 503);
+    // Removing it here takes it off the grid; off, this computer leaves the grid too.
+    assert.equal((await api(`/machines/${ms[0].id}`, { method: 'DELETE' })).status, 200);
+    assert.equal((await api('/computer', { method: 'POST', body: { on: false } })).json.on, false);
+    assert.deepEqual((await browser().go(`${base}/api/computers`, { headers: { authorization: `Bearer ${phone}` } })).json.computers, []);
   } finally {
     desk.shutdown();
     desk.server?.close();
+  }
+});
+
+// A device token for that account, through the device flow (allowed in the browser).
+async function deviceToken(email, name) {
+  const code = await browser().go(`${base}/api/device/code`, { method: 'POST', body: { name } });
+  const b = browser();
+  await devSignIn(b, email);
+  const page = await b.go(code.json.verification_uri_complete);
+  await b.go(`${base}/activate`, { method: 'POST', form: { csrf: csrfOf(page.text), code: code.json.user_code, answer: 'allow' }, headers: { origin: base } });
+  return until(async () => (await browser().go(`${base}/api/device/token`, { method: 'POST', body: { device_code: code.json.device_code } })).json.token, { what: `${name}’s token` });
+}
+
+test('a computer added to the grid: reached through its tunnel, signed in like the wisp, offline and gone with its device', async () => {
+  const { dialTunnel } = await import('../server/grid-tunnel.js');
+  // Stands in for wisp on the computer: says what reached it, echoes bodies, streams events.
+  const seen = [];
+  const local = http.createServer((req, res) => {
+    seen.push({ url: req.url, headers: req.headers });
+    if (req.url === '/api/events') {
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      return res.write('event: ping\ndata: {}\n\n');
+    }
+    let t = '';
+    req.on('data', (d) => (t += d));
+    req.on('end', () => {
+      res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'local=1' });
+      res.end(JSON.stringify({ method: req.method, body: t, host: req.headers.host }));
+    });
+  });
+  const port = (await listen(local)).split(':').pop();
+  const laptop = await deviceToken('cara@example.com', 'Cara’s MacBook Pro (wisp)');
+  const phone = await deviceToken('cara@example.com', 'Phone (wisp app)');
+  const auth = (t) => ({ authorization: `Bearer ${t}`, accept: 'application/json' });
+  const c = (await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Cara’s MacBook Pro' }, headers: auth(laptop) })).json;
+  assert.equal(c.url, cfg.instanceUrl('cara-s-macbook-pro--cara'));
+  assert.equal((await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Cara’s MacBook Pro' }, headers: auth(laptop) })).json.id, c.id, 'one computer per device');
+  // Not connected yet: it says so, without asking it anything.
+  assert.equal((await browser().go(`${c.url}/_grid/state`, { headers: auth(phone) })).json.state, 'offline');
+  const off = await browser().go(`${c.url}/api/hello`, { headers: auth(phone) });
+  assert.deepEqual([off.status, off.json.offline], [503, true]);
+
+  const states = [];
+  const t = dialTunnel({ url: base, id: c.id, token: laptop, port, onState: (s) => states.push(s.state) });
+  try {
+    await until(() => states.includes('online'), { what: 'the tunnel' });
+    assert.equal((await browser().go(`${c.url}/_grid/state`, { headers: auth(phone) })).json.state, 'running');
+    const r = await browser().go(`${c.url}/api/hello?x=1`, { headers: { ...auth(phone), origin: 'https://evil.example', cookie: 'grid=1' } });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.host, `127.0.0.1:${port}`, 'as if asked on the computer itself');
+    const h = seen.at(-1).headers;
+    assert.equal(seen.at(-1).url, '/api/hello?x=1');
+    assert.ok(!h.authorization && !h.cookie && !h.origin, 'the grid’s sign-in stays on the grid');
+    const posted = await browser().go(`${c.url}/api/echo`, { method: 'POST', body: { a: 1 }, headers: auth(phone) });
+    assert.deepEqual([posted.json.method, posted.json.body], ['POST', '{"a":1}']);
+    // Event streams stream.
+    const first = await new Promise((resolve, reject) => {
+      const u = new URL(c.url);
+      http.get({ host: '127.0.0.1', port: u.port, path: '/api/events', headers: { host: u.host, ...auth(phone) } }, (res) => res.once('data', (d) => (resolve(String(d)), res.destroy()))).on('error', reject);
+    });
+    assert.match(first, /event: ping/);
+    // Someone else's token, or none: not in.
+    const dee = await deviceToken('dee@example.com', 'Dee’s laptop');
+    assert.equal((await browser().go(`${c.url}/api/hello`, { headers: auth(dee) })).status, 401);
+    assert.equal((await browser().go(`${c.url}/api/hello`, { headers: { accept: 'application/json' } })).status, 401);
+    assert.equal((await browser().go(`${base}/api/device/link`, { method: 'POST', body: { computer: c.id }, headers: auth(dee) })).status, 404);
+    // The phone app's way in: a one-time link to the computer's address, then its cookie.
+    const link = await browser().go(`${base}/api/device/link`, { method: 'POST', body: { computer: c.id, path: '/' }, headers: auth(phone) });
+    assert.ok(link.json.url.startsWith(`${c.url}/_grid/auth?`), link.json.url);
+    const app = browser();
+    assert.equal((await app.go(link.json.url)).status, 302);
+    assert.equal((await app.go(`${c.url}/api/hello`, { headers: { accept: 'application/json' } })).status, 200);
+    assert.equal((await app.go(`${c.url}/api/echo`, { method: 'POST', body: {}, headers: { origin: 'https://evil.example' } })).status, 403);
+    assert.equal((await app.go(`${c.url}/api/echo`, { method: 'POST', body: {}, headers: { origin: c.url } })).status, 200);
+    // Listed for every device, with which one is the computer itself; Caddy may get its certificate.
+    const list = (await browser().go(`${base}/api/computers`, { headers: auth(phone) })).json.computers;
+    assert.deepEqual(list.map((x) => [x.name, x.online, x.mine]), [['Cara’s MacBook Pro', true, false]]);
+    assert.equal((await browser().go(`${base}/api/computers`, { headers: auth(laptop) })).json.computers[0].mine, true);
+    assert.equal((await browser().go(`http://127.0.0.1:${cfg.listen.port}/_grid/tls-ask?domain=cara-s-macbook-pro--cara.wisp.localhost`, { headers: { host: `127.0.0.1:${cfg.listen.port}` } })).status, 200);
+    // Only the device that added it can be it.
+    const fake = [];
+    const t2 = dialTunnel({ url: base, id: c.id, token: phone, port, onState: (s) => fake.push(s.state) });
+    await until(() => fake.includes('gone'), { what: 'a tunnel from another device refused' });
+    t2.close();
+    // Its device removed (the account page): the computer and its tunnel go too.
+    const acct = browser();
+    await devSignIn(acct, 'cara@example.com');
+    const page = await acct.go(`${base}/`);
+    assert.match(page.text, /Your computers[\s\S]*Cara’s MacBook Pro[\s\S]*On the grid as Cara’s MacBook Pro/);
+    const devId = new RegExp(`action="/devices/([a-f0-9]+)/revoke"`).exec(page.text.slice(page.text.indexOf('Cara’s MacBook Pro (wisp)')))?.[1];
+    assert.ok(devId);
+    await acct.go(`${base}/devices/${devId}/revoke`, { method: 'POST', form: { csrf: csrfOf(page.text) }, headers: { origin: base } });
+    await until(() => states.includes('gone'), { what: 'the tunnel closed for good' });
+    assert.deepEqual((await browser().go(`${base}/api/computers`, { headers: auth(phone) })).json.computers, []);
+    assert.equal((await browser().go(`${c.url}/api/hello`, { headers: auth(phone) })).status, 404, 'nothing answers there any more');
+  } finally {
+    t.close();
+    local.close();
   }
 });
 

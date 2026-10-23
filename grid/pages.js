@@ -22,6 +22,8 @@ const I = {
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
   shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.4-7.5 9.5-4.3-1.1-7.5-4.9-7.5-9.5V6L12 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.2a1.5 1.5 0 001.5 1.3h6.2a1.5 1.5 0 001.5-1.3L17.5 7M10 11v5.5M14 11v5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
 };
 const logo = (id) => I[id] || I[id.split(':')[0]] || (id === 'dev' ? I.code : I.key);
@@ -288,17 +290,25 @@ a{color:inherit}p{margin:0}h1,h2,h3{margin:0;letter-spacing:-.01em}svg{flex:none
 .h1{font-size:24px;font-weight:650;letter-spacing:-.02em}.sub{margin-top:4px;color:var(--muted)}
 .primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 15px;border-radius:10px;border:0;background:var(--ink);color:var(--bg);font:550 13.5px var(--sans);text-decoration:none;cursor:pointer}.primary:hover{opacity:.86}.primary svg{width:15px;height:15px}
 .ghost{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--ink-2);font:500 13px var(--sans);text-decoration:none;cursor:pointer}.ghost:hover{background:var(--bg-2)}.ghost.danger{color:var(--bad)}.ghost.line{border-color:var(--line-2)}.ghost svg{width:14px;height:14px}
-.hero{margin-top:22px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);box-shadow:var(--shadow-2)}
-.hero .head{display:flex;align-items:center;gap:14px;padding:18px 20px}
 .state{display:flex;align-items:center;gap:8px;font-weight:600}.state i{width:9px;height:9px;border-radius:50%;background:var(--faint)}
 .state.running i{background:var(--good);box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 18%,transparent)}.state.starting i,.state.stopping i{background:var(--warn);animation:blink 1.1s infinite}
 @keyframes blink{50%{opacity:.35}}
-.hero .detail{color:var(--muted);font-size:13px;margin-top:2px}.hero .acts{margin-left:auto;display:flex;gap:8px;align-items:center}
-.peek{position:relative;display:block;height:220px;overflow:hidden;border-top:1px solid var(--line);background:var(--surface-2)}
-.peek picture img{width:100%;display:block;transform-origin:top center;transform:scale(1);transition:transform .4s cubic-bezier(.25,.8,.25,1)}
-.peek:hover picture img{transform:scale(1.02)}
-.peek::after{content:'';position:absolute;inset:auto 0 0;height:90px;background:linear-gradient(transparent,var(--surface))}
-.peek .go{position:absolute;z-index:2;left:50%;bottom:18px;transform:translateX(-50%)}
+.kinds{margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.k{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.k b{font-size:13.5px}.k p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}
+.w-ic{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--bg-2);color:var(--muted)}.w-ic svg{width:18px;height:18px}.w-ic.cloud{background:var(--accent-soft);color:var(--accent)}
+.w{display:flex;align-items:flex-start;gap:12px;padding:14px}.group>.w+.w{border-top:1px solid var(--line)}
+.w-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.w-tx small{color:var(--muted);font-size:12.5px;line-height:1.45}.w-tx small.mono{font:11.5px var(--mono);color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w-name{display:flex;align-items:center;gap:8px;min-width:0}.w-name b{font-size:14.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{flex:none;font-size:11px;font-weight:550;padding:1px 8px;border-radius:99px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}.pill.cloud{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.w .state{font-size:13px}
+.w-acts{flex:none;display:flex;gap:8px;align-items:center;align-self:center}.primary.off{opacity:.45;cursor:default}
+details.w.add{display:block;padding:0}.group>.w+details.w{border-top:1px solid var(--line)}
+details.add>summary{display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;list-style:none}details.add>summary::-webkit-details-marker{display:none}
+details.add .w-tx b{font-size:14px}details.add .chev svg{width:16px;height:16px;color:var(--muted);transition:transform .15s}details.add[open] .chev svg{transform:rotate(90deg)}
+.steps{list-style:none;margin:0;padding:0 14px 16px 60px;display:flex;flex-direction:column;gap:14px}
+.steps li{display:flex;gap:10px}.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font-size:12px;font-weight:650}
+.steps li>div{flex:1;min-width:0}.steps b{font-size:13.5px}.steps p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}.steps a{color:var(--accent)}.steps .copy{max-width:320px}
+h2.sec .n{font-weight:400;color:var(--faint);margin-left:6px}.hint{margin:-4px 0 10px;color:var(--muted);font-size:12.5px}
 .url{display:inline-flex;align-items:center;gap:6px;font:12.5px var(--mono);color:var(--muted)}
 h2.sec{margin:34px 0 10px;font-size:13px;font-weight:600;color:var(--muted)}
 .group{border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}
@@ -319,7 +329,7 @@ h2.sec{margin:34px 0 10px;font-size:13px;font-weight:600;color:var(--muted)}
 @keyframes pulse{0%,100%{transform:scale(.86);opacity:.75}50%{transform:scale(1);opacity:1}}
 form.inline{display:inline}
 .r.del .input{width:170px;height:32px;font:13px var(--sans);letter-spacing:0;text-transform:none}
-@media (max-width:640px){.tiles{grid-template-columns:1fr}.hero .head{flex-wrap:wrap}.hero .acts{margin-left:0;width:100%}.top{padding:0 16px}.top .who{display:none}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
+@media (max-width:640px){.tiles{grid-template-columns:1fr}.kinds{grid-template-columns:1fr}.main{padding:24px 16px 56px}.w{flex-wrap:wrap}.w-acts{width:100%;padding-left:46px}.w-acts .primary{flex:1}.steps{padding-left:14px}.top{padding:0 16px}.top .who{display:none}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
 .wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
 
@@ -342,18 +352,55 @@ const ago = (t) => {
   return new Date(t).toISOString().slice(0, 10);
 };
 
-export function accountPage({ cfg, user, instance, devices, identities, providers, csrf, flash: msg = '', tone = '' }) {
+// Signed in: every wisp you can open, said plainly. Two kinds: the cloud wisp (runs here, on the
+// grid) and your own computers (wisp runs on them; the grid only relays to them). Then how to add
+// a computer, where to open them from, and the account's devices and sign-ins. One column of rows,
+// so it reads the same on a phone.
+export function accountPage({ cfg, user, instance, devices, computers = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
   const st = instance.state;
   const url = cfg.instanceUrl(user.handle);
+  const host = new URL(cfg.publicUrl).host;
+  const bare = (u) => u.replace(/^https?:\/\//, '');
   const linked = new Set(identities.map((i) => i.provider));
   const canLink = [...providers.values()].filter((p) => !linked.has(p.id) && p.id !== 'dev');
-  const detail =
-    st === 'running'
-      ? `Up since ${ago(instance.started_at)} · sleeps when nothing’s going on`
-      : instance.stopped_at
-        ? `Since ${ago(instance.stopped_at)}${instance.stop_reason ? ` (${esc(instance.stop_reason)})` : ''} · wakes in seconds when you open it`
-        : 'Starts the first time you open it, in a few seconds';
+  const hidden = `<input type="hidden" name="csrf" value="${esc(csrf)}">`;
   const copyBtn = (v, label) => `<button class="copy" type="button" data-copy="${esc(v)}" title="Copy"><span>${esc(label || v)}</span>${I.copy}</button>`;
+  const cloudLine =
+    st === 'running'
+      ? `Running since ${ago(instance.started_at)}. Sleeps by itself when nothing’s going on.`
+      : instance.stopped_at
+        ? `Asleep since ${ago(instance.stopped_at)}. Opening it wakes it in a few seconds.`
+        : 'Starts the first time you open it, in a few seconds.';
+  const byDevice = new Map(computers.map((c) => [c.deviceId, c]));
+  const online = computers.filter((c) => c.online).length;
+
+  const cloudRow = `<div class="w">
+      <span class="w-ic cloud">${I.cloud}</span>
+      <div class="w-tx">
+        <div class="w-name"><b>Cloud wisp</b><span class="pill cloud">Cloud</span></div>
+        <div class="state ${esc(st)}"><i></i>${STATE[st] || esc(st)}</div>
+        <small>${cloudLine}${instance.next_wake_at ? ` Next schedule: ${new Date(instance.next_wake_at).toLocaleString()}.` : ''}</small>
+        <small class="mono">${esc(bare(url))}</small>
+      </div>
+      <div class="w-acts">
+        <a class="primary" href="/go">Open${I.arrow}</a>
+        ${st === 'running' ? `<form class="inline" method="post" action="/instance/stop">${hidden}<button class="ghost line">${I.moon}Sleep</button></form>` : ''}
+      </div>
+    </div>`;
+  const computerRow = (c) => `<div class="w">
+      <span class="w-ic">${I.laptop}</span>
+      <div class="w-tx">
+        <div class="w-name"><b>${esc(c.name)}</b><span class="pill">Your computer</span></div>
+        <div class="state ${c.online ? 'running' : 'stopped'}"><i></i>${c.online ? 'Online' : 'Offline'}</div>
+        <small>${c.online ? 'wisp runs on this computer; the grid relays to it.' : `Back when it’s switched on and wisp runs there.${c.lastSeenAt ? ` Last seen ${ago(c.lastSeenAt)}.` : ''}`}</small>
+        <small class="mono">${esc(bare(c.url))}</small>
+      </div>
+      <div class="w-acts">
+        ${c.online ? `<a class="primary" href="/go?computer=${esc(c.id)}">Open${I.arrow}</a>` : `<span class="primary off" aria-disabled="true">Offline</span>`}
+        <form class="inline" method="post" action="/computers/${esc(c.id)}/remove">${hidden}<button class="ghost danger" title="Take it off the grid. wisp on it keeps running.">Remove</button></form>
+      </div>
+    </div>`;
+
   return appPage({
     cfg,
     title: 'Your wisp',
@@ -362,53 +409,65 @@ export function accountPage({ cfg, user, instance, devices, identities, provider
     head: st === 'starting' || st === 'stopping' ? '<meta http-equiv="refresh" content="2">' : '',
     body: `${msg ? `<div class="flash ${tone}">${esc(msg)}</div>` : ''}
       <h1 class="h1">Hi ${esc((user.name || user.handle).split(' ')[0])}</h1>
-      <p class="sub">Your wisp lives at <a class="url" href="/go">${esc(url.replace(/^https?:\/\//, ''))}</a></p>
-      <div class="hero">
-        <div class="head">
-          <div><div class="state ${esc(st)}"><i></i>${STATE[st] || esc(st)}</div><div class="detail">${detail}${instance.next_wake_at ? ` · next schedule ${new Date(instance.next_wake_at).toLocaleString()}` : ''}</div></div>
-          <div class="acts">
-            ${st === 'running' ? `<form class="inline" method="post" action="/instance/stop"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost line">${I.moon}Put to sleep</button></form>` : ''}
-            <a class="primary" href="/go">Open wisp${I.arrow}</a>
-          </div>
-        </div>
-        <a class="peek" href="/go" aria-label="Open wisp"><picture><source srcset="${A}/dark-app.webp" media="(prefers-color-scheme: dark)"><img src="${A}/light-app.webp" alt=""></picture></a>
+      <p class="sub">Your wisps on ${esc(host)}. Open any of them here, in the phone app, or from wisp on another computer.</p>
+
+      <div class="kinds">
+        <div class="k"><span class="w-ic cloud">${I.cloud}</span><div><b>Cloud wisp</b><p>Runs here on the grid, so it works while your computers are off. One per account.</p></div></div>
+        <div class="k"><span class="w-ic">${I.laptop}</span><div><b>Your computers</b><p>wisp on your own desktop or laptop, reached through the grid. Your files and agents stay on it.</p></div></div>
       </div>
 
-      <h2 class="sec">Use it everywhere</h2>
-      <div class="tiles">
-        <div class="tile">${I.globe}<b>Any browser</b><p>Open it from any computer. You sign in once per browser.</p>${copyBtn(url, url.replace(/^https?:\/\//, ''))}</div>
-        <div class="tile">${I.laptop}<b>wisp on your computer</b><p>Settings → Cloud → Sign in with this address. It shows up under Machines.</p>${copyBtn(new URL(cfg.publicUrl).host)}</div>
-        <div class="tile">${I.phone}<b>The phone app</b><p>Sign in to wisp Cloud, then this address. Answer your agents from anywhere.</p>${copyBtn(new URL(cfg.publicUrl).host)}</div>
+      <h2 class="sec">Cloud</h2>
+      <div class="group">${cloudRow}</div>
+
+      <h2 class="sec">Your computers <span class="n">${computers.length ? `${online} of ${computers.length} online` : ''}</span></h2>
+      <div class="group">${computers.map(computerRow).join('')}
+        <details class="w add"${computers.length ? '' : ' open'}>
+          <summary><span class="w-ic">${I.plus}</span><div class="w-tx"><b>Add a computer</b><small>Three steps, about a minute. No SSH, no open ports.</small></div><span class="chev">${I.chev}</span></summary>
+          <ol class="steps">
+            <li><span class="n">1</span><div><b>Run wisp on that computer</b><p>The desktop app from <a href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a>, or in a terminal:</p>${copyBtn('npx wisp-agents')}</div></li>
+            <li><span class="n">2</span><div><b>Open Machines → Reach this computer from anywhere</b><p>Type this grid’s address and press <i>Sign in and add it</i>:</p>${copyBtn(host)}</div></li>
+            <li><span class="n">3</span><div><b>Allow it here</b><p>A page from this grid opens with a code. Check it matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
+          </ol>
+        </details>
       </div>
 
-      <h2 class="sec">Connect your agents</h2>
-      <div class="group"><div class="r"><span class="ic">${I.key}</span><div class="tx"><b>Sign in to Claude Code, Codex and GitHub</b><small>In your wisp: Settings → Agents → Sign in. A link and a code, no terminal; the logins stay in your box.</small><div class="logos">${AGENTS.slice(0, 2).map(([f]) => `<img src="${A}/${f}" alt="">`).join('')}${I.github}</div></div><a class="ghost line" href="/go">Open${I.arrow}</a></div></div>
+      <h2 class="sec">Open them from anywhere</h2>
+      <div class="group">
+        <div class="r"><span class="ic">${I.globe}</span><div class="tx"><b>Any browser</b><small>Press Open above. Each wisp has its own address; you sign in once per browser.</small></div></div>
+        <div class="r"><span class="ic">${I.phone}</span><div class="tx"><b>The wisp phone app</b><small>Sign in with ${esc(host)}: your cloud wisp and every computer here are listed, one tap to open.</small></div></div>
+        <div class="r"><span class="ic">${I.laptop}</span><div class="tx"><b>wisp on another computer</b><small>Once added (above), its Machines lists your cloud wisp and your other computers, and runs tasks on them.</small></div></div>
+      </div>
 
-      <h2 class="sec">Devices</h2>
+      <h2 class="sec">Agents in your cloud wisp</h2>
+      <div class="group"><div class="r"><span class="ic">${I.key}</span><div class="tx"><b>Sign in to Claude Code, Codex and GitHub</b><small>In the cloud wisp: Settings → Agents → Sign in. A link and a code, no terminal. Your computers use the agents signed in on them.</small><div class="logos">${AGENTS.slice(0, 2).map(([f]) => `<img src="${A}/${f}" alt="">`).join('')}${I.github}</div></div><a class="ghost line" href="/go">Open${I.arrow}</a></div></div>
+
+      <h2 class="sec">Signed-in devices</h2>
+      <p class="hint">Apps that can open your wisps. Removing a computer’s device also takes it off the grid.</p>
       <div class="group">${
         devices.length
           ? devices
-              .map(
-                (d) => `<div class="r"><span class="ic">${/phone/i.test(d.name) ? I.phone : I.laptop}</span><div class="tx"><b>${esc(d.name)}</b><small>Added ${ago(d.created_at)} · last used ${ago(d.last_seen_at)}</small></div>
-            <form class="inline" method="post" action="/devices/${esc(d.id)}/revoke"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost danger">Remove</button></form></div>`,
-              )
+              .map((d) => {
+                const c = byDevice.get(d.id);
+                return `<div class="r"><span class="ic">${/phone/i.test(d.name) ? I.phone : I.laptop}</span><div class="tx"><b>${esc(d.name)}</b><small>${c ? `On the grid as ${esc(c.name)} · ` : ''}added ${ago(d.created_at)} · last used ${ago(d.last_seen_at)}</small></div>
+            <form class="inline" method="post" action="/devices/${esc(d.id)}/revoke">${hidden}<button class="ghost danger">Remove</button></form></div>`;
+              })
               .join('')
-          : `<div class="r"><span class="ic">${I.laptop}</span><div class="tx"><b>No devices yet</b><small>wisp on your computer and the phone app sign in here once, with a code.</small></div></div>`
+          : `<div class="r"><span class="ic">${I.laptop}</span><div class="tx"><b>No devices yet</b><small>wisp on a computer and the phone app sign in here once, with a code.</small></div></div>`
       }</div>
 
       <h2 class="sec">How you sign in</h2>
       <div class="group">${identities
         .map(
           (i) => `<div class="r"><span class="ic">${logo(i.provider)}</span><div class="tx"><b>${esc(providers.get(i.provider)?.label || i.provider)}</b><small>${esc(i.login || i.email || '')}</small></div>
-          ${identities.length > 1 ? `<form class="inline" method="post" action="/identities/unlink"><input type="hidden" name="csrf" value="${esc(csrf)}"><input type="hidden" name="provider" value="${esc(i.provider)}"><button class="ghost">Disconnect</button></form>` : ''}</div>`,
+          ${identities.length > 1 ? `<form class="inline" method="post" action="/identities/unlink">${hidden}<input type="hidden" name="provider" value="${esc(i.provider)}"><button class="ghost">Disconnect</button></form>` : ''}</div>`,
         )
         .join('')}
         ${canLink.map((p) => `<div class="r"><span class="ic">${logo(p.id)}</span><div class="tx"><b>${esc(p.label)}</b><small>Connect it too, and either one signs you in</small></div><a class="ghost line" href="/auth/${encodeURIComponent(p.id)}/start?link=1">Connect</a></div>`).join('')}
       </div>
       <h2 class="sec">Delete your account</h2>
-      <div class="group"><form class="r del" method="post" action="/account/delete"><span class="ic">${I.trash}</span><div class="tx"><b>Delete your account and your wisp</b><small>Your box, its files and your agents’ sign-ins are deleted from this grid for good.</small></div>
-        <input type="hidden" name="csrf" value="${esc(csrf)}"><input class="input" name="confirm" placeholder="Type ${esc(user.handle)}" aria-label="Type ${esc(user.handle)} to confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required pattern="${esc(user.handle)}"><button class="ghost line danger">Delete</button></form></div>
-      <div class="foot"><form class="inline" method="post" action="/signout?all=1"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost">Sign out everywhere</button></form></div>
+      <div class="group"><form class="r del" method="post" action="/account/delete"><span class="ic">${I.trash}</span><div class="tx"><b>Delete your account and your cloud wisp</b><small>Your cloud wisp, its files and your agents’ sign-ins there are deleted for good. Your computers keep their own wisp.</small></div>
+        ${hidden}<input class="input" name="confirm" placeholder="Type ${esc(user.handle)}" aria-label="Type ${esc(user.handle)} to confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required pattern="${esc(user.handle)}"><button class="ghost line danger">Delete</button></form></div>
+      <div class="foot"><form class="inline" method="post" action="/signout?all=1">${hidden}<button class="ghost">Sign out everywhere</button></form></div>
       <script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.textContent;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>`,
   });
 }
