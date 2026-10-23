@@ -80,3 +80,51 @@ test('install.sh explains a PATH problem when wisp is not found after install', 
   assert.equal(r.status, 1);
   assert.match(r.stderr, /'wisp' is not on your PATH/);
 });
+
+// --app: the macOS app from a release folder (file:// stands in for GitHub), no Node involved.
+function release({ corrupt = false } = {}) {
+  const dir = tmp('install-sh-release');
+  const app = path.join(dir, 'build', 'wisp.app', 'Contents');
+  fs.mkdirSync(app, { recursive: true });
+  fs.writeFileSync(path.join(app, 'Info.plist'), 'wisp');
+  const zip = `wisp-mac-${process.arch === 'arm64' ? 'arm64' : 'x64'}.zip`;
+  spawnSync('ditto', ['-ck', '--keepParent', path.join(dir, 'build', 'wisp.app'), path.join(dir, zip)]);
+  const sum = spawnSync('shasum', ['-a', '256', zip], { cwd: dir, encoding: 'utf8' }).stdout.split(' ')[0];
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS.txt'), `${corrupt ? '0'.repeat(64) : sum}  ${zip}\n`);
+  return dir;
+}
+const mac = { skip: process.platform !== 'darwin' };
+const appRun = (dir, dest) =>
+  spawnSync('bash', [script, '--app'], { env: { PATH: '/usr/bin:/bin', HOME: tmp('install-sh-home'), WISP_DOWNLOADS: `file://${dir}`, WISP_APP_DIR: dest, WISP_NO_OPEN: '1' }, encoding: 'utf8' });
+
+test('install.sh --app puts wisp.app in Applications, with no Node on PATH', mac, () => {
+  const dest = tmp('install-sh-apps');
+  fs.mkdirSync(path.join(dest, 'wisp.app', 'old'), { recursive: true }); // an older copy is replaced
+  const r = appRun(release(), dest);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(fs.readFileSync(path.join(dest, 'wisp.app/Contents/Info.plist'), 'utf8'), 'wisp');
+  assert.equal(fs.existsSync(path.join(dest, 'wisp.app', 'old')), false);
+  assert.match(r.stdout, /Installed .*wisp\.app/);
+  const xattr = spawnSync('xattr', [path.join(dest, 'wisp.app')], { encoding: 'utf8' }).stdout;
+  assert.doesNotMatch(xattr, /quarantine/);
+});
+
+test('install.sh --app refuses a download that fails the release checksum', mac, () => {
+  const dest = tmp('install-sh-apps');
+  const r = appRun(release({ corrupt: true }), dest);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /doesn't match the release's SHA256SUMS\.txt/);
+  assert.equal(fs.existsSync(path.join(dest, 'wisp.app')), false);
+});
+
+test('install.sh --app on Linux points to the AppImage and .deb', { skip: process.platform !== 'linux' }, () => {
+  const r = spawnSync('bash', [script, '--app'], { env: { PATH: '/usr/bin:/bin', HOME: tmp('install-sh-home') }, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /AppImage or \.deb/);
+});
+
+test('install.sh refuses options it does not know', opts, () => {
+  const r = spawnSync('bash', [script, '--nope'], { env: { PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /unknown option --nope/);
+});
