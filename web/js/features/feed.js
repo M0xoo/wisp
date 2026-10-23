@@ -129,7 +129,7 @@ export function renderFeed() {
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
   const tasks = [...needs, ...working, ...done, ...archived];
   const shown = new Set(tasks.flatMap((s) => (s.runs || [s]).map((r) => r.id)));
-  for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id));
+  for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id), kept.delete(id));
   const keys = new Set(tasks.map((t) => t.key));
   for (const [key, g] of S.tasks) if (!keys.has(key)) (g.card.remove(), S.tasks.delete(key));
 
@@ -208,6 +208,17 @@ function item(s) {
     card.addEventListener('mousedown', () => {
       if (!s.pending) setFocus(s.id, { scroll: false });
     });
+    let hover = 0;
+    n.head.addEventListener('pointerenter', (e) => {
+      if (e.pointerType === 'mouse') hover = setTimeout(() => prefetch(s.id), 80);
+    });
+    n.head.addEventListener('pointerleave', () => {
+      clearTimeout(hover);
+    });
+    // A press comes a tenth of a second or so before its click (on a phone, the only hint there is).
+    n.head.addEventListener('pointerdown', () => {
+      if (!S.open.has(s.id)) prefetch(s.id);
+    });
     n.head.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (s.pending) return;
@@ -233,7 +244,7 @@ function renderHead(n, s) {
         : '';
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
   n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
-  n.head.innerHTML = `
+  paintHtml(n.head, `
     <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
     <span class="it-main">
       <span class="it-title">${esc(s.title)}</span>
@@ -245,7 +256,15 @@ function renderHead(n, s) {
       ${s.pending ? '' : slotHtml('card.hover', s)}
       ${quickDone(s, open)}
       ${icon('chevron', 'chev')}
-    </span>`;
+    </span>`);
+}
+
+// Every feed render repaints every head: rewrite one only when it would change, so an unchanged
+// row keeps its nodes (and the hover under the pointer) and costs no restyle.
+function paintHtml(node, html) {
+  if (node.dataset.h === html) return;
+  node.dataset.h = html;
+  node.innerHTML = html;
 }
 
 // One-click done on review rows. A sidebar row keeps it while open, and rows without one keep its
@@ -296,7 +315,7 @@ function renderRunHead(n, s, { open, live, pill }) {
   const a = S.agents.find((x) => x.id === s.agent);
   const model = (s.model && a?.models?.find((m) => m.id === s.model)?.label) || s.model || 'Default model';
   n.card.className = `item run c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
-  n.head.innerHTML = `
+  paintHtml(n.head, `
     <span class="run-logo">${harnessLogo(s.agent)}</span>
     <span class="it-main">
       <span class="it-title"><b>${esc(a?.name || agentName(s.agent))}</b><span class="run-model">${esc(model)}${s.effort ? ` · ${esc(effortLabel(s.effort))}` : ''}</span></span>
@@ -310,7 +329,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
       <span class="q-time">${ago(s.updatedAt)}</span>
       ${icon('chevron', 'chev')}
-    </span>`;
+    </span>`);
 }
 
 // The card for a compare task: the shared prompt on top, one row per run (each an ordinary,
@@ -339,7 +358,7 @@ function taskItem(t) {
   const autoLine = picked ? `wisp's pick: ${picked.auto.pick.why}` : handed ? `${how} ${runName(handed)}${handed.auto?.check?.verdict === 'pass' ? ' · tests pass now' : handed.auto?.check?.verdict === 'fail' ? ' · still failing' : ''}` : '';
   const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : autoLine || (places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep');
   g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
-  g.head.innerHTML = `
+  paintHtml(g.head, `
     <span class="q-dot ${t.state === 'running' ? 'live' : ''} ${t.state === 'waiting' ? 'waiting' : ''}"></span>
     <span class="it-main">
       <span class="it-title">${esc(t.title)}</span>
@@ -350,7 +369,7 @@ function taskItem(t) {
       ${places > 1 ? '' : projectLabel(t)}
       <span class="q-time">${ago(t.updatedAt)}</span>
       ${t.state === 'review' && !t.archived ? `<button class="it-quick" data-a="quick-done" title="Mark every run done">${icon('done')}</button>` : ''}
-    </span>`;
+    </span>`);
   t.runs.forEach((r, i) => {
     const { card } = item(r);
     if (g.runs.children[i] !== card) g.runs.insertBefore(card, g.runs.children[i] || null);
@@ -392,15 +411,57 @@ export async function expand(id, { scroll = true } = {}) {
   syncUrl();
   // Split view opens the task in the main pane, so the list doesn't move to it.
   if (scroll && !isSplit()) requestAnimationFrame(() => n.card.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  // Closed a moment ago (j/k through the list) or fetched ahead: it shows at once as it was, then
+  // the refetch brings what changed meanwhile. A fetch ahead still on its way is waited for.
+  if (!S.full.has(id) && fetching.has(id)) {
+    await fetching.get(id);
+    if (!S.open.has(id)) return; // closed while it came
+  }
+  const ahead = !S.full.has(id) && kept.get(id);
+  if (ahead) (kept.delete(id), S.full.set(id, ahead));
   if (!S.full.has(id)) await fetchFull(id);
   else renderBody(id, { fresh: true });
   backToPlace(id);
+  if (ahead) fetchFull(id);
+  prefetchAround(id);
+}
+
+// Tasks loaded but not open, newest last: the last ones closed, and the ones fetched ahead.
+const KEPT_MAX = 12;
+const kept = new Map();
+function keep(id, s) {
+  kept.delete(id);
+  kept.set(id, s);
+  if (kept.size > KEPT_MAX) kept.delete(kept.keys().next().value);
+}
+
+// Fetched ahead of the click, so the task opens with nothing to wait for: the row under the pointer
+// (after a short hover, not on the way past it), the one pressed, and in split view the rows on
+// either side of the open one, where J / K go next. Most tasks are tens of KB.
+const fetching = new Map(); // id -> the fetch ahead on its way
+function prefetch(id) {
+  const s = S.sessions.get(id);
+  if (!s || s.pending || S.full.has(id) || kept.has(id) || fetching.has(id)) return;
+  const p = api(`/sessions/${id}`)
+    .then((full) => S.sessions.has(id) && !S.full.has(id) && keep(id, full))
+    .catch(() => {})
+    .finally(() => fetching.delete(id));
+  fetching.set(id, p);
+}
+function prefetchAround(id) {
+  const card = S.nodes.get(id)?.card;
+  if (MOBILE || !isSplit() || !card?.isConnected) return;
+  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 200));
+  idle(() => {
+    for (const x of [card.nextElementSibling, card.previousElementSibling]) if (x?.dataset.id) prefetch(x.dataset.id);
+  });
 }
 
 export function collapse(id) {
   const n = S.nodes.get(id);
   S.open.delete(id);
   saveOpen();
+  if (S.full.has(id)) keep(id, S.full.get(id));
   S.full.delete(id);
   retries.delete(id);
   if (n) {

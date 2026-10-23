@@ -28,6 +28,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **The page is faster.** Tasks open without waiting on the server: one you just had open (J / K, or a click), the row under the pointer, and in split view the rows either side of the open task are already loaded, so they show at once and update in the background instead of showing a Loading line. A live update to the task list costs about a twentieth of what it did, because unchanged rows, project chips and split-view measurements are left alone instead of rebuilt. The page loads the task list and machines once at startup instead of twice, and big API answers are gzipped: the task list is about 6× smaller over the phone's tunnel. Scripts and stylesheets are named by their content and cached for good, so a reload asks the server for none of them: on wisp Grid, a reload over the internet now shows your tasks in a fraction of the time, and Grid paints the tasks it saw last while the fresh ones load, as the phone app does.
 - **The top of split view's details column is a tidy list:** one fact a row (state and time, the harness, the project with its colour, the branch), each behind a small dot or icon so the text lines up. Before, a pill, a tag and the time sat on uneven lines.
 
 ### Fixed

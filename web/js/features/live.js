@@ -1,7 +1,7 @@
 // Live events from the server (SSE) and the loads they trigger.
 
 import { esc } from '../md.js';
-import { api } from '../core/api.js';
+import { api, shared } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $ } from '../core/dom.js';
 import { COMPUTER, MOBILE, S, nameHere, saveOpen, setAgents } from '../core/state.js';
@@ -28,10 +28,11 @@ import { checkBuild, syncing } from './cache.js';
 let es = null;
 let hiddenAt = 0;
 let helloed = false;
-let configLoaded = false; // from the server, not the phone's snapshot
+let firstStream = 0; // when the page opened its first stream
 
 export function connect() {
   es?.close();
+  firstStream ||= performance.now();
   es = new EventSource('/api/events');
   // The browser retries a dropped stream by itself, but gives up for good after an HTTP error
   // (a tunnel that is half back up can answer one): start a new one then.
@@ -94,16 +95,19 @@ export function connect() {
   });
   es.addEventListener('preferences', () => bus.emit('preferences'));
   // Also after sleep or a reconnect: everything may have changed meanwhile.
+  // The first one: boot asked for the lists right after opening the stream, so those answers
+  // already have everything since; it waits for them instead of asking again.
   es.addEventListener('hello', () => {
-    loadSessions()
+    const fresh = (load) => (helloed ? load() : load.since(firstStream));
+    fresh(loadSessions)
       .then(() => syncing(false))
       .catch(() => {});
-    // Config too, unless it was just loaded at boot.
-    if (helloed || !configLoaded) loadConfig().then(() => bus.emit('config'), () => {});
+    if (helloed) loadConfig().then(() => bus.emit('config'), () => {});
+    else loadConfig.since(firstStream).catch(() => {});
     helloed = true;
     checkBuild();
     loadUpdate();
-    loadMachines();
+    fresh(loadMachines);
   });
 }
 
@@ -115,19 +119,20 @@ document.addEventListener('visibilitychange', () => {
   else if (es && hiddenAt && Date.now() - hiddenAt > 10000) connect();
 });
 
-export async function loadSessions() {
+export const loadSessions = shared(async () => {
   const list = await api('/sessions');
   S.sessions = new Map(list.map((s) => [s.id, s]));
   for (const id of S.open) if (!S.sessions.has(id)) S.open.delete(id);
   saveOpen();
   keepInPlace(feedAnchor(), renderFeed);
   for (const id of S.open) scheduleRefetch(id);
-}
+});
 
-export async function loadConfig() {
-  setConfig(await api('/config'));
-  configLoaded = true;
-}
+export const loadConfig = shared(async () => {
+  const config = await api('/config');
+  // The stream says `config` after every change, ours too: one already painted repaints nothing.
+  if (JSON.stringify(config) !== JSON.stringify(S.config)) setConfig(config);
+});
 export function setConfig(config) {
   S.config = config;
   nameHere();

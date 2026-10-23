@@ -4,7 +4,7 @@
 
 import { copy } from '../blocks.js';
 import { esc } from '../md.js';
-import { api } from '../core/api.js';
+import { api, shared } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, el, icon } from '../core/dom.js';
 import { COMPUTER, MOBILE, S, inGrid } from '../core/state.js';
@@ -20,7 +20,10 @@ import { TAILSCALE_GUIDE } from './reachable.js';
 import { harnessLogo } from './runners.js';
 import { mountCloudSignin } from './cloud.js';
 
-export const loadMachines = () => api('/machines').then(setMachines).catch(() => {});
+// Never throws; only a load that worked counts for since() (live.js), so a failed one is retried.
+const fetchMachines = shared(() => api('/machines').then(setMachines));
+export const loadMachines = () => fetchMachines().catch(() => {});
+loadMachines.since = (t) => fetchMachines.since(t).catch(() => {});
 export function setMachines(list, { quiet = false } = {}) {
   const was = new Map(S.machines.map((m) => [m.id, m.state === 'online']));
   for (const m of list) keepSignIns(m.id, m.remote?.agents);

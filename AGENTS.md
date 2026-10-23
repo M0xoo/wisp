@@ -19,7 +19,9 @@ this covers how the code is laid out and the rules a change has to follow.
   In the app, what it connects to are *Computers*; *Machines* (desktop SSH) isn't shown there.
   There the page comes from a service worker's cache (`web/sw.js`) and first paints the last data
   seen (`web/js/features/cache.js`); `server/http/static.js` stamps index.html with the build
-  that tells them it's stale, and preloads app.js's static imports (a new module needs nothing).
+  that tells them it's stale, preloads app.js's static imports, and names every script and
+  stylesheet by its content (`?v=`, modules through an import map) so they're cached for good (a new
+  module needs nothing).
 - `grid/`: wisp Grid (`wisp grid …`), wisp for many people on a server: sign-in (Google, GitHub,
   OIDC), the edge that serves `<handle>.<domain>`, hostd that starts and stops each user's wisp,
   boxd (`grid/boxd.js`: the root helper that runs their containers; Node built-ins only, imports

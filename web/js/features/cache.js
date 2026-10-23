@@ -3,6 +3,9 @@
 // - the page and its files come from a service worker's cache (web/sw.js), checked behind it;
 // - the last tasks, config and open tasks seen are kept per computer (they share one origin,
 //   127.0.0.1:<port>) and painted at once on the next open, then replaced by the server's.
+// A browser on a wisp Grid cloud computer (not on localhost) does the last part too: its answers
+// cross the internet, and the cloud computer may have to wake up first. On this computer they take
+// milliseconds, so it waits for them.
 
 import { COMPUTER, MOBILE, S } from '../core/state.js';
 import { toast } from '../ui/toast.js';
@@ -10,11 +13,13 @@ import { toast } from '../ui/toast.js';
 const KEY = `wisp.snapshot.${COMPUTER || 'here'}`;
 const SHELL = 'wisp-shell'; // web/sw.js
 const MAX_FULL = 300_000; // an open task bigger than this (as JSON) loads from the server instead
+const REMOTE = !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+const SNAPSHOT = MOBILE || REMOTE;
 let touched = false; // a tap or a key since the page opened: then it never reloads by itself
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => (touched = true), { once: true, capture: true });
 
 export function recall() {
-  if (!MOBILE) return null;
+  if (!SNAPSHOT) return null;
   try {
     return JSON.parse(localStorage.getItem(KEY));
   } catch {
@@ -25,7 +30,7 @@ export function recall() {
 // What the next open paints first. Written when the app goes to the background or leaves the page,
 // not on every live event.
 export function remember() {
-  if (!MOBILE || !S.sessions.size) return;
+  if (!SNAPSHOT || !S.sessions.size) return;
   const full = [...S.open].map((id) => [id, S.full.get(id)]).filter(([, s]) => s && JSON.stringify(s).length < MAX_FULL);
   const snap = { at: Date.now(), config: S.config, machines: S.machines, sessions: [...S.sessions.values()], full };
   try {
@@ -38,7 +43,7 @@ export function remember() {
   }
 }
 
-if (MOBILE) {
+if (SNAPSHOT) {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) remember();
   });
