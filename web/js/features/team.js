@@ -416,6 +416,14 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
   if (!members.length) $('.tp-add', node)?.focus();
 }
 
+// Where a delegation ran: its own machine (on a copy of the lead's work), else where the lead runs.
+function ranOn(s, d) {
+  const away = !!d.place;
+  const name = away ? d.place : s.machine?.name || placeName('');
+  const tip = away ? `Ran on ${name}, on a copy of the lead's work` : `Ran on ${name}, with the lead in its folder`;
+  return `<span class="tl-place${away ? ' away' : ''}" title="${esc(tip)}">${icon(away || s.machine ? 'server' : 'laptop')}${esc(name)}</span>`;
+}
+
 // One delegation with the child session and turn it ran as (from the lead's childSessions).
 function delegationsOf(s, t) {
   return (t.delegations || []).map((d) => {
@@ -445,7 +453,7 @@ export function teamLiveHtml(s, t) {
       return `<div class="tl-row ${running ? 'live' : `st-${st.cls}`}" data-sub="${esc(d.sessionId)}">
         <span class="tl-logo">${harnessLogo(d.agent)}</span>
         <b class="tl-name">@${esc(d.name)}</b>
-        ${d.place ? `<span class="tl-place" title="Runs on ${esc(d.place)}, on a copy of the lead's work">${icon('server')}${esc(d.place)}</span>` : ''}
+        ${ranOn(s, d)}
         <span class="tl-live">${esc(running ? last || 'Starting up' : hero?.title || st.label)}</span>
         ${running ? `<span class="elapsed" data-start="${ct?.startedAt || d.startedAt}">${fmtDuration(Date.now() - (ct?.startedAt || d.startedAt))}</span>` : `<span class="pill st-${st.cls}"><i></i>${st.label}</span>`}
       </div>`;
@@ -478,7 +486,7 @@ export function renderSubs(s, t) {
         <button class="sub-head" aria-expanded="${subOpen.has(d.id)}">
           <span class="sub-logo">${harnessLogo(d.agent)}</span>
           <span class="sub-main">
-            <span class="sub-top"><b>@${esc(d.name)}</b><span class="sub-model">${esc(memberLabel(d))}</span></span>
+            <span class="sub-top"><b>@${esc(d.name)}</b>${ranOn(s, d)}<span class="sub-model">${esc(memberLabel({ ...d, place: '' }))}</span></span>
             <span class="sub-title">${esc(hero?.title || (ct?.status === 'running' ? ct.activity?.findLast((a) => a.kind !== 'text')?.label || 'Working' : d.prompt))}</span>
           </span>
           <span class="sub-side">
