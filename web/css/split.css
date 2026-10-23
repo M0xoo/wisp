@@ -195,6 +195,12 @@ body.electron.split .split-head :is(button, a, .sh-title) { -webkit-app-region: 
    takes clicks even under what's on top of it: only the title row drags then, clear of them. */
 body.electron.split.side-hidden .split-head { -webkit-app-region: no-drag; }
 body.electron.split.side-hidden .split-head .sh-row { -webkit-app-region: drag; }
+/* Home has no header: a strip along the pane's top moves the window, clear of the floating buttons. */
+.split-drag { display: none; position: absolute; z-index: 1; top: 0; left: 0; right: 0; height: 40px; -webkit-app-region: drag; }
+body.electron.split .split-main { position: relative; }
+body.electron.split .split-main:has(> .split-home:not([hidden])) > .split-drag { display: block; }
+body.electron.split.side-hidden:not(.side-right) .split-drag { left: calc(var(--bar-w, 120px) + 8px); }
+body.electron.split.side-hidden.side-right .split-drag { right: calc(var(--bar-w, 120px) + 8px); }
 /* the Mac window buttons sit over the top-left corner: beside the brand, or the title when the list is on the right */
 body.electron.mac.split .topbar { padding-left: 14px; }
 body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
