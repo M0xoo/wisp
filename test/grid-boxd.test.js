@@ -161,7 +161,8 @@ async function gridWith(container, dataDir = tmp('grid-c')) {
   const { startGrid } = await import('../grid/server.js');
   const { ensureMaster } = await import('../grid/secrets.js');
   ensureMaster(dataDir);
-  const hostd = { driver: 'container', container, idleMs: 60_000, checkMs: 500, env: { FAKE_DELAY: '100' } };
+  // Room by memory has its own tests (grid-hostd): here the test machine's memory mustn't matter.
+  const hostd = { driver: 'container', container, idleMs: 60_000, checkMs: 500, admit: false, env: { FAKE_DELAY: '100' } };
   // The CLI reads grid.json; the running grid gets the same.
   fs.writeFileSync(path.join(dataDir, 'grid.json'), JSON.stringify({ hostd }));
   const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port: port() }, auth: { dev: true } } });

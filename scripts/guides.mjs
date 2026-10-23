@@ -699,7 +699,7 @@ tmux attach -t agent`)}
         <li><b>Sign in to Claude Code</b> from the model picker or Settings → Agents: a link to Claude’s own sign-in page and a code, no terminal. Codex, Cursor, Grok, Antigravity and <code>gh</code> sign in the same way; opencode’s free models need no account.</li>
         <li><b>Give it a task and close the laptop.</b> It keeps running. Questions and the finished report reach you in the browser, wisp on your computer, or the Android app.</li>
       </ol>
-      <p>The preview is free. It runs on one small server, so it takes a few accounts at a time: <a href="/cloud.html">the Cloud page</a> says how many seats are left, and takes your email when they’re gone. The full walkthrough is in <a href="/guides/use-wisp-cloud.html">Use wisp Cloud</a>.</p>
+      <p>The preview is free. It opens seats as its server shows room for more people, and when they’re all taken <a href="/cloud.html">the Cloud page</a> takes your email for the next one. The full walkthrough is in <a href="/guides/use-wisp-cloud.html">Use wisp Cloud</a>.</p>
     </section>
 
     <section>
@@ -828,7 +828,7 @@ tmux attach -t agent`)}
 `,
       faq: [
         ['Is wisp Cloud free?', 'Yes, during the early preview. You bring your own Claude, ChatGPT or GitHub accounts; model usage is billed by those providers.'],
-        ['Why can’t I sign up?', 'The preview runs on one small server, so it takes a set number of accounts. When they’re all taken, the sign-in page says so and trywisp.dev/cloud.html takes your email for the next free seat. People who already have an account keep signing in.'],
+        ['Why can’t I sign up?', 'The preview opens seats as its server shows room for more people. When they’re all taken, the sign-in page says so and trywisp.dev/cloud.html takes your email: the next seat is held for the oldest email on the list, for the GitHub account that uses it. People who already have an account keep signing in.'],
         ['Do I need wisp installed on my computer?', 'No. The browser is enough. wisp on your computer and the Android app can sign in to it too, with a code.'],
         ['Can I run my own?', 'Yes: the grid is in the wisp repo (MIT). See Run your own wisp Grid.'],
         ['What happens to a task when the cloud computer sleeps?', 'It only sleeps when no task is running and nobody is looking. Tasks, reports and logins are kept; it wakes in seconds.'],

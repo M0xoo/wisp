@@ -15,7 +15,8 @@ const DEFAULTS = {
   listen: { host: '127.0.0.1', port: 8080 },
   publicPort: null, // the port in public URLs; null: the listen port for http, none for https
   name: 'wisp Grid',
-  auth: { dev: false, providers: {}, signup: 'open', allow: { emails: [], domains: [], githubOrgs: [], accounts: [] }, admins: [] },
+  // seats: how maxUsers "auto" grows (grid/accounts.js), and how long a waitlist seat is held.
+  auth: { dev: false, providers: {}, signup: 'open', allow: { emails: [], domains: [], githubOrgs: [], accounts: [] }, admins: [], seats: { min: 5, cap: 20, target: 0.7, everyHours: 24, holdDays: 7 } },
   hostd: { driver: 'process', idleMs: 120_000, checkMs: 5_000, startMs: 45_000, maxRunning: 50, env: {}, path: '' },
   sessionDays: 30,
 };
@@ -92,7 +93,17 @@ export function loadConfig({ dataDir, overrides = {}, env = process.env } = {}) 
   if (cfg.telemetry != null && typeof cfg.telemetry !== 'boolean') throw new Error('telemetry: true or false.');
   const boxd = cfg.hostd.container?.boxd;
   if (boxd != null && (typeof boxd !== 'string' || !path.isAbsolute(boxd))) throw new Error('hostd.container.boxd: the path of boxd’s socket, e.g. /run/wisp-grid/box.sock (grid/README.md → Isolation).');
-  if (cfg.auth.maxUsers != null && !(Number.isInteger(cfg.auth.maxUsers) && cfg.auth.maxUsers > 0)) throw new Error('auth.maxUsers: a whole number above 0, or leave it out for no limit.');
+  if (cfg.auth.maxUsers != null && cfg.auth.maxUsers !== 'auto' && !(Number.isInteger(cfg.auth.maxUsers) && cfg.auth.maxUsers > 0)) throw new Error('auth.maxUsers: a whole number above 0, "auto", or leave it out for no limit.');
+  const st = cfg.auth.seats;
+  const whole = (v, min) => Number.isInteger(v) && v >= min;
+  if (!whole(st.min, 1)) throw new Error('auth.seats.min: a whole number above 0 (the seats "auto" starts with).');
+  if (!whole(st.cap, st.min)) throw new Error('auth.seats.cap: a whole number, at least auth.seats.min (the most seats "auto" opens).');
+  if (!(typeof st.target === 'number' && st.target > 0 && st.target <= 1)) throw new Error('auth.seats.target: a share of the host above 0, up to 1 (0.7: open seats while under 70% busy).');
+  if (!(typeof st.everyHours === 'number' && st.everyHours > 0)) throw new Error('auth.seats.everyHours: hours between new seats, above 0.');
+  if (!(typeof st.holdDays === 'number' && st.holdDays >= 0)) throw new Error('auth.seats.holdDays: days a seat stays held for an invited person on the waitlist, 0 or more.');
+  const ad = cfg.hostd.admit;
+  if (ad != null && ad !== false && !(isObj(ad) && ['boxMb', 'reserveMb'].every((k) => ad[k] == null || whole(ad[k], 0)))) throw new Error('hostd.admit: false, or { boxMb, reserveMb } in MiB (the memory one more box needs, and what the host keeps for itself).');
+  for (const k of ['evictAfterMs', 'queueMs']) if (cfg.hostd[k] != null && !whole(cfg.hostd[k], 0)) throw new Error(`hostd.${k}: milliseconds, a whole number.`);
   return cfg;
 }
 

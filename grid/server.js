@@ -13,7 +13,7 @@
 
 import fs from 'node:fs';
 import http from 'node:http';
-import { createAccounts, bad } from './accounts.js';
+import { MACHINE_WANTS, createAccounts, bad } from './accounts.js';
 import { createProviders, newFlow } from './auth/providers.js';
 import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
@@ -171,6 +171,19 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     notify(e.user.id);
     if (e.event === 'started' || e.event === 'idle' || e.event === 'failed') log(`grid: ${e.user.handle} ${e.event}${e.error ? `: ${e.error}` : ''}`);
   });
+  // How busy the host is, every few minutes: what auth.maxUsers "auto" opens seats from, and when
+  // a seat frees up the waitlist gets it.
+  const sampleMs = cfg.hostd.sampleMs || 5 * 60_000;
+  const sampler = setInterval(() => {
+    try {
+      const { peak, waits } = hostd.takePeak();
+      if (accounts.sample({ running: peak, capacity: hostd.capacity(), waits })) log(`grid: one more seat (${accounts.seats().max})`);
+    } catch (err) {
+      log(`grid: load sample: ${err.message}`);
+    }
+  }, sampleMs);
+  sampler.unref();
+
   // After a restart: nothing runs, but scheduled tasks still wake their wisp.
   db.run("UPDATE instances SET state = 'stopped' WHERE state != 'stopped'");
   for (const row of db.all('SELECT u.id, u.handle, i.next_wake_at FROM instances i JOIN users u ON u.id = i.user_id WHERE i.next_wake_at IS NOT NULL')) hostd.restore({ id: row.id, handle: row.handle }, row.next_wake_at);
@@ -233,6 +246,15 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const send = (status, body) => json(res, status, body, cors);
       // Public: how many accounts are left, for the site that links here (trywisp.dev/cloud.html).
       if (req.method === 'GET' && p === '/api/seats') return send(200, accounts.seats());
+      // Public too: the site's "get the next seat" form.
+      if (req.method === 'POST' && p === '/api/waitlist') {
+        try {
+          limit(`wait|${clientIp(req)}`, 10);
+          return send(200, { ok: true, ...accounts.waitFor((await readBody(req)).email, 'site') });
+        } catch (err) {
+          return send(err.status || 400, { error: err.message }); // with CORS, so the site can read it
+        }
+      }
       if (req.method === 'POST' && p === '/api/device/code') {
         limit(`code|${clientIp(req)}`, 20);
         const body = await readBody(req);
@@ -285,7 +307,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if (req.method === 'GET' && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages }));
       const u = s.user;
-      return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
+      return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
     if (req.method === 'GET' && p === '/events') {
       if (!s) return json(res, 401, { error: 'Sign in again.' });
@@ -367,7 +389,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       } catch (err) {
         log(`grid: sign-in with ${id} failed: ${err.message}`);
         if (!linkTo) stats.funnel('grid_auth_failed', visitor, { provider: id, reason: err.full ? 'full' : err.status === 403 ? 'refused' : 'error' });
-        return page(signInPage({ cfg, providers, seats: accounts.seats(), error: err.full ? '' : err.message, linking: !!linkTo, analytics: stats.pages }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
+        return page(signInPage({ cfg, providers, seats: accounts.seats(), error: err.full ? '' : err.message, waitlisted: !!err.waitlisted, linking: !!linkTo, analytics: stats.pages }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
       }
     }
 
@@ -407,6 +429,15 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         await needCsrf();
         await hostd.stop(s.user.id, 'put to sleep');
         return redirect(res, '/');
+      }
+      // More cloud machines, bigger ones, GPUs: on the list for when they come. The page posts
+      // JSON and answers at once; without script, the form posts and comes back here.
+      if (p === '/machines/waitlist') {
+        const body = await needCsrf();
+        const wish = accounts.wishMachines(s.user.id, body.wants ?? MACHINE_WANTS.filter((w) => body[`want_${w}`]), body.note);
+        notify(s.user.id);
+        if (String(req.headers.accept || '').includes('application/json')) return json(res, 200, { ok: true, wish });
+        return redirect(res, `/?m=${encodeURIComponent(wish ? 'You’re on the list. We’ll write when it’s ready.' : 'You’re off the list.')}`);
       }
       if ((m = /^\/devices\/([a-f0-9]+)\/revoke$/.exec(p))) {
         await needCsrf();
@@ -689,6 +720,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     server,
     url: cfg.publicUrl,
     async close() {
+      clearInterval(sampler);
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
       tunnels.closeAll();
       for (const set of watchers.values()) for (const res of set) res.end();

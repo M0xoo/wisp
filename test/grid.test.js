@@ -437,8 +437,8 @@ test('maxUsers: the first accounts get in, then the grid is full; existing users
     const seats = async () => (await browser().go(`${c2.publicUrl}/api/seats`, { headers: { accept: 'application/json' } })).json;
     assert.deepEqual(await seats(), { open: true, invite: false, max: 2, left: 2 });
     assert.equal((await signIn('a@x.test')).status, 302);
-    // The sign-in page counts what's left, and the site can read it from another origin.
-    assert.match((await browser().go(`${c2.publicUrl}/`)).text, /1 seat left/);
+    // The sign-in page doesn't count seats; the site can read them from another origin.
+    assert.doesNotMatch((await browser().go(`${c2.publicUrl}/`)).text, /seats? left/);
     const r = await browser().go(`${c2.publicUrl}/api/seats`, { headers: { accept: 'application/json', origin: 'https://trywisp.dev' } });
     assert.equal(r.headers['access-control-allow-origin'], '*');
     assert.equal(r.json.left, 1);
@@ -457,6 +457,125 @@ test('maxUsers: the first accounts get in, then the grid is full; existing users
   } finally {
     await g2.close();
   }
+});
+
+test('seats "auto": one more while they are taken and the host stayed under target; never on a busy week', async () => {
+  const dataDir = tmp('grid-auto');
+  const bad = (auth) => assert.throws(() => loadConfig({ dataDir, env: {}, overrides: { auth } }));
+  bad({ maxUsers: 'lots' });
+  bad({ maxUsers: 'auto', seats: { min: 3, cap: 2 } });
+  bad({ maxUsers: 'auto', seats: { target: 1.5 } });
+  assert.throws(() => loadConfig({ dataDir, env: {}, overrides: { hostd: { admit: { boxMb: -1 } } } }), /hostd\.admit/);
+  const c = loadConfig({ dataDir, env: {}, overrides: { auth: { maxUsers: 'auto', seats: { min: 2, cap: 3 } } } });
+  const db = await openDb(dataDir);
+  const { createAccounts } = await import('../grid/accounts.js');
+  const accounts = createAccounts({ db, cfg: c, secrets: { forget() {} } });
+  const H = 3_600_000;
+  const join = (n) => accounts.signIn({ provider: 'dev', subject: `${n}@x.test`, email: `${n}@x.test`, emailVerified: true });
+  // A day of samples, from (hours ago) on, every hour.
+  const day = ({ running = 1, capacity = 4, waits = 0, from = 25 } = {}) => {
+    db.run('DELETE FROM load_samples');
+    for (let h = from; h > 0; h--) db.run('INSERT INTO load_samples (at, running, capacity, waits) VALUES (?, ?, ?, ?)', Date.now() - h * H, running, capacity, waits);
+  };
+  try {
+    assert.deepEqual(accounts.seats(), { open: true, invite: false, max: 2, left: 2, auto: true });
+    day();
+    assert.equal(accounts.sample({ running: 1, capacity: 4 }), false, 'seats still free: no need for more');
+    join('a');
+    join('b');
+    day({ from: 10 });
+    assert.equal(accounts.sample({ running: 1, capacity: 4 }), false, 'not a whole day watched yet');
+    day({ running: 3, capacity: 4 });
+    assert.equal(accounts.sample({ running: 3, capacity: 4 }), false, '3 of 4 is over 70%');
+    day({ waits: 1 });
+    assert.equal(accounts.sample({ running: 1, capacity: 4 }), false, 'someone had to wait for room');
+    day();
+    assert.equal(accounts.sample({ running: 1, capacity: 4 }), true);
+    assert.deepEqual(accounts.seats(), { open: true, invite: false, max: 3, left: 1, auto: true });
+    join('c');
+    assert.equal(accounts.sample({ running: 1, capacity: 4 }), false, 'at most one a day');
+    db.run("UPDATE meta SET v = ? WHERE k = 'seats.grewAt'", String(Date.now() - 30 * H));
+    day();
+    assert.equal(accounts.sample({ running: 1, capacity: 4 }), false, 'the cap');
+    assert.equal(accounts.seats().max, 3);
+  } finally {
+    db.close();
+  }
+});
+
+test('the waitlist: a refused sign-in joins it, a freed seat is held for the oldest, and only they get it', async () => {
+  const dataDir = tmp('grid-wait');
+  const c = loadConfig({ dataDir, env: {}, overrides: { auth: { maxUsers: 1 } } });
+  const db = await openDb(dataDir);
+  const { createAccounts } = await import('../grid/accounts.js');
+  const accounts = createAccounts({ db, cfg: c, secrets: { forget() {} } });
+  const idn = (n, verified = true) => ({ provider: 'github', subject: n, login: n, email: `${n}@x.test`, emailVerified: verified });
+  try {
+    const a = accounts.signIn(idn('a'));
+    assert.throws(() => accounts.signIn(idn('b')), (err) => err.full && err.waitlisted);
+    assert.throws(() => accounts.signIn(idn('u', false)), (err) => err.full && !err.waitlisted, 'no verified email, nothing to hold a seat for');
+    assert.throws(() => accounts.waitFor('nope'), /email/);
+    assert.deepEqual(accounts.waitFor('C@x.test '), { joined: false, invited: false, position: 2 });
+    assert.deepEqual(accounts.waitFor('c@x.test'), { joined: false, invited: false, position: 2 }, 'once is enough');
+    accounts.remove(a.id);
+    // b waited longest: the seat is b's, and nobody else can take it meanwhile.
+    assert.equal(accounts.seats().left, 0);
+    assert.deepEqual(accounts.waitFor('b@x.test'), { joined: false, invited: true, position: 0 });
+    assert.throws(() => accounts.signIn(idn('c')), /full/);
+    const b = accounts.signIn(idn('b'));
+    assert.equal(b.email, 'b@x.test');
+    assert.deepEqual(accounts.waitlist().map((r) => [r.email, r.source, !!r.invited_at, !!r.joined_at]), [
+      ['b@x.test', 'signin', true, true],
+      ['c@x.test', 'site', false, false],
+    ]);
+    // b leaves: the seat is held for c next. A hold that runs out frees it for anyone.
+    accounts.remove(b.id);
+    assert.equal(accounts.waitFor('c@x.test').invited, true);
+    assert.throws(() => accounts.signIn(idn('d')), /full/);
+    db.run('UPDATE waitlist SET invited_at = ?', Date.now() - 8 * 86_400_000);
+    assert.equal(accounts.seats().left, 1);
+    assert.equal(accounts.signIn(idn('d')).email, 'd@x.test');
+  } finally {
+    db.close();
+  }
+});
+
+test('POST /api/waitlist: from another site, answers with CORS, refuses a bad email', async () => {
+  const ok = await browser().go(`${base}/api/waitlist`, { method: 'POST', body: { email: 'wait@x.test' }, headers: { origin: 'https://trywisp.dev' } });
+  assert.equal(ok.status, 200, ok.text);
+  assert.equal(ok.headers['access-control-allow-origin'], '*');
+  assert.equal(ok.json.ok, true);
+  const no = await browser().go(`${base}/api/waitlist`, { method: 'POST', body: { email: 'x' }, headers: { origin: 'https://trywisp.dev' } });
+  assert.equal(no.status, 400);
+  assert.equal(no.headers['access-control-allow-origin'], '*');
+  assert.match(no.json.error, /email/);
+});
+
+test('Add a cloud machine: the account page offers the waitlist for more, bigger and GPU machines', async () => {
+  const b = browser();
+  await devSignIn(b, 'mia@example.com');
+  const home = await b.go(`${base}/`);
+  assert.match(home.text, /Add a cloud machine/);
+  assert.match(home.text, /One cloud machine per account, for now/);
+  assert.match(home.text, /<span class="pill soon">Soon<\/span>/);
+  const csrf = csrfOf(home.text);
+  const post = (body, accept = 'application/json') => b.go(`${base}/machines/waitlist`, { method: 'POST', body, headers: { origin: base, accept } });
+  assert.equal((await post({ wants: ['gpu'] })).status, 403, 'CSRF');
+  const bad = await post({ csrf, wants: ['moon'] });
+  assert.equal(bad.status, 400);
+  assert.match(bad.json.error, /moon/);
+  const ok = await post({ csrf, wants: ['gpu', 'bigger'], note: 'fine-tune a 7B' });
+  assert.equal(ok.status, 200, ok.text);
+  assert.deepEqual(ok.json.wish.wants, ['gpu', 'bigger']);
+  const listed = (await b.go(`${base}/`)).text;
+  assert.match(listed, /On the waitlist for a bigger machine and GPUs\./);
+  assert.match(listed, /name="want_gpu" value="1" checked/);
+  assert.match(listed, /fine-tune a 7B<\/textarea>/);
+  assert.deepEqual(grid.accounts.machineWishes().map((r) => [r.handle, r.wants]), [['mia', 'gpu,bigger']]);
+  // Without script the form posts its checkboxes and comes back to the page; none: off the list.
+  const off = await b.go(`${base}/machines/waitlist`, { method: 'POST', form: { csrf }, headers: { origin: base } });
+  assert.equal(off.status, 302);
+  assert.equal(grid.accounts.machineWish(grid.accounts.byHandle('mia').id), null);
 });
 
 test('the sign-in page offers only the sign-ins this grid has, and links shared from it get a preview', async () => {
@@ -480,9 +599,13 @@ test('the hosted grid, once full, sends new people to the waitlist first and sti
   assert.match(full, /<a class="btn first" href="https:\/\/trywisp\.dev\/cloud\.html#join">/);
   assert.match(full, /<a class="btn" href="\/auth\/github\/start">/, 'GitHub stays, as the second button');
   const open = signInPage({ cfg: hosted, providers, seats: { open: true, invite: false, max: 5, left: 3 } });
-  assert.match(open, /3 seats left/);
-  assert.doesNotMatch(open, /of 5/, 'no total, just what’s left');
+  assert.doesNotMatch(open, /seats? left|of 5/, 'no count: seats open as the grid grows');
+  assert.match(open, /Free while in preview/);
   assert.doesNotMatch(open, /cloud\.html#join/);
+  // Turned away at sign-in with a verified email: already on the waitlist, so no form to send them to.
+  const listed = signInPage({ cfg: hosted, providers, seats: { open: true, invite: false, max: 5, left: 0 }, waitlisted: true });
+  assert.match(listed, /you’re on the waitlist/);
+  assert.doesNotMatch(listed, /cloud\.html#join/);
   // An allow list or closed sign-ups say so; no count.
   const invite = signInPage({ cfg: hosted, providers, seats: { open: true, invite: true, max: 5, left: 3 } });
   assert.match(invite, /Invite only/);

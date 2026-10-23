@@ -24,6 +24,10 @@ const I = {
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9.5 7V4.8h5V7M6.5 7l.9 12.2a1.5 1.5 0 001.5 1.3h6.2a1.5 1.5 0 001.5-1.3L17.5 7M10 11v5.5M14 11v5.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>',
   chev: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  stack: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="6.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="4" y="13.5" width="16" height="6.5" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7.5 7.25h.01M7.5 16.75h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3L5.5 13.5H12L11 21l7.5-10.5H12L13 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  gpu: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8" fill="currentColor" opacity=".35"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
 };
 const logo = (id) => I[id] || I[id.split(':')[0]] || (id === 'dev' ? I.code : I.key);
@@ -66,7 +70,6 @@ h1.big{font-size:clamp(40px,5.4vw,64px);line-height:1.02;font-weight:700}h1.big 
 .join .btn.first{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .join .btn+.btn{margin-top:10px}
 .join .fine{margin-top:12px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px}.join .fine span{display:inline-flex;align-items:center;gap:5px}.join .fine svg{width:14px;height:14px;color:var(--good)}
-.join .fine .seats i{width:7px;height:7px;margin:0 2px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 18%,transparent)}
 .join .full{margin:0 0 14px;font-size:14.5px;color:var(--ink-2)}.join .full b{color:var(--ink)}.final .join .full{text-align:center}
 .err{margin:0 0 14px;padding:11px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--bad) 35%,var(--line));color:var(--bad);font-size:14px;background:color-mix(in srgb,var(--bad) 6%,transparent)}
 .stage{position:relative}
@@ -119,7 +122,8 @@ label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--mu
 
 // Every form and sign-in link: the button spins at once while the next page loads (a provider's
 // redirect, Allow, Sign out), and a second press does nothing. Back from the browser cache clears it.
-const PENDING = `<script>(()=>{const go=(b)=>{if(b)setTimeout(()=>{b.classList.add('wait');b.setAttribute('aria-busy','true')})};document.addEventListener('submit',(e)=>{const b=e.submitter||e.target.querySelector('button');if(b&&b.classList.contains('wait'))return e.preventDefault();go(b)});document.addEventListener('click',(e)=>{const a=e.target.closest('a[href^="/auth/"]');if(a)go(a)});addEventListener('pageshow',()=>document.querySelectorAll('.wait').forEach((b)=>{b.classList.remove('wait');b.removeAttribute('aria-busy')}))})()</script>`;
+// Script that sends a form itself cancels the submit first: then it's not pending here.
+const PENDING = `<script>(()=>{const go=(b)=>{if(b)setTimeout(()=>{b.classList.add('wait');b.setAttribute('aria-busy','true')})};document.addEventListener('submit',(e)=>{if(e.defaultPrevented)return;const b=e.submitter||e.target.querySelector('button');if(b&&b.classList.contains('wait'))return e.preventDefault();go(b)});document.addEventListener('click',(e)=>{const a=e.target.closest('a[href^="/auth/"]');if(a)go(a)});addEventListener('pageshow',()=>document.querySelectorAll('.wait').forEach((b)=>{b.classList.remove('wait');b.removeAttribute('aria-busy')}))})()</script>`;
 
 const DESC = 'Your own wisp on a server: Claude Code, Codex and the rest keep working when your laptop closes, and the report waits on your phone.';
 
@@ -148,25 +152,30 @@ const shot = (name, alt) => `<picture><source srcset="${A}/dark-${name}.webp" me
 const waitlist = (cfg) => (cfg.domain === 'grid.trywisp.dev' ? 'https://trywisp.dev/cloud.html#join' : '');
 const signInWith = (providers) => [...providers.values()].filter((p) => p.id !== 'dev');
 
-function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = false }) {
+// No seat count: with seats that open as the grid grows, "3 left" says little and reads as a
+// countdown. Just whether there's room, and the waitlist when there isn't.
+function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = false, waitlisted = false }) {
   const q = ret ? `?return=${encodeURIComponent(ret)}` : '';
   const full = !linking && seats.left === 0;
-  const wl = full && waitlist(cfg);
+  const wl = full && !waitlisted && waitlist(cfg);
   const list = [...providers.values()].sort((a, b) => (a.id === 'github' ? -1 : b.id === 'github' ? 1 : a.id === 'dev' ? 1 : 0));
   // Full: new people get the waitlist first; the few with an account still sign in below it.
   const buttons = list.map((p, i) => `<a class="btn${i === 0 && !wl ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}Continue with ${esc(p.label)}</a>`).join('');
   const invite = seats.invite || seats.open === false;
-  const left = seats.max && !full && !invite ? `<span class="seats"><i></i>${seats.left} seat${seats.left === 1 ? '' : 's'} left</span>` : '';
-  const fullNote = wl ? `<b>All preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in below.` : `<b>This grid is full:</b> it has all the accounts it takes. Already have one? Sign in below.`;
+  const fullNote = waitlisted
+    ? `<b>All seats are taken, so you’re on the waitlist.</b> Seats open as the grid grows, oldest on the list first; yours is held for you then. Sign in again to check.`
+    : wl
+      ? `<b>All preview seats are taken.</b> Leave your email and you get the next one. Already have a seat? Sign in below.`
+      : `<b>This grid is full:</b> it has all the accounts it takes. Already have one? Sign in below.`;
   return `<div class="join" id="join">${error ? `<p class="err">${esc(error)}</p>` : ''}
     ${full ? `<p class="full">${fullNote}</p>` : ''}
     ${wl ? `<a class="btn first" href="${wl}">${I.arrow}Get the next free seat</a>` : ''}
     ${buttons || '<p class="err">No sign-in is set up on this grid yet. Its operator adds GitHub or Google in grid.json.</p>'}
-    <div class="fine">${linking ? '<span>Sign in with it once; after that either one opens your account.</span>' : `<span>${I.check}Nothing to install</span><span>${I.check}Your own agent accounts</span><span>${I.check}${invite ? 'Invite only' : 'Free while in preview'}</span>${left}`}</div></div>`;
+    <div class="fine">${linking ? '<span>Sign in with it once; after that either one opens your account.</span>' : `<span>${I.check}Nothing to install</span><span>${I.check}Your own agent accounts</span><span>${I.check}${invite ? 'Invite only' : 'Free while in preview'}</span>`}</div></div>`;
 }
 
-export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', linking = false, analytics = false }) {
-  const join = joinBox({ cfg, providers, seats, ret, error, linking });
+export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', linking = false, waitlisted = false, analytics = false }) {
+  const join = joinBox({ cfg, providers, seats, ret, error, linking, waitlisted });
   const ways = signInWith(providers);
   return `${siteHead(`${cfg.name} · your agents keep working when your laptop closes`, cfg, analytics)}
 <main>
@@ -232,7 +241,7 @@ export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', l
 
 <section class="final"><div class="wrap">
   <h2>Leave the agents working.<br><span style="color:var(--faint)">Go have dinner.</span></h2>
-  ${joinBox({ cfg, providers, seats, ret })}
+  ${joinBox({ cfg, providers, seats, ret, waitlisted })}
 </div></section>
 </main>
 <script>
@@ -291,7 +300,7 @@ a{color:inherit}p{margin:0}h1,h2,h3{margin:0;letter-spacing:-.01em}svg{flex:none
 .primary{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 15px;border-radius:10px;border:0;background:var(--ink);color:var(--bg);font:550 13.5px var(--sans);text-decoration:none;cursor:pointer}.primary:hover{opacity:.86}.primary svg{width:15px;height:15px}
 .ghost{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--ink-2);font:500 13px var(--sans);text-decoration:none;cursor:pointer}.ghost:hover{background:var(--bg-2)}.ghost.danger{color:var(--bad)}.ghost.line{border-color:var(--line-2)}.ghost svg{width:14px;height:14px}
 .state{display:flex;align-items:center;gap:8px;font-weight:600}.state i{width:9px;height:9px;border-radius:50%;background:var(--faint)}
-.state.running i{background:var(--good);box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 18%,transparent)}.state.starting i,.state.stopping i{background:var(--warn);animation:blink 1.1s infinite}
+.state.running i{background:var(--good);box-shadow:0 0 0 4px color-mix(in srgb,var(--good) 18%,transparent)}.state.starting i,.state.stopping i,.state.queued i{background:var(--warn);animation:blink 1.1s infinite}
 @keyframes blink{50%{opacity:.35}}
 .kinds{margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .k{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.k b{font-size:13.5px}.k p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}
@@ -329,6 +338,49 @@ h2.sec{margin:34px 0 10px;font-size:13px;font-weight:600;color:var(--muted)}
 @keyframes pulse{0%,100%{transform:scale(.86);opacity:.75}50%{transform:scale(1);opacity:1}}
 form.inline{display:inline}
 .r.del .input{width:170px;height:32px;font:13px var(--sans);letter-spacing:0;text-transform:none}
+.pill.soon{color:var(--muted);background:var(--bg-2);border-color:transparent}.pill.listed{display:inline-flex;align-items:center;gap:4px;color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}.pill.listed svg{width:11px;height:11px}.pill.ok{color:var(--good);border-color:color-mix(in srgb,var(--good) 35%,var(--line))}
+button.w.add-m{width:100%;align-items:center;border:0;border-top:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:0 0 12px 12px}button.w.add-m:hover{background:var(--bg-2)}button.w.add-m:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height:16px;color:var(--muted)}
+.mdlg{width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 32px);padding:0;border:1px solid var(--line-2);border-radius:18px;background:var(--surface);color:var(--ink);box-shadow:0 24px 70px -20px rgba(0,0,0,.45);overflow:auto;overscroll-behavior:contain}
+.mdlg::backdrop{background:rgba(10,10,10,.42);backdrop-filter:blur(3px)}
+.mdlg[open]{animation:m-in .22s cubic-bezier(.2,.9,.3,1.2)}@keyframes m-in{from{opacity:0;transform:translateY(10px) scale(.97)}}
+.m-x{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:50%;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;z-index:1}.m-x:hover{background:var(--bg-2);color:var(--ink)}.m-x svg{width:14px;height:14px}
+.m-hero{padding:48px 24px 20px;background:radial-gradient(120% 100% at 0% 0%,var(--accent-soft),transparent 65%),var(--surface-2);border-bottom:1px solid var(--line)}
+.rack{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.slot{position:relative;height:64px;border-radius:12px;border:1px dashed var(--line-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--faint);font-size:10.5px;font-weight:600;letter-spacing:.02em;transition:border-color .2s,color .2s,background-color .2s,transform .2s}
+.slot svg{width:18px;height:18px}
+.slot.mine{border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));background:var(--surface);color:var(--accent);box-shadow:0 6px 18px -10px var(--accent)}
+.slot.mine::after{content:'';position:absolute;top:8px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 20%,transparent)}
+.slot:not(.mine){background-image:linear-gradient(100deg,transparent 30%,color-mix(in srgb,var(--ink) 5%,transparent) 50%,transparent 70%);background-size:250% 100%;animation:shimmer 2.8s linear infinite}
+@keyframes shimmer{from{background-position:120% 0}to{background-position:-130% 0}}
+.slot.on{border-style:solid;border-color:var(--accent);color:var(--accent);background-color:var(--accent-soft);transform:translateY(-2px)}
+.m-body{padding:20px 24px 22px}
+.m-kicker{font-size:11.5px;font-weight:600;color:var(--accent);letter-spacing:.02em}
+.m-body h2{margin-top:6px;font-size:19px;font-weight:650;letter-spacing:-.02em;line-height:1.25}
+.m-sub{margin-top:6px;color:var(--muted);font-size:13.5px;line-height:1.5}
+.m-have{margin-top:16px;display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.m-have>div{flex:1;min-width:0}.m-have b{font-size:13.5px}.m-have small{display:block;color:var(--muted);font-size:12px}
+.m-opts{margin:18px 0 0;padding:0;border:0;display:flex;flex-direction:column;gap:8px;min-width:0}.m-opts legend{padding:0;margin-bottom:8px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.m-opt{display:block;cursor:pointer}.m-opt input{position:absolute;opacity:0;pointer-events:none}
+.m-card{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line-2);border-radius:12px;background:var(--surface);transition:border-color .15s,background-color .15s,box-shadow .15s}
+.m-card:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--line-2))}
+.m-card>div{flex:1;min-width:0}.m-card b{font-size:13.5px}.m-card small{display:block;color:var(--muted);font-size:12.5px;line-height:1.4}
+.m-tick{flex:none;width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line-2);display:grid;place-items:center;color:transparent;transition:background-color .15s,border-color .15s}.m-tick svg{width:13px;height:13px}
+.m-opt input:checked+.m-card{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px var(--accent-soft)}
+.m-opt input:checked+.m-card .m-tick{background:var(--accent);border-color:var(--accent);color:#fff}
+.m-opt input:checked+.m-card .w-ic{background:var(--surface);color:var(--accent)}
+.m-opt input:focus-visible+.m-card{outline:2px solid var(--accent);outline-offset:2px}
+.m-note{margin-top:14px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:600;color:var(--muted)}.m-note i{font-style:normal;font-weight:400;color:var(--faint)}
+.m-note textarea{width:100%;resize:vertical;min-height:60px;padding:9px 11px;border-radius:10px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:13.5px/1.45 var(--sans)}.m-note textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.m-foot{margin-top:18px;display:flex;align-items:center;gap:8px}.m-foot .primary{margin-left:auto;height:40px;padding:0 18px}.m-foot .primary:disabled{opacity:.4;cursor:default}
+.m-done{display:none;text-align:center;padding:4px 0 2px}
+.mdlg[data-state=done] .m-pick{display:none}.mdlg[data-state=done] .m-done{display:block}
+.m-ok{width:52px;height:52px;margin:4px auto 14px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}.m-ok svg{width:24px;height:24px}
+.mdlg[data-state=done][data-fresh] .m-ok{animation:pop .35s cubic-bezier(.2,.9,.3,1.4)}@keyframes pop{from{transform:scale(.5);opacity:0}}
+.m-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:14px}.m-chips span{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:99px;background:var(--accent-soft);color:var(--accent);font-size:12.5px;font-weight:600}.m-chips svg{width:14px;height:14px}
+.m-done .m-foot{justify-content:center}.m-done .m-foot .primary{margin-left:0}
+.toast{position:fixed;left:50%;bottom:24px;z-index:100;transform:translateX(-50%);max-width:calc(100vw - 32px);padding:10px 16px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:13.5px;box-shadow:var(--shadow-2);animation:m-in .2s ease-out}.toast.bad{background:var(--bad);color:#fff}
+@media (max-width:640px){.mdlg{width:100vw;max-width:none;max-height:92dvh;margin:auto 0 0;border-radius:20px 20px 0 0;border-bottom:0}.mdlg[open]{animation:sheet .26s cubic-bezier(.2,.9,.3,1)}@keyframes sheet{from{transform:translateY(40px);opacity:.4}}.m-body{padding:18px 18px calc(22px + env(safe-area-inset-bottom))}.m-hero{padding:46px 18px 16px}button.w.add-m .chev{display:none}button.w.add-m .pill{align-self:flex-start;margin-top:2px}.rack{gap:6px}.slot{height:56px}.m-foot .primary{flex:1}}
+@media (prefers-reduced-motion:reduce){.slot,.mdlg[open],.m-ok{animation:none!important}}
 @media (max-width:640px){.tiles{grid-template-columns:1fr}.kinds{grid-template-columns:1fr}.main{padding:24px 16px 56px}.w{flex-wrap:wrap}.w-acts{width:100%;padding-left:46px}.w-acts .primary{flex:1}.steps{padding-left:14px}.top{padding:0 16px}.top .who{display:none}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
 .wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
@@ -342,7 +394,7 @@ ${user ? `<div class="me"><span class="who">${esc(user.handle)}</span><span clas
 <main class="main${narrow ? ' narrow' : ''}">${body}</main>${PENDING}</body></html>`;
 }
 
-const STATE = { running: 'Running', starting: 'Waking up', stopping: 'Going to sleep', stopped: 'Asleep' };
+const STATE = { running: 'Running', queued: 'Waiting for room', starting: 'Waking up', stopping: 'Going to sleep', stopped: 'Asleep' };
 const ago = (t) => {
   if (!t) return 'never';
   const s = Math.round((Date.now() - t) / 1000);
@@ -356,7 +408,91 @@ const ago = (t) => {
 // grid) and your own computers (wisp runs on them; the grid only relays to them). Then how to add
 // a computer, where to open them from, and the account's devices and sign-ins. One column of rows,
 // so it reads the same on a phone.
-export function accountPage({ cfg, user, instance, devices, computers = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
+// What a cloud wisp could be next (grid/accounts.js MACHINE_WANTS): what each is, for the account
+// page's "Add a cloud machine". Only one per account for now; these are on a waitlist.
+const WANTS = [
+  ['more', 'stack', 'More machines', 'More', 'Several cloud wisps side by side: one per project, or one per teammate.', 'more machines'],
+  ['bigger', 'bolt', 'A bigger machine', 'Bigger', 'More CPU and memory, for big repos, long builds and full test suites.', 'a bigger machine'],
+  ['gpu', 'gpu', 'GPUs', 'GPU', 'Run local models, fine-tune, or let your agents use CUDA.', 'GPUs'],
+];
+// "a, b and c"
+const and = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+const wishLine = (wants) => (wants.length ? `On the waitlist for ${and(WANTS.filter(([k]) => wants.includes(k)).map((w) => w[5]))}. We’ll write when it’s ready.` : 'One comes with your account for now. More machines, bigger ones and GPUs are on the way.');
+const size = (m) => {
+  const n = /^(\d+(?:\.\d+)?)([kmg]?)b?$/i.exec(String(m || ''));
+  if (!n) return '';
+  const gb = Number(n[1]) / { k: 1048576, m: 1024, g: 1, '': 1073741824 }[n[2].toLowerCase()];
+  return `${Math.round(gb * 10) / 10} GB`;
+};
+
+// The cloud section's last row: one cloud wisp per account for now, so "add" opens the waitlist
+// for more, bigger and GPU machines (machinesDialog). Says when you're on it.
+function addMachineRow(wish) {
+  return `<button type="button" class="w add-m" data-open="machines" aria-haspopup="dialog">
+      <span class="w-ic">${I.plus}</span>
+      <div class="w-tx"><b>Add a cloud machine</b><small>${esc(wishLine(wish?.wants || []))}</small></div>
+      ${wish ? `<span class="pill listed">${I.check}On the list</span>` : '<span class="pill soon">Soon</span>'}<span class="chev">${I.chev}</span>
+    </button>`;
+}
+
+function machinesDialog({ machine = {}, user, hidden }) {
+  const wish = machine.wish;
+  const has = (k) => !!wish?.wants.includes(k);
+  const spec = [machine.cpus && `${machine.cpus} vCPU`, size(machine.memory) && `${size(machine.memory)} memory`, 'sleeps when idle'].filter(Boolean).join(' · ');
+  return `<dialog class="mdlg" id="machines" aria-labelledby="mTitle" data-state="${wish ? 'done' : 'pick'}">
+    <form method="post" action="/machines/waitlist" id="mForm">${hidden}
+    <button class="m-x" type="button" data-close aria-label="Close">${I.x}</button>
+    <div class="m-hero" aria-hidden="true"><div class="rack">
+      <div class="slot mine">${I.cloud}Yours</div>
+      ${WANTS.map(([k, ic, , short]) => `<div class="slot${has(k) ? ' on' : ''}" data-slot="${k}">${I[ic]}${short}</div>`).join('')}
+    </div></div>
+    <div class="m-body">
+      <div class="m-pick">
+        <p class="m-kicker">wisp Cloud · coming soon</p>
+        <h2 id="mTitle">One cloud machine per account, for now</h2>
+        <p class="m-sub">Your account comes with one cloud wisp. More machines, bigger ones and GPUs are on the way. Pick what you’d use and you’ll be among the first to get it.</p>
+        <div class="m-have"><span class="w-ic cloud">${I.cloud}</span><div><b>Your cloud wisp</b><small>${esc(spec)}</small></div><span class="pill ok">Included</span></div>
+        <fieldset class="m-opts"><legend>What would you use?</legend>
+          ${WANTS.map(([k, ic, name, , text]) => `<label class="m-opt"><input type="checkbox" name="want_${k}" value="1"${has(k) ? ' checked' : ''}><span class="m-card"><span class="w-ic">${I[ic]}</span><div><b>${name}</b><small>${text}</small></div><span class="m-tick">${I.check}</span></span></label>`).join('')}
+        </fieldset>
+        <label class="m-note"><span>What would you run on it? <i>Optional</i></span><textarea name="note" rows="2" maxlength="500" placeholder="A monorepo build, a 70B model, three projects at once…">${esc(wish?.note || '')}</textarea></label>
+        <div class="m-foot">${wish ? '<button type="button" class="ghost danger" data-leave>Leave the list</button>' : '<button type="button" class="ghost" data-close>Not now</button>'}<button class="primary" type="submit" data-go${wish ? '' : ' disabled'}>${wish ? 'Save' : 'Join the waitlist'}</button></div>
+      </div>
+      <div class="m-done" aria-live="polite">
+        <div class="m-ok">${I.check}</div>
+        <h2>You’re on the list</h2>
+        <p class="m-sub">We’ll write${user.email ? ` to <b>${esc(user.email)}</b>` : ''} as soon as it’s ready. Your cloud wisp keeps working as it is meanwhile.</p>
+        <div class="m-chips" data-chips>${WANTS.filter(([k]) => has(k)).map(([, ic, name]) => `<span>${I[ic]}${name}</span>`).join('')}</div>
+        <div class="m-foot"><button type="button" class="ghost line" data-change>Change</button><button type="button" class="primary" data-close>Done</button></div>
+      </div>
+    </div>
+    </form>
+  </dialog>`;
+}
+
+// Opens and runs the dialog. Joining shows at once (the row too) and rolls back with a toast if
+// the grid says no; the live sync then brings the row from the server, the same.
+const MACHINES_JS = `<script>(()=>{const d=document.getElementById('machines'),f=document.getElementById('mForm');if(!d)return;
+const W=${JSON.stringify(WANTS.map(([k, ic, name]) => [k, name]))},TEXT=${JSON.stringify(Object.fromEntries([[], ['more'], ['bigger'], ['gpu'], ['more', 'bigger'], ['more', 'gpu'], ['bigger', 'gpu'], ['more', 'bigger', 'gpu']].map((w) => [w.join(','), wishLine(w)])))},ICONS={${WANTS.map(([k, ic]) => `${k}:${JSON.stringify(I[ic])}`).join(',')}};
+const boxes=[...f.querySelectorAll('input[type=checkbox]')],go=f.querySelector('[data-go]');
+const picked=()=>boxes.filter((b)=>b.checked).map((b)=>b.name.slice(5));
+const paint=()=>{const p=picked();go.disabled=!p.length;for(const s of d.querySelectorAll('[data-slot]'))s.classList.toggle('on',p.includes(s.dataset.slot))};
+const chips=(p)=>{d.querySelector('[data-chips]').innerHTML=W.filter(([k])=>p.includes(k)).map(([k,n])=>'<span>'+ICONS[k]+n+'</span>').join('')};
+const toast=(t)=>{const n=document.createElement('div');n.className='toast bad';n.setAttribute('role','alert');n.textContent=t;document.body.append(n);setTimeout(()=>n.remove(),4500)};
+const row=()=>document.querySelector('[data-open=machines]');
+const rowFor=(p)=>{const r=row();if(!r)return;
+r.querySelector('small').textContent=TEXT[p.join(',')]||TEXT[''];
+const pill=r.querySelector('.pill');pill.className='pill '+(p.length?'listed':'soon');pill.innerHTML=p.length?${JSON.stringify(I.check)}+'On the list':'Soon'};
+const send=async(wants)=>{const before={state:d.dataset.state,html:row()?.outerHTML};
+if(wants.length){chips(wants);d.dataset.fresh='';d.dataset.state='done'}else d.close();rowFor(wants);
+try{const r=await fetch('/machines/waitlist',{method:'POST',headers:{'content-type':'application/json',accept:'application/json'},body:JSON.stringify({csrf:f.csrf.value,wants,note:f.note.value})});
+if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||'The grid didn’t take it. Try again.')}
+catch(e){d.dataset.state=before.state;if(before.html)row()?.replaceWith(Object.assign(document.createElement('div'),{innerHTML:before.html}).firstElementChild);toast(e.message||'You’re offline. Try again.')}};
+document.addEventListener('click',(e)=>{if(e.target.closest('[data-open=machines]')){delete d.dataset.fresh;d.showModal()}});
+d.addEventListener('click',(e)=>{if(e.target===d||e.target.closest('[data-close]'))d.close();else if(e.target.closest('[data-change]'))d.dataset.state='pick';else if(e.target.closest('[data-leave]')){boxes.forEach((b)=>b.checked=false);paint();send([])}});
+f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDefault();const p=picked();if(p.length)send(p)});paint()})()</script>`;
+
+export function accountPage({ cfg, user, instance, machine = {}, devices, computers = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
   const st = instance.state;
   const url = cfg.instanceUrl(user.handle);
   const host = new URL(cfg.publicUrl).host;
@@ -416,7 +552,7 @@ export function accountPage({ cfg, user, instance, devices, computers = [], iden
       </div>
 
       <h2 class="sec">Cloud</h2>
-      <div class="group" data-live="cloud">${cloudRow}</div>
+      <div class="group" data-live="cloud">${cloudRow}${addMachineRow(machine.wish)}</div>
 
       <h2 class="sec">Your computers <span class="n" data-live="online">${computers.length ? `${online} of ${computers.length} online` : ''}</span></h2>
       <div class="group" data-live="computers">${computers.map(computerRow).join('')}
@@ -467,7 +603,8 @@ export function accountPage({ cfg, user, instance, devices, computers = [], iden
       <div class="group"><form class="r del" method="post" action="/account/delete"><span class="ic">${I.trash}</span><div class="tx"><b>Delete your account and your cloud wisp</b><small>Your cloud wisp, its files and your agents’ sign-ins there are deleted for good. Your computers keep their own wisp.</small></div>
         ${hidden}<input class="input" name="confirm" placeholder="Type ${esc(user.handle)}" aria-label="Type ${esc(user.handle)} to confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required pattern="${esc(user.handle)}"><button class="ghost line danger">Delete</button></form></div>
       <div class="foot"><form class="inline" method="post" action="/signout?all=1">${hidden}<button class="ghost">Sign out everywhere</button></form></div>
-      <script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.textContent;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>${LIVE}`,
+      ${machinesDialog({ machine, user, hidden })}
+      <script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.textContent;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>${MACHINES_JS}${LIVE}`,
   });
 }
 
@@ -533,6 +670,6 @@ export function wakingPage({ cfg, user }) {
     title: 'Waking up',
     narrow: true,
     body: `<div class="center" style="padding-top:48px"><div class="orb"></div><h1 class="h1">Waking your wisp</h1><p class="sub" id="msg">${esc(user.handle)}’s computer was asleep. A few seconds.</p></div>
-      <script>(async function poll(n){try{const r=await fetch('/_grid/state',{cache:'no-store'});const j=await r.json();if(j.state==='running')return location.reload();if(j.error)document.getElementById('msg').textContent=j.error;}catch{}setTimeout(()=>poll(n+1),n<20?700:2000)})(0)</script>`,
+      <script>(async function poll(n){try{const r=await fetch('/_grid/state',{cache:'no-store'});const j=await r.json();if(j.state==='running')return location.reload();const m=document.getElementById('msg');if(j.error)m.textContent=j.error;else if(j.state==='queued')m.textContent='The grid is busy right now. You’re next in line: it opens as soon as there’s room.';}catch{}setTimeout(()=>poll(n+1),n<20?700:2000)})(0)</script>`,
   });
 }

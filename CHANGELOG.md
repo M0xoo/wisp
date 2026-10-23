@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **wisp Grid makes room instead of turning people away.** A box now starts when the host has the memory for it (`MemAvailable`, with `hostd.admit`), not only while fewer than `maxRunning` run. When there isn't room, the grid stops the box that has been quiet longest (nothing running, no page or terminal open, for 2 min) the same way the idle stop does, so its home and tasks are kept. If every box is busy, the start waits in line (*Waiting for room* on the waking page) instead of failing at once. Scheduled wakes wait behind people and never stop anyone's box.
+- **Seats that grow by themselves: `auth.maxUsers: "auto"`.** The grid records how busy the host is every 5 minutes. While every seat is taken, nothing had to wait for room and the busiest moment of the last week stayed under 70% of what the host can run, it opens one more seat a day, up to `auth.seats.cap`. It never takes seats away.
+- **Add a cloud machine, on the grid's account page.** Each account has one cloud wisp for now. A new row under it opens a dialog that shows the machine you have (CPU, memory) and lets you ask for more machines, a bigger one or GPUs, with a line on what you'd run. You see you're on the list right away, on the row and in the dialog; if the grid refuses, it goes back and says why. `wisp grid waitlist` lists who asked for what.
+- **A waitlist in the grid.** People the full grid turns away at sign-in, and emails from trywisp.dev's form (`POST /api/waitlist`), go on a list. A seat that opens is held for a week for the oldest email on it; signing in with GitHub on that address gets it. `wisp grid waitlist` lists who's waiting and who has a seat held.
+
+### Changed
+
+- **No more "N seats left".** The grid's sign-in page, trywisp.dev and the Cloud page no longer count seats. They say the preview is open, or that it's full and take your email.
+
 ## [0.36.0] - 2026-10-23
 
 ### Added
