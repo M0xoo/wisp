@@ -226,7 +226,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const p = url.pathname;
     const c = cookies(req);
     const s = accounts.session(c[names.grid], 'grid');
-    const page = (body, status = 200, headers) => html(res, status, body, headers);
+    // Only the landing page belongs in search results; sign-in steps, messages and the account page don't.
+    const page = (body, status = 200, headers) => html(res, status, body, p === '/' ? headers : { 'x-robots-tag': 'noindex', ...headers });
     const needCsrf = async () => {
       const body = await readBody(req);
       if (req.headers.origin && req.headers.origin !== cfg.publicUrl) throw bad('This form came from another site.', 403);
@@ -652,6 +653,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         return fs.createReadStream(file).pipe(res);
       }
       const h = hostKind(req);
+      // People's wisps and computers are private: keep every answer from them, the sign-in
+      // redirects included, out of search engines, and tell crawlers so up front.
+      if (h.kind !== 'root') res.setHeader('x-robots-tag', 'noindex, nofollow');
+      if (url.pathname === '/robots.txt' && req.method === 'GET') {
+        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=3600' });
+        return res.end(h.kind === 'root' ? 'User-agent: *\nDisallow: /api/\nDisallow: /auth/\nDisallow: /activate\nDisallow: /go\n' : 'User-agent: *\nDisallow: /\n');
+      }
       if (h.kind === 'root') return await root(req, res, url);
       if (h.kind === 'edge') return await edge(req, res, url, h.handle);
       if (h.kind === 'computer') return await computerEdge(req, res, url, h.computer);

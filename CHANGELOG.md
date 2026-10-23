@@ -11,9 +11,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Seats that grow by themselves: `auth.maxUsers: "auto"`.** The grid records how busy the host is every 5 minutes. While every seat is taken, nothing had to wait for room and the busiest moment of the last week stayed under 70% of what the host can run, it opens one more seat a day, up to `auth.seats.cap`. It never takes seats away.
 - **Add a cloud machine, on the grid's account page.** Each account has one cloud wisp for now. A new row under it opens a dialog that shows the machine you have (CPU, memory) and lets you ask for more machines, a bigger one or GPUs, with a line on what you'd run. You see you're on the list right away, on the row and in the dialog; if the grid refuses, it goes back and says why. `wisp grid waitlist` lists who asked for what.
 - **A waitlist in the grid.** People the full grid turns away at sign-in, and emails from trywisp.dev's form (`POST /api/waitlist`), go on a list. A seat that opens is held for a week for the oldest email on it; signing in with GitHub on that address gets it. `wisp grid waitlist` lists who's waiting and who has a seat held.
+- **Three new guides on trywisp.dev for running agents from anywhere:** [Beyond Claude Code Remote Control](https://trywisp.dev/guides/claude-code-remote-control-alternative.html), [Use Codex from your phone](https://trywisp.dev/guides/use-codex-from-your-phone.html) and [Remote coding agent apps compared](https://trywisp.dev/guides/remote-coding-agent-apps-compared.html) (Happy, Grass, CloudCLI and wisp).
 
 ### Changed
 
+- **wisp Grid and search engines.** The grid's landing page names itself canonical and serves a `robots.txt`; its other pages say `noindex`, and every answer from a person's wisp or computer address carries `X-Robots-Tag: noindex, nofollow` (their `robots.txt` disallows everything).
 - **No more "N seats left".** The grid's sign-in page, trywisp.dev and the Cloud page no longer count seats. They say the preview is open, or that it's full and take your email.
 - **wisp Grid: GitHub and Google sign-in side by side.** When a grid offers exactly two ways in, the buttons share one row instead of stacking, so adding Google doesn't push the page down; on phones they read just *GitHub* and *Google*.
 
