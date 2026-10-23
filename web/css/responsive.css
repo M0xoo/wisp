@@ -57,6 +57,9 @@ body.wisp-mobile .topbar { gap: 6px; }
 body.wisp-mobile .machines-btn { flex: none; gap: 5px; padding: 0 8px; border-color: var(--line-2); }
 /* Split view needs a wide window: the phone app always shows the feed, so no layout switchers. */
 body.wisp-mobile .view-btn, body.wisp-mobile .view-group { display: none; }
+/* A follow-up's bar is narrow on a phone: its mode button is just the icon (coloured per mode; the menu names it). */
+body.wisp-mobile .c-bar .c-mode span { display: none; }
+body.wisp-mobile .c-bar .c-mode { padding: 0; justify-content: center; }
 /* Feels like an app, not a page: a press shows on what you touch, a long press doesn't select the
    button or header under it, and taps don't wait to see if they're a double-tap zoom. */
 body.wisp-mobile :is(button, a, summary, .it-head, .task-head) { touch-action: manipulation; }

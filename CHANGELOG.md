@@ -20,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Phone app: a follow-up's mode is just its icon.** The Full auto / Plan / Edits button in the follow-up box drops its text in the app, so the bar fits on one row; the icon keeps its colour and the menu still names each mode.
 - Code blocks in markdown no longer draw an inline-code box around every line.
 - In split view, clicking a task in the list puts the cursor in its follow-up box, ready to type. `J` / `K` still keep the keys in the list. A box you were typing in stays open as you move between tasks instead of folding and opening again.
 
