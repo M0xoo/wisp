@@ -570,7 +570,7 @@ async function exec(line, gen) {
   await sleepT(220);
   if (gen !== termGen) return;
   if (flags.help || cmd === 'help') return termPrint(TERM_HELP + '\n');
-  if (flags.version) return termPrint('0.34.0\n');
+  if (flags.version) return termPrint('0.35.0\n');
   if (!cmd) return termPrint('\n  ◌ wisp is open\n\n');
   switch (cmd) {
     case 'ls':
