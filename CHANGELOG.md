@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Settings → Spells on a phone:** a spell's *Acts for you* badge no longer squeezes onto two lines next to its name; the name, version and badge each stay whole and the badge moves under the name when the row is narrow.
+- **Allow & retry right after a run ends.** Clicking it within a few seconds of the result, while the agent's CLI was still exiting, was refused with "The task has moved on since". It now lets that CLI go and starts the retry.
 
 ## [0.37.0] - 2026-10-23
 

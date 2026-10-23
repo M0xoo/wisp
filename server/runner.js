@@ -315,7 +315,8 @@ export class Runner extends EventEmitter {
     const turn = turnId ? session.turns.find((t) => t.id === turnId) : session.turns.at(-1);
     if (!turn?.blocked?.length) throw bad('Nothing on that turn is waiting for approval.', 404);
     if (turn.approval) throw bad(`Already ${turn.approval}.`, 409);
-    if (turn !== session.turns.at(-1) || this.live.has(session.id)) throw bad('The task has moved on since; send a follow-up instead.', 409);
+    // A CLI still lingering after its result doesn't count: reply() lets it go and starts the retry.
+    if (turn !== session.turns.at(-1) || (this.live.has(session.id) && turn.status === 'running')) throw bad('The task has moved on since; send a follow-up instead.', 409);
     turn.approval = allow ? 'allowed' : 'denied';
     if (!allow) {
       this.#touch(session, { turn: turn.id });

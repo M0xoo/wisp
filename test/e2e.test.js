@@ -521,6 +521,19 @@ test('claude: a refused call gets an Allow & retry card; the retry allows exactl
   assert.equal(twice.status, 409);
 });
 
+test('claude: Allow & retry works while the CLI is still exiting after its result', async () => {
+  process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the run is still live when we approve
+  try {
+    const s = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+    const done = await settled(s.id, 1);
+    assert.equal((await api(`/sessions/${s.id}/approve`, { turnId: done.turns[0].id })).scoped, true);
+    const again = await settled(s.id, 2);
+    assert.equal(again.turns[1].presentation.blocks[0].summary, 'Published.');
+  } finally {
+    delete process.env.FAKE_LINGER;
+  }
+});
+
 test('codex: what its sandbox refused (from its blocked block) retries in Full auto for one follow-up', async () => {
   const s = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'codex', mode: 'edits' });
   const done = await settled(s.id, 1);

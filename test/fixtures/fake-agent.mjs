@@ -12,6 +12,7 @@
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
+//   FAKE_LINGER  ms to stay alive after the result, as a real CLI flushing on its way out does
 //   FAKE_MCP_POLICY=1  copilot: warn that an organization policy blocked wisp's MCP server
 //   FAKE_SESSION_ERROR  copilot: report this session.error (a quota) and end with exit code 1
 //   FAKE_LEAVE_CONFLICTS=1  asked to merge the base in (wisp's conflict fix): leave the conflicts
@@ -520,3 +521,4 @@ if (name === 'claude') {
     out({ type: 'result', timestamp: new Date().toISOString(), sessionId: session, exitCode: process.env.FAKE_SESSION_ERROR ? 1 : 0, usage: { premiumRequests: 1 + prior, totalApiDurationMs: 4, sessionDurationMs: 6, codeChanges: { linesAdded: 2, linesRemoved: 1, filesModified: [target, notes] } } });
   }
 }
+if (process.env.FAKE_LINGER) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_LINGER)));
