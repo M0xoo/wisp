@@ -165,16 +165,42 @@ function renderShipRun(node, id, run) {
   if ($('.ship-acts', node).innerHTML !== acts) $('.ship-acts', node).innerHTML = acts;
 }
 
+// The dialog opens on the click with its real shape (header, route, fields, button) as
+// placeholders, guessed from the card; GET /ship (git and gh, which can take a second) fills it in.
+function shipSkel(s) {
+  const repos = branches(s).length || 1;
+  const open = prsOf(s).length > 0 && prsOf(s).every((x) => x.pr.state === 'OPEN');
+  const pr = prOf(s);
+  const route = (b) => `<p class="ship-route">${icon('branch')}<code>${esc(b || 'branch')}</code>${icon('arrow')}<i class="sk sk-code"></i><i class="sk sk-meta"></i></p>`;
+  return `
+      <header><h2>${open ? (repos > 1 ? `Push to ${repos} PRs` : `Push to PR #${pr.number}`) : repos > 1 ? `Ship it to ${repos} repos` : 'Ship it'}</h2><button class="icon-btn close">${icon('x')}</button></header>
+      ${(branches(s).length ? branches(s) : ['']).map(route).join('')}
+      <label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><span class="input sk-box"><i class="sk sk-title"></i></span></label>
+      ${open ? '' : `<label class="ship-field"><span>Pull request description</span><span class="textarea sk-box sk-area"><i class="sk"></i><i class="sk"></i><i class="sk sk-short"></i></span></label>
+      <label class="check ship-check"><input type="checkbox" disabled> Open as a draft</label>`}
+      <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in ${repos > 1 ? 'each worktree with changes, one PR per repo' : 'the worktree'}.</span><button class="primary sm" disabled>${icon('send')}${open ? 'Commit & push' : repos > 1 ? 'Commit, push & open PRs' : 'Commit, push & open PR'}</button></div>`;
+}
+
 export async function shipDialog(id) {
   const s = S.sessions.get(id);
   if (!s) return;
   if (s.state === 'running' || s.state === 'waiting') return toast('Still working: let it finish first.');
+  const node = el(`<div class="modal ship-modal loading">${shipSkel(s)}</div>`);
+  let closed = false;
+  const close = overlay(node, {
+    onClose: () => {
+      closed = true;
+    },
+  });
+  $('.close', node).onclick = close;
   let info;
   try {
     info = await api(`/sessions/${id}/ship`);
   } catch (err) {
+    close();
     return toastError(err);
   }
+  if (closed) return;
   // Several repos: a route line each, and the PRs open or update together.
   const repos = info.repos || [info];
   const open = repos.every((r) => r.pr?.state === 'OPEN');
@@ -183,17 +209,16 @@ export async function shipDialog(id) {
   const noRemote = repos.every((r) => !r.remote);
   const route = (r) => `<p class="ship-route">${icon('branch')}${info.repos ? `<b class="ship-repo">${esc(r.repo)}</b>` : ''}<code>${esc(r.branch)}</code>${icon('arrow')}<code>${esc(r.remote || 'no remote')}/${esc(r.base)}</code>
         <span class="muted">${r.dirty ? `${r.dirty} uncommitted change${r.dirty > 1 ? 's' : ''}` : 'Nothing uncommitted'} · ${r.ahead} commit${r.ahead === 1 ? '' : 's'} on the branch${info.repos && r.pr ? ` · PR #${r.pr.number}` : ''}</span></p>`;
-  const node = el(`
-    <div class="modal ship-modal">
+  // Filled in place: the modal node stays, so its entry animation doesn't play again.
+  node.classList.remove('loading');
+  node.innerHTML = `
       <header><h2>${open ? (info.repos ? `Push to ${repos.length} PRs` : `Push to PR #${info.pr.number}`) : info.repos ? `Ship it to ${repos.length} repos` : 'Ship it'}</h2><button class="icon-btn close">${icon('x')}</button></header>
       ${repos.map(route).join('')}
       ${info.dirty ? `<label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><input class="input" name="title" spellcheck="false" maxlength="100"></label>` : ''}
       ${open ? '' : `<label class="ship-field"><span>Pull request description</span><textarea class="textarea mono" name="body" rows="9" spellcheck="false"></textarea></label>
       <label class="check ship-check"><input type="checkbox" name="draft"> Open as a draft</label>`}
       ${noRemote ? `<p class="hint bad">${info.repos ? 'These repos have' : 'This repo has'} no <code>origin</code> remote, so there is nowhere to push.</p>` : nothing ? '<p class="hint">Nothing to ship yet: the branch has no changes.</p>' : ''}
-      <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in ${info.repos ? 'each worktree with changes, one PR per repo' : 'the worktree'}.</span><button class="primary sm" data-a="go" ${nothing || noRemote ? 'disabled' : ''}>${icon('send')}${open ? 'Commit & push' : info.repos ? 'Commit, push & open PRs' : 'Commit, push & open PR'}</button></div>
-    </div>`);
-  const close = overlay(node);
+      <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in ${info.repos ? 'each worktree with changes, one PR per repo' : 'the worktree'}.</span><button class="primary sm" data-a="go" ${nothing || noRemote ? 'disabled' : ''}>${icon('send')}${open ? 'Commit & push' : info.repos ? 'Commit, push & open PRs' : 'Commit, push & open PR'}</button></div>`;
   $('.close', node).onclick = close;
   const title = $('[name="title"]', node);
   const body = $('[name="body"]', node);

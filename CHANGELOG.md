@@ -11,12 +11,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Ship it opens on the click.** The dialog used to wait for wisp to read the worktree (git and gh) before showing, so the click seemed to do nothing for a second. It now opens at once in its final shape, with placeholders for the route and the message, and fills in when the worktree has been read.
 - **trywisp.dev: every way in, at the top and the bottom.** The nav's *npx wisp-agents* pill is now **Get wisp ▾**: a menu with npx, npm, curl, brew and this OS's app (on a Mac, the curl install that skips the warning; elsewhere the download), each one click to copy, and a link to the full install section. The page's last section has the same tabs as the hero, kept in step with it.
 - **trywisp.dev: npx comes first again, Download is the last tab.** Until the apps are signed, Download says what to expect on first open: on a Mac it offers the curl install (or the `.dmg`, with Privacy & Security → *Open Anyway*); on Windows, SmartScreen's *More info* → *Run anyway*; on Linux it offers the `.deb`, with the AppImage as the other choice.
 
 ### Fixed
 
 - **Settings → Spells on a phone:** a spell's *Acts for you* badge no longer squeezes onto two lines next to its name; the name, version and badge each stay whole and the badge moves under the name when the row is narrow.
+- **Allow & retry right after a run ends.** Clicking it within a few seconds of the result, while the agent's CLI was still exiting, was refused with "The task has moved on since". It now lets that CLI go and starts the retry.
 
 ## [0.37.0] - 2026-10-23
 
