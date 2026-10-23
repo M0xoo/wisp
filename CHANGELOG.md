@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-23
+
 ### Added
 
 - **Live page previews in the chat.** An agent can answer with a `preview` block: the page it's working on (your dev server, a deployed URL), live in the reply, framed as a phone, tablet or browser window at the size it picked (`mobile`, `tablet`, `desktop` or any `WxH`) and scaled to fit. Switch sizes, rotate, reload or open it in a new tab from the block's bar. The page runs in a sandboxed frame on its own origin: it can't reach wisp, navigate it or open dialogs over it, and only http(s) links load.
