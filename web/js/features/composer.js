@@ -144,6 +144,7 @@ function paintReplyMode(id, btn) {
   const from = s && S.replyModes.has(id) && MODES.find((x) => x.id === s.mode);
   btn.className = `mode-btn c-mode m-${m.id}${from ? ' changed' : ''}`;
   btn.innerHTML = `${icon(m.icon)}<span>${m.label}</span>`;
+  btn.setAttribute('aria-label', m.label); // the phone app hides the text
   btn.title = from
     ? `${m.label}: ${m.hint}\nYour next follow-up switches this task from ${from.label} to ${m.label}. Shift+Tab to switch`
     : `${m.label}: ${m.hint}\nPick another mode for your next follow-up. Shift+Tab to switch`;
