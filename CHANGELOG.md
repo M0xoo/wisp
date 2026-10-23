@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - **A new logo: a handwritten w that ends in wisp's orb.** It replaces the orb everywhere: the app and favicon icons (web, docs site, desktop app, Grid), the Android launcher, themed and status bar icons, the Play store art and the share images, and the small mark beside "wisp" in the page, the site, Grid and the Android app. `node scripts/logo.mjs` draws every vector copy.
+- The header shows just the logo now, without the word "wisp" beside it, in the page and the Android app.
 
 ## [0.32.0] - 2026-10-23
 

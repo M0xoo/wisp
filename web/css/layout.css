@@ -39,7 +39,8 @@
 @keyframes to-top-in { from { opacity: 0; transform: translateY(-10px) scale(0.97); } }
 .to-top:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 .brand { display: flex; align-items: center; gap: 9px; flex: none; }
-.brand .word { font: 600 15px/1 var(--display); letter-spacing: -0.02em; }
+/* the logo alone, no name beside it */
+.brand .orb.tiny { --s: 17px; width: 32px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
 .dot.ok { background: var(--good); }
 .dot.bad { background: var(--bad); }
