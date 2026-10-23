@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-23
+
 ### Added
 
 - **Tips under the prompt box.** Three short tips about using wisp sit under Needs you on split view's home, rotating through a list of 34 on every visit or with *More tips*. Each opens the trywisp.dev guide section that explains it. Spells can hide or restyle them (the `tips` part) and set how many show (`count`).
