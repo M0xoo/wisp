@@ -23,7 +23,7 @@ const HELP = `usage:
   wisp                          open wisp
   wisp "task"                   launch a task in this folder
   wisp add [path]               add a project
-  wisp ls                       list sessions        (--state running,waiting  --limit N)
+  wisp ls                       list sessions        (--state running,waiting,review,done|needs  --limit N  --all: archived too)
   wisp show <id>                state + latest presentation as markdown
   wisp wait <id>                block until it finishes or asks you something
   wisp reply <id> "text"        follow up (answers a pending question)   (--queue  --mode plan|edits|auto
@@ -50,13 +50,19 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
 options:        --port N  --browser  --no-open  --json  --version`;
 
 const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells', 'grid']);
+const LS_STATES = ['running', 'waiting', 'review', 'done'];
 const GRID_SUB = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'help']);
 const argv = process.argv.slice(2);
 const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
 const words = [];
 let literal = false;
 for (let i = 0; i < argv.length; i++) {
-  const a = argv[i];
+  let a = argv[i];
+  // --state=review is --state review (it used to become a word, and the filter was dropped).
+  if (!literal && /^--[a-z-]+=/.test(a)) {
+    argv.splice(i + 1, 0, a.slice(a.indexOf('=') + 1));
+    a = a.slice(0, a.indexOf('='));
+  }
   if (literal) words.push(a);
   else if (a === '--') literal = words.length === 0 ? 'task' : true;
   else if (a === '--no-open') flags.open = false;
@@ -140,7 +146,12 @@ async function scripted(cmd, args) {
     }
     case 'ls':
     case 'list': {
-      const list = await wisp.sessions({ state: flags.state, limit: flags.limit, cwd: flags.cwd || undefined, archived: flags.state ? undefined : false });
+      // The page's Needs you is review + waiting; an unknown state would just print nothing.
+      const states = flags.state && [...new Set(flags.state.split(',').flatMap((x) => (x === 'needs' ? ['review', 'waiting'] : [x.trim()])).filter(Boolean))];
+      const bad = states && states.filter((x) => !LS_STATES.includes(x));
+      if (bad?.length) die(`unknown state ${bad.join(', ')}: use ${LS_STATES.join(', ')} or needs (review + waiting)`);
+      // Like the page, archived tasks are hidden unless --all (an archived review isn't waiting on you).
+      const list = await wisp.sessions({ state: states?.join(','), limit: flags.limit, cwd: flags.cwd || undefined, archived: flags.all ? undefined : false });
       return out(list, list.map((s) => `${s.id}  ${s.state.padEnd(7)}  ${s.agent.padEnd(8)}  ${s.project.padEnd(16).slice(0, 16)}  ${s.title}${s.question ? `  — asks: ${s.question}` : ''}`).join('\n') || 'No sessions.');
     }
     case 'show':
