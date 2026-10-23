@@ -197,6 +197,7 @@ export class Runner extends EventEmitter {
     this.live = new Map(); // sessionId -> adapter handle
     this.stopping = new Set();
     this.interrupting = new Set();
+    this.handing = new Set(); // ids whose run ended with a follow-up waiting to start: they stay in Working
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
     this.sides = new Map(); // /btw id -> { sessionId, handle }: side questions being answered
     this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
@@ -748,7 +749,10 @@ export class Runner extends EventEmitter {
       if (next?.mode) session.mode = next.mode;
       if (next?.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
       if (next?.team) setTeam(session, next.team);
+      const handed = this.handing.delete(session.id);
       if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments, next);
+      // Kept in Working for a follow-up that was then taken back or stopped: it lands in your queue after all.
+      else if (handed) this.settle(session, { quiet: true });
       else this.#touch(session);
     };
     handle.release = release;
@@ -893,9 +897,12 @@ export class Runner extends EventEmitter {
     }
     if (!ev.stopped) blockedCard(turn);
     // Auto checks the work before it reaches you: the session stays in Working meanwhile.
-    const holding = !interrupted && !session.queue.length && !!this.pipeline?.wants(session, turn, ev);
-    session.state = holding ? 'running' : 'review';
-    session.unread = !interrupted && !holding;
+    // A follow-up starts as soon as this run lets go: stay in Working rather than flash through Needs you.
+    const handing = this.live.has(session.id) && (interrupted || session.queue.length > 0);
+    if (handing) this.handing.add(session.id);
+    const holding = !handing && !!this.pipeline?.wants(session, turn, ev);
+    session.state = holding || handing ? 'running' : 'review';
+    session.unread = !holding && !handing;
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
@@ -903,7 +910,7 @@ export class Runner extends EventEmitter {
     if (holding) setImmediate(() => this.pipeline.run(session, turn));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
-    else if (!interrupted && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
+    else if (!handing && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,

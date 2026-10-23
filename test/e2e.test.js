@@ -305,6 +305,42 @@ test('a follow-up can switch the mode: plan → edits → auto, and a queued one
   assert.equal(bad.status, 400);
 });
 
+test('an interrupting follow-up keeps the task in Working: no flash through Needs you, no notification', async () => {
+  const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await until(async () => (await session(s.id)).state === 'review');
+  const seen = [];
+  const finished = [];
+  const onSummary = (x) => {
+    if (x.id === s.id) seen.push(x.state);
+  };
+  const onFinished = ({ session: x }) => {
+    if (x.id === s.id) finished.push(x.id);
+  };
+  process.env.FAKE_HANG = '1';
+  try {
+    await api(`/sessions/${s.id}/reply`, { text: 'long one' });
+    await until(async () => (await session(s.id)).turns[1]?.activity.length > 0);
+  } finally {
+    delete process.env.FAKE_HANG;
+  }
+  srv.runner.on('summary', onSummary);
+  srv.runner.on('finished', onFinished);
+  try {
+    const r = await api(`/sessions/${s.id}/reply`, { text: 'actually, this instead' });
+    assert.equal(r.interrupted, true);
+    const x = await until(async () => {
+      const y = await session(s.id);
+      return y.turns.length === 3 && y.state === 'review' && y;
+    });
+    assert.equal(x.turns[1].status, 'stopped');
+    assert.ok(!seen.slice(seen.indexOf('review')).includes('running'), `went back to Working after Needs you: ${seen.join(' → ')}`);
+    assert.equal(finished.length, 1, 'notified once, for the follow-up');
+  } finally {
+    srv.runner.off('summary', onSummary);
+    srv.runner.off('finished', onFinished);
+  }
+});
+
 test('cursor: runs without ask_user and still lands a presentation', async () => {
   const s = await api('/sessions', { prompt: 'fix add()', cwd: makeRepo(), agent: 'cursor', mode: 'auto' });
   const done = await until(async () => {
