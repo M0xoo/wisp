@@ -135,7 +135,7 @@ export const AGENTS = [
     extras: [
       'Several folders in one task: the others are passed as <code>--add-dir</code>.',
       'Claude in Chrome: when it is on by default in your Claude settings, wisp adds <code>--chrome</code>, which headless runs need.',
-      'Subagents: a Claude Code lead can delegate work to Codex, opencode or another Claude through wisp’s <code>delegate</code> tool.',
+      'Delegate: a Claude Code lead can hand work to Codex, opencode or another Claude, here or on your other machines, through wisp’s <code>delegate</code> tool.',
     ],
   },
   {
@@ -234,7 +234,7 @@ export const AGENTS = [
     extras: [
       'The task goes in on stdin, so long prompts and pasted logs aren’t cut by the shell.',
       'Several folders in one task: the others are passed as <code>--add-dir</code>. Pasted screenshots go in with <code>--attachment</code>.',
-      'Subagents: a Copilot lead delegates through wisp’s <code>delegate</code> tool, with its own <code>task</code> subagents turned off.',
+      'Delegate: a Copilot lead hands work through wisp’s <code>delegate</code> tool, with its own <code>task</code> subagents turned off.',
     ],
   },
 ];
