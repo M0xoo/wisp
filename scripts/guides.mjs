@@ -892,6 +892,7 @@ tmux attach -t agent`)}
         <li>Open <b>Machines</b> → <i>Reach this computer from anywhere</i>. The address (<code>grid.trywisp.dev</code>, or your own grid) is filled in: press <b>Sign in and add it</b>.</li>
         <li>A page from the grid opens with a code. Check it matches, sign in with GitHub if asked, and press <b>Allow</b>.</li>
       </ol>
+      <p>From a terminal, on a server or a computer you reach over SSH, <code>wisp computer on</code> does the same: it prints the code and the page to open (any browser, even your phone’s), waits for you to allow it, then prints the computer’s address. <code>wisp computer</code> says whether it’s on, <code>wisp computer off</code> takes it off, and <code>--grid wisp.example.com</code> picks your own grid.</p>
       <p>Machines now says <i>This computer · On your grid</i>, online at an address like <code>studio--you.grid.trywisp.dev</code>. <b>Remove from grid</b> takes it off again; wisp on it keeps running either way.</p>
     </section>
 
@@ -920,7 +921,8 @@ tmux attach -t agent`)}
         ['Does the computer need to stay on?', 'Yes: it runs the agents. Switched off or asleep, it shows Offline and comes back when it’s on with wisp running. For agents that work while every computer is off, use your cloud wisp.'],
         ['Is it free?', 'Yes, during the wisp Cloud preview. A computer you add doesn’t take a cloud seat’s server resources: it runs on your own hardware.'],
         ['Can I use my own grid?', 'Yes. Type your grid’s address instead of grid.trywisp.dev. See Run your own wisp Grid.'],
-        ['How do I take it off?', 'Machines → Remove from grid on that computer, Remove from grid in another computer’s Machines, or Remove on your account page.'],
+        ['Can I add it without opening the app?', 'Yes: run wisp computer on in a terminal on it. It prints a code and a link; allow the code in any browser, signed in to the grid, and the computer is added. wisp computer off takes it off.'],
+        ['How do I take it off?', 'Machines → Remove from grid on that computer, wisp computer off in a terminal on it, Remove from grid in another computer’s Machines, or Remove on your account page.'],
       ],
       related: ['use-wisp-cloud', 'claude-code-remote-control-alternative', 'use-codex-from-your-phone'],
     },

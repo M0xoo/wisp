@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign as rsaSign } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { browser, installFakeBins, sleep, tmp, until, win } from './helpers.js';
@@ -835,6 +835,65 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
   } finally {
     desk.shutdown();
     desk.server?.close();
+  }
+});
+
+test('wisp computer on|off|status: the device sign-in in the terminal, then this computer on the grid', async () => {
+  const bin = fileURLToPath(new URL('../bin/wisp.js', import.meta.url));
+  const port = await freePort();
+  const env = { ...process.env, WISP_HOME: tmp('cli-computer'), WISP_TELEMETRY: '0' };
+  const desk = spawn(process.execPath, [bin, '--browser', '--no-open', '--port', String(port)], { env, stdio: 'ignore' });
+  // stderr as it comes (the code is printed while the command waits), stdout at the end.
+  const cli = (...args) => {
+    const c = spawn(process.execPath, [bin, 'computer', ...args, '--port', String(port), '--no-open'], { env });
+    const r = { out: '', err: '', code: null };
+    c.stdout.on('data', (d) => (r.out += d));
+    c.stderr.on('data', (d) => (r.err += d));
+    r.done = new Promise((res) => c.on('close', (code) => res(Object.assign(r, { code }))));
+    return r;
+  };
+  try {
+    await until(() => fetch(`http://127.0.0.1:${port}/api/health`).then((x) => x.ok, () => false), { what: 'wisp from the CLI' });
+    const off = await cli().done;
+    assert.equal(off.code, 0, off.err);
+    assert.match(off.out, /○ off\. wisp computer on signs in/);
+    // A task's first words stay a task: only on / off / status are the command.
+    assert.equal(spawnSync(process.execPath, [bin, 'computer', 'bogus', '--port', String(port)], { env, encoding: 'utf8', timeout: 20_000 }).stdout.includes('launched'), true);
+
+    const on = cli('on', '--grid', base.replace('http://', ''));
+    const code = await until(() => /allow this code: (\S+)\n\s+(\S+)/.exec(on.err), { what: 'the code in the terminal' });
+    const b = browser();
+    await devSignIn(b, 'kit@example.com');
+    const page = await b.go(code[2]);
+    await b.go(`${base}/activate`, { method: 'POST', form: { csrf: csrfOf(page.text), code: code[1], answer: 'allow' }, headers: { origin: base } });
+    await on.done;
+    assert.equal(on.code, 0, on.err);
+    assert.match(on.err, /✓ signed in as kit/);
+    const url = /\n\s+(http\S+)/.exec(on.out)?.[1];
+    assert.ok(url?.includes(`--kit.${cfg.domain}`), on.out);
+    assert.match(on.out, /is on .*: online/);
+    // The phone, signed in as kit, opens this computer's wisp through the grid.
+    const phone = await deviceToken('kit@example.com', 'Phone (wisp app)');
+    const listed = await browser().go(`${base}/api/computers`, { headers: { authorization: `Bearer ${phone}` } });
+    assert.deepEqual(listed.json.computers.map((x) => [x.url, x.online]), [[url, true]]);
+
+    const st = await cli('--json').done;
+    assert.equal(JSON.parse(st.out).url, url);
+    assert.equal(JSON.parse(st.out).account.handle, 'kit');
+    // Signed in already: on again needs no code; another grid is refused with what to do.
+    const again = await cli('on').done;
+    assert.equal(again.code, 0, again.err);
+    assert.doesNotMatch(again.err, /allow this code/);
+    const other = await cli('on', '--grid', 'grid.example.com').done;
+    assert.equal(other.code, 1);
+    assert.match(other.err, /wisp computer off/);
+
+    const gone = await cli('off').done;
+    assert.match(gone.out, /✓ off/);
+    assert.deepEqual((await browser().go(`${base}/api/computers`, { headers: { authorization: `Bearer ${phone}` } })).json.computers, []);
+    assert.match((await cli().done).out, /○ off\. Signed in to .* as kit: wisp computer on adds it/);
+  } finally {
+    desk.kill();
   }
 });
 

@@ -144,6 +144,7 @@ wisp merge <id>                   # squash-merge its PR, fast-forward your local
 wisp run release 0.36.0            # run a recipe; values fill its {params} (or version=0.36.0)
 wisp recipes                      # list recipes
 wisp usage [--days 7]             # spend and outcomes
+wisp computer on [--grid HOST]    # add this computer to your wisp Grid (signs in with a code first); off, or no word for its status
 wisp mcp                          # MCP server for other agents and editors
 wisp skill install                # install the wisp skill for Claude Code (--agent all for Codex/opencode too)
 ```
@@ -437,7 +438,7 @@ They receive titles, summaries and questions (with their context), never code or
 Your own wisp on a server, so the agents keep working when your laptop is closed. It's **free in early preview** at [grid.trywisp.dev](https://grid.trywisp.dev), with seats that open as its server shows room for them (when they're all taken, [leave your email](https://trywisp.dev/cloud.html#join) for the next one), and the same code runs on your own server with `wisp grid` ([grid/README.md](grid/README.md)).
 
 - **Sign in** with GitHub (or Google, or your company's OpenID Connect on your own grid). You get your own wisp at `<you>.grid.trywisp.dev`, in a sandbox of its own: a gVisor container with its own folder and network, firewalled from the host and from everyone else.
-- **Use it from anywhere.** In the browser, from wisp on your computer (**Machines** → *Reach this computer from anywhere*, or Settings → **Cloud**: the address is filled in, you allow a code in the browser and it joins **Run on** like any machine), or from the phone app (**wisp Cloud** on its first screen).
+- **Use it from anywhere.** In the browser, from wisp on your computer (**Machines** → *Reach this computer from anywhere*, or Settings → **Cloud**: the address is filled in, you allow a code in the browser and it joins **Run on** like any machine; from a terminal, `wisp computer on`), or from the phone app (**wisp Cloud** on its first screen).
 - **Add your own computers.** Signed in from Machines, the computer joins the grid too (**Add to grid**). It holds a tunnel open to the grid, so your phone and your other computers open it at `<name>--<handle>.<grid>` with no SSH, Tailscale or open port. They show up in each other's Machines and in the phone app's list; the grid's account page lists them all, with how to add one.
 - **Connect your agents.** In the cloud wisp, Settings → **Agents** → **Sign in**: Claude Code (`claude auth login`), Codex (`codex login --device-auth`) and GitHub (`gh auth login`, then git pushes with it) show a link and a code, no terminal. From the desktop, Settings → Cloud lists the same Sign in buttons for each cloud computer. The logins stay in your own folder on the server; wisp never sees a password, and the model picker only offers what you've signed in to.
 - **It sleeps when nothing's going on** and wakes in seconds when you open it, send it a task, or a schedule is due. Watching it from the desktop doesn't keep it awake: the card says *Asleep*, its tasks still show, and anything you send wakes it.
