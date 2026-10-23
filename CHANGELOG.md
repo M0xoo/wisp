@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - Leaving split view for the feed (the top bar button, `\`, Settings) did nothing but flip the button's icon: the layout stayed split until a reload.
+- In the desktop app, the buttons left in the corner once the task list is hidden couldn't be clicked (the window's drag area under them took the clicks), so the list couldn't be brought back.
 
 ## [0.32.0] - 2026-10-23
 
