@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=36" />
+  <link rel="stylesheet" href="style.css?v=37" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -207,6 +207,7 @@
       <nav class="links" aria-label="Primary">
         <a href="#report">The report</a>
         <a href="#machines">Machines</a>
+        <a href="#delegate">Delegate</a>
         <a href="#spells">Spells</a>
         <a href="#control">Control</a>
         <a href="#cli">CLI</a>
@@ -359,6 +360,23 @@
         </div>
         <div data-relay data-ui id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>
       </div>
+    </section>
+
+    <!-- ───────── delegate: a lead with a team on other machines (delegate.js) ───────── -->
+    <section class="control delegate wrap" id="delegate">
+      <div class="spells-head">
+        <h2>One lead. A team on every machine.</h2>
+        <p>Give the lead agent a team in <b>Delegate</b>. Each delegate runs where you put it: next to the lead, or on your GPU box or dev server with the model installed there. The lead hands out the work, and changes made on other machines come back to its worktree as a patch.</p>
+      </div>
+      <div class="spells-grid">
+        <div data-delegate id="team" aria-label="Try it: put each delegate with the lead or on a machine, and watch the lead hand out the work"></div>
+      </div>
+      <dl class="relay-facts spells-facts">
+        <div><dt>Where each one runs</dt><dd>With the lead, it shares the folder and sees edits as they happen. On a machine, it gets a copy of the lead’s work there, uncommitted edits too.</dd></div>
+        <div><dt>A model per machine</dt><dd>The harness picker lists what’s installed where the delegate runs, so the GPU box can run a heavier model than your laptop.</dd></div>
+        <div><dt>Changes come home</dt><dd>As a patch into the lead’s worktree, merged three ways if the lead moved on. A clash is named in the report, never lost.</dd></div>
+      </dl>
+      <p class="relay-links"><a href="guides/multi-agent-coding.html#other-machines">Delegate to another machine →</a><a href="guides/run-coding-agents-on-multiple-machines.html#split-a-task">Split one task across machines →</a><a href="guides/multi-agent-coding.html">Multi-agent coding →</a></p>
     </section>
 
     <!-- ───────── spells: change wisp itself by asking (spells.js) ───────── -->
@@ -520,5 +538,6 @@
   <script src="spells.js?v=4" defer></script>
   <script src="control.js?v=1" defer></script>
   <script src="compare.js?v=1" defer></script>
+  <script src="delegate.js?v=1" defer></script>
 </body>
 </html>

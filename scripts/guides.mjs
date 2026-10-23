@@ -151,7 +151,21 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
       <h2 id="one-prompt-several-machines">One prompt, several machines</h2>
       <p>In the launcher, <b>Run on</b> (next to the harness) picks where the prompt goes: this computer, any machine, or several at once. Enter launches on every place in parallel, and the runs land as one task with a row per machine.</p>
       <p>Every project runs on every machine. If a machine has no checkout yet, wisp reuses a clone of the same repo it finds there, or clones the project’s <code>origin</code> first.</p>
-      <p>On the machine, everything works as it does locally: a worktree per task, real diffs, checkpoints and rollback, questions mid-run, subagents, compare and <b>Ship it</b>. <b>Take over</b> opens <code>ssh -t &lt;host&gt;</code> and resumes the agent in your terminal, and VS Code, Cursor or Windsurf open the worktree through Remote - SSH.</p>
+      <p>On the machine, everything works as it does locally: a worktree per task, real diffs, checkpoints and rollback, questions mid-run, delegates, compare and <b>Ship it</b>. <b>Take over</b> opens <code>ssh -t &lt;host&gt;</code> and resumes the agent in your terminal, and VS Code, Cursor or Windsurf open the worktree through Remote - SSH.</p>
+    </section>
+
+    <section>
+      <h2 id="split-a-task">Split one task across machines</h2>
+      <p>One big task can use several computers at once. In the launcher’s <b>Delegate</b> popover, give the lead a team and pick where each member runs: <i>With the lead</i>, this computer, or any machine, with the harness and model installed there. The lead stays where <b>Run on</b> puts it and hands parts of the work to the others:</p>
+      <div class="table"><table>
+        <thead><tr><th>Member</th><th>Runs on</th><th>Use for</th></tr></thead>
+        <tbody>
+          <tr><td>lead</td><td>Your laptop, Claude Code</td><td>Plans the change, reviews, ships</td></tr>
+          <tr><td><code>tester</code></td><td>With the lead, Codex ×2</td><td>Writing and running tests</td></tr>
+          <tr><td><code>heavy</code></td><td>The GPU box, Claude Code</td><td>The long refactor, the model code</td></tr>
+        </tbody>
+      </table></div>
+      <p>A member on another machine gets a copy of the lead’s work there, uncommitted edits included, and its changes come back into the lead’s worktree when it finishes. <a href="/guides/multi-agent-coding.html#other-machines">How delegating to a machine works →</a></p>
     </section>
 
     <section>
@@ -427,7 +441,7 @@ git worktree remove ../app-auth`)}
 `,
       faq: [
         ['Does this use my Claude Pro or Max subscription?', 'wisp runs the claude CLI you are signed in with, so it uses whatever that CLI uses: your subscription or an API key.'],
-        ['Do parallel sessions share context?', 'No. Each is its own Claude Code session. To have one session hand work to others, use subagents: the lead gets a delegate tool and the members run in parallel.'],
+        ['Do parallel sessions share context?', 'No. Each is its own Claude Code session. To have one session hand work to others, use Delegate in the launcher: the lead gets a delegate tool and the members run in parallel, here or on your other machines.'],
         ['Are my uncommitted changes carried into the worktrees?', 'No. Each worktree starts from origin/main (fetched first). Commit or push what the agents should see, or turn worktrees off for a task to edit your folder in place.'],
       ],
       related: ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-in-the-background', 'run-coding-agents-on-multiple-machines'],
@@ -487,7 +501,7 @@ git worktree remove ../app-auth`)}
 `,
       faq: [
         ['Is Claude Code or Codex better?', 'It depends on the task, the repo and the current models. Run the same task on both, each on its own branch, and compare whether the tests pass, the diff, the time and the cost. wisp’s Compare view does that side by side.'],
-        ['Can I use Claude Code and Codex together?', 'Yes. Run different tasks on each at the same time, run the same task on both and keep the better result, or let a Claude Code lead delegate parts of a task to Codex subagents.'],
+        ['Can I use Claude Code and Codex together?', 'Yes. Run different tasks on each at the same time, run the same task on both and keep the better result, or let a Claude Code lead delegate parts of a task to Codex with the launcher’s Delegate button.'],
         ['Can I compare Cursor, opencode, Antigravity, Grok or Copilot too?', 'Yes. wisp runs Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build and GitHub Copilot CLI, and --compare takes any of them.'],
       ],
       related: ['run-claude-code-and-codex-in-parallel', 'multi-agent-coding', 'run-multiple-claude-code-agents-in-parallel'],
@@ -497,9 +511,9 @@ git worktree remove ../app-auth`)}
       slug: 'multi-agent-coding',
       title: 'Multi-agent coding: Claude Code delegating to Codex and more — wisp',
       h1: 'Multi-agent coding across Claude Code, Codex and more',
-      card: 'A lead agent with a team on other harnesses, working in parallel.',
-      description: 'Orchestrate several coding agents at once: parallel tasks, the same task on two agents, a Claude Code lead delegating to Codex subagents, and runs spread over several machines. Open source.',
-      lede: 'In wisp, one lead agent can run a team of coding agents on other harnesses: Claude Code plans the change and hands the tests to three Codex copies, which work in parallel. The lead gets a <code>delegate</code> tool over MCP, and every member’s edits land in its worktree, its diff and its pull request.',
+      card: 'A lead agent with a team on other harnesses and other machines, working in parallel.',
+      description: 'Orchestrate several coding agents at once: parallel tasks, the same task on two agents, a Claude Code lead delegating to Codex, and a team spread over several machines. Open source.',
+      lede: 'In wisp, one lead agent can run a team of coding agents on other harnesses: Claude Code plans the change, hands the tests to three Codex copies and the heavy refactor to Claude on your GPU box, and they work in parallel. The lead gets a <code>delegate</code> tool over MCP, and every member’s edits land in its worktree, its diff and its pull request.',
       shot: ['picker', 'The wisp launcher’s harness and model picker, where a lead and its team are chosen'],
       body: `
     <section>
@@ -509,11 +523,11 @@ git worktree remove ../app-auth`)}
         <tbody>
           <tr><th scope="row">Parallel tasks</th><td>Independent tasks, one per agent</td><td>Launch them back to back; a worktree each. <a href="/guides/run-multiple-claude-code-agents-in-parallel.html">Guide</a></td></tr>
           <tr><th scope="row">Compare</th><td>One task, the best of several attempts</td><td><b>vs</b> in the launcher, <code>--compare</code>. <a href="/guides/run-claude-code-and-codex-in-parallel.html">Guide</a></td></tr>
-          <tr><th scope="row">Subagents</th><td>One big task, split by a lead</td><td><b>Delegate</b> in the launcher (below)</td></tr>
+          <tr><th scope="row">Delegate</th><td>One big task, split by a lead</td><td><b>Delegate</b> in the launcher (below), members here or on other machines</td></tr>
           <tr><th scope="row">Machines</th><td>More agents than one computer handles</td><td><b>Run on</b> in the launcher. <a href="/guides/run-coding-agents-on-multiple-machines.html">Guide</a></td></tr>
         </tbody>
       </table></div>
-      <p>They combine: a lead with a team, running on a dev box, compared against a second lead.</p>
+      <p>They combine: a lead on your laptop with members on a dev box and a GPU machine, compared against a second lead.</p>
     </section>
 
     <section>
@@ -529,18 +543,29 @@ git worktree remove ../app-auth`)}
         </tbody>
       </table></div>
       <p>Claude Code, Codex, opencode, Grok Build and Copilot CLI can lead; Cursor CLI and Antigravity CLI can be members too. <b>Save as preset</b> keeps a team for later.</p>
-      <p>A member on another place works there on a copy of the lead’s work, uncommitted edits included, and its changes come back into the lead’s folder when it finishes. Give it work that doesn’t overlap with the rest: if the lead changed the same lines meanwhile, the report says so.</p>
+      <p>The top of the popover shows the lead and where it runs; click the place to move it. <b>Add delegate</b> asks where the new member goes, and its harness picker lists what’s installed there, so each machine can run its own model.</p>
+    </section>
+
+    <section>
+      <h2 id="other-machines">Delegate to another machine</h2>
+      <p>A member’s place is <i>With the lead</i> by default: same computer, same folder, and it sees the lead’s edits as they happen. Put it on this computer or one of your <a href="/guides/run-coding-agents-on-multiple-machines.html">machines</a> instead and each task it gets goes like this:</p>
+      <ol class="doc-steps">
+        <li>wisp packs the lead’s work, its branch and uncommitted edits, like <a href="/guides/move-a-task-to-another-machine-or-agent.html">moving a task</a> does.</li>
+        <li>On that machine, the project’s checkout (cloned there first if need be) gets a worktree holding that work, and the member runs the task in it. Its live line shows on the lead’s card.</li>
+        <li>When it finishes, its changes come back as a patch and land in the lead’s folder, merged three ways if the lead changed things meanwhile. Its report goes to the lead, and the run over there is cleaned up.</li>
+      </ol>
+      <p>Give a member on another machine work that doesn’t overlap with the rest: it doesn’t see edits made after it started. If its lines clash with the lead’s, the report lists the conflicted files; a patch that doesn’t apply is saved and the report says where. It needs a git repo; stopping the lead stops it too. The lead can run on a machine as well, since the wisp you launched from does the carrying.</p>
     </section>
 
     <section>
       <h2 id="delegation">How delegation works</h2>
       <ul class="doc-list">
-        <li>The lead gets a <code>delegate</code> tool on wisp’s MCP server. Tasks it sends in one call run in parallel, in the lead’s folder.</li>
+        <li>The lead gets a <code>delegate</code> tool on wisp’s MCP server, and its harness’s own subagent tool is switched off. Tasks it sends in one call run in parallel, in the lead’s folder (or on a copy of it, for members on other machines).</li>
         <li>Delegating to the same member again resumes that member’s conversation, so it keeps its context.</li>
         <li>Members’ edits count as the lead’s: they show up in its diff, its checkpoints and rollback, and its pull request.</li>
         <li>The call returns each member’s report and the files it changed, and wisp shows those reports next to the lead’s. Members don’t ask you questions; they make the call and note the assumption, and the lead decides.</li>
       </ul>
-      <p>From the API, pass <code>subagents</code> or a saved <code>preset</code> to <code>POST /sessions</code>. See <a href="/integrations.html">integrations</a>.</p>
+      <p>From the API, pass <code>subagents</code> (each with an optional <code>machine</code>: <code>here</code> or a machine id) or a saved <code>preset</code> to <code>POST /sessions</code>. See <a href="/integrations.html">integrations</a>.</p>
     </section>
 
     <section>
@@ -552,7 +577,7 @@ npx wisp-agents skill install --agent all`)}
     </section>
 `,
       faq: [
-        ['Do subagents work in the same worktree?', 'Yes. Members work in the lead’s folder, so their edits are part of one branch, one diff and one pull request. Separate tasks get separate worktrees.'],
+        ['Do delegates work in the same worktree?', 'Members with the lead do: they work in the lead’s folder, so their edits are part of one branch, one diff and one pull request. Members on other machines work on a copy there, and their changes come back into it. Separate tasks get separate worktrees.'],
         ['Can the team run on another machine?', 'Yes. When a task runs on a machine, the lead and its team run there. Each member can also run on a place of its own (this computer or any of your machines): it works on a copy of the lead’s work there, and its changes come back when it finishes.'],
         ['Which agents can lead?', 'Claude Code, Codex, opencode, Grok Build and Copilot CLI can lead a team. Cursor CLI and Antigravity CLI can be members.'],
       ],
