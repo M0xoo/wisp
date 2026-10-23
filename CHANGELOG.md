@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-23
+
 ### Added
 
 - **Sign in to opencode Zen and Go from Settings → Agents.** opencode's row has *Add key*: paste the API key from [opencode.ai/auth](https://opencode.ai/auth) for Zen, Go or both, and wisp saves it where `opencode auth login` would (`~/.local/share/opencode/auth.json`, next to your other providers). Their models then show up in the picker. *Keys* shows which ones are saved and removes them. It works for cloud computers too (Settings → Cloud). The free models still need no key.
