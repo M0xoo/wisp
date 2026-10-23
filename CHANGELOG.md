@@ -16,7 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - Code blocks in markdown no longer draw an inline-code box around every line.
-- In split view, clicking a task in the list puts the cursor in its follow-up box, ready to type. `J` / `K` still keep the keys in the list.
+- In split view, clicking a task in the list puts the cursor in its follow-up box, ready to type. `J` / `K` still keep the keys in the list. A box you were typing in stays open as you move between tasks instead of folding and opening again.
 
 ## [0.33.1] - 2026-10-23
 

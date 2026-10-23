@@ -8,6 +8,7 @@ import { ago, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { HERE, MOBILE, S, save, saveOpen } from '../core/state.js';
 import { taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
+import { carryDock } from './composer.js';
 import { renderLaunchChips } from './launcher.js';
 import { inProject, machinePill, projectLabel } from './places.js';
 import { renderProjects } from './projects.js';
@@ -203,6 +204,7 @@ function item(s) {
       // the list stays where it is: the task shows in the main pane, there's nothing to scroll to.
       setFocus(s.id, { scroll: !isSplit() });
       if (isSplit()) {
+        carryDock(s.id);
         if (S.open.has(s.id)) paintSplit();
         // Ready to type the follow-up once it's shown (j / k keep the keys in the list).
         Promise.resolve(S.open.has(s.id) || expand(s.id)).then(() => focusReply(s.id));
