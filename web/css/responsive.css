@@ -11,7 +11,7 @@
   .search-btn { padding: 0 8px; border-color: transparent; background: none; }
   .feed-wrap { padding: 14px 16px 80px; }
   .launcher.docked { width: calc(100% - 32px); }
-  .it-side .q-proj, .it-actions span, .c-done span, .q-machine span { display: none; }
+  .it-side .q-proj, .it-actions span, .c-done span, .c-ship span, .q-machine span { display: none; }
   /* a phone row has little width: the title gets two lines instead of a few words */
   .item:not(.open) .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
   .it-side { gap: 8px; }

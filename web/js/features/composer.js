@@ -72,8 +72,8 @@ export function renderDock(id) {
         <button class="c-place" aria-haspopup="menu" hidden></button>
         <button class="team-btn c-team" aria-haspopup="dialog" hidden></button>
         <span class="c-hint"></span>
-        <button class="ghost sm c-ship" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
-        <button class="ghost sm c-done" data-a="done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
+        <button class="ghost sm c-ship" data-a="ship" aria-label="Ship it" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
+        <button class="ghost sm c-done" data-a="done" aria-label="Mark done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
         <button class="ghost xs c-queue" aria-pressed="false" hidden>${icon('queue')}<span>Queue</span><i class="c-switch"></i></button>
         <button class="send" title="Send (Enter · Shift+Enter for newline)">${icon('enter')}</button>
       </div>
