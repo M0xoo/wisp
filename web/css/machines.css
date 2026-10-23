@@ -204,3 +204,21 @@
 
 /* Machines: a cloud computer instead of SSH (features/cloud.js mountCloudSignin). */
 .mc-cloud { margin-top: 14px; }
+
+/* Machines: where each one comes from, and this computer on your wisp Grid (features/cloud.js). */
+.mc-title b { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mc-title .mc-kind, .mc-kind { flex: none; font: 500 11px var(--sans); padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+.mc-kind.cloud, .mc-kind.grid { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.mc-grid { margin: 0 0 14px; }
+.gh-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }
+.gh-row.st-online .mc-icon { color: var(--accent); }
+.gh-row.st-online .mc-dot { background: var(--good); }
+.gh-row:is(.st-connecting, .st-reconnecting) .mc-dot { background: var(--warn); animation: blink 1.2s infinite; }
+.gh-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gh-text b { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+.gh-text small { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.gh-text small.bad { color: var(--bad); }
+.gh-text .mono { font-family: var(--mono); font-size: 11.5px; }
+.gh-row .primary .i { width: 14px; height: 14px; }
+.mc-grid > .hint { margin: 0; padding: 0 14px 12px 58px; }
+@media (max-width: 520px) { .gh-row { flex-wrap: wrap; } .gh-row > button { margin-left: 44px; } .mc-grid > .hint { padding-left: 14px; } }

@@ -24,7 +24,8 @@ export function register(r, app) {
   r.route(
     'DELETE',
     '/machines/:id',
-    known((c, id) => {
+    known(async (c, id) => {
+      await app.computer.removing(machines.get(id));
       machines.remove(id);
       app.broadcast('config', {});
       c.send(200, { ok: true });

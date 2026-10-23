@@ -30,6 +30,13 @@ const MIGRATIONS = [
    CREATE TABLE keys (user_id TEXT PRIMARY KEY, kid TEXT NOT NULL, wrapped TEXT NOT NULL);
    CREATE TABLE user_secrets (user_id TEXT NOT NULL, purpose TEXT NOT NULL, sealed TEXT NOT NULL, PRIMARY KEY (user_id, purpose));
    CREATE TABLE audit (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, action TEXT NOT NULL, meta TEXT, at INTEGER NOT NULL);`,
+  // Computers added to the grid (wisp on a desktop: Machines → This computer), one per device,
+  // reached at <label>.<domain> through the tunnel the computer holds open (grid/tunnels.js).
+  `CREATE TABLE computers (
+     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     device_id TEXT UNIQUE NOT NULL REFERENCES devices(id) ON DELETE CASCADE, name TEXT NOT NULL,
+     label TEXT UNIQUE NOT NULL, created_at INTEGER NOT NULL, last_seen_at INTEGER);
+   CREATE INDEX computers_user ON computers(user_id);`,
 ];
 
 export async function openDb(dataDir) {

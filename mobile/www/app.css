@@ -137,9 +137,13 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .where summary { cursor: pointer; color: var(--accent-ink); font-size: 13px; }
 .where ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ink-2); }
 .where code { font: 12px var(--mono); }
-details.keys > summary { list-style: none; cursor: pointer; }
-details.keys > summary::-webkit-details-marker { display: none; }
-details.keys > summary em { font-style: normal; font-weight: 400; color: var(--faint); margin-left: 4px; }
+details:is(.keys, .ssh) > summary { list-style: none; cursor: pointer; }
+details:is(.keys, .ssh) > summary::-webkit-details-marker { display: none; }
+details.ssh { display: flex; flex-direction: column; gap: 12px; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
+details.ssh > summary::after { content: '›'; font-size: 16px; transition: transform 0.15s; }
+details.ssh[open] > summary::after { transform: rotate(90deg); }
+details.ssh .how { margin-top: 4px; }
+details:is(.keys, .ssh) > summary em { font-style: normal; font-weight: 400; color: var(--faint); margin-left: 4px; }
 details.keys[open] { gap: 10px; }
 .small { font-size: 12.5px; margin: 0; }
 .oops .row { margin-top: 2px; }
@@ -175,3 +179,8 @@ details.keys[open] { gap: 10px; }
 .cf-row .primary { height: 44px; padding: 0 18px; }
 .or { display: flex; align-items: center; gap: 10px; margin: 22px 0 2px !important; font-size: 12.5px !important; }
 .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+/* Where each computer is: a cloud one on the grid, yours through the grid, or over SSH. */
+.kind { display: inline-block; margin-right: 7px; padding: 0 6px; border-radius: 99px; border: 1px solid var(--line-2); font: 500 10.5px/1.6 var(--sans); color: var(--muted); vertical-align: 1px; }
+.kind.cloud, .kind.grid { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.m.comp .m-go:disabled:not(.primary) { opacity: 0.6; }

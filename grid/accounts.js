@@ -1,6 +1,7 @@
 // Users and how they get in: identities (one per provider account), browser sessions, devices
 // (wisp on a computer or phone, with a bearer token), device codes (RFC 8628) and one-time
-// tickets that carry a sign-in from the grid's own address to <handle>.<domain>.
+// tickets that carry a sign-in from the grid's own address to <handle>.<domain>, and computers
+// (a device's own wisp, added to the grid and reached at <name>--<handle>.<domain>).
 //
 // Every token we hand out is random; only its SHA-256 is stored.
 
@@ -61,6 +62,7 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     let h = String(base || '')
       .toLowerCase()
       .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/-{2,}/g, '-') // "--" separates a computer's name from its owner's handle
       .replace(/^-+|-+$/g, '')
       .slice(0, 24);
     if (h.length < 3 || RESERVED.has(h)) h = `${h || 'user'}-${randomBytes(2).toString('hex')}`.replace(/^-/, '');
@@ -230,9 +232,46 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     return { user: u, device: d };
   }
 
+  // A revoked device's computer goes with it: it can't hold its tunnel any more.
   function revokeDevice(userId, id) {
     const r = db.run('UPDATE devices SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL', now(), id, userId);
     if (r.changes) audit(userId, 'device.revoke', { id });
+    db.run('DELETE FROM computers WHERE device_id = ? AND user_id = ?', id, userId);
+    return r.changes > 0;
+  }
+
+  // --- computers: a device's own wisp, reached through the grid ------------------------------
+
+  // The device's computer (one each), added or renamed. Its label is its address under the
+  // domain: "<name>--<handle>", never a handle (handles have no "--" since computers came).
+  function addComputer(dev, name) {
+    const n = String(name || '').trim().slice(0, 40) || 'Computer';
+    const have = db.get('SELECT * FROM computers WHERE device_id = ?', dev.device.id);
+    if (have) {
+      if (have.name !== n) db.run('UPDATE computers SET name = ? WHERE id = ?', n, have.id);
+      return { ...have, name: n };
+    }
+    const slug =
+      n
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 20)
+        .replace(/-+$/, '') || 'computer';
+    let label = `${slug}--${dev.user.handle}`;
+    for (let k = 2; db.get('SELECT 1 FROM computers WHERE label = ?', label) || byHandle(label); k++) label = `${slug}-${k}--${dev.user.handle}`;
+    const c = { id: randomBytes(6).toString('hex'), user_id: dev.user.id, device_id: dev.device.id, name: n, label, created_at: now(), last_seen_at: null };
+    db.run('INSERT INTO computers (id, user_id, device_id, name, label, created_at) VALUES (?, ?, ?, ?, ?, ?)', c.id, c.user_id, c.device_id, c.name, c.label, c.created_at);
+    audit(dev.user.id, 'computer.add', { id: c.id });
+    return c;
+  }
+  const computers = (userId) => db.all('SELECT * FROM computers WHERE user_id = ? ORDER BY created_at', userId);
+  const computer = (id) => db.get('SELECT * FROM computers WHERE id = ?', String(id || ''));
+  const computerByLabel = (label) => db.get('SELECT * FROM computers WHERE label = ?', String(label || '').toLowerCase());
+  const seenComputer = (id) => db.run('UPDATE computers SET last_seen_at = ? WHERE id = ?', now(), id);
+  function removeComputer(userId, id) {
+    const r = db.run('DELETE FROM computers WHERE id = ? AND user_id = ?', id, userId);
+    if (r.changes) audit(userId, 'computer.remove', { id });
     return r.changes > 0;
   }
 
@@ -256,5 +295,5 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     audit(userId, 'user.delete');
   }
 
-  return { allowed, seats, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, identities, byHandle, userById, instance, setDisabled, remove, audit, normalCode };
+  return { allowed, seats, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, addComputer, computers, computer, computerByLabel, seenComputer, removeComputer, identities, byHandle, userById, instance, setDisabled, remove, audit, normalCode };
 }

@@ -41,8 +41,12 @@ export function createCloud(app) {
     const { token, user, instance } = r.body;
     const m = app.machines.addGrid({ url: instance.url, grid: f.grid, handle: user.handle, name: instance.name || 'Cloud', token, user: { handle: user.handle, name: user.name || '', email: user.email || '' } });
     Object.assign(f, { machineId: m.id, user });
+    // Signed in from Machines: this computer joins the grid as well. Either way, your other
+    // computers there show up.
+    if (f.addComputer) await app.computer.enable().catch((err) => console.warn(`wisp: grid: ${err.message}`));
     finish(f, 'done');
     app.machines.connect(m.id).catch(() => {});
+    app.computer.sync().catch(() => {});
   }
 
   function finish(f, state, error = '') {
@@ -54,7 +58,7 @@ export function createCloud(app) {
   }
 
   return {
-    async start(raw) {
+    async start(raw, { addComputer = false } = {}) {
       const grid = gridUrl(raw);
       let r;
       try {
@@ -64,7 +68,7 @@ export function createCloud(app) {
       }
       if (r.status >= 400 || !r.body.device_code) throw bad(r.body.error_description || r.body.error || `${new URL(grid).host} isn’t a wisp Grid (HTTP ${r.status}).`, 400);
       const b = r.body;
-      const f = { id: randomBytes(6).toString('hex'), grid, state: 'waiting', deviceCode: b.device_code, userCode: b.user_code, verifyUrl: b.verification_uri_complete || b.verification_uri, interval: Math.max(1, Number(b.interval) || 5), expiresAt: Date.now() + (Number(b.expires_in) || 600) * 1000 };
+      const f = { id: randomBytes(6).toString('hex'), grid, addComputer, state: 'waiting', deviceCode: b.device_code, userCode: b.user_code, verifyUrl: b.verification_uri_complete || b.verification_uri, interval: Math.max(1, Number(b.interval) || 5), expiresAt: Date.now() + (Number(b.expires_in) || 600) * 1000 };
       flows.set(f.id, f);
       f.timer = setTimeout(() => poll(f), f.interval * 1000);
       changed(f);

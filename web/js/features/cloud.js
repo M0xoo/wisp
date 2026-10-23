@@ -27,7 +27,8 @@ const LAST = 'wisp.cloud.grid';
 // The hosted grid; yours, or your team's, is one edit away.
 export const DEFAULT_GRID = 'grid.trywisp.dev';
 
-const gridMachines = () => S.machines.filter((m) => m.kind === 'grid');
+// Cloud computers only: your other computers on a grid (m.computer) are Machines' business.
+const gridMachines = () => S.machines.filter((m) => m.kind === 'grid' && !m.computer);
 const hostOf = (u) => {
   try {
     return new URL(u).host;
@@ -53,7 +54,7 @@ bus.on('cloud', (f) => {
   loadMachines().finally(() => flow?.id === f.id && setFlow(null));
 });
 
-function signinHtml({ title, lede }) {
+function signinHtml({ title, lede, button }) {
   if (flow?.state === 'waiting')
     return `<div class="cl-signin cl-code">
         <p><b>Allow this computer in the browser</b><small>Open ${esc(hostOf(flow.grid))}, sign in with Google, GitHub or what it offers, and allow the device showing this code.</small></p>
@@ -66,7 +67,7 @@ function signinHtml({ title, lede }) {
   return `<form class="cl-signin cl-form">
       <p><b>${title || (gridMachines().length ? 'Sign in to another grid' : 'Sign in to a wisp Grid')}</b><small>${lede || 'Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (<code>wisp grid serve</code>), your team’s, or a hosted one.'}</small></p>
       <div class="cl-row"><input class="input mono" name="grid" placeholder="wisp.example.com" value="${esc(localStorage.getItem(LAST) || DEFAULT_GRID)}" spellcheck="false" autocapitalize="off" autocomplete="url" required>
-      <button class="primary sm" type="submit">${icon('lock')}Sign in</button></div>${failed}
+      <button class="primary sm" type="submit">${icon('lock')}${button || 'Sign in'}</button></div>${failed}
     </form>`;
 }
 
@@ -88,7 +89,7 @@ export function mountCloudSignin(el, text = {}) {
     document.activeElement?.blur();
     setFlow({ id: '', grid: raw, state: 'waiting', userCode: '…', verifyUrl: '' });
     try {
-      setFlow(await api('/cloud/signin', { method: 'POST', body: { url: raw } }));
+      setFlow(await api('/cloud/signin', { method: 'POST', body: { url: raw, addComputer: !!text.addComputer } }));
     } catch (err) {
       setFlow(null);
       toastError(err);
@@ -123,6 +124,82 @@ export function connectHtml(grid, row) {
       ${row('Devices you let in', `Desktops and phones signed in to it. Sign one out on your ${g} account page.`, `<a class="ghost sm btn-link" href="${esc(grid.url)}/account" target="_blank" rel="noopener">${icon('external')}Account</a>`)}
     </div>
     <p class="hint">It sleeps when nothing’s going on, and wakes when you open it, send it a task, or a schedule is due. Your tasks, files and sign-ins stay on it.</p>`;
+}
+
+// Machines → this computer on your wisp Grid: your phone and your other computers, signed in to the
+// same account, open it through the grid. Not signed in yet: the sign-in, which adds it as well.
+let here = null; // GET /computer: { on, state, error, name, url, account }
+const HERE_TEXT = {
+  off: () => 'Only this computer and SSH reach it. Add it and your phone and other computers open it through the grid: no SSH, no open ports.',
+  connecting: (h) => `Connecting to ${esc(hostOf(h.grid))}…`,
+  retrying: (h) => `Reconnecting to ${esc(hostOf(h.grid))}…${h.error ? ` ${esc(h.error)}` : ''}`,
+  online: (h) => `Online at <span class="mono">${esc(hostOf(h.url))}</span>. Open it from the phone app or wisp on another computer.`,
+};
+
+export function mountGridHere(box) {
+  let signin = false;
+  const paint = () => {
+    if (!box.isConnected) return;
+    if (!here) return;
+    if (!here.account) {
+      // Mounted once: it keeps its own state (the code, the address being typed).
+      if (signin) return;
+      signin = true;
+      box.innerHTML = '<div class="gh-signin"></div>';
+      mountCloudSignin($s('.gh-signin'), {
+        title: 'Reach this computer from anywhere',
+        lede: 'Sign in to a wisp Grid with GitHub or Google, here and on your phone or other computers: they find each other through it. No SSH, no Tailscale, no open ports. You get a cloud computer there too, which works while this one sleeps.',
+        button: 'Sign in and add it',
+        addComputer: true,
+      });
+      return;
+    }
+    signin = false;
+    const h = here;
+    const st = h.on ? h.state : 'off';
+    const text = (HERE_TEXT[st] || HERE_TEXT.off)(h);
+    box.innerHTML = `<div class="gh-row st-${esc(st === 'retrying' ? 'reconnecting' : st)}">
+        <span class="mc-icon">${icon('laptop')}<i class="mc-dot"></i></span>
+        <div class="gh-text"><b>This computer <span class="mc-kind grid">${h.on ? 'On your grid' : 'Not on the grid'}</span></b><small>${text}</small>${!h.on && h.error ? `<small class="bad">${esc(h.error)}</small>` : ''}</div>
+        <button class="${h.on ? 'ghost' : 'primary'} sm" type="button" data-gh="toggle">${h.on ? 'Remove from grid' : `${icon('cloud')}Add to grid`}</button>
+      </div>
+      <p class="hint">Signed in as <b>${esc(h.account.handle)}</b> on ${esc(hostOf(h.account.grid))}. Your cloud computer and other computers on it are listed below.</p>`;
+  };
+  const $s = (sel) => box.querySelector(sel);
+  box.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-gh]')?.dataset.gh !== 'toggle' || !here) return;
+    // At once; the server's answer (and the 'computer' event) puts it right.
+    const was = here;
+    const on = !was.on;
+    here = { ...was, on, state: on ? 'connecting' : 'off', error: '' };
+    paint();
+    try {
+      here = await api('/computer', { method: 'POST', body: { on } });
+      paint();
+      if (on) toast(`<b>${esc(here.name)}</b> is on your grid. Open it from your phone or another computer.`);
+    } catch (err) {
+      here = was;
+      paint();
+      toastError(err);
+    }
+  });
+  const load = () =>
+    api('/computer')
+      .then((v) => {
+        here = v;
+        paint();
+      })
+      .catch(() => {});
+  bus.on('computer', (v) => {
+    here = v;
+    paint();
+  }, { node: box });
+  // Signed in or out (the cloud computer comes or goes): whether there's an account changed.
+  bus.on('machines', () => {
+    if (!!here?.account !== gridMachines().length > 0) load();
+  }, { node: box });
+  paint();
+  load();
 }
 
 export function cloudSummary() {

@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Your own computers on wisp Grid.** In wisp on a desktop, **Machines** → *Reach this computer from anywhere*: sign in to a grid (grid.trywisp.dev or yours) and the computer joins it. It dials out and holds a tunnel open, so nothing listens on it and there's no SSH, Tailscale or open port. Your phone and your other computers signed in to the same account then open it at `<name>--<handle>.<grid>`, and its tasks run there with its own files and agents. Every computer on the grid shows up in the others' Machines, marked *Your computer · via grid* (next to *Cloud · on grid* and *Over SSH*); **Add to grid** / **Remove from grid** toggles it.
+- **The phone app lists all of them.** Signed in to a grid, its first screen shows your cloud wisp and every computer you added, online or not, one tap to open. Connecting over SSH is still there, folded under *Connect over SSH instead*.
+- **A clearer grid account page.** It lists your cloud wisp and your computers with what each kind is, Open buttons and their state, three steps to add a computer, and which signed-in device is which computer. It works on a phone too.
+
 - **Videos play in the chat.** When an agent makes or records a video, it shows it with a `video` block (mp4, webm, mov) and you watch it right in the reply, seeking and all. wisp keeps a copy in `~/.wisp/shots`, like screenshots, so a recording in `/tmp` doesn't vanish.
 - **Show in folder** on pictures and videos in a reply opens Finder / Explorer with the file selected (where the agent saved it, or wisp's copy once that's gone). On another machine or a grid it copies the path.
 - **Docs in replies.** An agent that writes a plan, report or spec can show it with a `doc` block: the reply has the file's opening as a page, with **Full screen** (a reader with the file's headings down the side and a bar that fills as you read) and **Show in folder**. wisp keeps the file's text with the turn, so it reads the same after the file changes. Spells can restyle it (`doc`, `doc.preview`, `doc.reader`, `doc.contents`).
