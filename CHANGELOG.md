@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Install the Mac app with one line, without the "can't verify" warning:** `curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app` downloads wisp.app from the latest release, checks it against `SHA256SUMS.txt` and puts it in /Applications, with no Node needed. curl doesn't quarantine what it downloads, so macOS opens the not-yet-notarized app straight away. `WISP_VERSION` pins a release here too.
+
+### Changed
+
+- **trywisp.dev: npx comes first again, Download is the last tab.** Until the apps are signed, Download says what to expect on first open: on a Mac it offers the curl install (or the `.dmg`, with Privacy & Security → *Open Anyway*); on Windows, SmartScreen's *More info* → *Run anyway*; on Linux it offers the `.deb`, with the AppImage as the other choice.
+
 ## [0.37.0] - 2026-10-23
 
 ### Added

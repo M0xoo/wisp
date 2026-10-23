@@ -52,40 +52,51 @@ if (cloudLinks.length) {
 
 // ---------- downloads ----------
 // The desktop app from the latest GitHub release (the file names carry no version). The Download
-// tab offers the build for this visitor's OS, and the note links the others.
+// tab offers the build for this visitor's OS with what to expect on first open, since the builds
+// aren't signed yet. On a Mac it's the curl install: curl doesn't quarantine what it downloads, so
+// macOS opens it without the "can't verify" warning a browser download of the .dmg gets.
 const DL = 'https://github.com/M0xoo/wisp/releases/latest/download/';
+const MAC_APP = 'curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app';
 const BUILDS = {
-  'mac-arm64': ['macOS', 'Apple silicon', 'wisp-mac-arm64.dmg'],
-  'mac-x64': ['macOS', 'Intel Mac', 'wisp-mac-x64.dmg'],
-  'win-x64': ['Windows', 'Windows', 'wisp-windows-x64-setup.exe'],
-  'win-arm64': ['Windows', 'Windows on Arm', 'wisp-windows-arm64-setup.exe'],
-  'linux-x64': ['Linux', 'Linux', 'wisp-linux-x64.AppImage'],
-  'linux-arm64': ['Linux', 'Linux Arm', 'wisp-linux-arm64.AppImage'],
+  mac: ['macOS', 'wisp-mac-arm64.dmg'],
+  'mac-x64': ['macOS', 'wisp-mac-x64.dmg'],
+  win: ['Windows', 'wisp-windows-x64-setup.exe'],
+  'win-arm64': ['Windows', 'wisp-windows-arm64-setup.exe'],
+  linux: ['Linux', 'wisp-linux-x64.deb'],
+  'linux-arm64': ['Linux', 'wisp-linux-arm64.deb'],
 };
 const osKey = () => {
   const p = `${navigator.userAgentData?.platform || ''} ${navigator.platform || ''} ${navigator.userAgent}`;
   return /Win/i.test(p) ? 'win' : /Linux|X11|CrOS/i.test(p) && !/Android/i.test(p) ? 'linux' : 'mac';
 };
-// Most Macs are Apple silicon, and Safari can't tell: Intel is a link in the note. Chromium says.
-let build = `${osKey()}-arm64`.replace(/^(win|linux)-arm64$/, '$1-x64');
+// Most Macs are Apple silicon and Safari can't tell (the curl install picks for itself); Chromium says.
+const os = osKey();
+let build = os;
+const file = (k = build) => DL + BUILDS[k][1];
+const link = (href, text) => `<a href="${href}">${text}</a>`;
+const others = () => ['mac', 'win', 'linux'].filter((k) => k !== os).map((k) => link(file(k), BUILDS[k][0])).join(', ');
+const appNote = () =>
+  ({
+    mac: `No Node needed · or the ${link(file(), '.dmg')}: allow it in Privacy &amp; Security → Open Anyway · Also for ${others()}`,
+    win: `No Node needed · if Windows says it protected your PC: More info → Run anyway · Also for ${others()}`,
+    linux: `No Node needed · Debian and Ubuntu, or the ${link(file().replace('.deb', '.AppImage'), 'AppImage')} · Also for ${others()}`,
+  })[os];
 const paintDownloads = () => {
-  const [os, , file] = BUILDS[build];
   for (const a of $$('[data-tab-dl]')) {
-    a.href = DL + file;
-    $('[data-dl-label]', a).textContent = `Download for ${os}`;
-    $('[data-dl-kind]', a).textContent = file.slice(file.lastIndexOf('.'));
+    a.href = file();
+    $('[data-dl-label]', a).textContent = `Download for ${BUILDS[build][0]}`;
+    $('[data-dl-kind]', a).textContent = file().slice(file().lastIndexOf('.'));
   }
 };
-const otherBuilds = () =>
-  ['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64']
-    .filter((k) => k !== build)
-    .map((k) => `<a href="${DL + BUILDS[k][2]}">${BUILDS[k][1]}</a>`)
-    .join(', ');
-navigator.userAgentData?.getHighEntropyValues?.(['architecture']).then(({ architecture }) => {
-  build = `${osKey()}-${architecture === 'arm' ? 'arm64' : 'x64'}`;
-  paintDownloads();
-  for (const t of tabBoxes) t.refresh();
-}).catch(() => {});
+navigator.userAgentData
+  ?.getHighEntropyValues?.(['architecture'])
+  .then(({ architecture }) => {
+    if (architecture === 'arm' && os !== 'mac') build = `${os}-arm64`;
+    if (architecture === 'x86' && os === 'mac') build = 'mac-x64';
+    paintDownloads();
+    for (const t of tabBoxes) t.refresh();
+  })
+  .catch(() => {});
 paintDownloads();
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href^="' + DL + '"]');
@@ -93,9 +104,9 @@ document.addEventListener('click', (e) => {
 });
 
 // ---------- install tabs ----------
-// The hero and the install section each have Download / npx / npm / curl / brew tabs. Picking one
-// updates the command, its copy button and the note (Download shows the app's link instead), and
-// the other box follows. A box with data-task set (the hero, once the visitor typed a task) shows
+// The hero and the install section each have npx / npm / curl / brew / Download tabs. Picking one
+// updates the command, its copy button and the note (Download shows the app's link instead, or
+// on a Mac the curl install), and the other box follows. A box with data-task set (the hero, once the visitor typed a task) shows
 // the command that installs wisp and starts that task, so it leaves Download for npx.
 const tabBoxes = $$('[data-tabs]').map((box) => {
   const tabs = $$('[role="tab"]', box);
@@ -113,7 +124,7 @@ const tabBoxes = $$('[data-tabs]').map((box) => {
   const pick = (tab, focus) => {
     if (tab.dataset.tab === 'app' && box.dataset.task) tab = tabs.find((t) => t.dataset.tab === 'npx');
     current = tab;
-    const app = tab.dataset.tab === 'app';
+    const app = tab.dataset.tab === 'app' && os !== 'mac'; // a link; the Mac's is a command
     for (const t of tabs) {
       const on = t === tab;
       t.setAttribute('aria-selected', on);
@@ -122,10 +133,10 @@ const tabBoxes = $$('[data-tabs]').map((box) => {
     dl.hidden = !app;
     copy.hidden = app;
     code.hidden = app && !copy.contains(code);
-    if (!app) code.textContent = copy.dataset.copy = commandFor(tab);
+    if (!app) code.textContent = copy.dataset.copy = tab.dataset.tab === 'app' ? MAC_APP : commandFor(tab);
     if (note && !box.dataset.task) {
-      note.textContent = tab.dataset.note;
-      if (app) note.insertAdjacentHTML('beforeend', ` · Also for ${otherBuilds()}`);
+      if (tab.dataset.tab === 'app') note.innerHTML = appNote();
+      else note.textContent = tab.dataset.note;
     }
     panel.setAttribute('aria-labelledby', tab.id);
     if (focus) tab.focus();
