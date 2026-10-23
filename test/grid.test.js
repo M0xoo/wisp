@@ -597,7 +597,7 @@ test('the sign-in page offers only the sign-ins this grid has, and links shared 
   const page = (await browser().go(`${base}/`)).text;
   assert.match(page, /With Corp SSO or GitHub\./);
   assert.doesNotMatch(page, /Google/);
-  assert.match(page, /Free while in preview/);
+  assert.match(page, /Free during the preview/);
   assert.doesNotMatch(page, /seats left/, 'no cap, no count');
   assert.match(page, new RegExp(`<meta property="og:image" content="${cfg.publicUrl}/_grid/a/og.png">`));
   const og = await browser().go(`${base}/_grid/a/og.png`);
@@ -615,7 +615,7 @@ test('the hosted grid, once full, sends new people to the waitlist first and sti
   assert.match(full, /<a class="btn" href="\/auth\/github\/start">/, 'GitHub stays, as the second button');
   const open = signInPage({ cfg: hosted, providers, seats: { open: true, invite: false, max: 5, left: 3 } });
   assert.doesNotMatch(open, /seats? left|of 5/, 'no count: seats open as the grid grows');
-  assert.match(open, /Free while in preview/);
+  assert.match(open, /Free during the preview/);
   assert.doesNotMatch(open, /cloud\.html#join/);
   // Turned away at sign-in with a verified email: already on the waitlist, so no form to send them to.
   const listed = signInPage({ cfg: hosted, providers, seats: { open: true, invite: false, max: 5, left: 0 }, waitlisted: true });

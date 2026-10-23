@@ -176,7 +176,7 @@ function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = f
     ${full ? `<p class="full">${fullNote}</p>` : ''}
     ${wl ? `<a class="btn first" href="${wl}">${I.arrow}Get the next free seat</a>` : ''}
     ${buttons || '<p class="err">No sign-in is set up on this grid yet. Its operator adds GitHub or Google in grid.json.</p>'}
-    <div class="fine">${linking ? '<span>Sign in with it once; after that either one opens your account.</span>' : `<span>${I.check}Nothing to install</span><span>${I.check}Your own agent accounts</span><span>${I.check}${invite ? 'Invite only' : 'Free while in preview'}</span>`}</div></div>`;
+    <div class="fine">${linking ? '<span>Sign in with it once; after that either one opens your account.</span>' : `<span>${I.check}Nothing to install</span><span>${I.check}Your own agent accounts</span><span>${I.check}${invite ? 'Invite only' : 'Free during the preview'}</span>`}</div></div>`;
 }
 
 export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', linking = false, waitlisted = false, analytics = false }) {
