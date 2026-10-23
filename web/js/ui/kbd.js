@@ -30,6 +30,7 @@ export function shortcuts() {
     ['C', 'Collapse all'],
     ['U', 'Back to top'],
     ['\\', 'Feed view / split view (tasks in a sidebar)'],
+    ['[', 'Hide / show the task list (split view)'],
     ['Esc', 'Close / collapse'],
   ];
   const node = el(`<div class="modal keys-modal"><header><h2>Shortcuts</h2></header>${rows.map(([k, l]) => `<div class="krow"><kbd>${k}</kbd><span>${l}</span></div>`).join('')}</div>`);

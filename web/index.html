@@ -190,8 +190,8 @@
       if (w > 0) document.documentElement.style.setProperty('--side-w', w + 'px');
       q('#splitHome .sh-launch').append(q('#launchSlot'), q('#spFeedTop'));
       q('#splitFoot').append(q('#updateBtn'), q('#getAppBtn'), q('#machinesBtn'), q('#autoBtn'));
-      q('#viewBtn use').setAttribute('href', '#i-feed');
       document.body.classList.add('split');
+      if (JSON.parse(localStorage.getItem('wisp.sideHidden'))) document.body.classList.add('side-hidden');
       ['#splitMain', '#splitGrip', '#splitTop', '#splitFoot'].forEach(function (s) { q(s).hidden = false; });
     }
   } catch {}</script>

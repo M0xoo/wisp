@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **A new logo: a handwritten w that ends in wisp's orb.** It replaces the orb everywhere: the app and favicon icons (web, docs site, desktop app, Grid), the Android launcher, themed and status bar icons, the Play store art and the share images, and the small mark beside "wisp" in the page, the site, Grid and the Android app. `node scripts/logo.mjs` draws every vector copy.
 - The header shows just the logo now, without the word "wisp" beside it, in the page and the Android app.
+- **The sidebar button next to Search hides the task list in split view.** The open task (or the prompt box) gets the whole window and the button waits in the corner to bring the list back; `[` does the same, and the browser remembers your choice. In the feed the same button opens split view; the feed itself is still `\`, the command palette or Settings → Layout.
+
+### Fixed
+
+- Leaving split view for the feed (the top bar button, `\`, Settings) did nothing but flip the button's icon: the layout stayed split until a reload.
 
 ## [0.32.0] - 2026-10-23
 

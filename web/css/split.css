@@ -27,9 +27,37 @@ body.split .topbar .sp-top { order: 1; }
 body.split .topbar .search-btn { order: 2; width: 32px; padding: 0; justify-content: center; border-color: transparent; background: none; }
 body.split .topbar .search-btn:hover { background: var(--bg-2); }
 body.split .topbar .search-btn :is(span, kbd) { display: none; }
-body.split .topbar .view-btn { order: 3; }
-body.split .topbar #settingsBtn { order: 4; }
+body.split .topbar #settingsBtn { order: 3; }
+/* the sidebar button sits at the list's inner edge, and stays at that edge once the list is hidden */
+body.split .topbar .view-btn { order: 4; }
+body.split:is(.side-right:not(.side-hidden), .side-hidden:not(.side-right)) .topbar .view-btn { order: -1; }
 body.split .topbar .projects { order: 5; flex: 1 0 100%; margin: 6px 0 2px -4px; }
+
+/* The list hidden (the sidebar button, [): the open task gets the window. The list keeps its width
+   off-screen (the open card's body inside it is laid over the pane, so it can't be display: none)
+   and the head's search, settings and sidebar buttons float in the pane's top corner. */
+body.split.side-hidden .stage { grid-template-columns: 0 minmax(0, 1fr); }
+body.split.side-hidden.side-right .stage { grid-template-columns: minmax(0, 1fr) 0; }
+body.split.side-hidden .feed-wrap {
+  position: absolute; top: 0; bottom: 0; left: calc(-1 * var(--side-w)); width: var(--side-w); visibility: hidden;
+}
+body.split.side-hidden.side-right .feed-wrap { left: 100%; }
+body.split.side-hidden #feed .item.open > .it-body { visibility: visible; }
+body.split.side-hidden :is(.split-foot, .split-grip) { display: none; }
+body.split.side-hidden .topbar {
+  position: absolute; z-index: 5; top: 0; left: 0; width: auto; flex-wrap: nowrap; padding: 14px 12px 0;
+  border: 0; background: none;
+}
+body.split.side-hidden.side-right .topbar { left: auto; right: 0; }
+body.split.side-hidden .topbar > :is(.brand, .projects) { display: none; }
+body.split.side-hidden:not(.side-right) .split-head {
+  padding-left: max(calc(var(--bar-w, 120px) + 8px), 24px, calc((100% - var(--read-w)) / 2));
+}
+body.split.side-hidden.pane-wide:not(.side-right) .split-head { padding-left: max(calc(var(--bar-w, 120px) + 8px), var(--pad)); }
+body.split.side-hidden.side-right .split-head {
+  padding-right: max(calc(var(--bar-w, 120px) + 8px), 24px, calc((100% - var(--read-w)) / 2));
+}
+body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(calc(var(--bar-w, 120px) + 8px), calc(var(--pad) - 8px)); }
 
 /* The sidebar's foot: Update, Get the app, Machines and Automations, out of the way. */
 .split-foot[hidden] { display: none; }
@@ -168,6 +196,7 @@ body.electron.split .split-head :is(button, a, .sh-title) { -webkit-app-region: 
 /* the Mac window buttons sit over the top-left corner: beside the brand, or the title when the list is on the right */
 body.electron.mac.split .topbar { padding-left: 14px; }
 body.electron.mac.split:not(.side-right) .topbar .brand { margin-left: 74px; }
+body.electron.mac.split.side-hidden:not(.side-right) .topbar { padding-left: 88px; }
 body.electron.mac.split.side-right .split-head { padding-left: max(88px, var(--pad, 24px)); }
 .split-stage { flex: 1; min-height: 0; }
 

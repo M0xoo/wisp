@@ -12,10 +12,10 @@ import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
 import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
-import { goHome, isSplit, splitOpen, toggleView } from './split.js';
+import { goHome, isSplit, splitOpen, toggleSidebar, toggleView } from './split.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
-const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', ...'123456789'.split('')]);
+const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -94,6 +94,7 @@ export function onKey(e) {
     else expand(id).then(focusReply);
   } else if (k === '?') shortcuts();
   else if (k === '\\') toggleView();
+  else if (k === '[') toggleSidebar();
   else if (/^[1-9]$/.test(k) && id && S.open.has(id)) {
     const card = S.nodes.get(id).card;
     const opts = $$('.ask-card .opt', card).length ? $$('.ask-card .opt', card) : $$('.turn:last-child .b-question:not(.answered) .opt:not(.own)', card);
