@@ -850,6 +850,87 @@ test('a computer’s tunnel over https (TLS in front of the grid, like Caddy): H
   }
 });
 
+test('a computer that answers nonsense can’t take the grid down or set its cookies', async () => {
+  // A computer is whatever its owner runs, so this one speaks raw HTTP/2: an impossible status
+  // (000, which Node's own HTTP/2 server won't send) and a cookie for the whole domain.
+  const laptop = await deviceToken('ivy@example.com', 'Ivy’s laptop (wisp)');
+  const auth = { authorization: `Bearer ${laptop}`, accept: 'application/json' };
+  const c = (await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Ivy laptop' }, headers: auth })).json;
+  const frame = (type, flags, id, payload) => {
+    const h = Buffer.alloc(9);
+    h.writeUIntBE(payload.length, 0, 3);
+    h[3] = type;
+    h[4] = flags;
+    h.writeUInt32BE(id, 5);
+    return Buffer.concat([h, payload]);
+  };
+  // HPACK literals: ":status" (static index 8), then a header with a new name.
+  const lit = (name, value) => Buffer.concat([Buffer.from([0x00, name.length]), Buffer.from(name), Buffer.from([value.length]), Buffer.from(value)]);
+  const answers = [Buffer.concat([Buffer.from([0x08, 3]), Buffer.from('000')]), Buffer.concat([Buffer.from([0x08, 3]), Buffer.from('200'), lit('set-cookie', 'x=1; Domain=wisp.localhost')])];
+  const u = new URL(base);
+  const sock = await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: u.port, path: `/api/computers/${c.id}/tunnel`, headers: { host: u.host, connection: 'Upgrade', upgrade: 'wisp-tunnel', authorization: `Bearer ${laptop}` } });
+    req.on('upgrade', (res, s, head) => {
+      s.write(frame(4, 0, 0, Buffer.alloc(0)));
+      let buf = head || Buffer.alloc(0);
+      let preface = false;
+      s.on('data', (d) => {
+        buf = Buffer.concat([buf, d]);
+        if (!preface && buf.length >= 24) [buf, preface] = [buf.subarray(24), true];
+        while (preface && buf.length >= 9 && buf.length >= 9 + buf.readUIntBE(0, 3)) {
+          const [len, type, flags, id] = [buf.readUIntBE(0, 3), buf[3], buf[4], buf.readUInt32BE(5) & 0x7fffffff];
+          buf = buf.subarray(9 + len);
+          if (type === 4 && !(flags & 1)) s.write(frame(4, 1, 0, Buffer.alloc(0)));
+          if (type === 1) s.write(frame(1, 5, id, answers.shift()));
+        }
+      });
+      resolve(s);
+    });
+    req.on('error', reject);
+    req.end();
+  });
+  try {
+    await until(() => grid.tunnels.online(c.id), { what: 'the raw tunnel' });
+    const bad = await browser().go(`${c.url}/api/hello`, { headers: auth });
+    assert.equal(bad.status, 502, bad.text);
+    const ok = await browser().go(`${c.url}/api/hello`, { headers: auth });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.headers['set-cookie'], undefined, 'no cookies from a computer');
+    assert.equal((await browser().go(`${base}/healthz`)).status, 200, 'the grid is still up');
+  } finally {
+    sock.destroy();
+  }
+});
+
+test('behind Caddy: limits are per client, Caddy’s own address asks for certificates, and sign-in only returns to paths here', async () => {
+  // Every request reaches the grid from loopback, with the client last in X-Forwarded-For.
+  const via = (ip) => ({ 'x-forwarded-for': `10.9.9.9, ${ip}` });
+  const tunnel = (ip) =>
+    new Promise((resolve, reject) => {
+      const u = new URL(base);
+      const req = http.request({ host: '127.0.0.1', port: u.port, path: '/api/computers/abc/tunnel', headers: { host: u.host, connection: 'Upgrade', upgrade: 'wisp-tunnel', ...via(ip) } });
+      req.on('response', (res) => (res.resume(), resolve(res.statusCode)));
+      req.on('upgrade', (res, s) => (s.destroy(), resolve(101)));
+      req.on('error', reject);
+      req.end();
+    });
+  const spam = [];
+  for (let i = 0; i < 61; i++) spam.push(await tunnel('203.0.113.7'));
+  assert.equal(spam.at(-1), 429, 'one client: limited');
+  assert.equal(await tunnel('203.0.113.8'), 401, 'another client: not limited by the first');
+  // A name check passed on by Caddy would tell anyone which handles and computers exist.
+  const ask = (headers) => browser().go(`http://127.0.0.1:${cfg.listen.port}/_grid/tls-ask?domain=${cfg.domain}`, { headers: { host: `127.0.0.1:${cfg.listen.port}`, ...headers } });
+  assert.equal((await ask({})).status, 200);
+  assert.notEqual((await ask(via('203.0.113.9'))).status, 200);
+  // Browsers drop tabs and newlines from a Location: "/\t/evil.example" would leave the grid.
+  const b = browser();
+  await devSignIn(b, 'jo@example.com');
+  for (const ret of ['/\t/evil.example', '/\n/evil.example', '//evil.example', '/\\evil.example', 'https://evil.example']) {
+    assert.equal((await b.go(`${base}/signin?return=${encodeURIComponent(ret)}`)).location, '/', JSON.stringify(ret));
+  }
+  assert.equal((await b.go(`${base}/signin?return=${encodeURIComponent('/account?x=1')}`)).location, '/account?x=1');
+});
+
 test('the container driver: one locked-down container per user, reachable only from this box', async () => {
   const { containerRun, CONTAINER } = await import('../grid/hostd.js');
   const { args } = containerRun({ ...CONTAINER, resolv: '/data/users/1/resolv.conf', envFile: '/data/users/1/box.env', name: 'wisp-u-1', port: 47001, home: '/data/users/1/home' });
