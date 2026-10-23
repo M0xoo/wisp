@@ -22,6 +22,7 @@ const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
 const VIDEO_EXT = new Set(['.mp4', '.webm', '.mov', '.m4v']);
 const MAX_KEPT_IMAGE = 25 * 1024 * 1024;
 const MAX_KEPT_VIDEO = 200 * 1024 * 1024;
+const MAX_KEPT_DOC = 512 * 1024;
 
 // The key for this computer in a project's copies (machine ids are 6 hex characters).
 export const HERE = 'here';
@@ -234,6 +235,29 @@ export class Store {
         // gone or unreadable: leave the block as it was
       }
     });
+    return changed;
+  }
+
+  // A doc block names a file the agent wrote (a plan, a report). Its text goes into the turn as it
+  // was then, so it still reads the same once the file changes, moves or lives on another machine.
+  keepDocs(session, turn) {
+    let changed = false;
+    for (const b of turn.presentation?.blocks || []) {
+      if (b?.type !== 'doc' || typeof b.path !== 'string' || !b.path || typeof b.text === 'string') continue;
+      const abs = path.resolve(session.worktree?.cwd || session.cwd || this.home, b.path);
+      try {
+        const st = fs.statSync(abs);
+        if (!st.isFile()) continue;
+        const fd = fs.openSync(abs, 'r');
+        const buf = Buffer.alloc(Math.min(st.size, MAX_KEPT_DOC));
+        fs.readSync(fd, buf, 0, buf.length, 0);
+        fs.closeSync(fd);
+        Object.assign(b, { text: buf.toString('utf8'), abs }, st.size > MAX_KEPT_DOC && { truncated: true });
+        changed = true;
+      } catch {
+        // gone or unreadable: the block says so
+      }
+    }
     return changed;
   }
 

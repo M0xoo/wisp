@@ -80,6 +80,7 @@ const R = {
   callout: (b) => `> **${b.tone === 'danger' ? '⛔' : b.tone === 'warn' ? '⚠️' : b.tone === 'success' ? '✅' : 'ℹ️'} ${str(b.title)}**\n> ${str(b.text).replace(/\n/g, '\n> ')}`,
   image: (b) => `🖼️ \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
   video: (b) => `🎬 \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
+  doc: (b) => `📄 **${str(b.title) || `\`${str(b.path)}\``}**${b.title && b.path ? ` \`${str(b.path)}\`` : ''}${b.caption ? ` — ${b.caption}` : ''}${b.text ? `\n\n<details><summary>Show the file</summary>\n\n${str(b.text)}\n\n</details>` : ''}`,
   question: (b) => `**❓ ${str(b.question)}**\n${list(b.options).map((o, i) => `${i + 1}. ${str(o.label || o)}`).join('\n')}`,
   blocked: (b, turn) =>
     `**🔒 Blocked by permissions**${turn?.approval ? ` _(${turn.approval})_` : ''}\n${list(b.items).map((i) => `- ${str(i.tool)}${i.detail ? `: \`${str(i.detail)}\`` : ''}${i.why ? ` — ${i.why}` : ''}`).join('\n')}`,

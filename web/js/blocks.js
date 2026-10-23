@@ -6,6 +6,7 @@ import { diffLines, hunks, countChanges } from './diff.js';
 import { load, MOBILE, save } from './core/state.js';
 import { imageButtons, bindImageButtons, imageName, saveImage } from './ui/image.js';
 import { ask } from './ui/confirm.js';
+import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -816,6 +817,60 @@ R.video = (b, ctx) => {
   }
   bindFolder(node, b, ctx);
   video.addEventListener('error', () => node.classList.add('broken'));
+  return node;
+};
+
+// A markdown file the agent wrote: its opening as a page, fading out, with Full screen (ui/reader.js)
+// and Show in folder. The text was kept with the turn (Store.keepDocs), so it reads as it was then.
+const DOC_PREVIEW_LINES = 48;
+R.doc = (b, ctx) => {
+  const has = typeof b.text === 'string';
+  const title = docTitle(b);
+  const st = has ? docStats(b.text) : null;
+  const where = b.abs || b.path || '';
+  // The opening only: a long file shouldn't all render for a preview. A cut through a code fence closes it.
+  let head = has ? docBody(b.text) : '';
+  head = head.replace(/^#\s+(.+)\n+/, (m, h) => (h.trim() === title ? '' : m));
+  const lines = head.split('\n');
+  let preview = lines.slice(0, DOC_PREVIEW_LINES).join('\n');
+  if ((preview.match(/^\s*```/gm) || []).length % 2) preview += '\n```';
+  const meta = st ? [`${st.lines} line${st.lines === 1 ? '' : 's'}`, `${st.minutes} min read`] : [];
+  const node = el(`
+    <div class="b-doc card ${has ? '' : 'missing'}">
+      <div class="doc-head">
+        <span class="doc-ic">${icon('file')}<i>MD</i></span>
+        <div class="doc-name">
+          <b>${esc(title)}</b>
+          <span>${b.path ? pathHtml(b.path) : ''}${meta.map((m) => `<i>${esc(m)}</i>`).join('')}</span>
+        </div>
+        <div class="doc-tools">
+          ${has ? `<button class="ghost xs doc-copy" title="Copy the markdown">${icon('copy')}</button>` : ''}
+          ${has && where && ctx.reveal && !MOBILE ? `<button class="ghost xs doc-reveal" title="Show the file in its folder">${icon('folder')}<span>Show in folder</span></button>` : ''}
+          ${has ? `<button class="ghost xs doc-full" title="Read it full screen">${icon('expand')}<span>Full screen</span></button>` : ''}
+        </div>
+      </div>
+      ${
+        has
+          ? `<div class="doc-page"><div class="prose">${md(preview)}</div><button class="doc-more">${icon('expand')}<span>Read all ${st.lines} lines</span></button></div>`
+          : `<p class="doc-gone">${icon('warn')}The file wasn’t there when the agent finished, so there’s nothing to show.</p>`
+      }
+      ${b.caption ? `<p class="caption">${inlineMd(b.caption)}</p>` : ''}
+    </div>`);
+  const copyMd = (btn) => copy(b.text, btn);
+  const reveal = where && ctx.reveal ? () => ctx.reveal(where) : null;
+  const open = () => readDoc(b, { copy: copyMd, reveal });
+  node.querySelector('.doc-copy')?.addEventListener('click', (e) => copyMd(e.currentTarget));
+  node.querySelector('.doc-reveal')?.addEventListener('click', () => reveal());
+  node.querySelector('.doc-full')?.addEventListener('click', open);
+  node.querySelector('.doc-more')?.addEventListener('click', open);
+  // Short enough to show whole: no fade, no Read all.
+  const page = node.querySelector('.doc-page');
+  if (page) {
+    // Measured once it has a size: a folded turn renders before it's shown.
+    new ResizeObserver(() => {
+      if (page.clientHeight) page.classList.toggle('fits', lines.length <= DOC_PREVIEW_LINES && page.scrollHeight <= page.clientHeight + 1);
+    }).observe(page);
+  }
   return node;
 };
 

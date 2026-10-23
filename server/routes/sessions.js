@@ -41,6 +41,16 @@ function mediaFile(s, asked) {
   return { path: p, source: source && fs.existsSync(source) ? source : null };
 }
 
+// A markdown file a doc block showed (Store.keepDocs): inside the project, or the path it named.
+function docFile(s, asked) {
+  if (!asked) return null;
+  const dir = workdir(s);
+  const p = path.resolve(dir, asked);
+  const named = s.turns.some((t) => (t.presentation?.blocks || []).some((b) => b?.type === 'doc' && [b.abs, b.path].some((v) => typeof v === 'string' && path.resolve(dir, v) === p)));
+  if (!(p.startsWith(dir + path.sep) || named) || !fs.existsSync(p) || !fs.statSync(p).isFile()) return null;
+  return { path: p, source: null };
+}
+
 // Shows a file selected in Finder / Explorer; other systems open its folder.
 function revealInFolder(file) {
   if (process.env.WISP_NO_OPEN === '1') return; // tests
@@ -456,7 +466,8 @@ export function register(r, app) {
     '/sessions/:id/reveal',
     one(async (c, s) => {
       const body = await c.body();
-      const f = mediaFile(s, typeof body.path === 'string' ? body.path : '');
+      const asked = typeof body.path === 'string' ? body.path : '';
+      const f = mediaFile(s, asked) || docFile(s, asked);
       if (!f) return c.send(404, { error: 'That file is gone.' });
       const file = f.source || f.path;
       if (app.proxy?.via(c.req)) return c.send(409, { error: 'The file is on the computer running wisp.', path: file });
