@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-23
+
 ### Changed
 
 - **Take over opens in a terminal inside wisp by default** on macOS and Linux, instead of a terminal app. Pick Auto-detect or a terminal app in Settings → General → Take over in to go back; a setting you already chose is kept. Windows still opens a terminal app.
