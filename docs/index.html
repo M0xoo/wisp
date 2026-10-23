@@ -79,7 +79,7 @@
           "ask_user tool so agents can ask questions mid-run",
           "Subagents: a lead agent delegates to agents on other harnesses",
           "Recipes and triggers: saved prompts run on a schedule, when CI fails or when an issue is labelled",
-          "Machines: run agents on your other computers over SSH, one prompt on several machines in parallel",
+          "Machines: run agents on your other computers through the wisp Cloud tunnel or over SSH, one prompt on several machines in parallel",
           "Take over any session in your own terminal",
           "Plan, Edits and Full auto permission modes",
           "Learns your preferences and its own lessons from past sessions",
@@ -125,7 +125,7 @@
             "name": "Can wisp run agents on several machines?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. Machines connects to your other computers over SSH and starts wisp there. One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps."
+              "text": "Yes. Sign in to wisp Cloud from each computer's Machines and it holds a tunnel open to the grid, so you reach it from anywhere with no SSH or open port; Machines can also connect over SSH to servers and VMs. One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps."
             }
           },
           {
@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=29" />
+  <link rel="stylesheet" href="style.css?v=30" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -342,13 +342,21 @@
       <div class="relay-grid">
         <div class="relay-text">
           <h2>Start on your laptop. Finish on the dev box.</h2>
-          <p>Connect any computer you can SSH into and launch on it, or on several at once. Mid-task, the button next to the follow-up box moves the task: its branch, uncommitted changes and history go along, and the agent there carries on. The same follow-up can switch from Claude Code to Codex.</p>
+          <p>Sign in to wisp Cloud from your laptop's Machines and it holds a tunnel open to the grid. Your phone and your other computers open it from anywhere and launch on it, or on several at once. Mid-task, the button next to the follow-up box moves the task: its branch, uncommitted changes and history go along, and the agent there carries on. The same follow-up can switch from Claude Code to Codex.</p>
+          <a class="cloud-cta relay-cta" href="https://grid.trywisp.dev" data-cloud-cta="machines" aria-label="Add your laptop to wisp Cloud at grid.trywisp.dev">
+            <span class="cc-bar">
+              <span class="cc-url"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.6" fill="currentColor"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span class="cc-host"><b>laptop</b>--you.grid.trywisp.dev</span></span>
+              <span class="cc-go"><span class="cc-long" data-seats-cta="Get the next seat">Add your laptop</span><span class="cc-short">Open</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </span>
+            <span class="cc-notes"><span><i></i>No SSH, Tailscale or open port</span><span>Your phone sees it too</span></span>
+          </a>
           <dl class="relay-facts">
-            <div><dt>Plain SSH</dt><dd>Your keys and <code>~/.ssh/config</code>. Nothing new listens on the network.</dd></div>
+            <div><dt>Through the grid</dt><dd>One sign-in in Machines → <i>Reach this computer from anywhere</i>. The grid checks it's you, forwards, and keeps nothing.</dd></div>
+            <div><dt>Or plain SSH</dt><dd>For servers, VMs and boxes on your network: your keys and <code>~/.ssh/config</code>, nothing new listening.</dd></div>
             <div><dt>The work moves</dt><dd>A git bundle lands in a worktree on the same branch. No checkout there? wisp clones it.</dd></div>
             <div><dt>So does the story</dt><dd>The next agent gets every earlier request, report and edited file.</dd></div>
           </dl>
-          <p class="relay-links"><a href="guides/move-a-task-to-another-machine-or-agent.html">Move a task mid-way →</a><a href="guides/run-coding-agents-on-multiple-machines.html">Agents on multiple machines →</a><a href="guides/connect-machines-with-tailscale.html">Reach them with Tailscale →</a></p>
+          <p class="relay-links"><a href="guides/reach-your-computer-from-your-phone.html">Reach your laptop from anywhere →</a><a href="guides/move-a-task-to-another-machine-or-agent.html">Move a task mid-way →</a><a href="guides/run-coding-agents-on-multiple-machines.html">Machines over SSH →</a><a href="guides/connect-machines-with-tailscale.html">SSH with Tailscale →</a></p>
         </div>
         <div data-relay data-ui id="relay" aria-label="Try it: a task card whose next follow-up you can send to another computer or agent"></div>
       </div>
@@ -486,7 +494,7 @@
         <details><summary>What is wisp?</summary><p>wisp is a free, open-source launcher for AI coding agents. It runs agents like Claude Code and Codex on your projects in the background. When one finishes, it hands you a short report (the diff, test results, commits and next steps) instead of a long transcript.</p></details>
         <details><summary>Which coding agents does wisp support?</summary><p>Claude Code (<code>claude</code>), OpenAI Codex (<code>codex</code>), opencode, Cursor CLI (<code>cursor-agent</code>), Antigravity CLI (<code>agy</code>), Grok Build (<code>grok</code>) and GitHub Copilot CLI (<code>copilot</code>). Each harness is one adapter file, so adding another is small.</p></details>
         <details><summary>Can I run Claude Code and Codex in parallel?</summary><p>Yes. Every task runs in its own git worktree and branch, so Claude Code, Codex and the other agents can work on the same repo at the same time without colliding. Click <b>vs</b> in the launcher (or pass <code>--compare codex</code>) to run one task on both and keep the better run. <a href="guides/run-claude-code-and-codex-in-parallel.html">Guide →</a></p></details>
-        <details><summary>Can wisp run agents on several machines?</summary><p>Yes. <b>Machines</b> connects to your other computers over SSH and starts wisp there. One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps. To reach them from anywhere, add each one to <a href="cloud.html">wisp Cloud</a> from its Machines (no SSH, no open ports; your phone sees them too: <a href="guides/reach-your-computer-from-your-phone.html">guide →</a>), or put them on Tailscale: <a href="guides/connect-machines-with-tailscale.html">Tailscale guide →</a> <a href="guides/run-coding-agents-on-multiple-machines.html">Machines guide →</a></p></details>
+        <details><summary>Can wisp run agents on several machines?</summary><p>Yes. Add each computer to <a href="https://grid.trywisp.dev">wisp Cloud</a> from its <b>Machines</b>: it holds a tunnel open to the grid, so your other computers and your phone reach it from anywhere with no SSH or open port (<a href="guides/reach-your-computer-from-your-phone.html">guide →</a>). One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps. For servers and VMs, Machines also connects over SSH and starts wisp there, on your network or over Tailscale: <a href="guides/connect-machines-with-tailscale.html">Tailscale guide →</a> <a href="guides/run-coding-agents-on-multiple-machines.html">Machines guide →</a></p></details>
         <details><summary>Can my agents keep working when my laptop is closed?</summary><p>Yes, if they run on a computer that stays on. Connect a desktop or VM through <b>Machines</b>, or use <a href="cloud.html">wisp Cloud</a>: your own wisp on a server, free during the preview. Sign in with GitHub, sign in to Claude Code or Codex with a code, give it a task and close the laptop; the report waits on your phone. <a href="guides/run-claude-code-24-7-without-a-vps.html">Run Claude Code 24/7 without a VPS →</a></p></details>
         <details><summary>Can I move a task to another computer or agent mid-way?</summary><p>Yes. Pick another computer with the <b>Runs on</b> button next to the follow-up box, and your next follow-up moves the task there: the branch and uncommitted changes travel as a git bundle into a worktree on the same branch, and the agent gets the earlier turns. The harness button next to it switches agents, say from Claude Code to Codex, in the same follow-up. <a href="guides/move-a-task-to-another-machine-or-agent.html">Guide →</a></p></details>
         <details><summary>Is wisp free?</summary><p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity, Grok or GitHub Copilot account, and those providers bill as usual.</p></details>
