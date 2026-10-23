@@ -301,6 +301,7 @@ h1 .off.fly { animation: off-fly 0.9s cubic-bezier(0.5, 0, 0.75, 0) both; }
 .relay-facts > div { display: grid; grid-template-columns: 150px 1fr; gap: 16px; font-size: 16px; }
 .relay-facts dt { font-weight: 650; }
 .relay-facts dd { margin: 0; color: var(--ink-2); }
+.relay-cta { margin-top: 28px; }
 .relay-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 24px; font-size: 15px; }
 .relay-links a { color: var(--accent); text-decoration: none; }
 .relay-links a:hover { text-decoration: underline; }
