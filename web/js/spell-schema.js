@@ -75,6 +75,7 @@ export const PARTS = {
   'composer.mode': '.composer .c-mode',
   'composer.harness': '.composer .c-runner',
   'composer.place': '.composer .c-place',
+  'composer.team': '.composer .c-team',
   'composer.hint': '.composer .c-hint',
   'composer.ship': '.composer .c-ship',
   'composer.done': '.composer .c-done',

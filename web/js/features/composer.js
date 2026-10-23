@@ -28,6 +28,7 @@ import { paintCard, runAction, spellProp } from './spells.js';
 import { spellSlash } from './launcher.js';
 import { cast } from './spell-ui.js';
 import { ask } from '../ui/confirm.js';
+import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
 
 export function draftInto(id, text) {
   const ta = $('.reply', S.nodes.get(id)?.card);
@@ -41,7 +42,7 @@ export function draftInto(id, text) {
 // Split view folds an empty follow-up box to one line while you read. Once you're in it, it stays
 // open through its own pickers (harness, mode, computer: they open on <body> and take focus) until
 // you click or tab somewhere else on the page.
-const OWN_POPUPS = '.picker, .menu, .overlay';
+const OWN_POPUPS = '.picker, .menu, .overlay, .team-pop';
 // Moving to another task in the list from an open box keeps it open: the old one goes with its
 // task without folding first, and the new task's box is drawn open (feed.js then focuses it).
 let carry = false;
@@ -69,6 +70,7 @@ export function renderDock(id) {
         <button class="mode-btn c-mode" aria-haspopup="menu"></button>
         <button class="c-runner" aria-haspopup="dialog"></button>
         <button class="c-place" aria-haspopup="menu" hidden></button>
+        <button class="team-btn c-team" aria-haspopup="dialog" hidden></button>
         <span class="c-hint"></span>
         <button class="ghost sm c-ship" data-a="ship" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
         <button class="ghost sm c-done" data-a="done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
@@ -97,6 +99,10 @@ export function renderDock(id) {
   const runnerBtn = $('.c-runner', comp);
   runnerBtn.onclick = () => {
     pickReplyRunner(id, runnerBtn);
+  };
+  const teamBtn = $('.c-team', comp);
+  teamBtn.onclick = () => {
+    pickReplyTeam(id, teamBtn);
   };
   const placeBtn = $('.c-place', comp);
   placeBtn.onclick = () => {
@@ -192,6 +198,50 @@ function paintReplyRunner(id, btn) {
   btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || !harnessesAt([replyPlace(id)]).some((a) => a.available);
 }
 
+// The subagents the lead can delegate to from the next follow-up on: the session's own team (none
+// for a task launched without one) until the user picks another here. The pick goes out with that
+// follow-up and stays; members the lead already used keep their conversation.
+const sameTeam = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
+const replyTeam = (id) => (S.replyTeams.has(id) ? S.replyTeams.get(id).team : S.full.get(id)?.subagents || []);
+
+function setReplyTeam(id, team, preset) {
+  const s = S.full.get(id);
+  if (s && sameTeam(team, s.subagents)) S.replyTeams.delete(id);
+  else S.replyTeams.set(id, { team, preset });
+  updateDock(id);
+}
+
+function pickReplyTeam(id, btn) {
+  if (!S.full.get(id)) return;
+  teamEditor(btn, { lead: replyRunner(id).agent, team: replyTeam(id), presetId: S.replyTeams.get(id)?.preset || '', places: [replyPlace(id)] }, (members, preset) => {
+    setReplyTeam(id, members, preset);
+  });
+}
+
+function paintReplyTeam(id, btn) {
+  const s = S.full.get(id);
+  const team = replyTeam(id);
+  const lead = replyRunner(id).agent;
+  const changed = !!s && S.replyTeams.has(id);
+  const open = btn.classList.contains('open');
+  paintTeamBtn(btn, team, S.replyTeams.get(id)?.preset || '', lead);
+  btn.classList.add('c-team');
+  btn.classList.toggle('changed', changed);
+  btn.classList.toggle('open', open);
+  const list = team.map((m) => `• ${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n');
+  btn.title = !canLead(lead)
+    ? `${agentName(lead)} can't delegate (wisp can't give it tools), so follow-ups run without subagents`
+    : changed
+      ? team.length
+        ? `Your next follow-up gives ${agentName(lead)} these subagents:\n${list}\nClick to change`
+        : `Your next follow-up runs without subagents. Click to change`
+      : team.length
+        ? `Subagents ${agentName(lead)} can delegate to:\n${list}\nClick to change them for your next follow-up`
+        : `Subagents: give ${agentName(lead)} a team on other harnesses to delegate to from your next follow-up`;
+  // Subagents don't get a team of their own; a lead that can't delegate only shows one it has.
+  btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || (!canLead(lead) && !team.length);
+}
+
 // Where the next follow-up runs: where the task is, until the user picks another computer here.
 // Then the follow-up moves the task there, its work and history with it (server/services/move.js).
 const placeNow = (s) => s?.machine?.id || '';
@@ -281,6 +331,7 @@ export function updateDock(id) {
   paintReplyMode(id, $('.c-mode', n.card));
   paintReplyRunner(id, $('.c-runner', n.card));
   paintReplyPlace(id, $('.c-place', n.card));
+  paintReplyTeam(id, $('.c-team', n.card));
   renderQueued(s, $('.c-queued', n.card), name);
   const q = $('.c-queue', n.card);
   q.hidden = tour || s.state !== 'running';
@@ -412,22 +463,24 @@ export async function sendReply(id, text) {
   const attachments = n?.tray ? await n.tray.ids() : [];
   const mode = S.replyModes.get(id);
   const run = S.replyRunners.get(id);
+  const team = S.replyTeams.get(id);
   const place = S.replyPlaces.has(id) ? S.replyPlaces.get(id) : undefined;
-  if (place !== undefined) return moveWithReply(id, text, { attachments, mode, run, place });
-  // An answer goes to the run that asked; a new mode or harness needs a new run, so that's a follow-up.
-  const answering = !!s.ask && !attachments.length && !mode && !run;
+  if (place !== undefined) return moveWithReply(id, text, { attachments, mode, run, team, place });
+  // An answer goes to the run that asked; a new mode, harness or team needs a new run, so that's a follow-up.
+  const answering = !!s.ask && !attachments.length && !mode && !run && !team;
   // Optimistic: the composer empties and the card goes to Working before the server answers
   // (it may first have to bring back an archived worktree, or reach another machine).
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
   S.drafts.delete(id);
   S.replyModes.delete(id);
   S.replyRunners.delete(id);
+  S.replyTeams.delete(id);
   const files = n?.tray?.take();
-  const undo = startOptimistic(id, text, files, { answering, mode, run });
+  const undo = startOptimistic(id, text, files, { answering, mode, run, team: team?.team });
   try {
     const r = answering
       ? await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
-      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run } });
+      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }) } });
     if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
     if (r.queued)
       toast(r.ahead ? `Queued behind ${r.ahead} earlier follow-up${r.ahead > 1 ? 's' : ''} — they go out first, in order.` : 'Queued — it goes out as soon as the agent finishes.');
@@ -437,6 +490,7 @@ export async function sendReply(id, text) {
     if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
     if (mode && !S.replyModes.has(id)) setReplyMode(id, mode);
     if (run && !S.replyRunners.has(id)) setReplyRunner(id, run);
+    if (team && !S.replyTeams.has(id)) setReplyTeam(id, team.team, team.preset);
     n?.tray?.restore(files);
     toastError(err);
   }
@@ -444,16 +498,16 @@ export async function sendReply(id, text) {
 
 // A follow-up on another computer: the task moves there and carries on as a new session (the old
 // one is archived). The card says it's moving at once; the new card takes its place, open.
-async function moveWithReply(id, text, { attachments, mode, run, place }) {
+async function moveWithReply(id, text, { attachments, mode, run, team, place }) {
   const n = S.nodes.get(id);
   const ta = n && $('.reply', n.card);
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
   S.drafts.delete(id);
-  for (const m of [S.replyModes, S.replyRunners, S.replyPlaces]) m.delete(id);
+  for (const m of [S.replyModes, S.replyRunners, S.replyTeams, S.replyPlaces]) m.delete(id);
   const files = n?.tray?.take();
-  const undo = startOptimistic(id, text, files, { mode, run, live: `Moving to ${placeName(place)}` });
+  const undo = startOptimistic(id, text, files, { mode, run, team: team?.team, live: `Moving to ${placeName(place)}` });
   try {
-    const r = await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, mode, ...run, machine: place } });
+    const r = await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, mode, ...run, ...(team && { subagents: team.team }), machine: place } });
     const next = r.session;
     S.sessions.set(next.id, next);
     const old = S.sessions.get(id);
@@ -470,6 +524,7 @@ async function moveWithReply(id, text, { attachments, mode, run, place }) {
     if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
     if (mode && !S.replyModes.has(id)) setReplyMode(id, mode);
     if (run && !S.replyRunners.has(id)) setReplyRunner(id, run);
+    if (team && !S.replyTeams.has(id)) setReplyTeam(id, team.team, team.preset);
     if (!S.replyPlaces.has(id)) {
       S.replyPlaces.set(id, place);
       updateDock(id);
@@ -482,7 +537,7 @@ async function moveWithReply(id, text, { attachments, mode, run, place }) {
 // Show a follow-up as started right away: the card moves to Working with the prompt as a live
 // turn. Only when it will start now, not when it queues or interrupts a run already working.
 // Returns an undo for a failed send, or null when nothing changed.
-export function startOptimistic(id, text, files, { answering, mode, run, live: label }) {
+export function startOptimistic(id, text, files, { answering, mode, run, team, live: label }) {
   const full = S.full.get(id);
   const sum = S.sessions.get(id);
   if (!full || !sum) return null;
@@ -492,7 +547,7 @@ export function startOptimistic(id, text, files, { answering, mode, run, live: l
   const turn = { id: `pending-${now}`, prompt: text, status: 'running', startedAt: now, activity: [], attachments: (files || []).filter((f) => f.id).map((f) => ({ id: f.id, name: f.name, mime: f.mime })) };
   if (mode) turn.mode = mode;
   if (run) Object.assign(turn, run);
-  const nextFull = { ...full, state: 'running', ask: null, turns: answering ? full.turns : [...full.turns, turn], ...(mode && { mode }), ...run };
+  const nextFull = { ...full, state: 'running', ask: null, turns: answering ? full.turns : [...full.turns, turn], ...(mode && { mode }), ...run, ...(team && { subagents: team }) };
   const nextSum = { ...sum, state: 'running', live: label || (answering ? 'Picking up your answer' : run && run.agent !== full.agent ? `Handing over to ${agentName(run.agent)}` : 'Starting up'), updatedAt: now, ...(mode && { mode }), ...run };
   const apply = (f, sm) => {
     S.full.set(id, f);

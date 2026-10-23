@@ -94,6 +94,14 @@ function changedRun(session, run) {
   return same && next.model === (session.model || '') && next.effort === (session.effort || '') ? null : next;
 }
 
+// The lead's roster changes between turns. Members it already used keep their child session (by
+// name), so delegating to them again continues their conversation.
+function setTeam(session, team) {
+  if (team.length) session.subagents = team;
+  else delete session.subagents;
+  session.children ||= {};
+}
+
 function autoTitle(prompt) {
   const line = plainMentions(prompt).trim().split('\n')[0].replace(/\s+/g, ' ');
   return line.length > 64 ? `${line.slice(0, 63)}…` : line;
@@ -258,11 +266,13 @@ export class Runner extends EventEmitter {
   // grants / once: a retry of what the last turn's permissions blocked (see approveBlocked).
   // by: 'wisp' for a follow-up wisp sends itself (Auto's repair round). Anything else is the
   // user's, and cancels whatever Auto was about to do next.
-  reply(session, text, attachments = [], { queue = false, mode, run, grants, once, by } = {}) {
+  // team: a new roster of subagents (normalized; [] drops them) for this follow-up and the ones after it.
+  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by } = {}) {
     if (!MODES.has(mode) || mode === session.mode) mode = undefined;
     run = changedRun(session, run);
+    if (session.parentId || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
     if (by !== 'wisp') this.pipeline?.cancel(session);
-    const extra = { ...(mode && { mode }), ...(run && { run }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...(by === 'wisp' && { by }) };
+    const extra = { ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...(by === 'wisp' && { by }) };
     if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
       return { answered: true };
@@ -291,6 +301,7 @@ export class Runner extends EventEmitter {
     }
     if (mode) session.mode = mode;
     if (run) this.#switchRun(session, run);
+    if (team) setTeam(session, team);
     this.#startTurn(session, text, attachments, extra);
     return { queued: false };
   }
@@ -735,6 +746,7 @@ export class Runner extends EventEmitter {
       const next = session.queue.shift();
       if (next?.mode) session.mode = next.mode;
       if (next?.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
+      if (next?.team) setTeam(session, next.team);
       if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments, next);
       else this.#touch(session);
     };

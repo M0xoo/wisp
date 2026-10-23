@@ -71,6 +71,7 @@ export const S = {
   replyModes: new Map(), // session id → the mode its next follow-up switches to
   replyRunners: new Map(), // session id → { agent, model, effort } its next follow-up switches to
   replyPlaces: new Map(), // session id → the place ('' = this computer) its next follow-up moves it to
+  replyTeams: new Map(), // session id → { team, preset } of subagents its next follow-up gives the lead
 };
 export const saveOpen = () => save('wisp.open', [...S.open]);
 export const setAgents = (list) => ((S.agents = list), save('wisp.agents', list));

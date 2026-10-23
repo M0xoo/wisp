@@ -89,6 +89,13 @@ export function register(r, app) {
     }
     return { agent, ...(model !== undefined && { model: String(model || '') }), ...(effort !== undefined && { effort: String(effort || '') }) };
   };
+  // A follow-up's new team, checked like a launch's: only a lead has one.
+  const followUpTeam = (s, { subagents, preset }) => {
+    if (s.parentId) throw bad('A subagent can’t have subagents of its own.');
+    const p = preset ? store.config.teams.find((t) => t.id === preset) : null;
+    if (preset && !p && subagents === undefined) throw bad(`no such subagent preset: ${preset}`);
+    return normalizeTeam(subagents ?? p?.members ?? [], adapters);
+  };
   // Archiving removes clean worktrees: the task's own and its other folders' come back before it runs again.
   const ensureTrees = async (s) => {
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
@@ -231,18 +238,20 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/reply',
     one(async (c, s) => {
-      const { text, attachments, queue, mode, agent, model, effort, machine } = await c.body();
+      const { text, attachments, queue, mode, agent, model, effort, machine, subagents, preset } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
       // Two agents on one conversation would trample each other.
       if (app.terms.get(s.id)?.code === null && btwQuestion(text) === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
+      // subagents / preset: give the lead a team (or another one, [] for none) from this follow-up on.
+      const team = subagents !== undefined || preset !== undefined ? followUpTeam(s, { subagents, preset }) : undefined;
       // machine: carry the task on on a machine instead (services/move.js). '' is here, where it is.
       // A /btw side question never moves it.
-      if (typeof machine === 'string' && machine && btwQuestion(text) === null) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort }));
+      if (typeof machine === 'string' && machine && btwQuestion(text) === null) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));
       // agent / model / effort: run this follow-up (and the ones after it) on another harness or model.
       const run = agent !== undefined || model !== undefined || effort !== undefined ? await followUpRun(s, { agent, model, effort }) : undefined;
-      c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run));
+      c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team));
     }),
   );
 

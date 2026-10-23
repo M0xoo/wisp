@@ -75,7 +75,7 @@ export function createMove(app) {
 
   // id: the session as this wisp names it (<id>@<machine> on a machine). to: a machine id, or
   // null for this computer. Resolves the new session's summary.
-  async function move(id, to, { text, attachments = [], mode, agent, model, effort } = {}) {
+  async function move(id, to, { text, attachments = [], mode, agent, model, effort, team } = {}) {
     const at = splitId(id);
     const from = at?.machine || null;
     to = to || null;
@@ -105,7 +105,7 @@ export function createMove(app) {
       mode: mode || s.mode,
       attachments,
       ...(s.groupId && { groupId: s.groupId }),
-      ...(s.subagents?.length && { subagents: s.subagents }),
+      ...((team ?? s.subagents)?.length && { subagents: team ?? s.subagents }), // team: a new one picked with this follow-up
       moved: { from: where(from), title: s.title, turns: history(s, from), packs, ...(s.origin && { origin: s.origin }) },
     };
     let next;
