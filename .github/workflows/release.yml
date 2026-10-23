@@ -15,9 +15,12 @@ name: release
 # "dry run" ticked it only builds the desktop apps (kept as the run's artifacts): try a branch with
 # `gh workflow run release --ref <branch> -f dry_run=true`.
 #
-# Secrets (all optional except the npm one):
-#   NPM_TOKEN                   npm automation token; not needed with npm trusted publishing set up
-#                               for this repo and workflow (npmjs.com → wisp-agents → Settings)
+# npm publishes through trusted publishing (OIDC, no token): npmjs.com → wisp-agents → Settings
+# trusts M0xoo/wisp, release.yml, environment `npm`. That GitHub environment only runs on main
+# and waits for M0xoo to approve (Actions → the run → Review deployments), and npm refuses
+# publishes by token. So a release goes out only when M0xoo says so.
+#
+# Secrets (all optional):
 #   HOMEBREW_TAP_TOKEN          a token that can push to M0xoo/homebrew-tap; without it the tap is skipped
 #   MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
 #                               Developer ID certificate (base64 .p12) and notarization; without
@@ -167,6 +170,9 @@ jobs:
     needs: [plan, release]
     if: needs.plan.outputs.npm == 'true'
     runs-on: ubuntu-latest
+    # Only main, and only once M0xoo approves the run. npm's trusted publisher for wisp-agents is
+    # bound to this repo, release.yml and this environment, so nothing else can publish.
+    environment: npm
     permissions:
       contents: read
       id-token: write # provenance, and trusted publishing when it's set up
@@ -178,8 +184,6 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm install -g npm@latest # trusted publishing needs npm 11.5+
       - name: Publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           tag=latest; [ "${{ needs.plan.outputs.prerelease }}" = true ] && tag=next
           npm publish --provenance --access public --tag "$tag"
