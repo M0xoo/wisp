@@ -3,10 +3,11 @@
 
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
-import { load, MOBILE, save } from './core/state.js';
+import { load, MOBILE, save, S } from './core/state.js';
 import { imageButtons, bindImageButtons, imageName, saveImage } from './ui/image.js';
 import { ask } from './ui/confirm.js';
 import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
+import { appBlock } from './app-frame.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -894,6 +895,27 @@ R.question = (b, ctx) => {
     const o = b.options[btn.dataset.i];
     ctx.reply(typeof o === 'string' ? o : o.reply || o.label);
   });
+  return node;
+};
+
+// A small interactive page from the agent, run sandboxed (app-frame.js). With Settings →
+// Interactive answers off, its fallback blocks show instead, with a way to open it anyway.
+R.app = (b, ctx) => {
+  if (ctx.spell || S.config?.defaults?.apps !== 'off') return appBlock(b, ctx, { spell: ctx.spell });
+  const fb = (Array.isArray(b.fallback) ? b.fallback : []).filter((x) => x && typeof x.type === 'string' && x.type !== 'app');
+  const node = el(`<div class="app-off">${fb.length ? '' : `<div class="card app-closed">${icon('spark')}<span class="app-title">${esc(b.title || 'Interactive block')}</span>`}<button class="link xs app-open">${icon('play')}${fb.length ? 'Open the interactive version' : 'Open it'}</button>${fb.length ? '' : '</div>'}</div>`);
+  for (const x of fb.reverse()) {
+    let n;
+    try {
+      n = R[x.type] ? R[x.type](x, ctx) : fallback(x, ctx) || R.unknown(x);
+    } catch {
+      n = R.unknown(x);
+    }
+    node.prepend(n);
+  }
+  node.querySelector('.app-open').onclick = () => {
+    node.replaceWith(appBlock(b, ctx));
+  };
   return node;
 };
 

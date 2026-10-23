@@ -37,9 +37,17 @@ export function ctxFor(s, turn, isLatest) {
     reveal: (p) => revealFile(s, p),
     revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
     exec: (command, key) => execAction(s.id, turn.id, command, key),
+    saveApp: (key, state) => saveAppState(s, turn, key, state),
     approve: (allow) => approveBlocked(s, turn, allow),
     refresh: () => fetchFull(s.id).then(() => S.full.get(s.id)),
   };
+}
+
+// What an app block saved (wisp.save), kept on its turn so it opens as it was left. Kept here at
+// once; a refused save only loses it on the next load, so it's not worth a toast.
+function saveAppState(s, turn, key, state) {
+  turn.appState = { ...turn.appState, [key]: state };
+  api(`/sessions/${s.id}/app-state`, { method: 'POST', body: { turnId: turn.id, key, state } }).catch(() => {});
 }
 
 // The "Blocked by permissions" card's buttons. Allow starts the retry, so the card goes to

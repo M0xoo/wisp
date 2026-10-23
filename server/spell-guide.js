@@ -32,6 +32,14 @@ export const SPELL_EXAMPLES = [
     },
   },
   {
+    ask: 'A block agents use to have me rank options, by moving them up a list',
+    spell: {
+      wispSpell: 1, id: 'rank-block', name: 'Rank block', version: '1.0.0',
+      blocks: [{ type: 'rank', doc: '{"type":"rank","title":"…","items":["option","…"]} When the user should put several options in order before you go on.', summary: 'Rank: {title}', render: 'rank' }],
+      script: "export function rank(b) {\n  const items = (b.items || []).map(String);\n  const css = '<style>ol{margin:0;padding:12px 14px 8px;list-style:none;display:flex;flex-direction:column;gap:6px}li{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px}li span{flex:1;min-width:0}li button{border:1px solid var(--line-2);border-radius:6px;background:var(--surface);cursor:pointer}.go{margin:4px 14px 14px;padding:7px 12px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}</style>';\n  const js = \"let o=wisp.state||\" + JSON.stringify(items).replace(/</g, '\\\\u003c') + \";const l=document.getElementById('l');\" +\n    \"const draw=()=>{l.innerHTML=o.map((t,i)=>'<li><span></span>'+(i?'<button data-i=\\\"'+i+'\\\">Up</button>':'')+'</li>').join('');l.querySelectorAll('span').forEach((s,i)=>{s.textContent=(i+1)+'. '+o[i]});wisp.save(o)};\" +\n    \"l.onclick=(e)=>{const i=+e.target.dataset.i;if(i){[o[i-1],o[i]]=[o[i],o[i-1]];draw()}};\" +\n    \"document.getElementById('go').onclick=()=>{wisp.send('My order:\\\\n'+o.map((t,i)=>(i+1)+'. '+t).join('\\\\n'))};draw();\";\n  const html = css + '<ol id=\"l\"></ol><button class=\"go\" id=\"go\">Send this order</button><script>' + js + '</scr' + 'ipt>';\n  return [{ type: 'app', title: b.title || 'Rank these', html, fallback: [{ type: 'checklist', items: items.map((t) => ({ text: t })) }] }];\n}",
+    },
+  },
+  {
     ask: 'Compact cards, bold titles, PR first, no machine or project, and Open PR on hover',
     spell: {
       wispSpell: 1, id: 'compact-cards', name: 'Compact cards', version: '1.0.0',
@@ -81,7 +89,7 @@ export function spellReference() {
       data: '{ name: { wisp: "/path?query" } | { gh: [args], cwd?: "task", refresh?: seconds } } — fetched by wisp; script functions receive them as their first argument { name: value }. gh args may use {field} templates over the card\'s task (e.g. "{pr.number}").',
       buttons: '[{ id?, slot, label, icon?, title?, badge?: { count: "<data>" } | { text: "{field}" } | { fn, with: [data] }, group?: "name" (float only: folds into one button), corner?: "bottom-left", when?: {hasPr, prState, state, status, agent, project, unread, hasBranch} (card slots), do }]',
       chips: '[{ slot: "card.head" | "launcher.chips" | "composer.chips", text: "{field} template" | fn: "<script fn>" (returns a string), with?: [data], tone?: good|bad|warn|info|neutral, icon?, title?, when?, do? }]',
-      panels: '[{ id, title, icon?, as: dialog|drawer|feed|card, slot?: card.top|card.bottom (as card), data: [names], render: "<script fn>", refresh?: { every: seconds, on: [summary, finished] } }] — render returns an array of wisp presentation blocks (stats, chart, markdown, checklist, files, callout, steps, tree, flow, terminal, code, actions with url…)',
+      panels: '[{ id, title, icon?, as: dialog|drawer|feed|card, slot?: card.top|card.bottom (as card), data: [names], render: "<script fn>", refresh?: { every: seconds, on: [summary, finished] } }] — render returns an array of wisp presentation blocks (stats, chart, markdown, checklist, files, callout, steps, tree, flow, terminal, code, actions with url…, app)',
       blocks: '[{ type, doc: "one-line JSON example + when to use it", summary: "{field} template for text-only places", render: "<script fn>" }] — new presentation blocks agents can use; render(block) returns wisp blocks',
       parts: '{ "<part>": { style?: { cssProp: value }, props?: {...}, order?: [...] (card.head only) } }',
       ui: '{ hide: [parts], tokens: { "--accent": "#7c5cff" }, dark: { … tokens for dark mode } }',
@@ -91,7 +99,7 @@ export function spellReference() {
       commands: '[{ label, keywords?, icon?, key?, do }] — ⌘K items (key: a single key like "g" or "shift+g", only when no built-in uses it)',
       hooks: `[{ on, if?, max?, do }] — on: ${Object.keys(EVENTS).join(' | ')}; if: { ${HOOK_IF.join(', ')} }; do: one of ${[...HOOK_ACTIONS].join(', ')}; max: times per task (default 1)`,
       recipes: '[{ name, prompt with {params}, agent?, mode? }] — saved prompts',
-      script: 'JS with `export function name(data, ctx) { return … }` functions. It runs in a sandbox with no network, no DOM and no wisp API: it can only compute and return values (blocks, strings, numbers, lists of links). ctx: { session } (the card\'s task summary, when there is one), { block } for agent blocks (the block is also the first argument).',
+      script: 'JS with `export function name(data, ctx) { return … }` functions. It runs in a sandbox with no network, no DOM and no wisp API: it can only compute and return values (blocks, strings, numbers, lists of links). To make something interactive, return an app block: { type: "app", title, html: "<style>…</style>…<script>…</script>", height?, fallback?: [blocks] }. wisp runs its html in a sandboxed frame with no network, themed by wisp\'s CSS variables (var(--ink), --surface, --line, --accent, …); in it, wisp.send(text) offers text for the user to send to the task as a follow-up, wisp.save(obj) / wisp.state keep its state. Make it work from 320px wide. ctx: { session } (the card\'s task summary, when there is one), { block } for agent blocks (the block is also the first argument).',
     },
     templates: '{field} in text, labels, links and gh args is filled from the card\'s task summary: id, title, state, status, agent, model, mode, project, branch, cwd, preview, pr.number, pr.url, pr.state, pr.checks …; in slash commands {args} too. Missing fields become empty.',
     slots: SLOTS,

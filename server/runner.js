@@ -634,7 +634,7 @@ export class Runner extends EventEmitter {
     const extraBlocks = session.parentId ? [] : this.spellBlocks(session);
     const base = session.parentId
       ? systemPrompt({ ask: SUBAGENT_ASK })
-      : systemPrompt({ askTool: adapter.askTool, extraBlocks }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
+      : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
     return base + spell + workspaceNote(session) + this.promptExtra(session);
   }

@@ -458,3 +458,13 @@ test('the follow-up Queue switch is a part spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['composer.queue'] }, parts: { 'composer.queue': { style: { borderRadius: '4px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'composer.queue': { props: { width: 400 } } } }).some((x) => /composer\.queue/.test(x)));
 });
+
+test('interactive answers: the apps setting, the block.app parts, and app is a built-in block', () => {
+  for (const apps of ['on', 'off']) assert.deepEqual(problems({ ...base0, settings: { apps } }), []);
+  const p = problems({ ...base0, settings: { apps: 'yes' } });
+  assert.ok(p.some((x) => /settings\.apps/.test(x) && /on \| off/.test(x)), p.join('\n'));
+  assert.deepEqual(problems({ ...base0, parts: { 'block.app': { style: { borderRadius: '4px' } }, 'block.app.head': { style: { background: 'var(--bg-2)' } } }, ui: { hide: ['block.app.head'] } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['block.app.send'] } }).some((x) => /block\.app\.send/.test(x)), 'the send strip can not be hidden');
+  const own = problems({ ...base0, blocks: [{ type: 'app', doc: 'x', render: 'r' }], script: 'export function r() { return []; }' });
+  assert.ok(own.some((x) => /app is a built-in block/.test(x)), own.join('\n'));
+});

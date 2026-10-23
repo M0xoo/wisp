@@ -17,6 +17,7 @@ import { normalizeTeam } from '../subagents.js';
 import { ptySupported } from '../pty.js';
 import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
+import { APP_MAX_STATE } from '../../web/js/app-doc.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -368,6 +369,23 @@ export function register(r, app) {
       telemetry.track('exec_action', { agent: s.agent, exitCode: out.exitCode });
       app.ship.recheck(s);
       c.send(200, out);
+    }),
+  );
+
+  // What an app block saved (wisp.save in web/js/app-doc.js), so it reopens as it was left.
+  // Not broadcast: re-rendering the card would reload the app the user is using.
+  r.route(
+    'POST',
+    '/sessions/:id/app-state',
+    one(async (c, s) => {
+      const { turnId, key, state = null } = await c.body();
+      const turn = s.turns.find((t) => t.id === turnId);
+      if (!turn) return c.send(404, { error: 'turn not found' });
+      if (typeof key !== 'string' || !/^app:\w{1,24}$/.test(key)) return c.send(400, { error: 'key must look like app:0' });
+      if (JSON.stringify(state).length > APP_MAX_STATE) return c.send(400, { error: `state is larger than ${APP_MAX_STATE / 1000} KB` });
+      turn.appState = { ...turn.appState, [key]: state };
+      store.save(s);
+      c.send(200, { ok: true });
     }),
   );
 

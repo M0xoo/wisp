@@ -106,13 +106,30 @@ const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous 
   two very different approaches), stop before acting on it and end with a "question" block (2–4 options).
   The user's answer comes back as a follow-up in this same session.`;
 
+// The `app` block, offered unless Settings → Interactive answers is off (defaults.apps: 'off').
+const APP_BLOCK = `- {"type":"app","title":"…","html":"<style>…</style><div>…</div><script>…</script>","height":320,"fallback":[…blocks…]}
+  A small interactive page wisp runs sandboxed in your answer, for when the user has to try, tune,
+  pick several or explore before you can go on: a curve or colour with a live preview, which of 20
+  findings to fix, filtering benchmark results. Prefer the blocks above; at most one app per answer.
+  Self-contained HTML/CSS/JS under 100 KB: no network, no external files (bake the data in), no
+  alert(). Use wisp's CSS variables so it matches light and dark (var(--ink), --muted, --surface,
+  --surface-2, --line, --accent, --good, --bad, --sans, --mono). It must work from 320px wide:
+  flex-wrap or @media (max-width: 520px) (wisp also sets html.narrow there); no fixed widths.
+  \`wisp.send(text)\` offers text for the user to send back to you as a follow-up: end with a
+  button that calls it with everything you need. \`wisp.save(obj)\` / \`wisp.state\` keep its state.
+  "fallback": ordinary blocks shown where it can't run (a question block with the main choices).`;
+
 // askTool: how the harness names wisp's injected ask_user tool, or null if it can't take one.
 // ask: replaces the ask guidance outright (subagents, who have nobody to ask).
 // extraBlocks: block types spells add ({ type, doc, spell }), listed with the built-in ones.
-export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask, extraBlocks = [] } = {}) => {
+// apps: offer the `app` block.
+export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask, extraBlocks = [], apps = false } = {}) => {
   const out = PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) : ASK_BLOCK));
-  if (!extraBlocks.length) return out;
-  const docs = extraBlocks.map((b) => `- ${b.doc.trim().startsWith('{') ? b.doc.trim().replace(/\}\s+(?=\S)/, '}\n  ') : `{"type":"${b.type}"} ${b.doc}`}\n  (From the user's spell ${b.spell}.)`).join('\n');
+  const docs = [
+    ...(apps ? [APP_BLOCK] : []),
+    ...extraBlocks.map((b) => `- ${b.doc.trim().startsWith('{') ? b.doc.trim().replace(/\}\s+(?=\S)/, '}\n  ') : `{"type":"${b.type}"} ${b.doc}`}\n  (From the user's spell ${b.spell}.)`),
+  ].join('\n');
+  if (!docs) return out;
   return out.replace('\nStrings must be valid JSON', `\n${docs}\n\nStrings must be valid JSON`);
 };
 export const SYSTEM_PROMPT = systemPrompt();

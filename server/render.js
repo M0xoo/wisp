@@ -91,6 +91,12 @@ const R = {
   next: (b) => `**Next**\n${list(b.items).map((i) => `- ${str(i)}`).join('\n')}`,
 };
 
+// An interactive page only runs in wisp's page: its fallback blocks stand in for it here.
+R.app = (b, turn) => {
+  const fb = list(b.fallback).filter((x) => x?.type && x.type !== 'app');
+  return `**🧩 ${str(b.title) || 'Interactive'}** _(interactive: open it in wisp)_${fb.length ? `\n\n${blocksToMarkdown(fb, turn)}` : ''}`;
+};
+
 // Block types spells add: their summary template stands in for them here (set from server/index.js).
 let spellBlock = () => null;
 export const setSpellBlocks = (fn) => (spellBlock = fn);

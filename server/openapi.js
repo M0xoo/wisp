@@ -341,6 +341,14 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { command: { type: 'string' }, output: { type: 'string' }, exitCode: { type: 'integer' }, durationMs: { type: 'integer' } } }), 400: err[400] },
         },
       },
+      '/sessions/{id}/app-state': {
+        parameters: [id],
+        post: {
+          summary: 'Keep what an app block saved (wisp.save) on its turn, so it reopens as it was left',
+          requestBody: body({ type: 'object', required: ['turnId', 'key'], properties: { turnId: { type: 'string' }, key: { type: 'string', description: 'app:<index in the presentation>' }, state: { description: 'any JSON, up to 32 KB' } } }),
+          responses: { 200: ok, 400: err[400], 404: err[404] },
+        },
+      },
       '/sessions/{id}/stop': { parameters: [id], post: { summary: 'Stop the run and drop queued follow-ups', responses: { 200: ok } } },
       '/sessions/{id}/reveal': {
         parameters: [id],
