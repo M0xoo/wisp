@@ -140,7 +140,7 @@ document.addEventListener('click',(e)=>{const a=e.target.closest('a[href^="/auth
 function siteHead(title, cfg, analytics = false) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="referrer" content="same-origin"><meta name="description" content="${DESC}">
-<meta property="og:type" content="website"><meta property="og:url" content="${esc(cfg.publicUrl)}/"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${DESC}"><meta property="og:image" content="${esc(cfg.publicUrl)}${A}/og.png"><meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="${esc(cfg.publicUrl)}/"><meta property="og:type" content="website"><meta property="og:url" content="${esc(cfg.publicUrl)}/"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${DESC}"><meta property="og:image" content="${esc(cfg.publicUrl)}${A}/og.png"><meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="${A}/icon.svg"><style>${SITE_CSS}</style>${analytics ? analyticsScript() : ''}</head><body>
 <header class="nav" id="nav"><div class="wrap"><a class="brand" href="/"><span class="mark"></span>wisp<span class="tag">Grid</span></a>
 <nav class="links"><a href="#how">How it works</a><a href="#report">What you get back</a><a href="#private">Private by design</a></nav>

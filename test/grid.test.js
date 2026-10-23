@@ -605,6 +605,23 @@ test('the sign-in page offers only the sign-ins this grid has, and links shared 
   assert.equal(og.headers['content-type'], 'image/png');
 });
 
+test('search engines: the landing page is indexable with a canonical; people’s wisps and grid pages aren’t', async () => {
+  const home = await browser().go(`${base}/`);
+  assert.equal(home.headers['x-robots-tag'], undefined);
+  assert.match(home.text, new RegExp(`<link rel="canonical" href="${cfg.publicUrl}/">`));
+  assert.equal((await browser().go(`${base}/signin`)).headers['x-robots-tag'], 'noindex');
+  const robots = await browser().go(`${base}/robots.txt`);
+  assert.equal(robots.status, 200);
+  assert.match(robots.text, /^User-agent: \*\nDisallow: \/api\//);
+  assert.doesNotMatch(robots.text, /Disallow: \/\n/);
+  const edge = await browser().go(`${cfg.instanceUrl('ada')}/`);
+  assert.equal(edge.status, 302);
+  assert.equal(edge.headers['x-robots-tag'], 'noindex, nofollow');
+  const edgeRobots = await browser().go(`${cfg.instanceUrl('ada')}/robots.txt`);
+  assert.equal(edgeRobots.status, 200);
+  assert.equal(edgeRobots.text, 'User-agent: *\nDisallow: /\n');
+});
+
 test('the hosted grid, once full, sends new people to the waitlist first and still signs in the rest', async () => {
   const { signInPage } = await import('../grid/pages.js');
   const providers = new Map([['github', { id: 'github', label: 'GitHub' }]]);

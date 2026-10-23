@@ -922,7 +922,174 @@ tmux attach -t agent`)}
         ['Can I use my own grid?', 'Yes. Type your grid’s address instead of grid.trywisp.dev. See Run your own wisp Grid.'],
         ['How do I take it off?', 'Machines → Remove from grid on that computer, Remove from grid in another computer’s Machines, or Remove on your account page.'],
       ],
-      related: ['use-wisp-cloud', 'run-coding-agents-on-multiple-machines', 'connect-machines-with-tailscale'],
+      related: ['use-wisp-cloud', 'claude-code-remote-control-alternative', 'use-codex-from-your-phone'],
+    },
+
+    {
+      slug: 'claude-code-remote-control-alternative',
+      cloud: true,
+      title: 'Claude Code Remote Control alternative for every agent — wisp',
+      h1: 'Beyond Claude Code Remote Control',
+      card: 'Remote Control drives one Claude Code process on one awake computer. wisp adds Codex and the rest, every computer, and a cloud box.',
+      description: 'Claude Code Remote Control drives Claude Code on a computer that stays awake. When you also run Codex, use several computers or want agents working with every lid shut, here is how wisp compares.',
+      lede: 'Claude Code’s Remote Control lets you drive a Claude Code session on your computer from the Claude app or claude.ai, as long as that <code>claude</code> process keeps running and the computer stays awake. If that’s all you need, use it. wisp is for the rest: Codex, Cursor and other agents next to Claude Code, every computer you own in one list, and a cloud box that keeps working with the laptop shut.',
+      shot: ['app', 'The wisp queue with Claude Code and Codex tasks from several computers, grouped into Needs you, Working and Done'],
+      body: `
+    <section>
+      <h2 id="rc">What Remote Control does well</h2>
+      <p><a href="https://code.claude.com/docs/en/remote-control" target="_blank" rel="noopener">Remote Control</a> (on Pro, Max, Team and Enterprise plans) connects the Claude app and claude.ai/code to Claude Code running on your machine. Run <code>claude remote-control</code> in a project, or <code>/rc</code> in a session, and scan the QR code. Your files, MCP servers and settings stay on your machine, it can push permission prompts to your phone, and server mode can give each session its own git worktree.</p>
+      ${sh(`cd ~/code/app
+claude remote-control      # press space for a QR code, scan it with the Claude app`)}
+    </section>
+
+    <section>
+      <h2 id="limits">Where it stops</h2>
+      <ul class="doc-list">
+        <li><b>Claude Code only.</b> Codex, Cursor, opencode and the other CLIs need their own remote apps, each with its own list of sessions.</li>
+        <li><b>The process and the computer stay up.</b> Close the terminal or let the laptop sleep and the session goes offline until you bring it back. On a server you keep it alive with tmux yourself.</li>
+        <li><b>A server per computer, kept running by you.</b> Each computer needs <code>claude remote-control</code> started in each project and kept alive; when it exits after a long network outage, you start it again.</li>
+        <li><b>You read the conversation.</b> On a phone that means scrolling a transcript to find out what changed and whether the tests passed.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="wisp">The same, for every agent: wisp</h2>
+      <ol class="doc-steps">
+        <li><b>Run wisp on each computer</b> (<code>npx wisp-agents</code>) and open <b>Machines</b> → <i>Reach this computer from anywhere</i>. It dials out to <a href="https://grid.trywisp.dev">wisp Cloud</a>, so there’s no port, SSH or Tailscale to set up.</li>
+        <li><b>Open any of them from your phone</b>: the wisp Android app, or grid.trywisp.dev in any phone’s browser. Start a task with Claude Code, Codex, Cursor, opencode, Grok, Antigravity or Copilot, in its own worktree.</li>
+        <li><b>Read the report, not the transcript.</b> Each finished task shows its headline, the diff, the test run and any question as a button. ntfy or Telegram can tell you when one needs you.</li>
+        <li><b>Shut every lid.</b> Your cloud wisp on grid.trywisp.dev runs the same agents on a server, free during the preview, and sleeps when nothing runs.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="compare">Side by side</h2>
+      <div class="table"><table>
+        <thead><tr><th></th><th>Remote Control</th><th>wisp</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Agents</th><td>Claude Code</td><td>Claude Code, Codex, Cursor, opencode, Grok, Antigravity, Copilot</td></tr>
+          <tr><th scope="row">Computers</th><td>The one running <code>claude</code></td><td>Every computer you add, plus a cloud box, in one list</td></tr>
+          <tr><th scope="row">Laptop closed</th><td>The session goes offline</td><td>Tasks on your cloud wisp or a desktop keep running</td></tr>
+          <tr><th scope="row">On the phone</th><td>The Claude app or claude.ai: the conversation</td><td>wisp in the Android app or any browser: cards, reports, a button per question</td></tr>
+          <tr><th scope="row">Cost</th><td>Included in your Claude plan</td><td>Free and MIT on your computers; wisp Cloud free during the preview. Your own agent plans either way</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted">Remote Control details from Anthropic’s docs, October 2026; check them for changes.</p>
+    </section>
+`,
+      faq: [
+        ['Can I use Remote Control and wisp together?', 'Yes. They don’t touch each other: Remote Control drives a claude process you started, while wisp starts its own agents in worktrees. Many people keep Remote Control for a session they’re in the middle of and use wisp to send off new tasks.'],
+        ['Does wisp work on iPhone?', 'Through the browser: grid.trywisp.dev lists your cloud wisp and every computer you added, each with an Open button. The native app is Android only for now.'],
+        ['Do I need a Claude Max plan?', 'No. wisp runs Claude Code with whatever plan it’s signed in with, and the other agents with their own accounts. wisp doesn’t resell model usage.'],
+        ['What if I don’t want a relay at all?', 'Use Machines over SSH, with Tailscale to reach your computers from anywhere. Nothing goes through grid.trywisp.dev then.'],
+      ],
+      related: ['reach-your-computer-from-your-phone', 'use-codex-from-your-phone', 'remote-coding-agent-apps-compared'],
+    },
+
+    {
+      slug: 'use-codex-from-your-phone',
+      cloud: true,
+      title: 'Use OpenAI Codex from your phone, Android or iPhone — wisp',
+      h1: 'Use Codex from your phone',
+      card: 'Start Codex tasks and answer them from your phone: on your own computer through wisp Cloud, or on a cloud box with the laptop shut.',
+      description: 'Run the Codex CLI on your computer or a cloud box and drive it from your phone, Android or iPhone: start tasks, answer approvals and read the diff, with no SSH, port forwarding or Mac to keep awake.',
+      lede: 'To use Codex from your phone, it has to run on a computer that stays on, and your phone needs a way in. OpenAI’s Codex Remote pairs the ChatGPT app with the ChatGPT desktop app on a Mac or Windows PC. wisp works with the Codex CLI on any computer, Linux included, or on a cloud box, and you open it from the Android app or any phone browser.',
+      shot: ['report', 'A wisp report for a finished Codex task: headline, numbers, the real diff and the test run'],
+      body: `
+    <section>
+      <h2 id="options">Three ways in</h2>
+      <ul class="doc-list">
+        <li><b>Codex Remote</b> (OpenAI): pair the ChatGPT mobile app with the ChatGPT desktop app on macOS or Windows. The host stays awake and signed in, and setup starts from the desktop app, not from the Codex CLI.</li>
+        <li><b>SSH and tmux:</b> run <code>codex</code> inside tmux on a server and attach from a phone SSH app. It works anywhere and gives you a terminal at phone size.</li>
+        <li><b>wisp:</b> the Codex CLI runs headless in its own git worktree on your computer or your cloud wisp, and your phone shows wisp’s own page for it.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="cloud">On a cloud box, with the laptop shut</h2>
+      <ol class="doc-steps">
+        <li>Open <a href="https://grid.trywisp.dev" data-cloud-cta="guide-steps">grid.trywisp.dev</a> on your phone and press <b>Continue with GitHub</b>.</li>
+        <li><b>Sign in to Codex:</b> Settings → <b>Agents</b> → <b>Sign in</b>. wisp runs <code>codex login --device-auth</code> and shows a code; open the link, type it in, done. Do the same for <code>gh</code> if you want pull requests.</li>
+        <li><b>Give Codex a task</b>, pick the repo, and lock the phone. Codex keeps working on the server; the report waits for you.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="own">On your own computer</h2>
+      <ol class="doc-steps">
+        <li>On the computer with your repos and Codex signed in, run wisp (<code>npx wisp-agents</code>) and open <b>Machines</b> → <i>Reach this computer from anywhere</i>. Allow the code on grid.trywisp.dev.</li>
+        <li>On the phone, sign in to wisp Cloud in the Android app, or open grid.trywisp.dev in the browser. The computer is listed as <i>Your computer · via grid</i>: tap <b>Open</b>.</li>
+        <li>Start Codex tasks there with that computer’s files and logins. Nothing on it listens on a port: it dialed out.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="phone">What you do from the phone</h2>
+      <ul class="doc-list">
+        <li><b>Start tasks</b> with Codex, or send the same one to Codex and Claude Code and compare.</li>
+        <li><b>Answer it.</b> When Codex asks or a permission blocks it, the card shows the question with a button per answer; ntfy or Telegram can notify you.</li>
+        <li><b>Review and ship.</b> The report shows the diff and the test run; <b>Ship it</b> opens the pull request.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Does it work on iPhone?', 'Yes, in the browser: grid.trywisp.dev opens your cloud wisp and every computer you added. The native wisp app is Android only for now.'],
+        ['Can the computer run Linux?', 'Yes. wisp runs the Codex CLI on macOS, Linux and Windows (beta); the cloud box is Linux.'],
+        ['Which Codex plan do I need?', 'The one you already use: Codex signs in with your ChatGPT account or an API key, and its limits apply. wisp doesn’t resell model usage.'],
+        ['Is Codex Remote better?', 'If you live in the ChatGPT desktop app on a Mac or PC that stays awake, it’s the most direct. wisp fits when you use the Codex CLI, Linux, several computers or other agents, or want Codex to keep going with every computer off.'],
+      ],
+      related: ['use-wisp-cloud', 'claude-code-remote-control-alternative', 'reach-your-computer-from-your-phone'],
+    },
+
+    {
+      slug: 'remote-coding-agent-apps-compared',
+      cloud: true,
+      title: 'Happy, Grass, CloudCLI and wisp: remote coding agents compared',
+      h1: 'Remote coding agent apps compared',
+      card: 'Happy, Grass, CloudCLI and wisp all put your coding agents on your phone. Which agents, which phones, where they run, and what it costs.',
+      description: 'Happy, Grass, CloudCLI and wisp let you run Claude Code, Codex and other coding agents from your phone. Which agents and phones each supports, where the agents run, licence and price, side by side.',
+      lede: 'Happy, Grass, CloudCLI and wisp all let you reach your coding agents from your phone, and they differ in three ways: which agents they drive, where those agents run (your computer, their cloud or both), and whether you can run all of it yourself. Here they are side by side, with what each is best at.',
+      shot: ['app', 'The wisp queue with tasks from this computer, a cloud box and other machines, grouped into Needs you, Working and Done'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      <div class="table"><table>
+        <thead><tr><th></th><th>Happy</th><th>Grass</th><th>CloudCLI</th><th>wisp</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Agents</th><td>Claude Code, Codex</td><td>Claude Code, opencode</td><td>Claude Code, Codex, Cursor CLI</td><td>Claude Code, Codex, Cursor, opencode, Grok, Antigravity, Copilot</td></tr>
+          <tr><th scope="row">Phone</th><td>iOS, Android, web</td><td>iOS (Android waitlist)</td><td>Phone browser</td><td>Android app, any phone browser</td></tr>
+          <tr><th scope="row">Runs on</th><td>Your computer</td><td>Their VM or your computer</td><td>Your computer, or their hosted box</td><td>Your computers, or a cloud box</td></tr>
+          <tr><th scope="row">How you connect</th><td>Encrypted relay</td><td>Their service</td><td>Your network, or their cloud</td><td>Grid tunnel (no open port), or SSH</td></tr>
+          <tr><th scope="row">Open source</th><td>Yes, MIT</td><td>Not stated</td><td>Yes, AGPL-3.0</td><td>Yes, MIT, server included</td></tr>
+          <tr><th scope="row">Price</th><td>Free</td><td>Free to start (10 agent hours)</td><td>Free self-hosted; cloud from €7/month</td><td>Free; wisp Cloud free during the preview</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted">From each project’s own page, October 2026. They move fast: check before you choose.</p>
+    </section>
+
+    <section>
+      <h2 id="each">What each is best at</h2>
+      <ul class="doc-list">
+        <li><b><a href="https://github.com/slopus/happy" target="_blank" rel="noopener">Happy</a></b> wraps the CLI you already use: <code>happy claude</code> or <code>happy codex</code> instead of <code>claude</code>, and the session follows you to a native phone app, end-to-end encrypted. Best when you want your exact terminal session on your phone.</li>
+        <li><b><a href="https://codeongrass.com" target="_blank" rel="noopener">Grass</a></b> gives you an always-on VM and an iPhone app with fast permission notifications. Best when you want a hosted box and use Claude Code or opencode.</li>
+        <li><b><a href="https://github.com/siteboon/claudecodeui" target="_blank" rel="noopener">CloudCLI</a></b> (<code>npx @cloudcli-ai/cloudcli</code>) is a web UI over your existing Claude Code, Codex and Cursor sessions, with files and git, on port 3001. Best as a browser IDE for your agents on your own network.</li>
+        <li><b>wisp</b> sends tasks off rather than mirroring a session: each runs headless in its own worktree, on any of your computers or a cloud box, and comes back as a report with the diff and tests. Best when you run several agents or computers at once and want one queue for all of it.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="try">Try wisp in a minute</h2>
+      ${sh('npx wisp-agents')}
+      <p>Then <b>Machines</b> → <i>Reach this computer from anywhere</i> to open it from your phone, or sign in at <a href="https://grid.trywisp.dev" data-cloud-cta="guide-steps">grid.trywisp.dev</a> for a cloud wisp with the agents installed. To run the whole thing on your own server, see <a href="/guides/self-host-wisp-grid.html">Run your own wisp Grid</a>.</p>
+    </section>
+`,
+      faq: [
+        ['Which one can I fully self-host?', 'Happy’s relay server is in its repo; CloudCLI runs on your machine; wisp runs on your computers and its grid (the server behind wisp Cloud) is in the same MIT repo, with sign-in and a sandbox per person.'],
+        ['Which keeps working with my laptop closed?', 'The ones with a box that stays on: Grass’s VM, CloudCLI’s cloud, wisp Cloud, or any of them on a desktop or server you leave running.'],
+        ['Can I use several at once?', 'Yes. They each start or wrap the agent CLIs on your computer and don’t conflict, as long as two agents don’t edit the same folder. wisp gives every task its own git worktree for that reason.'],
+        ['Do any of them include model usage?', 'No: all four use your own Claude, ChatGPT or other accounts, and those plans’ limits apply.'],
+      ],
+      related: ['claude-code-remote-control-alternative', 'use-codex-from-your-phone', 'self-host-wisp-grid'],
     },
 
     {
