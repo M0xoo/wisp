@@ -8,6 +8,7 @@ import { imageButtons, bindImageButtons, imageName, saveImage } from './ui/image
 import { ask } from './ui/confirm.js';
 import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
 import { appBlock } from './app-frame.js';
+import { previewBlock } from './preview-frame.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -820,6 +821,9 @@ R.video = (b, ctx) => {
   video.addEventListener('error', () => node.classList.add('broken'));
   return node;
 };
+
+// A web page the agent pointed at, live in a sandboxed frame at the screen size it picked (preview-frame.js).
+R.preview = (b, ctx) => previewBlock(b, ctx);
 
 // A markdown file the agent wrote: its opening as a page, fading out, with Full screen (ui/reader.js)
 // and Show in folder. The text was kept with the turn (Store.keepDocs), so it reads as it was then.
