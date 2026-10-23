@@ -945,7 +945,7 @@ button.sw-tb { cursor: pointer; }
   .desk-cta > [role='tabpanel'] { align-self: stretch; }
   .cloud-cta { max-width: none; }
   .cc-go { padding: 0 10px; }
-  /* the seat count stays on phones; "laptop shut" makes room for it */
+  /* "Free preview" stays on phones; "laptop shut" makes room for it */
   .cc-long, .cc-notes span:nth-child(2) { display: none; }
   .cc-short { display: inline; }
   .btn { width: 100%; justify-content: center; }

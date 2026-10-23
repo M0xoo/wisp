@@ -86,8 +86,21 @@ next:
 - **`signup`:** `closed` lets only existing users in.
 - **`maxUsers`:** the first that many accounts get in, then new sign-ups are refused (existing
   users still sign in; deleting one frees a place). Leave it out for no limit. The sign-in page
-  says how many seats are left, or that the grid is full, and `GET /api/seats` answers
-  `{ open, invite, max, left }` to any site that wants to show it.
+  says when the grid is full (no count), and `GET /api/seats` answers `{ open, invite, max, left }`
+  to any site that wants to know.
+- **`maxUsers: "auto"`:** seats that grow with the host. It starts at `seats.min` and opens one
+  more (at most every `seats.everyHours`, up to `seats.cap`) while every seat is taken and, over the
+  last week, nothing had to wait for room and the most boxes up at once stayed under
+  `seats.target` of what the host could run. It never takes seats away. Defaults:
+  `"seats": { "min": 5, "cap": 20, "target": 0.7, "everyHours": 24, "holdDays": 7 }`.
+- **Waitlist:** a sign-in the full grid turns away (with a verified email) and
+  `POST /api/waitlist {"email"}` (trywisp.dev's form) go on it. A free seat is held for the oldest
+  email on it for `seats.holdDays`, and whoever signs in with that verified email gets it.
+  The grid sends no mail: `wisp grid waitlist` lists who's waiting and who has a seat held, to
+  write to.
+- **More machines:** each account has one cloud wisp. *Add a cloud machine* on the account page
+  puts the user on a list for more machines, a bigger one or GPUs (`POST /machines/waitlist`,
+  with what they'd run on it); `wisp grid waitlist` lists them too.
 - **`allow`:** an account must match at least one rule. A verified email is required for email and
   domain rules. The allow list is checked again at every sign-in.
 - **Linking accounts:** someone can connect both Google and GitHub to one account from their
@@ -145,6 +158,14 @@ wisp grid serve ── wisp.example.com           sign in, your account, approve
   page is open and nothing has happened for `hostd.idleMs`, it stops that wisp. It also notes when
   the wisp's next scheduled task is due and starts it for that. A desktop watching a cloud computer
   doesn't keep it awake: the stream it opens is marked `x-wisp-relay`.
+- **Room.** A box starts while fewer than `hostd.maxRunning` are up and, with the container
+  driver, the host has `admit.reserveMb + admit.boxMb` MiB available (`MemAvailable`; defaults
+  1024 + 1024; `"admit": false` counts boxes only). When it doesn't, hostd stops the box that has
+  been quiet longest the way idle does (nothing running, no page or terminal open, for
+  `hostd.evictAfterMs`, 2 min; never one whose schedule is due within 5 min), so its home and tasks
+  are kept. With nothing to stop, the start waits in line (*Waiting for room*) for
+  `hostd.queueMs` (2 min), then says the grid is full. Scheduled wakes wait behind people, for up to
+  30 min, and never stop anyone's box.
 
 ## Secrets
 

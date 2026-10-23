@@ -37,6 +37,17 @@ const MIGRATIONS = [
      device_id TEXT UNIQUE NOT NULL REFERENCES devices(id) ON DELETE CASCADE, name TEXT NOT NULL,
      label TEXT UNIQUE NOT NULL, created_at INTEGER NOT NULL, last_seen_at INTEGER);
    CREATE INDEX computers_user ON computers(user_id);`,
+  // People waiting for a seat (the site's form, or a sign-in the full grid turned away): the
+  // oldest get the next seats, held for them a while. How busy the host was, every few minutes,
+  // which is what opens seats with auth.maxUsers "auto". And what more people with a seat want
+  // (another machine, a bigger one, a GPU), from their account page.
+  `CREATE TABLE waitlist (
+     email TEXT PRIMARY KEY, source TEXT NOT NULL, created_at INTEGER NOT NULL, invited_at INTEGER,
+     joined_at INTEGER, user_id TEXT);
+   CREATE TABLE load_samples (at INTEGER PRIMARY KEY, running INTEGER NOT NULL, capacity INTEGER NOT NULL, waits INTEGER NOT NULL);
+   CREATE TABLE machine_wishes (
+     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, wants TEXT NOT NULL, note TEXT,
+     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);`,
 ];
 
 export async function openDb(dataDir) {

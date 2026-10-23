@@ -9,11 +9,15 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { RESERVED } from './config.js';
 import { sha256, token } from './secrets.js';
 
+const HOUR = 3_600_000;
 const DAY = 86_400_000;
+const WINDOW_MS = 7 * DAY; // how far back auto seats look at the load
 const CODE_TTL_MS = 10 * 60_000;
 const TICKET_TTL_MS = 60_000;
 const USER_CODE = 'BCDFGHJKLMNPQRSTVWXZ'; // no vowels: no words; no 0/O, 1/I
 export const bad = (message, status = 400) => Object.assign(new Error(message), { status });
+// What people with a seat can ask for next, in the order the account page shows them.
+export const MACHINE_WANTS = ['more', 'bigger', 'gpu'];
 
 export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
   const now = () => Date.now();
@@ -41,13 +45,110 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
     return false;
   }
 
+  // --- seats ------------------------------------------------------------------------------
+  //
+  // maxUsers caps the accounts: a number, or "auto", which starts at auth.seats.min and opens one
+  // more seat at a time (every everyHours at most, up to cap) while the seats are taken and the
+  // host stayed below target of what it can run: nothing had to wait for room, and the most
+  // boxes up at once was under target × capacity (grid/hostd.js). It never takes seats away.
+
+  const auto = cfg.auth.maxUsers === 'auto';
+  const sc = cfg.auth.seats;
+  const meta = (k) => db.get('SELECT v FROM meta WHERE k = ?', k)?.v;
+  const setMeta = (k, v) => db.run('INSERT INTO meta (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v', k, String(v));
+  const users = () => db.get('SELECT COUNT(*) AS n FROM users').n;
+  const holdSince = () => now() - sc.holdDays * DAY;
+  // Seats kept for invited people from the waitlist who haven't signed up yet.
+  const held = () => db.get('SELECT COUNT(*) AS n FROM waitlist WHERE invited_at > ? AND joined_at IS NULL', holdSince()).n;
+  const maxSeats = () => (auto ? Math.min(sc.cap, Math.max(sc.min, Number(meta('seats.max') || 0))) : cfg.auth.maxUsers || null);
+
   // Room for new people: whether sign-ups are open, invite-only (an allow list), and how many of
-  // maxUsers are left (null with no cap). The sign-in page and trywisp.dev (GET /api/seats) show it.
+  // the seats are left (null with no cap). The sign-in page and trywisp.dev (GET /api/seats) use it.
   function seats() {
     const a = cfg.auth.allow || {};
-    const max = cfg.auth.maxUsers || null;
-    const left = max ? Math.max(0, max - db.get('SELECT COUNT(*) AS n FROM users').n) : null;
-    return { open: cfg.auth.signup !== 'closed', invite: Object.values(a).some((v) => Array.isArray(v) && v.length), max, left };
+    const max = maxSeats();
+    const left = max ? Math.max(0, max - users() - held()) : null;
+    return { open: cfg.auth.signup !== 'closed', invite: Object.values(a).some((v) => Array.isArray(v) && v.length), max, left, ...(auto && { auto: true }) };
+  }
+
+  // One more seat, if the last while says the host has room for more people.
+  function grow() {
+    const max = maxSeats();
+    if (!auto || max >= sc.cap || users() + held() < max) return false;
+    const since = Math.max(Number(meta('seats.grewAt') || 0), now() - WINDOW_MS);
+    const w = db.get('SELECT MIN(at) AS first, MAX(running) AS peak, MIN(capacity) AS capacity, SUM(waits) AS waits FROM load_samples WHERE at >= ?', since);
+    // A whole everyHours of watching at this size first (the grid may have restarted meanwhile).
+    if (!w.first || now() - w.first < sc.everyHours * HOUR * 0.9) return false;
+    if (w.waits > 0 || w.peak > sc.target * w.capacity) return false;
+    setMeta('seats.max', max + 1);
+    setMeta('seats.grewAt', now());
+    audit(null, 'seats.grow', { max: max + 1, peak: w.peak, capacity: w.capacity });
+    return true;
+  }
+
+  // Free seats go to the waitlist, oldest first: held for them for holdDays.
+  function invite() {
+    const max = maxSeats();
+    if (!max) return 0;
+    const free = max - users() - held();
+    if (free <= 0) return 0;
+    const next = db.all('SELECT email FROM waitlist WHERE invited_at IS NULL AND joined_at IS NULL ORDER BY created_at, email LIMIT ?', free);
+    for (const r of next) db.run('UPDATE waitlist SET invited_at = ? WHERE email = ?', now(), r.email);
+    if (next.length) audit(null, 'waitlist.invite', { n: next.length });
+    return next.length;
+  }
+
+  // How busy the host was since the last sample (hostd.takePeak, hostd.capacity); every few minutes.
+  function sample({ running, capacity, waits = 0 }) {
+    db.run('INSERT OR REPLACE INTO load_samples (at, running, capacity, waits) VALUES (?, ?, ?, ?)', now(), running, capacity, waits);
+    db.run('DELETE FROM load_samples WHERE at < ?', now() - WINDOW_MS - DAY);
+    const grew = grow();
+    invite();
+    return grew;
+  }
+
+  const EMAIL = /^[^@\s<>"']{1,64}@[^@\s<>"']+\.[^@\s<>"']{2,}$/;
+  // On the waitlist (again: once is enough). position: how many are waiting up to them.
+  function waitFor(email, source = 'site') {
+    email = String(email || '').trim().toLowerCase();
+    if (email.length > 254 || !EMAIL.test(email)) throw bad('An email address, please.');
+    db.run('INSERT OR IGNORE INTO waitlist (email, source, created_at) VALUES (?, ?, ?)', email, source, now());
+    invite();
+    const me = db.get('SELECT * FROM waitlist WHERE email = ?', email);
+    const position = db.get('SELECT COUNT(*) AS n FROM waitlist WHERE joined_at IS NULL AND invited_at IS NULL AND (created_at < ? OR (created_at = ? AND email <= ?))', me.created_at, me.created_at, email).n;
+    return { joined: !!me.joined_at, invited: !!me.invited_at && !me.joined_at, position: me.invited_at || me.joined_at ? 0 : position };
+  }
+
+  function waitlist() {
+    return db.all('SELECT email, source, created_at, invited_at, joined_at FROM waitlist ORDER BY created_at, email');
+  }
+
+  // --- more machines (one cloud wisp each, for now) ----------------------------------------
+
+  // On the list for what's next: wants is some of MACHINE_WANTS, note a line about what for. No
+  // wants: off the list.
+  function wishMachines(userId, wants = [], note = '') {
+    const w = [...new Set((Array.isArray(wants) ? wants : String(wants).split(',')).map((x) => String(x).trim()).filter(Boolean))];
+    const odd = w.find((x) => !MACHINE_WANTS.includes(x));
+    if (odd) throw bad(`"${odd}" isn’t something to wait for: ${MACHINE_WANTS.join(', ')}.`);
+    if (!w.length) {
+      db.run('DELETE FROM machine_wishes WHERE user_id = ?', userId);
+      audit(userId, 'machines.unwish');
+      return null;
+    }
+    note = String(note || '').trim().slice(0, 500);
+    db.run('INSERT INTO machine_wishes (user_id, wants, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET wants = excluded.wants, note = excluded.note, updated_at = excluded.updated_at', userId, w.join(','), note || null, now(), now());
+    audit(userId, 'machines.wish', { wants: w });
+    return machineWish(userId);
+  }
+
+  function machineWish(userId) {
+    const r = db.get('SELECT wants, note, created_at FROM machine_wishes WHERE user_id = ?', userId);
+    return r ? { wants: r.wants.split(','), note: r.note || '', since: r.created_at } : null;
+  }
+
+  function machineWishes() {
+    return db.all('SELECT u.handle, u.email, m.wants, m.note, m.created_at FROM machine_wishes m JOIN users u ON u.id = m.user_id ORDER BY m.created_at');
   }
 
   function isAdmin(userId) {
@@ -97,10 +198,14 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
       onAudit(null, 'signup.refused', { provider: idn.provider, reason: 'not invited' });
       throw bad('This grid only lets in invited accounts, and this isn’t one of them.', 403);
     }
-    // A cap on accounts (a preview, a small box): the first ones in get them, then it's full.
-    if (seats().left === 0) {
+    // A cap on accounts (a preview, a small box): the first ones in get them, then it's full,
+    // except for people the waitlist has a seat held for. The rest go on it.
+    const email = idn.emailVerified && idn.email ? String(idn.email).toLowerCase() : '';
+    const invited = email && db.get('SELECT 1 FROM waitlist WHERE email = ? AND invited_at > ? AND joined_at IS NULL', email, holdSince());
+    if (!invited && seats().left === 0) {
       onAudit(null, 'signup.refused', { provider: idn.provider, reason: 'full' });
-      throw Object.assign(bad('This grid is full for now: it has all the accounts it takes.', 403), { full: true });
+      if (email) waitFor(email, 'signin');
+      throw Object.assign(bad('This grid is full for now: it has all the accounts it takes.', 403), { full: true, waitlisted: !!email });
     }
     const id = randomBytes(8).toString('hex');
     const handle = uniqueHandle(idn.login || (idn.email || '').split('@')[0] || 'user');
@@ -108,6 +213,7 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
       db.run('INSERT INTO users (id, handle, email, name, avatar, created_at) VALUES (?, ?, ?, ?, ?, ?)', id, handle, idn.email || null, idn.name || null, idn.avatar || null, now());
       db.run('INSERT INTO identities (provider, subject, user_id, email, login, created_at) VALUES (?, ?, ?, ?, ?, ?)', idn.provider, idn.subject, id, idn.email || null, idn.login || null, now());
       db.run("INSERT INTO instances (user_id, state, created_at) VALUES (?, 'stopped', ?)", id, now());
+      if (email) db.run('UPDATE waitlist SET joined_at = ?, user_id = ? WHERE email = ?', now(), id, email);
     });
     audit(id, 'signup', { provider: idn.provider });
     return userById(id);
@@ -289,11 +395,12 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
   function remove(userId) {
     secrets.forget(userId);
     db.tx(() => {
-      for (const t of ['tickets', 'device_codes', 'audit']) db.run(`DELETE FROM ${t} WHERE user_id = ?`, userId);
+      for (const t of ['tickets', 'device_codes', 'audit', 'waitlist']) db.run(`DELETE FROM ${t} WHERE user_id = ?`, userId);
       db.run('DELETE FROM users WHERE id = ?', userId);
     });
     audit(userId, 'user.delete');
+    invite(); // their seat goes to whoever waited longest
   }
 
-  return { allowed, seats, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, addComputer, computers, computer, computerByLabel, seenComputer, removeComputer, identities, byHandle, userById, instance, setDisabled, remove, audit, normalCode };
+  return { allowed, seats, sample, waitFor, waitlist, invite, wishMachines, machineWish, machineWishes, isAdmin, signIn, unlink, createSession, session, endSession, endAll, ticket, useTicket, deviceCode, pendingCode, answerCode, pollCode, device, revokeDevice, devices, addComputer, computers, computer, computerByLabel, seenComputer, removeComputer, identities, byHandle, userById, instance, setDisabled, remove, audit, normalCode };
 }

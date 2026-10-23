@@ -8,6 +8,7 @@
 //   wisp grid rotate-key a new master key; re-wraps every user's data key
 //   wisp grid backup     a consistent copy of the database
 //   wisp grid users      who's here; --delete <handle> --yes deletes one, box and files included
+//   wisp grid waitlist   who's waiting for a seat, who has one held (to write to), and the seats
 
 import dns from 'node:dns/promises';
 import fs from 'node:fs';
@@ -25,10 +26,11 @@ export const GRID_HELP = `usage:
   wisp grid doctor [--data DIR]                               check the setup
   wisp grid rotate-key | backup [file] | users [--data DIR]
   wisp grid users --delete HANDLE --yes [--data DIR]         delete an account, its box and files
+  wisp grid waitlist [--data DIR]                             who's waiting for a seat, who has one held
 
   Data: --data DIR, or GRID_DATA (default ~/.wisp-grid). Guide: grid/README.md`;
 
-export const GRID_COMMANDS = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'help']);
+export const GRID_COMMANDS = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'waitlist', 'help']);
 
 function opts(args) {
   const o = { _: [] };
@@ -235,6 +237,27 @@ export async function gridCli(args) {
     const rows = db.all('SELECT u.handle, u.email, u.created_at, i.state, (SELECT group_concat(provider) FROM identities WHERE user_id = u.id) AS via FROM users u LEFT JOIN instances i ON i.user_id = u.id ORDER BY u.created_at');
     db.close();
     console.log(rows.map((r) => `${r.handle.padEnd(20)} ${String(r.email || '').padEnd(30)} ${String(r.via || '').padEnd(14)} ${r.state || 'stopped'}`).join('\n') || 'No users yet.');
+  }
+
+  if (cmd === 'waitlist') {
+    const cfg = loadConfig({ dataDir });
+    const { openDb } = await import('./db.js');
+    const { createAccounts } = await import('./accounts.js');
+    const db = await openDb(cfg.dataDir);
+    try {
+      const accounts = createAccounts({ db, cfg, secrets: null });
+      const s = accounts.seats();
+      const day = (t) => (t ? new Date(t).toISOString().slice(0, 10) : '');
+      // Invited: a seat is held for them (auth.seats.holdDays); write to say it's there.
+      const state = (r) => (r.joined_at ? `joined ${day(r.joined_at)}` : r.invited_at ? `invited ${day(r.invited_at)}` : 'waiting');
+      console.log(`  seats: ${s.max ?? 'no cap'}${s.auto ? ' (auto)' : ''}, ${s.left ?? '∞'} free`);
+      console.log(accounts.waitlist().map((r) => `${r.email.padEnd(36)} ${r.source.padEnd(7)} ${day(r.created_at)}  ${state(r)}`).join('\n') || 'Nobody is waiting.');
+      // People with a seat who want more: another machine, a bigger one, a GPU (their account page).
+      const more = accounts.machineWishes();
+      if (more.length) console.log(`\n  wanting more machines:\n${more.map((r) => `${r.handle.padEnd(20)} ${String(r.email || '').padEnd(30)} ${r.wants.padEnd(17)} ${day(r.created_at)}${r.note ? `  “${r.note}”` : ''}`).join('\n')}`);
+    } finally {
+      db.close();
+    }
   }
 }
 

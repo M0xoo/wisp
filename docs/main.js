@@ -25,8 +25,8 @@ for (const btn of $$('[data-copy]')) {
 }
 
 // ---------- wisp Cloud seats ----------
-// The preview takes a few accounts at a time. Say how many are left next to every Cloud link, and
-// once they're gone send people to the waitlist instead of a sign-in that turns them away.
+// The preview opens seats as its server shows room for them. No count: just, once they're all
+// taken, say so and send people to the waitlist instead of a sign-in that turns them away.
 const cloudLinks = $$('[data-cloud-cta]');
 for (const a of cloudLinks) {
   a.addEventListener('click', () => {
@@ -38,10 +38,8 @@ if (cloudLinks.length) {
     .then((r) => (r.ok ? r.json() : null))
     .then((s) => {
       if (!s?.max || s.invite || !s.open) return;
-      const full = s.left === 0;
-      const fill = (t) => t.replace('{seats}', `${s.left} seat${s.left === 1 ? '' : 's'}`).replace('{left}', s.left).replace('{max}', s.max);
-      for (const n of $$('[data-seats-note]')) n.textContent = fill(full ? n.dataset.seatsFull : n.dataset.seatsNote);
-      if (!full) return;
+      if (s.left !== 0) return;
+      for (const n of $$('[data-seats-full]')) n.textContent = n.dataset.seatsFull;
       for (const a of cloudLinks) {
         a.href = 'cloud.html#join';
         a.dataset.full = '1';
