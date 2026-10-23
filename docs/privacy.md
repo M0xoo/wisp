@@ -1,6 +1,6 @@
 # Privacy policy
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 
 This policy covers wisp: the `wisp-agents` app you run on your own computers, the wisp app for
 Android (`dev.trywisp.mobile`), wisp Cloud (`grid.trywisp.dev`) and this site (`trywisp.dev`).
@@ -64,6 +64,10 @@ When you sign in to wisp Cloud with Google or GitHub, we store:
 - **Your cloud computer:** your files, wisp's data, and the sign-ins of the agents you use there.
   They stay on your computer's disk and aren't read by the service, but whoever runs a server can
   technically access what's on it. Secrets wisp Cloud keeps for you are encrypted.
+- **Computers you add to it:** each one's name (its host name), its address under the grid, which
+  device added it, and when it was last connected. What you open on one passes through the grid
+  on its way (HTTPS to the grid, then the tunnel the computer holds open); the grid forwards it
+  and doesn't store it.
 - **A record of account actions** (signing in, linking a sign-in method, allowing or removing
   a device) for security.
 
@@ -80,7 +84,8 @@ policy, not this one.
 Delete it yourself at any time: at the bottom of your account page on
 [grid.trywisp.dev](https://grid.trywisp.dev), choose **Delete your account** and type your handle.
 That deletes at once your cloud computer and its files (your agents' sign-ins included), your
-account, sign-ins, devices, stored secrets and the record of your account's actions. Your agents'
+account, sign-ins, devices, the computers you added (wisp on them keeps running, just not through
+the grid), stored secrets and the record of your account's actions. Your agents'
 sign-ins stay valid at Anthropic, OpenAI or GitHub until you sign out of them there. Server backups
 that still contain them are overwritten within 30 days.
 

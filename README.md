@@ -312,6 +312,7 @@ If the harness has no system-prompt flag, prepend `systemPrompt` to the first pr
 - [x] Grok Build adapter
 - [x] GitHub Copilot CLI adapter
 - [x] wisp Cloud / wisp Grid: your own wisp on a server, sandboxed per user, with desktop and phone sign-in
+- [x] Your own computers on the grid: reached from the phone and other computers with no SSH or open port
 - [x] Sign in to Claude Code, Codex and GitHub from wisp
 
 ## Auto
@@ -440,13 +441,18 @@ Your own wisp on a server, so the agents keep working when your laptop is closed
 - **Add your own computers.** Signed in from Machines, the computer joins the grid too (**Add to grid**). It holds a tunnel open to the grid, so your phone and your other computers open it at `<name>--<handle>.<grid>` with no SSH, Tailscale or open port. They show up in each other's Machines and in the phone app's list; the grid's account page lists them all, with how to add one.
 - **Connect your agents.** In the cloud wisp, Settings → **Agents** → **Sign in**: Claude Code (`claude auth login`), Codex (`codex login --device-auth`) and GitHub (`gh auth login`, then git pushes with it) show a link and a code, no terminal. From the desktop, Settings → Cloud lists the same Sign in buttons for each cloud computer. The logins stay in your own folder on the server; wisp never sees a password, and the model picker only offers what you've signed in to.
 - **It sleeps when nothing's going on** and wakes in seconds when you open it, send it a task, or a schedule is due. Watching it from the desktop doesn't keep it awake: the card says *Asleep*, its tasks still show, and anything you send wakes it.
-- **Your account page** at grid.trywisp.dev shows your cloud computer, the devices signed in (remove any of them) and how you sign in.
+- **Your account page** at grid.trywisp.dev lists your cloud wisp and your computers (each with its state and **Open**), the three steps to add a computer, the devices signed in (remove any of them; a computer's device takes it off the grid too) and how you sign in. It works on a phone.
+- **What passes through the grid.** Opening one of your computers goes over HTTPS to the grid, which checks it's you, then down the tunnel the computer holds open. The grid forwards it and keeps nothing of it. If you'd rather it never leaves your network, use Machines over SSH or Tailscale.
 
 The wisp you run on your own computer doesn't change and needs no account. To run a grid for yourself or your team: `npx wisp-agents grid init --domain wisp.example.com`, then follow [grid/README.md](grid/README.md) (DNS, Caddy, a GitHub or Google OAuth app, `wisp grid serve`).
 
 ## Machines
 
-**Machines** (top bar, Settings → *Machines*, or ⌘K) runs agents on your other computers over SSH. Give it `user@host` or a `Host` from `~/.ssh/config` and press **Connect**:
+**Machines** (top bar, Settings → *Machines*, or ⌘K) runs agents on your other computers. Each card says what it is: **Over SSH**, **Cloud · on grid** (your cloud wisp) or **Your computer · via grid**.
+
+The easy way needs no SSH: on each computer, open Machines → *Reach this computer from anywhere* and sign in to [wisp Cloud](#wisp-cloud) (or your own grid). The computer holds a tunnel open to the grid (**Add to grid** / **Remove from grid**), shows up in the Machines of your other computers and in the phone app, and runs tasks there like any machine. It's *Offline* while it's switched off or wisp isn't running on it.
+
+Over SSH, give it `user@host` or a `Host` from `~/.ssh/config` and press **Connect**:
 
 1. wisp signs in with `ssh` using your keys, agent and config (`BatchMode=yes`, new host keys are trusted on first use). If the machine doesn't know this computer yet, Machines asks for your password there **once**: wisp signs in with it for a single `ssh` call that adds this computer's key (making `~/.ssh/id_ed25519` first if you have none), then connects with the key. The password is never stored.
 2. On the machine it finds Node.js 20+, or installs the current LTS into `~/.wisp/node` when there is none (downloaded from nodejs.org and checked against its SHA-256; no admin rights, nothing else touched). Then it starts `npx -y wisp-agents@<this version> --no-open` detached, or reuses the wisp already answering on its port (4477 by default).
@@ -468,7 +474,7 @@ The machine runs macOS or Linux (on Windows, use WSL). It only needs **SSH turne
 
 ### On your phone (Android, prototype)
 
-[`mobile/`](mobile/) is wisp on Android, for your own computers and for wisp Cloud. Its first screen starts with **wisp Cloud** (sign in with a code, nothing to set up); below it, add one of your own computers with its address and your password (once; the app installs its own key there), and the app sets it up the way Machines does: Node.js if it's missing, then wisp. Tap it and you're in that computer's wisp, with every feature; the agents keep running when the phone sleeps. **Computers** in wisp's top bar goes back to the app's list to switch or add one. Build it with `cd mobile && npm install && npm run build`; see [mobile/README.md](mobile/README.md).
+[`mobile/`](mobile/) is wisp on Android, for your own computers and for wisp Cloud. Its first screen starts with **wisp Cloud** (sign in with a code, nothing to set up): it then lists your cloud wisp and every computer you added to the grid from its Machines, online or not, each one a tap away. Over SSH is still there, folded under *Connect over SSH instead*: add a computer with its address and your password (once; the app installs its own key there), and the app sets it up the way Machines does: Node.js if it's missing, then wisp. Tap it and you're in that computer's wisp, with every feature; the agents keep running when the phone sleeps. **Computers** in wisp's top bar goes back to the app's list to switch or add one. Build it with `cd mobile && npm install && npm run build`; see [mobile/README.md](mobile/README.md).
 
 ## Learning
 
