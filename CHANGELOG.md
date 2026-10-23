@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Phone app: a way back from your computers.** *Add a machine* under the prompt, **Computers** in the top bar or *Your computers* in Settings now open the list on top of the wisp you were in: a **‹ <computer>** button at its top, or the phone's Back (button or edge swipe), takes you back to your prompt as you left it.
+
 ## [0.34.0] - 2026-10-23
 
 ### Added

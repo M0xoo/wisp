@@ -268,11 +268,25 @@ function paintKeys() {
 }
 
 const paint = () => {
+  paintBack();
   paintMachines();
   paintKeys();
 };
 
-// Back here from wisp's page (Computers, Back): the page may come from the back/forward cache, with
+// Opened from wisp's page (Computers in its top bar, ?from=<its computer>): this list is a page on
+// top of it, so Back, this button's or the phone's (MainActivity), returns to it as it was.
+function paintBack() {
+  const b = $('#backTo');
+  const from = new URLSearchParams(location.search);
+  b.hidden = !from.has('from') || history.length < 2;
+  $('span', b).textContent = from.get('from') || 'wisp';
+  b.setAttribute('aria-label', `Back to ${from.get('from') || 'wisp'}`);
+  b.onclick = () => {
+    history.back();
+  };
+}
+
+// Back here from wisp's page (Back): the page may come from the back/forward cache, with
 // the Opening button still showing.
 addEventListener('pageshow', () => {
   if (opening) {
