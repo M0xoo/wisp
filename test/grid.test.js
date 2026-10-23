@@ -767,6 +767,47 @@ test('a computer added to the grid: reached through its tunnel, signed in like t
   }
 });
 
+test('a computer’s tunnel over https (TLS in front of the grid, like Caddy): HTTP/2 comes up on the TLS socket', async () => {
+  const tls = await import('node:tls');
+  const { dialTunnel } = await import('../server/grid-tunnel.js');
+  // Terminates TLS and passes the bytes to the grid, as Caddy does (a throwaway localhost certificate).
+  // Caddy keeps the port the grid knows (443); here the request's Host names the grid's own port.
+  const fx = (f) => fs.readFileSync(new URL(`./fixtures/${f}`, import.meta.url));
+  const front = tls.createServer({ key: fx('tls-localhost.key'), cert: fx('tls-localhost.crt') }, (s) => {
+    const up = net.connect(cfg.listen.port, '127.0.0.1');
+    s.once('data', (d) => {
+      up.write(String(d).replace(/^host: .*$/im, `host: wisp.localhost:${cfg.listen.port}`));
+      s.pipe(up);
+    });
+    up.pipe(s);
+    s.on('error', () => up.destroy());
+    up.on('error', () => s.destroy());
+  });
+  const port = await new Promise((r) => front.listen(0, '127.0.0.1', () => r(front.address().port)));
+  const local = http.createServer((req, res) => res.end(JSON.stringify({ ok: true, url: req.url })));
+  const lport = (await listen(local)).split(':').pop();
+  const laptop = await deviceToken('tess@example.com', 'Tess’s laptop (wisp)');
+  const c = (await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Tess laptop' }, headers: { authorization: `Bearer ${laptop}`, accept: 'application/json' } })).json;
+  // The self-signed certificate: only in this test.
+  const was = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  const states = [];
+  const t = dialTunnel({ url: `https://wisp.localhost:${port}`, id: c.id, token: laptop, port: lport, onState: (x) => states.push(x.state) });
+  try {
+    await until(() => states.includes('online'), { what: 'the tunnel over TLS' });
+    const r = await browser().go(`${c.url}/api/hi`, { headers: { authorization: `Bearer ${laptop}`, accept: 'application/json' } });
+    assert.equal(r.status, 200, r.text);
+    assert.equal(r.json.url, '/api/hi');
+    assert.ok(grid.tunnels.online(c.id));
+  } finally {
+    t.close();
+    if (was === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = was;
+    front.close();
+    local.close();
+  }
+});
+
 test('the container driver: one locked-down container per user, reachable only from this box', async () => {
   const { containerRun, CONTAINER } = await import('../grid/hostd.js');
   const { args } = containerRun({ ...CONTAINER, resolv: '/data/users/1/resolv.conf', envFile: '/data/users/1/box.env', name: 'wisp-u-1', port: 47001, home: '/data/users/1/home' });
