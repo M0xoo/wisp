@@ -92,10 +92,10 @@ Without `JAVA_HOME` set: `export JAVA_HOME="/Applications/Android Studio.app/Con
 
 ## Google Play
 
-The launcher icon is wisp's orb (`docs/assets/icon.svg`) as an adaptive icon: vector layers in
+The launcher icon is wisp's logo (`docs/assets/icon.svg`) as an adaptive icon: vector layers in
 `res/drawable/ic_launcher_{background,foreground,monochrome}.xml` (the last one is Android 13's
 themed icon). The store art is in `store/`: `icon.png` (512×512) and `feature-graphic.png`
-(1024×500), drawn from the `.svg` next to each.
+(1024×500), drawn from the `.svg` next to each. `node scripts/logo.mjs` writes all of these vectors.
 
 1. **Make an upload key**, once, and keep it out of git (backed up: losing it means asking Google
    to reset it):

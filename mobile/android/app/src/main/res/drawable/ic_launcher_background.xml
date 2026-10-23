@@ -1,4 +1,4 @@
-<!-- The tile behind the orb: docs/assets/icon.svg's dark gradient, full bleed (the launcher masks it). -->
+<!-- The tile behind the logo: docs/assets/icon.svg's dark gradient, full bleed (the launcher masks it). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
