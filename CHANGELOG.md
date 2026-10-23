@@ -9,6 +9,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Videos play in the chat.** When an agent makes or records a video, it shows it with a `video` block (mp4, webm, mov) and you watch it right in the reply, seeking and all. wisp keeps a copy in `~/.wisp/shots`, like screenshots, so a recording in `/tmp` doesn't vanish.
 - **Show in folder** on pictures and videos in a reply opens Finder / Explorer with the file selected (where the agent saved it, or wisp's copy once that's gone). On another machine or a grid it copies the path.
+- **Docs in replies.** An agent that writes a plan, report or spec can show it with a `doc` block: the reply has the file's opening as a page, with **Full screen** (a reader with the file's headings down the side and a bar that fills as you read) and **Show in folder**. wisp keeps the file's text with the turn, so it reads the same after the file changes. Spells can restyle it (`doc`, `doc.preview`, `doc.reader`, `doc.contents`).
+
+### Fixed
+
+- Code blocks in markdown no longer draw an inline-code box around every line.
 
 ## [0.33.1] - 2026-10-23
 

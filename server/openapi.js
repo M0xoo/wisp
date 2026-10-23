@@ -345,7 +345,7 @@ export function openapi({ version, port }) {
       '/sessions/{id}/reveal': {
         parameters: [id],
         post: {
-          summary: 'Show a picture or video from a reply in Finder / Explorer (where the agent saved it, or wisp\'s copy). Refused with 409 and the path through a trusted proxy',
+          summary: 'Show a picture, video or doc from a reply in Finder / Explorer (where the agent saved it, or wisp\'s copy). Refused with 409 and the path through a trusted proxy',
           requestBody: body({ type: 'object', required: ['path'], properties: { path: { type: 'string', description: 'The block\'s path' } } }),
           responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, path: { type: 'string' } } }), 404: err[404], 409: json(ref('Error'), 'Through a trusted proxy') },
         },

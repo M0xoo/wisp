@@ -873,6 +873,7 @@ export class Runner extends EventEmitter {
       turn.raw = ev.text; // kept so the turn can be re-parsed if the parser improves
       turn.presentation = parsePresentation(ev.text);
       this.store.keepImages(session, turn);
+      this.store.keepDocs?.(session, turn);
       const hero = heroOf(turn.presentation);
       // Compare runs keep the prompt's title: they're one task, and one run's headline shouldn't name it.
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;

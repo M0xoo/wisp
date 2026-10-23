@@ -65,6 +65,56 @@
 /* A phone reads a screenshot edge to edge; the original wouldn't open outside the app's tunnel. */
 @media (max-width: 640px) { .lb-img { max-width: 100vw; max-height: calc(100dvh - 140px); border-radius: 0; } }
 body.wisp-mobile .lb-open { display: none; }
+/* The doc reader (ui/reader.js): a markdown file full screen, a page on a dimmed desk, headings
+   down the side when there's room. The bar under the head fills as you read. */
+.overlay:has(> .dr) { padding: 0; }
+.dr {
+  position: fixed; inset: 18px; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.35);
+  transform: translateY(6px) scale(0.995); transition: transform 0.22s var(--ease);
+}
+.overlay.on .dr { transform: none; }
+.dr-top { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.dr-ic { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; color: var(--accent); background: var(--accent-soft); }
+.dr-ic .i { width: 17px; height: 17px; }
+.dr-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.dr-name b { font: 600 15px/1.3 var(--display); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dr-name span { display: flex; gap: 8px; align-items: center; min-width: 0; font-size: 12px; color: var(--faint); white-space: nowrap; }
+.dr-name code { font: 11.5px var(--mono); overflow: hidden; text-overflow: ellipsis; }
+.dr-name code + i::before { content: '·'; margin-right: 8px; }
+.dr-name i { font-style: normal; flex: none; }
+.dr-tools { display: flex; align-items: center; gap: 2px; flex: none; }
+.dr-tools .ghost { font-size: 12.5px; color: var(--muted); }
+.dr-tools .ghost:hover { color: var(--ink); }
+.dr-tools .copied { color: var(--good); }
+.dr-progress { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; overflow: hidden; }
+.dr-progress i { display: block; height: 100%; background: var(--accent); transform-origin: left; transform: scaleX(0); transition: transform 0.08s linear; }
+.dr-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; outline: 0; }
+.dr-layout { display: grid; grid-template-columns: minmax(0, 720px); justify-content: center; gap: 48px; padding: 44px 32px 96px; }
+.dr-layout:has(> .dr-toc:not([hidden])) { grid-template-columns: 200px minmax(0, 720px); }
+.dr-toc { position: sticky; top: 24px; align-self: start; display: flex; flex-direction: column; gap: 1px; max-height: calc(100dvh - 160px); overflow-y: auto; }
+.dr-toc[hidden] { display: none; }
+.dr-toc-label { margin: 0 0 8px 10px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.dr-toc a { display: block; padding: 5px 10px; border-radius: 7px; font-size: 13px; line-height: 1.35; color: var(--muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+.dr-toc a.lv-h4 { padding-left: 22px; font-size: 12.5px; }
+.dr-toc a:hover { background: var(--bg-2); color: var(--ink); }
+.dr-toc a.on { color: var(--ink); background: var(--bg-2); font-weight: 500; }
+.dr-page { font-size: 15.5px; line-height: 1.75; min-width: 0; }
+.dr-page h3 { margin: 40px 0 14px; font: 650 26px/1.25 var(--display); letter-spacing: -0.022em; scroll-margin-top: 24px; }
+.dr-page h4 { margin: 32px 0 10px; font: 600 19px/1.3 var(--display); letter-spacing: -0.012em; scroll-margin-top: 24px; }
+.dr-page h5 { font-size: 16px; }
+.dr-page > h3:first-child { font-size: 32px; letter-spacing: -0.028em; margin-bottom: 20px; }
+.dr-page pre.code { font-size: 13px; }
+.dr-cut { display: flex; align-items: center; justify-content: center; gap: 8px; margin: -64px 0 48px; font-size: 13px; color: var(--muted); }
+@media (max-width: 1000px) { .dr-layout:has(> .dr-toc:not([hidden])) { grid-template-columns: minmax(0, 720px); } .dr-toc { display: none; } }
+@media (max-width: 640px) {
+  .dr { inset: 0; border-radius: 0; border: 0; }
+  .dr-top { padding-top: max(12px, env(safe-area-inset-top)); }
+  .dr-tools .ghost span { display: none; }
+  .dr-layout { padding: 24px 18px 72px; }
+  .dr-page { font-size: 15px; }
+  .dr-page > h3:first-child { font-size: 26px; }
+}
 .add-row { display: flex; gap: 8px; }
 .path-input { position: relative; flex: 1; }
 .path-input .i { width: 16px; height: 16px; }
