@@ -7,6 +7,7 @@ import { adapters } from '../adapters/index.js';
 import { KINDS } from '../preferences.js';
 import { normalizePreset } from '../subagents.js';
 import { envDisabled, feedbackAvailable } from '../telemetry.js';
+import { CHANNELS } from '../update.js';
 import { defaultTerminal, inWisp, TERMINALS } from '../terminal.js';
 import { normalizeWebhooks } from '../services/webhooks.js';
 import { cloneRepo, gh, git, parseRepo } from '../git.js';
@@ -43,6 +44,8 @@ export function register(r, app) {
     const locked = app.spells.settings().lockedBy;
     const clash = Object.keys(body.defaults || {}).find((k) => locked[k] && body.defaults[k] !== store.config.defaults[k]);
     if (clash) return c.send(409, { error: `${clash} is set by the spell ${locked[clash].name}. Turn it off in Settings → Spells to change it.`, spell: locked[clash] });
+    if (body.defaults?.updateChannel !== undefined && !Object.hasOwn(CHANNELS, body.defaults.updateChannel)) return c.send(400, { error: `updateChannel must be one of ${Object.keys(CHANNELS).join(', ')}` });
+    const channelWas = store.config.defaults.updateChannel;
     if (body.defaults) Object.assign(store.config.defaults, Object.fromEntries(Object.entries(body.defaults).filter(([k]) => !locked[k])));
     if (body.webhooks !== undefined) {
       const { hooks, error } = normalizeWebhooks(body.webhooks);
@@ -50,6 +53,8 @@ export function register(r, app) {
       store.config.webhooks = hooks;
     }
     app.configChanged();
+    // Another channel offers other releases: look now rather than tomorrow.
+    if (store.config.defaults.updateChannel !== channelWas && app.updater?.enabled) app.updater.check();
     c.send(200, view());
   });
 

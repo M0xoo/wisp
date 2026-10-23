@@ -105,6 +105,16 @@ curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app   # macOS: wisp.app
 
 Every build is on the [latest release](https://github.com/M0xoo/wisp/releases/latest), with `SHA256SUMS.txt`. Until they're signed: a `.dmg` from the browser makes macOS say it can't verify wisp; click *Done*, then System Settings → Privacy & Security → *Open Anyway*. On Windows, SmartScreen may say it protected your PC: *More info* → *Run anyway*. On Linux the `.deb` is the smooth one; an AppImage needs `chmod +x`, and Ubuntu 24.04's AppArmor can stop it starting unless you pass `--no-sandbox`. The app updates from the same releases: *Update to …* in its top bar downloads the new build, swaps it in and reopens wisp (a `.deb` updates by installing the new `.deb`).
 
+**Release channels.** Stable is what everything above installs. Two more come out of the same pipeline, like TypeScript's `next` or Neovim's nightly:
+
+| Channel | What it is | npm | Desktop app |
+|---|---|---|---|
+| **Stable** | Releases | `npm install -g wisp-agents` | [latest release](https://github.com/M0xoo/wisp/releases/latest) |
+| **Beta** | Previews of the next release (`0.38.0-beta.1`) | `npm install -g wisp-agents@next` | its [prerelease](https://github.com/M0xoo/wisp/releases) |
+| **Nightly** | `main`, built every night its full test suite passes (`0.37.1-nightly.20261024.317`) | `npm install -g wisp-agents@nightly` | [nightly release](https://github.com/M0xoo/wisp/releases/tag/nightly) (`releases/download/nightly/<name>`) |
+
+Set **Settings → General → Updates** to the one you want, and *Update to …* follows it. Beta and nightly also take a stable release once it's newer, so they never leave you behind; switching back to stable waits for the next release rather than going back a version. `WISP_VERSION=next` or `WISP_VERSION=nightly` picks one in `install.sh` (`--app` too, for nightly). Homebrew only has stable releases.
+
 From source:
 
 ```sh

@@ -59,6 +59,15 @@ test('WISP_VERSION pins the npm version', opts, () => {
   assert.equal(fs.readFileSync(env.log, 'utf8').trim(), 'install -g wisp-agents@0.14.0');
 });
 
+test('WISP_VERSION=nightly takes npm\'s nightly tag, and --app the rolling nightly release', opts, () => {
+  const env = setup();
+  const r = run(env, { WISP_VERSION: 'nightly' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(fs.readFileSync(env.log, 'utf8').trim(), 'install -g wisp-agents@nightly');
+  // releases/download/vnightly doesn't exist: the nightly's tag is plain `nightly`.
+  assert.match(fs.readFileSync(script, 'utf8'), /"\$VERSION" = nightly \]; then base="https:\/\/github\.com\/M0xoo\/wisp\/releases\/download\/nightly"/);
+});
+
 test('install.sh refuses Node.js older than 20 before touching npm', opts, () => {
   const env = setup({ nodeVersion: 'v18.20.0' });
   const r = run(env);

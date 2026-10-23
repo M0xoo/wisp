@@ -30,10 +30,15 @@ import { openUsage } from './usage.js';
 import { spellsPane } from './spell-ui.js';
 import { setView, viewPref } from './split.js';
 import { setTheme, themePref } from './theme.js';
+import { loadUpdate, updateState } from './update.js';
 
 // A sidebar of sections and one pane at a time, like every other app's settings. Big lists
 // (memory, automations, usage history) keep their own views; a pane only summarises and links.
 // On a wisp Grid, Machines becomes Connect (the grid, not SSH) and Cloud goes: wisp is in the cloud.
+// Which releases wisp updates to; the server reads them in server/update.js (CHANNELS).
+const UPDATE_CHANNELS = [['stable', 'Stable'], ['beta', 'Beta'], ['nightly', 'Nightly']];
+const CHANNEL_HINTS = { stable: 'Tested releases', beta: 'Previews of the next release (npm <code>next</code>), then the release itself', nightly: 'A build of main every night (npm <code>nightly</code>). Newest, and sometimes broken' };
+
 const settingsPanes = (grid = inGrid()) => [
   { id: 'general', label: 'General', icon: 'settings', lede: 'Where files open, where you take over, and how tasks start.' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', lede: 'Hear about questions and finished tasks, here or on your phone.' },
@@ -115,6 +120,9 @@ export function openSettings(opts) {
           </div>
           <div class="sx-group">
             ${row('Full transcript', 'Every message and step the agent took, with its presentation at the end. Any one card switches with its Transcript button<span class="key-hint"> or <kbd>V</kbd></span>', '<button class="switch" id="txDefault" role="switch"></button>')}
+          </div>
+          <div class="sx-group sx-updates">
+            ${row('Updates', '<span class="upd-hint"></span>', `<select name="updateChannel">${UPDATE_CHANNELS.map(([v, l]) => `<option value="${v}" ${(d.updateChannel || 'stable') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}
           </div>
         </section>
         <section class="sx-pane" data-pane="notifications">
@@ -366,6 +374,16 @@ export function openSettings(opts) {
     paintTele();
   };
   paintTele();
+  // Updates: what the channel means, and when this copy can't follow it.
+  const paintUpd = () => {
+    const u = updateState();
+    const ch = $('select[name="updateChannel"]', node).value;
+    const why = !u ? '' : u.method === 'git' ? 'A git clone doesn’t update itself' : u.method === 'brew' ? 'Homebrew only has stable releases' : u.enabled === false ? 'Update checks are off here (WISP_UPDATE_CHECK=0 or CI)' : '';
+    $('.upd-hint', node).innerHTML = `${CHANNEL_HINTS[ch]}${why ? `. ${why}` : ''}${u?.current ? `. You’re on ${esc(u.current)}` : ''}`;
+  };
+  paintUpd();
+  loadUpdate().then(paintUpd);
+  $('select[name="updateChannel"]', node).addEventListener('change', paintUpd);
   // Memory: one line here (on/off and a summary); the lists and retros live in their own view.
   const learn = $('#learn', node);
   const paintLearn = async () => {

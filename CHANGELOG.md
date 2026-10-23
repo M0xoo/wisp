@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - **Install the Mac app with one line, without the "can't verify" warning:** `curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app` downloads wisp.app from the latest release, checks it against `SHA256SUMS.txt` and puts it in /Applications, with no Node needed. curl doesn't quarantine what it downloads, so macOS opens the not-yet-notarized app straight away. `WISP_VERSION` pins a release here too.
+- **Beta and nightly builds, and an update channel to follow them.** **Settings → General → Updates**: *Stable* (as before), *Beta* (previews of the next release, npm `wisp-agents@next`) or *Nightly* (a build of `main` every night the full test suite passes, npm `wisp-agents@nightly` and the apps on the [nightly release](https://github.com/M0xoo/wisp/releases/tag/nightly)). *Update to …* then offers the newest build of that channel, for npm, npx and the desktop app; a stable release that's newer still wins. Homebrew stays on stable. `install.sh` takes `WISP_VERSION=next` or `WISP_VERSION=nightly` (with `--app` too).
 
 ### Changed
 
@@ -19,6 +20,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Settings → Spells on a phone:** a spell's *Acts for you* badge no longer squeezes onto two lines next to its name; the name, version and badge each stay whole and the badge moves under the name when the row is narrow.
 - **Allow & retry right after a run ends.** Clicking it within a few seconds of the result, while the agent's CLI was still exiting, was refused with "The task has moved on since". It now lets that CLI go and starts the retry.
+- **Updates order prereleases the semver way.** `0.38.0-beta.2` is newer than `0.38.0-beta.1`, and `0.38.0` newer than both. wisp used to drop everything after the `-`, so it saw `0.38.0-beta.1` and `0.38.0` as the same version and never offered the release.
 
 ## [0.37.0] - 2026-10-23
 

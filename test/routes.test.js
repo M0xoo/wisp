@@ -137,3 +137,16 @@ test('deleting a scratch task deletes its scratch folder', async () => {
   assert.equal(r.status, 200);
   assert.ok(!fs.existsSync(s.cwd));
 });
+
+test('the update channel is a setting: stable, beta or nightly, and /update says which one is in effect', async () => {
+  const patch = (defaults) => fetch(`${base}/api/config`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ defaults }) });
+  const bad = await patch({ updateChannel: 'canary' });
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /updateChannel must be one of stable, beta, nightly/);
+  assert.equal((await patch({ updateChannel: 'nightly' })).status, 200);
+  assert.equal((await (await fetch(`${base}/api/config`)).json()).defaults.updateChannel, 'nightly');
+  const u = await (await fetch(`${base}/api/update`)).json();
+  assert.equal(u.enabled, false); // WISP_UPDATE_CHECK=0: nothing is fetched
+  assert.equal(u.channel, 'nightly');
+  await patch({ updateChannel: 'stable' });
+});

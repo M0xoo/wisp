@@ -633,6 +633,7 @@ function changelogPage() {
       <p class="eyebrow">Changelog</p>
       <h1>What’s new in wisp</h1>
       <p class="doc-lede">Every release of <code>wisp-agents</code>, newest first. Update with <code>npm install -g wisp-agents@latest</code>, or let the app update itself.</p>
+      <p>Three channels: <b>stable</b> (<code>npm install -g wisp-agents</code>), <b>beta</b> (<code>wisp-agents@next</code>, previews like <code>0.38.0-beta.1</code>) and <b>nightly</b> (<code>wisp-agents@nightly</code>, or the apps from the <a href="https://github.com/M0xoo/wisp/releases/tag/nightly">nightly release</a>): a build of <code>main</code> every night its full test suite passes. Pick one in Settings → General → Updates and wisp updates along it.</p>
     </header>
     <article class="prose">${body}</article>
 `,

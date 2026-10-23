@@ -128,6 +128,8 @@ export const PARTS = {
   'settings': '.modal.sx',
   'settings.nav': '.sx-nav',
   'settings.head': '.sx-top',
+  // Settings → General: which releases wisp updates to (stable, beta or nightly).
+  'settings.updates': '.sx-updates',
   // Settings → Machines: whether other devices can reach this computer over SSH.
   'settings.reachable': '.sx-reach',
   // Machines: the three-step explainer, and the password box when a machine won't let this one in.
@@ -256,7 +258,8 @@ export const EVENTS = {
 export const HOOK_IF = ['status', 'testsFailed', 'agent', 'project', 'hasPr', 'mode'];
 export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'notify', 'webhook']);
 
-// Settings a spell may set (while on). Telemetry, feedback and anything secret are not here.
+// Settings a spell may set (while on). Telemetry, feedback, the update channel (a shared spell
+// mustn't move you onto nightlies) and anything secret are not here.
 export const SETTINGS = {
   view: VIEWS,
   theme: THEMES,
