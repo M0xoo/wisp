@@ -1,5 +1,8 @@
 import { $ } from '../core/dom.js';
 import { sweep } from '../core/bus.js';
+import { onBack } from './back.js';
+
+let backDone = null; // the phone's Back closes whichever dialog is showing (ui/back.js)
 
 // The one modal layer (#overlay). Opening a dialog replaces whatever it showed.
 export function overlay(node, { onClose } = {}) {
@@ -8,7 +11,10 @@ export function overlay(node, { onClose } = {}) {
   o.append(node);
   o.hidden = false;
   requestAnimationFrame(() => o.classList.add('on'));
+  backDone ||= onBack(() => o.close?.());
   const close = () => {
+    // The phone's Back entry goes with the dialog showing, not one replaced meanwhile.
+    if (o.firstChild === node) (backDone?.(), (backDone = null));
     o.classList.remove('on');
     // Another overlay may have replaced this one while it faded (palette → settings): leave that alone.
     setTimeout(() => {

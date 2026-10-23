@@ -445,7 +445,7 @@ function renderTrail(s, t, tx) {
   const node = el(`
     <div class="trail">
       <div class="trail-bar">
-        ${acts.length && !tx ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}</span>`).join('') : 'Activity'}</button>` : ''}
+        ${acts.length && !tx ? `<button class="tb-acts" data-tab="activity" title="Show activity">${parts.length ? parts.map(([ic, l, n]) => `<span class="tb" title="${n} ${l}">${icon(ic)}${n}<span class="tb-l"> ${l}</span></span>`).join('') : 'Activity'}</button>` : ''}
         ${t.endedAt ? `<span class="tb">${fmtDuration(t.endedAt - t.startedAt)}</span>` : ''}
         ${st.costUsd ? `<span class="tb">$${st.costUsd.toFixed(2)}</span>` : ''}
         <span class="grow"></span>

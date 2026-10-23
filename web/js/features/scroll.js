@@ -4,7 +4,7 @@
 // and the open task in its own body, so the same calls move those instead.
 
 import { $, $$ } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { MOBILE, S } from '../core/state.js';
 
 export const stage = $('#stage');
 
@@ -95,9 +95,10 @@ const toTop = $('#toTop');
 const launchSlot = $('#launchSlot');
 const dockLauncher = () => {
   const box = $('#launcher');
-  const gone = launchSlot.getBoundingClientRect().bottom < $('#topbar').offsetHeight;
+  // The phone keeps it docked at the bottom, in reach of a thumb (responsive.css), from the start.
+  const gone = MOBILE || launchSlot.getBoundingClientRect().bottom < $('#topbar').offsetHeight;
   if (gone === box.classList.contains('docked')) return;
-  launchSlot.style.height = gone ? `${box.offsetHeight}px` : '';
+  launchSlot.style.height = gone && !MOBILE ? `${box.offsetHeight}px` : '';
   box.classList.toggle('docked', gone);
 };
 

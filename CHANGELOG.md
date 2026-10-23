@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **The phone app is easier to use with one thumb.** In wisp's page, the prompt box waits at the bottom, one line until you tap it; its buttons keep their names and scroll sideways, with Send always in view. A task's title gets the whole row, with its status, harness and time on the line under it. A question shows its choices (Yes / No, Allow / Deny) right in the row, so you answer it without opening the task. One task is open at a time, and every button is at least 44px. On the computers screen, tap anywhere on a row to open that computer (its settings are behind ⋯), the list no longer jumps when you tap one, wisp Cloud shows as online, and the first-run explanation goes away once you've opened a computer. Text and spacing follow one scale. Only the app changes: wisp in a browser or the desktop app looks the same.
+
 ### Fixed
 
 - **Desktop app: drag the window from the new task page.** In split view with no task open there was no header to grab, so the window wouldn't move from the main pane. The top of that pane now moves it again (beside the floating buttons when the task list is hidden).
@@ -14,6 +18,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **wisp Grid: the account page keeps up by itself.** A computer coming online or going offline, one being added or removed, a new signed-in device, or your cloud wisp waking or falling asleep now shows on the page as it happens, without reloading it. The grid also notices a computer that disconnects at once, instead of up to half a minute later.
 
 - **wisp Grid: tunnel and sign-in hardening.** A computer that answers through its tunnel with an impossible HTTP status no longer crashes the grid for everyone; the grid answers 502 instead. Computers can't set cookies through the grid any more. Behind Caddy, rate limits now apply per client instead of to everyone at once, so one client can no longer use up the tunnel limit and keep every computer from reconnecting. The on-demand TLS check only answers Caddy itself, not the public. A sign-in `return` path with a tab or newline in it can no longer redirect off the grid.
+
+- **Back in the phone app closes what's open.** Back from Settings, a menu or an open task used to leave wisp for the list of computers. Now it closes the newest of those first, and a tapped notification no longer leaves an extra step behind.
+- **Undo after deleting a computer** in the phone app, and the *Removed* toast no longer disappears with the sheet it was shown on.
 
 ## [0.34.0] - 2026-10-23
 

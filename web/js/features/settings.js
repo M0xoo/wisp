@@ -46,7 +46,7 @@ const settingsPanes = (grid = inGrid()) => [
       : { id: 'machines', label: 'Machines', icon: 'server', lede: 'Other computers that run agents for you, over SSH.' },
   // The phone app adds cloud computers on its own list instead.
   ...(MOBILE || grid ? [] : [{ id: 'cloud', label: 'Cloud', icon: 'cloud', lede: 'Your wisp on a server: it keeps working while this computer sleeps.' }]),
-  { id: 'memory', label: 'Memory', icon: 'spark', lede: "Learned from your tasks and added to every agent's prompt. What you ask always wins." },
+  { id: 'memory', label: 'Memory', icon: 'text', lede: "Learned from your tasks and added to every agent's prompt. What you ask always wins." },
   { id: 'automations', label: 'Automations', icon: 'bolt', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
   { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },

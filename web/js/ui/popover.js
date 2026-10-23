@@ -1,3 +1,5 @@
+import { onBack } from './back.js';
+
 // Menus and popovers floating over the page. A mousedown anywhere else closes them; the button
 // that opened one (`anchor`) doesn't count, so clicking it again can toggle. Escape closes the
 // newest one, wherever focus is, and puts focus back on its anchor. Callers build and position
@@ -39,9 +41,11 @@ export function popover(node, { anchor, keep, capture = false, back, onClose } =
     if (box?.contains(e.target) && !e.target.closest('button, a, input, textarea, select')) setTimeout(() => back.focus());
   };
   const entry = { close, anchor, back };
+  const backDone = onBack(close); // the phone's Back closes it (ui/back.js)
   function close() {
     if (!open) return;
     open = false;
+    backDone();
     clearTimeout(arm);
     stack.splice(stack.indexOf(entry), 1);
     node.remove();
