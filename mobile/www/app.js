@@ -57,7 +57,7 @@ const machine = (id) => machines.find((m) => m.id === id);
 const keyOf = (m) => (m?.kind === 'grid' ? null : keys.find((k) => k.id === m?.keyId) || keys[0]);
 const isGrid = (m) => m?.kind === 'grid';
 const nameOf = (m) => m.name || (isGrid(m) ? m.handle : parseTarget(m.target).host);
-// The one the app opens when it starts: the last one used.
+// The one at the top of the list: the last one used.
 const main = () => [...machines].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
 const TAILSCALE_GUIDE = 'https://trywisp.dev/guides/connect-machines-with-tailscale.html';
 
@@ -275,10 +275,11 @@ const paint = () => {
 // Back here from wisp's page (Computers, Back): the page may come from the back/forward cache, with
 // the Opening button still showing.
 addEventListener('pageshow', () => {
+  if (opening) {
+    opening = '';
+    paintMachines();
+  }
   refreshComputers();
-  if (!opening) return;
-  opening = '';
-  paintMachines();
 });
 
 // --- actions -----------------------------------------------------------------------------------
@@ -362,20 +363,32 @@ async function gridPost(url, body, token) {
 // Your computers on each grid you're signed in to. The last list stays (the screen paints from it
 // at once); this asks again: at start, coming back to the app, and after signing in.
 async function refreshComputers() {
+  const grids = machines.filter((m) => isGrid(m) && !m.signedOut);
+  if (opening || !grids.length) return; // on its way out, a repaint would only flicker
+  const was = JSON.stringify(grids.map((m) => [m.signedOut, m.computers]));
   await Promise.all(
-    machines
-      .filter((m) => isGrid(m) && !m.signedOut)
+    grids
       .map(async (m) => {
         try {
-          const r = await fetch(`${m.grid}/api/computers`, { headers: { authorization: `Bearer ${m.token}` } });
+          const r = await fetch(`${m.grid}/api/computers`, { headers: { authorization: `Bearer ${m.token}` }, signal: AbortSignal.timeout(8000) });
           if (r.status === 401) m.signedOut = true;
           if (!r.ok) return;
           m.computers = ((await r.json()).computers || []).map(({ id, name, online }) => ({ id, name, online }));
         } catch {} // offline: keep the last list
       }),
   );
+  // Only what changed repaints: a repaint restarts the spinners of a computer connecting.
+  if (JSON.stringify(grids.map((m) => [m.signedOut, m.computers])) === was) return;
   save();
   paintMachines();
+}
+
+// The list keeps up while it's on screen: a computer coming online (or going away) shows by itself.
+const REFRESH_MS = 10000;
+let refreshTimer = null;
+function watchComputers() {
+  clearInterval(refreshTimer);
+  refreshTimer = document.visibilityState === 'visible' ? setInterval(refreshComputers, REFRESH_MS) : null;
 }
 
 // Into a cloud computer's wisp, or one of your computers on its grid (cid): a fresh one-time link
@@ -767,15 +780,15 @@ async function boot() {
       openOnReady = st.machineId;
       history.replaceState(null, '', location.pathname);
     }
-  } else if (main() && !sessionStorage.getItem('wisp.started')) {
-    // App start: straight into the wisp of the computer used last. Coming back here (Computers,
-    // Back) shows the list instead.
-    connect(main());
   }
-  sessionStorage.setItem('wisp.started', '1');
+  // App start shows this list: you pick the computer (the one used last is at the top).
   paint();
   refreshComputers();
-  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && refreshComputers());
+  watchComputers();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshComputers();
+    watchComputers();
+  });
 }
 
 function wire() {
