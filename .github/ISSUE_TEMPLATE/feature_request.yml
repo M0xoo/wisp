@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea for wisp.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you're trying to do
+      description: The task or the moment where wisp gets in your way.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you picture it. If a spell could do it, say so.

@@ -194,6 +194,12 @@ h1 .off.fly { animation: off-fly 0.9s cubic-bezier(0.5, 0, 0.75, 0) both; }
 .flyer { position: fixed; z-index: 30; pointer-events: none; white-space: nowrap; font: 400 clamp(17px, 2vw, 20px)/1.4 var(--sans); letter-spacing: -0.01em; color: var(--ink); transform-origin: 0 50%; }
 
 .queue { margin-top: 10px; min-height: 360px; }
+/* Where the demo's rows will land, so the hero isn't a blank box before the first one. */
+.q-ghosts { display: grid; gap: 8px; padding-top: 45px; }
+.q-ghosts i { height: 61px; border-radius: 12px; border: 1px solid var(--line); background: linear-gradient(var(--line), var(--line)) 46px 19px / 42% 9px no-repeat, linear-gradient(var(--line), var(--line)) 46px 35px / 26% 7px no-repeat; opacity: 0.7; }
+.q-ghosts i:nth-child(2) { opacity: 0.45; }
+.q-ghosts i:nth-child(3) { opacity: 0.25; }
+.queue:has(.q-row) .q-ghosts { display: none; }
 .q-group h4 { display: flex; gap: 8px; margin: 18px 4px 10px; font-size: 13px; font-weight: 500; color: var(--muted); }
 .q-group h4 .n { color: var(--faint); font-variant-numeric: tabular-nums; }
 .q-group:has(.q-list:empty) { display: none; }
@@ -877,7 +883,7 @@ button.sw-tb { cursor: pointer; }
 .cloud-band { padding: 120px 0 130px; }
 .cloud-band .sub { position: relative; max-width: 54ch; margin: 22px auto 0; font-size: 19px; color: var(--ink); }
 
-.foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 28px 0 40px; font-size: 14px; }
+.foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 28px 0 40px; font-size: 14px; }
 .foot .grow { flex: 1; }
 .foot a { color: var(--ink-2); text-decoration: none; }
 .foot a:hover { color: var(--ink); }
@@ -948,7 +954,19 @@ button.sw-tb { cursor: pointer; }
 .prose blockquote { margin: 16px 0; padding: 4px 0 4px 16px; border-left: 1px solid var(--line-2); }
 .release { padding-bottom: 8px; }
 .release h2 { display: flex; align-items: baseline; gap: 14px; padding-top: 32px; border-top: 1px solid var(--line); }
-.release:first-child h2 { margin-top: 8px; padding-top: 0; border-top: 0; }
+.rel-week > summary + .release h2 { margin-top: 8px; padding-top: 0; border-top: 0; }
+.rel-week { border-bottom: 1px solid var(--line); }
+.rel-week[open] { padding-bottom: 24px; }
+.rel-week > summary { display: flex; align-items: baseline; gap: 14px; padding: 20px 0; cursor: pointer; list-style: none; font-size: 18px; }
+.rel-week > summary::-webkit-details-marker { display: none; }
+.rel-week > summary .muted { font: 14px var(--mono); }
+.rel-week > summary::after { content: '+'; margin-left: auto; font-size: 20px; line-height: 1; color: var(--muted); transition: rotate 0.15s; }
+.rel-week[open] > summary::after { rotate: 45deg; }
+@media (max-width: 560px) {
+  .rel-week > summary { flex-wrap: wrap; row-gap: 2px; font-size: 17px; }
+  .rel-week > summary::after { order: 1; }
+  .rel-week > summary .muted { order: 2; flex-basis: 100%; }
+}
 .doc .release h2 a { color: var(--ink); }
 .release time { font: 14px var(--mono); letter-spacing: 0; color: var(--muted); }
 .strip li a { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; }

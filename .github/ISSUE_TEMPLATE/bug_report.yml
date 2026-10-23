@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in wisp doesn't work the way it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead. Screenshots help.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: wisp version
+      description: "`wisp --version`"
+      placeholder: "0.37.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How you run it
+      options:
+        - Desktop app
+        - npx / npm (browser)
+        - Homebrew
+        - wisp Cloud (grid.trywisp.dev)
+        - Android app
+        - Self-hosted grid
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: macOS 15, Ubuntu 24.04, Windows 11…
+  - type: input
+    id: harness
+    attributes:
+      label: Harness
+      placeholder: Claude Code, Codex, opencode…
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Anything from the terminal or the browser console. Remove tokens and private paths.
+      render: text

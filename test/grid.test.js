@@ -644,6 +644,16 @@ test('the hosted grid, once full, sends new people to the waitlist first and sti
   assert.doesNotMatch(invite, /seats left/);
 });
 
+test('the grid’s pages carry its name: wisp Grid by default, Cloud on a grid named wisp Cloud', async () => {
+  const { signInPage } = await import('../grid/pages.js');
+  const providers = new Map([['github', { id: 'github', label: 'GitHub' }]]);
+  const page = (name) => signInPage({ cfg: { name, domain: 'grid.example.com', publicUrl: 'https://grid.example.com' }, providers, seats: { open: true, max: 5, left: 3 } });
+  assert.match(page('wisp Grid'), /<span class="tag">Grid<\/span>/);
+  assert.match(page('wisp Grid'), /<\/i>wisp Grid · grid\.example\.com/);
+  assert.match(page('wisp Cloud'), /<span class="tag">Cloud<\/span>/);
+  assert.match(page('wisp Cloud'), /<\/i>wisp Cloud · grid\.example\.com/);
+});
+
 test('GitHub and Google share one row of sign-in buttons, GitHub first', async () => {
   const { signInPage } = await import('../grid/pages.js');
   const cfg = { name: 'wisp Grid', domain: 'grid.trywisp.dev', publicUrl: 'https://grid.trywisp.dev' };
@@ -842,10 +852,13 @@ test('wisp computer on|off|status: the device sign-in in the terminal, then this
   const bin = fileURLToPath(new URL('../bin/wisp.js', import.meta.url));
   const port = await freePort();
   const env = { ...process.env, WISP_HOME: tmp('cli-computer'), WISP_TELEMETRY: '0' };
-  const desk = spawn(process.execPath, [bin, '--browser', '--no-open', '--port', String(port)], { env, stdio: 'ignore' });
+  // Not the checkout: `wisp computer bogus` below launches a task in its folder, and a task in wisp's
+  // own repo runs wisp's own tests.
+  const cwd = tmp('cli-computer-cwd');
+  const desk = spawn(process.execPath, [bin, '--browser', '--no-open', '--port', String(port)], { env, cwd, stdio: 'ignore' });
   // stderr as it comes (the code is printed while the command waits), stdout at the end.
   const cli = (...args) => {
-    const c = spawn(process.execPath, [bin, 'computer', ...args, '--port', String(port), '--no-open'], { env });
+    const c = spawn(process.execPath, [bin, 'computer', ...args, '--port', String(port), '--no-open'], { env, cwd });
     const r = { out: '', err: '', code: null };
     c.stdout.on('data', (d) => (r.out += d));
     c.stderr.on('data', (d) => (r.err += d));
@@ -858,7 +871,7 @@ test('wisp computer on|off|status: the device sign-in in the terminal, then this
     assert.equal(off.code, 0, off.err);
     assert.match(off.out, /○ off\. wisp computer on signs in/);
     // A task's first words stay a task: only on / off / status are the command.
-    assert.equal(spawnSync(process.execPath, [bin, 'computer', 'bogus', '--port', String(port)], { env, encoding: 'utf8', timeout: 20_000 }).stdout.includes('launched'), true);
+    assert.equal(spawnSync(process.execPath, [bin, 'computer', 'bogus', '--port', String(port)], { env, cwd, encoding: 'utf8', timeout: 20_000 }).stdout.includes('launched'), true);
 
     const on = cli('on', '--grid', base.replace('http://', ''));
     const code = await until(() => /allow this code: (\S+)\n\s+(\S+)/.exec(on.err), { what: 'the code in the terminal' });

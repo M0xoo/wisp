@@ -111,7 +111,7 @@ after(() => {
 
 test('take over in wisp: the agent on a terminal the page streams, types into and ends', { skip: win || !python() }, async () => {
   const repo = makeRepo();
-  const s = await api('/sessions', { body: { prompt: 'fix it', cwd: repo.dir, agent: 'claude', worktree: false } });
+  const s = await api('/sessions', { body: { prompt: 'fix it', cwd: repo, agent: 'claude', worktree: false } });
   await waitFor(async () => (await api(`/sessions/${s.id}`)).state !== 'running');
   const out = await api(`/sessions/${s.id}/takeover`, { body: { inline: true, cols: 100, rows: 20 } });
   assert.equal(out.inline, true);
