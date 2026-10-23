@@ -202,7 +202,12 @@ function item(s) {
       // Split view: a click opens the task beside the list (clicking it again leaves it open) and
       // the list stays where it is: the task shows in the main pane, there's nothing to scroll to.
       setFocus(s.id, { scroll: !isSplit() });
-      if (isSplit()) return S.open.has(s.id) ? paintSplit() : expand(s.id);
+      if (isSplit()) {
+        if (S.open.has(s.id)) paintSplit();
+        // Ready to type the follow-up once it's shown (j / k keep the keys in the list).
+        Promise.resolve(S.open.has(s.id) || expand(s.id)).then(() => focusReply(s.id));
+        return;
+      }
       toggle(s.id);
     });
     card.addEventListener('mousedown', () => {
@@ -387,6 +392,14 @@ export function setFocus(id, { scroll = true } = {}) {
   // A card taller than the screen would land with its header out of view ('nearest' aligns
   // its far edge when moving up), so bring its top in instead.
   if (scroll && n) n.card.scrollIntoView({ block: !isSplit() && n.card.offsetHeight > stage.clientHeight - topInset() ? 'start' : 'nearest', behavior: 'smooth' });
+}
+
+// Unless something else took the keys meanwhile (another task opened, the search typed into).
+function focusReply(id) {
+  if (splitOpen() !== id) return;
+  const a = document.activeElement;
+  if (a && a !== document.body && !a.closest('.it-head')) return;
+  $('.reply', S.nodes.get(id)?.card)?.focus({ preventScroll: true });
 }
 
 export function toggle(id) {
