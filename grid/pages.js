@@ -137,12 +137,15 @@ const analyticsScript = () => `<script>${POSTHOG_STUB}
 posthog.init(${JSON.stringify(posthogKey())},{api_host:'https://us.i.posthog.com',defaults:'2026-05-30',person_profiles:'identified_only'});
 document.addEventListener('click',(e)=>{const a=e.target.closest('a[href^="/auth/"]');if(a)posthog.capture('grid_signin_clicked',{provider:decodeURIComponent(a.pathname.split('/')[2]||'')},{transport:'sendBeacon'})});</script>`;
 
+// The word beside the logo follows the grid's name, so grid.json's "name": "wisp Cloud" shows Cloud.
+const tag = (cfg) => (cfg.name || 'wisp Grid').replace(/^wisp\s+/i, '') || 'Grid';
+
 function siteHead(title, cfg, analytics = false) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="referrer" content="same-origin"><meta name="description" content="${DESC}">
 <link rel="canonical" href="${esc(cfg.publicUrl)}/"><meta property="og:type" content="website"><meta property="og:url" content="${esc(cfg.publicUrl)}/"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${DESC}"><meta property="og:image" content="${esc(cfg.publicUrl)}${A}/og.png"><meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="${A}/icon.svg"><style>${SITE_CSS}</style>${analytics ? analyticsScript() : ''}</head><body>
-<header class="nav" id="nav"><div class="wrap"><a class="brand" href="/"><span class="mark"></span>wisp<span class="tag">Grid</span></a>
+<header class="nav" id="nav"><div class="wrap"><a class="brand" href="/"><span class="mark"></span>wisp<span class="tag">${esc(tag(cfg))}</span></a>
 <nav class="links"><a href="#how">How it works</a><a href="#report">What you get back</a><a href="#private">Private by design</a></nav>
 <div class="right"><a class="pill" href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a><a class="pill dark" href="#join">Sign in</a></div></div></header>`;
 }
@@ -186,7 +189,7 @@ export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', l
 <main>
 <section class="hero"><div class="wrap">
   <div>
-    <div class="kicker"><i></i>wisp Grid · ${esc(cfg.domain)}</div>
+    <div class="kicker"><i></i>${esc(cfg.name)} · ${esc(cfg.domain)}</div>
     <h1 class="big">Close the laptop.<br><span>Your agents keep going.</span></h1>
     <p class="lede">Your own wisp, running on a server. Start Claude Code, Codex or opencode on a task, shut the lid, and read the report from your phone. Same app, same reports, nothing to keep awake.</p>
     ${join}
@@ -394,7 +397,7 @@ function appPage({ cfg, title, user = null, csrf = '', body, head = '', narrow =
   const initial = esc((user?.name || user?.handle || '?').trim()[0]?.toUpperCase() || '?');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · ${esc(cfg.name)}</title><meta name="referrer" content="same-origin"><link rel="icon" href="${A}/icon.svg"><style>${APP_CSS}</style>${head}</head><body>
-<header class="top"><a class="brand" href="${esc(cfg.publicUrl)}/"><span class="mark"></span>wisp</a><span class="chipx">${I.cloud.replace('<svg', '<svg width="13" height="13"')}Grid</span>
+<header class="top"><a class="brand" href="${esc(cfg.publicUrl)}/"><span class="mark"></span>wisp</a><span class="chipx">${I.cloud.replace('<svg', '<svg width="13" height="13"')}${esc(tag(cfg))}</span>
 ${user ? `<div class="me"><span class="who">${esc(user.handle)}</span><span class="av">${user.avatar ? `<img src="${esc(user.avatar)}" alt="">` : initial}</span>${csrf ? `<form class="inline" method="post" action="/signout"><input type="hidden" name="csrf" value="${esc(csrf)}"><button class="ghost">Sign out</button></form>` : ''}</div>` : ''}</header>
 <main class="main${narrow ? ' narrow' : ''}">${body}</main>${PENDING}</body></html>`;
 }

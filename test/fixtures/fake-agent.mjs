@@ -56,6 +56,9 @@ if (argv[0] === '--version' || argv[0] === '-v') {
   console.log(name === 'claude' ? '9.9.9 (Fake Claude Code)' : `fake-${name} 9.9.9`);
   process.exit(0);
 }
+// Sign-in checks (server/agent-login.js) run in wisp's own folder: say nothing rather than do the
+// work below, which would leave math.js and notes.txt in the checkout.
+if ((name === 'claude' && argv.join(' ') === 'auth status') || (name === 'codex' && argv.join(' ') === 'login status') || (name === 'cursor-agent' && argv.join(' ') === 'status')) process.exit(0);
 if (name === 'opencode' && argv[0] === 'models') {
   // --verbose follows each id with pretty-printed metadata, including reasoning variants.
   if (argv.includes('--verbose')) {

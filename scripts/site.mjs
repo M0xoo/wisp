@@ -614,13 +614,30 @@ function changelogPage() {
   const src = readText(path.join(ROOT, 'CHANGELOG.md'));
   // Released versions only: Unreleased describes main, not what `npx wisp-agents` gets.
   const releases = src.split(/^(?=## \[)/m).filter((s) => /^## \[\d/.test(s));
-  const body = releases.map((r) => {
+  const section = (r) => {
     const [, version, date] = r.match(/^## \[([^\]]+)\](?:\s*-\s*(\S+))?/);
     const rest = r.replace(/^.*\n/, '');
-    return `<section class="release" id="v${esc(version)}">
+    return { version, date, html: `<section class="release" id="v${esc(version)}">
       <h2><a href="#v${esc(version)}">${esc(version)}</a>${date ? ` <time datetime="${esc(date)}">${esc(date)}</time>` : ''}</h2>
       ${markdown(rest)}
-    </section>`;
+    </section>` };
+  };
+  // A week per group (from Monday), newest open: several releases a day read as one week's work.
+  const weeks = [];
+  for (const r of releases.map(section)) {
+    const d = r.date ? new Date(`${r.date}T00:00:00Z`) : null;
+    if (d) d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    const key = d ? d.toISOString().slice(0, 10) : '';
+    if (weeks.at(-1)?.key !== key) weeks.push({ key, d, list: [] });
+    weeks.at(-1).list.push(r);
+  }
+  const weekName = (d) => (d ? `Week of ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })}` : 'Earlier');
+  const body = weeks.map((w, i) => {
+    const span = w.list.length > 1 ? `${w.list.at(-1).version} – ${w.list[0].version}` : w.list[0].version;
+    return `<details class="rel-week"${i === 0 ? ' open' : ''}>
+      <summary><b>${esc(weekName(w.d))}</b><span class="muted">${esc(span)}</span></summary>
+      ${w.list.map((r) => r.html).join('\n')}
+    </details>`;
   }).join('\n');
   const latest = releases[0]?.match(/^## \[([^\]]+)\]/)?.[1];
   return page({
@@ -632,11 +649,16 @@ function changelogPage() {
     <header class="doc-head">
       <p class="eyebrow">Changelog</p>
       <h1>What’s new in wisp</h1>
-      <p class="doc-lede">Every release of <code>wisp-agents</code>, newest first. Update with <code>npm install -g wisp-agents@latest</code>, or let the app update itself.</p>
+      <p class="doc-lede">Every release of <code>wisp-agents</code>, a week at a time, newest first. Update with <code>npm install -g wisp-agents@latest</code>, or let the app update itself.</p>
       <p>Three channels: <b>stable</b> (<code>npm install -g wisp-agents</code>), <b>beta</b> (<code>wisp-agents@next</code>, previews like <code>0.38.0-beta.1</code>) and <b>nightly</b> (<code>wisp-agents@nightly</code>, or the apps from the <a href="https://github.com/M0xoo/wisp/releases/tag/nightly">nightly release</a>): a build of <code>main</code> every night its full test suite passes. Pick one in Settings → General → Updates and wisp updates along it.</p>
     </header>
     <article class="prose">${body}</article>
 `,
+    // A link to a release in a closed week opens that week.
+    scripts: `<script>
+    function openRelease() { const el = location.hash && document.getElementById(location.hash.slice(1)); const wk = el && el.closest('details'); if (wk && !wk.open) { wk.open = true; el.scrollIntoView(); } }
+    addEventListener('hashchange', openRelease); openRelease();
+  </script>`,
   });
 }
 

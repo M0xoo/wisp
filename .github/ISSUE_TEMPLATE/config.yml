@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security issue
+    url: https://github.com/M0xoo/wisp/security/advisories/new
+    about: Privately, please. See SECURITY.md.
+  - name: Guides and docs
+    url: https://trywisp.dev/guides/
+    about: How to run agents in parallel, on other machines, from your phone, with spells.

@@ -734,7 +734,7 @@ tmux attach -t agent`)}
       <div class="table"><table>
         <thead><tr><th></th><th>Your own server</th><th>wisp Cloud</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Setup</th><td>A VM, a user, Node, the CLIs, sign-ins, tmux</td><td>Sign in with GitHub, then sign in to Claude Code with a code</td></tr>
+          <tr><th scope="row">Setup</th><td>A VM, a user, Node, the CLIs, sign-ins, tmux</td><td>Sign in with GitHub or Google, then sign in to Claude Code with a code</td></tr>
           <tr><th scope="row">Cost</th><td>The VM every month, plus your Claude plan</td><td>Free during the preview, plus your Claude plan</td></tr>
           <tr><th scope="row">Agents</th><td>The ones you install</td><td>Claude Code, Codex, Cursor, opencode, Grok and Antigravity, installed</td></tr>
           <tr><th scope="row">From the phone</th><td>An SSH app and a terminal</td><td>wisp in the browser or the Android app: cards, reports, a button per question</td></tr>
@@ -764,8 +764,8 @@ tmux attach -t agent`)}
       cloud: true,
       title: 'Run Claude Code and Codex on a server while your laptop sleeps',
       h1: 'Use wisp Cloud',
-      card: 'Your own wisp on a server: sign in with GitHub, close the laptop, read the report on your phone.',
-      description: 'Your own wisp on a server at grid.trywisp.dev: sign in with GitHub, connect Claude Code and Codex with a code, and agents keep working with your laptop closed.',
+      card: 'Your own wisp on a server: sign in with GitHub or Google, close the laptop, read the report on your phone.',
+      description: 'Your own wisp on a server at grid.trywisp.dev: sign in with GitHub or Google, connect Claude Code and Codex with a code, and agents keep working with your laptop closed.',
       lede: 'To keep coding agents working when your laptop is closed, run them on a computer that stays on. <a href="https://grid.trywisp.dev">wisp Cloud</a> gives you one: your own wisp on a server, in a sandbox of its own, that you open from the browser, from wisp on your computer, or from your phone. It’s free in early preview at <a href="https://grid.trywisp.dev">grid.trywisp.dev</a>, a few accounts at a time, and you can run the same thing on your own server.',
       figure: `<figure class="doc-shot doc-diagram" aria-label="Your laptop, phone and browser open your own wisp on grid.trywisp.dev, in a sandbox of its own">
   <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
@@ -781,7 +781,7 @@ tmux attach -t agent`)}
     <path d="M220 53 C 300 53, 330 150, 430 150 M220 150 H 430 M220 247 C 300 247, 330 150, 430 150" class="link"/>
     <path d="M418 142 L432 150 L418 158" class="link"/>
     <rect x="440" y="20" width="500" height="260" rx="22" class="zone"/>
-    <text x="690" y="52" text-anchor="middle" class="sub">grid.trywisp.dev · sign in with GitHub</text>
+    <text x="690" y="52" text-anchor="middle" class="sub">grid.trywisp.dev · sign in with GitHub or Google</text>
     <rect x="540" y="82" width="300" height="164" rx="14" class="box"/>
     <text x="690" y="116" text-anchor="middle" class="name">you.grid.trywisp.dev</text>
     <text x="690" y="148" text-anchor="middle" class="sub">your own sandbox</text>
@@ -917,7 +917,7 @@ tmux attach -t agent`)}
       <ol class="doc-steps">
         <li>Run wisp on it: the desktop app, or <code>npx wisp-agents</code>.</li>
         <li>Open <b>Machines</b> → <i>Reach this computer from anywhere</i>. The address (<code>grid.trywisp.dev</code>, or your own grid) is filled in: press <b>Sign in and add it</b>.</li>
-        <li>A page from the grid opens with a code. Check it matches, sign in with GitHub if asked, and press <b>Allow</b>.</li>
+        <li>A page from the grid opens with a code. Check it matches, sign in with GitHub or Google if asked, and press <b>Allow</b>.</li>
       </ol>
       <p>From a terminal, on a server or a computer you reach over SSH, <code>wisp computer on</code> does the same: it prints the code and the page to open (any browser, even your phone’s), waits for you to allow it, then prints the computer’s address. <code>wisp computer</code> says whether it’s on, <code>wisp computer off</code> takes it off, and <code>--grid wisp.example.com</code> picks your own grid.</p>
       <p>Machines now says <i>This computer · On your grid</i>, online at an address like <code>studio--you.grid.trywisp.dev</code>. <b>Remove from grid</b> takes it off again; wisp on it keeps running either way.</p>

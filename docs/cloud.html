@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>wisp Cloud — agents that keep working when your laptop closes</title>
-  <meta name="description" content="wisp Cloud (free preview): your own wisp on a server. Sign in with GitHub, give Claude Code, Codex or Cursor a task, close the laptop, and read the report on your phone. The local CLI stays free and open source." />
+  <meta name="description" content="wisp Cloud (free preview): your own wisp on a server. Sign in with GitHub or Google, give Claude Code, Codex or Cursor a task, close the laptop, and read the report on your phone. The local CLI stays free and open source." />
   <link rel="canonical" href="https://trywisp.dev/cloud.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="wisp" />
   <meta property="og:url" content="https://trywisp.dev/cloud.html" />
   <meta property="og:title" content="wisp Cloud — close the laptop, the agents keep going" />
-  <meta property="og:description" content="Your own wisp on a server, free during the preview. Sign in with GitHub, hand Claude Code or Codex a task, and read the report on your phone." />
+  <meta property="og:description" content="Your own wisp on a server, free during the preview. Sign in with GitHub or Google, hand Claude Code or Codex a task, and read the report on your phone." />
   <meta property="og:image" content="https://trywisp.dev/assets/og-cloud.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -339,12 +339,12 @@
       <div class="wrap c-grid">
         <div class="hero-head">
           <h1>Close the laptop. <span class="soft">The agents keep going.</span></h1>
-          <p class="lede">wisp Cloud is a free early preview: your own wisp, on a server. Sign in with GitHub, give it a task, close the laptop: Claude Code, Codex and the rest keep working, and the report waits on your phone. Same app from the browser, your desktop or the phone. The wisp you run locally doesn't change and stays free.</p>
+          <p class="lede">wisp Cloud is a free early preview: your own wisp, on a server. Sign in with GitHub or Google, give it a task, close the laptop: Claude Code, Codex and the rest keep working, and the report waits on your phone. Same app from the browser, your desktop or the phone. The wisp you run locally doesn't change and stays free.</p>
         </div>
         <div>
           <div class="go" id="go">
             <a class="go-gh" href="https://grid.trywisp.dev/auth/github/start" data-cloud-cta="hero-github"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Continue with GitHub</a>
-            <a class="go-open" href="https://grid.trywisp.dev" data-cloud-cta="hero-open">grid.trywisp.dev</a>
+            <a class="go-open" href="https://grid.trywisp.dev/auth/google/start" data-cloud-cta="hero-google"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.81Z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.9l-3.88-3.01c-1.07.72-2.45 1.15-4.06 1.15-3.13 0-5.78-2.11-6.72-4.95H1.27v3.11A12 12 0 0 0 12 24Z"/><path fill="#FBBC05" d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58V6.6H1.27a12 12 0 0 0 0 10.8l4.01-3.11Z"/><path fill="#EA4335" d="M12 4.77c1.76 0 3.34.61 4.59 1.8l3.44-3.44A11.97 11.97 0 0 0 12 0 12 12 0 0 0 1.27 6.6l4.01 3.11C6.22 6.88 8.87 4.77 12 4.77Z"/></svg>Google</a>
           </div>
           <p class="seats" id="seats"><i></i><span id="seatsText">Free during the preview. It opens more seats as its server shows room for them.</span></p>
           <form class="wait" id="join" novalidate hidden>
@@ -402,7 +402,7 @@
       </div>
       <div class="today">
         <div><b>Its own sandbox</b><p>Your wisp runs in a gVisor container of its own, with its own folder and network, firewalled from the host and from everyone else.</p></div>
-        <div><b>Sign in with GitHub</b><p>You get your wisp at <code>you.grid.trywisp.dev</code>, and an account page with your devices and how you sign in.</p></div>
+        <div><b>Sign in with GitHub or Google</b><p>You get your wisp at <code>you.grid.trywisp.dev</code>, and an account page with your devices and how you sign in.</p></div>
         <div><b>Your own computers, from anywhere</b><p>In wisp on your desktop, Machines → <i>Reach this computer from anywhere</i>. It holds a tunnel to the grid, so your phone and your other computers open it with no SSH, Tailscale or open port. The phone app lists your cloud wisp and every computer you added.</p></div>
         <div><b>Your agents, your accounts</b><p>Every agent is already installed: Claude Code, Codex, Cursor, Grok, Antigravity, opencode. Sign in from the model picker or Settings → Agents with a link and a code, GitHub too. The logins stay in your box, and the picker only offers what you signed in to.</p></div>
         <div><b>Sleeps, then wakes</b><p>Nothing running and nobody looking: it stops. It wakes in seconds when you open it, send it a task, or a schedule is due.</p></div>
@@ -645,7 +645,7 @@
 
     // ---------- waitlist ----------
     // The grid keeps the list (POST /api/waitlist): when a seat opens it's held for the oldest
-    // email on it, for whoever signs in with GitHub on that address (`wisp grid waitlist` lists
+    // email on it, for whoever signs in with GitHub or Google on that address (`wisp grid waitlist` lists
     // them). PostHog also gets it: the email becomes an identified person and a
     // `cloud_waitlist_joined` event. Find them under People, or filter on that event.
     $('#join').addEventListener('submit', async (e) => {
@@ -654,7 +654,7 @@
       const email = input.value.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { note.textContent = 'That email looks off. Try again?'; input.focus(); return; }
       input.value = '';
-      note.textContent = "You're on the list. When a seat opens it's held for you: sign in with the GitHub account that uses this email.";
+      note.textContent = "You're on the list. When a seat opens it's held for you: sign in with the GitHub or Google account that uses this email.";
       const ph = window.posthog;
       if (ph?.__loaded) {
         ph.identify(email, { email, waitlist: 'cloud' }, { cloud_waitlist_since: new Date().toISOString() });
@@ -662,7 +662,7 @@
       }
       const r = await fetch('https://grid.trywisp.dev/api/waitlist', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) }).catch(() => null);
       const j = r && (await r.json().catch(() => null));
-      if (r?.ok && j?.invited) note.textContent = 'A seat is free and held for you: sign in with the GitHub account that uses this email.';
+      if (r?.ok && j?.invited) note.textContent = 'A seat is free and held for you: sign in with the GitHub or Google account that uses this email.';
       else if (!r?.ok && !ph?.__loaded) {
         // Neither got it (offline, or an ad blocker on both): say so and give the email back.
         input.value = email;
@@ -686,7 +686,7 @@
         if (!s?.max || s.invite || !s.open) return;
         if (s.left > 0) {
           seats.dataset.s = 'open';
-          seatsText.innerHTML = '<b>Open now.</b> Free: sign in with GitHub and your wisp starts in seconds.';
+          seatsText.innerHTML = '<b>Open now.</b> Free: sign in with GitHub or Google and your wisp starts in seconds.';
           return;
         }
         seats.dataset.s = 'full';
