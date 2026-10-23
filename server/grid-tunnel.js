@@ -31,6 +31,8 @@ export function dialTunnel({ url, id, token, port, onState = () => {} }) {
   h2.on('session', (s) => {
     s.setTimeout(IDLE_MS, () => s.destroy());
     s.on('error', () => {});
+    // Online once the grid speaks HTTP/2 on it, not merely once the socket upgraded.
+    s.once('remoteSettings', () => state('online'));
   });
   h2.on('stream', (stream, headers) => {
     const out = {};
@@ -83,10 +85,12 @@ export function dialTunnel({ url, id, token, port, onState = () => {} }) {
       sock.setKeepAlive(true, 25_000);
       sock.setTimeout(0);
       if (head?.length) sock.unshift(head);
+      // Over https the socket is TLS with no ALPN (it was HTTP/1.1 until the upgrade): the HTTP/2
+      // server would call that an unknown protocol and drop it after 10 s. It is HTTP/2 now.
+      if (sock.encrypted) sock.alpnProtocol = 'h2';
       sock.on('close', () => retry('The connection to the grid dropped.'));
       sock.on('error', () => {});
       h2.emit('connection', sock);
-      state('online');
     });
     // Not upgraded: the grid said why. 401/404: this device or computer is gone; don't keep asking.
     req.on('response', (res) => {
