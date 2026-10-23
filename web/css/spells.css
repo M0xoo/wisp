@@ -93,7 +93,7 @@ button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
 .b-spell { padding: 14px 16px; display: grid; gap: 10px; }
 .sp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 15px; }
 .sp-head > .i { width: 17px; height: 17px; color: var(--accent); }
-.sp-ver { font: 500 11.5px var(--mono); color: var(--faint); }
+.sp-ver { font: 500 11.5px var(--mono); color: var(--faint); flex-shrink: 0; }
 .sp-state { margin-left: auto; }
 .sp-on { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; color: var(--good); background: var(--add-bg); }
 .sp-desc { margin: 0; color: var(--ink-2); font-size: 13.5px; }
@@ -119,7 +119,7 @@ button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
 .sp-json { margin: 0; max-height: 360px; overflow: auto; }
 
 /* how risky */
-.sp-kind { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 6px; font: 600 11px var(--sans); letter-spacing: 0.01em; border: 1px solid var(--line); color: var(--muted); background: var(--surface-2); vertical-align: 1px; }
+.sp-kind { display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 6px; font: 600 11px var(--sans); letter-spacing: 0.01em; border: 1px solid var(--line); color: var(--muted); background: var(--surface-2); vertical-align: 1px; white-space: nowrap; flex-shrink: 0; }
 .sp-kind.k-acts { color: var(--info); }
 .sp-kind.k-reads { color: var(--ink-2); }
 .sp-kind.k-runs { color: var(--warn); }
@@ -170,6 +170,8 @@ button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
 .sp-pin { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--faint); }
 .sp-pin .i { width: 13px; height: 13px; color: var(--accent); }
 .sp-castrow .primary, .sp-castrow .ghost { flex: none; }
+/* On a phone the name, version and badge wrap as whole pieces instead of squeezing each other */
+.sp-row .sx-text b { flex-wrap: wrap; row-gap: 4px; }
 .sp-row .sx-text details { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
 .sp-row .sx-text summary { cursor: pointer; width: max-content; }
 .sp-row .sp-lines { margin-top: 6px; }
