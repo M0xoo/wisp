@@ -2,6 +2,7 @@
 // wait, presentation, reply, btw, queue, answer, revert, rollback, exec, takeover, stop, file.
 // Ids of the form <id>@<machine> are passed through to that machine's wisp (proxy.js).
 
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
@@ -19,6 +20,35 @@ import { bad, clip, expand, MODES } from '../util.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const VIDEO_EXT = new Set(['.mp4', '.webm', '.mov', '.m4v']);
+const MEDIA_EXT = new Set([...IMAGE_EXT, ...VIDEO_EXT]);
+const MEDIA_BLOCKS = new Set(['image', 'video']);
+
+// A picture or video the agent pointed at: the file on disk, if it's inside the session's project
+// or the agent named that exact path in a block (screenshots often land in /tmp). `source` is
+// where the agent saved it, when wisp shows a copy (store.keepImages).
+function mediaFile(s, asked) {
+  const dir = workdir(s);
+  let p = path.resolve(dir, asked || '');
+  const media = s.turns.flatMap((t) => (t.presentation?.blocks || []).filter((b) => MEDIA_BLOCKS.has(b?.type)));
+  const at = (v) => typeof v === 'string' && path.resolve(dir, v) === p;
+  let block = media.find((b) => at(b.path || b.src));
+  // A page rendered before keepImages() rewrote the block still asks for the original path.
+  const kept = !block && media.find((b) => at(b.source) && typeof b.path === 'string');
+  if (kept) (block = kept), (p = path.resolve(dir, kept.path));
+  if (!(p.startsWith(dir + path.sep) || block) || !MEDIA_EXT.has(path.extname(p).toLowerCase()) || !fs.existsSync(p)) return null;
+  const source = typeof block?.source === 'string' ? path.resolve(dir, block.source) : null;
+  return { path: p, source: source && fs.existsSync(source) ? source : null };
+}
+
+// Shows a file selected in Finder / Explorer; other systems open its folder.
+function revealInFolder(file) {
+  if (process.env.WISP_NO_OPEN === '1') return; // tests
+  const [cmd, args] = process.platform === 'darwin' ? ['open', ['-R', file]] : process.platform === 'win32' ? ['explorer', [`/select,${file}`]] : ['xdg-open', [path.dirname(file)]];
+  try {
+    spawn(cmd, args, { stdio: 'ignore', detached: true, windowsHide: true }).on('error', () => {}).unref();
+  } catch {}
+}
 
 // A session "needs you" once it stops running: finished, or blocked on ask_user. A finished run
 // with follow-ups still queued is about to start the next one, so it doesn't count yet.
@@ -392,25 +422,46 @@ export function register(r, app) {
     }),
   );
 
-  // Images the agent pointed at (screenshots etc.). Served if inside the session's project,
-  // or if the agent named that exact path in an image block (screenshots often land in /tmp).
+  // Pictures and videos the agent pointed at (see mediaFile). Videos answer Range requests, so
+  // the player can seek (Safari won't play one without them).
   r.route(
     'GET',
     '/sessions/:id/file',
     one((c, s) => {
-      const dir = workdir(s);
-      let p = path.resolve(dir, c.query.get('path') || '');
-      const ext = path.extname(p).toLowerCase();
-      const images = s.turns.flatMap((t) => (t.presentation?.blocks || []).filter((b) => b?.type === 'image'));
-      const at = (v) => typeof v === 'string' && path.resolve(dir, v) === p;
-      const named = images.find((b) => at(b.path || b.src));
-      // A page rendered before keepImages() rewrote the block still asks for the original path.
-      const kept = !named && images.find((b) => at(b.source) && typeof b.path === 'string');
-      if (kept) p = path.resolve(dir, kept.path);
-      if (!(p.startsWith(dir + path.sep) || named || kept) || !IMAGE_EXT.has(ext) || !fs.existsSync(p)) return c.send(404, { error: 'not found' });
-      c.res.writeHead(200, { 'content-type': MIME[ext] });
-      fs.createReadStream(p).pipe(c.res);
+      const f = mediaFile(s, c.query.get('path'));
+      if (!f) return c.send(404, { error: 'not found' });
+      const type = MIME[path.extname(f.path).toLowerCase()] || 'application/octet-stream';
+      const { size } = fs.statSync(f.path);
+      const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.headers.range || '');
+      if (range && (range[1] || range[2])) {
+        const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+        const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+        if (start >= size || start > end) {
+          c.res.writeHead(416, { 'content-range': `bytes */${size}` });
+          return c.res.end();
+        }
+        c.res.writeHead(206, { 'content-type': type, 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${size}`, 'content-length': end - start + 1 });
+        return fs.createReadStream(f.path, { start, end }).pipe(c.res);
+      }
+      c.res.writeHead(200, { 'content-type': type, 'accept-ranges': 'bytes', 'content-length': size });
+      fs.createReadStream(f.path).pipe(c.res);
     }),
     { doc: false },
+  );
+
+  // Show in folder, for a picture or video in a reply: where the agent saved it, or wisp's copy
+  // once that's gone. Only on the computer itself; through a proxy the page copies the path.
+  r.route(
+    'POST',
+    '/sessions/:id/reveal',
+    one(async (c, s) => {
+      const body = await c.body();
+      const f = mediaFile(s, typeof body.path === 'string' ? body.path : '');
+      if (!f) return c.send(404, { error: 'That file is gone.' });
+      const file = f.source || f.path;
+      if (app.proxy?.via(c.req)) return c.send(409, { error: 'The file is on the computer running wisp.', path: file });
+      revealInFolder(file);
+      c.send(200, { ok: true, path: file });
+    }),
   );
 }

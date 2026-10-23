@@ -212,6 +212,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]);
   const proxy = trustedProxy();
   app.publicUrl = proxy.origin;
+  app.proxy = proxy;
 
   const server = http.createServer(async (req, res) => {
     // Agents can run with broad permissions, so only same-origin local pages may talk to us, or a

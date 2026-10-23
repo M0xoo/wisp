@@ -1,10 +1,10 @@
 // Presentation blocks. Each renderer gets (block, ctx) and returns an element.
-// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line), fileUrl(path) }
+// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line), fileUrl(path), reveal(path) }
 
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
-import { load, save } from './core/state.js';
-import { imageButtons, bindImageButtons } from './ui/image.js';
+import { load, MOBILE, save } from './core/state.js';
+import { imageButtons, bindImageButtons, imageName, saveImage } from './ui/image.js';
 import { ask } from './ui/confirm.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
@@ -775,14 +775,47 @@ R.callout = (b) => {
   return el(`<div class="b-callout tone-${tone}"><span class="ic">${icon(ic)}</span><div>${b.title ? `<b>${esc(b.title)}</b>` : ''}<div class="prose">${md(b.text || '')}</div></div></div>`);
 };
 
+// Show in folder, for a file on disk (not a link). The phone can't open a folder: no button there.
+const folderButton = (b, ctx) => (MOBILE || !ctx.reveal || /^https?:/.test(b.src || '') ? '' : `<button class="img-folder" title="Show in folder" aria-label="Show in folder">${icon('folder')}</button>`);
+function bindFolder(node, b, ctx) {
+  const btn = node.querySelector('.img-folder');
+  if (!btn) return;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    // Where the agent saved it: the server shows that, or wisp's copy once it's gone.
+    ctx.reveal(b.source || b.path || b.src);
+  };
+}
+
 R.image = (b, ctx) => {
   const src = /^https?:/.test(b.src || '') ? b.src : ctx.fileUrl(b.path || b.src || '');
-  const node = el(`<figure class="b-image card"><div class="img-box"><img loading="lazy" alt="${esc(b.caption || b.path || '')}"><div class="img-tools">${imageButtons()}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
+  const node = el(`<figure class="b-image card"><div class="img-box"><img loading="lazy" alt="${esc(b.caption || b.path || '')}"><div class="img-tools">${imageButtons()}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
   const img = node.querySelector('img');
   img.src = src;
   bindImageButtons(node, src, b.path || b.caption || '');
+  bindFolder(node, b, ctx);
   img.addEventListener('click', () => ctx.zoom(src, img.alt));
   img.addEventListener('error', () => node.classList.add('broken'));
+  return node;
+};
+
+// A video the agent made or recorded, played in place with the browser's own controls.
+R.video = (b, ctx) => {
+  const src = /^https?:/.test(b.src || '') ? b.src : ctx.fileUrl(b.path || b.src || '');
+  const dl = MOBILE ? '' : `<button class="img-save" title="Download" aria-label="Download">${icon('download')}</button>`;
+  const node = el(`<figure class="b-video card"><div class="img-box"><video controls playsinline preload="metadata"></video><div class="img-tools">${dl}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
+  const video = node.querySelector('video');
+  video.src = src;
+  video.setAttribute('aria-label', b.caption || b.path || 'Video');
+  const btn = node.querySelector('.img-save');
+  if (btn) {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      saveImage(src, imageName(src, b.caption || 'video'));
+    };
+  }
+  bindFolder(node, b, ctx);
+  video.addEventListener('error', () => node.classList.add('broken'));
   return node;
 };
 

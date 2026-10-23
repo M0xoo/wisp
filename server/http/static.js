@@ -34,6 +34,7 @@ export const MIME = {
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.mov': 'video/quicktime',
+  '.m4v': 'video/mp4',
   '.pdf': 'application/pdf',
 };
 const TEXT = new Set(['.html', '.js', '.css', '.svg', '.json', '.md']);

@@ -386,6 +386,23 @@ const EDITORS = {
 // VS Code and its forks open a file on a machine through their Remote - SSH extension.
 const REMOTE_EDITORS = new Set(['vscode', 'cursor', 'windsurf']);
 
+// Show in folder, for a picture or video in a reply. The phone, another machine or a grid can't
+// open a folder here, so the path is copied instead.
+export async function revealFile(s, p) {
+  const copied = (abs, where) => {
+    copy(abs);
+    toast(`Copied path ${esc(abs)}${where ? ` (${esc(where)})` : ''}`);
+  };
+  if (MOBILE) return copied(p);
+  if (s.machine) return copied(p, `on ${s.machine.name}`);
+  try {
+    await api(`/sessions/${s.id}/reveal`, { method: 'POST', body: { path: p } });
+  } catch (e) {
+    if (e.status === 409) return copied(p);
+    toastError(e);
+  }
+}
+
 export function openInEditor(s, p, line) {
   const editor = S.config.defaults.editor || 'vscode';
   const abs = p.startsWith('/') ? p : `${s.cwd}/${p}`.replace(/\/\.$/, '');

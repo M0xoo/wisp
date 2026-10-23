@@ -10,7 +10,7 @@ import { S } from '../core/state.js';
 import { DAY_TIME, fmtDate } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
 import { viewImage } from '../ui/viewer.js';
-import { execAction, moreMenu, openInEditor, rerun, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
+import { execAction, moreMenu, openInEditor, rerun, revealFile, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
 import { expand, fetchFull, renderFeed, scheduleRefetch, setFocus } from './feed.js';
@@ -34,6 +34,7 @@ export function ctxFor(s, turn, isLatest) {
     openFile: (p, line) => openInEditor(s, p, line),
     fileUrl: (p) => `/api/sessions/${s.id}/file?path=${encodeURIComponent(p)}`,
     zoom: (src, alt) => viewImage(src, alt),
+    reveal: (p) => revealFile(s, p),
     revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
     exec: (command, key) => execAction(s.id, turn.id, command, key),
     approve: (allow) => approveBlocked(s, turn, allow),

@@ -19,7 +19,9 @@ const DEFAULT_CONFIG = {
 };
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
+const VIDEO_EXT = new Set(['.mp4', '.webm', '.mov', '.m4v']);
 const MAX_KEPT_IMAGE = 25 * 1024 * 1024;
+const MAX_KEPT_VIDEO = 200 * 1024 * 1024;
 
 // The key for this computer in a project's copies (machine ids are 6 hex characters).
 export const HERE = 'here';
@@ -206,19 +208,21 @@ export class Store {
     fs.rmSync(path.join(this.shots, id), { recursive: true, force: true });
   }
 
-  // Agents save screenshots to /tmp, which macOS clears. Copy every local image a turn shows
-  // into ~/.wisp/shots/<session>/ and point the block at the copy; `source` keeps the original.
+  // Agents save screenshots (and recordings) to /tmp, which macOS clears. Copy every local image
+  // or video a turn shows into ~/.wisp/shots/<session>/ and point the block at the copy; `source`
+  // keeps the original.
   keepImages(session, turn) {
     let changed = false;
     (turn.presentation?.blocks || []).forEach((b, i) => {
-      const rel = b?.type === 'image' && (b.path || b.src);
+      const video = b?.type === 'video';
+      const rel = (b?.type === 'image' || video) && (b.path || b.src);
       if (typeof rel !== 'string' || !rel || /^https?:/.test(rel)) return;
       const src = path.resolve(session.worktree?.cwd || session.cwd || this.home, rel);
       const ext = path.extname(src).toLowerCase();
-      if (!IMAGE_EXT.has(ext) || src.startsWith(this.shots + path.sep)) return;
+      if (!(video ? VIDEO_EXT : IMAGE_EXT).has(ext) || src.startsWith(this.shots + path.sep)) return;
       try {
         const st = fs.statSync(src);
-        if (!st.isFile() || st.size > MAX_KEPT_IMAGE) return;
+        if (!st.isFile() || st.size > (video ? MAX_KEPT_VIDEO : MAX_KEPT_IMAGE)) return;
         const dir = path.join(this.shots, session.id);
         fs.mkdirSync(dir, { recursive: true });
         const dest = path.join(dir, `${turn.id}-${i}${ext}`);
