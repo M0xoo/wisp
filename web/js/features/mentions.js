@@ -9,7 +9,7 @@
 
 import { esc } from '../md.js';
 import { el } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { MOBILE, S } from '../core/state.js';
 import { toast } from '../ui/toast.js';
 import { cleanTitle, decode, encode, pastedTasks, spans } from '../mention-text.js';
 
@@ -119,6 +119,13 @@ document.addEventListener('click', (e) => {
   const a = e.target.closest?.('a.mn[href^="#/s/"]');
   if (!a) return;
   const id = a.getAttribute('href').slice(4);
+  if (S.sessions.has(id) && MOBILE) {
+    // The phone keeps its history for Back (ui/back.js): open it without a new entry.
+    e.preventDefault();
+    if (location.hash === `#/s/${id}`) window.dispatchEvent(new HashChangeEvent('hashchange'));
+    else location.replace(`#/s/${id}`);
+    return;
+  }
   if (S.sessions.has(id)) {
     // the #/s/ route reveals it; the address may already name it (it's open), so no hashchange
     if (location.hash === `#/s/${id}`) window.dispatchEvent(new HashChangeEvent('hashchange'));

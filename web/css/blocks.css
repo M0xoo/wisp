@@ -534,6 +534,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .trail-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; padding: 8px 2px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--faint); }
 .tb { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .tb .i { width: 13px; height: 13px; }
+.tb-l { display: none; } /* the phone names each count (responsive.css) */
 .trail-bar .link { font-size: 12px; }
 /* Activity counts double as the Activity toggle, so the bar carries no separate "Activity" link. */
 .tb-acts { display: inline-flex; align-items: center; gap: 10px; margin: -3px -6px; padding: 3px 6px; border-radius: 6px; color: inherit; transition: color 0.15s, background 0.15s; }

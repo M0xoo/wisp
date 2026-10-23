@@ -108,7 +108,11 @@ public class MainActivity extends BridgeActivity {
         if (task == null || getBridge() == null) return;
         WebView web = getBridge().getWebView();
         String url = web.getUrl();
-        if (url != null && (url.startsWith("http://127.0.0.1:") || Grid.allowed(this, android.net.Uri.parse(url).getHost()))) js("location.hash = " + JSONObject.quote("#/s/" + task));
+        if (url != null && (url.startsWith("http://127.0.0.1:") || Grid.allowed(this, android.net.Uri.parse(url).getHost()))) {
+            // wisp's page opens it without a history entry (window.wispOpen); an older wisp only has the route.
+            String id = JSONObject.quote(task);
+            js("window.wispOpen ? wispOpen(" + id + ") : (location.hash = " + JSONObject.quote("#/s/" + task) + ")");
+        }
     }
 
     private SharedPreferences prefs() {

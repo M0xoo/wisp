@@ -27,6 +27,7 @@ import './features/spells.js';
 
 document.addEventListener('keydown', onKey);
 stage.addEventListener('scroll', onScroll, { passive: true });
+if (MOBILE) onScroll(); // the phone's launcher docks at once (scroll.js)
 $('#toTop').onclick = backToTop;
 
 // Top bar and the feed's Done / Archived toggles.
@@ -66,7 +67,12 @@ setInterval(() => {
 }, 30000);
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');
-if (MOBILE) document.body.classList.add('wisp-mobile');
+if (MOBILE) {
+  document.body.classList.add('wisp-mobile');
+  // Its prompt box waits folded at the bottom until tapped: no keyboard popping up on open.
+  $('#prompt')?.removeAttribute('autofocus');
+  if (document.activeElement?.id === 'prompt') document.activeElement.blur();
+}
 paintGetApp();
 
 // #/s/<id> (notifications, CLI, links, the address bar) opens that task; from then on the address
@@ -78,6 +84,9 @@ function route() {
 }
 
 window.addEventListener('hashchange', route);
+// The phone app opens a tapped notification's task through this (MainActivity): no new history
+// entry, so Back keeps closing what's open (ui/back.js).
+if (MOBILE) window.wispOpen = (id) => reveal(id);
 window.addEventListener('focus', () => {
   loadUpdate();
   for (const id of S.open) if (S.sessions.get(id)?.unread) scheduleRefetch(id);
@@ -117,7 +126,7 @@ function paintSnapshot(snap) {
       renderLauncher();
       bus.emit('agents');
     }
-    if (!snap || !MOBILE) $('#prompt')?.focus({ preventScroll: true }); // it's in view: no layout to scroll it there
+    if (!MOBILE) $('#prompt')?.focus({ preventScroll: true }); // it's in view: no layout to scroll it there (the phone's waits, folded, for a tap)
     await sessions;
     syncing(false);
   } catch {

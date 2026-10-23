@@ -53,8 +53,12 @@ body.wisp-mobile { -webkit-tap-highlight-color: transparent; }
 body.wisp-mobile kbd, body.wisp-mobile .key-hint, body.wisp-mobile .pal-foot { display: none; }
 /* The Computers button (back to the app's list) keeps its label on a phone: it names the computer you're on. */
 body.wisp-mobile .machines-btn span { display: inline; max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-body.wisp-mobile .topbar { gap: 6px; }
-body.wisp-mobile .machines-btn { flex: none; gap: 5px; padding: 0 8px; border-color: var(--line-2); }
+body.wisp-mobile .topbar { gap: 2px; }
+body.wisp-mobile .machines-btn { flex: 0 1 auto; min-width: 44px; gap: 5px; padding: 0 8px; border-color: var(--line-2); }
+/* A narrow phone: the name gives way (ellipsis) before anything spills off the bar. */
+body.wisp-mobile .machines-btn span { min-width: 0; }
+/* …and the project filter keeps room for a whole short label (All 5); projects.js fits the rest. */
+body.wisp-mobile .topbar .projects { min-width: 88px; }
 /* Split view needs a wide window: the phone app always shows the feed, so no layout switchers. */
 body.wisp-mobile .view-btn, body.wisp-mobile .view-group { display: none; }
 /* A follow-up's bar is narrow on a phone: its mode button is just the icon (coloured per mode; the menu names it). */
@@ -73,3 +77,70 @@ body.wisp-mobile .topbar::after { content: ''; position: absolute; left: 0; righ
   background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat; }
 body.wisp-mobile.syncing .topbar::after { opacity: 1; animation: syncing 1.1s ease-in-out infinite; }
 @keyframes syncing { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+
+/* ---------- phone app: reach, size and type ---------- */
+/* Only in the app (body.wisp-mobile): a desktop or a narrow browser window keeps its own layout. */
+/* 44px under every control a thumb aims at. */
+body.wisp-mobile .topbar :is(.icon-btn, .auto-btn, .search-btn) { min-width: 44px; height: 44px; justify-content: center; }
+body.wisp-mobile .topbar .p-chip, body.wisp-mobile .lp-chip { height: 44px; }
+/* The logo is only a mark here: its #/ link would add a history entry Back has to step over. */
+body.wisp-mobile .topbar .brand { pointer-events: none; margin-right: 6px; }
+body.wisp-mobile .launcher :is(.icon-btn, .tog-btn, .mode-btn, .send) { min-width: 44px; height: 44px; }
+body.wisp-mobile .launcher .runners { height: 46px; }
+body.wisp-mobile .launcher .runners .runner-btn { height: 44px; }
+body.wisp-mobile .launcher .vs-btn { width: 44px; }
+body.wisp-mobile .c-bar :is(.icon-btn, .mode-btn, .c-runner, .team-btn, .tog-btn, .send, .c-done, .c-ship) { min-width: 44px; height: 44px; }
+body.wisp-mobile .it-bar .ghost.xs { min-width: 44px; height: 44px; }
+body.wisp-mobile .it-quick { width: 44px; height: 44px; margin: -10px -12px -10px 0; }
+body.wisp-mobile .it-quick-gap { width: 32px; }
+body.wisp-mobile :is(.ask-card, .b-question) .opt { min-height: 44px; }
+body.wisp-mobile .q-own :is(.input, button) { height: 44px; }
+body.wisp-mobile :is(.peek, .stop) { min-height: 44px; display: inline-flex; align-items: center; }
+/* The keys 1, 2… pick an answer on a keyboard; a phone has none. */
+body.wisp-mobile .opt .k { display: none; }
+/* The computer you're on is the one label that says where you are: room for its name. */
+body.wisp-mobile .machines-btn span { max-width: 96px; }
+
+/* A row gives its title the whole width: status, harness, time, done and the chevron go under it. */
+body.wisp-mobile .it-head { grid-template-columns: 10px 1fr; row-gap: 6px; }
+body.wisp-mobile .it-head > .q-dot { align-self: start; margin-top: 8px; }
+body.wisp-mobile .it-head > .it-side { grid-column: 2; flex-wrap: wrap; row-gap: 4px; min-height: 24px; }
+body.wisp-mobile .it-side .q-time { margin-left: auto; }
+body.wisp-mobile .item:not(.open) .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+/* A question's choices, answered from the row (feed.js rowChoices). */
+.it-choices { display: none; }
+body.wisp-mobile .it-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+body.wisp-mobile .it-choices .ghost { height: auto; min-height: 44px; min-width: 72px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: 12px; font-size: 15px; font-weight: 500; color: var(--ink); background: var(--surface); }
+body.wisp-mobile .it-choices .ghost.on { border-color: var(--accent); color: var(--accent-ink); }
+body.wisp-mobile .it-choices.sent { opacity: 0.55; pointer-events: none; }
+
+/* The prompt box sits at the bottom, in reach of a thumb, one line until tapped (scroll.js docks it). */
+/* Phone scrollbars float over the page: no gutter kept for one, the top bar gets the width. */
+body.wisp-mobile .stage { scroll-padding-top: 60px; scrollbar-gutter: auto; }
+body.wisp-mobile .feed-wrap { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+body.wisp-mobile .feed { margin-top: 8px; }
+body.wisp-mobile .launcher.docked { top: auto; bottom: calc(8px + env(safe-area-inset-bottom)); width: calc(100% - 16px); max-height: calc(100% - 72px); animation: none; }
+body.wisp-mobile .launcher.docked:not(:focus-within):not(:has(.open)) { min-height: 56px; padding: 6px 8px 6px 10px; }
+body.wisp-mobile .launcher.docked:not(:focus-within):not(:has(.open)) textarea { height: 40px !important; padding: 9px 4px; font-size: 16px; }
+body.wisp-mobile .stage:has(> .feed-wrap .launcher.docked) .topbar::before { display: none; }
+body.wisp-mobile .stage:has(> .feed-wrap .launcher.docked) .topbar.scrolled { border-bottom-color: var(--line); }
+/* An empty Recipes row is an ad for a feature: not worth a phone's screen. */
+body.wisp-mobile .launcher .l-recipes:has(.lr-empty) { display: none; }
+/* Its buttons keep their names and scroll sideways; Send stays at the end, always in view. */
+body.wisp-mobile .launcher .l-bar { overflow-x: auto; scrollbar-width: none; gap: 4px; }
+body.wisp-mobile .launcher .l-bar::-webkit-scrollbar { display: none; }
+body.wisp-mobile .launcher .l-bar :is(.where-btn span, .mode-btn span, #wtBtn span, .team-btn .tb-label) { display: inline; }
+body.wisp-mobile .launcher .l-bar > .send { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface); }
+
+/* One task open at a time (feed.js), closed with Back or its head: no Collapse button over it.
+   Back to top sits in the corner above the prompt box, not over a card's head. */
+body.wisp-mobile .collapse-all { display: none; }
+body.wisp-mobile .to-top { top: auto; left: auto; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 22px; }
+
+/* Type: a phone reads at arm's length. Titles 15, lines under them 13, small print 12. */
+body.wisp-mobile .it-title { font-size: 15px; }
+body.wisp-mobile :is(.it-sub, .q-live) { font-size: 13px; }
+body.wisp-mobile :is(.q-time, .q-proj, .pill) { font-size: 12px; }
+body.wisp-mobile .f-group h4 { font-size: 13px; }
+body.wisp-mobile .trail-bar { font-size: 13px; }
+body.wisp-mobile .tb-l { display: inline; }

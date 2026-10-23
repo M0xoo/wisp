@@ -95,6 +95,7 @@ export const PARTS = {
   'card.project': '#feed .it-side .q-proj',
   'card.time': '#feed .it-side .q-time',
   'card.quickDone': '#feed .it-quick',
+  'card.choices': '#feed .it-choices',
   'card.body': '#feed .it-body',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',

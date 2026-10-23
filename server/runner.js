@@ -140,6 +140,7 @@ export function summarize(s, store) {
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
+    options: s.ask?.options?.length ? s.ask.options : undefined, // its choices, answered from the row on a phone
     approval: !!s.ask?.permission, // the question is a live approval (Allow / Deny)
     branch: s.worktree?.branch || '',
     // The task's other folders: their project, worktree branch and PR, for the card and the filter.

@@ -18,6 +18,8 @@ import { prOf, prPill, shipPill } from './ship.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
+import { onBack } from '../ui/back.js';
+import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
 import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
@@ -200,6 +202,8 @@ function item(s) {
     n.head.addEventListener('click', (e) => {
       if (s.pending || n.head.querySelector('[contenteditable="true"]')) return;
       if (e.target.closest('[data-a="quick-done"]')) return toggleDone(s.id);
+      const choice = e.target.closest('[data-choice]');
+      if (choice) return answerInRow(s.id, choice);
       // Split view: a click opens the task beside the list (clicking it again leaves it open) and
       // the list stays where it is: the task shows in the main pane, there's nothing to scroll to.
       setFocus(s.id, { scroll: !isSplit() });
@@ -256,6 +260,7 @@ function renderHead(n, s) {
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
       ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
+      ${rowChoices(s, open)}
     </span>
     <span class="it-side">
       ${headPills(s, pill)}
@@ -272,6 +277,30 @@ function paintHtml(node, html) {
   if (node.dataset.h === html) return;
   node.dataset.h = html;
   node.innerHTML = html;
+}
+
+// The phone answers a question from the row: its choices as buttons under the question, so a Yes
+// is one tap from the feed (or from the notification that opened it). The open card has the full form.
+function rowChoices(s, open) {
+  if (!MOBILE || open || s.state !== 'waiting' || !s.options?.length) return '';
+  return `<span class="it-choices">${s.options.map((o, i) => `<button class="ghost sm" data-choice="${i}" type="button">${esc(o)}</button>`).join('')}</span>`;
+}
+
+// At once: the choices go quiet and the row says it's answered; back as they were if the server refuses.
+async function answerInRow(id, b) {
+  const s = S.sessions.get(id);
+  const text = s?.options?.[b.dataset.choice];
+  const box = b.closest('.it-choices');
+  if (!text || box.classList.contains('sent')) return;
+  box.classList.add('sent');
+  b.classList.add('on');
+  try {
+    await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } });
+  } catch (err) {
+    box.classList.remove('sent');
+    b.classList.remove('on');
+    toastError(err);
+  }
 }
 
 // One-click done on review rows. A sidebar row keeps it while open, and rows without one keep its
@@ -411,8 +440,9 @@ export function toggle(id) {
 export async function expand(id, { scroll = true } = {}) {
   const n = S.nodes.get(id);
   if (!n) return;
-  // Split view shows one task at a time.
-  if (isSplit()) for (const o of [...S.open]) if (o !== id) collapse(o);
+  // Split view shows one task at a time, and so does the phone, where Back closes it.
+  if (isSplit() || MOBILE) for (const o of [...S.open]) if (o !== id) collapse(o);
+  if (MOBILE && !backs.has(id)) backs.set(id, onBack(() => collapse(id)));
   S.open.add(id);
   saveOpen();
   n.card.classList.add('open');
@@ -472,7 +502,12 @@ function prefetchAround(id) {
   });
 }
 
+// The phone: the history entry each open task holds, so Back closes it (ui/back.js).
+const backs = new Map();
+
 export function collapse(id) {
+  backs.get(id)?.();
+  backs.delete(id);
   const n = S.nodes.get(id);
   S.open.delete(id);
   saveOpen();
@@ -505,8 +540,8 @@ export function syncUrl({ start = false } = {}) {
   const id = MOBILE ? null : isSplit() ? splitOpen() : [...S.open].at(-1);
   const h = location.hash;
   if (id) {
-    if (h !== `#/s/${id}`) history.replaceState(null, '', `#/s/${id}`);
-  } else if (h.startsWith('#/s/')) history.replaceState(null, '', location.pathname + location.search);
+    if (h !== `#/s/${id}`) history.replaceState(history.state, '', `#/s/${id}`);
+  } else if (h.startsWith('#/s/')) history.replaceState(history.state, '', location.pathname + location.search); // the phone's Back entries keep their state
 }
 
 export async function fetchFull(id) {

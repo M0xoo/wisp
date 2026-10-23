@@ -476,3 +476,8 @@ test('interactive answers: the apps setting, the block.app parts, and app is a b
   const own = problems({ ...base0, blocks: [{ type: 'app', doc: 'x', render: 'r' }], script: 'export function r() { return []; }' });
   assert.ok(own.some((x) => /app is a built-in block/.test(x)), own.join('\n'));
 });
+
+test("a question's choices in a phone's card row are a part spells can restyle or hide", () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.choices'] }, parts: { 'card.choices': { style: { gap: '4px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'card.choices': { props: { lines: 2 } } } }).some((x) => /card\.choices/.test(x)));
+});

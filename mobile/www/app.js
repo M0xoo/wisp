@@ -57,8 +57,11 @@ const machine = (id) => machines.find((m) => m.id === id);
 const keyOf = (m) => (m?.kind === 'grid' ? null : keys.find((k) => k.id === m?.keyId) || keys[0]);
 const isGrid = (m) => m?.kind === 'grid';
 const nameOf = (m) => m.name || (isGrid(m) ? m.handle : parseTarget(m.target).host);
-// The one at the top of the list: the last one used.
-const main = () => [...machines].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0))[0];
+// The list's order: the last one used first, as it was when the screen opened. A tap doesn't
+// reorder it (the row would jump away from under the finger); one added since goes on top.
+let order = [];
+const sortOrder = () => (order = [...machines].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map((m) => m.id));
+const inOrder = () => [...machines.filter((m) => !order.includes(m.id)).reverse(), ...order.map(machine).filter(Boolean)];
 const TAILSCALE_GUIDE = 'https://trywisp.dev/guides/connect-machines-with-tailscale.html';
 
 // `you@host` or `you@host:2222`.
@@ -70,14 +73,25 @@ function parseTarget(t) {
   return { user: at > 0 ? s.slice(0, at) : '', host: m[1], port: m[2] ? Number(m[2]) : null };
 }
 
-function toast(text, { stay = false } = {}) {
+// action: [label, fn], a button on the toast (Undo), which then stays a little longer.
+function toast(text, { stay = false, action = null } = {}) {
   const t = $('#toast');
-  // Above an open sheet (dialogs sit in the top layer), or on the page.
-  (document.querySelector('dialog[open]') || document.body).append(t);
+  // Above an open sheet (dialogs sit in the top layer), or on the page; not in one sliding away.
+  (document.querySelector('dialog[open]:not(.closing)') || document.body).append(t);
   t.textContent = text;
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = action[0];
+    b.onclick = () => {
+      t.hidden = true;
+      action[1]();
+    };
+    t.append(b);
+  }
   t.hidden = false;
   clearTimeout(toast.timer);
-  if (!stay) toast.timer = setTimeout(() => (t.hidden = true), 2400);
+  if (!stay) toast.timer = setTimeout(() => (t.hidden = true), action ? 5000 : 2400);
 }
 
 async function copy(text, what) {
@@ -178,8 +192,12 @@ function runHtml() {
 
 // First run: what this is and the three steps. After that: your computers.
 function paintIntro() {
+  // Until you've opened one, what this is; then just the list. The tip stays while the cloud has
+  // none of your own computers yet.
+  const fresh = !machines.some((m) => m.seen || m.opened);
+  const lonely = machines.some((m) => isGrid(m) && !m.signedOut && !m.computers?.length);
   $('#intro').innerHTML = machines.length
-    ? `<h1>Your computers</h1><p>Tap one to open its wisp. Your agents keep running there when the phone sleeps. <b>Computers</b> in wisp’s top bar brings you back here.</p>${machines.some(isGrid) ? `<p class="tip">${icon('laptop')}<span>To add a computer: in wisp on it, <b>Machines</b> → <b>Add to grid</b>, signed in as you. It shows up here.</span></p>` : ''}`
+    ? `<h1>Your computers</h1>${fresh ? `<p>Tap one to open its wisp. Your agents keep running there when the phone sleeps. <b>Computers</b> in wisp’s top bar brings you back here.</p>` : ''}${lonely ? `<p class="tip">${icon('laptop')}<span>Add your own computer: in wisp on it, <b>Machines</b> → <b>Reach this computer from anywhere</b> → <b>Add to grid</b>. It shows up here.</span></p>` : ''}`
     : `<h1>wisp, on your phone</h1>
       <p>Start tasks and answer your agents from anywhere. They keep going when the phone sleeps.</p>
       <form class="card cloud-first" id="cloudFirst" autocomplete="off">
@@ -187,15 +205,17 @@ function paintIntro() {
         <p>Your own wisp on a server, signed in with GitHub or Google, and every computer you added to it from wisp on your desktop. Your agents keep working while they sleep.</p>
         <div class="cf-row"><input id="cfUrl" value="${esc(localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" aria-label="Grid"><button class="primary" type="submit">Sign in</button></div>
       </form>
-      <p class="or"><span>Your own computers, through the grid</span></p>
+      <p class="or"><span>Your own computers, through wisp Cloud</span></p>
       <ol class="how">
         <li><span class="n">1</span><div><b>Open wisp on your computer</b><span>The desktop app, or <code>npx wisp-agents</code>.</span></div></li>
-        <li><span class="n">2</span><div><b>Machines → Reach this computer from anywhere</b><span>Sign in with the same account. No SSH, no Tailscale, no open ports.</span></div></li>
+        <li><span class="n">2</span><div><b>Machines → Reach this computer from anywhere → Add to grid</b><span>Sign in with the same account. No SSH, no Tailscale, no open ports.</span></div></li>
         <li><span class="n">3</span><div><b>Sign in above</b><span>Your cloud wisp and every computer you added show up here. Tap one to open it.</span></div></li>
       </ol>`;
   // First run: wisp Cloud is the card at the top, so its button below would say it twice.
   // Signed in: your computers come from there, so no second sign-in button.
   $('#addCloud').hidden = !machines.length || machines.some(isGrid);
+  // Signed in, SSH is one more way, not the way "instead" of something.
+  $('#sshBox > summary span').firstChild.textContent = machines.some(isGrid) ? 'Connect over SSH ' : 'Connect over SSH instead ';
   const cf = $('#cloudFirst');
   if (cf)
     cf.onsubmit = (e) => {
@@ -211,43 +231,48 @@ function paintMachines() {
     box.innerHTML = '';
     return;
   }
-  const first = main();
-  box.innerHTML = [first, ...machines.filter((m) => m !== first)]
+  // The whole row opens it (data-row: what a tap does); its settings are behind ⋯. "Open" is quiet:
+  // the solid button is kept for the one row that needs a step from you (Connect, Try again).
+  const opening_ = `<button class="ghost m-go" disabled type="button"><span class="spin"></span>Opening</button>`;
+  const openBtn = `<button class="ghost m-go go" data-a="open" type="button">Open ${icon('arrow')}</button>`;
+  const more = (m) => `<button class="icon m-more" data-a="edit" type="button" aria-label="${esc(`${nameOf(m)}: settings`)}">${icon('dots')}</button>`;
+  box.innerHTML = inOrder()
     .map((m) => {
       const on = live.id === m.id && live.state !== 'idle';
       const state = on ? live.state : 'idle';
       if (isGrid(m)) {
-        const go = opening === m.id ? `<button class="primary m-go" disabled type="button"><span class="spin"></span>Opening</button>` : `<button class="primary m-go" data-a="open" type="button">Open ${icon('arrow')}</button>`;
+        const go = opening === m.id ? opening_ : m.signedOut ? `<button class="primary m-go" data-a="edit" type="button">Sign in</button>` : openBtn;
         // Its computers: open when online, the button greyed (same width) when not.
         const comps = m.signedOut
           ? ''
           : (m.computers || [])
               .map((c) => {
                 const key = `${m.id}:${c.id}`;
-                const cgo = opening === key ? `<button class="primary m-go" disabled type="button"><span class="spin"></span>Opening</button>` : c.online ? `<button class="primary m-go" data-a="open" type="button">Open ${icon('arrow')}</button>` : `<button class="ghost m-go" disabled type="button">Offline</button>`;
-                return `<article class="card m comp ${c.online ? 'ready' : ''}" data-id="${esc(m.id)}" data-c="${esc(c.id)}">
+                const cgo = opening === key ? opening_ : c.online ? openBtn : `<button class="ghost m-go" disabled type="button">Offline</button>`;
+                return `<article class="card m comp ${c.online ? 'ready' : 'off'}" data-id="${esc(m.id)}" data-c="${esc(c.id)}" ${c.online ? 'data-row="open"' : ''}>
           <div class="m-row">
             <span class="m-ico">${icon('laptop')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(c.name)}</span><span class="m-sub"><span class="kind grid">Your computer · via grid</span></span></div>
-            ${cgo}
+            <div class="m-text"><span class="m-name">${esc(c.name)}</span><span class="m-sub"><span class="kind grid">Your computer</span>${c.online ? 'online' : 'offline'}</span></div>
+            ${cgo}<span class="m-more-gap"></span>
           </div>
         </article>`;
               })
               .join('');
-        return `<article class="card m cloud" data-id="${esc(m.id)}">
+        return `<article class="card m cloud ${m.signedOut ? 'failed' : 'ready'}" data-id="${esc(m.id)}" data-row="${m.signedOut ? 'edit' : 'open'}">
           <div class="m-row">
             <span class="m-ico">${icon('cloud')}<span class="st"></span></span>
-            <button class="m-text" data-a="edit" type="button"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub">${m.signedOut ? 'Signed out: tap to sign in again' : `<span class="kind cloud">Cloud · on grid</span>${esc(hostOf(m.grid))}`}</span></button>
-            ${go}
+            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub">${m.signedOut ? 'Signed out' : `<span class="kind cloud">Cloud</span>${esc(hostOf(m.grid))}`}</span></div>
+            ${go}${more(m)}
           </div>
         </article>${comps}`;
       }
-      const go = opening === m.id ? `<button class="primary m-go" disabled type="button"><span class="spin"></span>Opening</button>` : state === 'ready' ? `<button class="primary m-go" data-a="open" type="button">Open ${icon('arrow')}</button>` : state === 'connecting' ? `<button class="ghost m-go" disabled type="button">Connecting…</button>` : `<button class="ghost m-go" data-a="connect" type="button">${state === 'failed' ? 'Try again' : 'Connect'}</button>`;
-      return `<article class="card m ${state}" data-id="${esc(m.id)}">
+      const go = opening === m.id ? opening_ : state === 'ready' ? openBtn : state === 'connecting' ? `<button class="ghost m-go" disabled type="button">Connecting…</button>` : `<button class="primary m-go" data-a="connect" type="button">${state === 'failed' ? 'Try again' : 'Connect'}</button>`;
+      const row = state === 'ready' ? 'open' : state === 'connecting' ? '' : 'connect';
+      return `<article class="card m ${state}" data-id="${esc(m.id)}" ${row ? `data-row="${row}"` : ''}>
           <div class="m-row">
             <span class="m-ico">${icon('server')}<span class="st"></span></span>
-            <button class="m-text" data-a="edit" type="button"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub"><span class="kind">Over SSH</span>${esc(m.target)}</span></button>
-            ${go}
+            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub"><span class="kind">Over SSH</span>${esc(m.target)}</span></div>
+            ${go}${more(m)}
           </div>
           ${on ? runHtml() : ''}
         </article>`;
@@ -289,6 +314,7 @@ function paintBack() {
 // Back here from wisp's page (Back): the page may come from the back/forward cache, with
 // the Opening button still showing.
 addEventListener('pageshow', () => {
+  sortOrder(); // back on the list: the one just used goes first
   if (opening) {
     opening = '';
     paintMachines();
@@ -303,11 +329,10 @@ const openWisp = (m) => {
   // The tap shows at once. Once its wisp has opened here, its page and the tasks seen last are
   // cached on the phone (web/sw.js, web/js/features/cache.js): from then on it opens at once.
   opening = m.id;
+  m.opened = true; // the first-run explanation goes (paintIntro)
+  if (!m.seen && live.id === m.id && live.state === 'ready') m.seen = true;
+  save();
   paintMachines();
-  if (!m.seen && live.id === m.id && live.state === 'ready') {
-    m.seen = true;
-    save();
-  }
   // ?m=: wisp's page names "here" after this computer (web/js/core/state.js HUB).
   location.href = `http://127.0.0.1:${m.port || 4477}/?m=${encodeURIComponent(nameOf(m))}`;
 };
@@ -411,6 +436,7 @@ async function openGrid(m, cid = '') {
   const c = cid ? m.computers?.find((x) => x.id === cid) : null;
   opening = c ? `${m.id}:${c.id}` : m.id;
   m.lastUsed = Date.now();
+  m.opened = true;
   save();
   paintMachines();
   try {
@@ -685,11 +711,21 @@ function editMachine(m, { focusPassword = false } = {}) {
   };
   $('#mDelete').onclick = () => {
     if (live.id === m.id) disconnect();
+    const at = machines.indexOf(m);
     machines = machines.filter((x) => x.id !== m.id);
     save();
     paint();
     close();
-    toast(`Removed ${nameOf(m)}`);
+    toast(`Removed ${nameOf(m)}`, {
+      action: [
+        'Undo',
+        () => {
+          machines.splice(at, 0, m);
+          save();
+          paint();
+        },
+      ],
+    });
   };
 }
 
@@ -806,10 +842,13 @@ async function boot() {
 }
 
 function wire() {
+  sortOrder();
   paint();
   $('#machines').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-a]');
-    const m = machine(e.target.closest('[data-id]')?.dataset.id);
+    // A tap on the row itself (not one of its buttons, nor the steps under it) does what its button does.
+    const card = e.target.closest('[data-id]');
+    const b = e.target.closest('[data-a]') || (e.target.closest('.m-row') && !e.target.closest('button') && card?.dataset.row ? { dataset: { a: card.dataset.row } } : null);
+    const m = machine(card?.dataset.id);
     if (!b || !m) return;
     const a = b.dataset.a;
     if (isGrid(m)) {
