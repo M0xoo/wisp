@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - **No more "N seats left".** The grid's sign-in page, trywisp.dev and the Cloud page no longer count seats. They say the preview is open, or that it's full and take your email.
+- **wisp Grid: GitHub and Google sign-in side by side.** When a grid offers exactly two ways in, the buttons share one row instead of stacking, so adding Google doesn't push the page down; on phones they read just *GitHub* and *Google*.
 
 ## [0.36.0] - 2026-10-23
 

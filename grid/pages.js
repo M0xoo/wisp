@@ -68,7 +68,9 @@ h1.big{font-size:clamp(40px,5.4vw,64px);line-height:1.02;font-weight:700}h1.big 
 .join .btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:52px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:550 15.5px var(--sans);text-decoration:none;cursor:pointer;transition:border-color .15s,transform .15s}
 .join .btn:hover{border-color:var(--faint);transform:translateY(-1px)}.join .btn svg,.join .btn img{width:19px;height:19px}
 .join .btn.first{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.join .btn+.btn{margin-top:10px}
+.join .btn+.btn,.join .btn+.ways{margin-top:10px}
+.join .ways{display:grid;grid-template-columns:1fr 1fr;gap:10px}.join .ways .btn{gap:8px;white-space:nowrap}.join .ways .btn+.btn{margin-top:0}
+@media (max-width:480px){.join .ways .cw{display:none}}
 .join .fine{margin-top:12px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px}.join .fine span{display:inline-flex;align-items:center;gap:5px}.join .fine svg{width:14px;height:14px;color:var(--good)}
 .join .full{margin:0 0 14px;font-size:14.5px;color:var(--ink-2)}.join .full b{color:var(--ink)}.final .join .full{text-align:center}
 .err{margin:0 0 14px;padding:11px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--bad) 35%,var(--line));color:var(--bad);font-size:14px;background:color-mix(in srgb,var(--bad) 6%,transparent)}
@@ -160,7 +162,10 @@ function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = f
   const wl = full && !waitlisted && waitlist(cfg);
   const list = [...providers.values()].sort((a, b) => (a.id === 'github' ? -1 : b.id === 'github' ? 1 : a.id === 'dev' ? 1 : 0));
   // Full: new people get the waitlist first; the few with an account still sign in below it.
-  const buttons = list.map((p, i) => `<a class="btn${i === 0 && !wl ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}Continue with ${esc(p.label)}</a>`).join('');
+  // Two ways in share one row, so adding Google doesn't push the page down; "Continue with" drops on phones.
+  const pair = list.length === 2;
+  let buttons = list.map((p, i) => `<a class="btn${i === 0 && !wl ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}${pair ? `<span><span class="cw">Continue with </span>${esc(p.label)}</span>` : `Continue with ${esc(p.label)}`}</a>`).join('');
+  if (pair) buttons = `<div class="ways">${buttons}</div>`;
   const invite = seats.invite || seats.open === false;
   const fullNote = waitlisted
     ? `<b>All seats are taken, so you’re on the waitlist.</b> Seats open as the grid grows, oldest on the list first; yours is held for you then. Sign in again to check.`

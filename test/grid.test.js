@@ -627,6 +627,20 @@ test('the hosted grid, once full, sends new people to the waitlist first and sti
   assert.doesNotMatch(invite, /seats left/);
 });
 
+test('GitHub and Google share one row of sign-in buttons, GitHub first', async () => {
+  const { signInPage } = await import('../grid/pages.js');
+  const cfg = { name: 'wisp Grid', domain: 'grid.trywisp.dev', publicUrl: 'https://grid.trywisp.dev' };
+  const both = new Map([['google', { id: 'google', label: 'Google' }], ['github', { id: 'github', label: 'GitHub' }]]);
+  const html = signInPage({ cfg, providers: both, seats: { open: true, max: 5, left: 3 } });
+  const row = html.match(/<div class="ways">(.*?)<\/div>/)?.[1] || '';
+  assert.match(row, /^<a class="btn first" href="\/auth\/github\/start">.*<a class="btn" href="\/auth\/google\/start">/);
+  assert.match(row, /<span class="cw">Continue with <\/span>Google/);
+  // One way in keeps its single full-width button.
+  const one = signInPage({ cfg, providers: new Map([['github', both.get('github')]]) });
+  assert.doesNotMatch(one, /class="ways"/);
+  assert.match(one, /Continue with GitHub<\/a>/);
+});
+
 test('the sign-in funnel: only the hosted grid loads PostHog on its page and ties the GitHub steps to that visitor', async () => {
   const { signInPage } = await import('../grid/pages.js');
   const { createGridTelemetry } = await import('../grid/telemetry.js');
