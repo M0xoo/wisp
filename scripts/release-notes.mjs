@@ -2,11 +2,15 @@
 // The GitHub release body for a version: its CHANGELOG.md section, then how to get it.
 //   node scripts/release-notes.mjs 0.37.0 > notes.md
 // Exits 1 when CHANGELOG.md has no section for that version, so a bump without notes doesn't ship.
+// A nightly (the rolling `nightly` release) gets what's under Unreleased, and the commit it built:
+//   node scripts/release-notes.mjs --nightly 0.37.1-nightly.20261024.317 <sha> > notes.md
 
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const DL = 'https://github.com/M0xoo/wisp/releases/latest/download';
+const REPO = 'https://github.com/M0xoo/wisp';
+const DL = `${REPO}/releases/latest/download`;
+const NIGHTLY = `${REPO}/releases/download/nightly`;
 
 // The lines under `## [version]`, up to the next `## [`. CRLF in, LF out (Windows checkouts).
 export function section(changelog, version) {
@@ -22,22 +26,43 @@ export function notes(changelog, version) {
   if (!body) return null;
   return `${body}
 
-## Get wisp ${version}
-
-| | |
-|---|---|
-| **macOS** (Apple silicon) | [wisp-mac-arm64.dmg](${DL}/wisp-mac-arm64.dmg) |
-| **macOS** (Intel) | [wisp-mac-x64.dmg](${DL}/wisp-mac-x64.dmg) |
-| **Windows** | [wisp-windows-x64-setup.exe](${DL}/wisp-windows-x64-setup.exe) · [Arm](${DL}/wisp-windows-arm64-setup.exe) |
-| **Linux** | [AppImage](${DL}/wisp-linux-x64.AppImage) · [.deb](${DL}/wisp-linux-x64.deb) · Arm: [AppImage](${DL}/wisp-linux-arm64.AppImage), [.deb](${DL}/wisp-linux-arm64.deb) |
-| **npm** (Node 20+) | \`npx wisp-agents@${version}\` or \`npm install -g wisp-agents\` |
-| **Homebrew** | \`brew install m0xoo/tap/wisp-agents\` |
+${table(version, DL, `\`npx wisp-agents@${version}\` or \`npm install -g wisp-agents\``)}| **Homebrew** | \`brew install m0xoo/tap/wisp-agents\` |
 
 The desktop app updates itself from these releases. Checksums are in \`SHA256SUMS.txt\`.
 `;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Nightlies are untested beyond CI: say so, say what's in them, and link the rolling downloads.
+export function nightlyNotes(changelog, version, sha) {
+  const body = section(changelog, 'Unreleased') || 'Nothing new under Unreleased in CHANGELOG.md yet.';
+  return `A build of \`main\` at [${String(sha).slice(0, 7)}](${REPO}/commit/${sha}), made every night once the full test suite passes there. It may break: for everyday use, take the [latest release](${REPO}/releases/latest).
+
+## Since the last release
+
+${body}
+
+${table(version, NIGHTLY, `\`npx wisp-agents@nightly\` or \`npm install -g wisp-agents@nightly\``)}
+To keep getting these, set **Settings → General → Updates** to *Nightly*. Checksums are in \`SHA256SUMS.txt\`.
+`;
+}
+
+function table(version, dl, npm) {
+  return `## Get wisp ${version}
+
+| | |
+|---|---|
+| **macOS** (Apple silicon) | [wisp-mac-arm64.dmg](${dl}/wisp-mac-arm64.dmg) |
+| **macOS** (Intel) | [wisp-mac-x64.dmg](${dl}/wisp-mac-x64.dmg) |
+| **Windows** | [wisp-windows-x64-setup.exe](${dl}/wisp-windows-x64-setup.exe) · [Arm](${dl}/wisp-windows-arm64-setup.exe) |
+| **Linux** | [AppImage](${dl}/wisp-linux-x64.AppImage) · [.deb](${dl}/wisp-linux-x64.deb) · Arm: [AppImage](${dl}/wisp-linux-arm64.AppImage), [.deb](${dl}/wisp-linux-arm64.deb) |
+| **npm** (Node 20+) | ${npm} |
+`;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === '--nightly') {
+  const changelog = fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
+  process.stdout.write(nightlyNotes(changelog, process.argv[3], process.argv[4] || 'main'));
+} else if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const version = String(process.argv[2] || '').replace(/^v/, '');
   const changelog = fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
   const out = version && notes(changelog, version);

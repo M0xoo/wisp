@@ -121,6 +121,12 @@ through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`, `feedAnchor`, 
   have and builds the desktop app (`packaging/desktop/electron-builder.yml`), drafts the GitHub
   release from that version's CHANGELOG section (`scripts/release-notes.mjs`, so the bump needs a
   `## [x.y.z] - date` section), publishes to npm, publishes the release, then bumps the Homebrew tap
-  from `packaging/homebrew/wisp-agents.rb`. Nobody runs `npm publish` by hand. Download names carry
+  from `packaging/homebrew/wisp-agents.rb`. Nobody runs `npm publish` by hand, and no one approves
+  the run: the `npm` environment only deploys from `main`, so merging is the gate. A version with a
+  `-` (`0.38.0-beta.1`) is a beta: npm `next`, a GitHub prerelease, no Homebrew. Nightlies come
+  from the same workflow (npm allows one trusted publisher per package): when `nightly.yml` passes
+  on main and main moved, it publishes `<next patch>-nightly.<yyyymmdd>.<hhmm>` to npm `nightly`
+  and moves the rolling `nightly` prerelease to it. The updater follows the `updateChannel`
+  setting (`server/update.js`, `CHANNELS`). Download names carry
   no version (`wisp-mac-arm64.dmg`): the site, README and the app's updater (`server/update.js`,
   method `app`) link `releases/latest/download/<name>`, so don't rename them.

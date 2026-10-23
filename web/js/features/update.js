@@ -11,6 +11,7 @@ import { ask } from '../ui/confirm.js';
 // The server polls npm; when a newer wisp-agents is out, a pill appears next to Search.
 let update = null;
 export const loadUpdate = () => api('/update').then(renderUpdate).catch(() => {});
+export const updateState = () => update;
 export function renderUpdate(u) {
   update = u;
   const b = $('#updateBtn');

@@ -7,14 +7,56 @@ import path from 'node:path';
 import { newer, installMethod, Updater } from '../server/update.js';
 import { tmp } from './helpers.js';
 
-test('newer compares major.minor.patch numerically and ignores prerelease tags', () => {
+test('newer compares major.minor.patch numerically', () => {
   assert.equal(newer('0.7.0', '0.6.0'), true);
   assert.equal(newer('0.10.0', '0.9.9'), true);
   assert.equal(newer('1.0.0', '0.99.99'), true);
   assert.equal(newer('0.6.0', '0.6.0'), false);
   assert.equal(newer('0.5.9', '0.6.0'), false);
   assert.equal(newer('v0.6.1', '0.6.0'), true);
-  assert.equal(newer('0.6.0-beta.1', '0.6.0'), false);
+});
+
+test('newer orders prereleases the semver way: before their release, after the one before', () => {
+  const order = ['0.37.0', '0.38.0-beta.1', '0.38.0-beta.2', '0.38.0-beta.10', '0.38.0-nightly.20261024.317', '0.38.0-nightly.20261024.1200', '0.38.0-nightly.20261025.317', '0.38.0', '0.38.1-nightly.20261026.317'];
+  for (let i = 0; i < order.length; i++) {
+    for (let j = 0; j < order.length; j++) assert.equal(newer(order[i], order[j]), i > j, `${order[i]} vs ${order[j]}`);
+  }
+  assert.equal(newer('1.0.0-alpha.1', '1.0.0-alpha'), true); // more identifiers sort later
+  assert.equal(newer('1.0.0-alpha.beta', '1.0.0-alpha.1'), true); // words after numbers
+  assert.equal(newer('1.0.0+build.2', '1.0.0+build.1'), false); // build metadata doesn't count
+  assert.equal(newer(null, '0.1.0'), false);
+});
+
+const tags = (t) => async () => ({ ok: true, json: async () => t });
+
+test('npm installs follow the dist-tags of their channel, and the newest of them wins', async () => {
+  const dist = { latest: '0.37.0', next: '0.38.0-beta.1', nightly: '0.38.0-nightly.20261024.317' };
+  const cases = [
+    ['stable', '0.37.0', 'latest'],
+    ['beta', '0.38.0-beta.1', 'next'],
+    ['nightly', '0.38.0-nightly.20261024.317', 'nightly'],
+    ['bogus', '0.37.0', 'latest'], // unknown: stable
+  ];
+  for (const [channel, latest, tag] of cases) {
+    const u = new Updater({ port: 1, env: {}, root: tmp('upd-global'), fetch: tags(dist), channel: () => channel });
+    const v = await u.check();
+    assert.equal(v.latest, latest, channel);
+    assert.equal(v.channel, channel === 'bogus' ? 'stable' : channel);
+    assert.equal(v.command, `npm install -g wisp-agents@${tag}`);
+  }
+  // A stable release newer than the last beta: beta takes it, from latest.
+  const u = new Updater({ port: 1, env: {}, root: tmp('upd-global'), fetch: tags({ latest: '0.38.0', next: '0.38.0-beta.3' }), channel: () => 'beta' });
+  assert.equal((await u.check()).latest, '0.38.0');
+  assert.equal(u.command(), 'npm install -g wisp-agents@latest');
+  u.method = 'npx';
+  assert.match(u.relaunchCommand(false), /^npx -y wisp-agents@latest /);
+});
+
+test('Homebrew stays on stable whatever the channel says', async () => {
+  const u = new Updater({ port: 1, env: {}, root: KEG('/opt/homebrew'), fetch: tags({ latest: '0.37.0', nightly: '99.0.0-nightly.1' }), channel: () => 'nightly' });
+  const v = await u.check();
+  assert.equal(v.channel, 'stable');
+  assert.equal(v.latest, '0.37.0');
 });
 
 const KEG = (prefix) => path.join(prefix, 'Cellar/wisp-agents/0.15.0/libexec/lib/node_modules/wisp-agents');
@@ -32,7 +74,7 @@ test('installMethod tells a clone, an npx cache, a Homebrew keg and a global ins
 test('a git clone never offers an update, even when npm has a newer one', async () => {
   const clone = tmp('upd-clone');
   fs.mkdirSync(path.join(clone, '.git'), { recursive: true });
-  const fetch = async () => ({ ok: true, json: async () => ({ version: '99.0.0' }) });
+  const fetch = async () => ({ ok: true, json: async () => ({ latest: '99.0.0' }) });
   const u = new Updater({ port: 1, fetch, env: {}, root: clone });
   assert.equal(u.enabled, false);
   const v = await u.check();
@@ -45,7 +87,7 @@ test('maybeCheck hits the registry at most once a day, on the wall clock', async
   let t = 1_000_000;
   let calls = 0;
   const seen = [];
-  const fetch = async () => (calls++, { ok: true, json: async () => ({ version: '99.0.0' }) });
+  const fetch = async () => (calls++, { ok: true, json: async () => ({ latest: '99.0.0' }) });
   const u = new Updater({ port: 1, fetch, now: () => t, env: {}, root: tmp('upd-global'), onChange: (v) => seen.push(v) });
   u.maybeCheck();
   await new Promise((r) => setImmediate(r));
@@ -126,6 +168,26 @@ test('the app checks GitHub Releases and picks the download for its OS and CPU',
     assert.equal(u.asset?.name, name);
   }
   assert.ok(urls.every((u) => u === 'https://api.github.com/repos/M0xoo/wisp/releases/latest'));
+});
+
+test('the app on beta or nightly picks the newest release its channel allows, nightly by its title', async () => {
+  const asset = (v) => [{ name: 'wisp-mac-arm64.zip', browser_download_url: `https://dl/${v}/wisp-mac-arm64.zip` }];
+  const list = [
+    { tag_name: 'nightly', name: 'wisp 99.1.0-nightly.20261024.317', prerelease: true, html_url: 'https://github.com/M0xoo/wisp/releases/tag/nightly', assets: asset('nightly') },
+    { tag_name: 'v99.1.0-beta.1', name: 'v99.1.0-beta.1', prerelease: true, html_url: 'https://github.com/M0xoo/wisp/releases/tag/v99.1.0-beta.1', assets: asset('beta') },
+    { tag_name: 'v99.2.0-beta.1', name: 'v99.2.0-beta.1', draft: true, prerelease: true, assets: asset('draft') },
+    { tag_name: 'v99.0.0', name: 'v99.0.0', prerelease: false, html_url: 'https://github.com/M0xoo/wisp/releases/tag/v99.0.0', assets: asset('stable') },
+  ];
+  const urls = [];
+  const fetch = async (url) => (urls.push(url), { ok: true, json: async () => list });
+  for (const [channel, latest, from] of [['beta', '99.1.0-beta.1', 'beta'], ['nightly', '99.1.0-nightly.20261024.317', 'nightly']]) {
+    const u = new Updater({ port: 1, env: {}, platform: 'darwin', arch: 'arm64', root: APP('darwin'), fetch, channel: () => channel });
+    const v = await u.check();
+    assert.equal(v.latest, latest, channel);
+    assert.equal(u.asset.browser_download_url, `https://dl/${from}/wisp-mac-arm64.zip`);
+    assert.equal(v.command, list.find((r) => r.assets.includes(u.asset)).html_url);
+  }
+  assert.ok(urls.every((u) => u === 'https://api.github.com/repos/M0xoo/wisp/releases?per_page=30'));
 });
 
 test('an AppImage update checks the sha256, replaces the file and reopens it', async () => {

@@ -6,6 +6,7 @@
 # It checks for Node.js 20+ and npm, installs wisp-agents globally from npm, and confirms that
 # the `wisp` command is on PATH. Set WISP_VERSION to pin a release (default: latest); it goes on
 # the bash side of the pipe: curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.37.0 bash
+# WISP_VERSION=next takes the beta and WISP_VERSION=nightly last night's build of main (npm's dist-tags).
 #
 # With --app (macOS) it installs the desktop app instead, no Node needed:
 #
@@ -41,6 +42,7 @@ install_app() {
   esac
   local base zip want got dest # tmp stays global: the EXIT trap reads it
   if [ "$VERSION" = latest ]; then base="https://github.com/M0xoo/wisp/releases/latest/download"
+  elif [ "$VERSION" = nightly ]; then base="https://github.com/M0xoo/wisp/releases/download/nightly"
   else base="https://github.com/M0xoo/wisp/releases/download/v${VERSION#v}"; fi
   base="${WISP_DOWNLOADS:-$base}" # tests point this at a folder
   zip="wisp-mac-$arch.zip"

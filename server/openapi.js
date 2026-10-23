@@ -29,7 +29,7 @@ export function openapi({ version, port }) {
       '/health': { get: { summary: 'Liveness, version and pid', responses: { 200: json(ref('Health')) } } },
       '/status': { get: { summary: 'Whether anything is going on: turns running (live), side questions (sides), open pages (clients), lastActivityAt, and nextWakeAt (the next scheduled trigger). Used to stop an idle wisp', responses: { 200: json({ type: 'object', properties: { live: { type: 'integer' }, sides: { type: 'integer' }, clients: { type: 'integer' }, lastActivityAt: { type: ['integer', 'null'] }, nextWakeAt: { type: ['integer', 'null'] }, version: { type: 'string' } } }) } } },
       '/update': {
-        get: { summary: 'Current and latest published version, and how this copy updates (global | npx | brew | git; a git clone never offers one). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
+        get: { summary: 'Current and latest published version on the update channel (defaults.updateChannel: stable | beta | nightly), and how this copy updates (global | npx | brew | app | git; a git clone never offers one). ?check forces a registry check', responses: { 200: json({ type: 'object' }) } },
         post: { summary: 'Install the latest version and relaunch. 409 while agents run unless { force: true }', responses: { 202: json({ type: 'object' }), 409: json({ type: 'object' }) } },
       },
       '/preferences': {

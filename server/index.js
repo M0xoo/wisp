@@ -141,7 +141,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   setInterval(() => app.broadcast('ping', {}), 25_000).unref();
 
   app.telemetry = new Telemetry(store);
-  app.updater = new Updater({ port, onChange: (u) => app.broadcast('update', u) });
+  app.updater = new Updater({ port, channel: () => store.config.defaults.updateChannel, onChange: (u) => app.broadcast('update', u) });
 
   // Learned preferences: injected into every turn, refreshed by a background retro per session.
   app.prefs = new Preferences(store.home);

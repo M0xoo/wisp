@@ -1,7 +1,13 @@
 name: release
 
-# One release does everything. Merge a PR that bumps package.json's version (with its CHANGELOG
-# section) and this:
+# Three channels, the way most npm projects run them (TypeScript's next, React's canary, Neovim's
+# rolling nightly): stable on npm `latest`, beta on npm `next`, nightly on npm `nightly` plus a
+# GitHub prerelease tagged `nightly` that's replaced every night. wisp's updater follows whichever
+# one Settings → General → Updates names (server/update.js).
+#
+# Stable and beta: merge a PR that bumps package.json's version (with its CHANGELOG section).
+# A version with a `-` (0.38.0-beta.1) is a beta: npm `next`, a GitHub prerelease, no Homebrew.
+# Either way this:
 #   1. builds the desktop app: macOS dmg + zip (Apple silicon, Intel), Windows installer (x64, Arm),
 #      Linux AppImage + deb (x64, Arm)
 #   2. creates the GitHub release v<version> as a draft with the CHANGELOG notes, the downloads and
@@ -15,10 +21,17 @@ name: release
 # "dry run" ticked it only builds the desktop apps (kept as the run's artifacts): try a branch with
 # `gh workflow run release --ref <branch> -f dry_run=true`.
 #
+# Nightly: when the nightly workflow (the full matrix, three times over) passes on main, this
+# builds that commit as <next patch>-nightly.<yyyymmdd>.<hhmm> (scripts/nightly-version.mjs),
+# publishes it to npm under `nightly` and moves the `nightly` release to it, with the Unreleased
+# notes. Nothing happens when main hasn't moved since the last nightly. `gh workflow run release
+# -f nightly=true` makes one now, without waiting for the tests.
+#
 # npm publishes through trusted publishing (OIDC, no token): npmjs.com → wisp-agents → Settings
-# trusts M0xoo/wisp, release.yml, environment `npm`. That GitHub environment only runs on main
-# and waits for M0xoo to approve (Actions → the run → Review deployments), and npm refuses
-# publishes by token. So a release goes out only when M0xoo says so.
+# trusts M0xoo/wisp, release.yml, environment `npm`. npm allows one trusted publisher per
+# package, so stable and nightly both publish from here. The `npm` environment only deploys from
+# main, and npm refuses publishes by token, so what reaches npm is what was merged to main: the
+# PR review is the gate, as in most projects, with no approval step in the run.
 #
 # Secrets (all optional):
 #   HOMEBREW_TAP_TOKEN          a token that can push to M0xoo/homebrew-tap; without it the tap is skipped
@@ -32,10 +45,18 @@ on:
   push:
     branches: [main]
     paths: [package.json]
+  workflow_run:
+    workflows: [nightly]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry_run:
         description: Only build the desktop apps; release nothing
+        type: boolean
+        default: false
+      nightly:
+        description: Make a nightly from main now, without waiting for the nightly tests
         type: boolean
         default: false
 
@@ -53,17 +74,39 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      go: ${{ steps.plan.outputs.go }}
-      version: ${{ steps.plan.outputs.version }}
-      npm: ${{ steps.plan.outputs.npm }}
-      prerelease: ${{ steps.plan.outputs.prerelease }}
-      dry: ${{ steps.plan.outputs.dry }}
+      go: ${{ steps.nightly.outputs.go || steps.stable.outputs.go }}
+      version: ${{ steps.nightly.outputs.version || steps.stable.outputs.version }}
+      npm: ${{ steps.nightly.outputs.npm || steps.stable.outputs.npm }}
+      prerelease: ${{ steps.nightly.outputs.prerelease || steps.stable.outputs.prerelease }}
+      dry: ${{ steps.nightly.outputs.dry || steps.stable.outputs.dry }}
+      channel: ${{ steps.nightly.outputs.channel || steps.stable.outputs.channel }}
+      sha: ${{ steps.nightly.outputs.sha || steps.stable.outputs.sha }}
     steps:
+      # A nightly builds the commit the nightly tests passed on, even if main has moved since.
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - id: plan
+      - id: nightly
+        if: github.event_name == 'workflow_run' || inputs.nightly == true
+        name: Plan a nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTS: ${{ github.event.workflow_run.conclusion || 'skipped' }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          last=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/nightly" -q .object.sha 2>/dev/null || true)
+          version=$(node scripts/nightly-version.mjs)
+          go=true
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ] && [ "$TESTS" != success ]; then echo "The nightly tests didn't pass ($TESTS): no nightly."; go=false; fi
+          if [ "$sha" = "$last" ]; then echo "main hasn't moved since the last nightly ($sha): no nightly."; go=false; fi
+          echo "nightly $version from $sha → go=$go"
+          { echo "channel=nightly"; echo "version=$version"; echo "sha=$sha"; echo "npm=$go"; echo "go=$go"; echo "prerelease=true"; echo "dry=false"; } >> "$GITHUB_OUTPUT"
+      - id: stable
+        if: github.event_name != 'workflow_run' && inputs.nightly != true
+        name: Plan a release
         env:
           GH_TOKEN: ${{ github.token }}
           DRY: ${{ inputs.dry_run == true }}
@@ -79,10 +122,10 @@ jobs:
           [ "$DRY" = true ] && go=true
           case "$version" in *-*) prerelease=true ;; *) prerelease=false ;; esac
           echo "version=$version npm-needed=$npm release-published=$published → go=$go"
-          { echo "version=$version"; echo "npm=$npm"; echo "go=$go"; echo "prerelease=$prerelease"; echo "dry=$DRY"; } >> "$GITHUB_OUTPUT"
+          { echo "channel=stable"; echo "sha=$GITHUB_SHA"; echo "version=$version"; echo "npm=$npm"; echo "go=$go"; echo "prerelease=$prerelease"; echo "dry=$DRY"; } >> "$GITHUB_OUTPUT"
       - name: CHANGELOG has notes for this version
-        if: steps.plan.outputs.go == 'true'
-        run: node scripts/release-notes.mjs "${{ steps.plan.outputs.version }}" > /dev/null
+        if: steps.stable.outputs.go == 'true'
+        run: node scripts/release-notes.mjs "${{ steps.stable.outputs.version }}" > /dev/null
 
   desktop:
     needs: plan
@@ -99,12 +142,18 @@ jobs:
           - { name: Linux, os: ubuntu-latest, args: --linux --x64 --arm64 }
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       # Only for node_modules/electron/package.json (the Electron version); the builder downloads
       # Electron for each target itself.
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      # The app reads its version from package.json: a nightly has to say it's one to update from it.
+      - name: Stamp the nightly version
+        if: needs.plan.outputs.channel == 'nightly'
+        run: npm version "${{ needs.plan.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Build
         shell: bash
         env:
@@ -146,7 +195,7 @@ jobs:
 
   release:
     needs: [plan, desktop]
-    if: needs.plan.outputs.dry != 'true'
+    if: needs.plan.outputs.dry != 'true' && needs.plan.outputs.channel == 'stable'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -155,6 +204,8 @@ jobs:
       TAG: v${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/download-artifact@v4
         with:
           pattern: desktop-*
@@ -172,31 +223,41 @@ jobs:
           fi
           gh release upload "$TAG" out/* --clobber
 
+  # A stable release goes to npm once its draft is up; a nightly once its desktop builds are.
   npm:
-    needs: [plan, release]
-    if: needs.plan.outputs.npm == 'true'
+    needs: [plan, desktop, release]
+    if: ${{ !cancelled() && needs.plan.outputs.npm == 'true' && needs.plan.outputs.dry != 'true' && needs.desktop.result == 'success' && (needs.release.result == 'success' || (needs.release.result == 'skipped' && needs.plan.outputs.channel == 'nightly')) }}
     runs-on: ubuntu-latest
-    # Only main, and only once M0xoo approves the run. npm's trusted publisher for wisp-agents is
-    # bound to this repo, release.yml and this environment, so nothing else can publish.
+    # Deploys only from main. npm's trusted publisher for wisp-agents is bound to this repo,
+    # release.yml and this environment, so nothing else can publish.
     environment: npm
     permissions:
       contents: read
       id-token: write # provenance, and trusted publishing when it's set up
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
       - run: npm install -g npm@latest # trusted publishing needs npm 11.5+
       - name: Publish
+        env:
+          CHANNEL: ${{ needs.plan.outputs.channel }}
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
           tag=latest; [ "${{ needs.plan.outputs.prerelease }}" = true ] && tag=next
+          if [ "$CHANNEL" = nightly ]; then
+            tag=nightly
+            npm version "$VERSION" --no-git-tag-version --allow-same-version
+          fi
           npm publish --provenance --access public --tag "$tag"
 
   publish:
     needs: [plan, release, npm]
-    if: ${{ !cancelled() && needs.release.result == 'success' && (needs.npm.result == 'success' || needs.npm.result == 'skipped') }}
+    if: ${{ !cancelled() && needs.plan.outputs.channel == 'stable' && needs.release.result == 'success' && (needs.npm.result == 'success' || needs.npm.result == 'skipped') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -209,6 +270,41 @@ jobs:
           latest=(--latest); [ "${{ needs.plan.outputs.prerelease }}" = true ] && latest=(--latest=false)
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false "${latest[@]}"
           echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  # The rolling `nightly` release: its downloads are replaced first, then its tag moves to the
+  # commit and its title names the version, which is what the app's updater reads. Its download
+  # links (releases/download/nightly/<name>) never change.
+  nightly:
+    needs: [plan, desktop, npm]
+    if: ${{ !cancelled() && needs.plan.outputs.channel == 'nightly' && needs.npm.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.plan.outputs.version }}
+      SHA: ${{ needs.plan.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: out
+      - name: Update the nightly release
+        run: |
+          node scripts/release-notes.mjs --nightly "$VERSION" "$SHA" > notes.md
+          (cd out && sha256sum wisp-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          if gh release view nightly >/dev/null 2>&1; then
+            gh release upload nightly out/* --clobber
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/nightly" -f sha="$SHA" -F force=true > /dev/null
+            gh release edit nightly --title "wisp $VERSION" --notes-file notes.md --prerelease --latest=false
+          else
+            gh release create nightly out/* --title "wisp $VERSION" --notes-file notes.md --target "$SHA" --prerelease --latest=false
+          fi
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/nightly: $VERSION" >> "$GITHUB_STEP_SUMMARY"
 
   homebrew:
     needs: [plan, publish]

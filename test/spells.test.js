@@ -172,6 +172,9 @@ test('Settings → Machines → This computer is a part spells can restyle or hi
   assert.ok(problems({ ...base0, ui: { hide: ['machines.grid.nope'] } }).length);
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.reachable', 'machines.howto'] }, parts: { 'settings.reachable': { style: { borderRadius: '4px' } }, 'machines.letin': { style: { background: 'var(--surface)' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'settings.reachable': { props: { width: 400 } } } }).some((x) => /settings\.reachable/.test(x)));
+  // The update channel's row can be restyled or hidden, but a spell can't move you onto nightlies.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.updates'] }, parts: { 'settings.updates': { style: { borderRadius: '4px' } } } }), []);
+  assert.ok(problems({ ...base0, settings: { updateChannel: 'nightly' } }).some((x) => /updateChannel/.test(x)));
 });
 
 test('a video in a reply and its buttons are parts, and video is a built-in block', () => {
