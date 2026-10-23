@@ -94,7 +94,7 @@ export function register(r, app) {
     if (s.parentId) throw bad('A subagent can’t have subagents of its own.');
     const p = preset ? store.config.teams.find((t) => t.id === preset) : null;
     if (preset && !p && subagents === undefined) throw bad(`no such subagent preset: ${preset}`);
-    return normalizeTeam(subagents ?? p?.members ?? [], adapters);
+    return normalizeTeam(app.relay.placeTeam(subagents ?? p?.members ?? [], null), adapters);
   };
   // Archiving removes clean worktrees: the task's own and its other folders' come back before it runs again.
   const ensureTrees = async (s) => {
@@ -107,7 +107,7 @@ export function register(r, app) {
     const cwd = q.cwd && expand(q.cwd);
     // Subagent sessions belong to their lead; ?children=1 lists them too.
     // Sessions on machines too (the last ones seen, for a machine that's offline).
-    const here = store.all().filter((x) => !x.parentId || q.children).map((x) => summarize(x, store));
+    const here = store.all().filter((x) => (!x.parentId && !x.delegated) || q.children).map((x) => summarize(x, store));
     let list = [...here, ...(await machines.sessions(q))].sort((a, b) => b.updatedAt - a.updatedAt);
     if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
     if (q.agent) list = list.filter((x) => x.agent === q.agent);
@@ -150,7 +150,7 @@ export function register(r, app) {
       if (body.movedTo && typeof body.movedTo === 'object') s.movedTo = { id: String(body.movedTo.id || ''), place: String(body.movedTo.place || '') };
       // The team can change between turns; the next turn's lead sees the new roster.
       if (body.subagents !== undefined && !s.parentId) {
-        s.subagents = normalizeTeam(body.subagents, adapters);
+        s.subagents = normalizeTeam(app.relay.placeTeam(body.subagents, null), adapters);
         s.children ||= {};
       }
       if (body.archived === true && s.state !== 'running' && s.state !== 'waiting') Object.assign(s, { archived: true, unread: false });
@@ -177,7 +177,7 @@ export function register(r, app) {
         if (store.get(cid)) (store.delete(cid), app.broadcast('removed', { id: cid }));
       }
       // Its worktree goes with it; the branch only if it holds nothing beyond its base.
-      for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: true }).catch(() => {});
+      for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: s.delegated ? 'force' : true }).catch(() => {}); // a delegate's branch only held the lead's work
       app.terms.close(s.id);
       store.delete(s.id);
       app.broadcast('removed', { id: s.id });
@@ -260,6 +260,22 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/pack',
     one(async (c, s) => c.send(200, await app.mover.pack(s))),
+    { doc: false },
+  );
+
+  // Delegates on other machines (services/relay.js). On the lead's wisp, the relay picks up a
+  // child's delegation, reports its progress and lands its result; where the delegate ran, it
+  // collects what the run changed.
+  r.route(
+    'POST',
+    '/sessions/:id/relay',
+    one(async (c, s) => c.send(200, await app.relay.op(s, await c.body()))),
+    { doc: false },
+  );
+  r.route(
+    'GET',
+    '/sessions/:id/patch',
+    one(async (c, s) => c.send(200, { patch: await app.relay.patchOf(s) })),
     { doc: false },
   );
 

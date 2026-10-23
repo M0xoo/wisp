@@ -107,6 +107,16 @@ function autoTitle(prompt) {
   return line.length > 64 ? `${line.slice(0, 63)}…` : line;
 }
 
+// Delegations to members on another machine that the wisp this task came from runs (upstream),
+// still waiting for it to pick them up (services/relay.js).
+function relaysOf(s, store) {
+  const relays = Object.values(s.children || {})
+    .map((cid) => store?.get(cid))
+    .filter((c) => c?.relay?.upstream && c.turns.at(-1)?.relay?.state === 'pending')
+    .map((c) => ({ child: c.id, turn: c.turns.at(-1).id, machine: c.relay.machine }));
+  return relays.length ? { relays } : {};
+}
+
 export function summarize(s, store) {
   const project = store?.projectFor(s.cwd);
   const last = s.turns.at(-1);
@@ -168,6 +178,8 @@ export function summarize(s, store) {
       }),
     ),
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
+    ...(s.delegated && { delegated: true }), // a delegate's run for a lead on another wisp (services/relay.js), not a task
+    ...relaysOf(s, store),
     followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
     // Auto's steps after the run: the last test check, repairs, a hand-over, the best-of-2 pick.
     auto: s.auto
@@ -224,8 +236,8 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '' }) {
-    if (!adapters[agent]) throw new Error(`Unknown agent: ${agent}`);
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null }) {
+    if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
       id,
@@ -254,10 +266,12 @@ export class Runner extends EventEmitter {
       ...(auto && { auto: { strategy: 'single', busy: false, stage: '', label: '', repairs: 0, checks: [], ...auto } }), // server/pipeline.js
       ...(scout && { scout }), // what the scout found before it started (server/scout.js)
       ...(parentId && { parentId, member }),
+      ...(relay && { relay }), // a member on another machine: { machine, place, upstream? } (services/relay.js)
+      ...(delegated && { delegated }), // a delegate's run for a lead elsewhere: { lead, name }
       ...(route && { route }), // how Auto picked agent, model and level (server/router.js)
     };
     this.store.put(session);
-    if (!parentId) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
+    if (!parentId && !delegated) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
     this.#startTurn(session, prompt, attachments);
     return session;
   }
@@ -553,22 +567,27 @@ export class Runner extends EventEmitter {
       }
       claimed.add(slot);
       let child = this.store.get(lead.children?.[slot]);
-      if (child) {
+      // A member on another machine: the wisp that reaches it runs it there (services/relay.js).
+      const relay = m.machine ? { machine: m.machine, place: m.place || '', ...(m.upstream && { upstream: true }) } : null;
+      if (child && (relay || adapters[child.agent])) {
         child.cwd = workdir(lead); // follows the lead if its worktree moved
         child.mode = lead.mode; // and its mode, if a follow-up switched it
+        if (relay) child.relay = relay; // the member may have moved between turns
+        else delete child.relay;
         this.#startTurn(child, prompt);
       } else {
         // An Auto member is routed on its first task and keeps that pick, so later tasks resume it.
-        const pick = m.agent === 'auto' ? this.routeAuto?.(prompt, { cwd: workdir(lead) }) : null;
-        if (m.agent === 'auto' && !pick) {
+        // One on another machine is routed there, with the harnesses that machine has.
+        const pick = m.agent === 'auto' && !relay ? this.routeAuto?.(prompt, { cwd: workdir(lead) }) : null;
+        if (m.agent === 'auto' && !relay && !pick) {
           out.push({ subagent: want, error: 'Auto found no harness to run this on.' });
           continue;
         }
         const run = pick ? { agent: pick.agent, model: pick.model, effort: pick.effort || '', route: pick.route } : { agent: m.agent, model: m.model, effort: m.effort };
-        child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot });
+        child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot, relay });
         (lead.children ||= {})[slot] = child.id;
       }
-      const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now() };
+      const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, ...(relay && { place: relay.place }), sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now() };
       (turn.delegations ||= []).push(d);
       out.push(d);
     }
@@ -576,6 +595,44 @@ export class Runner extends EventEmitter {
     if (sent.length) this.#onEvent(lead, turn, { type: 'tool', kind: 'agent', label: `Delegated to ${[...new Set(sent.map((d) => d.name))].join(', ')}` });
     this.#touch(lead, { turn: turn.id });
     return out;
+  }
+
+  // A relayed member's live line (services/relay.js): what its run over there is doing.
+  relayed(child, turn, { kind = 'agent', label }) {
+    this.#onEvent(child, turn, { type: 'tool', kind: String(kind).slice(0, 20), label: String(label).slice(0, 200) });
+  }
+
+  // A relayed member's run ended over there: its report, edits (already applied to the lead's
+  // folder when applied.applied) and what ran, as this turn's.
+  relayDone(child, turn, { status, presentation, stats, changes = [], agent, model, effort, error, applied = {}, kept }) {
+    if (turn.status !== 'running') return;
+    if (agent && adapters[agent]) Object.assign(child, { agent, model: String(model || ''), effort: String(effort || '') });
+    Object.assign(turn, { agent: child.agent, model: child.model, effort: child.effort || '' });
+    turn.relay.state = 'done';
+    if (applied.applied || kept) for (const c of Array.isArray(changes) ? changes.slice(0, 500) : []) if (c?.file) this.#onEvent(child, turn, { type: 'change', file: String(c.file), op: /^\w{1,12}$/.test(c.op || '') ? c.op : 'edit', edits: Array.isArray(c.edits) ? c.edits : [] });
+    const place = child.relay?.place || 'the other machine';
+    const note = error
+      ? null
+      : applied.conflicts?.length
+        ? { type: 'callout', tone: 'warn', title: 'Applied with conflicts', text: `Its changes from ${place} clashed with edits made meanwhile. Conflict markers are left in: ${applied.conflicts.join(', ')}.` }
+        : applied.error
+          ? { type: 'callout', tone: 'danger', title: 'Changes not applied', text: `Its changes from ${place} didn’t apply to the lead’s folder (${applied.error}). The patch is saved at ${applied.file}.` }
+          : kept
+            ? { type: 'callout', tone: 'info', title: `Changes stayed on ${place}`, text: 'The folder isn’t a git repo, so its changes couldn’t be brought back.' }
+            : null;
+    const blocks = presentation?.blocks?.length
+      ? [...presentation.blocks]
+      : [{ type: 'hero', title: 'Something went wrong', summary: error || 'The run on the other machine ended without a report.', status: 'blocked' }];
+    if (note) blocks.splice(blocks[0]?.type === 'hero' ? 1 : 0, 0, note);
+    turn.presentation = { ...(presentation || {}), blocks };
+    turn.stats = stats || null;
+    turn.endedAt = Date.now();
+    turn.status = error ? 'error' : ['done', 'error', 'stopped'].includes(status) ? status : 'error';
+    child.state = 'review';
+    child.unread = false;
+    this.store.save(child, { now: true });
+    this.#touch(child, { turn: turn.id });
+    this.#touchLead(child);
   }
 
   // Delegations by id (any turn), or the current turn's when ids is empty, with their child sessions.
@@ -601,6 +658,9 @@ export class Runner extends EventEmitter {
       const child = this.store.get(cid);
       if (child) this.stop(child);
     }
+    // A member on another machine: its turn ends here, and the relay stops the run over there.
+    const last = session.turns.at(-1);
+    if (session.relay && last?.status === 'running') this.#finishTurn(session, last, { stopped: true, text: '' });
     if (!this.live.has(session.id)) return;
     this.stopping.add(session.id);
     this.live.get(session.id).stop();
@@ -645,8 +705,9 @@ export class Runner extends EventEmitter {
 
   // The wisp protocol for this run: a lead hears about its team, a subagent that it can't ask.
   #systemPrompt(session, adapter, team) {
-    const extraBlocks = session.parentId ? [] : this.spellBlocks(session);
-    const base = session.parentId
+    const sub = session.parentId || session.delegated; // a delegate here, or one for a lead on another wisp
+    const extraBlocks = sub ? [] : this.spellBlocks(session);
+    const base = sub
       ? systemPrompt({ ask: SUBAGENT_ASK })
       : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
@@ -655,7 +716,7 @@ export class Runner extends EventEmitter {
 
   // wisp's own MCP server (ask_user, delegate), for harnesses that take one. Subagents get none.
   #mcpServers(session, adapter, team) {
-    if (!this.bridge || adapter.askTool === null || session.parentId) return {};
+    if (!this.bridge || adapter.askTool === null || session.parentId || session.delegated) return {};
     return {
       wisp: {
         command: process.execPath,
@@ -669,7 +730,7 @@ export class Runner extends EventEmitter {
           WISP_SESSION: session.id,
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
-          ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m) }))) }),
+          ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
         },
       },
     };
@@ -680,6 +741,7 @@ export class Runner extends EventEmitter {
   #startTurn(session, prompt, attachments = [], { grants = [], once, by } = {}) {
     const mode = MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
+    if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
     // Side questions still being answered move to the new turn: the old one folds away on the card.
     const prev = session.turns.at(-1);
@@ -696,16 +758,21 @@ export class Runner extends EventEmitter {
     this.#touch(session, { turn: turn.id });
     this.#touchLead(session);
     this.emit('started', { session, turn });
+    // A member on another machine runs over there: the relay carries it (services/relay.js).
+    if (session.relay) {
+      if (!session.relay.upstream) this.emit('relay', { session, turn });
+      return;
+    }
 
     let released = false;
     let linger;
     const adapter = adapters[session.agent];
     // Leads get the delegate tool next to ask_user; subagents get neither (nobody to ask).
-    const team = adapter.askTool !== null ? session.subagents || [] : [];
+    const team = adapter.askTool !== null && !session.delegated ? session.subagents || [] : [];
     // A harness that hasn't seen every earlier turn (the user switched to it) gets them first.
     const handoff = session.parentId ? '' : handoffNote(session, session.agent, session.agentSessionId, (t) => adapters[t.agent]?.name || t.agent);
     // Mentioned tasks: a lead reads them with wisp_session; a run without wisp's tools gets their reports.
-    const tools = !session.parentId && adapter.askTool !== null && this.bridge;
+    const tools = !session.parentId && !session.delegated && adapter.askTool !== null && this.bridge;
     const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id });
     const handle = adapter.run({
       prompt: handoff ? `${handoff}\n\n${text}` : text,
@@ -911,7 +978,7 @@ export class Runner extends EventEmitter {
     if (holding) setImmediate(() => this.pipeline.run(session, turn));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
-    else if (!handing && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
+    else if (!handing && !session.parentId && !session.delegated) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,
@@ -922,7 +989,7 @@ export class Runner extends EventEmitter {
     session.unread = !quiet;
     this.store.save(session, { now: true });
     this.#touch(session, { turn: session.turns.at(-1)?.id });
-    if (!quiet && !session.parentId) this.emit('finished', { session: summarize(session, this.store) });
+    if (!quiet && !session.parentId && !session.delegated) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // A line in a turn's activity from wisp itself (Auto's check, repair, hand-over).

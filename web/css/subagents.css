@@ -1,4 +1,4 @@
-/* ---------- subagents ---------- */
+/* ---------- delegate (subagents) ---------- */
 /* logo stack: the lead in front, its subagents tucked behind; they fan out on hover */
 .team-stack { position: relative; display: inline-flex; align-items: center; flex: none; height: 20px; padding-right: 1px; outline: none; cursor: default; }
 .team-stack .ts-l, .team-stack .ts-m, .tb-stack .ts-m {
@@ -37,6 +37,9 @@
 .team-btn.off .tb-stack { opacity: 0.5; filter: grayscale(1); }
 .team-btn .tb-label { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .team-btn.open { background: var(--bg-2); color: var(--ink); }
+/* a member on another machine: a small server badge after the stack */
+.team-btn .tb-away { display: grid; place-items: center; width: 16px; height: 16px; margin-left: -2px; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); color: var(--muted); }
+.team-btn .tb-away .i { width: 10px; height: 10px; }
 /* narrow bar: the member logos carry the button, so the harness name keeps its room */
 @container launcher (max-width: 640px) { .team-btn .tb-label { display: none; } }
 
@@ -56,10 +59,54 @@
 .tp-warn .i { flex: none; width: 14px; height: 14px; margin-top: 1px; }
 .tp-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 14px 12px; }
 .tp-row { --field-bg: var(--surface); display: grid; gap: 6px; padding: 8px; border-radius: 11px; border: 1px solid var(--line); background: var(--surface-2); animation: rise 0.25s var(--ease) both; }
-.tp-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.team-pop .grow { flex: 1; }
+.tp-top, .tp-bottom { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .tp-runner { flex: 0 1 auto; min-width: 0; overflow: hidden; }
 .tp-runner .rb-m { max-width: 140px; }
-.tp-name { flex: 1 1 90px; min-width: 70px; width: auto; gap: 0; color: var(--faint); }
+.tp-name { flex: 0 1 150px; min-width: 90px; width: auto; gap: 0; color: var(--faint); }
+.tp-use { flex: 1 1 200px; min-width: 0; }
+
+/* where a delegate (or the lead) runs: with the lead, this computer or a machine */
+.tp-place {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 170px; height: 30px; padding: 0 8px 0 9px;
+  border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2); font-size: 12.5px; white-space: nowrap;
+}
+.tp-place > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tp-place .i { flex: none; width: 13px; height: 13px; color: var(--muted); }
+.tp-place .chev { width: 10px; height: 10px; color: var(--faint); transform: rotate(90deg); }
+.tp-place .dot { width: 6px; height: 6px; }
+button.tp-place:hover { border-color: var(--line-2); background: var(--bg-2); color: var(--ink); }
+button.tp-place[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.tp-place.away { color: var(--ink); }
+.tp-place.away .i:first-child { color: var(--accent); }
+.tp-place.off > span { color: var(--muted); }
+.tp-place.static { border-style: dashed; background: none; }
+
+/* the lead strip: who leads, and where */
+.tp-lead { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0 14px 10px; padding: 7px 8px 7px 9px; border-radius: 11px; border: 1px solid var(--line); background: var(--bg-2); font-size: 13px; }
+.tp-tag { flex: none; padding: 2px 6px; border-radius: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent-ink); background: var(--accent-soft); }
+.tp-lead-logo { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line); color: var(--ink); }
+.tp-lead-logo > * { display: block; width: 12px; height: 12px; }
+.tp-lead-logo .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
+.tp-lead-run { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.tp-on { flex: none; color: var(--faint); }
+.tp-lead .tp-place { height: 26px; }
+.tp-spread { display: inline-flex; align-items: center; gap: 4px; flex: none; font: 11.5px var(--mono); color: var(--muted); }
+.tp-spread .i { width: 12px; height: 12px; }
+.tp-foot .tp-add .chev { width: 10px; height: 10px; margin-left: 2px; opacity: 0.6; transform: rotate(90deg); }
+.menu.tp-where { min-width: 300px; max-width: min(380px, calc(100vw - 16px)); }
+/* phones: the lead strip and rows wrap instead of squeezing */
+@media (max-width: 520px) {
+  .tp-lead { flex-wrap: wrap; }
+  .tp-lead .grow { display: none; }
+  .tp-top, .tp-bottom { flex-wrap: wrap; }
+  .tp-top .grow { display: none; }
+  .tp-name, .tp-use { flex: 1 1 100%; }
+  .tp-runner { flex: 1 1 140px; }
+  .tp-foot { gap: 6px; padding: 10px; }
+  .tp-foot button { white-space: nowrap; }
+  .tp-count { display: none; }
+}
 .tp-copies { flex: none; display: inline-flex; align-items: center; height: 30px; padding: 0 2px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface); }
 .tp-copies b { min-width: 22px; text-align: center; font: 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .tp-copies.on { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
@@ -98,6 +145,8 @@
 .tl-logo > * { width: 12px; height: 12px; display: block; }
 .tl-row.live .tl-logo::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid var(--accent); border-right-color: transparent; border-bottom-color: transparent; animation: ts-spin 1.1s linear infinite; }
 .tl-name { flex: none; font: 500 12.5px var(--mono); color: var(--ink); }
+.tl-place { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
+.tl-place .i { width: 11px; height: 11px; }
 .tl-live { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .tl-row.live .tl-live { color: var(--ink-2); }
 .tl-row .elapsed { flex: none; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }

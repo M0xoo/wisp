@@ -2,6 +2,7 @@
 // `gh`. The user's own checkout is only read, except for the fast-forward after a merge.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
@@ -368,6 +369,7 @@ export async function unpackWork({ cwd, home, id, title, pack, file }) {
   } catch (err) {
     throw bad(`Couldn’t bring the work over: ${err.message}`);
   }
+  const snap = await quiet(git(root, ['rev-parse', '--verify', '--quiet', `${local}^{commit}`])); // where the work stood: a delegate's patch starts here
   const taken = async (b) => !!(await quiet(git(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${b}`])));
   let branch = /^[\w./-]{1,120}$/.test(pack.branch || '') && !(await taken(pack.branch)) ? pack.branch : `wisp/${slug(title) || 'task'}-${id.slice(0, 6)}`;
   if (await taken(branch)) branch = `wisp/${slug(title) || 'task'}-${id}`;
@@ -392,6 +394,50 @@ export async function unpackWork({ cwd, home, id, title, pack, file }) {
     head: pack.head || (await quiet(git(dir, ['rev-parse', 'HEAD']))) || null,
     remote: pack.baseRef ? pack.remote : base?.remote || null,
     root,
+    ...(snap && { snap }),
     createdAt: Date.now(),
   };
+}
+
+// A delegate on another machine (services/relay.js): what it changed since `base` (the snapshot it
+// started from) as a binary patch, from the repo root, untracked files included. '' if nothing.
+export async function workPatch(dir, base) {
+  const root = await repoRoot(dir);
+  if (!root || !base) return '';
+  const index = path.join(os.tmpdir(), `wisp-patch-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+  const env = { ...MOVER, GIT_INDEX_FILE: index };
+  try {
+    await git(root, ['read-tree', 'HEAD'], { env });
+    await git(root, ['add', '-A'], { env, timeout: 120_000 });
+    const tree = await git(root, ['write-tree'], { env });
+    const out = await git(root, ['diff', '--binary', '--no-color', '--no-ext-diff', '--full-index', base, tree], { timeout: 120_000 });
+    return out ? `${out}\n` : ''; // run() trims, and git apply wants the last newline
+  } finally {
+    fs.rmSync(index, { force: true });
+  }
+}
+
+// That patch, applied to the lead's folder: as it is, else with a three-way merge against the
+// blobs it came from (they're the lead's own). conflicts: files left with conflict markers.
+export async function applyPatch(dir, patch) {
+  if (!String(patch || '').trim()) return { applied: false, empty: true };
+  const root = await repoRoot(dir);
+  if (!root) return { applied: false, error: `${dir} isn’t a git repo, so the changes had nowhere to go.` };
+  const file = path.join(os.tmpdir(), `wisp-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.patch`);
+  fs.writeFileSync(file, patch);
+  try {
+    try {
+      await git(root, ['apply', '--binary', '--whitespace=nowarn', file], { timeout: 120_000 });
+      return { applied: true };
+    } catch {}
+    try {
+      await git(root, ['apply', '--binary', '--3way', '--whitespace=nowarn', file], { timeout: 120_000 });
+      return { applied: true, merged: true };
+    } catch (err) {
+      const conflicts = (await quiet(git(root, ['diff', '--name-only', '--diff-filter=U']))).split('\n').filter(Boolean);
+      return conflicts.length ? { applied: true, conflicts } : { applied: false, error: err.message };
+    }
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
 }

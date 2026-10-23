@@ -1,6 +1,8 @@
-// Subagents: a team the user picks at launch (any harness, model and thinking level each) that
-// the lead agent can hand work to through wisp's injected `delegate` tool. Each member is a
-// hidden child session working in the lead's folder; delegating to it again resumes it.
+// Subagents (Delegate in the page): a team the user picks at launch (any harness, model and
+// thinking level each) that the lead agent can hand work to through wisp's injected `delegate`
+// tool. Each member is a hidden child session working in the lead's folder; delegating to it
+// again resumes it. A member on another machine (machine) runs there on a copy of the lead's
+// work, and its changes come back as a patch (services/relay.js).
 
 import { blocksToMarkdown } from './render.js';
 import { bad } from './util.js';
@@ -10,11 +12,15 @@ export const MAX_COPIES = 5; // parallel copies of one row
 export const MAX_INSTANCES = 12; // copies across the whole team
 const EFFORT = /^[\w-]{1,20}$/;
 const MAX_USE = 300;
+const PLACE = /^[\w-]{1,40}$/; // 'here' (this computer) or a machine id
 const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 
 // [{ name?, agent, model?, effort?, use?, count? }] → a clean roster with unique names (codex, codex-2, …).
 // use: the user's note on when to pick this one ("image work", "research"), shown to the lead.
 // count: how many parallel copies of this member the lead gets (codex#1, codex#2, …).
+// machine: where it runs, as the wisp you launched from names places: '' with the lead, 'here'
+// (that wisp's computer) or a machine id. place: that place's name, for the lead and the cards.
+// upstream: the wisp that sent this task runs the member, not this one (it's a machine).
 export function normalizeTeam(list, adapters) {
   if (!Array.isArray(list)) return [];
   const taken = new Set();
@@ -28,7 +34,9 @@ export function normalizeTeam(list, adapters) {
     taken.add(name);
     const use = String(m.use || '').replace(/\s+/g, ' ').trim().slice(0, MAX_USE);
     const count = Math.min(MAX_COPIES, Math.max(1, Math.floor(Number(m.count)) || 1));
-    return { name, agent, model: typeof m.model === 'string' ? m.model.slice(0, 120) : '', effort: EFFORT.test(m.effort || '') ? m.effort : '', use, count };
+    const machine = PLACE.test(m.machine || '') ? m.machine : '';
+    const where = machine && { machine, place: String(m.place || '').replace(/\s+/g, ' ').trim().slice(0, 40), ...(m.upstream === true && { upstream: true }) };
+    return { name, agent, model: typeof m.model === 'string' ? m.model.slice(0, 120) : '', effort: EFFORT.test(m.effort || '') ? m.effort : '', use, count, ...where };
   });
   const total = team.reduce((n, m) => n + m.count, 0);
   if (total > MAX_INSTANCES) throw bad(`At most ${MAX_INSTANCES} subagents in all (this team has ${total}).`);
@@ -48,9 +56,9 @@ export function normalizePreset(body, adapters, prev = {}) {
 }
 
 const who = (m, adapters) =>
-  m.agent === 'auto'
+  (m.agent === 'auto'
     ? 'Auto (wisp picks the harness and model for the first task you give it)'
-    : [adapters[m.agent]?.name || m.agent, m.model || 'default model', m.effort && `${m.effort} thinking`].filter(Boolean).join(' · ');
+    : [adapters[m.agent]?.name || m.agent, m.model || 'default model', m.effort && `${m.effort} thinking`].filter(Boolean).join(' · ')) + (m.machine ? ` · on ${m.place || 'another machine'}` : '');
 
 // Appended to the lead's system prompt. `tool` is how its harness names the delegate tool.
 export function teamNote(team, adapters, tool) {
@@ -67,7 +75,7 @@ ${rows}
 
 Hand them work with the \`delegate\` tool (${tool}): pass one or more tasks, \`{ "subagent": "<name>", "prompt": "…" }\`. Tasks in one call run in parallel and the call returns when all of them finish, with each subagent's report and the files it changed. With \`wait: false\` it returns at once; collect the reports later with \`subagent_results\`. Delegating to the same subagent again continues its conversation, so it remembers earlier tasks.
 
-${multi ? `- A subagent with ×N has N identical copies that run at once. Put several tasks for \`${multi.name}\` in one delegate call and each goes to a free copy; name a copy (\`${copies(multi)[1]}\`) to continue that copy's conversation.\n` : ''}- Subagents work in your folder and see each other's edits. Give parallel subagents separate files or concerns.
+${multi ? `- A subagent with ×N has N identical copies that run at once. Put several tasks for \`${multi.name}\` in one delegate call and each goes to a free copy; name a copy (\`${copies(multi)[1]}\`) to continue that copy's conversation.\n` : ''}- Subagents work in your folder and see each other's edits. Give parallel subagents separate files or concerns.${team.some((m) => m.machine) ? `\n- A subagent "on" another machine works there, on a copy of your folder as it is when you delegate. Its changes are applied to your folder when it finishes (the report says if they didn't apply cleanly). It doesn't see edits made meanwhile, so give it work that doesn't overlap.` : ''}
 - Brief them like a colleague: goal, files, constraints, how to verify. They cannot see your conversation or ask the user.
 - Follow the user's "use it for" notes when you pick a subagent: send each kind of work to the one meant for it.
 - These are your subagents for this session. Whenever you would spawn a subagent, sub-task or helper agent (your harness's built-in Task/Agent tool included), use \`delegate\` instead: don't use built-in subagents.

@@ -66,6 +66,10 @@ export const PARTS = {
   'launcher.harness': '#runner',
   'launcher.compare': '#compareBtn',
   'launcher.team': '#teamBtn',
+  // The Delegate popover (launcher and follow-ups): the lead strip, and each delegate's place chip.
+  'delegate.panel': '.team-pop',
+  'delegate.lead': '.team-pop .tp-lead',
+  'delegate.place': '.team-pop .tp-row .tp-place',
   'launcher.worktree': '#wtBtn',
   'launcher.send': '#launch',
   'launcher.recipes': '#launcher .l-recipes',

@@ -509,7 +509,7 @@ git worktree remove ../app-auth`)}
         <tbody>
           <tr><th scope="row">Parallel tasks</th><td>Independent tasks, one per agent</td><td>Launch them back to back; a worktree each. <a href="/guides/run-multiple-claude-code-agents-in-parallel.html">Guide</a></td></tr>
           <tr><th scope="row">Compare</th><td>One task, the best of several attempts</td><td><b>vs</b> in the launcher, <code>--compare</code>. <a href="/guides/run-claude-code-and-codex-in-parallel.html">Guide</a></td></tr>
-          <tr><th scope="row">Subagents</th><td>One big task, split by a lead</td><td><b>Subagents</b> in the launcher (below)</td></tr>
+          <tr><th scope="row">Subagents</th><td>One big task, split by a lead</td><td><b>Delegate</b> in the launcher (below)</td></tr>
           <tr><th scope="row">Machines</th><td>More agents than one computer handles</td><td><b>Run on</b> in the launcher. <a href="/guides/run-coding-agents-on-multiple-machines.html">Guide</a></td></tr>
         </tbody>
       </table></div>
@@ -518,16 +518,18 @@ git worktree remove ../app-auth`)}
 
     <section>
       <h2 id="team">Give the lead a team</h2>
-      <p>The launcher’s <b>Subagents</b> button sets up a team of up to 6 members. Each has a harness, a model and thinking level, a name, a <b>Use for</b> note that tells the lead when to pick it, and a copies count:</p>
+      <p>The launcher’s <b>Delegate</b> button sets up a team of up to 6 members. Each has a place (with the lead, this computer or one of your machines), a harness, a model and thinking level, a name, a <b>Use for</b> note that tells the lead when to pick it, and a copies count:</p>
       <div class="table"><table>
         <thead><tr><th>Member</th><th>Harness</th><th>Use for</th></tr></thead>
         <tbody>
           <tr><td>lead</td><td>Claude Code</td><td>Plans the change, reviews, ships</td></tr>
           <tr><td><code>codex#1</code>…<code>codex#3</code></td><td>Codex ×3</td><td>Writing and fixing tests, one module each</td></tr>
           <tr><td><code>docs</code></td><td>opencode, a cheap model</td><td>README and changelog</td></tr>
+          <tr><td><code>heavy</code></td><td>Claude Code on your GPU box</td><td>The long refactor</td></tr>
         </tbody>
       </table></div>
       <p>Claude Code, Codex, opencode, Grok Build and Copilot CLI can lead; Cursor CLI and Antigravity CLI can be members too. <b>Save as preset</b> keeps a team for later.</p>
+      <p>A member on another place works there on a copy of the lead’s work, uncommitted edits included, and its changes come back into the lead’s folder when it finishes. Give it work that doesn’t overlap with the rest: if the lead changed the same lines meanwhile, the report says so.</p>
     </section>
 
     <section>
@@ -551,7 +553,7 @@ npx wisp-agents skill install --agent all`)}
 `,
       faq: [
         ['Do subagents work in the same worktree?', 'Yes. Members work in the lead’s folder, so their edits are part of one branch, one diff and one pull request. Separate tasks get separate worktrees.'],
-        ['Can the team run on another machine?', 'Yes. When a task runs on a machine, the lead and its team run there, with the harnesses that machine has.'],
+        ['Can the team run on another machine?', 'Yes. When a task runs on a machine, the lead and its team run there. Each member can also run on a place of its own (this computer or any of your machines): it works on a copy of the lead’s work there, and its changes come back when it finishes.'],
         ['Which agents can lead?', 'Claude Code, Codex, opencode, Grok Build and Copilot CLI can lead a team. Cursor CLI and Antigravity CLI can be members.'],
       ],
       related: ['run-claude-code-and-codex-in-parallel', 'run-coding-agents-on-multiple-machines', 'claude-code-vs-codex'],

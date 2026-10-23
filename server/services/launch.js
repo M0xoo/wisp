@@ -80,13 +80,15 @@ export function createLaunch(app) {
     let trees = ids.map(() => null);
     // A task moved here from another place (services/move.js): its work comes in its bundles.
     const moved = body.moved && typeof body.moved === 'object' && !comparing ? body.moved : null;
+    // A delegate's run for a lead on another place (services/relay.js): hidden, and it can't ask.
+    const delegated = body.delegated && typeof body.delegated === 'object' && moved ? { lead: String(body.delegated.lead || '').slice(0, 200), name: String(body.delegated.name || '').slice(0, 40) } : null;
     if (moved) {
       const made = await app.mover.unpack([cwd, ...also], moved.packs, { id: ids[0], title: moved.title || body.prompt });
       trees = [made[0]];
       const extras = also.map((dir, i) => ({ cwd: dir, ...(made[i + 1] && { worktree: made[i + 1] }) }));
       const history = Array.isArray(moved.turns) ? moved.turns.filter((t) => t && typeof t === 'object' && typeof t.prompt === 'string') : [];
       const r = runners[0];
-      return [runner.create({ id: ids[0], prompt: body.prompt, cwd, also: extras, ...r, mode, attachments, worktree: trees[0], groupId, origin: origin || moved.origin || null, subagents, history, title: moved.title, moved: { from: String(moved.from || ''), at: Date.now() } })];
+      return [runner.create({ id: ids[0], prompt: body.prompt, cwd, also: extras, ...r, mode, attachments, worktree: trees[0], groupId, origin: origin || moved.origin || null, subagents: delegated ? [] : subagents, history, title: moved.title, moved: { from: String(moved.from || ''), at: Date.now() }, delegated })];
     }
     if (wantTree) {
       const must = body.worktree === true || (comparing && mode !== 'plan');
@@ -137,6 +139,9 @@ export function createLaunch(app) {
   // launch(), here or on a machine. Resolves with summaries (a compare launch has several).
   async function launchAny(body, origin = null) {
     const mid = body.kind === 'spell' ? null : machineFor(body); // spells change this wisp, so they're cast here
+    // The team as that place runs it: members on other machines are carried there from here.
+    const preset = !body.subagents && body.preset && store.config.teams.find((t) => t.id === body.preset);
+    if (body.subagents || preset) body = { ...body, subagents: app.relay.placeTeam(body.subagents || preset.members, mid), preset: undefined };
     // Every project runs anywhere: its folders become the ones on that place, cloned there first if need be.
     body = await app.places.placeBody(body, mid);
     if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));

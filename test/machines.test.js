@@ -268,7 +268,7 @@ test('let me in: the password once adds this computer’s key there, then it con
   delete process.env.WISP_SSH_DIR;
 });
 
-test('connect, add a project, launch, follow up and stop wisp over there', { skip: win, timeout: 120_000 }, async () => {
+test('connect, add a project, launch, follow up, delegate and stop wisp over there', { skip: win, timeout: 240_000 }, async () => {
   // Repos the machine clones go to a temp folder, not the real ~/code.
   const clonesThere = tmp('clones-there');
   fs.mkdirSync(path.join(THERE, 'me_devbox'), { recursive: true });
@@ -461,6 +461,33 @@ test('connect, add a project, launch, follow up and stop wisp over there', { ski
   assert.ok(same(outFull.worktree.root, copy));
   assert.match(fs.readFileSync(path.join(outFull.worktree.path, 'math.js'), 'utf8'), /wip there/);
   assert.equal((await call('GET', `/sessions/${home.id}`)).archived, true);
+
+  // Delegate to a machine: a lead here hands a task to a member on devbox. It runs there on a copy
+  // of the lead's work (uncommitted edits too), and its changes come back into the lead's folder.
+  const lead = await call('POST', '/sessions', { prompt: 'DELEGATE the notes', cwd: local.dir, agent: 'claude', subagents: [{ name: 'boxer', agent: 'codex', machine: m.id, use: 'heavy lifting' }] });
+  assert.deepEqual(lead.team.map((x) => [x.name, x.agent]), [['boxer', 'codex']]);
+  const led = await until(
+    async () => {
+      const x = await call('GET', `/sessions/${lead.id}`);
+      return x.state === 'review' && x;
+    },
+    { timeout: 60_000 },
+  );
+  assert.deepEqual(led.subagents.map((x) => [x.machine, x.place, !!x.upstream]), [[m.id, 'devbox', false]]);
+  const [dl] = led.turns[0].delegations;
+  assert.equal(dl.place, 'devbox');
+  const kid = led.childSessions[dl.sessionId];
+  assert.equal(kid.turns[0].status, 'done', JSON.stringify(kid.turns[0].presentation));
+  assert.equal(kid.relay.machine, m.id);
+  assert.match(led.turns[0].presentation.blocks[0].summary, /### boxer/);
+  const boxer = records(RECORD, 'codex').filter((r) => r.stdin.includes('Check math.js for boxer')).at(-1);
+  assert.match(boxer.stdin, /You are a subagent/);
+  assert.ok(!same(fs.realpathSync(boxer.cwd), led.worktree.cwd), 'ran in a worktree over there');
+  assert.equal(fs.readFileSync(path.join(led.worktree.cwd, 'notes.txt'), 'utf8'), 'new file\n'); // its new file, back here
+  assert.ok(led.turns[0].changes.find((c) => c.file === 'notes.txt')?.by?.includes('boxer'), 'credited on the lead turn');
+  // Its run over there is done with: deleted, and never listed here.
+  await until(async () => !fs.existsSync(boxer.cwd));
+  assert.ok(!(await call('GET', '/sessions')).some((x) => x.delegated || x.title === 'Check math.js for boxer'));
 
   // Offline: the last sessions seen stay listed; actions say it's offline.
   await call('POST', `/machines/${m.id}/disconnect`);

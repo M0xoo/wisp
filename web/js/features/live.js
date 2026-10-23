@@ -43,6 +43,7 @@ export function connect() {
   es.addEventListener('summary', (e) => {
     const s = JSON.parse(e.data);
     if (s.parentId) return onChildSummary(s); // a subagent: lives inside its lead's card
+    if (s.delegated) return; // a delegate's run for a lead elsewhere: its lead's card shows it
     const prev = S.sessions.get(s.id);
     if (!prev) dropPending(s);
     const was = prev && sectionOf(prev); // before the update: a compare task's section depends on all its runs

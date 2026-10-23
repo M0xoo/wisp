@@ -56,6 +56,8 @@ export function register(r, app) {
       if (body.machine !== mid && btwQuestion(body.text) === null) return c.send(200, await app.mover.move(c.params.id, body.machine, { ...body, text: String(body.text || '').trim() }));
       delete body.machine;
     }
+    // A new team: members on other machines are carried there from here (services/relay.js).
+    if ((action === 'reply' || (!action && m === 'PATCH')) && Array.isArray(body?.subagents)) body.subagents = app.relay.placeTeam(body.subagents, mid);
     if (action === 'reply' && body?.attachments?.length) body.attachments = await app.launcher.pushUploads(mid, body.attachments);
     const out = await machines.json(mid, m, sub, body, action === 'wait' ? { timeout: (MAX_WAIT_S + 30) * 1000 } : undefined);
     if (!action && m === 'GET') return c.send(200, machines.session(mid, out));

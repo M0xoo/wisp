@@ -437,7 +437,7 @@ export function openapi({ version, port }) {
             effort: { type: 'string', description: 'Thinking level: low, medium, high, xhigh, max (per harness)' },
             attachments: { type: 'array', items: { type: 'string' }, description: 'Upload ids' },
             worktree: { type: 'boolean', description: 'Run in a fresh git worktree + branch. Default: on in git repos (Settings), off in plan mode' },
-            subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'], properties: { name: { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' }, use: { type: 'string', description: 'When the lead should pick this one' }, count: { type: 'integer', minimum: 1, maximum: 5, description: 'Identical copies that take tasks in parallel (name#1, name#2, …); 12 in all' } } }, description: 'A team the lead can delegate to through the injected `delegate` tool. Each runs as a child session in the lead’s folder' },
+            subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'], properties: { name: { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' }, use: { type: 'string', description: 'When the lead should pick this one' }, count: { type: 'integer', minimum: 1, maximum: 5, description: 'Identical copies that take tasks in parallel (name#1, name#2, …); 12 in all' }, machine: { type: 'string', description: 'Where it runs: empty (with the lead), `here` (this computer) or a machine id. One on another place works on a copy of the lead’s work there; its changes come back as a patch' } } }, description: 'A team the lead can delegate to through the injected `delegate` tool. Each runs as a child session in the lead’s folder' },
             preset: { type: 'string', description: 'Id of a saved team (`/teams`), used when `subagents` is absent' },
             compare: { type: 'array', maxItems: 3, items: { type: 'object', properties: { agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' } } }, description: 'Also run the same task on these, each in its own worktree' },
           },
@@ -462,7 +462,7 @@ export function openapi({ version, port }) {
           properties: {
             id: { type: 'string', readOnly: true },
             name: { type: 'string' },
-            members: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, agent: { type: 'string', description: 'Harness id, or auto' }, model: { type: 'string' }, effort: { type: 'string' }, use: { type: 'string', description: 'What the lead should use it for' }, count: { type: 'integer', minimum: 1 } } } },
+            members: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, agent: { type: 'string', description: 'Harness id, or auto' }, model: { type: 'string' }, effort: { type: 'string' }, use: { type: 'string', description: 'What the lead should use it for' }, count: { type: 'integer', minimum: 1 }, machine: { type: 'string', description: 'Empty (with the lead), `here` or a machine id' } } } },
             updatedAt: { type: 'integer', readOnly: true },
           },
         },
