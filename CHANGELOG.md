@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Tips under the prompt box.** Three short tips about using wisp sit under Needs you on split view's home, rotating through a list of 34 on every visit or with *More tips*. Each opens the trywisp.dev guide section that explains it. Spells can hide or restyle them (the `tips` part) and set how many show (`count`).
 
+### Fixed
+
+- **Interrupting a run no longer flashes the task through Needs you.** A follow-up sent while the agent works used to drop the task into Needs you (and Finished) for a moment before it went back to Working. It now stays in Working until the follow-up's run ends, and only that run notifies. The same goes for a queued follow-up starting after the run before it.
+
 ## [0.35.0] - 2026-10-23
 
 ### Added
