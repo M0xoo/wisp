@@ -71,7 +71,17 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 
 > **No computer to keep on?** Open [grid.trywisp.dev](https://grid.trywisp.dev), sign in with GitHub and you get your own wisp on a server, with nothing to install. See [wisp Cloud](#wisp-cloud).
 
-> **Requirements:** macOS, Linux, or Windows; Node.js ≥ 20; and at least one harness installed and signed in: [Claude Code](https://claude.com/claude-code) (`claude`), [Codex](https://github.com/openai/codex) (`codex`), [opencode](https://opencode.ai) (`opencode`), [Cursor CLI](https://cursor.com/cli) (`cursor-agent`), [Antigravity CLI](https://antigravity.google/docs/cli/headless/) (`agy`), [Grok Build](https://x.ai/cli) (`grok`), or [GitHub Copilot CLI](https://github.com/features/copilot/cli) (`copilot`, with a Copilot plan). No CLI? The [ChatGPT desktop app](https://chatgpt.com/download) is enough for Codex on macOS and Linux, and the [Claude desktop app](https://claude.com/download) for Claude Code on macOS and Windows once you've opened its Code tab and signed that CLI in once: wisp uses the CLI each app ships when the command isn't on PATH. Override a binary path with `WISP_CLAUDE_BIN`, `WISP_CODEX_BIN`, `WISP_OPENCODE_BIN`, `WISP_CURSOR_BIN`, `WISP_ANTIGRAVITY_BIN`, `WISP_GROK_BIN`, or `WISP_COPILOT_BIN`.
+> **Requirements:** macOS, Linux, or Windows; Node.js ≥ 20 for the npm, npx, curl and Homebrew installs (the desktop download needs none); and at least one harness installed and signed in: [Claude Code](https://claude.com/claude-code) (`claude`), [Codex](https://github.com/openai/codex) (`codex`), [opencode](https://opencode.ai) (`opencode`), [Cursor CLI](https://cursor.com/cli) (`cursor-agent`), [Antigravity CLI](https://antigravity.google/docs/cli/headless/) (`agy`), [Grok Build](https://x.ai/cli) (`grok`), or [GitHub Copilot CLI](https://github.com/features/copilot/cli) (`copilot`, with a Copilot plan). No CLI? The [ChatGPT desktop app](https://chatgpt.com/download) is enough for Codex on macOS and Linux, and the [Claude desktop app](https://claude.com/download) for Claude Code on macOS and Windows once you've opened its Code tab and signed that CLI in once: wisp uses the CLI each app ships when the command isn't on PATH. Override a binary path with `WISP_CLAUDE_BIN`, `WISP_CODEX_BIN`, `WISP_OPENCODE_BIN`, `WISP_CURSOR_BIN`, `WISP_ANTIGRAVITY_BIN`, `WISP_GROK_BIN`, or `WISP_COPILOT_BIN`.
+
+**Download the desktop app** (no Node needed, it updates itself):
+
+| macOS | Windows | Linux |
+|---|---|---|
+| [Apple silicon](https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg) · [Intel](https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-x64.dmg) | [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-windows-x64-setup.exe) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-windows-arm64-setup.exe) | AppImage: [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-x64.AppImage) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-arm64.AppImage) — .deb: [x64](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-x64.deb) · [Arm](https://github.com/M0xoo/wisp/releases/latest/download/wisp-linux-arm64.deb) |
+
+Every build is on the [latest release](https://github.com/M0xoo/wisp/releases/latest), with `SHA256SUMS.txt`. Until the builds are signed, macOS asks you to confirm the first open (right-click wisp → *Open*, or System Settings → Privacy & Security → *Open Anyway*) and Windows SmartScreen asks too (*More info* → *Run anyway*). The app updates from the same releases: *Update to …* in its top bar downloads the new build, swaps it in and reopens wisp. A `.deb` install updates by installing the new `.deb`.
+
+Or run it with Node.js 20+:
 
 ```sh
 npx wisp-agents                          # open the wisp desktop app
@@ -91,7 +101,7 @@ brew install m0xoo/tap/wisp-agents             # Homebrew: CLI and browser mode,
 wisp "fix the flaky auth test"
 ```
 
-The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.36.0 bash`).
+The Homebrew formula lives in [M0xoo/homebrew-tap](https://github.com/M0xoo/homebrew-tap) (the release workflow bumps it from [`packaging/homebrew`](packaging/homebrew/wisp-agents.rb)). `install.sh` honors `WISP_VERSION` to pin a release (`curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.36.0 bash`).
 
 From source:
 

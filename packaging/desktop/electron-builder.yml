@@ -1,0 +1,58 @@
+# The desktop app as a download: wisp.app (dmg, zip), a Windows installer and a Linux AppImage / deb.
+# Built by .github/workflows/release.yml; locally: npx electron-builder@26 --config packaging/desktop/electron-builder.yml
+# Artifact names carry no version, so https://github.com/M0xoo/wisp/releases/latest/download/<name>
+# always points at the newest one (the site and the app's updater use those links).
+appId: dev.wisp.app
+productName: wisp
+copyright: Copyright © M0xoo
+directories:
+  output: dist/desktop
+  buildResources: packaging/desktop
+# The same files npm ships. No asar: agents and the MCP bridge run wisp's files with the app's
+# binary in node mode, and skills/ is copied out as is.
+files:
+  - package.json
+  - CHANGELOG.md
+  - bin/**
+  - electron/**
+  - grid/**
+  - server/**
+  - skills/**
+  - web/**
+  - '!node_modules/**' # Electron is an optional dependency for npm installs; the app is Electron
+asar: false
+npmRebuild: false
+publish: null
+mac:
+  category: public.app-category.developer-tools
+  icon: electron/icon.png
+  target:
+    - { target: dmg, arch: [arm64, x64] }
+    - { target: zip, arch: [arm64, x64] } # what the app's updater downloads
+  artifactName: wisp-mac-${arch}.${ext}
+  hardenedRuntime: true
+  entitlements: packaging/desktop/entitlements.mac.plist
+  entitlementsInherit: packaging/desktop/entitlements.mac.plist
+  # Signed and notarized when the release has CSC_LINK and APPLE_* secrets; ad-hoc otherwise.
+  notarize: false
+dmg:
+  artifactName: wisp-mac-${arch}.dmg
+  title: wisp
+win:
+  icon: electron/icon.png
+  target:
+    - { target: nsis, arch: [x64, arm64] }
+  artifactName: wisp-windows-${arch}-setup.${ext}
+nsis:
+  oneClick: true
+  perMachine: false # %LOCALAPPDATA%, so the updater can replace it without admin rights
+  shortcutName: wisp
+linux:
+  icon: electron/icon.png
+  category: Development
+  maintainer: M0xoo <elhenimokhles@gmail.com>
+  synopsis: Run coding agents in parallel, read the report.
+  target:
+    - { target: AppImage, arch: [x64, arm64] }
+    - { target: deb, arch: [x64, arm64] }
+  artifactName: wisp-linux-${arch}.${ext}

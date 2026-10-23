@@ -117,3 +117,10 @@ through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`, `feedAnchor`, 
   update README, the docs site and the version (`package.json`, `package-lock.json`, `README.md`,
   `docs/index.html`, `docs/integrations.md`, `docs/install.sh`, `scripts/guides.mjs`).
 - `main` is protected: work on a branch and open a PR.
+- Releasing is merging the version bump: `.github/workflows/release.yml` sees a version npm doesn't
+  have and builds the desktop app (`packaging/desktop/electron-builder.yml`), drafts the GitHub
+  release from that version's CHANGELOG section (`scripts/release-notes.mjs`, so the bump needs a
+  `## [x.y.z] - date` section), publishes to npm, publishes the release, then bumps the Homebrew tap
+  from `packaging/homebrew/wisp-agents.rb`. Nobody runs `npm publish` by hand. Download names carry
+  no version (`wisp-mac-arm64.dmg`): the site, README and the app's updater (`server/update.js`,
+  method `app`) link `releases/latest/download/<name>`, so don't rename them.
