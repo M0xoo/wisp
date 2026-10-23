@@ -6,7 +6,7 @@ import { esc } from '../md.js';
 import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, $$, el, icon } from '../core/dom.js';
+import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { launch, load, MOBILE, S, save, saveLaunch } from '../core/state.js';
 import { combo } from '../ui/kbd.js';
 import { popover } from '../ui/popover.js';
@@ -494,8 +494,13 @@ export function renderLaunchChips() {
     ? `<button class="lp-chip add" data-add="${addOn}" title="Another folder${addOn ? ` on ${esc(placeName(addOn))}` : ''}">${icon('folder')}${list.length > CHIPS ? '' : 'Other folder…'}</button>`
     : `<button class="lp-chip add" data-add="${addOn}">${icon('folder')}${addOn ? `Pick a project on ${esc(placeName(addOn))}…` : 'Choose a folder…'}</button>`;
   const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}<span>No folder</span></button>`;
-  box.innerHTML = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
-  fitChips(box);
+  const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
+  // Unchanged chips stay as they were folded: fitting measures the row once per chip it folds.
+  if (box.dataset.h !== html) {
+    box.dataset.h = html;
+    box.innerHTML = html;
+    beforePaint(fitLaunchChips);
+  }
   fitRow ??= new ResizeObserver(([e]) => {
     if (e.contentRect.width === fitRow.w) return; // its own folding only changes the height
     fitRow.w = e.contentRect.width;
@@ -569,6 +574,10 @@ export function renderLaunchChips() {
 // One row, however many projects: on a single place, the least recent chips (never the pick, and
 // at least one) fold into "+N" until the row stops wrapping. "+N" counts what isn't a chip.
 let fitRow;
+const fitLaunchChips = () => {
+  const box = $('#launcher .l-projects');
+  if (box) fitChips(box);
+};
 function fitChips(box) {
   for (const g of $$('.lp-group', box)) {
     const chips = $$('.lp-chip[data-id]:not(.none):not(.cloning)', g);

@@ -3,7 +3,7 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, $$, el, icon } from '../core/dom.js';
+import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { HERE, launch, S, save, saveLaunch } from '../core/state.js';
 import { present } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
@@ -19,6 +19,7 @@ import { projectList } from './project-list.js';
 // Project filter chips in the top bar before the rest fold into "+N".
 const TOP_CHIPS = 6;
 let fitBar; // refits the chips when the bar's width changes
+const fitProjects = () => fitBar?.fit?.();
 
 export function renderProjects() {
   const all = [...S.sessions.values()];
@@ -42,12 +43,18 @@ export function renderProjects() {
     ...list,
   ].slice(0, TOP_CHIPS));
   const shown = list.filter((p) => keep.has(p));
-  $('#projects').innerHTML = `<div class="p-scroll">${chip('all', 'All', 'slate')}${shown.map((p) => chip(p.id, p.name, p.color)).join('')}</div><button class="p-chip more" id="moreProjects" title="All ${list.length} projects" aria-haspopup="dialog"><i class="p-dot" hidden></i><span class="p-more-n"></span><span class="p-need" hidden></span>${icon('chevron', 'chev')}</button><button class="p-chip add" id="manageProjects" title="Manage projects">${icon('plus')}</button>`;
+  const html = `<div class="p-scroll">${chip('all', 'All', 'slate')}${shown.map((p) => chip(p.id, p.name, p.color)).join('')}</div><button class="p-chip more" id="moreProjects" title="All ${list.length} projects" aria-haspopup="dialog"><i class="p-dot" hidden></i><span class="p-more-n"></span><span class="p-need" hidden></span>${icon('chevron', 'chev')}</button><button class="p-chip add" id="manageProjects" title="Manage projects">${icon('plus')}</button>`;
+  // Called after every feed render: unchanged chips are left as they are, already fitted (fitting
+  // measures the bar, a forced layout per chip). A new width refits through the ResizeObserver.
+  if ($('#projects').dataset.h === html) return;
+  $('#projects').dataset.h = html;
+  $('#projects').innerHTML = html;
   // Keep chips whole: drop the least important ones (recent last, the filtered one never) until
   // the rest fit, and count what's left out on "+N" with what needs you in there.
   const fit = () => {
     const box = $('#projects .p-scroll');
     if (!box) return;
+    fitBar.w = $('#projects').clientWidth;
     const chips = $$('.p-chip[data-id]:not([data-id="all"])', box);
     chips.forEach((c) => (c.hidden = false));
     const drop = [...chips].sort((a, b) => (a.dataset.id === S.filter) - (b.dataset.id === S.filter) || stats(a.dataset.id).need - stats(b.dataset.id).need || shown.findIndex((p) => p.id === b.dataset.id) - shown.findIndex((p) => p.id === a.dataset.id));
@@ -85,10 +92,12 @@ export function renderProjects() {
       $('.p-need', more).textContent = need;
     }
   };
-  fit();
-  fitBar ??= new ResizeObserver(() => fitBar.fit?.());
+  fitBar ??= new ResizeObserver(([e]) => {
+    if (e.target.clientWidth !== fitBar.w) fitBar.fit?.(); // fitting itself only changes what's inside
+  });
   fitBar.fit = fit;
   fitBar.observe($('#projects'));
+  beforePaint(fitProjects);
   const setFilter = (id) => {
     S.filter = id;
     save('wisp.filter', S.filter);

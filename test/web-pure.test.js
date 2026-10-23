@@ -9,6 +9,7 @@ import { esc, md, inlineMd, highlight, langOf } from '../web/js/md.js';
 import { diffLines, hunks, countChanges } from '../web/js/diff.js';
 import { ago, fmtSize, money, pct } from '../web/js/core/format.js';
 import * as bus from '../web/js/core/bus.js';
+import { shared } from '../web/js/core/api.js';
 import { finalAnswer, layout, messageText, sameStep } from '../web/js/features/transcript.js';
 import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
 
@@ -240,4 +241,29 @@ test('drafts: kept as typed, back after a reload; emptied ones go, and the oldes
     if (had) Object.defineProperty(globalThis, 'localStorage', had);
     else delete globalThis.localStorage;
   }
+});
+
+test('shared: a second caller shares the load on its way; since(t) reuses one asked for at t or later', async () => {
+  let calls = 0;
+  let fail = false;
+  const load = shared(async () => {
+    calls++;
+    await new Promise((r) => setTimeout(r, 5));
+    if (fail) throw new Error('down');
+    return calls;
+  });
+  const t = performance.now();
+  const [a, b] = await Promise.all([load(), load()]);
+  assert.equal(calls, 1);
+  assert.equal(a, b);
+  await load.since(t); // done since t: no new request
+  assert.equal(calls, 1);
+  await load.since(performance.now() + 1); // asked for before t: load again
+  assert.equal(calls, 2);
+  fail = true;
+  const t2 = performance.now();
+  await assert.rejects(load());
+  fail = false;
+  await load.since(t2); // the one since t2 failed: it doesn't count
+  assert.equal(calls, 4);
 });

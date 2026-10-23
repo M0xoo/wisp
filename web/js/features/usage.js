@@ -4,7 +4,7 @@ import { fmtDuration } from '../blocks.js';
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { money, pct } from '../core/format.js';
+import { fmtDate, money, pct } from '../core/format.js';
 import { present } from '../ui/overlay.js';
 import { toastError } from '../ui/toast.js';
 import { agentName, harnessLogo } from './runners.js';
@@ -25,7 +25,7 @@ export async function openUsage({ days = 30, host } = {}) {
     const byCost = t.priced > 0;
     const val = (d) => (byCost ? d.cost : d.turns);
     const max = Math.max(...u.daily.map(val), 0) || 1;
-    const fmtDay = (k) => new Date(`${k}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
+    const fmtDay = (k) => fmtDate(`${k}T12:00:00`, { month: 'short', day: 'numeric' });
     const table = (rows, label) =>
       rows.length
         ? `<table class="us-table"><thead><tr><th></th><th>Spend</th><th>Turns</th><th>Worked</th><th>Asked</th><th>Avg time</th></tr></thead><tbody>${rows

@@ -16,11 +16,22 @@ export function fmtSize(n) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// A date in the user's locale. toLocaleString with options builds a new formatter on every call
+// (about 150 times slower than reusing one), and lists and turns format many dates per render.
+const formats = new Map();
+export function fmtDate(t, opts) {
+  const key = JSON.stringify(opts);
+  let f = formats.get(key);
+  if (!f) formats.set(key, (f = new Intl.DateTimeFormat([], opts)));
+  return f.format(new Date(t));
+}
+export const SHORT_TIME = { hour: '2-digit', minute: '2-digit' };
+export const DAY_TIME = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+
 export const whenLabel = (t) => {
   if (!t) return '';
-  const d = new Date(t);
-  const today = new Date().toDateString() === d.toDateString();
-  return d.toLocaleString([], today ? { hour: '2-digit', minute: '2-digit' } : { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const today = new Date().toDateString() === new Date(t).toDateString();
+  return fmtDate(t, today ? SHORT_TIME : { weekday: 'short', ...DAY_TIME });
 };
 
 export const money = (v) => (v >= 100 ? `$${Math.round(v)}` : `$${(v || 0).toFixed(2)}`);

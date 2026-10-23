@@ -5,13 +5,14 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
+import { fmtDate, SHORT_TIME } from '../core/format.js';
 import { present } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
 import { AUTO_GOALS, harnessLogo } from './runners.js';
 
 const ARM_STATE = { ready: ['Ready', 'ok'], new: ['Trying out', 'warn'], untried: ['No data yet', ''], cooling: ['At its limit', 'warn'], gone: ['Not installed', 'bad'] };
 const TIER = { 1: 'small', 2: 'everyday', 3: 'frontier' };
-const untilLabel = (t) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const untilLabel = (t) => fmtDate(t, SHORT_TIME);
 export async function openRouter({ host } = {}) {
   const node = el(`<div class="modal router-modal">
       <header><h2>Auto</h2><button class="icon-btn close">${icon('x')}</button></header>

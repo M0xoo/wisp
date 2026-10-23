@@ -57,7 +57,7 @@ test('index.html preloads every module app.js imports and names its build', asyn
   assert.ok(!graph.includes('/js/features/spell-actions.js'), 'dynamic imports load when used');
   const r = await get('/');
   const html = r.body.toString();
-  for (const u of graph) assert.ok(html.includes(`<link rel="modulepreload" href="${u}">`), u);
+  for (const u of graph) assert.match(html, new RegExp(`<link rel="modulepreload" href="${u}\\?v=[\\w-]+">`), u);
   const build = r.headers['x-wisp-build'];
   assert.ok(build);
   assert.ok(html.includes(`<meta name="wisp-build" content="${build}">`));
@@ -69,10 +69,62 @@ test('index.html preloads every module app.js imports and names its build', asyn
   assert.equal(other.body.length, 0);
 });
 
+test('index.html names scripts and styles by content, and those URLs are cached for good', async () => {
+  const html = (await get('/')).body.toString();
+  const map = JSON.parse(/<script type="importmap">([^<]*)<\/script>/.exec(html)[1]).imports;
+  // Every module, dynamic imports too: they import each other by plain paths.
+  assert.match(map['/js/app.js'], /^\/js\/app\.js\?v=[\w-]+$/);
+  assert.match(map['/js/features/spell-actions.js'], /\?v=/);
+  assert.ok(html.indexOf('type="importmap"') < html.indexOf('rel="modulepreload"'), 'the map comes before any module loads');
+  assert.ok(html.includes(`<script type="module" src="${map['/js/app.js']}">`));
+  const css = /href="(\/css\/base\.css\?v=[\w-]+)"/.exec(html)[1];
+  const kept = await get(css);
+  assert.equal(kept.status, 200);
+  assert.equal(kept.headers['cache-control'], 'public, max-age=31536000, immutable');
+  // A stale or made-up version isn't this content: asked about every time, as without one.
+  assert.equal((await get('/css/base.css?v=old')).headers['cache-control'], 'no-cache');
+  assert.equal((await get('/css/base.css')).headers['cache-control'], 'no-cache');
+});
+
 test('the service worker is served, and paths outside web/ are not', async () => {
   const sw = await get('/sw.js');
   assert.equal(sw.status, 200);
   assert.match(sw.body.toString(), /wisp-shell/);
   const escape = await get('/../package.json');
   assert.match(escape.headers['content-type'], /text\/html/);
+});
+
+// The API's JSON (server/http/respond.js): big answers go gzipped to a client that asks for it.
+test('big JSON answers are gzipped when the client takes it, small ones and others go plain', async () => {
+  const { send } = await import('../server/http/respond.js');
+  const big = { items: Array.from({ length: 2000 }, (_, i) => ({ id: i, title: `task ${i}` })) };
+  const api = http.createServer((req, res) => send(res, 200, req.url === '/big' ? big : { ok: true }));
+  await new Promise((r) => api.listen(0, '127.0.0.1', r));
+  const at = `http://127.0.0.1:${api.address().port}`;
+  const raw = (path, headers) =>
+    new Promise((resolve, reject) => {
+      http
+        .request(`${at}${path}`, { headers }, (res) => {
+          const chunks = [];
+          res.on('data', (c) => chunks.push(c));
+          res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+        })
+        .on('error', reject)
+        .end();
+    });
+  try {
+    const gz = await raw('/big', { 'accept-encoding': 'gzip, deflate, br' });
+    assert.equal(gz.headers['content-encoding'], 'gzip');
+    assert.equal(gz.headers['content-type'], 'application/json');
+    assert.deepEqual(JSON.parse(zlib.gunzipSync(gz.body)), big);
+    assert.ok(gz.body.length < JSON.stringify(big).length / 3);
+    const plain = await raw('/big', {});
+    assert.equal(plain.headers['content-encoding'], undefined);
+    assert.deepEqual(JSON.parse(plain.body), big);
+    const small = await raw('/small', { 'accept-encoding': 'gzip' });
+    assert.equal(small.headers['content-encoding'], undefined);
+    assert.deepEqual(JSON.parse(small.body), { ok: true });
+  } finally {
+    api.close();
+  }
 });

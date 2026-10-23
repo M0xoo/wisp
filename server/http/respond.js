@@ -1,10 +1,28 @@
 // Writing responses and reading request bodies. The API speaks JSON; a few routes stream.
 
+import zlib from 'node:zlib';
+
 const MAX_BODY = 2e6;
+// Bigger answers go gzipped to a client that takes it. The task list is hundreds of KB and the
+// phone gets it through an SSH tunnel; level 1 is most of the saving (about 6x) for little CPU,
+// and off the event loop: a full session can be megabytes.
+const GZIP_MIN = 8 * 1024;
 
 export function send(res, status, body) {
-  res.writeHead(status, { 'content-type': 'application/json' });
-  res.end(JSON.stringify(body));
+  const json = JSON.stringify(body);
+  if (json === undefined || json.length < GZIP_MIN || !/\bgzip\b/.test(res.req?.headers['accept-encoding'] || '')) {
+    res.writeHead(status, { 'content-type': 'application/json' });
+    return res.end(json);
+  }
+  res.gzipping = true; // answered: the headers go out with the compressed body
+  zlib.gzip(json, { level: 1 }, (err, gz) => {
+    if (err) {
+      res.writeHead(status, { 'content-type': 'application/json' });
+      return res.end(json);
+    }
+    res.writeHead(status, { 'content-type': 'application/json', 'content-encoding': 'gzip', vary: 'accept-encoding' });
+    res.end(gz);
+  });
 }
 
 export function readJson(req) {

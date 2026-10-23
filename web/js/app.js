@@ -105,6 +105,9 @@ function paintSnapshot(snap) {
     paintSnapshot(snap);
     syncing(true);
   }
+  // The stream first: anything that changes while the lists load arrives on it. Its `hello` loads
+  // the lists too, and shares the requests below while they're out (live.js).
+  connect();
   const agents = api('/agents').catch(() => null);
   const sessions = loadSessions();
   sessions.catch(() => {}); // awaited below, unless the loads before it fail
@@ -115,14 +118,13 @@ function paintSnapshot(snap) {
       renderLauncher();
       bus.emit('agents');
     }
-    if (!snap) $('#prompt')?.focus();
+    if (!snap || !MOBILE) $('#prompt')?.focus({ preventScroll: true }); // it's in view: no layout to scroll it there
     await sessions;
     syncing(false);
   } catch {
     // The phone's tunnel isn't back yet (the page came from its cache): the live stream retries,
     // and its `hello` loads everything.
   }
-  connect();
   route();
   telemetryNotice();
   if (MOBILE) {

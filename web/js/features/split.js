@@ -16,7 +16,7 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, $$, icon } from '../core/dom.js';
+import { $, $$, beforePaint, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
 import { load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
@@ -174,6 +174,7 @@ export function paintSplit() {
   const s = id && S.sessions.get(id);
   home.hidden = !!s;
   $('#splitHead').hidden = !s;
+  const shown = !!s && $('#splitStage').hidden;
   $('#splitStage').hidden = !s;
   $('#splitNew').classList.toggle('on', !s);
   const side = slotHtml('sidebar.top');
@@ -181,7 +182,10 @@ export function paintSplit() {
   if (host.dataset.h !== side) (host.innerHTML = side), (host.dataset.h = side);
   if (s) paintHead(s);
   else paintHome();
-  measure();
+  // Measuring forces a layout in the middle of a render. Only a pane that just appeared needs it
+  // now (the body's scroll is restored right after); otherwise the next frame, before it paints.
+  if (shown) measure();
+  else beforePaint(measure);
 }
 
 // The open task's header is its title (and the split.head slot). What the card head says about the
@@ -245,15 +249,21 @@ function paintHome() {
 }
 
 // The open body is fixed to #splitStage's box: whatever moves the box (the header wrapping, the
-// sidebar resized or flipped) moves the body with it.
+// sidebar resized or flipped) moves the body with it. Runs after every feed render, so it only
+// writes what changed: a new --sb-* on body restyles the whole page.
+let lastBox = '';
 function measure() {
   const r = $('#splitStage').getBoundingClientRect();
+  const wideNow = isSplit() && r.width >= DETAILS_PANE;
+  const key = `${r.top} ${r.left} ${r.width} ${r.height} ${wideNow}`;
+  if (key === lastBox) return;
+  lastBox = key;
   const st = document.body.style;
   st.setProperty('--sb-top', `${r.top}px`);
   st.setProperty('--sb-left', `${r.left}px`);
   st.setProperty('--sb-w', `${r.width}px`);
   st.setProperty('--sb-h', `${r.height}px`);
-  document.body.classList.toggle('pane-wide', isSplit() && r.width >= DETAILS_PANE);
+  document.body.classList.toggle('pane-wide', wideNow);
 }
 new ResizeObserver(measure).observe($('#splitStage'));
 addEventListener('resize', measure);
@@ -269,7 +279,7 @@ function paintProps() {
   // The list sits on the left unless a spell asks for the right.
   document.body.classList.toggle('side-right', spellProp('sidebar', 'side') === 'right');
   document.body.classList.toggle('side-full', spellProp('sidebar', 'details') === 'full');
-  measure();
+  beforePaint(measure);
 }
 
 const viewBtn = $('#viewBtn');
@@ -311,7 +321,7 @@ grip.addEventListener('pointerdown', (e) => {
   const move = (ev) => {
     w = clampW(right ? innerWidth - ev.clientX : ev.clientX);
     document.documentElement.style.setProperty('--side-w', `${w}px`);
-    measure();
+    beforePaint(measure); // pointer moves can come faster than frames
   };
   const up = () => {
     grip.removeEventListener('pointermove', move);

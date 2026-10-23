@@ -35,7 +35,9 @@ function countUp(node, to, delay = 0, decimals = null) {
     return;
   }
   const dec = decimals ?? (String(to).split('.')[1]?.length || 0);
-  const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  // One formatter for the whole count: toLocaleString builds a new one on every frame.
+  const nf = new Intl.NumberFormat(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  const fmt = (v) => nf.format(v);
   if (quiet()) {
     node.textContent = fmt(n);
     return;

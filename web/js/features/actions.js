@@ -138,6 +138,8 @@ export function rename(id) {
   document.getSelection().selectAllChildren(title);
   const done = (commit) => {
     title.contentEditable = 'false';
+    // The head was edited in place: the next render repaints it even if the title stays the same.
+    delete title.closest('[data-h]')?.dataset.h;
     const s = S.sessions.get(id);
     const t = title.textContent.trim();
     if (commit && t && t !== s.title) api(`/sessions/${id}`, { method: 'PATCH', body: { title: t } }).catch((e) => toastError(e));

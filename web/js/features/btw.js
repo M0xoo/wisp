@@ -8,6 +8,7 @@ import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { load, S, save } from '../core/state.js';
+import { fmtDate, SHORT_TIME } from '../core/format.js';
 import { isBtw } from '../slash-text.js';
 import { toastError } from '../ui/toast.js';
 import { scheduleRefetch } from './feed.js';
@@ -126,7 +127,7 @@ export function paintBtw(id) {
 
 function item(s, b) {
   const who = agentName(b.agent || s.agent);
-  const at = new Date(b.askedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const at = fmtDate(b.askedAt, SHORT_TIME);
   const how = b.status !== 'done' ? '' : b.forked ? 'on a copy of the conversation' : 'from wisp’s record of the task';
   const tip = [`Side question, asked ${at}`, b.answeredAt && `answered in ${fmtDuration(b.answeredAt - b.askedAt)}`, how].filter(Boolean).join(' · ');
   const body =

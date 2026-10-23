@@ -238,6 +238,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
         console.error(err);
         app.telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
       }
+      if (res.gzipping) return; // the answer is already on its way
       if (!res.headersSent) send(res, err.status || 500, { error: err.message });
       else res.end();
     }

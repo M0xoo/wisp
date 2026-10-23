@@ -7,6 +7,7 @@ import { mentionHtml } from '../mention-text.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
+import { DAY_TIME, fmtDate } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
 import { viewImage } from '../ui/viewer.js';
 import { execAction, moreMenu, openInEditor, rerun, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
@@ -242,7 +243,7 @@ function renderFoldedTurn(t, unfold) {
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
-        <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+        <time>${fmtDate(t.startedAt, DAY_TIME)}</time>
       </button>
     </article>`);
   $('.t-fold', node).onclick = unfold;
@@ -277,7 +278,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
         ${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}
         ${modeSwitch(s, t)}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}, before the task moved`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
-        <time>${new Date(t.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+        <time>${fmtDate(t.startedAt, DAY_TIME)}</time>
         ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn${cp.branch ? ` on ${esc(cp.branch)}` : ''} (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
       </div>
