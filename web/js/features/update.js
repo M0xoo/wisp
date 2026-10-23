@@ -33,7 +33,9 @@ export async function installUpdate() {
       return post(true);
     });
   } catch (err) {
-    if (err) toast(esc(err.message), { tone: 'bad', timeout: 10_000, action: { label: 'Copy command', run: () => copy(update.command) } });
+    // The desktop app's "command" is the downloads page: open it rather than copy it.
+    const action = update.method === 'app' ? { label: 'Open downloads', run: () => window.open(update.command, '_blank', 'noopener') } : { label: 'Copy command', run: () => copy(update.command) };
+    if (err) toast(esc(err.message), { tone: 'bad', timeout: 10_000, action });
     return;
   }
   renderUpdate({ ...update, status: 'restarting' });
@@ -43,6 +45,6 @@ export async function installUpdate() {
   const poll = setInterval(async () => {
     const h = await api('/health').catch(() => null);
     if (h?.version && h.version !== from) return clearInterval(poll), location.reload();
-    if (Date.now() - t0 > 120_000) clearInterval(poll), toast('wisp did not come back. Start it again from your terminal.', { tone: 'bad', timeout: 15_000 });
+    if (Date.now() - t0 > 120_000) clearInterval(poll), toast(update.method === 'app' ? 'wisp did not come back. Open it again.' : 'wisp did not come back. Start it again from your terminal.', { tone: 'bad', timeout: 15_000 });
   }, 1000);
 }

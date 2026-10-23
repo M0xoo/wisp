@@ -1,0 +1,225 @@
+name: release
+
+# One release does everything. Merge a PR that bumps package.json's version (with its CHANGELOG
+# section) and this:
+#   1. builds the desktop app: macOS dmg + zip (Apple silicon, Intel), Windows installer (x64, Arm),
+#      Linux AppImage + deb (x64, Arm)
+#   2. creates the GitHub release v<version> as a draft with the CHANGELOG notes, the downloads and
+#      SHA256SUMS.txt
+#   3. publishes wisp-agents to npm (with provenance)
+#   4. publishes the release, so the site's download links and the app's updater see it only once
+#      everything is up
+#   5. bumps the Homebrew tap (M0xoo/homebrew-tap) to the new npm tarball
+# A push only releases a version npm doesn't have yet. Run it by hand (Actions → release → Run
+# workflow) to finish one that stopped half way: every step skips what's already done. With
+# "dry run" ticked it only builds the desktop apps (kept as the run's artifacts): try a branch with
+# `gh workflow run release --ref <branch> -f dry_run=true`.
+#
+# Secrets (all optional except the npm one):
+#   NPM_TOKEN                   npm automation token; not needed with npm trusted publishing set up
+#                               for this repo and workflow (npmjs.com → wisp-agents → Settings)
+#   HOMEBREW_TAP_TOKEN          a token that can push to M0xoo/homebrew-tap; without it the tap is skipped
+#   MAC_CSC_LINK, MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+#                               Developer ID certificate (base64 .p12) and notarization; without
+#                               them the app is signed ad hoc and macOS asks to confirm the first open
+#   WIN_CSC_LINK, WIN_CSC_KEY_PASSWORD
+#                               Windows code signing; without them SmartScreen warns on first run
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Only build the desktop apps; release nothing
+        type: boolean
+        default: false
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BUILDER: electron-builder@26.15.3
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.plan.outputs.go }}
+      version: ${{ steps.plan.outputs.version }}
+      npm: ${{ steps.plan.outputs.npm }}
+      prerelease: ${{ steps.plan.outputs.prerelease }}
+      dry: ${{ steps.plan.outputs.dry }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY: ${{ inputs.dry_run == true }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          npm=true
+          npm view "wisp-agents@$version" version 2>/dev/null | grep -q . && npm=false
+          published=false
+          [ "$(gh release view "v$version" --json isDraft -q .isDraft 2>/dev/null)" = false ] && published=true
+          go=false
+          if [ "$GITHUB_EVENT_NAME" = push ]; then [ $npm = true ] && go=true
+          elif [ $npm = true ] || [ $published = false ]; then go=true; fi
+          [ "$DRY" = true ] && go=true
+          case "$version" in *-*) prerelease=true ;; *) prerelease=false ;; esac
+          echo "version=$version npm-needed=$npm release-published=$published → go=$go"
+          { echo "version=$version"; echo "npm=$npm"; echo "go=$go"; echo "prerelease=$prerelease"; echo "dry=$DRY"; } >> "$GITHUB_OUTPUT"
+      - name: CHANGELOG has notes for this version
+        if: steps.plan.outputs.go == 'true'
+        run: node scripts/release-notes.mjs "${{ steps.plan.outputs.version }}" > /dev/null
+
+  desktop:
+    needs: plan
+    if: needs.plan.outputs.go == 'true'
+    name: desktop (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { name: macOS, os: macos-latest, args: --mac --arm64 --x64 }
+          - { name: Windows, os: windows-latest, args: --win --x64 --arm64 }
+          - { name: Linux, os: ubuntu-latest, args: --linux --x64 --arm64 }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Only for node_modules/electron/package.json (the Electron version); the builder downloads
+      # Electron for each target itself.
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          extra=()
+          if [ "$RUNNER_OS" = macOS ] && [ -n "$MAC_CSC_LINK" ]; then
+            export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
+            [ -n "$APPLE_ID" ] && extra+=(-c.mac.notarize=true)
+          elif [ "$RUNNER_OS" = Windows ] && [ -n "$WIN_CSC_LINK" ]; then
+            export CSC_LINK="$WIN_CSC_LINK" CSC_KEY_PASSWORD="$WIN_CSC_KEY_PASSWORD"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            [ "$RUNNER_OS" = macOS ] && extra+=(-c.mac.identity=-) # ad hoc: Apple silicon runs nothing unsigned
+          fi
+          npx --yes "$BUILDER" --config packaging/desktop/electron-builder.yml ${{ matrix.args }} "${extra[@]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            dist/desktop/wisp-*.dmg
+            dist/desktop/wisp-*.zip
+            dist/desktop/wisp-*.exe
+            dist/desktop/wisp-*.AppImage
+            dist/desktop/wisp-*.deb
+
+  release:
+    needs: [plan, desktop]
+    if: needs.plan.outputs.dry != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: out
+      - name: Draft the release and upload the downloads
+        run: |
+          node scripts/release-notes.mjs "$TAG" > notes.md
+          (cd out && sha256sum wisp-* > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          pre=(); [ "${{ needs.plan.outputs.prerelease }}" = true ] && pre=(--prerelease)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --draft --title "$TAG" --notes-file notes.md --target "$GITHUB_SHA" "${pre[@]}"
+          fi
+          gh release upload "$TAG" out/* --clobber
+
+  npm:
+    needs: [plan, release]
+    if: needs.plan.outputs.npm == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # provenance, and trusted publishing when it's set up
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest # trusted publishing needs npm 11.5+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          tag=latest; [ "${{ needs.plan.outputs.prerelease }}" = true ] && tag=next
+          npm publish --provenance --access public --tag "$tag"
+
+  publish:
+    needs: [plan, release, npm]
+    if: ${{ !cancelled() && needs.release.result == 'success' && (needs.npm.result == 'success' || needs.npm.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: v${{ needs.plan.outputs.version }}
+    steps:
+      - name: Publish the release
+        run: |
+          latest=(--latest); [ "${{ needs.plan.outputs.prerelease }}" = true ] && latest=(--latest=false)
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false "${latest[@]}"
+          echo "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
+
+  homebrew:
+    needs: [plan, publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' && needs.plan.outputs.prerelease != 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Bump M0xoo/homebrew-tap
+        run: |
+          if [ -z "$TOKEN" ]; then echo "::notice::No HOMEBREW_TAP_TOKEN secret: bump the tap by hand."; exit 0; fi
+          url="https://registry.npmjs.org/wisp-agents/-/wisp-agents-$VERSION.tgz"
+          for i in $(seq 1 30); do curl -fsSLo pkg.tgz "$url" && break; sleep 10; done # the CDN can lag the publish
+          sha=$(sha256sum pkg.tgz | cut -d' ' -f1)
+          git clone --depth 1 "https://x-access-token:$TOKEN@github.com/M0xoo/homebrew-tap.git" tap
+          sed -e "s#^  url \".*\"#  url \"$url\"#" -e "s#^  sha256 \".*\"#  sha256 \"$sha\"#" packaging/homebrew/wisp-agents.rb > tap/Formula/wisp-agents.rb
+          cd tap
+          if git diff --quiet; then echo "The tap already has $VERSION."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "wisp-agents $VERSION"
+          git push

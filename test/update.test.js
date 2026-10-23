@@ -97,3 +97,72 @@ test('install refuses to relaunch when the install left this copy on the same ve
     assert.match(u.state.error, why);
   }
 });
+
+const APP = (os) => ({ darwin: '/Applications/wisp.app/Contents/Resources/app', win32: 'C:\\Users\\u\\AppData\\Local\\Programs\\wisp\\resources\\app', linux: '/tmp/.mount_wispAb12/resources/app' })[os];
+const release = (version, assets) => async () => ({ ok: true, json: async () => ({ tag_name: `v${version}`, assets }) });
+
+test('the desktop app from GitHub Releases is its own install method', () => {
+  for (const os of ['darwin', 'win32', 'linux']) assert.equal(installMethod(APP(os)), 'app');
+  assert.equal(installMethod('/opt/wisp/resources/app'), 'app'); // the .deb
+});
+
+test('the app checks GitHub Releases and picks the download for its OS and CPU', async () => {
+  const assets = ['wisp-mac-arm64.zip', 'wisp-mac-x64.zip', 'wisp-windows-x64-setup.exe', 'wisp-linux-arm64.AppImage'].map((name) => ({ name, browser_download_url: `https://dl/${name}` }));
+  const urls = [];
+  const fetch = async (url, opts) => (urls.push(url), release('99.0.0', assets)(url, opts));
+  const cases = [
+    ['darwin', 'arm64', {}, 'wisp-mac-arm64.zip'],
+    ['win32', 'x64', {}, 'wisp-windows-x64-setup.exe'],
+    ['linux', 'arm64', { APPIMAGE: '/home/u/wisp.AppImage' }, 'wisp-linux-arm64.AppImage'],
+    ['linux', 'x64', {}, undefined], // a .deb: no automatic update
+  ];
+  for (const [platform, arch, env, name] of cases) {
+    const u = new Updater({ port: 1, fetch, env, platform, arch, root: APP(platform) });
+    const v = await u.check();
+    assert.equal(v.method, 'app');
+    assert.equal(v.latest, '99.0.0');
+    assert.equal(v.available, true);
+    assert.equal(v.command, 'https://github.com/M0xoo/wisp/releases/latest');
+    assert.equal(u.asset?.name, name);
+  }
+  assert.ok(urls.every((u) => u === 'https://api.github.com/repos/M0xoo/wisp/releases/latest'));
+});
+
+test('an AppImage update checks the sha256, replaces the file and reopens it', async () => {
+  const dir = tmp('upd-appimage');
+  const image = path.join(dir, 'wisp.AppImage');
+  fs.writeFileSync(image, 'old build');
+  const body = Buffer.from('new build');
+  const sha = (await import('node:crypto')).createHash('sha256').update(body).digest('hex');
+  const asset = (digest) => [{ name: 'wisp-linux-x64.AppImage', browser_download_url: 'https://dl/x', digest }];
+  const download = async () => ({ ok: true, arrayBuffer: async () => body });
+
+  const bad = new Updater({ port: 1, env: { APPIMAGE: image }, platform: 'linux', arch: 'x64', root: APP('linux'), fetch: release('99.0.0', asset('sha256:' + '0'.repeat(64))) });
+  await bad.check();
+  bad.fetch = download;
+  await assert.rejects(bad.fetchApp(), /didn't match the release's checksum/);
+  assert.equal(fs.readFileSync(image, 'utf8'), 'old build');
+
+  const u = new Updater({ port: 1, env: { APPIMAGE: image }, platform: 'linux', arch: 'x64', root: APP('linux'), fetch: release('99.0.0', asset('sha256:' + sha)) });
+  await u.check();
+  u.fetch = download;
+  await u.fetchApp();
+  assert.equal(fs.readFileSync(image, 'utf8'), 'new build');
+  assert.equal(fs.statSync(image).mode & 0o111, 0o111);
+  assert.equal(u.relaunchCommand(true), `"${image}" >/dev/null 2>&1`);
+});
+
+test('the app relaunches through the installer on Windows and open on macOS', () => {
+  const win = new Updater({ port: 1, env: {}, platform: 'win32', arch: 'x64', root: APP('win32') });
+  win.swap = { installer: 'C:\\Temp\\wisp-update-1\\wisp-windows-x64-setup.exe' };
+  assert.equal(win.relaunchCommand(true), '"C:\\Temp\\wisp-update-1\\wisp-windows-x64-setup.exe" /S --force-run');
+  const mac = new Updater({ port: 1, env: {}, platform: 'darwin', arch: 'arm64', root: APP('darwin') });
+  mac.swap = { open: '/Applications/wisp.app', remove: '/tmp/wisp-update-1/old.app' };
+  assert.equal(mac.relaunchCommand(true), 'rm -rf "/tmp/wisp-update-1/old.app"; open "/Applications/wisp.app"');
+});
+
+test('an app with no download for it says where to get the new version', async () => {
+  const u = new Updater({ port: 1, env: {}, platform: 'linux', arch: 'x64', root: '/opt/wisp/resources/app', fetch: release('99.0.0', []) });
+  await u.check();
+  await assert.rejects(u.fetchApp(), /no automatic update.*releases\/latest/);
+});

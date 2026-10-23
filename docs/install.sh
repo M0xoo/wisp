@@ -16,7 +16,7 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 case "$(uname -s)" in
   Darwin | Linux) ;;
-  *) die "this installer covers macOS and Linux. On Windows run: npm install -g wisp-agents" ;;
+  *) die "this installer covers macOS and Linux. On Windows, download the app from https://trywisp.dev/#install or run: npm install -g wisp-agents" ;;
 esac
 
 command -v node >/dev/null 2>&1 \

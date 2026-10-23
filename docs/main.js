@@ -50,14 +50,58 @@ if (cloudLinks.length) {
     .catch(() => {});
 }
 
+// ---------- downloads ----------
+// The desktop app from the latest GitHub release (the file names carry no version). The Download
+// tab offers the build for this visitor's OS, and the note links the others.
+const DL = 'https://github.com/M0xoo/wisp/releases/latest/download/';
+const BUILDS = {
+  'mac-arm64': ['macOS', 'Apple silicon', 'wisp-mac-arm64.dmg'],
+  'mac-x64': ['macOS', 'Intel Mac', 'wisp-mac-x64.dmg'],
+  'win-x64': ['Windows', 'Windows', 'wisp-windows-x64-setup.exe'],
+  'win-arm64': ['Windows', 'Windows on Arm', 'wisp-windows-arm64-setup.exe'],
+  'linux-x64': ['Linux', 'Linux', 'wisp-linux-x64.AppImage'],
+  'linux-arm64': ['Linux', 'Linux Arm', 'wisp-linux-arm64.AppImage'],
+};
+const osKey = () => {
+  const p = `${navigator.userAgentData?.platform || ''} ${navigator.platform || ''} ${navigator.userAgent}`;
+  return /Win/i.test(p) ? 'win' : /Linux|X11|CrOS/i.test(p) && !/Android/i.test(p) ? 'linux' : 'mac';
+};
+// Most Macs are Apple silicon, and Safari can't tell: Intel is a link in the note. Chromium says.
+let build = `${osKey()}-arm64`.replace(/^(win|linux)-arm64$/, '$1-x64');
+const paintDownloads = () => {
+  const [os, , file] = BUILDS[build];
+  for (const a of $$('[data-tab-dl]')) {
+    a.href = DL + file;
+    $('[data-dl-label]', a).textContent = `Download for ${os}`;
+    $('[data-dl-kind]', a).textContent = file.slice(file.lastIndexOf('.'));
+  }
+};
+const otherBuilds = () =>
+  ['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64']
+    .filter((k) => k !== build)
+    .map((k) => `<a href="${DL + BUILDS[k][2]}">${BUILDS[k][1]}</a>`)
+    .join(', ');
+navigator.userAgentData?.getHighEntropyValues?.(['architecture']).then(({ architecture }) => {
+  build = `${osKey()}-${architecture === 'arm' ? 'arm64' : 'x64'}`;
+  paintDownloads();
+  for (const t of tabBoxes) t.refresh();
+}).catch(() => {});
+paintDownloads();
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href^="' + DL + '"]');
+  if (a) window.posthog?.capture?.('download_clicked', { file: a.href.slice(DL.length) }, { transport: 'sendBeacon' });
+});
+
 // ---------- install tabs ----------
-// The hero and the install section each have npx / npm / curl / brew tabs. Picking one updates the
-// command, its copy button and the note, and the other box follows. A box with data-task set (the
-// hero, once the visitor typed a task) shows the command that installs wisp and starts that task.
+// The hero and the install section each have Download / npx / npm / curl / brew tabs. Picking one
+// updates the command, its copy button and the note (Download shows the app's link instead), and
+// the other box follows. A box with data-task set (the hero, once the visitor typed a task) shows
+// the command that installs wisp and starts that task, so it leaves Download for npx.
 const tabBoxes = $$('[data-tabs]').map((box) => {
   const tabs = $$('[role="tab"]', box);
   const code = $('[data-tab-code]', box);
   const copy = $('[data-tab-copy]', box);
+  const dl = $('[data-tab-dl]', box);
   const note = $('[data-tab-note]', box) || $('[data-tab-note]', box.parentElement);
   const panel = $('[role="tabpanel"]', box);
   let current = tabs.find((t) => t.getAttribute('aria-selected') === 'true') || tabs[0];
@@ -67,14 +111,22 @@ const tabBoxes = $$('[data-tabs]').map((box) => {
     return tab.dataset.tab === 'npx' ? `npx wisp-agents "${task}"` : `${tab.dataset.cmd} && wisp "${task}"`;
   };
   const pick = (tab, focus) => {
+    if (tab.dataset.tab === 'app' && box.dataset.task) tab = tabs.find((t) => t.dataset.tab === 'npx');
     current = tab;
+    const app = tab.dataset.tab === 'app';
     for (const t of tabs) {
       const on = t === tab;
       t.setAttribute('aria-selected', on);
       t.tabIndex = on ? 0 : -1;
     }
-    code.textContent = copy.dataset.copy = commandFor(tab);
-    if (note && !box.dataset.task) note.textContent = tab.dataset.note;
+    dl.hidden = !app;
+    copy.hidden = app;
+    code.hidden = app && !copy.contains(code);
+    if (!app) code.textContent = copy.dataset.copy = commandFor(tab);
+    if (note && !box.dataset.task) {
+      note.textContent = tab.dataset.note;
+      if (app) note.insertAdjacentHTML('beforeend', ` · Also for ${otherBuilds()}`);
+    }
     panel.setAttribute('aria-labelledby', tab.id);
     if (focus) tab.focus();
   };
