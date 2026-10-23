@@ -1,4 +1,4 @@
-// wisp site: the morning story, the transcript/report switch, the terminal, and small things.
+// wisp site: the hero launcher, the transcript/report switch, the terminal, and small things.
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -119,7 +119,7 @@ const io = new IntersectionObserver(
   },
   { rootMargin: '0px 0px -10% 0px' },
 );
-$$('.hero-top > *, .desk, .strip, .m-intro, .r-head, .c-head, .cmp-shot, .sec-head, .tile, .modes, .takeover, .cli-text, .term-win, .more, .install h2, .install .sub, .steps li, .faq, .final h2, .final .cta').forEach((el, i) => {
+$$('.hero-top > *, .desk, .strip, .r-head, .c-head, .cmp-shot, .sec-head, .tile, .modes, .takeover, .cli-text, .term-win, .more, .install h2, .install .sub, .steps li, .faq, .final h2, .final .cta').forEach((el, i) => {
   el.classList.add('rise');
   if (el.closest('.hero')) el.style.transitionDelay = `${i * 80}ms`;
   if (el.matches('.steps li, .tile')) el.style.transitionDelay = `${[...el.parentElement.children].indexOf(el) * 90}ms`;
@@ -339,86 +339,14 @@ if (desk) {
 
 // ---------- scroll-driven bits ----------
 const nav = $('.nav');
-const track = $('#mTrack');
-const scenes = $$('.scene');
-const chapters = $$('#chapters li');
-const ring = $('#ring');
-const note = $('#note');
-const clock = $('#clock');
-const rail = $('#railFill');
-// Where to look in each scene, as % of the 1280×800 app window.
-const zoom = $('#zoom');
-// [x, y, w, h, zoom] per scene
-const RINGS = [
-  [20.4, 40.0, 59.2, 27.0, 1.25], // three tasks working
-  [25.6, 74.4, 51.4, 26.4, 1.35], // the question
-  [21.8, 63.4, 56.4, 28.4, 1.3], // report headline and stats
-  [56.2, 73.4, 17.2, 5.8, 1.45], // commit, push & open PR
-  [20.4, 63.2, 59.2, 18.8, 1.3], // merged
-];
-let scene = -1;
-let shownTime = 9 * 60 + 2;
-let clockTimer = 0;
-
-const toMin = (t) => +t.slice(0, 2) * 60 + +t.slice(3);
-const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-
-function tickClock(to) {
-  cancelAnimationFrame(clockTimer);
-  const from = shownTime;
-  if (calm || from === to) return void ((shownTime = to), (clock.textContent = fmt(to)));
-  const t0 = performance.now();
-  const dur = Math.min(900, 120 + Math.abs(to - from) * 14);
-  const step = (now) => {
-    const k = Math.min(1, (now - t0) / dur);
-    shownTime = Math.round(from + (to - from) * (1 - (1 - k) ** 3));
-    clock.textContent = fmt(shownTime);
-    if (k < 1) clockTimer = requestAnimationFrame(step);
-  };
-  clockTimer = requestAnimationFrame(step);
-}
-
-function setScene(i) {
-  if (i === scene) return;
-  scene = i;
-  scenes.forEach((s, k) => s.classList.toggle('on', k === i));
-  chapters.forEach((c, k) => c.classList.toggle('on', k === i));
-  const [x, y, w, h, z] = RINGS[i];
-  Object.assign(ring.style, { left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%` });
-  // Lean in toward what matters in this scene; the ring scales with the picture.
-  zoom.style.transformOrigin = `${x + w / 2}% ${y + h / 2}%`;
-  zoom.style.transform = calm ? '' : `scale(${z})`;
-  note.classList.toggle('on', i === 1);
-  tickClock(toMin(chapters[i].dataset.t));
-}
-
 const heroCmd = $('#heroCmd');
 function onScroll() {
   nav.classList.toggle('scrolled', scrollY > 8);
   if (heroCmd) nav.classList.toggle('cmd-away', heroCmd.getBoundingClientRect().bottom < 64);
-  if (track && !small()) {
-    const r = track.getBoundingClientRect();
-    const p = Math.max(0, Math.min(0.9999, -r.top / (r.height - innerHeight)));
-    setScene(Math.floor(p * chapters.length));
-    rail.style.height = `${p * 100}%`;
-  }
 }
 addEventListener('scroll', onScroll, { passive: true });
 addEventListener('resize', onScroll);
-setScene(0);
 onScroll();
-
-// On small screens the story is a list: give each chapter its own screenshot.
-if (small()) {
-  chapters.forEach((li, i) => {
-    const pic = scenes[i]?.cloneNode(true);
-    if (!pic) return;
-    pic.className = 'ch-shot';
-    pic.dataset.ui = '';
-    $('img', pic).loading = 'lazy';
-    li.append(pic);
-  });
-}
 
 // ---------- transcript vs report ----------
 // A stand-in for what the same run streams: the tool calls and output you'd scroll past.
