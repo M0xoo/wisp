@@ -175,6 +175,28 @@ body.split .task-runs { padding: 0 4px 4px; }
 .split-home .launcher .runners:not(:hover):not(:has(.open)) { border-color: transparent; }
 .sh-keys kbd { margin-right: 2px; }
 
+/* Tips (features/tips.js): split view's home only, a line each, opening their guide on trywisp.dev. */
+.tips[hidden] { display: none; }
+.tips { display: flex; flex-direction: column; gap: 1px; }
+.sh-tips { margin-top: 30px; }
+.tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.sh-tips h4 { padding: 0 8px; }
+.tip-more { margin-left: auto; padding: 2px 6px; border-radius: 6px; font-size: 12px; color: var(--faint); }
+.tip-more:hover { color: var(--ink-2); background: var(--bg-2); }
+.tip {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) 13px; gap: 10px; align-items: center;
+  padding: 7px 8px; border-radius: 8px; border: 1px solid transparent; color: var(--ink-2); font-size: 13px; line-height: 1.45; text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tip > .i { width: 14px; height: 14px; color: var(--faint); }
+.tip .tip-go { width: 13px; height: 13px; opacity: 0; transition: opacity 0.15s; }
+.tip:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.tip:hover > .i:first-child { color: var(--accent); }
+.tip:hover .tip-go, .tip:focus-visible .tip-go { opacity: 1; }
+.tip b { font-weight: 600; color: var(--ink); }
+.tip code { font: 12px var(--mono); padding: 1px 4px; border-radius: 4px; background: var(--bg-2); }
+.tip kbd { font-size: 11px; }
+
 /* The open task's header: its title, one line, over the reading column (and the details beside it). */
 .split-head {
   flex: none; display: flex; align-items: center; min-height: 60px; border-bottom: 1px solid var(--line);

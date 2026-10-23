@@ -25,6 +25,7 @@ import { openSettings, telemetryNotice } from './features/settings.js';
 import { installUpdate, loadUpdate } from './features/update.js';
 import { routeSpell } from './features/spell-ui.js';
 import './features/spells.js';
+import './features/tips.js';
 
 document.addEventListener('keydown', onKey);
 stage.addEventListener('scroll', onScroll, { passive: true });

@@ -108,6 +108,8 @@ export const PARTS = {
   'split.home': '#splitHome',
   'split.greeting': '#splitHome .sh-hello',
   'split.next': '#splitHome .sh-next',
+  // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
+  tips: '#splitHome .sh-tips',
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
   'split.body': 'body.split #feed .item.open > .it-body',
@@ -183,6 +185,7 @@ export const PART_PROPS = {
   'split.main': { readWidth: 'px' },
   'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
+  tips: { count: 'int' },
   term: { fontSize: 'int' },
 };
 
