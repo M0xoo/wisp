@@ -229,7 +229,7 @@ export function createShip(app) {
     const conventional = /^[a-z]+(\([\w./-]+\))?!?: /.test(text);
     const type = /\b(fix|bug|broken|crash|flaky|regression)/i.test(`${text} ${s.turns[0]?.prompt || ''}`) ? 'fix' : /\b(docs?|readme|changelog)\b/i.test(text) ? 'docs' : /\b(refactor|clean ?up|simplif)/i.test(text) ? 'refactor' : /\btests?\b/i.test(text) ? 'test' : 'feat';
     const title = conventional ? text : `${type}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
-    const keep = blocks.filter((b) => !['hero', 'next', 'question', 'diff', 'code', 'image', 'terminal'].includes(b?.type));
+    const keep = blocks.filter((b) => !['hero', 'next', 'question', 'diff', 'code', 'image', 'video', 'terminal'].includes(b?.type));
     const body = [hero?.summary, blocksToMarkdown(keep, turn)].filter(Boolean).join('\n\n').trim();
     return { title: title.slice(0, 100), body: `${body}\n\n_Shipped from [wisp](https://github.com/M0xoo/wisp)._`.trim() };
   };

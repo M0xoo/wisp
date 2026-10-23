@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Videos play in the chat.** When an agent makes or records a video, it shows it with a `video` block (mp4, webm, mov) and you watch it right in the reply, seeking and all. wisp keeps a copy in `~/.wisp/shots`, like screenshots, so a recording in `/tmp` doesn't vanish.
+- **Show in folder** on pictures and videos in a reply opens Finder / Explorer with the file selected (where the agent saved it, or wisp's copy once that's gone). On another machine or a grid it copies the path.
+
 ## [0.33.1] - 2026-10-23
 
 ### Changed

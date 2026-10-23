@@ -342,6 +342,14 @@ export function openapi({ version, port }) {
         },
       },
       '/sessions/{id}/stop': { parameters: [id], post: { summary: 'Stop the run and drop queued follow-ups', responses: { 200: ok } } },
+      '/sessions/{id}/reveal': {
+        parameters: [id],
+        post: {
+          summary: 'Show a picture or video from a reply in Finder / Explorer (where the agent saved it, or wisp\'s copy). Refused with 409 and the path through a trusted proxy',
+          requestBody: body({ type: 'object', required: ['path'], properties: { path: { type: 'string', description: 'The block\'s path' } } }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, path: { type: 'string' } } }), 404: err[404], 409: json(ref('Error'), 'Through a trusted proxy') },
+        },
+      },
       '/sessions/{id}/queue': { parameters: [id, { name: 'item', in: 'query', required: true, schema: { type: 'string' } }], delete: { summary: 'Cancel a queued follow-up', responses: { 200: ok, 404: err[404] } } },
       '/sessions/{id}/takeover': {
         parameters: [id],

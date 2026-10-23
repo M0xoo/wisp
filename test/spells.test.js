@@ -162,6 +162,11 @@ test('Settings → Machines → This computer is a part spells can restyle or hi
   assert.ok(problems({ ...base0, parts: { 'settings.reachable': { props: { width: 400 } } } }).some((x) => /settings\.reachable/.test(x)));
 });
 
+test('a video in a reply and its buttons are parts, and video is a built-in block', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['video.tools', 'image.tools'] }, parts: { video: { style: { borderRadius: '4px' } } } }), []);
+  assert.ok(schema.BUILTIN_BLOCKS.includes('video'));
+});
+
 test('the image viewer is a part spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['viewer.bar', 'image.tools'] }, parts: { 'image.tools': { style: { borderRadius: '4px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'image.tools': { props: { size: 4 } } } }).some((x) => /image\.tools/.test(x)));

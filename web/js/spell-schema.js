@@ -140,8 +140,11 @@ export const PARTS = {
   // The image viewer: a picture from a reply or an attachment, full screen to zoom into, and its zoom buttons.
   viewer: '.lb',
   'viewer.bar': '.lb-bar',
-  // The Copy image and Download buttons on a picture in a reply (on hover; always there on a touch screen).
+  // The Copy image, Download and Show in folder buttons on a picture in a reply (on hover; always there on a touch screen).
   'image.tools': '.b-image .img-tools',
+  // A video in a reply: the player, and its Download and Show in folder buttons.
+  video: '.b-video',
+  'video.tools': '.b-video .img-tools',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.
@@ -280,7 +283,7 @@ export function wispPathProblem(p) {
 }
 
 // Built-in presentation blocks (a spell's agent block type can't reuse these names).
-export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'question', 'blocked', 'actions', 'next', 'spell'];
+export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'video', 'question', 'blocked', 'actions', 'next', 'spell'];
 
 // {field} templates over a context object (dotted paths): "PR #{pr.number}". Missing → ''.
 export function fillTemplate(tpl, ctx = {}) {

@@ -67,6 +67,8 @@ diff, the test run, the command output — over prose. Use file paths relative t
   Risks, caveats, assumptions you made.
 - {"type":"image","path":"relative/or/absolute.png","caption":"…"}
   A screenshot or generated image on disk.
+- {"type":"video","path":"relative/or/absolute.mp4","caption":"…"}
+  A video you made or recorded (mp4, webm, mov), played inline. Use it instead of linking the file.
 - {"type":"question","question":"…","options":[{"label":"Short choice","reply":"full message sent back to you"}]}
   When you need a decision. The user's click resumes you with the reply.
 - {"type":"blocked","items":[{"tool":"shell","detail":"npm publish","why":"needs network access"}]}
