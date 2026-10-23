@@ -257,43 +257,6 @@ h1 .off.fly { animation: off-fly 0.9s cubic-bezier(0.5, 0, 0.75, 0) both; }
 .strip ul { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 0; padding: 0; list-style: none; }
 .strip li { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 550; color: var(--ink-2); }
 
-/* ---------- a morning ---------- */
-.morning { padding-top: 120px; }
-.m-intro h2 { max-width: 24ch; }
-.m-intro p { margin-top: 20px; font-size: 19px; color: var(--ink-2); }
-.m-track { position: relative; height: 560vh; margin-top: 24px; }
-.m-sticky { position: sticky; top: 60px; height: calc(100vh - 60px); display: flex; align-items: center; }
-.m-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 9fr); gap: 64px; align-items: center; }
-.m-side { position: relative; padding-left: 26px; }
-.rail { position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.rail i { position: absolute; inset: 0 0 auto; height: 0; background: var(--accent); transition: height 0.15s linear; }
-.clock { display: flex; align-items: baseline; gap: 12px; font: 700 clamp(56px, 7vw, 104px)/1 var(--display); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
-.clock small { font: 500 15px var(--sans); letter-spacing: 0; color: var(--muted); }
-.chapters { position: relative; margin: 32px 0 0; padding: 0; list-style: none; min-height: 210px; }
-/* the chapters share one spot; the ones not showing are hidden outright so none lies under the one that is */
-.chapters li { position: absolute; inset: 0 0 auto; opacity: 0; translate: 0 12px; visibility: hidden; transition: opacity 0.45s, translate 0.45s, visibility 0s 0.45s; pointer-events: none; }
-.chapters li.on { opacity: 1; translate: 0 0; visibility: visible; transition-delay: 0s; pointer-events: auto; }
-.chapters h3 { font-size: clamp(24px, 2.4vw, 30px); line-height: 1.15; font-weight: 650; }
-.chapters p { margin-top: 14px; font-size: 17px; color: var(--ink); max-width: 40ch; }
-.scenes { position: relative; overflow: hidden; aspect-ratio: 1280 / 800; background: var(--surface); }
-.zoom { position: absolute; inset: 0; transition: transform 0.9s cubic-bezier(0.3, 0.7, 0.2, 1), transform-origin 0.9s cubic-bezier(0.3, 0.7, 0.2, 1); }
-.scene { position: absolute; inset: 0; opacity: 0; transition: opacity 0.5s; }
-.scene.on { opacity: 1; }
-.scene img { width: 100%; height: 100%; object-fit: cover; }
-.ring { position: absolute; border-radius: 12px; border: 2px solid var(--accent); box-shadow: 0 0 0 6px var(--accent-soft); transition: left 0.6s cubic-bezier(0.3, 0.7, 0.2, 1), top 0.6s cubic-bezier(0.3, 0.7, 0.2, 1), width 0.6s cubic-bezier(0.3, 0.7, 0.2, 1), height 0.6s cubic-bezier(0.3, 0.7, 0.2, 1); pointer-events: none; }
-.toast-note {
-  position: absolute; top: 3%; right: 2%; width: min(46%, 380px); display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start;
-  padding: 11px 12px; border-radius: 14px; font-size: 12px; line-height: 1.35;
-  background: var(--surface);
-  border: 1px solid var(--line-2); box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.3);
-  opacity: 0; translate: 24px 0; transition: opacity 0.4s, translate 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
-}
-.toast-note.on { opacity: 1; translate: 0 0; }
-.toast-note img { width: 34px; height: 34px; border-radius: 8px; }
-.toast-note b { display: block; font-weight: 600; }
-.toast-note span { display: block; margin-top: 2px; color: var(--ink-2); }
-.toast-note time { color: var(--muted); font-size: 11px; }
-
 /* ---------- report ---------- */
 .report { padding: 160px 0 120px; }
 .r-head { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 24px 48px; }
@@ -776,7 +739,7 @@ button.sw-tb { cursor: pointer; }
   .window.big { transform: none !important; }
 }
 
-/* ---------- small screens: the story becomes a plain list ---------- */
+/* ---------- small screens ---------- */
 @media (max-width: 960px) {
   .links { display: none; }
   .hero { padding-top: 48px; }
@@ -795,16 +758,6 @@ button.sw-tb { cursor: pointer; }
   [data-spells] { grid-template-columns: 1fr; gap: 24px; }
   [data-spells] .sw-win { order: -1; }
   .sw-app { min-height: 480px; }
-  .m-track { height: auto; }
-  .m-sticky { position: static; height: auto; display: block; }
-  .m-grid { grid-template-columns: 1fr; }
-  .m-side { padding-left: 0; }
-  .rail, .clock { display: none; }
-  .chapters { min-height: 0; }
-  .chapters li { position: static; opacity: 1; translate: none; visibility: visible; margin-bottom: 40px; }
-  .chapters li::before { content: attr(data-t); display: block; font: 650 17px var(--sans); font-variant-numeric: tabular-nums; color: var(--accent); margin-bottom: 6px; }
-  .m-stage { display: none; }
-  .ch-shot { display: block; margin-top: 16px; overflow: hidden; border-radius: 10px; border: 1px solid var(--line-2); }
   .r-body { min-height: 0; }
   .r-log { display: none; }
   .r-body[data-view='log'] .r-report { opacity: 1; filter: none; translate: none; pointer-events: auto; }
