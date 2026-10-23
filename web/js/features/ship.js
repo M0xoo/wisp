@@ -6,6 +6,7 @@ import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
+import { ask } from '../ui/confirm.js';
 
 // fix: the session's conflictFix ({ step, why }) while wisp resolves the PR's merge conflicts itself.
 const fixing = (fix) => fix?.step === 'fixing' || fix?.step === 'pushing';
@@ -251,7 +252,7 @@ export async function mergePr(id) {
     .filter(Boolean)
     .join('\n');
   const what = several ? `these ${open.length} PRs (${open.map((x) => `${x.repo} #${x.pr.number}`).join(', ')})` : `PR #${open[0].pr.number}${open[0].pr.draft ? ' (marks it ready first)' : ''}`;
-  if (!confirm(`Squash-merge ${what}, then fast-forward your local base branch${several ? 'es' : ''} and remove the worktree${several ? 's' : ''}?${warn ? `\n\n${warn}` : ''}`)) return;
+  if (!(await ask(`Squash-merge ${what}, then fast-forward your local base branch${several ? 'es' : ''} and remove the worktree${several ? 's' : ''}?${warn ? `\n\n${warn}` : ''}`, { ok: several ? 'Merge PRs' : 'Merge PR', danger: !!warn }))) return;
   toast(several ? `Merging ${open.length} PRs…` : `Merging PR #${open[0].pr.number}…`);
   try {
     const r = await api(`/sessions/${id}/merge`, { method: 'POST', body: {} });

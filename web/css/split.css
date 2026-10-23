@@ -69,7 +69,7 @@ body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(cal
 .split-foot .auto-btn { padding: 0 8px; border-color: transparent; background: none; }
 .split-foot .auto-btn:hover { background: var(--bg-2); border-color: transparent; }
 /* less room: Get the app goes to its icon first, then the rest (their tooltips name them) */
-@container foot (max-width: 340px) { .split-foot .getapp-btn > span { display: none; } }
+@container foot (max-width: 300px) { .split-foot .getapp-btn > span { display: none; } }
 @container foot (max-width: 250px) { .split-foot :is(.auto-btn, .update-btn) > span { display: none; } }
 body.split :is(.collapse-all, .to-top) { display: none; }
 body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
@@ -109,7 +109,7 @@ body.split .feed-empty { padding: 32px 12px; }
 body.split .feed-empty .orb.big { display: none; }
 
 /* Rows: the title with the time beside it, the summary with the state and PR beside that. The title
-   gets the width the pills used to take; the done button shows over the time on hover. */
+   gets the width the pills used to take; the done button shows beside the time on hover. */
 body.split #feed .item { position: relative; border-color: transparent; background: transparent; box-shadow: none; }
 body.split #feed .item:hover { background: var(--bg-2); }
 body.split #feed .item.focused { border-color: var(--line); box-shadow: none; }
@@ -126,12 +126,10 @@ body.split #feed .it-side { grid-row: 1 / 3; grid-column: 3; flex-wrap: wrap; ju
 body.split #feed .it-side .q-time { order: -1; flex: 0 0 100%; min-width: 0; text-align: right; }
 body.split #feed .it-side .pill { height: 19px; padding: 0; background: none; font-size: 11.5px; }
 body.split #feed .it-side .pill i { width: 5px; height: 5px; }
-body.split #feed .it-quick { position: absolute; top: 6px; right: 6px; margin: 0; background: var(--bg-2); }
+/* The done button shows beside the time, over the end of the title, so the time stays put and readable
+   (28px is the widest time, "365d"). */
+body.split #feed .it-quick { position: absolute; top: 6px; right: 40px; margin: 0; background: var(--bg-2); }
 body.split #feed .it-quick-gap { display: none; }
-/* The button stands in for the time: hide the time under it, or its first letters peek out beside it. */
-body.split #feed .item:is(:hover, .focused) .it-side:has(> .it-quick) .q-time,
-body.split #feed .it-side:has(> .it-quick:focus-visible) .q-time { visibility: hidden; }
-@media (hover: none) { body.split #feed .it-side:has(> .it-quick) .q-time { visibility: hidden; } }
 body.split #feed .item.open:not(.unread):not(.st-waiting) .it-title { color: var(--ink-2); font-weight: 500; }
 body.split #feed .item.open.st-done .it-title { color: var(--muted); }
 body.split #feed .it-side .chev { display: none; }

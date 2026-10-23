@@ -16,6 +16,7 @@ import { loadMachines, setMachines } from './machines.js';
 import { MACHINE_STATE } from './places.js';
 import { harnessLogo } from './runners.js';
 import { CAN, loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
+import { ask } from '../ui/confirm.js';
 
 // The harnesses on a cloud computer wisp can sign in to (installed, signed in or not), and GitHub.
 const signable = (m) => [...(m.remote?.agents || []).filter((a) => CAN.has(a.id) && (a.available || a.signedIn === false)).map((a) => a.id), 'gh'];
@@ -188,7 +189,7 @@ export function cloudPane(box) {
         toast(`<b>${esc(m.name)}</b> is asleep. Sending it a task wakes it.`);
       }
       if (a === 'signout') {
-        if (!confirm(`Sign out of ${m.name} here? Its tasks stay on the grid; sign in again to see them.`)) return;
+        if (!(await ask(`Sign out of ${m.name} here?\n\nIts tasks stay on the grid; sign in again to see them.`, { ok: 'Sign out', anchor: b }))) return;
         setMachines(S.machines.filter((x) => x.id !== m.id));
         await api(`/machines/${m.id}`, { method: 'DELETE' });
         toast(`Signed out of <b>${esc(m.name)}</b>`);

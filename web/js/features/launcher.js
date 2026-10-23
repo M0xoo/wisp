@@ -121,7 +121,7 @@ export function renderLauncher() {
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <div class="runners">
         <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
-        <button class="vs-btn vs-add" id="compareBtn"><span>vs</span>${icon('plus')}</button>
+        <button class="vs-btn vs-add" id="compareBtn" aria-label="Compare">${icon('plus')}</button>
       </div>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       <span class="grow"></span>
@@ -160,14 +160,14 @@ export function renderLauncher() {
   $('#whereBtn', box).onclick = (e) => whereMenu(e.currentTarget, ta);
   paintWhereBtn();
 
-  // Mode is set-and-forget, so it's one small button: just an icon on the default (Full auto),
-  // spelled out when it's Plan or Edits so you can't miss it.
+  // Mode is set-and-forget, so it's one small button, always named: Full auto skips every
+  // permission prompt, which an icon alone doesn't say.
   let curMode = mode;
   const modeBtn = $('#mode', box);
   const paintMode = () => {
     const m = MODES.find((x) => x.id === curMode) || DEFAULT_MODE;
     modeBtn.className = `mode-btn m-${m.id}`;
-    modeBtn.innerHTML = `${icon(m.icon)}${m === DEFAULT_MODE ? '' : `<span>${m.label}</span>`}`;
+    modeBtn.innerHTML = `${icon(m.icon)}<span>${m.label}</span>`;
     modeBtn.title = `${m.label}: ${m.hint}\nShift+Tab to switch`;
   };
   const setMode = (id) => {
@@ -493,7 +493,7 @@ export function renderLaunchChips() {
   const add = list.length || cloning
     ? `<button class="lp-chip add" data-add="${addOn}" title="Another folder${addOn ? ` on ${esc(placeName(addOn))}` : ''}">${icon('folder')}${list.length > CHIPS ? '' : 'Other folder…'}</button>`
     : `<button class="lp-chip add" data-add="${addOn}">${icon('folder')}${addOn ? `Pick a project on ${esc(placeName(addOn))}…` : 'Choose a folder…'}</button>`;
-  const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('spark')}<span>No folder</span></button>`;
+  const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('text')}<span>No folder</span></button>`;
   const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
   // Unchanged chips stay as they were folded: fitting measures the row once per chip it folds.
   if (box.dataset.h !== html) {
@@ -551,7 +551,7 @@ export function renderLaunchChips() {
         label: 'Projects',
         back: $('#prompt'),
         extras: [
-          { id: NO_FOLDER, label: 'No folder', icon: 'spark' },
+          { id: NO_FOLDER, label: 'No folder', icon: 'text' },
           { id: '+add', label: addOn ? `Another folder on ${placeName(addOn)}…` : 'Other folder…', icon: 'folder' },
         ],
         onPick: (id) => {
@@ -617,7 +617,6 @@ function paintWhereBtn() {
   const n = launch.where.length;
   const remote = n > 1 || !!launch.where[0];
   b.classList.toggle('on', remote);
-  b.classList.toggle('bare', !S.machines.length && !remote);
   b.innerHTML = `${icon(remote ? 'server' : 'laptop')}<span>${esc(n > 1 ? `${n} places` : placeName(launch.where[0]))}</span>${icon('chevron', 'chev')}`;
   b.title = n > 1 ? `Runs in parallel on ${launch.where.map(placeName).join(', ')}` : S.machines.length ? `Runs on ${placeName(launch.where[0])}. Pick several to run in parallel.` : 'Runs on this computer. Add a machine to run on other computers too.';
 }
@@ -686,7 +685,7 @@ function renderLaunchRecipes() {
   const list = all.filter((r) => !r.cwd || r.cwd === path).sort((a, b) => (b.lastRunAt || 0) - (a.lastRunAt || 0));
   const hidden = all.length - list.length;
   row.innerHTML = `
-    <span class="l-in">${icon('spark')}Recipes</span>
+    <span class="l-in">${icon('bolt')}Recipes</span>
     ${list.map((r) => `<button class="lp-chip rc" data-recipe="${esc(r.id)}" title="${esc(r.prompt.replace(/\s+/g, ' ').slice(0, 200))}">${esc(r.name)}${recipeParams(r.prompt).length ? '<i class="rc-f">…</i>' : ''}</button>`).join('')}
     ${list.length ? '' : `<span class="muted xs lr-empty">${hidden ? `None for this project · ${hidden} elsewhere` : 'Prompts you send again and again, one click away'}</span>`}
     <button class="lp-chip add" id="lrSave" hidden>${icon('plus')}Save as recipe</button>

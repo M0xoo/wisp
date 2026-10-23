@@ -19,6 +19,7 @@ import { openProjects, renderProjects } from './projects.js';
 import { TAILSCALE_GUIDE } from './reachable.js';
 import { harnessLogo } from './runners.js';
 import { mountCloudSignin } from './cloud.js';
+import { ask } from '../ui/confirm.js';
 
 // Never throws; only a load that worked counts for since() (live.js), so a failed one is retried.
 const fetchMachines = shared(() => api('/machines').then(setMachines));
@@ -279,16 +280,16 @@ export function openMachines({ host, focusAdd = false } = {}) {
       }
       if (a === 'restart' || a === 'update') {
         const verb = a === 'update' ? `Updating wisp there to ${m.outdated}` : 'Restarting wisp there';
-        if (m.working && !confirm(`${m.working} agent${m.working === 1 ? ' is' : 's are'} working on ${m.name}. ${verb} stops ${m.working === 1 ? 'it' : 'them'}. ${a === 'update' ? 'Update' : 'Restart'}?`)) return;
+        if (m.working && !(await ask(`${m.working} agent${m.working === 1 ? ' is' : 's are'} working on ${m.name}.\n\n${verb} stops ${m.working === 1 ? 'it' : 'them'}.`, { ok: a === 'update' ? 'Update and stop agents' : 'Restart and stop agents', danger: true }))) return;
         await api(`/machines/${m.id}/stop`, { method: 'POST', body: { restart: true } });
       }
       if (a === 'stop') {
-        if (!confirm(`Stop wisp on ${m.name}? ${m.working ? `${m.working} working agent${m.working === 1 ? '' : 's'} stop too. ` : ''}Its sessions stay there for next time.`)) return;
+        if (!(await ask(`Stop wisp on ${m.name}?\n\n${m.working ? `${m.working} working agent${m.working === 1 ? '' : 's'} stop too. ` : ''}Its tasks stay there for next time.`, { ok: 'Stop wisp', danger: !!m.working }))) return;
         await api(`/machines/${m.id}/stop`, { method: 'POST', body: {} });
         toast(`Stopped wisp on <b>${esc(m.name)}</b>`);
       }
       if (a === 'remove') {
-        if (!confirm(`Remove ${m.name} from wisp? Its projects leave the launcher. Nothing on the machine is touched, and wisp keeps running there until you stop it.`)) return;
+        if (!(await ask(`Remove ${m.name} from wisp?\n\nIts projects leave the launcher. Nothing on the machine is touched, and wisp keeps running there until you stop it.`, { ok: 'Remove machine', danger: true }))) return;
         await api(`/machines/${m.id}`, { method: 'DELETE' });
         await loadConfig();
         await loadMachines();

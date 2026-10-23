@@ -4,7 +4,7 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { ago, STATUS_LABEL } from '../core/format.js';
+import { ago, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { HERE, MOBILE, S, save, saveOpen } from '../core/state.js';
 import { taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
@@ -34,7 +34,7 @@ function runsOf(s) {
 }
 
 // The task as a whole: asking if any run asks, working while any works, done once all are.
-function taskOf(s) {
+export function taskOf(s) {
   const runs = runsOf(s);
   if (runs.length < 2) return s;
   const state = runs.some((r) => r.state === 'waiting') ? 'waiting' : runs.some((r) => r.state === 'running') ? 'running' : runs.every((r) => r.state === 'done') ? 'done' : 'review';
@@ -240,19 +240,19 @@ function renderHead(n, s) {
     s.state === 'waiting'
       ? `<span class="pill st-waiting"><i></i>Asking</span>`
       : s.state === 'review'
-        ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || 'Done'}</span>`
+        ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>`
         : '';
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
   n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
   paintHtml(n.head, `
     <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
     <span class="it-main">
-      <span class="it-title">${esc(s.title)}</span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
+      <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
     </span>
     <span class="it-side">
       ${headPills(s, pill)}
-      <span class="q-time">${ago(s.updatedAt)}</span>
+      <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>
       ${s.pending ? '' : slotHtml('card.hover', s)}
       ${quickDone(s, open)}
       ${icon('chevron', 'chev')}
@@ -319,7 +319,7 @@ function renderRunHead(n, s, { open, live, pill }) {
     <span class="run-logo">${harnessLogo(s.agent)}</span>
     <span class="it-main">
       <span class="it-title"><b>${esc(a?.name || agentName(s.agent))}</b><span class="run-model">${esc(model)}${s.effort ? ` · ${esc(effortLabel(s.effort))}` : ''}</span></span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
     </span>
     <span class="it-side">
       ${runsOf(s).some((r) => (r.machine?.id || '') !== (s.machine?.id || '')) ? `${s.machine ? machinePill(s.machine) : `<span class="q-machine" title="Runs on ${esc(HERE)}">${icon('laptop')}<span>${esc(HERE)}</span></span>`}${projectLabel(s)}` : ''}
@@ -327,7 +327,7 @@ function renderRunHead(n, s, { open, live, pill }) {
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
-      <span class="q-time">${ago(s.updatedAt)}</span>
+      <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>
       ${icon('chevron', 'chev')}
     </span>`);
 }

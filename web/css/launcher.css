@@ -106,7 +106,9 @@
   background: linear-gradient(var(--bg) 60px, color-mix(in srgb, var(--bg) 0%, transparent));
 }
 body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: none; }
-.l-bar { display: flex; align-items: center; gap: 8px; padding-top: 6px; }
+.l-bar { display: flex; align-items: center; gap: 6px; padding-top: 6px; }
+/* the place is named like its neighbours (Full auto, Subagents), which open menus without a chevron too */
+.l-bar .where-btn .chev { display: none; }
 .l-bar > :not(.runners) { flex: none; }
 .l-bar .grow { flex: 1; }
 /* harness pill(s): "vs" rides on the end of it; each harness added joins the same pill behind a
@@ -121,7 +123,7 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .runners .runner-btn { overflow: hidden; }
 .runners .rb-logo { flex: none; }
 .runners .rb-h { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.runners .rb-m { flex: 0 100 auto; min-width: 0; }
+.runners .rb-m { flex: 0 10000 auto; min-width: 0; } /* the model gives way well before the harness name */
 .runners.cmp .rb-e, .l-bar:has(.runners.cmp) #wtBtn span { display: none; }
 /* three or four harnesses: logos only (each button's tooltip names it), the bar's other labels fold too */
 .runners.many .runner-btn { flex: none; padding-inline: 6px; }
@@ -129,6 +131,8 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .runners.many .rb-logo { margin-right: 3px; }
 .runners.many .runner-btn .chev { margin-left: 0; }
 .l-bar:has(.runners.many) :is(.mode-btn span, .team-btn .tb-label) { display: none; }
+/* a narrower bar: the place goes to its icon first, so the harness keeps its name */
+@container launcher (max-width: 720px) { .l-bar .where-btn span { display: none; } }
 /* two harnesses on a narrow bar: drop the model names, then the harness names (logos stay) */
 @container launcher (max-width: 640px) { .runners.cmp .rb-m { display: none; } }
 @container launcher (max-width: 520px) {
@@ -157,17 +161,17 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .vs-btn .i { display: none; width: 13px; height: 13px; }
 .vs-btn:focus-visible { outline: 0; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--accent); }
 .vs-add::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 1px; background: var(--line); }
+/* a + on the harness pill adds another harness to compare ("vs" read as a word to decode) */
+.vs-add .i { display: block; width: 12px; height: 12px; }
 .runners.cmp { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .runners.cmp .vs-add { width: 26px; }
-.runners.cmp .vs-add span { display: none; }
-.runners.cmp .vs-add .i { display: block; width: 12px; height: 12px; }
 .vs-del { width: 24px; color: var(--accent-ink); }
 .runners.many .vs-del { width: 20px; }
 .vs-del:hover { color: var(--bad); }
 .vs-del:not(.fresh):is(:hover, :focus-visible) span { display: none; }
 .vs-del:not(.fresh):is(:hover, :focus-visible) .i { display: block; }
 .vs-del.fresh { cursor: default; }
-/* permission mode: icon-only on the default, labelled otherwise */
+/* permission mode: icon and name */
 .mode-btn {
   display: inline-flex; align-items: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 9px; border-radius: 9px;
   font-size: 12.5px; font-weight: 500; color: var(--muted); transition: background 0.15s, color 0.15s;

@@ -13,6 +13,7 @@ import { launchBehind } from './launcher.js';
 import { projectById } from './places.js';
 import { runnerPicker } from './runner-picker.js';
 import { agentName, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
+import { ask } from '../ui/confirm.js';
 
 // Top bar: always one click to recipes and triggers. The badge counts triggers that are on;
 // the tooltip says what fires next.
@@ -54,7 +55,7 @@ const modeOptions = (selected, { inherit } = {}) =>
 export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
   const node = el(`<div class="modal auto-modal">
       <header><h2>Automations</h2><button class="icon-btn close">${icon('x')}</button></header>
-      <p class="mem-lede">Recipes are prompts you send again and again; <code>{name}</code> in one becomes a field to fill in. Triggers start sessions on their own.</p>
+      <p class="mem-lede">Recipes are prompts you send again and again; <code>{name}</code> in one becomes a field to fill in. Triggers start tasks on their own.</p>
       <div class="mem-tabs" role="tablist"></div>
       <div class="auto-body"></div>
     </div>`);
@@ -84,7 +85,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
           const proj = S.config.projects.find((p) => p.path === r.cwd);
           const tags = [r.params.length ? r.params.map((p) => `{${p}}`).join(' ') : '', proj ? proj.name : 'Any project', r.agent ? agentName(r.agent) : '', r.runs ? `${r.runs} run${r.runs > 1 ? 's' : ''}` : ''].filter(Boolean);
           return `<div class="au-item" data-id="${r.id}">
-            <span class="mem-ico">${icon('spark')}</span>
+            <span class="mem-ico">${icon('bolt')}</span>
             <div class="au-main"><b>${esc(r.name)}</b><p>${esc(r.prompt.replace(/\s+/g, ' ').slice(0, 140))}</p><span class="au-tags">${tags.map((t) => `<i>${esc(t)}</i>`).join('')}</span></div>
             <span class="au-acts"><button class="primary sm" data-act="run">Run</button><button class="icon-btn" data-act="schedule" title="Run it on a schedule">${icon('clock')}</button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
           </div>`;
@@ -236,13 +237,13 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
       if (act === 'edit') return (editing = { type: 'recipe', draft: { ...r } }), render();
       if (act === 'run') return close(), runRecipe(r);
       if (act === 'schedule') return (tab = 'triggers'), (editing = { type: 'trigger', draft: { kind: 'schedule', name: r.name, recipeId: r.id, cwd: r.cwd || projectById(launch.project)?.path, mode: r.mode || undefined } }), render();
-      if (act === 'delete' && confirm(`Delete the recipe “${r.name}”?`)) return api(`/recipes/${r.id}`, { method: 'DELETE' }).then(render).catch(toastError);
+      if (act === 'delete' && (await ask(`Delete the recipe “${r.name}”?`, { ok: 'Delete recipe', danger: true, anchor: t }))) return api(`/recipes/${r.id}`, { method: 'DELETE' }).then(render).catch(toastError);
     } else {
       const tr = triggers.find((x) => x.id === itemId);
       if (act === 'new') return (editing = { type: 'trigger', draft: {} }), render();
       if (act === 'edit') return (editing = { type: 'trigger', draft: { ...tr } }), render();
       if (act === 'toggle') return api(`/triggers/${tr.id}`, { method: 'PATCH', body: { enabled: !tr.enabled } }).then(render).catch(toastError);
-      if (act === 'delete' && confirm(`Delete the trigger “${tr.name}”?`)) return api(`/triggers/${tr.id}`, { method: 'DELETE' }).then(render).catch(toastError);
+      if (act === 'delete' && (await ask(`Delete the trigger “${tr.name}”?`, { ok: 'Delete trigger', danger: true, anchor: t }))) return api(`/triggers/${tr.id}`, { method: 'DELETE' }).then(render).catch(toastError);
       if (act === 'fire') {
         t.disabled = true;
         try {

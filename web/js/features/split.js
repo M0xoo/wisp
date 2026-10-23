@@ -18,7 +18,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, icon } from '../core/dom.js';
-import { ago, STATUS_LABEL } from '../core/format.js';
+import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
@@ -264,7 +264,7 @@ export function paintHead(s) {
     s.state === 'waiting'
       ? `<span class="pill st-waiting"><i></i>Asking</span>`
       : s.state === 'review'
-        ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || 'Done'}</span>`
+        ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>`
         : s.state === 'running'
           ? `<span class="pill st-running"><i></i>Working</span>`
           : '';
@@ -284,7 +284,7 @@ function paintDetails(s, pill) {
   const body = S.nodes.get(s.id)?.body;
   const props = body && $('.it-props', body);
   if (!props) return;
-  const html = `${headPills(s, pill)}<span class="q-time">${ago(s.updatedAt)}</span>`;
+  const html = `${headPills(s, pill)}<span class="q-time" ${timeAttrs(s.updatedAt)}>${agoLong(s.updatedAt)}</span>`;
   if (props.dataset.h !== html) (props.innerHTML = html), (props.dataset.h = html);
   const slot = $('.it-slot', body);
   const btns = slotHtml('split.details', s);
@@ -301,9 +301,9 @@ function paintHome() {
         .map(
           (s) => `<button class="sh-task c-${s.color}" data-id="${s.id}">
             <span class="q-dot ${s.state === 'waiting' ? 'waiting' : ''}"></span>
-            <span class="sh-t">${esc(s.title)}</span>
-            <span class="sh-s ${s.state === 'waiting' ? 'asking' : ''}">${s.state === 'waiting' ? 'Asking' : esc(STATUS_LABEL[s.status] || 'Done')}</span>
-            <span class="q-time">${ago(s.updatedAt)}</span>
+            <span class="sh-t" title="${esc(s.title)}">${esc(s.title)}</span>
+            <span class="sh-s ${s.state === 'waiting' ? 'asking' : ''}">${s.state === 'waiting' ? 'Asking' : esc(STATUS_LABEL[s.status] || STATUS_LABEL.done)}</span>
+            <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>
           </button>`,
         )
         .join('')}`

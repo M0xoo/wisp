@@ -310,3 +310,13 @@ body.wisp-mobile .lb-open { display: none; }
 /* Settings → Layout: each choice's icon and name, spaced like the other segmented controls */
 .view-seg button, .theme-seg button { display: inline-flex; align-items: center; gap: 6px; }
 .view-seg button .i, .theme-seg button .i { width: 14px; height: 14px; }
+/* ask(): a confirm by the button that asked, above dialogs too */
+.menu.ask-pop { z-index: 60; width: min(340px, calc(100vw - 16px)); padding: 14px 14px 12px; }
+.ask-pop p { margin: 0; white-space: pre-line; }
+.ask-pop .ap-q { font-size: 13.5px; color: var(--ink); line-height: 1.45; }
+.ask-pop .ap-more { margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.ask-pop .ap-acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+.menu.ask-pop .ap-acts button { width: auto; padding: 0 12px; }
+.menu.ask-pop .ap-acts .primary { color: var(--bg); }
+.menu.ask-pop .ap-acts .primary:hover { background: var(--ink); }
+.menu.ask-pop .ap-acts .primary.bad, .menu.ask-pop .ap-acts .primary.bad:hover { background: var(--bad); color: #fff; }

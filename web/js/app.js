@@ -6,7 +6,7 @@ import { fmtDuration } from './blocks.js';
 import { api } from './core/api.js';
 import * as bus from './core/bus.js';
 import { $, $$ } from './core/dom.js';
-import { ago } from './core/format.js';
+import { ago, agoLong } from './core/format.js';
 import { MOBILE, S, save, setAgents } from './core/state.js';
 import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
@@ -62,7 +62,7 @@ setInterval(() => {
   const open = head && S.sessions.get(head.dataset.id);
   const body = open && S.nodes.get(open.id)?.body;
   const t = body && $('.it-props .q-time', body);
-  if (t) t.textContent = ago(open.updatedAt);
+  if (t) t.textContent = agoLong(open.updatedAt);
 }, 30000);
 
 if (/Electron/.test(navigator.userAgent)) document.body.classList.add('electron', /Mac/.test(navigator.platform) ? 'mac' : 'other');

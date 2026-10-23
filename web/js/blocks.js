@@ -5,6 +5,7 @@ import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
 import { load, save } from './core/state.js';
 import { imageButtons, bindImageButtons } from './ui/image.js';
+import { ask } from './ui/confirm.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -88,7 +89,7 @@ const R = {};
 
 R.hero = (b, ctx) => {
   const status = ['done', 'partial', 'blocked', 'info'].includes(b.status) ? b.status : 'done';
-  const label = { done: 'Done', partial: 'Partly done', blocked: 'Blocked', info: 'Report' }[status];
+  const label = { done: 'Finished', partial: 'Partly done', blocked: 'Blocked', info: 'Report' }[status];
   const st = ctx.turn?.stats || {};
   const meta = [
     ctx.turn?.endedAt && ctx.turn?.startedAt ? fmtDuration(ctx.turn.endedAt - ctx.turn.startedAt) : '',
@@ -914,7 +915,7 @@ R.actions = (b, ctx) => {
     if (!it.command) {
       return ctx.reply?.(it.reply || it.label);
     }
-    if (it.confirm && !confirm(`Run this command in ${ctx.session?.cwd || 'the project'}?\n\n$ ${it.command}`)) return;
+    if (it.confirm && !(await ask(`Run this command in ${ctx.session?.cwd || 'the project'}?\n\n$ ${it.command}`, { ok: 'Run command', anchor: btn }))) return;
     if (!ctx.exec) return;
     btn.disabled = true;
     btn.querySelector('span').textContent = 'Running…';

@@ -14,7 +14,7 @@ import { projectById, projectName } from './places.js';
 import { agentName } from './runners.js';
 
 const MEM_KINDS = [
-  { kind: 'preferences', label: 'Preferences', one: 'preference', icon: 'spark', hint: 'How you like agents to work', empty: 'Corrections and “always / never” asks from your sessions land here.' },
+  { kind: 'preferences', label: 'Preferences', one: 'preference', icon: 'spark', hint: 'How you like agents to work', empty: 'Corrections and “always / never” asks from your tasks land here.' },
   { kind: 'lessons', label: 'Lessons', one: 'lesson', icon: 'check', hint: 'A mistake an agent made, and the way that worked', empty: 'When an agent hits a wall and finds the fix, the fix lands here.' },
 ];
 const MEM_CAP = 10;
@@ -36,8 +36,8 @@ export function memorySummary(data) {
 
 export function openMemory({ tab = 'global', host } = {}) {
   const node = el(`<div class="modal memory-modal">
-      <header><h2>Memory</h2><span class="mem-live"></span><button class="switch" id="memOn" role="switch" title="Learn from sessions"></button><button class="icon-btn close">${icon('x')}</button></header>
-      <p class="mem-lede">Learned from your sessions and added to every agent's prompt. What you ask always wins.</p>
+      <header><h2>Memory</h2><span class="mem-live"></span><button class="switch" id="memOn" role="switch" title="Learn from tasks"></button><button class="icon-btn close">${icon('x')}</button></header>
+      <p class="mem-lede">Learned from your tasks and added to every agent's prompt. What you ask always wins.</p>
       <div class="mem-tabs" role="tablist"></div>
       <div class="mem-body"></div>
     </div>`);
@@ -78,7 +78,7 @@ export function openMemory({ tab = 'global', host } = {}) {
       const row = (t, i) => {
         if (editing && editing.scope === x.scope && editing.kind === k.kind && editing.index === i) return editRow(t, k);
         const o = origin(x.scope, k.kind, t);
-        return `<div class="mem-item" data-i="${i}"><span class="mem-ico">${icon(k.icon)}</span><div class="mem-main"><p>${esc(t)}</p>${o ? `<span class="mem-src">${o.sessionId && S.sessions.has(o.sessionId) ? `<a href="#" data-session="${esc(o.sessionId)}">${esc(o.title || 'session')}</a>` : esc(o.title || 'a session')} · ${ago(o.at)}</span>` : ''}</div>
+        return `<div class="mem-item" data-i="${i}"><span class="mem-ico">${icon(k.icon)}</span><div class="mem-main"><p>${esc(t)}</p>${o ? `<span class="mem-src">${o.sessionId && S.sessions.has(o.sessionId) ? `<a href="#" data-session="${esc(o.sessionId)}">${esc(o.title || 'task')}</a>` : esc(o.title || 'a task')} · ${ago(o.at)}</span>` : ''}</div>
           <span class="mem-acts"><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="forget" title="Forget">${icon('trash')}</button></span></div>`;
       };
       const adding = editing && editing.scope === x.scope && editing.kind === k.kind && editing.index === -1;
@@ -92,7 +92,7 @@ export function openMemory({ tab = 'global', host } = {}) {
   const editRow = (t, k) => `<div class="mem-item mem-edit"><span class="mem-ico">${icon(k.icon)}</span><input value="${esc(t)}" maxlength="180" spellcheck="false" placeholder="One short sentence, e.g. “Run tests with node --test”"><span class="muted xs">↵ save · esc cancel</span></div>`;
 
   const retrosView = () => {
-    const live = data.running ? `<div class="tl running"><span class="tl-dot"><span class="orb live"></span></span><div class="tl-main"><div class="tl-head"><b>${esc(data.running.title || 'session')}</b><span class="muted xs">now</span></div><p class="muted xs">Reading ${data.running.turns} turn${data.running.turns === 1 ? '' : 's'} with ${esc(agentName(data.running.agent))}…</p></div></div>` : '';
+    const live = data.running ? `<div class="tl running"><span class="tl-dot"><span class="orb live"></span></span><div class="tl-main"><div class="tl-head"><b>${esc(data.running.title || 'task')}</b><span class="muted xs">now</span></div><p class="muted xs">Reading ${data.running.turns} turn${data.running.turns === 1 ? '' : 's'} with ${esc(agentName(data.running.agent))}…</p></div></div>` : '';
     const where = (a) => `<span class="tl-tag">${a.scope === 'global' ? 'everywhere' : 'project'} · ${a.kind === 'lessons' ? 'lesson' : 'preference'}</span>`;
     const entries = data.history.map((h) => {
       const status = h.status || 'learned';
@@ -100,10 +100,10 @@ export function openMemory({ tab = 'global', host } = {}) {
         status === 'failed' ? `<p class="tl-err">${esc(h.error || 'The retro run failed.')}</p>`
         : status === 'nothing' ? '<p class="muted xs">Nothing new worth remembering.</p>'
         : [...h.added.map((a) => `<p class="tl-add">${esc(a.text ?? a)} ${a.kind ? where(a) : ''}</p>`), ...h.removed.map((a) => `<p class="tl-del"><s>${esc(a.text ?? a)}</s> ${a.kind ? where(a) : ''}</p>`)].join('');
-      const title = S.sessions.has(h.sessionId) ? `<a href="#" data-session="${esc(h.sessionId)}">${esc(h.title || 'session')}</a>` : esc(h.title || 'session');
+      const title = S.sessions.has(h.sessionId) ? `<a href="#" data-session="${esc(h.sessionId)}">${esc(h.title || 'task')}</a>` : esc(h.title || 'task');
       return `<div class="tl ${status}"><span class="tl-dot"></span><div class="tl-main"><div class="tl-head"><b>${title}</b>${h.project ? `<span class="muted xs">${esc(projectName(h.project))}</span>` : ''}<span class="muted xs">${ago(h.at)}</span></div>${lines}</div></div>`;
     });
-    return live + entries.join('') || `<p class="mem-empty">No retros yet. One runs 90 s after a session finishes, or as soon as you mark it done or archive it.</p>`;
+    return live + entries.join('') || `<p class="mem-empty">No retros yet. One runs 90 s after a task finishes, or as soon as you mark it done or archive it.</p>`;
   };
 
   const save = async (scope, kind, items) => {

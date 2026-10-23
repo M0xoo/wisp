@@ -10,7 +10,7 @@ import { fuzzy, highlight } from './fuzzy.js';
 
 const GROUP_LIMIT = 6;
 
-export function palette({ items, overlay, placeholder = 'Search sessions, projects and actions…' }) {
+export function palette({ items, overlay, placeholder = 'Search tasks, projects and actions…' }) {
   const node = el(`
     <div class="palette" role="dialog" aria-label="Command palette">
       <div class="pal-input">${icon('search')}<input type="text" placeholder="${esc(placeholder)}" spellcheck="false" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="palList"></div>
