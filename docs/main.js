@@ -119,10 +119,10 @@ const io = new IntersectionObserver(
   },
   { rootMargin: '0px 0px -10% 0px' },
 );
-$$('.hero-top > *, .desk, .strip, .r-head, .c-head, .cmp-shot, .sec-head, .tile, .modes, .takeover, .cli-text, .term-win, .more, .install h2, .install .sub, .steps li, .faq, .final h2, .final .cta').forEach((el, i) => {
+$$('.hero-top > *, .desk, .strip, .r-head, .c-head, .cmp-shot, .cli-text, .term-win, .more, .install h2, .install .sub, .steps li, .faq, .final h2, .final .cta').forEach((el, i) => {
   el.classList.add('rise');
   if (el.closest('.hero')) el.style.transitionDelay = `${i * 80}ms`;
-  if (el.matches('.steps li, .tile')) el.style.transitionDelay = `${[...el.parentElement.children].indexOf(el) * 90}ms`;
+  if (el.matches('.steps li')) el.style.transitionDelay = `${[...el.parentElement.children].indexOf(el) * 90}ms`;
   io.observe(el);
 });
 
@@ -450,69 +450,242 @@ if (log && rBody && seg) {
 }
 
 // ---------- terminal ----------
-// Commands and output in the real CLI's formats (bin/wisp.js), against the demo projects.
-const SCRIPT = [
-  { cmd: 'wisp "fix the flaky session-expiry test" --wait' },
-  { out: '<span class="c">  ◌ launched: Fix the flaky session-expiry test  (7f3ac21b9e04) — waiting…</span>', wait: 1400 },
-  { out: '◌ Fix the flaky session-expiry test  [review]  7f3ac21b9e04\n' },
-  { out: '<span class="h">## Session-expiry test no longer flakes</span>\n' },
-  { out: '<span class="ok">**✅ Done**</span> — The test slept 50 ms and raced the token TTL. SessionStore now takes an injectable clock; the test ticks it instead of sleeping.\n' },
-  { out: '- **flaky runs / 200:** 0 <span class="ok">(−34)</span>\n- **tests passing:** 212 <span class="ok">(+2)</span>\n' },
-  { out: '```diff\n<span class="del">-    return Date.now() > t.exp;</span>\n<span class="add">+    return this.clock.now() >= t.exp;</span>\n```\n' },
-  { cmd: 'wisp ls --state waiting', wait: 600 },
-  { out: '9c21e07d4a18  waiting  claude    api-server        Migrate billing webhooks to the new Stripe API  <span class="warn">— asks: Keep a v1 handler alongside v2?</span>\n' },
-  { cmd: 'wisp reply 9c21e07d4a18 "keep both until the cutover"' },
-  { out: '<span class="ok">  ✓ answered</span>\n' },
-  { cmd: 'wisp ship 7f3ac21b9e04' },
-  { out: '<span class="ok">  ✓ PR #186: https://github.com/acme/api-server/pull/186</span>\n' },
+// A wisp CLI you can type into. Commands and output follow the real CLI's formats (bin/wisp.js),
+// against the demo projects. It types the first command itself, then it's yours: type, or click a
+// suggestion. Lines are only ever appended, so the scrollback never re-renders.
+const TERM_SESSIONS = () => [
+  { id: '9c21e07d4a18', state: 'waiting', agent: 'claude', project: 'api-server', title: 'Migrate billing webhooks to the new Stripe API', question: 'Keep a v1 handler alongside v2?' },
+  { id: 'b4e9120c77d1', state: 'running', agent: 'codex', project: 'web-app', title: 'Upgrade to Node 22' },
 ];
-const term = $('#term');
-let termRun = 0;
-async function playTerm() {
-  const run = ++termRun;
-  const live = () => run === termRun;
-  const sleep = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
-  term.innerHTML = '';
-  const caret = '<span class="caret"></span>';
-  let html = '';
-  for (const step of SCRIPT) {
-    if (!live()) return;
-    if (step.cmd) {
-      await sleep(step.wait || 500);
-      html += '<span class="p">$</span> ';
-      for (const ch of step.cmd) {
-        if (!live()) return;
-        html += ch.replace('<', '&lt;');
-        term.innerHTML = html + caret;
-        await sleep(18 + Math.random() * 40);
-      }
-      html += '\n';
-      term.innerHTML = html + caret;
-      await sleep(350);
-    } else {
-      await sleep(step.wait || 160);
-      html += step.out + '\n';
-      term.innerHTML = html + caret;
-      term.scrollTop = term.scrollHeight;
+const FLAKY = { id: '7f3ac21b9e04', agent: 'claude', project: 'api-server', title: 'Fix the flaky session-expiry test' };
+const FLAKY_REPORT = [
+  '<span class="h">## Session-expiry test no longer flakes</span>\n',
+  '<span class="ok">**✅ Done**</span> — The test slept 50 ms and raced the token TTL. SessionStore now takes an injectable clock; the test ticks it instead of sleeping.\n',
+  '- **flaky runs / 200:** 0 <span class="ok">(−34)</span>\n- **tests passing:** 212 <span class="ok">(+2)</span>\n',
+  '```diff\n<span class="del">-    return Date.now() > t.exp;</span>\n<span class="add">+    return this.clock.now() >= t.exp;</span>\n```\n',
+];
+const TERM_HELP = `usage:
+  wisp "task"                   launch a task in this folder
+  wisp ls                       list sessions        (--state running,waiting)
+  wisp show &lt;id&gt;                state + latest report as markdown
+  wisp reply &lt;id&gt; "text"        follow up (answers a pending question)
+  wisp ship &lt;id&gt;                commit, push and open a PR
+  wisp usage                    spend and outcomes
+  wisp spell cast "&lt;change&gt;"    an agent writes a spell for it
+  wisp mcp                      run the MCP server for other agents
+
+launch options: --mode plan|edits|auto  --agent claude|codex|opencode|…  --wait  --json`;
+const termWin = $('.term-win');
+const termOut = $('#termOut');
+const termForm = $('#termForm');
+const termIn = $('#termIn');
+const termChips = $('#termChips');
+const termBox = $('#term');
+let termGen = 0; // bumps on restart, so a command still printing stops
+let termBusy = false;
+let sessions = [];
+let shipped = new Set();
+let nextPr = 186;
+
+function termPrint(html) {
+  termOut.insertAdjacentHTML('beforeend', html);
+  termBox.scrollTop = termBox.scrollHeight;
+}
+const sleepT = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
+const escT = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// The CLI takes ids as typed; here a unique prefix is enough, so suggestions stay short.
+const findSession = (id) => (id && id.length >= 4 ? sessions.filter((s) => s.id.startsWith(id)) : []).length === 1 ? sessions.find((s) => s.id.startsWith(id)) : null;
+const lsLine = (s) => `${s.id}  ${s.state.padEnd(7)}  ${s.agent.padEnd(8)}  ${s.project.padEnd(16).slice(0, 16)}  ${escT(s.title)}${s.question ? `  <span class="warn">— asks: ${escT(s.question)}</span>` : ''}`;
+
+// Splits a command line the way a shell would, enough for quoted task text.
+function words(line) {
+  const out = [];
+  line.replace(/"([^"]*)"|'([^']*)'|(\S+)/g, (m, a, b, c) => out.push(a ?? b ?? c));
+  return out;
+}
+
+function chips() {
+  const waiting = sessions.find((s) => s.state === 'waiting');
+  const review = sessions.find((s) => s.state === 'review' && !shipped.has(s.id));
+  const list = [
+    waiting ? 'wisp ls --state waiting' : 'wisp ls',
+    waiting && `wisp reply ${waiting.id.slice(0, 4)} "keep both until the cutover"`,
+    review && `wisp ship ${review.id.slice(0, 4)}`,
+    !sessions.some((s) => s.title.startsWith('Add a /health')) && 'wisp "add a /health endpoint" --agent codex',
+    'wisp usage',
+    'wisp --help',
+  ].filter(Boolean);
+  // Same suggestions as before: leave the buttons alone.
+  if (termChips.dataset.list === list.join('\n')) return;
+  termChips.dataset.list = list.join('\n');
+  termChips.innerHTML = list.map((c) => `<button type="button" data-cmd="${escT(c).replace(/"/g, '&quot;')}">${escT(c)}</button>`).join('');
+}
+
+async function launch(title, agent, wait, gen) {
+  const s = sessions.find((x) => x.title === title) || (title === FLAKY.title ? { ...FLAKY } : { id: Math.random().toString(16).slice(2, 14).padEnd(12, '0'), agent, project: 'api-server', title });
+  s.state = 'running';
+  if (!sessions.includes(s)) sessions.unshift(s);
+  if (!wait) {
+    termPrint(`<span class="c">  ◌ launched: ${escT(title)}  (${s.id})</span>\n`);
+    // It finishes a little later, the way a short task would.
+    setTimeout(() => { if (gen === termGen && s.state === 'running') { s.state = 'review'; chips(); } }, calm ? 0 : 7000);
+    return;
+  }
+  termPrint(`<span class="c">  ◌ launched: ${escT(title)}  (${s.id}) — waiting…</span>\n`);
+  await sleepT(1400);
+  if (gen !== termGen) return;
+  s.state = 'review';
+  await show(s, gen);
+}
+
+async function show(s, gen) {
+  termPrint(`◌ ${escT(s.title)}  [${s.state}]  ${s.id}\n\n`);
+  const lines = s.id === FLAKY.id
+    ? FLAKY_REPORT
+    : s.state === 'review' || s.state === 'done'
+      ? [`<span class="h">## ${escT(s.title)}</span>\n`, '<span class="ok">**✅ Done**</span> — Made the change on its own branch and ran the tests.\n', '- **tests passing:** 214 <span class="ok">(+3)</span>\n']
+      : s.question
+        ? [`<span class="warn">**❓ Asks** — ${escT(s.question)}</span>\n`]
+        : ['<span class="c">Still running. wisp wait ' + s.id + ' blocks until it is done.</span>\n'];
+  for (const l of lines) {
+    await sleepT(160);
+    if (gen !== termGen) return;
+    termPrint(l + '\n');
+  }
+}
+
+async function exec(line, gen) {
+  const w = words(line);
+  if (!w.length) return;
+  if (w[0] === 'clear') { termOut.innerHTML = ''; return; }
+  if (w[0] !== 'wisp') { termPrint(`<span class="c">This terminal only runs wisp. Try </span>wisp --help\n`); return; }
+  const flags = {};
+  const args = [];
+  for (let i = 1; i < w.length; i++) {
+    if (w[i].startsWith('--')) flags[w[i].slice(2)] = w[i + 1] && !w[i + 1].startsWith('--') && w[i] !== '--wait' ? w[++i] : true;
+    else args.push(w[i]);
+  }
+  const [cmd, ...rest] = args;
+  const need = (s) => { if (!s) termPrint(`<span class="del">wisp: session id required — see wisp --help</span>\n`); return s; };
+  await sleepT(220);
+  if (gen !== termGen) return;
+  if (flags.help || cmd === 'help') return termPrint(TERM_HELP + '\n');
+  if (flags.version) return termPrint('0.34.0\n');
+  if (!cmd) return termPrint('\n  ◌ wisp is open\n\n');
+  switch (cmd) {
+    case 'ls':
+    case 'list': {
+      const want = typeof flags.state === 'string' ? flags.state.split(',') : null;
+      const list = sessions.filter((s) => !want || want.includes(s.state));
+      return termPrint((list.map(lsLine).join('\n') || 'No sessions.') + '\n');
+    }
+    case 'show': {
+      const s = need(rest[0]) && findSession(rest[0]);
+      if (rest[0] && !s) return termPrint(`<span class="del">wisp: no session ${escT(rest[0])}</span>\n`);
+      return s && show(s, gen);
+    }
+    case 'reply': {
+      const s = need(rest[0]) && findSession(rest[0]);
+      if (rest[0] && !s) return termPrint(`<span class="del">wisp: no session ${escT(rest[0])}</span>\n`);
+      if (!s) return;
+      const answered = s.state === 'waiting';
+      s.state = 'running';
+      delete s.question;
+      setTimeout(() => { if (gen === termGen && s.state === 'running') { s.state = 'review'; chips(); } }, calm ? 0 : 6000);
+      return termPrint(`<span class="ok">  ✓ ${answered ? 'answered' : 'sent'}</span>\n`);
+    }
+    case 'ship': {
+      const s = need(rest[0]) && findSession(rest[0]);
+      if (rest[0] && !s) return termPrint(`<span class="del">wisp: no session ${escT(rest[0])}</span>\n`);
+      if (!s) return;
+      if (s.state === 'running' || s.state === 'waiting') return termPrint(`<span class="del">wisp: ${s.id} is still ${s.state}; ship it once it's done</span>\n`);
+      if (!shipped.has(s.id)) { shipped.add(s.id); s.pr = nextPr++; }
+      await sleepT(900);
+      if (gen !== termGen) return;
+      return termPrint(`<span class="ok">  ✓ PR #${s.pr}${flags.draft ? ' (draft)' : ''}: https://github.com/acme/${s.project}/pull/${s.pr}</span>\n`);
+    }
+    case 'usage':
+      return termPrint(`Last 30 days: $41.80 · 512 turns in 96 sessions · 88% worked · 14 questions
+
+By project
+  api-server                          $24.10    301 turns   91% ok
+  web-app                             $17.70    211 turns   84% ok
+
+By harness · model
+  claude · opus                       $29.40    344 turns   90% ok
+  codex · gpt-5.5-codex               $12.40    168 turns   85% ok
+`);
+    case 'mcp':
+      return termPrint('<span class="c">  (the MCP server talks over stdio; add it to your agent or editor)</span>\n');
+    default: {
+      // Anything else is a task, as in the real CLI.
+      const text = args.join(' ');
+      const title = text.charAt(0).toUpperCase() + text.slice(1);
+      return launch(title, typeof flags.agent === 'string' ? flags.agent : 'claude', !!flags.wait, gen);
     }
   }
 }
-if (term) {
+
+async function runCmd(line, typed) {
+  if (termBusy) return;
+  termBusy = true;
+  const gen = termGen;
+  termIn.value = '';
+  if (typed) {
+    for (const ch of line) {
+      if (gen !== termGen) return;
+      termIn.value += ch;
+      await sleepT(18 + Math.random() * 34);
+    }
+    await sleepT(300);
+  }
+  if (gen !== termGen) return;
+  termIn.value = '';
+  termPrint(`<span class="p">$</span> ${escT(line)}\n`);
+  termForm.classList.add('busy');
+  await exec(line.trim(), gen);
+  if (gen !== termGen) return;
+  termForm.classList.remove('busy');
+  termBusy = false;
+  chips();
+}
+
+async function startTerm() {
+  termGen++;
+  termBusy = false;
+  termOut.innerHTML = '';
+  sessions = TERM_SESSIONS();
+  shipped = new Set();
+  nextPr = 186;
+  termForm.classList.remove('busy');
+  termChips.dataset.list = '';
+  termChips.innerHTML = '';
+  // The first task is the one this page follows everywhere: launch it and wait for its report.
+  await runCmd('wisp "fix the flaky session-expiry test" --wait', true);
+}
+
+if (termWin) {
   new IntersectionObserver(
     ([e], obs) => {
       if (!e.isIntersecting) return;
       obs.disconnect();
-      playTerm();
+      startTerm();
     },
     { threshold: 0.4 },
-  ).observe(term);
-  $('#termReplay')?.addEventListener('click', playTerm);
+  ).observe(termWin);
+  $('#termReplay')?.addEventListener('click', startTerm);
+  termForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (termIn.value.trim()) runCmd(termIn.value, false);
+  });
+  termChips.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-cmd]');
+    if (b) runCmd(b.dataset.cmd, true);
+  });
+  termBox.addEventListener('click', () => {
+    if (!getSelection().toString()) termIn.focus({ preventScroll: true });
+  });
 }
-
-// ---------- modes: hover shows each; leaving returns to the default ----------
-const modes = $$('.mode');
-modes.forEach((m) => m.addEventListener('mouseenter', () => modes.forEach((x) => x.classList.toggle('on', x === m))));
-$('.modes')?.addEventListener('mouseleave', () => modes.forEach((x, i) => x.classList.toggle('on', i === 1)));
 
 // ---------- star count: nice to have, silent if GitHub says no ----------
 const stars = $('[data-stars]');
