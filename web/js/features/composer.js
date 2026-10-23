@@ -214,7 +214,8 @@ function setReplyTeam(id, team, preset) {
 
 function pickReplyTeam(id, btn) {
   if (!S.full.get(id)) return;
-  teamEditor(btn, { lead: replyRunner(id).agent, team: replyTeam(id), presetId: S.replyTeams.get(id)?.preset || '', places: [replyPlace(id)] }, (members, preset) => {
+  const run = replyRunner(id);
+  teamEditor(btn, { lead: run.agent, leadModel: run.model, leadEffort: run.effort, team: replyTeam(id), presetId: S.replyTeams.get(id)?.preset || '', places: [replyPlace(id)] }, (members, preset) => {
     setReplyTeam(id, members, preset);
   });
 }
@@ -231,14 +232,14 @@ function paintReplyTeam(id, btn) {
   btn.classList.toggle('open', open);
   const list = team.map((m) => `• ${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n');
   btn.title = !canLead(lead)
-    ? `${agentName(lead)} can't delegate (wisp can't give it tools), so follow-ups run without subagents`
+    ? `${agentName(lead)} can't delegate (wisp can't give it tools), so follow-ups run without delegates`
     : changed
       ? team.length
-        ? `Your next follow-up gives ${agentName(lead)} these subagents:\n${list}\nClick to change`
-        : `Your next follow-up runs without subagents. Click to change`
+        ? `Your next follow-up lets ${agentName(lead)} delegate to:\n${list}\nClick to change`
+        : `Your next follow-up runs without delegates. Click to change`
       : team.length
-        ? `Subagents ${agentName(lead)} can delegate to:\n${list}\nClick to change them for your next follow-up`
-        : `Subagents: give ${agentName(lead)} a team on other harnesses to delegate to from your next follow-up`;
+        ? `${agentName(lead)} can delegate to:\n${list}\nClick to change them for your next follow-up`
+        : `Delegate: give ${agentName(lead)} agents on other harnesses or machines to hand work to from your next follow-up`;
   // Subagents don't get a team of their own; a lead that can't delegate only shows one it has.
   btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || (!canLead(lead) && !team.length);
 }

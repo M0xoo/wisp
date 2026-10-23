@@ -674,13 +674,13 @@ export class Machines extends EventEmitter {
     const q = (id) => qualify(id, m.id);
     const cache = this.#cacheOf(m.id);
     if (event === 'summary') {
-      if (d.agent === 'wisp') return; // its own welcome tour
+      if (d.agent === 'wisp' || d.delegated) return; // its own welcome tour, a delegate's run (services/relay.js)
       cache.set(d.id, d);
       return this.onEvent('summary', this.summary(m.id, d));
     }
     if (event === 'activity' || event === 'turn') return this.onEvent(event, { ...d, sessionId: q(d.sessionId) });
     if (event === 'finished') {
-      if (d.session?.agent === 'wisp') return;
+      if (d.session?.agent === 'wisp' || d.session?.delegated) return;
       cache.set(d.session.id, d.session);
       return this.onEvent('finished', { ...d, session: this.summary(m.id, d.session) });
     }
@@ -749,7 +749,7 @@ export class Machines extends EventEmitter {
             try {
               const list = await this.json(m.id, 'GET', `/sessions${qs ? `?${qs}` : ''}`, undefined, { timeout: LIST_TIMEOUT_MS });
               cache.clear();
-              for (const s of list) if (s.agent !== 'wisp') cache.set(s.id, s);
+              for (const s of list) if (s.agent !== 'wisp' && !s.delegated) cache.set(s.id, s);
             } catch {}
           }
           return [...cache.values()].map((s) => this.summary(m.id, s));
@@ -764,7 +764,7 @@ export class Machines extends EventEmitter {
   async launch(mid, body) {
     const { machine, ...rest } = body;
     const out = await this.json(mid, 'POST', '/sessions', rest);
-    for (const x of out.group || [out]) this.#cacheOf(mid).set(x.id, x);
+    for (const x of out.group || [out]) if (!x.delegated) this.#cacheOf(mid).set(x.id, x);
     return out;
   }
 

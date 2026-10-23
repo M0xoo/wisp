@@ -39,6 +39,7 @@ import { scoutNote } from './scout.js';
 import { createFeedback } from './services/feedback.js';
 import { createInstaller } from './services/install.js';
 import { createLaunch } from './services/launch.js';
+import { createRelay } from './services/relay.js';
 import { createMove } from './services/move.js';
 import { createPlaces } from './services/places.js';
 import { phoneActions } from './services/phone.js';
@@ -130,6 +131,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       app.broadcast(event, data);
       if ((event === 'finished' || event === 'summary') && data?.session) app.auto.signals(data.session);
       else if (event === 'summary' && data?.id) app.auto.signals(data);
+      if (event === 'summary' && data?.relays) app.relay.notice(data); // a lead there delegating to another place
       if (event === 'finished' && app.remote.on) notifyFromMachine(data.session).catch((err) => console.warn(`wisp: phone: ${err.message}`));
     },
   });
@@ -178,6 +180,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
 
   app.places = createPlaces(app);
   app.mover = createMove(app);
+  app.relay = createRelay(app);
   app.cloud = createCloud(app);
   app.computer = createComputer(app);
   // Signing in to a harness from the page; once in, its models are looked up again.

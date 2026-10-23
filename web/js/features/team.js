@@ -1,9 +1,11 @@
-// Subagents: a team the lead can delegate to, any harness, model and thinking level per member, plus
-// the user's "use it for" note. Picked in the launcher, saved as presets, shown on cards and turns.
+// Delegate (subagents in the API): a team the lead can hand work to, each member on any harness,
+// model and thinking level, with the lead or on another machine, plus the user's "use it for" note.
+// Picked in the launcher, saved as presets, shown on cards and turns.
 
 import { fmtDuration, renderPresentation } from '../blocks.js';
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
+import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { STATUS_LABEL } from '../core/format.js';
 import { S } from '../core/state.js';
@@ -11,6 +13,9 @@ import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { draftInto } from './composer.js';
 import { scheduleRefetch } from './feed.js';
+import { connectMachine, openMachines } from './machines.js';
+import { placeMenu } from './place-menu.js';
+import { MACHINE_STATE, machineById, placeName } from './places.js';
 import { runnerPicker } from './runner-picker.js';
 import { agentById, agentName, effortLabel, harnessesAt, harnessLogo, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { ctxFor } from './turns.js';
@@ -24,7 +29,8 @@ export const canLead = (id) => agentById(id)?.delegates !== false;
 export const memberLabel = (m) => {
   const a = agentById(m.agent);
   const model = (m.model && a?.models?.find((x) => x.id === m.model)?.label) || m.model || 'Default model';
-  return `${a?.name || agentName(m.agent)} · ${model}${m.effort ? ` · ${effortLabel(m.effort)}` : ''}`;
+  const where = m.machine || m.place ? ` · on ${memberPlaceName(m) || m.place}` : ''; // a delegation keeps only the place's name
+  return `${a?.name || agentName(m.agent)} · ${model}${m.effort ? ` · ${effortLabel(m.effort)}` : ''}${where}`;
 };
 const slugName = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 
@@ -52,7 +58,7 @@ export function teamStack(lead, team) {
   </span>`;
 }
 
-// Launcher button: a stack of the members' logos and the preset's name, or just "Subagents".
+// Launcher button: a stack of the members' logos and the preset's name, or just "Delegate".
 export function paintTeamBtn(btn, team, presetId, lead) {
   const ok = canLead(lead);
   const flat = team.flatMap((m) => Array(copiesOf(m)).fill(m));
@@ -61,30 +67,45 @@ export function paintTeamBtn(btn, team, presetId, lead) {
   btn.classList.toggle('on', team.length > 0 && ok);
   btn.classList.toggle('off', team.length > 0 && !ok);
   btn.innerHTML = team.length
-    ? `<span class="tb-stack">${flat.slice(0, 5).map((m, i) => `<span class="ts-m" style="--i:${i}">${harnessLogo(m.agent)}</span>`).join('')}${n > 5 ? `<span class="ts-m ts-more" style="--i:5">+${n - 5}</span>` : ''}</span><span class="tb-label">${esc(p?.name || `${n} subagent${n > 1 ? 's' : ''}`)}</span>`
-    : `${icon('agent')}<span class="tb-label">Subagents</span>`;
+    ? `<span class="tb-stack">${flat.slice(0, 5).map((m, i) => `<span class="ts-m" style="--i:${i}">${harnessLogo(m.agent)}</span>`).join('')}${n > 5 ? `<span class="ts-m ts-more" style="--i:5">+${n - 5}</span>` : ''}</span>${team.some((m) => m.machine) ? `<span class="tb-away" aria-hidden="true">${icon('server')}</span>` : ''}<span class="tb-label">${esc(p?.name || `${n} delegate${n > 1 ? 's' : ''}`)}</span>`
+    : `${icon('agent')}<span class="tb-label">Delegate</span>`;
   btn.title = !team.length
-    ? 'Subagents: give the lead a team on other harnesses to delegate to'
+    ? 'Delegate: agents the lead can hand parts of the task to, on other harnesses or other machines'
     : ok
-      ? `Subagents the lead can delegate to:\n${team.map((m) => `• ${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n')}`
-      : `${agentName(lead)} can't delegate (wisp can't give it tools), so this launch runs without subagents`;
+      ? `The lead can delegate to:\n${team.map((m) => `• ${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n')}`
+      : `${agentName(lead)} can't delegate (wisp can't give it tools), so this launch runs without delegates`;
 }
 
-export function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
+// Where a member runs, as the page names places: '' with the lead, 'here' this computer, or a
+// machine id. One away from the lead works on a copy of its work there (server/services/relay.js).
+const HERE_KEY = 'here';
+export const memberPlaceName = (m) => (!m.machine ? '' : m.machine === HERE_KEY ? 'this computer' : machineById(m.machine)?.name || m.place || 'a machine');
+// The places whose harnesses a member can use: the lead's, or its own.
+const placesFor = (m, leadPlaces) => (m.machine ? [m.machine === HERE_KEY ? '' : m.machine] : leadPlaces);
+const placeState = (k) => (k && k !== HERE_KEY ? machineById(k)?.state || 'off' : 'online');
+const placeIcon = (k) => icon(k && k !== HERE_KEY ? 'server' : 'laptop');
+const stateDot = (k) => (k && k !== HERE_KEY ? `<i class="dot ${placeState(k) === 'online' ? 'ok' : placeState(k) === 'error' ? 'bad' : ''}"></i>` : '');
+
+// The delegate editor: who the lead can hand work to, where each one runs and on what, plus a
+// name and a "use it for" note. lead / leadModel / leadEffort: the lead's run. places: where the
+// lead runs ('' = this computer). pickLead(k): move the lead there (the launcher), else it's shown.
+export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team, presetId, places, pickLead }, onChange) {
   const open = $('.team-pop');
   if (open) return open.close();
   let members = team.map((m) => ({ ...m }));
   let preset = presetId;
+  const leadPlaces = () => (typeof places === 'function' ? places() : places) || [''];
   const r = anchor.getBoundingClientRect();
-  const width = Math.min(540, innerWidth - 24);
+  const width = Math.min(560, innerWidth - 24);
   const left = Math.max(12, Math.min(r.left, innerWidth - 12 - width));
-  const below = r.bottom + 440 < innerHeight;
+  const below = r.bottom + 460 < innerHeight;
   const node = el(`
-    <div class="team-pop" role="dialog" aria-label="Subagents" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
+    <div class="team-pop" role="dialog" aria-label="Delegate" style="left:${left}px;width:${width}px;${below ? `top:${r.bottom + 6}px` : `bottom:${innerHeight - r.top + 6}px`}">
       <header class="tp-head">
-        <div class="tp-title"><b>Subagents</b><small>The lead hands tasks to these, each on its own harness. Tell it what each one is for.</small></div>
+        <div class="tp-title"><b>Delegate</b><small>Agents the lead can hand parts of the task to, here or on your other machines. Tell it what each one is for.</small></div>
         <button class="ghost xs tp-presets" aria-haspopup="menu">${icon('agent')}<span>Presets</span>${icon('chevron', 'chev')}</button>
       </header>
+      <div class="tp-lead"></div>
       <div class="tp-warn" hidden></div>
       <div class="tp-list"></div>
       <footer class="tp-foot"></footer>
@@ -95,17 +116,43 @@ export function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
   let typing;
   const commitSoon = () => (clearTimeout(typing), (typing = setTimeout(commit, 300)));
 
+  // The lead, and where it runs: the place every "with the lead" delegate shares.
+  const paintLead = () => {
+    const ks = leadPlaces();
+    const where = ks.length > 1 ? `${ks.length} places` : placeName(ks[0]);
+    const away = members.filter((m) => m.machine).map((m) => m.machine);
+    const spots = [...new Set(away)].length;
+    $('.tp-lead', node).innerHTML = `
+      <span class="tp-tag">Lead</span>
+      <span class="tp-lead-logo">${harnessLogo(lead)}</span>
+      <span class="tp-lead-run">${esc(memberLabel({ agent: lead, model: leadModel, effort: leadEffort }))}</span>
+      <span class="tp-on">on</span>
+      ${pickLead
+        ? `<button class="tp-place tp-lead-place" aria-haspopup="menu" title="Where the lead runs">${placeIcon(ks.length > 1 ? 'x' : ks[0])}<span>${esc(where)}</span>${ks.length === 1 ? stateDot(ks[0]) : ''}${icon('chevron', 'chev')}</button>`
+        : `<span class="tp-place static" title="Where the lead runs">${placeIcon(ks[0])}<span>${esc(where)}</span></span>`}
+      <span class="grow"></span>
+      ${spots ? `<span class="tp-spread" title="Delegates on other places work on a copy of the lead's work there; their changes come back when they finish">${icon('server')}+${spots} place${spots > 1 ? 's' : ''}</span>` : ''}`;
+  };
   const paintWarn = () => {
     const w = $('.tp-warn', node);
     w.hidden = canLead(lead);
     w.innerHTML = `${icon('warn')}<span>${esc(agentName(lead))} can't delegate: wisp can't give it tools. Pick Claude Code, Codex or opencode as the lead to use these.</span>`;
   };
   const paintFoot = () => {
+    const full = members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES;
     foot.innerHTML = `
-      <button class="ghost sm tp-add" ${members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES ? 'disabled' : ''}>${icon('plus')}Add subagent</button>
+      <button class="ghost sm tp-add" ${full ? 'disabled' : ''} ${S.machines.length ? 'aria-haspopup="menu"' : ''}>${icon('plus')}Add delegate${S.machines.length ? icon('chevron', 'chev') : ''}</button>
       <span class="tp-count" title="Agents in all, counting copies (max ${MAX_INSTANCES})">${teamSize(members)} agent${teamSize(members) === 1 ? '' : 's'}</span>
       <span class="grow"></span>
       ${members.length ? `<button class="link xs tp-clear">Clear</button><button class="ghost sm tp-save">${icon('check')}Save as preset</button>` : ''}`;
+  };
+  const placeChip = (m) => {
+    const k = m.machine || '';
+    const st = placeState(k);
+    const tip = !k ? 'Runs with the lead: same computer and folder, sees its edits as they happen' : `Runs on ${memberPlaceName(m)}, on a copy of the lead's work. Its changes come back when it finishes.${st === 'online' ? '' : ` ${MACHINE_STATE[st] || 'Not connected'}: wisp connects when you launch.`}`;
+    return `<button class="tp-place${k ? ' away' : ''}${k && st !== 'online' ? ' off' : ''}" aria-haspopup="menu" title="${esc(tip)}">
+      ${k ? placeIcon(k) : icon('agent')}<span>${esc(k ? memberPlaceName(m) : 'With the lead')}</span>${stateDot(k)}${icon('chevron', 'chev')}
+    </button>`;
   };
   const paintList = () => {
     const named = uniqueNames(members);
@@ -114,34 +161,94 @@ export function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
           .map(
             (m, i) => `<div class="tp-row" data-i="${i}">
               <div class="tp-top">
-                <button class="runner-btn tp-runner" title="Harness, model and thinking level" aria-haspopup="dialog"></button>
+                ${placeChip(m)}
+                <button class="runner-btn tp-runner" title="Harness, model and thinking level${m.machine ? ` on ${esc(memberPlaceName(m))}` : ''}" aria-haspopup="dialog"></button>
+                <span class="grow"></span>
                 <span class="tp-copies${copiesOf(m) > 1 ? ' on' : ''}" title="Copies: identical agents that take tasks in parallel">
                   <button class="tp-dec" aria-label="One copy fewer" ${copiesOf(m) <= 1 ? 'disabled' : ''}>${icon('minus')}</button>
                   <b>×${copiesOf(m)}</b>
                   <button class="tp-inc" aria-label="One copy more" ${copiesOf(m) >= MAX_COPIES || teamSize(members) >= MAX_INSTANCES ? 'disabled' : ''}>${icon('plus')}</button>
                 </span>
-                <label class="field sm mono tp-name" title="What the lead calls it"><span>@</span><input value="${esc(m.name || '')}" placeholder="${esc(named[i].name)}" maxlength="24" spellcheck="false" autocomplete="off"></label>
                 <button class="icon-btn tp-del" title="Remove">${icon('x')}</button>
               </div>
-              <label class="field sm tp-use"><span>Use for</span><input value="${esc(m.use || '')}" placeholder="e.g. image and UI work · research · writing tests" maxlength="300" spellcheck="false" autocomplete="off"></label>
+              <div class="tp-bottom">
+                <label class="field sm mono tp-name" title="What the lead calls it"><span>@</span><input value="${esc(m.name || '')}" placeholder="${esc(named[i].name)}" maxlength="24" spellcheck="false" autocomplete="off"></label>
+                <label class="field sm tp-use"><span>Use for</span><input value="${esc(m.use || '')}" placeholder="e.g. tests · research · GPU work" maxlength="300" spellcheck="false" autocomplete="off"></label>
+              </div>
             </div>`,
           )
           .join('')
-      : `<div class="tp-empty">${icon('agent')}<p>No subagents yet. Add one per harness you want the lead to use, like Codex for tests or opencode for research.</p></div>`;
+      : `<div class="tp-empty">${icon('agent')}<p>No delegates yet. Add one per job: Codex for tests next to the lead, or a model on your GPU box for the heavy lifting.</p></div>`;
     $$('.tp-row', list).forEach((row, i) => paintRunnerBtn($('.tp-runner', row), members[i].agent, members[i].model, members[i].effort));
     paintFoot();
+    paintLead();
   };
-  const add = () => {
-    if (members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES) return;
-    const used = new Set([lead, ...members.map((m) => m.agent)]);
-    const pool = places ? harnessesAt(places) : S.agents;
-    const a = pool.find((x) => x.available && !used.has(x.id)) || pool.find((x) => x.available && x.id !== lead) || pool.find((x) => x.available);
-    if (!a) return toast('No harness is installed.', { tone: 'bad' });
+
+  // A harness that's installed where the member runs, keeping its pick when that place has it.
+  const fitRunner = (m) => {
+    if (m.agent === 'auto') return;
+    const pool = harnessesAt(placesFor(m, leadPlaces()));
+    if (pool.find((a) => a.id === m.agent)?.available) return;
+    const a = pool.find((x) => x.available && x.id === lead) || pool.find((x) => x.available);
+    if (!a) return;
     const model = savedModel(a.id);
-    members.push({ name: '', agent: a.id, model, effort: savedEffort(a.id, model), use: '', count: 1 });
+    Object.assign(m, { agent: a.id, model, effort: savedEffort(a.id, model) });
+  };
+  const add = (k = '') => {
+    if (members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES) return;
+    const used = new Set([lead, ...members.filter((m) => (m.machine || '') === k).map((m) => m.agent)]);
+    const pool = harnessesAt(placesFor({ machine: k }, leadPlaces()));
+    const a = pool.find((x) => x.available && !used.has(x.id)) || pool.find((x) => x.available && x.id !== lead) || pool.find((x) => x.available);
+    if (!a) return toast(k ? `No harness is installed on ${esc(memberPlaceName({ machine: k }))} yet.` : 'No harness is installed.', { tone: 'bad' });
+    const model = savedModel(a.id);
+    members.push({ name: '', agent: a.id, model, effort: savedEffort(a.id, model), use: '', count: 1, ...(k && { machine: k }) });
+    if (k && k !== HERE_KEY && machineById(k)?.state === 'off') connectMachine(k);
     paintList();
     commit();
     $(`.tp-row[data-i="${members.length - 1}"] .tp-use input`, list)?.focus();
+  };
+
+  // Where a delegate runs: with the lead, or any other place. Offline machines connect when picked.
+  const whereMenu = (btn, { current, adding, onPick }) => {
+    const prev = $('.menu.tp-where');
+    if (prev) return prev.close();
+    const ks = leadPlaces();
+    const others = [...(ks.length === 1 && !ks[0] ? [] : [HERE_KEY]), ...S.machines.filter((m) => !(ks.length === 1 && ks[0] === m.id)).map((m) => m.id)];
+    const row = (k) => {
+      const m = k && k !== HERE_KEY ? machineById(k) : null;
+      const st = placeState(k);
+      const ready = m && st === 'online' ? (m.remote?.agents || []).filter((a) => a.available) : [];
+      const on = !adding && k === current;
+      const sub = !k ? 'Same computer and folder · sees edits live' : m ? (st === 'online' ? `${m.target} · works on a copy` : `${m.target} · ${MACHINE_STATE[st]}`) : 'Where wisp runs · works on a copy';
+      return `<button class="wm-row ${on ? 'on' : ''}" data-k="${k}" role="menuitemradio" aria-checked="${on}">
+        ${adding ? '' : `<span class="wm-check">${icon('check')}</span>`}
+        <span class="wm-icon">${k ? placeIcon(k) : icon('agent')}${stateDot(k)}</span>
+        <span class="wm-name"><b>${esc(k ? (k === HERE_KEY ? 'This computer' : m?.name || 'machine') : 'With the lead')}</b><small>${esc(sub)}</small></span>
+        ${ready.length ? `<span class="wm-agents">${ready.slice(0, 4).map((a) => `<span class="model-logo">${harnessLogo(a.id)}</span>`).join('')}</span>` : ''}
+      </button>`;
+    };
+    const menu = el(`<div class="menu where-menu place-menu tp-where" role="menu">
+      <div class="wm-h">${adding ? 'Add a delegate' : 'Runs on'} <small>${others.length ? 'away from the lead, its changes come back when done' : ''}</small></div>
+      ${row('')}${others.map(row).join('')}
+      <div class="wm-sep"></div>
+      <button data-a="add">${icon('plus')}${S.machines.length ? 'Add a machine…' : 'Add a machine to delegate to another computer…'}</button>
+    </div>`);
+    menu.onclick = (ev) => {
+      if (ev.target.closest('[data-a="add"]')) {
+        shut();
+        return openMachines({ focusAdd: true });
+      }
+      const b = ev.target.closest('.wm-row');
+      if (!b) return;
+      shut();
+      onPick(b.dataset.k);
+    };
+    const shut = popover(menu, { anchor: btn, capture: true, onClose: () => btn.setAttribute('aria-expanded', 'false') });
+    btn.setAttribute('aria-expanded', 'true');
+    const br = btn.getBoundingClientRect();
+    const h = menu.offsetHeight;
+    menu.style.left = `${Math.max(8, Math.min(br.left, innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${br.bottom + 6 + h > innerHeight - 8 ? Math.max(8, br.top - h - 6) : br.bottom + 6}px`;
   };
 
   // Save: name it; an existing preset's name updates that preset.
@@ -231,10 +338,26 @@ export function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
       $(`.tp-row[data-i="${i}"] ${step > 0 ? '.tp-inc' : '.tp-dec'}`, list)?.focus();
       return commit();
     }
+    const pb = e.target.closest('.tp-place');
+    if (pb) {
+      const m = members[i];
+      return whereMenu(pb, {
+        current: m.machine || '',
+        onPick: (k) => {
+          if (k) m.machine = k;
+          else delete m.machine;
+          delete m.place;
+          if (k && k !== HERE_KEY && machineById(k)?.state === 'off') connectMachine(k);
+          fitRunner(m);
+          paintList();
+          commit();
+        },
+      });
+    }
     const rb = e.target.closest('.tp-runner');
     if (rb) {
       const m = members[i];
-      runnerPicker(rb, { agent: m.agent, model: m.model, effort: m.effort, savedModel, savedEffort, places, auto: true }, (agent, model, effort) => {
+      runnerPicker(rb, { agent: m.agent, model: m.model, effort: m.effort, savedModel, savedEffort, places: placesFor(m, leadPlaces()), auto: true }, (agent, model, effort) => {
         Object.assign(m, { agent, model, effort });
         paintList();
         commit();
@@ -250,7 +373,9 @@ export function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
     commitSoon();
   });
   foot.addEventListener('click', (e) => {
-    if (e.target.closest('.tp-add')) add();
+    const addBtn = e.target.closest('.tp-add');
+    // With machines around, Add asks where; without, it's one click.
+    if (addBtn) S.machines.length ? whereMenu(addBtn, { adding: true, onPick: add }) : add();
     if (e.target.closest('.tp-save')) askName();
     if (e.target.closest('.tp-clear')) {
       members = [];
@@ -260,17 +385,30 @@ export function teamEditor(anchor, { lead, team, presetId, places }, onChange) {
     }
   });
   $('.tp-presets', node).onclick = (e) => presetMenu(e.currentTarget);
+  $('.tp-lead', node).addEventListener('click', (e) => {
+    const b = e.target.closest('.tp-lead-place');
+    if (!b) return;
+    placeMenu(b, { title: 'The lead runs on', current: leadPlaces().length === 1 ? leadPlaces()[0] : null }, (k) => {
+      pickLead(k);
+      for (const m of members) fitRunner(m);
+      paintList();
+      commit();
+    });
+  });
 
   paintWarn();
   paintList();
+  // Machines connecting (or dropping) change the dots and what's installed where.
+  bus.on('machines', () => node.isConnected && !node.contains(document.activeElement) && paintList(), { node });
   // The harness picker and preset menu float outside the popover; clicks there keep it open.
   const close = popover(node, {
     anchor,
-    keep: '.picker, .tp-menu',
+    keep: '.picker, .tp-menu, .tp-where, .place-menu',
     onClose: () => {
       clearTimeout(typing);
       commit();
       $('.menu.tp-menu')?.close();
+      $('.menu.tp-where')?.close();
       anchor.classList.remove('open');
     },
   });
@@ -307,6 +445,7 @@ export function teamLiveHtml(s, t) {
       return `<div class="tl-row ${running ? 'live' : `st-${st.cls}`}" data-sub="${esc(d.sessionId)}">
         <span class="tl-logo">${harnessLogo(d.agent)}</span>
         <b class="tl-name">@${esc(d.name)}</b>
+        ${d.place ? `<span class="tl-place" title="Runs on ${esc(d.place)}, on a copy of the lead's work">${icon('server')}${esc(d.place)}</span>` : ''}
         <span class="tl-live">${esc(running ? last || 'Starting up' : hero?.title || st.label)}</span>
         ${running ? `<span class="elapsed" data-start="${ct?.startedAt || d.startedAt}">${fmtDuration(Date.now() - (ct?.startedAt || d.startedAt))}</span>` : `<span class="pill st-${st.cls}"><i></i>${st.label}</span>`}
       </div>`;

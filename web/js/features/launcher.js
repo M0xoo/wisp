@@ -206,14 +206,14 @@ export function renderLauncher() {
     api('/config', { method: 'PATCH', body: { defaults: { worktree } } }).catch(() => {});
   };
 
-  // Subagents: remembered like the other picks, so a team stays set until you clear it.
-  let team = (S.config.defaults.subagents || []).filter((m) => S.agents.some((a) => a.id === m.agent));
+  // Delegate (subagents): remembered like the other picks, so a team stays set until you clear it.
+  let team = (S.config.defaults.subagents || []).filter((m) => m.agent === 'auto' || m.machine || S.agents.some((a) => a.id === m.agent));
   let teamPreset = S.config.defaults.teamPreset || '';
   const teamBtn = $('#teamBtn', box);
   const paintTeam = () => paintTeamBtn(teamBtn, team, teamPreset, agent?.id);
   paintTeam();
   teamBtn.onclick = () =>
-    teamEditor(teamBtn, { lead: agent?.id, team, presetId: teamPreset, places: launch.where }, (members, preset) => {
+    teamEditor(teamBtn, { lead: agent?.id, leadModel: curModel, leadEffort: curEffort, team, presetId: teamPreset, places: () => launch.where, pickLead: (k) => setWhere([k]) }, (members, preset) => {
       if (JSON.stringify([members, preset]) === JSON.stringify([team, teamPreset])) return;
       team = members;
       teamPreset = preset;
@@ -333,6 +333,8 @@ export function renderLauncher() {
     const off = targets.find((t) => t.m && !usable(t.m));
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
+    // Delegates on machines that aren't connected: connecting now has them ready by the first delegation.
+    for (const m of team) if (m.machine && m.machine !== 'here' && machineById(m.machine)?.state === 'off') connectMachine(m.machine);
     const wanted = [over?.agent || agent?.id, ...compare.map((c) => c.agent)].filter((id) => id !== 'auto'); // Auto picks from what's there
     for (const t of targets) {
       const list = agentsAt(t.k);
@@ -623,6 +625,15 @@ function paintWhereBtn() {
   b.title = n > 1 ? `Runs in parallel on ${launch.where.map(placeName).join(', ')}` : S.machines.length ? `Runs on ${placeName(launch.where[0])}. Pick several to run in parallel.` : 'Runs on this computer. Add a machine to run on other computers too.';
 }
 
+function setWhere(list) {
+  launch.where = list.length ? list : [''];
+  // A machine picked while disconnected starts connecting; you asked to run there.
+  for (const k of launch.where) if (k && machineById(k)?.state === 'off') connectMachine(k);
+  renderLaunchChips();
+  $('#launcher')?.placesChanged?.();
+  saveLaunch();
+}
+
 function whereMenu(anchor, back) {
   if ($('.menu.where-menu')) return $('.menu.where-menu').close(), back?.focus();
   const box = el(`<div class="menu where-menu" role="menu"></div>`);
@@ -646,13 +657,8 @@ function whereMenu(anchor, back) {
       ${S.machines.length ? `<button data-a="manage">${icon('settings')}Manage machines</button>` : ''}`;
   };
   const set = (list) => {
-    launch.where = list.length ? list : [''];
-    // A machine picked while disconnected starts connecting; you asked to run there.
-    for (const k of launch.where) if (k && machineById(k)?.state === 'off') connectMachine(k);
-    renderLaunchChips();
-    $('#launcher')?.placesChanged?.();
+    setWhere(list);
     paint();
-    saveLaunch();
   };
   box.onclick = (e) => {
     const only = e.target.closest('[data-only]');

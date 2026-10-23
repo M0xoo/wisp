@@ -97,8 +97,10 @@ test('theme: the theme setting takes system, light or dark, and its icons exist'
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'topbar', icon: 'moon', do: { copy: 'x' } }, { slot: 'topbar', icon: 'sun', do: { copy: 'x' } }] }), []);
 });
 
-test('the follow-up box’s Subagents button is a part spells can restyle or hide', () => {
+test('the follow-up box’s Delegate button and the Delegate popover are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'composer.team': { hide: true } } }), []);
+  // The Delegate popover: its lead strip and the delegates' place chips can be restyled or hidden.
+  assert.deepEqual(problems({ ...base0, parts: { 'delegate.lead': { hide: true }, 'delegate.place': { style: { color: 'red' } }, 'delegate.panel': { style: { color: 'red' } } } }), []);
   assert.deepEqual(normalizeSpell({ ...base0, parts: { 'composer.team': { style: { color: 'red' } } } }).spell.parts['composer.team'].style, { color: 'red' });
 });
 
