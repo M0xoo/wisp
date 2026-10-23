@@ -102,6 +102,17 @@
 .ship-foot > .primary { flex: none; white-space: nowrap; }
 .ship-foot code { font-size: 11px; }
 .hint.bad { color: var(--bad); }
+/* Placeholders while GET /ship reads the worktree: the same boxes the filled dialog has. */
+.ship-modal .sk { display: block; height: 10px; width: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--bg-2) 0%, var(--line) 40%, var(--bg-2) 80%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
+.ship-modal .ship-route .sk { display: inline-block; height: 18px; }
+.ship-modal .sk-code { width: 110px; }
+.ship-modal .ship-route .sk-meta { width: 210px; height: 12px; margin-left: auto; }
+.ship-modal .sk-box { display: flex; flex-direction: column; justify-content: center; gap: 9px; cursor: default; }
+.ship-modal .sk-title { width: 55%; }
+.ship-modal .sk-area { justify-content: flex-start; height: calc(9 * 1.5em + 18px); padding-top: 12px; }
+.ship-modal .sk-area .sk:nth-child(2) { width: 82%; }
+.ship-modal .sk-short { width: 40%; }
+.ship-modal.loading .ship-check { opacity: 0.5; }
 
 .compare-modal { width: min(1280px, 100%); max-height: 92vh; display: flex; flex-direction: column; }
 .cmp-prompt { margin: -6px 0 14px; padding: 8px 12px; border-radius: 10px; background: var(--bg-2); font-size: 13px; white-space: pre-wrap; max-height: 96px; overflow: auto; }
