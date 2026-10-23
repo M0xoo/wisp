@@ -26,7 +26,7 @@ import { toggleTranscript } from './turns.js';
 import { openUsage } from './usage.js';
 import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
-import { setView, viewPref } from './split.js';
+import { isSplit, setView, sideShown, toggleSidebar, viewPref } from './split.js';
 import { setTheme, themePref } from './theme.js';
 
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
@@ -110,6 +110,7 @@ function paletteItems() {
     viewPref() === 'split'
       ? { group: a, label: 'Feed view', sub: 'One column, cards open in place', icon: 'feed', kbd: '\\', keywords: 'layout view single column list', run: () => setView('feed') }
       : { group: a, label: 'Split view', sub: 'Tasks in a sidebar, the open one beside it', icon: 'split', kbd: '\\', keywords: 'layout view sidebar columns panes master detail', run: () => setView('split') },
+    ...(isSplit() ? [{ group: a, label: sideShown() ? 'Hide the task list' : 'Show the task list', icon: 'split', kbd: '[', keywords: 'sidebar collapse expand toggle focus full width', run: toggleSidebar }] : []),
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
   // Theme: the two you're not on.

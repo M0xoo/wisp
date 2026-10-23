@@ -7,7 +7,8 @@
 // The top bar becomes the sidebar's head (its Update, Get the app, Machines and Automations move to
 // the sidebar's foot), so the open task has the window's full height: its header is just the title,
 // and on a wide pane what the card says about it, its PR and its actions sit in a details column on
-// the right that stays put while the task scrolls.
+// the right that stays put while the task scrolls. The head's sidebar button (or [) hides the list
+// so the task gets the whole window; the feed's own one opens split view.
 //
 // Spells reach all of it through spell-schema.js: the `view` setting, the sidebar.top, split.head
 // and split.details slots, the sidebar / split.* parts and their props (width, side, details,
@@ -53,13 +54,13 @@ let booted = false;
 export function applyView() {
   save('wisp.view', viewPref());
   paintProps();
-  paintViewBtn();
   // The phone app always gets the feed (its switchers are hidden), even on a wide tablet.
   const want = viewPref() === 'split' && wide.matches && !MOBILE;
   const first = !booted;
   booted = true;
   if (want !== isSplit() || (want && first)) (want ? enter : leave)();
   else paintSplit();
+  paintViewBtn(); // says what it does in the layout now shown
 }
 
 export async function setView(v) {
@@ -81,6 +82,17 @@ export async function setView(v) {
 export const toggleView = () => {
   if (!MOBILE) setView(viewPref() === 'split' ? 'feed' : 'split');
 };
+
+// The task list hidden in split view. Yours alone (kept in this browser), like the list's width.
+let sideHidden = load('wisp.sideHidden', false);
+export const sideShown = () => isSplit() && !sideHidden;
+export function toggleSidebar() {
+  if (!isSplit()) return;
+  sideHidden = !sideHidden;
+  save('wisp.sideHidden', sideHidden);
+  paintProps();
+  paintViewBtn();
+}
 
 // Nothing open: the prompt box, focused.
 export function goHome({ focus = true } = {}) {
@@ -123,7 +135,7 @@ function enter() {
 
 function leave() {
   const open = splitOpen();
-  sidebar.insertBefore(launchSlot, feedTop);
+  $('#feed').before(launchSlot, feedTop);
   $('#spTop').before(...FOOT.map((sel) => $(sel)));
   document.body.classList.remove('split', 'pane-wide');
   $('#splitMain').hidden = true;
@@ -299,7 +311,7 @@ function paintHome() {
   const next = $('.sh-next', home);
   if (next.dataset.h !== html) (next.innerHTML = html), (next.dataset.h = html);
   next.hidden = !html;
-  $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>\\</kbd> feed view';
+  $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list · <kbd>\\</kbd> feed view';
 }
 
 // The open body is fixed to #splitStage's box: whatever moves the box (the header wrapping, the
@@ -309,7 +321,9 @@ let lastBox = '';
 function measure() {
   const r = $('#splitStage').getBoundingClientRect();
   const wideNow = isSplit() && r.width >= DETAILS_PANE;
-  const key = `${r.top} ${r.left} ${r.width} ${r.height} ${wideNow}`;
+  // With the list hidden the top bar's buttons float over the pane's corner: the header keeps clear.
+  const bar = isSplit() && sideHidden ? $('#topbar').offsetWidth : 0;
+  const key = `${r.top} ${r.left} ${r.width} ${r.height} ${wideNow} ${bar}`;
   if (key === lastBox) return;
   lastBox = key;
   const st = document.body.style;
@@ -317,6 +331,7 @@ function measure() {
   st.setProperty('--sb-left', `${r.left}px`);
   st.setProperty('--sb-w', `${r.width}px`);
   st.setProperty('--sb-h', `${r.height}px`);
+  st.setProperty('--bar-w', `${bar}px`);
   document.body.classList.toggle('pane-wide', wideNow);
 }
 new ResizeObserver(measure).observe($('#splitStage'));
@@ -333,21 +348,32 @@ function paintProps() {
   // The list sits on the left unless a spell asks for the right.
   document.body.classList.toggle('side-right', spellProp('sidebar', 'side') === 'right');
   document.body.classList.toggle('side-full', spellProp('sidebar', 'details') === 'full');
+  document.body.classList.toggle('side-hidden', sideHidden); // only applies in split view
   beforePaint(measure);
 }
 
+// The sidebar button: in split view it hides and shows the task list, in the feed it opens split
+// view (the feed comes back with \\, the command palette or Settings).
 const viewBtn = $('#viewBtn');
 function paintViewBtn() {
-  const split = viewPref() === 'split';
-  viewBtn.setAttribute('aria-pressed', split);
-  $('use', viewBtn).setAttribute('href', split ? '#i-feed' : '#i-split');
-  viewBtn.title = split ? 'Feed view: one column, cards open in place (\\)' : 'Split view: tasks in a sidebar, the open one beside it (\\)';
+  viewBtn.setAttribute('aria-pressed', sideShown());
+  viewBtn.title = isSplit()
+    ? `${sideHidden ? 'Show' : 'Hide'} the task list ([)`
+    : viewPref() === 'split'
+      ? `Split view needs a window at least ${SPLIT_MIN_WIDTH}px wide`
+      : 'Split view: tasks in a sidebar, the open one beside it (\\)';
+  viewBtn.setAttribute('aria-label', viewBtn.title);
 }
 
 // --- wiring --------------------------------------------------------------------------------------
 
 viewBtn.onclick = () => {
-  toggleView();
+  if (isSplit()) return toggleSidebar();
+  if (MOBILE) return;
+  if (viewPref() === 'split') return toast(`Split view needs a window at least ${SPLIT_MIN_WIDTH}px wide: it starts once there's room.`);
+  // Asked for the sidebar: it comes with the list showing.
+  if (sideHidden) (sideHidden = false), save('wisp.sideHidden', false);
+  setView('split');
 };
 $('#splitNew').onclick = () => goHome();
 $('#splitHead').addEventListener('click', (e) => {
