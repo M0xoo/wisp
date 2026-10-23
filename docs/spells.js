@@ -117,7 +117,12 @@
   function windowHtml() {
     return `
       <div class="sw-win" data-win data-ui>
-        <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">wisp</span></div>
+        <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span>
+          <span class="sw-tabs" role="tablist" aria-label="Window or spell file">
+            <button type="button" role="tab" data-tab="app" aria-selected="true">wisp</button>
+            <button type="button" role="tab" data-tab="file" aria-selected="false">${ICON.code}<span data-json-name></span></button>
+          </span>
+        </div>
         <div class="sw-app">
           <div class="sw-top">
             <span class="sw-brand"><i></i>wisp</span>
@@ -184,6 +189,10 @@
           </div>
           <div class="sw-toast" data-toast hidden></div>
         </div>
+        <div class="sw-file" data-json hidden>
+          <div class="sw-file-h"><span class="muted">~/.wisp/spells/</span><span data-json-path></span></div>
+          <pre><code data-code></code></pre>
+        </div>
       </div>`;
   }
 
@@ -191,25 +200,24 @@
     const uid = root.id || 'spells';
     root.innerHTML = `
       <div class="sp-book" data-ui>
+        <div class="sp-lh"><span><em>1</em>Ask for a change</span></div>
         <form class="sp-cast" autocomplete="off">
           <label class="sr" for="${uid}-in">Cast a spell</label>
           <textarea class="sp-input" id="${uid}-in" rows="2" maxlength="160" spellcheck="false" placeholder="/spell what should wisp do differently?"></textarea>
           <div class="sp-bar">
-            <span class="sp-hint">${ICON.wizard}<span data-hint>Pick one below, or type your own</span></span>
+            <span class="sp-hint">${ICON.wizard}<span data-hint>An agent writes it as a spell</span></span>
             <button class="sp-send" type="submit" aria-label="Cast the spell">↵</button>
           </div>
         </form>
-        <div class="sp-asks" data-asks></div>
         <ol class="sp-steps" data-steps hidden></ol>
-        <div class="sp-lh"><span>Your spells</span><button type="button" class="sp-alloff" data-alloff>Turn every spell off</button></div>
+        <div class="sp-asks" data-asks></div>
+        <div class="sp-lh"><span><em>2</em>Keep the ones you like</span><button type="button" class="sp-alloff" data-alloff>Turn all off</button></div>
         <ul class="sp-list" data-list></ul>
-        <div class="sp-json" data-json hidden>
-          <div class="sp-json-h"><span class="sp-json-name" data-json-name></span><span class="muted">~/.wisp/spells</span></div>
-          <pre><code data-code></code></pre>
-        </div>
       </div>
-      ${windowHtml()}
-      <p class="sp-foot" data-foot aria-live="polite"></p>`;
+      <div class="sp-stage">
+        ${windowHtml()}
+        <p class="sp-foot" data-foot aria-live="polite"></p>
+      </div>`;
 
     const $ = (s) => root.querySelector(s);
     const form = $('.sp-cast');
@@ -228,7 +236,8 @@
 
     const cast = []; // ids in the order they were cast
     const on = new Set();
-    let shown = '';
+    let shown = ''; // the spell whose file the window's second tab holds
+    let tab = 'app';
     let busy = false;
     let toastT = 0;
 
@@ -246,7 +255,7 @@
     function renderAsks() {
       const left = SPELLS.filter((s) => !cast.includes(s.id));
       asks.innerHTML = left.length
-        ? left.map((s) => `<button type="button" class="sp-ask" data-ask="${s.id}">${esc(s.chip)}</button>`).join('')
+        ? `<span class="sp-asks-h">Or try one</span>${left.map((s) => `<button type="button" class="sp-ask" data-ask="${s.id}">${ICON.spark}<span>${esc(s.chip)}</span><i>↵</i></button>`).join('')}`
         : '<span class="sp-asks-done">That’s every example here. In wisp, ask for anything the spell reference allows.</span>';
     }
 
@@ -257,8 +266,7 @@
       li.dataset.id = s.id;
       li.innerHTML = `
         <span class="sp-ic">${ICON.wizard}</span>
-        <span class="sp-name"><b>${esc(s.spell.name)}</b><small>v${s.spell.version} · ${esc(s.spell.description || s.ask)}</small></span>
-        <span class="sp-reach ${reachClass(s.reach)}">${esc(s.reach)}</span>
+        <span class="sp-name" title="${esc(s.spell.description || s.ask)}"><b>${esc(s.spell.name)}</b><small><span class="sp-reach ${reachClass(s.reach)}">${esc(s.reach)}</span> · v${s.spell.version}</small></span>
         <button type="button" class="sp-code-btn" data-show="${s.id}" aria-label="Show ${esc(s.spell.name)} JSON" aria-pressed="false">${ICON.code}</button>
         <button type="button" class="sp-switch" role="switch" aria-checked="false" aria-label="${esc(s.spell.name)}" data-toggle="${s.id}"><i></i></button>`;
       list.prepend(li);
@@ -270,20 +278,24 @@
         const isOn = on.has(li.dataset.id);
         li.classList.toggle('off', !isOn);
         li.querySelector('.sp-switch').setAttribute('aria-checked', String(isOn));
-        li.querySelector('.sp-code-btn').setAttribute('aria-pressed', String(shown === li.dataset.id));
+        li.querySelector('.sp-code-btn').setAttribute('aria-pressed', String(tab === 'file' && shown === li.dataset.id));
       }
+      json.hidden = tab !== 'file';
+      for (const t of win.querySelectorAll('[data-tab]')) t.setAttribute('aria-selected', String(t.dataset.tab === tab));
       $('[data-alloff]').hidden = !on.size;
       if (!on.has('tool-stats')) dialog.hidden = true;
     }
 
-    function show(id) {
-      shown = id;
+    // Puts a spell's file in the window's second tab; `open` switches to it.
+    function show(id, open) {
       const s = byId(id);
-      json.hidden = !s;
-      if (s) {
+      if (shown !== id) {
+        shown = id;
         $('[data-json-name]').textContent = `${s.id}.spell.json`;
+        $('[data-json-path]').textContent = `${s.id}.spell.json`;
         $('[data-code]').innerHTML = highlight(s.spell);
       }
+      tab = open ? 'file' : 'app';
       sync();
     }
 
@@ -314,6 +326,7 @@
       send.classList.add('press');
       setTimeout(() => send.classList.remove('press'), 140);
       steps.hidden = false;
+      asks.hidden = true;
       steps.innerHTML = '';
       const lines = ['Reading the spell reference', `Sampling your data · ${s.sample}`, 'Checking the spell with wisp'];
       for (const line of lines) {
@@ -326,6 +339,7 @@
       }
       await wait(260);
       steps.hidden = true;
+      asks.hidden = false;
       cast.push(s.id);
       on.add(s.id);
       addRow(s);
@@ -390,7 +404,7 @@
         return;
       }
       const c = e.target.closest('[data-show]');
-      if (c) show(shown === c.dataset.show ? '' : c.dataset.show);
+      if (c) show(c.dataset.show, !(tab === 'file' && shown === c.dataset.show));
     });
 
     $('[data-alloff]').addEventListener('click', () => {
@@ -400,6 +414,12 @@
     });
 
     win.addEventListener('click', (e) => {
+      const t = e.target.closest('[data-tab]');
+      if (t) {
+        tab = t.dataset.tab;
+        sync();
+        return;
+      }
       const a = e.target.closest('[data-act]');
       if (!a) return;
       const act = a.dataset.act;
@@ -421,7 +441,7 @@
     list.firstElementChild.classList.remove('new');
     renderAsks();
     show(first.id);
-    say('<b>My PRs</b> is on: see the button in the window’s corner. Cast another one.');
+    say('<b>My PRs</b> is on: see the button in the window’s corner. <span class="muted">The window’s second tab is its file.</span>');
   }
 
   document.querySelectorAll('[data-spells]').forEach(mount);
