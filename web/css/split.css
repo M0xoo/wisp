@@ -144,8 +144,8 @@ body.split .task-runs { padding: 0 4px 4px; }
 /* ---------- the main pane ---------- */
 .split-main[hidden], .split-home[hidden], .split-head[hidden], .split-stage[hidden] { display: none; }
 
-/* Home: the prompt box. What's waiting on you is in the sidebar beside it (a spell can bring the
-   list back here through the split.next part). */
+/* Home: the prompt box, then what's waiting on you (up to 5, the sidebar has the rest; a spell can
+   hide it through the split.next part), then the tips. */
 .split-home {
   flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center;
   padding: clamp(32px, 14vh, 140px) 32px 48px;
@@ -154,7 +154,7 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-hello { margin: 0 0 18px; padding: 0 4px; font: 600 26px/1.2 var(--display); letter-spacing: -0.02em; color: var(--ink); }
 .sh-hello:empty { display: none; }
 .sh-launch .sp-feedtop { margin-top: 18px; }
-.sh-next { margin-top: 30px; display: none; flex-direction: column; gap: 2px; }
+.sh-next { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-next[hidden] { display: none; }
 .sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .sh-next h4 .n { color: var(--faint); }
@@ -179,6 +179,7 @@ body.split .task-runs { padding: 0 4px 4px; }
 .tips[hidden] { display: none; }
 .tips { display: flex; flex-direction: column; gap: 1px; }
 .sh-tips { margin-top: 30px; }
+.sh-next:not([hidden]) + .sh-tips { margin-top: 22px; }
 .tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .sh-tips h4 { padding: 0 8px; }
 .tip-more { margin-left: auto; padding: 2px 6px; border-radius: 6px; font-size: 12px; color: var(--faint); }

@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Interrupting a run no longer flashes the task through Needs you.** A follow-up sent while the agent works used to drop the task into Needs you (and Finished) for a moment before it went back to Working. It now stays in Working until the follow-up's run ends, and only that run notifies. The same goes for a queued follow-up starting after the run before it.
+- **Split view's home shows Needs you again**: up to five tasks under the prompt box, with the tips below them, so what's waiting on you is there even with the task list hidden.
 
 ## [0.35.0] - 2026-10-23
 
