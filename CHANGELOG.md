@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **wisp Grid: the account page keeps up by itself.** A computer coming online or going offline, one being added or removed, a new signed-in device, or your cloud wisp waking or falling asleep now shows on the page as it happens, without reloading it. The grid also notices a computer that disconnects at once, instead of up to half a minute later.
 
+- **wisp Grid: tunnel and sign-in hardening.** A computer that answers through its tunnel with an impossible HTTP status no longer crashes the grid for everyone; the grid answers 502 instead. Computers can't set cookies through the grid any more. Behind Caddy, rate limits now apply per client instead of to everyone at once, so one client can no longer use up the tunnel limit and keep every computer from reconnecting. The on-demand TLS check only answers Caddy itself, not the public. A sign-in `return` path with a tab or newline in it can no longer redirect off the grid.
+
 ## [0.34.0] - 2026-10-23
 
 ### Added

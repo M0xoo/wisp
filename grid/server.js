@@ -80,10 +80,20 @@ const redirect = (res, to, headers = {}) => {
   res.writeHead(302, { location: to, 'cache-control': 'no-store', ...headers });
   res.end();
 };
-// Only paths on the same site: never an absolute URL or //host.
-const safePath = (p, d = '/') => (typeof p === 'string' && p.startsWith('/') && !p.startsWith('//') && !p.startsWith('/\\') ? p : d);
+// Only paths on the same site: never an absolute URL or //host. Browsers drop tabs and newlines
+// from a Location before reading it, so "/\t/evil.example" would be //evil.example: no control
+// characters at all.
+const safePath = (p, d = '/') => (typeof p === 'string' && /^\/(?![/\\])/.test(p) && !/[\x00-\x1f\x7f]/.test(p) ? p : d);
 const wantsHtml = (req) => req.method === 'GET' && /text\/html/.test(String(req.headers.accept || '')) && req.headers['sec-fetch-dest'] !== 'empty';
-const clientIp = (req) => req.socket.remoteAddress || '';
+const LOOPBACK = /^(::ffff:)?127\.0\.0\.1$|^::1$/;
+// Behind Caddy (grid/deploy/Caddyfile) every request comes from loopback: who's asking is the
+// address Caddy put last in X-Forwarded-For. Without this, everyone shares one rate limit, and
+// anyone can use up the tunnels' (or sign-ins') for all.
+const clientIp = (req) => {
+  const at = req.socket.remoteAddress || '';
+  const fwd = LOOPBACK.test(at) && String(req.headers['x-forwarded-for'] || '').split(',').pop().trim();
+  return fwd || at;
+};
 
 // A sliding window per key: n requests per minute.
 function limiter() {
@@ -594,8 +604,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const url = new URL(req.url, 'http://grid');
     try {
       // Caddy's on-demand TLS asks before getting a certificate for a name (grid/deploy/Caddyfile):
-      // only the grid itself and existing users. Loopback only.
-      if (url.pathname === '/_grid/tls-ask' && /^(::ffff:)?127\.0\.0\.1$|^::1$/.test(clientIp(req))) {
+      // only the grid itself and existing users. Loopback only: Caddy itself, not a request it
+      // passed on (that would tell anyone which handles and computers exist).
+      if (url.pathname === '/_grid/tls-ask' && LOOPBACK.test(clientIp(req))) {
         const d = String(url.searchParams.get('domain') || '').toLowerCase();
         const label = d.slice(0, -cfg.domain.length - 1);
         const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!(accounts.byHandle(label) || accounts.computerByLabel(label)));

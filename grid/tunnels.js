@@ -21,7 +21,7 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
     if (head?.length) socket.unshift(head);
     socket.setNoDelay(true);
     socket.setKeepAlive(true, PING_MS);
-    const session = http2.connect('http://computer', { createConnection: () => socket, settings: { initialWindowSize: WINDOW } });
+    const session = http2.connect('http://computer', { createConnection: () => socket, settings: { initialWindowSize: WINDOW, enablePush: false } });
     const t = { session, since: Date.now() };
     live.get(id)?.session.destroy(); // a computer that reconnected: its new tunnel wins
     live.set(id, t);
@@ -54,10 +54,22 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
       log(`grid: tunnel ${id}: ${err.message}`);
       return false;
     }
+    // The computer is the user's, not ours: what it answers mustn't take the grid down (a status
+    // like 000 makes writeHead throw, outside any try) or set cookies for the grid's other names.
     s.on('response', (h) => {
       const out = {};
-      for (const [k, v] of Object.entries(h)) if (!k.startsWith(':') && !HOP.has(k)) out[k] = v;
-      res.writeHead(h[':status'], out);
+      for (const [k, v] of Object.entries(h)) if (!k.startsWith(':') && !HOP.has(k) && k !== 'set-cookie') out[k] = v;
+      try {
+        res.writeHead(h[':status'], out);
+      } catch (err) {
+        log(`grid: tunnel ${id}: ${err.message}`);
+        s.close(http2.constants.NGHTTP2_CANCEL);
+        if (!res.headersSent) {
+          res.writeHead(502, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: 'The computer’s answer made no sense.' }));
+        }
+        return;
+      }
       s.pipe(res);
     });
     s.on('error', (err) => {
