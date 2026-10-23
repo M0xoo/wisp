@@ -20,6 +20,7 @@ import { loadMachines, openMachines, setMachines } from './features/machines.js'
 import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
 import { backToTop, onScroll, stage } from './features/scroll.js';
+import { promptFab } from './features/fab.js';
 import { openSettings, telemetryNotice } from './features/settings.js';
 import { installUpdate, loadUpdate } from './features/update.js';
 import { routeSpell } from './features/spell-ui.js';
@@ -27,7 +28,7 @@ import './features/spells.js';
 
 document.addEventListener('keydown', onKey);
 stage.addEventListener('scroll', onScroll, { passive: true });
-if (MOBILE) onScroll(); // the phone's launcher docks at once (scroll.js)
+if (MOBILE) promptFab(); // the phone opens the prompt box from a floating New task button
 $('#toTop').onclick = backToTop;
 
 // Top bar and the feed's Done / Archived toggles.
