@@ -1,6 +1,7 @@
 // Small display formatters shared across the page.
 
-export const STATUS_LABEL = { done: 'Done', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
+// The agent's own verdict. Not "Done": that's the list a task goes to when you mark it done.
+export const STATUS_LABEL = { done: 'Finished', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
 
 export function ago(t) {
   const s = (Date.now() - t) / 1000;
@@ -26,6 +27,11 @@ export function fmtDate(t, opts) {
   return f.format(new Date(t));
 }
 export const SHORT_TIME = { hour: '2-digit', minute: '2-digit' };
+const FULL_TIME = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+// "28m" says how long ago; its tooltip says when, and the details column spells out "ago" so it
+// isn't read as how long the task ran.
+export const agoLong = (t) => (ago(t) === 'now' ? 'just now' : `${ago(t)} ago`);
+export const timeAttrs = (t) => `title="${fmtDate(t, FULL_TIME)}"`;
 export const DAY_TIME = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
 
 export const whenLabel = (t) => {

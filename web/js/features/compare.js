@@ -13,6 +13,7 @@ import { renderFeed, reveal } from './feed.js';
 import { loadSessions } from './live.js';
 import { agentName, effortLabel, harnessLogo } from './runners.js';
 import { ctxFor } from './turns.js';
+import { ask } from '../ui/confirm.js';
 
 function turnMetrics(t) {
   const lines = (t?.changes || []).reduce((acc, c) => {
@@ -54,7 +55,7 @@ export async function compareView(id) {
         <div class="cmp-head">
           <span class="rb-logo">${harnessLogo(f.agent)}</span>
           <span class="cmp-who"><b>${esc(agentName(f.agent))}</b><small>${esc(f.model || 'Default model')}${f.effort ? ` · ${esc(effortLabel(f.effort))}` : ''}</small></span>
-          ${live ? `<span class="pill st-waiting"><i></i>${f.state === 'waiting' ? 'Asking' : 'Working'}</span>` : `<span class="pill st-${sum.status || 'info'}"><i></i>${STATUS_LABEL[sum.status] || 'Done'}</span>`}
+          ${live ? `<span class="pill st-waiting"><i></i>${f.state === 'waiting' ? 'Asking' : 'Working'}</span>` : `<span class="pill st-${sum.status || 'info'}"><i></i>${STATUS_LABEL[sum.status] || STATUS_LABEL.done}</span>`}
         </div>
         <dl class="cmp-stats">
           <div><dt>Time</dt><dd>${mx.time !== null ? fmtDuration(mx.time) : '—'}</dd></div>
@@ -79,7 +80,7 @@ export async function compareView(id) {
     if (!a || !keep) return;
     if (a === 'open') return close(), reveal(keep);
     const others = group.filter((g) => g.id !== keep);
-    if (!confirm(`Keep ${agentName(S.sessions.get(keep)?.agent)}'s result?\n\nThe other ${others.length === 1 ? 'run is' : `${others.length} runs are`} archived, and ${others.length === 1 ? 'its worktree is' : 'their worktrees are'} deleted with their changes.`)) return;
+    if (!(await ask(`Keep ${agentName(S.sessions.get(keep)?.agent)}'s result?\n\nThe other ${others.length === 1 ? 'run is' : `${others.length} runs are`} archived, and ${others.length === 1 ? 'its worktree is' : 'their worktrees are'} deleted with their changes.`, { ok: 'Keep this one', danger: true, anchor: e.target.closest('[data-a]') }))) return;
     // Optimistic: the others leave the feed now; stopping and cleaning them up goes on behind.
     for (const o of others) S.sessions.set(o.id, { ...S.sessions.get(o.id), archived: true });
     close();

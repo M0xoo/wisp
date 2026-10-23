@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Small things that read more clearly.** Settings has a cog (the old icon looked like a theme switch). The prompt box names its mode ("Full auto" isn't just an amber sparkle any more) and where tasks run ("This computer"). Compare is a + on the harness pill rather than "vs". No folder and recipes have their own icons, so the sparkle doesn't stand for four things. The sidebar's foot keeps "Get the app" spelled out.
+- The agent's own verdict on a task reads **Finished** (also in reports), so "Done" only means the list you move a task to.
+- Project chips count the same tasks as Needs you (before, they only counted unread ones, so "All 1" sat above "Needs you 2"), and say so on hover.
+- Times in the list show the full date on hover, and the open task's details say "28m ago", not "28m", next to how long it ran. Titles and summaries cut short in the list show in full on hover.
+- The page says "tasks" everywhere it said "sessions" (search, Automations, Memory, Manage projects, Delete task), and the search palette's actions for the open task are under **This task**.
+- Asking before deleting, stopping or merging is a small box by the button you clicked, with the action on its button ("Delete recipe", "Merge PR"), instead of the browser's OK / Cancel dialog.
+- Hovering a review row in the split sidebar shows the done button beside the time, not over it.
+
 ## [0.33.0] - 2026-10-23
 
 ### Changed

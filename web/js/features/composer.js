@@ -27,6 +27,7 @@ import { renderBody } from './turns.js';
 import { paintCard, runAction, spellProp } from './spells.js';
 import { spellSlash } from './launcher.js';
 import { cast } from './spell-ui.js';
+import { ask } from '../ui/confirm.js';
 
 export function draftInto(id, text) {
   const ta = $('.reply', S.nodes.get(id)?.card);
@@ -126,7 +127,7 @@ function paintReplyMode(id, btn) {
   const m = MODES.find((x) => x.id === replyMode(id)) || DEFAULT_MODE;
   const from = s && S.replyModes.has(id) && MODES.find((x) => x.id === s.mode);
   btn.className = `mode-btn c-mode m-${m.id}${from ? ' changed' : ''}`;
-  btn.innerHTML = `${icon(m.icon)}${m === DEFAULT_MODE && !from ? '' : `<span>${m.label}</span>`}`;
+  btn.innerHTML = `${icon(m.icon)}<span>${m.label}</span>`;
   btn.title = from
     ? `${m.label}: ${m.hint}\nYour next follow-up switches this task from ${from.label} to ${m.label}. Shift+Tab to switch`
     : `${m.label}: ${m.hint}\nPick another mode for your next follow-up. Shift+Tab to switch`;
@@ -310,11 +311,11 @@ function renderQueued(s, list, name) {
         <span class="cq-text">${mentionHtml(esc(q.text), { link: false })}</span>
         <button class="att-x" title="Cancel this follow-up">${icon('x')}</button>
       </li>`);
-    const cancel = () => {
+    const cancel = async () => {
       // Items queued by a wisp older than queue ids get one when wisp restarts.
       if (!q.id) return toast('Restart wisp to cancel this follow-up.', { tone: 'bad' });
       const short = q.text.length > 80 ? `${q.text.slice(0, 80)}…` : q.text;
-      if (!confirm(`Cancel this queued follow-up?\n\n“${short}”`)) return;
+      if (!(await ask(`Cancel this queued follow-up?\n\n“${short}”`, { ok: 'Cancel follow-up', danger: true, anchor: $('.att-x', li) }))) return;
       api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch(toastError);
     };
     $('.att-x', li).onclick = cancel;

@@ -6,6 +6,7 @@ import { api } from '../core/api.js';
 import { $ } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { toast } from '../ui/toast.js';
+import { ask } from '../ui/confirm.js';
 
 // The server polls npm; when a newer wisp-agents is out, a pill appears next to Search.
 let update = null;
@@ -28,7 +29,7 @@ export async function installUpdate() {
     await post(false).catch(async (err) => {
       const running = [...S.sessions.values()].filter((s) => s.state === 'running' || s.state === 'waiting').length;
       if (err.message !== 'agents are running') throw err;
-      if (!confirm(`Update to wisp ${update.latest} and restart? ${running || 'Some'} running agent${running === 1 ? '' : 's'} will be stopped.`)) throw null;
+      if (!(await ask(`Update to wisp ${update.latest} and restart?\n\n${running || 'Some'} running agent${running === 1 ? '' : 's'} will be stopped.`, { ok: 'Update and restart', anchor: $('#updateBtn') }))) throw null;
       return post(true);
     });
   } catch (err) {

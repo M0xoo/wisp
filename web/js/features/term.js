@@ -17,6 +17,7 @@ import { toast, toastError } from '../ui/toast.js';
 import { isSplit } from './split.js';
 import { agentName } from './runners.js';
 import { slotHtml, spellProp } from './spells.js';
+import { ask } from '../ui/confirm.js';
 
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const TOUCH = matchMedia('(pointer: coarse)');
@@ -623,7 +624,7 @@ export function termSize(id) {
 
 async function end() {
   const t = cur;
-  if (!t || (t.code === null && !confirm('End the terminal? The agent in it stops.'))) return;
+  if (!t || (t.code === null && !(await ask('End the terminal?\n\nThe agent in it stops.', { ok: 'End terminal', danger: true })))) return;
   hide();
   terms.delete(t.id);
   t.es?.close();

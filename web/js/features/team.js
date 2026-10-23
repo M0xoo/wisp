@@ -291,7 +291,7 @@ const subStatus = (ct) => {
   if (ct.status === 'stopped') return { cls: 'partial', label: 'Stopped' };
   if (ct.status === 'error') return { cls: 'blocked', label: 'Failed' };
   const st = ct.presentation?.blocks?.find((b) => b.type === 'hero')?.status || 'done';
-  return { cls: st, label: STATUS_LABEL[st] || 'Done' };
+  return { cls: st, label: STATUS_LABEL[st] || STATUS_LABEL.done };
 };
 
 // While the lead works: one live line per subagent it's waiting on.

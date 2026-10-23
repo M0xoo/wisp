@@ -9,6 +9,7 @@ import { fmtDate, SHORT_TIME } from '../core/format.js';
 import { present } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
 import { AUTO_GOALS, harnessLogo } from './runners.js';
+import { ask } from '../ui/confirm.js';
 
 const ARM_STATE = { ready: ['Ready', 'ok'], new: ['Trying out', 'warn'], untried: ['No data yet', ''], cooling: ['At its limit', 'warn'], gone: ['Not installed', 'bad'] };
 const TIER = { 1: 'small', 2: 'everyday', 3: 'frontier' };
@@ -75,7 +76,7 @@ export async function openRouter({ host } = {}) {
       };
     }
     $('#roReset', node).onclick = async () => {
-      if (!confirm('Forget what Auto learned from your tasks?')) return;
+      if (!(await ask('Forget what Auto learned from your tasks?', { ok: 'Forget it all', danger: true, anchor: $('#roReset', node) }))) return;
       await api('/router/reset', { method: 'POST', body: {} }).catch(toastError);
       render();
     };

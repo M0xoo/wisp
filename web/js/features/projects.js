@@ -9,12 +9,13 @@ import { present } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { clones, isRepo, repoLabel, repoName, startClone } from './clones.js';
-import { feedToTop, renderFeed } from './feed.js';
+import { feedToTop, renderFeed, taskOf } from './feed.js';
 import { renderLaunchChips } from './launcher.js';
 import { loadConfig } from './live.js';
 import { connectMachine, openMachines } from './machines.js';
 import { inProject, MACHINE_STATE, machineById, pathAt, placeName, placesOf, projectById, projectTitle, recentFirst } from './places.js';
 import { projectList } from './project-list.js';
+import { ask } from '../ui/confirm.js';
 
 // Project filter chips in the top bar before the rest fold into "+N".
 const TOP_CHIPS = 6;
@@ -22,14 +23,16 @@ let fitBar; // refits the chips when the bar's width changes
 const fitProjects = () => fitBar?.fit?.();
 
 export function renderProjects() {
-  const all = [...S.sessions.values()];
+  const all = [...S.sessions.values()].filter((s) => !s.archived);
+  // The same tasks the list's Needs you holds (a comparison counts once), so the numbers agree.
+  const needs = (l) => new Set(l.map(taskOf).filter((t) => t.state === 'waiting' || t.state === 'review').map((t) => t.key || t.id)).size;
   const stats = (pid) => {
     const l = pid === 'all' ? all : all.filter((s) => inProject(s, pid));
-    return { run: l.filter((s) => s.state === 'running').length, need: l.filter((s) => s.state === 'waiting' || (s.state === 'review' && s.unread)).length };
+    return { run: l.filter((s) => s.state === 'running').length, need: needs(l) };
   };
   const badges = (id) => {
     const st = stats(id);
-    return `${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need">${st.need}</span>` : ''}`;
+    return `${st.run ? `<span class="p-run" title="${st.run} working"></span>` : ''}${st.need ? `<span class="p-need" title="${st.need} need${st.need === 1 ? 's' : ''} you">${st.need}</span>` : ''}`;
   };
   const chip = (id, name, color) => `<button class="p-chip ${S.filter === id ? 'on' : ''} c-${color}" data-id="${id}" title="${esc(id === 'all' ? 'All projects' : projectTitle(projectById(id)))}">
       ${id === 'all' ? '' : '<i class="p-dot"></i>'}<span>${esc(name)}</span>${projectById(id)?.machine ? icon('server', 'p-where') : ''}${badges(id)}
@@ -140,7 +143,7 @@ function projectMenu(id, e) {
     const a = ev.target.closest('button')?.dataset.a;
     close();
     if (a === 'manage') openProjects();
-    if (a === 'delete' && confirm(`Remove “${p.name}” from wisp? Sessions and files are kept.`)) {
+    if (a === 'delete' && (await ask(`Remove “${p.name}” from wisp?\n\nIts tasks and files are kept.`, { ok: 'Remove project', danger: true }))) {
       try {
         await api(`/projects/${id}`, { method: 'DELETE' });
       } catch (err) {
@@ -359,7 +362,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
             return `<div class="prow c-${p.color}" data-id="${p.id}">
               <button class="swatch" title="Change colour"><i class="p-dot"></i></button>
               <div class="prow-main"><input class="pname" value="${esc(p.name)}"><span class="ppath">${S.machines.length ? spots : esc(tilde(p.path))}</span></div>
-              <span class="pcount">${n} session${n === 1 ? '' : 's'}</span>
+              <span class="pcount">${n} task${n === 1 ? '' : 's'}</span>
               <button class="icon-btn premove" title="Remove from wisp (files untouched)">${icon('trash')}</button>
             </div>`;
           })
@@ -383,7 +386,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
         });
       };
       $('.premove', row).onclick = async () => {
-        if (!confirm(`Remove “${p.name}” from wisp? Sessions and files are kept.`)) return;
+        if (!(await ask(`Remove “${p.name}” from wisp?\n\nIts tasks and files are kept.`, { ok: 'Remove project', danger: true, anchor: $('.premove', row) }))) return;
         await tryApi(async () => {
           await api(`/projects/${id}`, { method: 'DELETE' });
           await loadConfig();

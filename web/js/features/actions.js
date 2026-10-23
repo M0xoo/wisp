@@ -25,6 +25,7 @@ import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
+import { ask } from '../ui/confirm.js';
 
 export async function toggleDone(id) {
   const s = S.sessions.get(id);
@@ -115,7 +116,7 @@ export async function takeOver(id) {
   let s = S.full.get(id);
   if (!s?.agentSessionId) s = await api(`/sessions/${id}`).catch(() => null); // a run that just started
   if (!s?.agentSessionId) return void toast(`${(s && agentName(s.agent)) || 'The agent'} hasn't started its session yet. Try again in a moment.`);
-  if (s.state === 'running' && !confirm(`${agentName(s.agent)} is still running. Stop it and take over?`)) return;
+  if (s.state === 'running' && !(await ask(`${agentName(s.agent)} is still running. Stop it and take over?`, { ok: 'Stop and take over' }))) return;
   const inline = MOBILE || S.config.takeoverInline || machineById(S.sessions.get(id)?.machine?.id)?.kind === 'grid';
   if (inline) openTerm(id, { starting: true });
   try {
@@ -171,11 +172,11 @@ export function moreMenu(id, anchor) {
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
       ${sum.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${sum.pr.number}…</button>` : ''}
       ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
-      <button data-a="recipe">${icon('spark')}Save as recipe…</button>
+      <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
-      <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
+      <button data-a="delete" class="danger">${icon('trash')}Delete task${keyHint('⌫')}</button>
     </div>`);
   menu.onclick = async (e) => {
     if (e.target.closest('[data-sp]')) return close();
@@ -218,11 +219,11 @@ export function taskMenu(id, e) {
       ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
       ${s.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${s.pr.number}…</button>` : ''}
       ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
-      <button data-a="recipe">${icon('spark')}Save as recipe…</button>
+      <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       ${slotHtml('card.menu', s).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${s.id}" `)}
-      <button data-a="delete" class="danger">${icon('trash')}Delete session${keyHint('⌫')}</button>
+      <button data-a="delete" class="danger">${icon('trash')}Delete task${keyHint('⌫')}</button>
     </div>`);
   menu.onclick = async (ev) => {
     if (ev.target.closest('[data-sp]')) return close();
@@ -246,7 +247,7 @@ export function taskMenu(id, e) {
 }
 
 export async function deleteSession(id) {
-  if (!confirm('Delete this session from wisp? (The agent’s own history is kept.)')) return;
+  if (!(await ask('Delete this task from wisp?\n\nThe agent’s own history is kept.', { ok: 'Delete task', danger: true }))) return;
   const prev = S.sessions.get(id);
   handOff(id)(() => S.sessions.delete(id));
   await api(`/sessions/${id}`, { method: 'DELETE' }).catch((err) => {
@@ -261,7 +262,7 @@ export async function deleteSession(id) {
 export async function rerun(id) {
   const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(toastError));
   const first = s?.turns?.[0];
-  if (!first?.prompt) return toast('Nothing to rerun — this session has no prompt.', { tone: 'bad' });
+  if (!first?.prompt) return toast('Nothing to rerun — this task has no prompt.', { tone: 'bad' });
   let place = s.machine?.id || '';
   const here = () => harnessesAt([place]).filter((x) => x.available);
   const has = (a) => here().some((x) => x.id === a);
@@ -310,7 +311,7 @@ export async function rerun(id) {
     placeBtn.innerHTML = `${icon(place ? 'server' : 'laptop')}<span>${esc(placeName(place))}</span>${icon('chevron', 'chev')}`;
     placeBtn.title = 'Run it on another computer';
     const fresh = project && !pathAt(project, place);
-    $('.rr-hint', node).innerHTML = `Starts a new session in <code>${esc(project && !fresh ? pathAt(project, place) : s.cwd)}</code>${S.machines.length ? ` on <b>${esc(placeName(place))}</b>` : ''}${fresh ? `, in a checkout wisp clones there first` : ''}. “${esc(s.title)}” is kept as it is.`;
+    $('.rr-hint', node).innerHTML = `Starts a new task in <code>${esc(project && !fresh ? pathAt(project, place) : s.cwd)}</code>${S.machines.length ? ` on <b>${esc(placeName(place))}</b>` : ''}${fresh ? `, in a checkout wisp clones there first` : ''}. “${esc(s.title)}” is kept as it is.`;
   };
   paintMode();
   paintRunner();
