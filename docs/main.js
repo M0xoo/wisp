@@ -6,8 +6,11 @@ const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const small = () => matchMedia('(max-width: 960px)').matches;
 
 // ---------- copy buttons ----------
-for (const btn of $$('[data-copy]')) {
-  btn.addEventListener('click', async () => {
+// Delegated: the nav's Get wisp menu adds its copy rows later.
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-copy]');
+  if (!btn) return;
+  {
     const label = $('.copy', btn);
     try {
       await navigator.clipboard.writeText(btn.dataset.copy);
@@ -21,8 +24,8 @@ for (const btn of $$('[data-copy]')) {
       btn.classList.remove('copied');
       if (label) label.textContent = 'Copy';
     }, 1600);
-  });
-}
+  }
+});
 
 // ---------- wisp Cloud seats ----------
 // The preview opens seats as its server shows room for them. No count: just, once they're all
@@ -94,6 +97,7 @@ navigator.userAgentData
     if (architecture === 'arm' && os !== 'mac') build = `${os}-arm64`;
     if (architecture === 'x86' && os === 'mac') build = 'mac-x64';
     paintDownloads();
+    if (getMenu) paintGetMenu();
     for (const t of tabBoxes) t.refresh();
   })
   .catch(() => {});
@@ -168,6 +172,61 @@ const tabBoxes = $$('[data-tabs]').map((box) => {
     },
   };
 });
+
+// ---------- Get wisp (nav) ----------
+// Once the hero's install box scrolls away, the nav offers every way in: a menu with each
+// command to copy and this OS's download (on a Mac, the curl install), like the hero's tabs.
+const getBtn = $('#getBtn');
+const getMenu = $('#getMenu');
+const attr = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const paintGetMenu = () => {
+  const rows = $$('#deskCta [role="tab"]').map((t) => {
+    const name = t.textContent.trim();
+    if (t.dataset.tab !== 'app') return { name, cmd: t.dataset.cmd };
+    if (os === 'mac') return { name: 'Mac app', cmd: MAC_APP };
+    return { name: BUILDS[build][0], href: file(), label: file().slice(file().lastIndexOf('/') + 1) };
+  });
+  getMenu.innerHTML =
+    rows
+      .map((r) =>
+        r.href
+          ? `<a class="gm-row" role="menuitem" href="${r.href}"><b>${r.name}</b><code>${attr(r.label)}</code><span class="copy">Download</span></a>`
+          : `<button class="gm-row" role="menuitem" data-copy="${attr(r.cmd)}"><b>${r.name}</b><code>${attr(r.cmd)}</code><span class="copy">Copy</span></button>`,
+      )
+      .join('') + '<a class="gm-foot" role="menuitem" href="#install">Every option, and what to expect on first open</a>';
+};
+const openGet = (open) => {
+  getMenu.hidden = !open;
+  getBtn.setAttribute('aria-expanded', open);
+  if (open) $('.gm-row', getMenu)?.focus();
+};
+if (getBtn) {
+  paintGetMenu();
+  getBtn.addEventListener('click', () => {
+    openGet(getMenu.hidden);
+  });
+  getMenu.addEventListener('click', (e) => {
+    if (e.target.closest('a')) openGet(false); // a download or #install; copy rows stay open to show Copied
+  });
+  document.addEventListener('click', (e) => {
+    if (!getMenu.hidden && !e.target.closest('#navGet')) openGet(false);
+  });
+  getMenu.addEventListener('keydown', (e) => {
+    const items = $$('[role="menuitem"]', getMenu);
+    const i = items.indexOf(document.activeElement);
+    const step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (step) {
+      e.preventDefault();
+      items[(i + step + items.length) % items.length].focus();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !getMenu.hidden) {
+      openGet(false);
+      getBtn.focus();
+    }
+  });
+}
 
 // ---------- reveal once ----------
 const io = new IntersectionObserver(
@@ -400,10 +459,11 @@ if (desk) {
 
 // ---------- scroll-driven bits ----------
 const nav = $('.nav');
-const heroCmd = $('#heroCmd');
+const heroBox = $('#deskCta [role="tabpanel"]'); // the command or the download, whichever tab shows
 function onScroll() {
   nav.classList.toggle('scrolled', scrollY > 8);
-  if (heroCmd) nav.classList.toggle('cmd-away', heroCmd.getBoundingClientRect().bottom < 64);
+  if (heroBox) nav.classList.toggle('cmd-away', heroBox.getBoundingClientRect().bottom < 64);
+  if (getMenu && !nav.classList.contains('cmd-away')) openGet(false);
 }
 addEventListener('scroll', onScroll, { passive: true });
 addEventListener('resize', onScroll);

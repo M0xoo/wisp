@@ -87,18 +87,32 @@ h2 { font-size: clamp(32px, 4.4vw, 54px); line-height: 1.04; font-weight: 680; l
 .links a { font-size: 14px; color: var(--muted); text-decoration: none; white-space: nowrap; transition: color 0.15s; }
 @media (max-width: 1200px) { .links a[href='#control'], .links a[href='#cli'] { display: none; } }
 .links a:hover { color: var(--ink); }
+.nav-get { position: relative; margin-left: auto; display: none; }
 .nav-cmd {
-  margin-left: auto; display: none; align-items: center; gap: 8px; height: 34px; padding: 0 5px 0 12px; cursor: pointer;
-  font: 14px var(--sans); color: var(--bg); background: var(--ink); border: 0; border-radius: 8px;
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px 0 14px; cursor: pointer;
+  font: 500 14px var(--sans); color: var(--bg); background: var(--ink); border: 0; border-radius: 8px;
 }
-.nav-cmd code { padding: 0; background: none; font-size: 13px; color: inherit; }
-.nav-cmd .p { opacity: 0.5; margin-right: 8px; }
-.nav-cmd .copy { font: 500 12px var(--sans); padding: 4px 8px; border-radius: 5px; background: color-mix(in srgb, var(--bg) 16%, transparent); }
-.nav-cmd.copied .copy { background: var(--accent); color: #fff; }
-/* Shows once the hero's own command has scrolled away, so the command is always on screen. */
-.nav.cmd-away .nav-cmd { display: inline-flex; }
-@media (prefers-reduced-motion: no-preference) { .nav.cmd-away .nav-cmd { animation: sub-in 0.25s ease both; } }
-.nav.cmd-away .nav-cmd + .gh { margin-left: 0; }
+.nav-cmd svg { width: 14px; height: 14px; transition: rotate 0.15s; }
+.nav-cmd[aria-expanded='true'] svg { rotate: 180deg; }
+/* Shows once the hero's install box has scrolled away, so a way in is always on screen. */
+.nav.cmd-away .nav-get { display: block; }
+@media (prefers-reduced-motion: no-preference) { .nav.cmd-away .nav-cmd { animation: sub-in 0.25s ease both; } } /* on the button: a translate on .nav-get would anchor the phone menu to it */
+.nav.cmd-away .nav-get + .gh { margin-left: 0; }
+/* the menu: every install command, one per row, like the hero's tabs */
+.get-menu { position: absolute; top: calc(100% + 8px); right: 0; width: min(440px, calc(100vw - 32px)); padding: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 40px rgb(0 0 0 / 0.14); }
+.get-menu[hidden] { display: none; }
+@media (prefers-reduced-motion: no-preference) { .get-menu:not([hidden]) { animation: sub-in 0.15s ease both; } }
+.gm-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 9px 8px 9px 10px; font: 13px var(--sans); color: var(--ink); text-align: left; text-decoration: none; background: none; border: 0; border-radius: 8px; cursor: pointer; }
+.gm-row:hover, .gm-row:focus-visible { background: var(--tone); outline: none; }
+.gm-row b { font-weight: 600; }
+.gm-row code { padding: 0; background: none; font: 12.5px var(--mono); color: var(--ink-2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gm-row .copy { font: 500 12px var(--sans); color: var(--muted); padding: 3px 8px; border-radius: 6px; background: var(--tone); min-width: 52px; text-align: center; }
+.gm-row.copied .copy { background: var(--accent); color: #fff; }
+.gm-foot { display: block; margin-top: 4px; padding: 9px 10px 7px; font-size: 12.5px; color: var(--muted); text-decoration: none; border-top: 1px solid var(--line); }
+.gm-foot:hover { color: var(--ink); }
+/* phones: the button isn't at the row's edge (GitHub is), so the menu spans the nav row instead;
+   not position: fixed, which the nav's backdrop-filter would trap */
+@media (max-width: 560px) { .nav-in { position: relative; } .nav-get { position: static; } .get-menu { left: 0; right: 0; width: auto; } .gm-row { grid-template-columns: 64px minmax(0, 1fr) auto; } }
 .gh { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; font-size: 14px; font-weight: 500; text-decoration: none; border-radius: 8px; background: var(--tone); transition: background 0.15s; }
 .gh:hover { background: var(--tone-2); }
 .gh svg { width: 16px; height: 16px; }
@@ -796,6 +810,11 @@ button.sw-tb { cursor: pointer; }
 .final::before { content: attr(data-clock); position: absolute; left: 50%; top: 50%; translate: -50% -54%; font: 700 clamp(160px, 30vw, 420px)/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -0.06em; color: var(--ink); opacity: 0.045; pointer-events: none; white-space: nowrap; }
 .final h2 { position: relative; font-size: clamp(36px, 5.6vw, 72px); }
 .final .cta { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 40px; }
+/* the hero's install tabs again, centred, with GitHub under them */
+.final .cta:has(.final-tabs) { flex-direction: column; align-items: center; gap: 22px; }
+.final-tabs { align-items: center; max-width: 100%; }
+.final-tabs .hero-tabs { justify-content: center; flex-wrap: wrap; }
+.final-tabs [data-tab-note] { text-align: center; max-width: 760px; }
 .cmd.link { justify-content: center; padding: 0 22px; text-decoration: none; }
 /* wisp Cloud teaser: the final section's big-clock look, at 03:12 instead of 09:02 */
 .cloud-band { padding: 120px 0 130px; }

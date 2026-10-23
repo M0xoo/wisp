@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=35" />
+  <link rel="stylesheet" href="style.css?v=36" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -214,7 +214,7 @@
         <a href="guides/">Guides</a>
         <a href="cloud.html">Cloud</a>
       </nav>
-      <button class="nav-cmd" data-copy="npx wisp-agents" aria-label="Copy install command"><code><span class="p">$</span>npx wisp-agents</code><span class="copy">Copy</span></button>
+      <div class="nav-get" id="navGet"><button class="nav-cmd" id="getBtn" aria-haspopup="true" aria-expanded="false" aria-controls="getMenu">Get wisp<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="get-menu" id="getMenu" role="menu" aria-label="Ways to get wisp" hidden></div></div>
       <a class="gh" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         <span>GitHub</span><span class="stars" data-stars hidden></span>
@@ -479,7 +479,22 @@
       <div class="wrap">
         <h2>Tomorrow morning, start here.</h2>
         <div class="cta">
-          <button class="cmd" data-copy="npx wisp-agents" aria-label="Copy install command"><span class="p">$</span><code>npx wisp-agents</code><span class="copy">Copy</span></button>
+          <div class="desk-cta final-tabs" data-tabs>
+            <div class="hero-tabs" role="tablist" aria-label="How to get wisp">
+              <button class="tab" role="tab" id="ftab-npx" aria-controls="finalPanel" aria-selected="true" tabindex="0" data-tab="npx" data-cmd="npx wisp-agents" data-note="macOS · Linux and Windows in beta · Node 20+ · MIT">npx</button>
+              <button class="tab" role="tab" id="ftab-npm" aria-controls="finalPanel" aria-selected="false" tabindex="-1" data-tab="npm" data-cmd="npm install -g wisp-agents" data-note="Puts the wisp command on your PATH · any OS · Node 20+">npm</button>
+              <button class="tab" role="tab" id="ftab-curl" aria-controls="finalPanel" aria-selected="false" tabindex="-1" data-tab="curl" data-cmd="curl -fsSL https://trywisp.dev/install.sh | bash" data-note="macOS and Linux · checks for Node 20+, then installs with npm">curl</button>
+              <button class="tab" role="tab" id="ftab-brew" aria-controls="finalPanel" aria-selected="false" tabindex="-1" data-tab="brew" data-cmd="brew install m0xoo/tap/wisp-agents" data-note="Homebrew · CLI and browser mode; the desktop app is the download">brew</button>
+              <button class="tab" role="tab" id="ftab-app" aria-controls="finalPanel" aria-selected="false" tabindex="-1" data-tab="app" data-note="Free, no Node needed">Download</button>
+            </div>
+            <div role="tabpanel" id="finalPanel" aria-labelledby="ftab-npx">
+              <a class="cmd dl" hidden href="https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg" data-tab-dl><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg><span data-dl-label>Download for macOS</span><span class="copy" data-dl-kind>.dmg</span></a>
+              <button class="cmd" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy install command">
+                <span class="p">$</span><code data-tab-code>npx wisp-agents</code><span class="copy">Copy</span>
+              </button>
+            </div>
+            <p class="fine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
+          </div>
           <a class="btn" href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">Read the code on GitHub</a>
         </div>
       </div>
@@ -500,7 +515,7 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=19"></script>
+  <script src="main.js?v=20"></script>
   <script src="relay.js?v=2" defer></script>
   <script src="spells.js?v=4" defer></script>
   <script src="control.js?v=1" defer></script>
