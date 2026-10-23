@@ -403,7 +403,7 @@
       <div class="today">
         <div><b>Its own sandbox</b><p>Your wisp runs in a gVisor container of its own, with its own folder and network, firewalled from the host and from everyone else.</p></div>
         <div><b>Sign in with GitHub</b><p>You get your wisp at <code>you.grid.trywisp.dev</code>, and an account page with your devices and how you sign in.</p></div>
-        <div><b>From your desktop and phone</b><p>Settings → Cloud, or Machines → <i>Or use a cloud computer</i>, and it joins <b>Run on</b>. On the phone, wisp Cloud is the first thing on the first screen.</p></div>
+        <div><b>Your own computers, from anywhere</b><p>In wisp on your desktop, Machines → <i>Reach this computer from anywhere</i>. It holds a tunnel to the grid, so your phone and your other computers open it with no SSH, Tailscale or open port. The phone app lists your cloud wisp and every computer you added.</p></div>
         <div><b>Your agents, your accounts</b><p>Every agent is already installed: Claude Code, Codex, Cursor, Grok, Antigravity, opencode. Sign in from the model picker or Settings → Agents with a link and a code, GitHub too. The logins stay in your box, and the picker only offers what you signed in to.</p></div>
         <div><b>Sleeps, then wakes</b><p>Nothing running and nobody looking: it stops. It wakes in seconds when you open it, send it a task, or a schedule is due.</p></div>
         <div><b>Or run your own</b><p>The grid is in the wisp repo (MIT). One small Linux server runs it for a team: <code>npx wisp-agents grid init</code>. <a href="guides/self-host-wisp-grid.html">How →</a></p></div>
@@ -518,7 +518,7 @@
           <span id="dvNote" aria-live="polite">Try it: sign in on a new device, or sign the phone out.</span>
           <span class="dv-legend">
             <span><span class="pill ok">direct</span> your network or Tailscale</span>
-            <span><span class="pill acc">relayed</span> through wisp Cloud, end-to-end encrypted, no open ports</span>
+            <span><span class="pill acc">relayed</span> through wisp Cloud over HTTPS, no open ports</span>
           </span>
         </div>
       </div>
@@ -533,7 +533,7 @@
       <div class="feat3">
         <div><h3>One history everywhere</h3><p>Tasks, reports, follow-ups, recipes, settings and spells sync between devices. Start on one, pick up on another, mid-conversation.</p></div>
         <div><h3>A key per device, never copied</h3><p>Each device makes its own SSH key and it never leaves that device. Your account tells your machines which keys to let in: no <code>ssh-copy-id</code> on every box, from every device.</p></div>
-        <div><h3>Reach machines from anywhere</h3><p>Direct when you can (same network, Tailscale), relayed through wisp Cloud when you can't. The relay only forwards encrypted SSH: it can't read your sessions, and no ports open on your machines.</p></div>
+        <div><h3>Reach your computers from anywhere <span class="pill ok">live</span></h3><p>Add a computer from its Machines and it dials out to the grid; your phone and other computers open it there, signed in as you. No ports open on it. Over SSH or Tailscale still works when you'd rather go direct.</p></div>
         <div><h3>Encrypted before it syncs</h3><p>History is encrypted on your devices with a key we never see. A new device gets it only when one of yours approves the sign-in.</p></div>
         <div><h3>Lost your phone? One click</h3><p>Sign a device out from any other and its keys are removed from every machine, its tunnels close, and its copy of your history locks.</p></div>
         <div><h3>Notifications that know where you are</h3><p>Questions and approvals go to the device you're on. Answer on one and it disappears from the rest.</p></div>
@@ -565,12 +565,12 @@
         <div class="card plan cloud">
           <h3>wisp Cloud <span class="pill acc">preview</span></h3>
           <p class="price">Free <small>during the preview</small></p>
-          <p><b>Now:</b> your own sandboxed wisp, desktop and phone sign-in, agent sign-in, sleep and wake. <b>Coming</b>, from the list below:</p>
+          <p><b>Now:</b> your own sandboxed wisp, your own computers reachable through the grid, desktop and phone sign-in, agent sign-in, sleep and wake. <b>Coming</b>, from the list below:</p>
           <ul>
             <li>Managed machines that boot on demand and scale to zero</li>
             <li>Persistent queues that run while your laptop sleeps</li>
             <li>One sign-in on every device: synced history, settings and spells</li>
-            <li>A key per device, managed for you, with a relay when there's no direct route</li>
+            <li>A key per device, managed for you</li>
             <li>Team dashboard: tasks, merges, success rate and spend</li>
             <li>Shared recipes, triggers and Auto routing</li>
             <li>SSO, audit log, per-repo access</li>
@@ -589,13 +589,14 @@
         <details open><summary>Will the local CLI ever need an account?</summary><p>No. <code>npx wisp-agents</code> keeps working with no sign-in, no telemetry you haven't turned on, and no feature moved behind Cloud. Cloud is opt-in from Settings, like every integration.</p></details>
         <details><summary>How many people can use the preview?</summary><p>A few at a time: it runs on one small server, so it takes a set number of accounts and the page above says how many are left. When they're taken, leave your email and you get the next free seat. Already signed up? Your account keeps working.</p></details>
         <details><summary>Do you resell model usage?</summary><p>No. Your cloud wisp signs in with your own Claude, ChatGPT or GitHub accounts, from Settings → Agents. The preview is free.</p></details>
-        <details><summary>How is this different from Machines?</summary><p>Machines connects wisp to computers you already run, over SSH, and stays free. A cloud computer is one we run for you: your own sandboxed wisp that sleeps when nothing's going on and wakes for you or a schedule.</p></details>
+        <details><summary>How is this different from Machines?</summary><p>Machines connects wisp to computers you already run, over SSH, and stays free. A cloud computer is one we run for you: your own sandboxed wisp that sleeps when nothing's going on and wakes for you or a schedule. And with the grid, Machines needs no SSH: add a computer to it and your other devices reach it through the grid.</p></details>
+        <details><summary>Does what goes to my computer pass through the grid?</summary><p>Yes, the way your cloud wisp's does: over HTTPS to the grid, which checks it's you, then down the tunnel your computer holds open. The grid forwards it and keeps nothing of it. If you'd rather it never leaves your own network, use Machines over SSH or Tailscale instead.</p></details>
         <details><summary>Where does my code live?</summary><p>In your own sandbox on the grid: a gVisor container with its own folder, which only you reach. Your agents' logins stay in that folder too. Delete your account and the folder and its keys are gone.</p></details>
         <details><summary>Can I answer questions from my phone?</summary><p>Yes: open your cloud computer from the phone app, or have <code>ask_user</code> questions sent to ntfy or Telegram. Your answer goes straight back to the agent.</p></details>
-        <details><summary>Does the phone app need an account?</summary><p>Not for your own computers: those connect over SSH with a key on the phone. wisp Cloud is on the app's first screen: sign in once with a code.</p></details>
+        <details><summary>Does the phone app need an account?</summary><p>Sign in to wisp Cloud once, with a code, on its first screen: your cloud wisp and every computer you added to the grid are listed there. Without an account, it still connects to your computers over SSH (folded under <i>Connect over SSH instead</i>).</p></details>
         <details><summary>Can I host it myself?</summary><p>Yes. The grid is in the wisp repo (MIT): <code>npx wisp-agents grid init</code> on a small Linux server, a GitHub or Google OAuth app, and two DNS records. <a href="guides/self-host-wisp-grid.html">Step by step</a>.</p></details>
-        <details><summary>What happens when I sign a device out?</summary><p>Remove it on your account page at grid.trywisp.dev: its token stops working at once. Your other devices and running tasks keep going.</p></details>
-        <details><summary>Can I mix local and cloud?</summary><p>Yes. <b>Run on</b> lists this computer, your SSH machines and cloud machines together. Pick one, or several at once.</p></details>
+        <details><summary>What happens when I sign a device out?</summary><p>Remove it on your account page at grid.trywisp.dev: its token stops working at once, and a computer it added leaves the grid. Your other devices and running tasks keep going.</p></details>
+        <details><summary>Can I mix local and cloud?</summary><p>Yes. <b>Run on</b> lists this computer, your cloud wisp, your computers on the grid and your SSH machines together, each marked by kind. Pick one, or several at once.</p></details>
       </div>
     </section>
 

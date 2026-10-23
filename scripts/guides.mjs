@@ -144,7 +144,7 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
         <li>It forwards a free local port to that wisp with <code>ssh -L</code> and relays its events into your queue.</li>
       </ol>
       <p>Nothing new listens on the network: wisp on the machine stays on its own <code>127.0.0.1</code>. There is no account, relay server or cloud in between. The machine needs SSH access with a key, Node.js 20+ and the agent CLIs you want to run, signed in.</p>
-      <p>Want to reach it from anywhere, or from your phone? <a href="/guides/connect-machines-with-tailscale.html">Connect your machines with Tailscale →</a></p>
+      <p>Want to reach it from anywhere, or from your phone? With no SSH at all: <a href="/guides/reach-your-computer-from-your-phone.html">add it to wisp Cloud from its Machines →</a> Or over SSH: <a href="/guides/connect-machines-with-tailscale.html">Connect your machines with Tailscale →</a></p>
     </section>
 
     <section>
@@ -285,7 +285,7 @@ ${sh('sudo apt install -y openssh-server && sudo systemctl enable --now ssh')}
     </section>
 `,
       faq: [
-        ['Do I need Tailscale?', 'No. wisp needs SSH access to the machine. Tailscale makes that work from anywhere without opening ports, and a LAN, a VPN or a cloud VM with a public address work just as well.'],
+        ['Do I need Tailscale?', 'No. wisp needs SSH access to the machine. Tailscale makes that work from anywhere without opening ports, and a LAN, a VPN or a cloud VM with a public address work just as well. Or skip SSH: add the machine to wisp Cloud from its own Machines, and your other computers and phone reach it through the grid.'],
         ['Which machines can run agents?', 'macOS and Linux with SSH and Node.js 20+. On Windows, run wisp inside WSL. Phones and tablets connect to machines; they don’t run agents.'],
         ['How do I check that a machine is ready?', 'Install wisp there and open Settings → Machines. This computer checks the SSH server, Tailscale and authorized keys, and shows the address to connect with.'],
         ['Does the phone app need its own key?', 'Each machine uses one of the keys on the phone: one the app makes (it shows the authorized_keys command) or one you import. With Tailscale SSH on a Linux machine, no key is needed.'],
@@ -744,7 +744,7 @@ tmux attach -t agent`)}
   <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
     <rect x="20" y="20" width="200" height="66" rx="14" class="box"/>
     <text x="120" y="50" text-anchor="middle" class="name">Laptop</text>
-    <text x="120" y="72" text-anchor="middle" class="sub">Settings → Cloud</text>
+    <text x="120" y="72" text-anchor="middle" class="sub">Machines</text>
     <rect x="20" y="117" width="200" height="66" rx="14" class="box"/>
     <text x="120" y="147" text-anchor="middle" class="name">Phone</text>
     <text x="120" y="169" text-anchor="middle" class="sub">wisp Cloud</text>
@@ -803,16 +803,17 @@ tmux attach -t agent`)}
     <section>
       <h2 id="desktop">3. Use it from your computer</h2>
       <ol class="doc-steps">
-        <li>In wisp on your computer, open Settings → <b>Cloud</b> (or <b>Machines</b> → <i>Or use a cloud computer</i>). The address is filled in: press <b>Sign in</b>.</li>
+        <li>In wisp on your computer, open <b>Machines</b> → <i>Reach this computer from anywhere</i> (or Settings → <b>Cloud</b>). The address is filled in: press <b>Sign in and add it</b>.</li>
         <li>wisp shows a code and opens grid.trywisp.dev. Check the code and press <b>Allow</b>.</li>
-        <li>Your cloud computer joins <b>Run on</b> next to this computer and your SSH machines. Settings → Cloud also lists its agents with <b>Sign in</b> buttons, so you can sign them in from here.</li>
+        <li>Your cloud computer joins <b>Run on</b> next to this computer and your SSH machines, marked <i>Cloud · on grid</i>. Settings → Cloud also lists its agents with <b>Sign in</b> buttons, so you can sign them in from here.</li>
+        <li>Signed in from Machines, this computer joins the grid too: your phone and your other computers can open it. <b>Remove from grid</b> takes it off. <a href="/guides/reach-your-computer-from-your-phone.html">More →</a></li>
       </ol>
       <p>Watching it from your desktop doesn’t keep it awake. When it sleeps the card says <i>Asleep</i>, its tasks still show, and anything you send it wakes it.</p>
     </section>
 
     <section>
       <h2 id="phone">4. Use it from your phone</h2>
-      <p>The wisp Android app starts with <b>wisp Cloud</b> on its first screen: press <b>Sign in</b>, allow the code in your browser, and your cloud computer opens in the app. No SSH and no tunnel to set up.</p>
+      <p>The wisp Android app starts with <b>wisp Cloud</b> on its first screen: press <b>Sign in</b> and allow the code in your browser. It then lists your cloud computer and every computer you added to the grid, each one a tap away. No SSH and no tunnel to set up.</p>
     </section>
 
     <section>
@@ -832,7 +833,96 @@ tmux attach -t agent`)}
         ['Can I run my own?', 'Yes: the grid is in the wisp repo (MIT). See Run your own wisp Grid.'],
         ['What happens to a task when the cloud computer sleeps?', 'It only sleeps when no task is running and nobody is looking. Tasks, reports and logins are kept; it wakes in seconds.'],
       ],
-      related: ['run-claude-code-24-7-without-a-vps', 'self-host-wisp-grid', 'run-coding-agents-in-the-background'],
+      related: ['reach-your-computer-from-your-phone', 'run-claude-code-24-7-without-a-vps', 'self-host-wisp-grid'],
+    },
+
+    {
+      slug: 'reach-your-computer-from-your-phone',
+      cloud: true,
+      title: 'Use Claude Code on your own computer from your phone, no SSH — wisp',
+      h1: 'Reach your own computer from anywhere',
+      card: 'Add your desktop to wisp Cloud from its Machines: your phone and other computers open it, with no SSH, Tailscale or open port.',
+      description: 'Add the computer running wisp to wisp Cloud and open it from your phone or another computer, anywhere: no SSH, no Tailscale, no port forwarding. Claude Code and Codex keep running there with your files.',
+      lede: 'To use the coding agents on your desktop from your phone or another computer, add it to <a href="https://grid.trywisp.dev">wisp Cloud</a>: in wisp on it, <b>Machines</b> → <i>Reach this computer from anywhere</i>. It dials out to the grid and keeps that connection open, so no port or router needs opening. Your phone and other computers, signed in as you, list it and open it with one tap. The agents run on it, with its files.',
+      figure: `<figure class="doc-shot doc-diagram" aria-label="Your phone and laptop open your desktop through grid.trywisp.dev; the desktop holds a tunnel open to the grid">
+  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
+    <rect x="20" y="40" width="200" height="66" rx="14" class="box"/>
+    <text x="120" y="70" text-anchor="middle" class="name">Phone</text>
+    <text x="120" y="92" text-anchor="middle" class="sub">wisp app</text>
+    <rect x="20" y="194" width="200" height="66" rx="14" class="box"/>
+    <text x="120" y="224" text-anchor="middle" class="name">Laptop</text>
+    <text x="120" y="246" text-anchor="middle" class="sub">Machines</text>
+    <path d="M220 73 C 280 73, 300 150, 350 150 M220 227 C 280 227, 300 150, 350 150" class="link"/>
+    <path d="M338 142 L352 150 L338 158" class="link"/>
+    <rect x="360" y="90" width="240" height="120" rx="16" class="zone"/>
+    <text x="480" y="140" text-anchor="middle" class="name">grid.trywisp.dev</text>
+    <text x="480" y="168" text-anchor="middle" class="sub">checks it’s you</text>
+    <path d="M600 150 H 720" class="link"/>
+    <text x="660" y="138" text-anchor="middle" class="sub">tunnel</text>
+    <rect x="730" y="70" width="210" height="160" rx="14" class="box"/>
+    <text x="835" y="114" text-anchor="middle" class="name">Your desktop</text>
+    <text x="835" y="144" text-anchor="middle" class="mono">Claude Code · Codex</text>
+    <text x="835" y="176" text-anchor="middle" class="sub">dials out, no open port</text>
+    <text x="835" y="204" text-anchor="middle" class="sub">your files stay here</text>
+  </svg>
+  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
+    <rect x="20" y="10" width="140" height="62" rx="12" class="box"/>
+    <text x="90" y="47" text-anchor="middle" class="name">Phone</text>
+    <rect x="180" y="10" width="140" height="62" rx="12" class="box"/>
+    <text x="250" y="47" text-anchor="middle" class="name">Laptop</text>
+    <path d="M90 72 C 90 110, 170 100, 170 130 M250 72 C 250 110, 170 100, 170 130" class="link"/>
+    <path d="M162 118 L170 132 L178 118" class="link"/>
+    <rect x="50" y="140" width="240" height="90" rx="16" class="zone"/>
+    <text x="170" y="180" text-anchor="middle" class="name">grid.trywisp.dev</text>
+    <text x="170" y="206" text-anchor="middle" class="sub">checks it’s you</text>
+    <path d="M170 230 V 290" class="link"/>
+    <text x="190" y="266" class="sub">tunnel</text>
+    <rect x="40" y="296" width="260" height="160" rx="14" class="box"/>
+    <text x="170" y="336" text-anchor="middle" class="name">Your desktop</text>
+    <text x="170" y="368" text-anchor="middle" class="mono">Claude Code · Codex</text>
+    <text x="170" y="400" text-anchor="middle" class="sub">dials out, no open port</text>
+    <text x="170" y="428" text-anchor="middle" class="sub">your files stay here</text>
+  </svg>
+</figure>`,
+      body: `
+    <section>
+      <h2 id="add">1. Add the computer</h2>
+      <ol class="doc-steps">
+        <li>Run wisp on it: the desktop app, or <code>npx wisp-agents</code>.</li>
+        <li>Open <b>Machines</b> → <i>Reach this computer from anywhere</i>. The address (<code>grid.trywisp.dev</code>, or your own grid) is filled in: press <b>Sign in and add it</b>.</li>
+        <li>A page from the grid opens with a code. Check it matches, sign in with GitHub if asked, and press <b>Allow</b>.</li>
+      </ol>
+      <p>Machines now says <i>This computer · On your grid</i>, online at an address like <code>studio--you.grid.trywisp.dev</code>. <b>Remove from grid</b> takes it off again; wisp on it keeps running either way.</p>
+    </section>
+
+    <section>
+      <h2 id="phone">2. Open it from your phone</h2>
+      <p>In the wisp Android app, sign in to <b>wisp Cloud</b> on the first screen with the same account. The list shows your cloud wisp and every computer you added, marked <i>Your computer · via grid</i>. Tap <b>Open</b> and you’re in that computer’s wisp: start tasks, answer your agents, read reports. A computer that’s switched off, or not running wisp, shows <i>Offline</i>.</p>
+    </section>
+
+    <section>
+      <h2 id="computers">3. Open it from your other computers</h2>
+      <p>Add each of your computers the same way. In each one’s <b>Machines</b>, the others show up by themselves, and <b>Run on</b> sends tasks to them like any machine: their worktrees, diffs and Ship it work over there. Your account page at <a href="https://grid.trywisp.dev">grid.trywisp.dev</a> lists them all with <b>Open</b> buttons, for any browser.</p>
+    </section>
+
+    <section>
+      <h2 id="private">What passes through the grid</h2>
+      <ul class="doc-list">
+        <li><b>Only you get in.</b> The grid lets in your own browser sessions and the devices you allowed; nobody else’s account opens your computer. Only the computer that was added can hold its tunnel.</li>
+        <li><b>Nothing is stored on the way.</b> Requests go over HTTPS to the grid, which checks it’s you and forwards them down the tunnel. Your files, logins and tasks stay on your computer.</li>
+        <li><b>Gone in one click.</b> Remove the computer (or the device that added it) on your account page and the tunnel closes at once.</li>
+        <li><b>Rather keep it on your network?</b> Use Machines over SSH, with <a href="/guides/connect-machines-with-tailscale.html">Tailscale</a> to go anywhere.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Do I need SSH, Tailscale or port forwarding?', 'No. The computer dials out to the grid and keeps that connection open, so it works behind any home router or office firewall that lets it browse the web.'],
+        ['Does the computer need to stay on?', 'Yes: it runs the agents. Switched off or asleep, it shows Offline and comes back when it’s on with wisp running. For agents that work while every computer is off, use your cloud wisp.'],
+        ['Is it free?', 'Yes, during the wisp Cloud preview. A computer you add doesn’t take a cloud seat’s server resources: it runs on your own hardware.'],
+        ['Can I use my own grid?', 'Yes. Type your grid’s address instead of grid.trywisp.dev. See Run your own wisp Grid.'],
+        ['How do I take it off?', 'Machines → Remove from grid on that computer, Remove from grid in another computer’s Machines, or Remove on your account page.'],
+      ],
+      related: ['use-wisp-cloud', 'run-coding-agents-on-multiple-machines', 'connect-machines-with-tailscale'],
     },
 
     {

@@ -54,7 +54,8 @@ wisp --mode plan "audit dependencies"
 
 ## wisp Cloud and wisp Grid
 
-- wisp Cloud (free early preview, https://grid.trywisp.dev, a few accounts at a time): your own wisp on a server. Sign in with GitHub; it runs in its own gVisor sandbox, sleeps when idle and wakes for you or a schedule. Use it from the browser, wisp on your computer (Settings → Cloud, or Machines → Or use a cloud computer) or the Android app (first screen).
+- wisp Cloud (free early preview, https://grid.trywisp.dev, a few accounts at a time): your own wisp on a server. Sign in with GitHub; it runs in its own gVisor sandbox, sleeps when idle and wakes for you or a schedule. Use it from the browser, wisp on your computer (Machines → Reach this computer from anywhere, or Settings → Cloud) or the Android app (first screen).
+- Your own computers on the grid: in wisp on a computer, Machines → Reach this computer from anywhere adds it to the grid. It dials out and holds a tunnel open, so your phone and other computers open it at <name>--<handle>.grid.trywisp.dev with no SSH, Tailscale or open port. The Android app and each computer's Machines list them, marked Cloud · on grid, Your computer · via grid or Over SSH.
 - Sign in to Claude Code, Codex and GitHub from Settings → Agents (a link and a code, no terminal); the model picker only offers signed-in agents.
 - wisp Grid is the same server, MIT, in the repo: `npx wisp-agents grid init --domain wisp.example.com`, then `wisp grid serve` (GitHub, Google or OpenID Connect sign-in; one container per person).
 
@@ -84,6 +85,7 @@ wisp --mode plan "audit dependencies"
   - [Run coding agents in the background](https://trywisp.dev/guides/run-coding-agents-in-the-background.html)
   - [Run Claude Code 24/7 without a VPS: your own server vs wisp Cloud](https://trywisp.dev/guides/run-claude-code-24-7-without-a-vps.html)
   - [Use wisp Cloud: your own wisp on a server, from desktop, phone or browser](https://trywisp.dev/guides/use-wisp-cloud.html)
+  - [Reach your own computer from your phone or another computer through wisp Cloud, no SSH](https://trywisp.dev/guides/reach-your-computer-from-your-phone.html)
   - [Run your own wisp Grid (self-hosted, a sandbox per person)](https://trywisp.dev/guides/self-host-wisp-grid.html)
   - [Spells: change wisp itself by asking](https://trywisp.dev/guides/customize-wisp-with-spells.html)
 - [Changelog](https://trywisp.dev/changelog.html)

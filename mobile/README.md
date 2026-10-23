@@ -1,7 +1,8 @@
 # wisp for Android (prototype)
 
-wisp on your phone, for your own computers. Add a computer once (its address and your password),
-tap it, and you're in that computer's wisp: start tasks, answer your agents, read the reports. The
+wisp on your phone, for your own computers. Sign in to wisp Cloud once and every computer you
+added to it (from Machines on that computer) is listed; or add one over SSH (its address and your
+password). Tap it and you're in that computer's wisp: start tasks, answer your agents, read the reports. The
 agents keep running there when the phone sleeps. **Computers** in wisp's top bar brings you back
 to the list, to switch to another one or add one.
 
@@ -39,12 +40,19 @@ android/app/src/main/java/dev/trywisp/mobile/
 No computer to keep on? The first screen starts with **wisp Cloud**: the address
 (`grid.trywisp.dev`, or your own grid's) is filled in, **Sign in** shows a code, you allow it in
 the browser (signed in with GitHub or Google), and your cloud computer joins the list. Tap it and
-you're in its wisp: no SSH, no tunnel. The app keeps a device token for it and asks the grid for a
+you're in its wisp: no SSH, no tunnel.
+
+Your own computers come along: each one you added to the grid (wisp on it: Machines → *Reach this
+computer from anywhere*) is listed under the cloud one, marked *Your computer · via grid*, with
+**Open** while it's online. The list comes from `GET /api/computers` with the device token (the
+last one is kept, so the screen paints at once), and Open asks for a one-time link to that
+computer (`/api/device/link` with `computer`). It holds a tunnel open to the grid, so this
+reaches it from anywhere with no SSH. Over SSH (below) is folded under *Connect over SSH instead*. The app keeps a device token for it and asks the grid for a
 one-time link each time it opens; `Grid.java` lets the grid's pages load in the app, and the page's
 service worker leaves the grid's own `/_grid/…` links alone. Sign in to Claude Code, Codex or
 GitHub there in Settings → Agents. See [grid/README.md](../grid/README.md).
 
-## Use it
+## Use it over SSH
 
 1. **Get a computer ready.** Turn on SSH there: on a Mac, System Settings → General → Sharing →
    *Remote Login*; on Linux, `openssh-server`. That's all it needs.
