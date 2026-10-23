@@ -105,6 +105,7 @@ export function openSettings(opts) {
           <div class="sx-group">
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
             ${row('Auto-fix PR conflicts', 'Without waiting for a click on Fix conflicts: when a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
+            ${row('Interactive answers', 'Agents may answer with a small page you use in place, like a slider with a live preview or a list to pick from. It runs sandboxed, with no network, and sends nothing until you click Send', '<button class="switch" id="appsOn" role="switch"></button>')}
           </div>
           <div class="sx-group">
             ${row('Theme', 'System follows your computer’s light or dark setting', `<fieldset class="pk-seg theme-seg">${[['system', 'laptop', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([v, i, l]) => `<button type="button" data-v="${v}">${icon(i)}${l}</button>`).join('')}</fieldset>`)}
@@ -402,6 +403,19 @@ export function openSettings(opts) {
     }
   };
   paintFc();
+  const ap = $('#appsOn', node);
+  const paintAp = () => ap.setAttribute('aria-checked', S.config.defaults.apps !== 'off');
+  ap.onclick = async () => {
+    const was = S.config.defaults.apps;
+    S.config.defaults.apps = was === 'off' ? 'on' : 'off';
+    paintAp();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { apps: S.config.defaults.apps } } }));
+    if (!saved) {
+      S.config.defaults.apps = was;
+      paintAp();
+    }
+  };
+  paintAp();
   // The transcript switch flips every open card at once; a refused save flips them back.
   const tx = $('#txDefault', node);
   const paintTx = () => tx.setAttribute('aria-checked', S.config.defaults.transcript === 'on');
@@ -535,7 +549,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { view: '.view-seg', theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif' };
+  const LOCKABLE = { view: '.view-seg', theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

@@ -42,7 +42,7 @@ const FIELDS = [
   ['hooks', 'Something wisp does on its own when a turn finishes, fails, starts or waits'],
   ['recipes', 'Saved prompts with <code>{params}</code>'],
   ['harnesses, when', 'Which harnesses, projects, agents and modes its rules, blocks and hooks apply to'],
-  ['script', 'JavaScript functions that turn data into blocks, strings or links, run in a sandbox'],
+  ['script', 'JavaScript functions that turn data into blocks, strings or links, run in a sandbox. An <code>app</code> block makes it interactive: a small page of your own, sandboxed too, that can offer a follow-up to the task'],
 ];
 
 export function guides(h) {

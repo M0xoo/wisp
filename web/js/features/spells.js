@@ -14,6 +14,7 @@ import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { renderPresentation, setBlockFallback } from '../blocks.js';
+import { draftInto, sendReply } from './composer.js';
 import { CARD_HEAD_ORDER, PARTS, fillTemplate, scriptBody, whenMatches } from '../spell-schema.js';
 
 // --- which spells apply ----------------------------------------------------------------------
@@ -111,8 +112,9 @@ export async function callSpell(spell, fn, args = []) {
   }
 }
 
-// What a script may return as blocks: the built-in ones that only show things. Links in actions
-// become markdown links; images, questions and follow-up buttons are dropped.
+// What a script may return as blocks: the built-in ones that only show things, and apps (a page
+// run sandboxed, app-frame.js). Links in actions become markdown links; images, questions and
+// follow-up buttons are dropped.
 const SHOW_BLOCKS = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tree', 'code', 'compare', 'flow', 'chart', 'checklist', 'callout', 'terminal', 'tests', 'commits']);
 export function cleanBlocks(v) {
   const list = Array.isArray(v) ? v : v && typeof v === 'object' ? [v] : [];
@@ -124,14 +126,20 @@ export function cleanBlocks(v) {
       const links = (b.items || []).filter((x) => x && /^https?:\/\//i.test(x.url || '')).map((x) => `- [${String(x.label || x.url).replace(/[[\]]/g, '')}](${String(x.url).replace(/[()\s]/g, encodeURIComponent)})`);
       if (links.length) out.push({ type: 'markdown', text: `${b.title ? `**${b.title}**\n\n` : ''}${links.join('\n')}` });
     } else if (b.type === 'markdown') out.push({ type: 'markdown', text: String(b.text || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '') });
+    else if (b.type === 'app') out.push({ type: 'app', title: String(b.title || ''), html: String(b.html || ''), height: Number(b.height) || undefined, fallback: cleanBlocks(b.fallback).filter((x) => x.type !== 'app') });
     else if (SHOW_BLOCKS.has(b.type)) out.push({ ...b, type: b.type });
   }
   return out;
 }
 
-// The context blocks a spell returns render with: nothing to reply to or run.
+// The context blocks a spell returns render with: nothing to reply to or run. An app in them can
+// still offer text to the task it's drawn for (reply, draft), and says which spell drew it.
 const showCtx = { delay: 0, turn: null, session: null, isLatest: false, fileUrl: () => '', zoom: () => {}, reply: () => {}, draft: () => {} };
-export const drawBlocks = (blocks) => renderPresentation({ blocks: cleanBlocks(blocks) }, showCtx);
+export const drawBlocks = (blocks, ctx = {}) => renderPresentation({ blocks: cleanBlocks(blocks) }, { ...showCtx, reply: null, draft: null, ...ctx });
+const taskCtx = (spell, sessionId) => ({
+  spell: spell.name,
+  ...(sessionId && { session: S.sessions.get(sessionId) || null, reply: (text) => sendReply(sessionId, text), draft: (text) => draftInto(sessionId, text) }),
+});
 
 // --- data ------------------------------------------------------------------------------------
 
@@ -301,7 +309,7 @@ async function paintPanel(host, spell, panel, sessionId) {
     const sig = JSON.stringify(blocks);
     if (host.dataset.sig === sig) return;
     host.dataset.sig = sig;
-    host.replaceChildren(blocks.length ? drawBlocks(blocks) : el('<p class="sp-empty">Nothing to show.</p>'));
+    host.replaceChildren(blocks.length ? drawBlocks(blocks, taskCtx(spell, sessionId)) : el('<p class="sp-empty">Nothing to show.</p>'));
   } catch (err) {
     host.dataset.sig = '';
     host.replaceChildren(el(`<div class="sp-error">${icon('warn')}<span>${esc(err.message)}</span></div>`));
@@ -626,7 +634,7 @@ export function launcherParts(box) {
 
 const blockCache = new Map(); // JSON of the block -> rendered blocks
 
-setBlockFallback((b) => {
+setBlockFallback((b, ctx) => {
   const spell = activeSpells().find((s) => (s.blocks || []).some((x) => x.type === b.type));
   if (!spell) {
     const node = el(`<div class="sp-block sp-off card"><div class="sp-off-head">${icon('wizard')}<span>A <b>${esc(b.type)}</b> block from a spell that isn't on</span><button class="link xs">Show data</button></div><pre class="code" hidden><code>${esc(JSON.stringify(b, null, 2))}</code></pre></div>`);
@@ -638,7 +646,7 @@ setBlockFallback((b) => {
   const def = spell.blocks.find((x) => x.type === b.type);
   const node = el(`<div class="sp-block" data-spell="${esc(spell.id)}" title="Drawn by the spell ${esc(spell.name)}"></div>`);
   const key = `${spell.id}:${JSON.stringify(b)}`;
-  const draw = (blocks) => node.replaceChildren(drawBlocks(blocks));
+  const draw = (blocks) => node.replaceChildren(drawBlocks(blocks, { ...ctx, delay: 0, spell: spell.name }));
   if (blockCache.has(key)) draw(blockCache.get(key));
   else {
     node.append(el(`<div class="it-loading"><span class="orb tiny"></span>${esc(spell.name)}…</div>`));

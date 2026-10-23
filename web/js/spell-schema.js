@@ -151,6 +151,10 @@ export const PARTS = {
   'doc.preview': '.b-doc .doc-page',
   'doc.reader': '.dr',
   'doc.contents': '.dr-toc',
+  // An interactive block in an answer (an agent's or a spell's app) and its title row. Not the
+  // strip that asks before sending what the app offers: that one always shows.
+  'block.app': '.b-app',
+  'block.app.head': '.b-app .app-head',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.
@@ -253,6 +257,8 @@ export const SETTINGS = {
   learn: ['on', 'off'],
   fixConflicts: ['on', 'off'],
   notify: ['on', 'off'],
+  // Interactive answers: agents may answer with an `app` block (a small sandboxed page).
+  apps: ['on', 'off'],
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).
@@ -289,7 +295,7 @@ export function wispPathProblem(p) {
 }
 
 // Built-in presentation blocks (a spell's agent block type can't reuse these names).
-export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'video', 'doc', 'question', 'blocked', 'actions', 'next', 'spell'];
+export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'video', 'doc', 'question', 'blocked', 'actions', 'next', 'spell', 'app'];
 
 // {field} templates over a context object (dotted paths): "PR #{pr.number}". Missing → ''.
 export function fillTemplate(tpl, ctx = {}) {

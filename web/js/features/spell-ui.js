@@ -61,7 +61,7 @@ async function previewPanel(host, spell) {
   try {
     const sample = p.as === 'card' ? [...S.sessions.values()].find((s) => !s.pending && s.agent !== 'wisp') : null;
     const data = await spellData(spell, p.data || [], sample?.id || null);
-    body.replaceChildren(drawBlocks(cleanBlocks(await callSpell(spell, p.render, [data, { session: sample || null }]))));
+    body.replaceChildren(drawBlocks(cleanBlocks(await callSpell(spell, p.render, [data, { session: sample || null }])), { spell: spell.name }));
   } catch (err) {
     body.replaceChildren(el(`<div class="sp-error">${icon('warn')}<span>${esc(err.message)}</span></div>`));
   }
