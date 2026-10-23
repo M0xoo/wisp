@@ -487,3 +487,8 @@ test("a question's choices in a phone's card row are a part spells can restyle o
   assert.deepEqual(problems({ ...base0, ui: { hide: ['card.choices'] }, parts: { 'card.choices': { style: { gap: '4px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'card.choices': { props: { lines: 2 } } } }).some((x) => /card\.choices/.test(x)));
 });
+
+test("the phone's New task button is a part spells can restyle or hide", () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.fab'] }, parts: { 'launcher.fab': { style: { borderRadius: '12px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'launcher.fab': { props: { size: 2 } } } }).some((x) => /launcher\.fab/.test(x)));
+});

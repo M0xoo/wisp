@@ -69,6 +69,7 @@ export const PARTS = {
   'launcher.worktree': '#wtBtn',
   'launcher.send': '#launch',
   'launcher.recipes': '#launcher .l-recipes',
+  'launcher.fab': '#promptFab',
   composer: '.composer',
   'composer.input': '.composer .reply',
   'composer.attach': '.composer .c-attach',

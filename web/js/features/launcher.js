@@ -2,6 +2,7 @@
 // machines), in which project (any of them runs anywhere), on what, and shows a placeholder card
 // until the server answers.
 
+import { closePrompt, openPrompt } from './fab.js';
 import { esc } from '../md.js';
 import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
@@ -354,6 +355,7 @@ export function renderLauncher() {
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
+    closePrompt(); // the phone's prompt sheet (features/fab.js): the new task shows in the feed
     save('wisp.sent', remember(load('wisp.sent', []), prompt));
     sentAt = null;
     if (S.filter !== 'all' && targets.some((t) => t.project?.scratch || (t.project?.id !== S.filter && !t.also.some((p) => p.id === S.filter)))) {
@@ -810,6 +812,8 @@ function showLaunched(btn, card) {
 }
 
 export function focusLauncher() {
+  // The phone: the prompt box is a sheet New task opens (features/fab.js).
+  if (MOBILE) return openPrompt();
   // Split view: the prompt box is home, in the main pane.
   if (isSplit()) return goHome();
   // Docked under the top bar it opens where it is, so you keep your place in the feed.
