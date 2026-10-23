@@ -696,7 +696,7 @@ tmux attach -t agent`)}
       <h2 id="cloud">Option 2: wisp Cloud, nothing to set up</h2>
       <ol class="doc-steps">
         <li>Open <a href="https://grid.trywisp.dev" data-cloud-cta="guide-steps">grid.trywisp.dev</a> and press <b>Continue with GitHub</b>. You get your own wisp at <code>you.grid.trywisp.dev</code>, in a gVisor sandbox of its own.</li>
-        <li><b>Sign in to Claude Code</b> from the model picker or Settings → Agents: a link to Claude’s own sign-in page and a code, no terminal. Codex, Cursor, Grok, Antigravity and <code>gh</code> sign in the same way; opencode’s free models need no account.</li>
+        <li><b>Sign in to Claude Code</b> from the model picker or Settings → Agents: a link to Claude’s own sign-in page and a code, no terminal. Codex, Cursor, Grok, Antigravity and <code>gh</code> sign in the same way; opencode’s free models need no account, and its Zen and Go subscriptions take the API key you paste there.</li>
         <li><b>Give it a task and close the laptop.</b> It keeps running. Questions and the finished report reach you in the browser, wisp on your computer, or the Android app.</li>
       </ol>
       <p>The preview is free. It opens seats as its server shows room for more people, and when they’re all taken <a href="/cloud.html">the Cloud page</a> takes your email for the next one. The full walkthrough is in <a href="/guides/use-wisp-cloud.html">Use wisp Cloud</a>.</p>

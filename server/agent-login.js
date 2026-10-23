@@ -38,6 +38,81 @@ export const LOGINS = {
   gh: { bin: 'gh', env: 'WISP_GH_BIN', tool: true, args: ['auth', 'login', '--web', '--hostname', 'github.com', '--git-protocol', 'https', '--skip-ssh-key'], logout: ['auth', 'logout', '--hostname', 'github.com'], status: ['auth', 'status', '--hostname', 'github.com'], keys: ['GH_TOKEN', 'GITHUB_TOKEN'], signedIn: said, after: () => gitFromGh() },
 };
 
+// Harnesses that sign in with an API key pasted into wisp rather than a login command. opencode's
+// own `auth login` only asks on a terminal, so wisp keeps the key where it does (auth.json, as
+// `{ type: 'api', key }` per provider); `opencode run` reads it from there. Zen and Go are two
+// providers with keys from the same page.
+export const KEYS = {
+  opencode: {
+    env: 'OPENCODE_API_KEY',
+    url: 'https://opencode.ai/auth',
+    providers: [
+      { id: 'opencode', name: 'Zen' },
+      { id: 'opencode-go', name: 'Go' },
+    ],
+    // opencode's data folder (xdg-basedir: the same rule on every OS).
+    file: (env = process.env, home = os.homedir()) => path.join(env.XDG_DATA_HOME || path.join(home, '.local', 'share'), 'opencode', 'auth.json'),
+  },
+};
+
+function readAuth(file) {
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return {};
+    throw err;
+  }
+  try {
+    const v = JSON.parse(text || '{}');
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+  } catch {}
+  // Never overwrite a file we can't read: it holds the user's other providers' logins too.
+  throw bad(`wisp can’t read ${file}: fix or remove it, then try again.`, 409);
+}
+
+function writeAuth(file, auth) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(auth, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
+
+// Which providers have a key (never the key itself). env: OPENCODE_API_KEY signs in every one.
+export function keysOf(id, env = process.env) {
+  const k = KEYS[id];
+  if (!k) throw bad(`${id} doesn’t sign in with a key.`, 400);
+  const auth = readAuth(k.file(env));
+  return { agent: id, url: k.url, env: env[k.env] ? k.env : '', providers: k.providers.map((p) => ({ ...p, set: !!auth[p.id] })) };
+}
+
+function provider(id, pid) {
+  const k = KEYS[id];
+  if (!k) throw bad(`${id} doesn’t sign in with a key.`, 400);
+  if (!k.providers.some((p) => p.id === pid)) throw bad(`Pick one of ${k.providers.map((p) => p.name).join(', ')}.`, 400);
+  return k;
+}
+
+export function setKey(id, pid, key, env = process.env) {
+  const k = provider(id, pid);
+  const v = String(key || '').trim();
+  if (!v || v.length > 500 || /\s/.test(v)) throw bad(`Paste the API key from ${k.url}.`, 400);
+  const file = k.file(env);
+  writeAuth(file, { ...readAuth(file), [pid]: { type: 'api', key: v } });
+  return keysOf(id, env);
+}
+
+export function removeKey(id, pid, env = process.env) {
+  const k = provider(id, pid);
+  const file = k.file(env);
+  const auth = readAuth(file);
+  if (auth[pid]) {
+    delete auth[pid];
+    writeAuth(file, auth);
+  }
+  return keysOf(id, env);
+}
+
 // Whether a harness is signed in: false only when its CLI says so and no key in the environment
 // signs it in instead. Used to keep harnesses you can't use out of the model picker.
 export async function signedIn(id, env = process.env) {
@@ -112,6 +187,7 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
 
   function spec(id) {
     const s = LOGINS[id];
+    if (!s && KEYS[id]) throw bad(`${id} signs in with an API key: add one in Settings → Agents.`, 400);
     if (!s) throw bad(`wisp can’t sign in to ${id} for you yet: run its login in a terminal.`, 400);
     return s;
   }
@@ -210,6 +286,19 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
       if (f && f.state !== 'running' && f.state !== 'waiting') flows.delete(id);
       onDone(id);
       return { agent: id, signedIn: false };
+    },
+
+    // Key sign-ins (opencode): its models are looked up again once a key is added or removed.
+    keys: (id) => keysOf(id),
+    setKey(id, pid, key) {
+      const v = setKey(id, pid, key);
+      onDone(id);
+      return v;
+    },
+    removeKey(id, pid) {
+      const v = removeKey(id, pid);
+      onDone(id);
+      return v;
     },
 
     stop() {

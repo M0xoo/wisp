@@ -60,6 +60,13 @@ export function register(r, app) {
   r.route('POST', '/agents/:id/login/input', async (c) => c.send(200, app.agentLogin.input(c.params.id, (await c.body()).code)));
   r.route('DELETE', '/agents/:id/login', (c) => c.send(200, app.agentLogin.cancel(c.params.id)));
   r.route('POST', '/agents/:id/logout', async (c) => c.send(200, await app.agentLogin.logout(c.params.id)));
+  // Harnesses that sign in with an API key (opencode Zen and Go): which have one, add, remove.
+  r.route('GET', '/agents/:id/keys', (c) => c.send(200, app.agentLogin.keys(c.params.id)));
+  r.route('POST', '/agents/:id/keys', async (c) => {
+    const { provider, key } = await c.body();
+    c.send(200, app.agentLogin.setKey(c.params.id, String(provider || ''), key));
+  });
+  r.route('DELETE', '/agents/:id/keys/:provider', (c) => c.send(200, app.agentLogin.removeKey(c.params.id, c.params.provider)));
   // No harness yet: install one (opencode) without leaving wisp. Answers once it's ready.
   r.route('POST', '/agents/install', async (c) => {
     const { id } = await c.body();

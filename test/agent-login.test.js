@@ -23,7 +23,7 @@ for (const name of ['claude', 'codex', 'gh']) {
     fs.chmodSync(exe, 0o755);
   }
 }
-Object.assign(process.env, { HOME: home, WISP_HOME: tmp('login-wisp'), WISP_CLAUDE_BIN: path.join(bins, 'claude'), WISP_CODEX_BIN: path.join(bins, 'codex'), WISP_GH_BIN: path.join(bins, 'gh'), WISP_UPDATE_CHECK: '0', WISP_TELEMETRY: '0' });
+Object.assign(process.env, { HOME: home, XDG_DATA_HOME: path.join(home, 'data'), WISP_HOME: tmp('login-wisp'), WISP_CLAUDE_BIN: path.join(bins, 'claude'), WISP_CODEX_BIN: path.join(bins, 'codex'), WISP_GH_BIN: path.join(bins, 'gh'), WISP_UPDATE_CHECK: '0', WISP_TELEMETRY: '0' });
 
 const { parse, clean, LOGINS, forgetAgy } = await import('../server/agent-login.js');
 const { startServer } = await import('../server/index.js');
@@ -186,9 +186,50 @@ test('GitHub (gh): a device code; then git pushes with it and commits get your G
 });
 
 test('a harness wisp can’t sign in to says how', async () => {
-  const r = await api('/agents/opencode/login', 'POST');
+  const r = await api('/agents/copilot/login', 'POST');
   assert.equal(r.status, 400);
   assert.match(r.json.error, /terminal/);
+  const o = await api('/agents/opencode/login', 'POST');
+  assert.equal(o.status, 400);
+  assert.match(o.json.error, /API key.*Settings/);
+});
+
+test('opencode Zen and Go: an API key saved where opencode keeps it, next to its other logins; removed again', async () => {
+  delete process.env.OPENCODE_API_KEY;
+  const file = path.join(home, 'data', 'opencode', 'auth.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ anthropic: { type: 'oauth', refresh: 'r' } }));
+  let r = await api('/agents/opencode/keys');
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json.providers.map((p) => [p.id, p.name, p.set]), [['opencode', 'Zen', false], ['opencode-go', 'Go', false]]);
+  assert.equal(r.json.url, 'https://opencode.ai/auth');
+
+  assert.match((await api('/agents/opencode/keys', 'POST', { provider: 'openai', key: 'sk-1' })).json.error, /Zen, Go/);
+  assert.match((await api('/agents/opencode/keys', 'POST', { provider: 'opencode-go', key: '  ' })).json.error, /opencode\.ai\/auth/);
+  assert.equal((await api('/agents/opencode/keys', 'POST', { provider: 'opencode-go', key: 'sk two' })).status, 400);
+  assert.equal((await api('/agents/claude/keys')).status, 400);
+
+  r = await api('/agents/opencode/keys', 'POST', { provider: 'opencode-go', key: ' sk-go-123 ' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json.providers.map((p) => p.set), [false, true]);
+  assert.doesNotMatch(JSON.stringify(r.json), /sk-go-123/); // the key never comes back
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { anthropic: { type: 'oauth', refresh: 'r' }, 'opencode-go': { type: 'api', key: 'sk-go-123' } });
+  if (!win) assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+
+  r = await api('/agents/opencode/keys/opencode-go', 'DELETE');
+  assert.deepEqual(r.json.providers.map((p) => p.set), [false, false]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { anthropic: { type: 'oauth', refresh: 'r' } });
+
+  // A file it can't read is left alone rather than overwritten.
+  fs.writeFileSync(file, '{ not json');
+  r = await api('/agents/opencode/keys', 'POST', { provider: 'opencode', key: 'sk-zen' });
+  assert.equal(r.status, 409);
+  assert.equal(fs.readFileSync(file, 'utf8'), '{ not json');
+  fs.rmSync(file);
+
+  process.env.OPENCODE_API_KEY = 'sk-env';
+  assert.equal((await api('/agents/opencode/keys')).json.env, 'OPENCODE_API_KEY');
+  delete process.env.OPENCODE_API_KEY;
 });
 
 test('detecting again: ?fresh=<id> redoes only that harness; an older detection never overwrites a newer one', async () => {

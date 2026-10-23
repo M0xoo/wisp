@@ -62,6 +62,12 @@ export function openapi({ version, port }) {
       },
       '/agents/{aid}/login/input': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Paste back the code the sign-in page showed', requestBody: body({ type: 'object', required: ['code'], properties: { code: { type: 'string' } } }), responses: { 200: json({ type: 'object' }), 409: json(ref('Error')) } } },
       '/agents/{aid}/logout': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Sign the harness out (its own logout)', responses: { 200: json({ type: 'object' }) } } },
+      '/agents/{aid}/keys': {
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string', enum: ['opencode'] } }],
+        get: { summary: 'Which providers of a harness that signs in with an API key have one (opencode: Zen, Go). Never the key', responses: { 200: json({ type: 'object' }), 400: err[400] } },
+        post: { summary: 'Save a provider’s API key where the harness keeps it (opencode: auth.json), then detect its models again', requestBody: body({ type: 'object', required: ['provider', 'key'], properties: { provider: { type: 'string', enum: ['opencode', 'opencode-go'] }, key: { type: 'string' } } }), responses: { 200: json({ type: 'object' }), 400: err[400] } },
+      },
+      '/agents/{aid}/keys/{provider}': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'provider', in: 'path', required: true, schema: { type: 'string', enum: ['opencode', 'opencode-go'] } }], delete: { summary: 'Remove a provider’s API key', responses: { 200: json({ type: 'object' }), 400: err[400] } } },
       '/agents/install': {
         post: {
           summary: 'Install a harness into ~/.wisp/tools with npm (only opencode: its free models need no account), then detect again',
@@ -244,6 +250,12 @@ export function openapi({ version, port }) {
       },
       '/machines/{mid}/agents/{aid}/login/input': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Paste back the code, on the machine', requestBody: body({ type: 'object', required: ['code'], properties: { code: { type: 'string' } } }), responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/agents/{aid}/logout': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Sign the harness out on the machine', responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/agents/{aid}/keys': {
+        parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }],
+        get: { summary: 'Which providers have an API key on the machine (as GET /agents/{aid}/keys there)', responses: { 200: json({ type: 'object' }) } },
+        post: { summary: 'Save a provider’s API key on the machine', requestBody: body({ type: 'object', required: ['provider', 'key'], properties: { provider: { type: 'string', enum: ['opencode', 'opencode-go'] }, key: { type: 'string' } } }), responses: { 200: json({ type: 'object' }) } },
+      },
+      '/machines/{mid}/agents/{aid}/keys/{provider}': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'provider', in: 'path', required: true, schema: { type: 'string', enum: ['opencode', 'opencode-go'] } }], delete: { summary: 'Remove a provider’s API key on the machine', responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/fs': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'q', in: 'query', schema: { type: 'string' } }], get: { summary: 'Folder suggestions on the machine', responses: { 200: json({ type: 'array', items: { type: 'string' } }) } } },
       '/machines/{mid}/discover': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }], get: { summary: 'Git repos found on the machine that are not projects yet', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } } },
       '/remote/test': { post: { summary: 'Send a test message to the enabled channels', responses: { 200: json({ type: 'object' }), 400: err[400] } } },

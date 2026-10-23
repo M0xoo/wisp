@@ -351,6 +351,9 @@ body.wisp-mobile .lb-open { display: none; }
 .sx-login.bad p { color: var(--bad); }
 .sx-login-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .sx-login-row .input { flex: 1; min-width: 220px; }
+.sx-key b { min-width: 34px; }
+.sx-key { flex-wrap: nowrap; }
+.sx-key .input { min-width: 0; }
 .sx-login .btn-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 .sx-login-code { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px dashed var(--line-2); border-radius: 8px; align-self: flex-start; }
 .sx-login-code .mono { font: 600 18px var(--mono); letter-spacing: .12em; }
