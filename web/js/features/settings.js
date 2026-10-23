@@ -15,7 +15,7 @@ import { openAutomations } from './automations.js';
 import { renderLauncher } from './launcher.js';
 import { loadConfig } from './live.js';
 import { openComputers, openMachines } from './machines.js';
-import { cloudPane, connectHtml } from './cloud.js';
+import { cloudPane, connectHtml, mountGridHere } from './cloud.js';
 import { loginControl, loginPanel, wireLogins } from './agent-login.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { notifyOn, notifyPermission, requestNotify } from './notify.js';
@@ -158,7 +158,8 @@ export function openSettings(opts) {
             ${row('Machines', '<span class="machines-hint"></span>', '<button class="ghost sm" id="openMachines">Manage</button>')}
           </div>
           <p class="hint">Also in the top bar. Every project runs on every machine: pick one under Run on and wisp clones the project there the first time. A follow-up or a rerun can move a task to another one.</p>
-          <div class="sx-head"><div><b>This computer</b><small>What another computer, or the wisp phone app, needs to connect here over SSH</small></div><button class="ghost sm" id="reachRecheck">${icon('replay')}Re-check</button></div>
+          <section class="sx-group mc-grid"></section>
+          <div class="sx-head"><div><b>This computer over SSH</b><small>What another computer, or the wisp phone app, needs to connect here over SSH</small></div><button class="ghost sm" id="reachRecheck">${icon('replay')}Re-check</button></div>
           ${reachableHtml()}
 `
           }
@@ -579,6 +580,8 @@ export function openSettings(opts) {
     } else {
       $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
       cloudPane($('.sx-cloud', node));
+      // This computer on your wisp Grid, as in Machines: phones and other computers reach it there.
+      mountGridHere($('.mc-grid', node));
       $('#reachRecheck', node).onclick = () => {
         paintReachable(reachableBox(node));
       };
