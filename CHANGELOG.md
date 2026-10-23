@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-23
+
 ### Added
 
 - **Your own computers on wisp Grid.** In wisp on a desktop, **Machines** (or **Settings → Machines**) → *Reach this computer from anywhere*: sign in to a grid (grid.trywisp.dev or yours) and the computer joins it. It dials out and holds a tunnel open, so nothing listens on it and there's no SSH, Tailscale or open port. Your phone and your other computers signed in to the same account then open it at `<name>--<handle>.<grid>`, and its tasks run there with its own files and agents. Every computer on the grid shows up in the others' Machines, marked *Your computer · via grid* (next to *Cloud · on grid* and *Over SSH*); **Add to grid** / **Remove from grid** toggles it.
