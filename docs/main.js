@@ -469,6 +469,7 @@ const TERM_HELP = `usage:
   wisp reply &lt;id&gt; "text"        follow up (answers a pending question)
   wisp ship &lt;id&gt;                commit, push and open a PR
   wisp usage                    spend and outcomes
+  wisp computer on              reach this computer from your phone, via wisp Cloud
   wisp spell cast "&lt;change&gt;"    an agent writes a spell for it
   wisp mcp                      run the MCP server for other agents
 
@@ -613,6 +614,14 @@ By harness · model
   claude · opus                       $29.40    344 turns   90% ok
   codex · gpt-5.5-codex               $12.40    168 turns   85% ok
 `);
+    case 'computer': {
+      if (rest[0] === 'off') return termPrint('<span class="ok">  ✓ off: this computer left the grid</span>\n');
+      if (rest[0] !== 'on') return termPrint('  ○ off. wisp computer on signs in to a wisp Grid and adds it\n');
+      termPrint('\n  Sign in to grid.trywisp.dev and allow this code: WKRT-MQ7D\n    https://grid.trywisp.dev/activate?code=WKRT-MQ7D\n\n  Waiting for the browser… (Ctrl-C cancels)\n');
+      await sleepT(1600);
+      if (gen !== termGen) return;
+      return termPrint('<span class="ok">  ✓ signed in as you</span>\n  ● studio is on grid.trywisp.dev: online\n    https://studio--you.grid.trywisp.dev\n');
+    }
     case 'mcp':
       return termPrint('<span class="c">  (the MCP server talks over stdio; add it to your agent or editor)</span>\n');
     default: {

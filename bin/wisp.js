@@ -7,6 +7,7 @@
 //   wisp ls | show | wait | reply | btw | stop    script sessions (see --help)
 //   wisp run <recipe> [values…]             run a saved recipe
 //   wisp spell [ls|cast|install|on|off|rm|export]  spells: changes to wisp itself
+//   wisp computer [on|off]     this computer on your wisp Grid: reach it from your phone and other computers
 //   wisp mcp                   stdio MCP server, so other agents and editors can use wisp
 //   wisp skill [install]       the agent skill that teaches other agents to use wisp
 //   wisp grid <dev|init|serve|…>  run wisp for many people on your own server (grid/)
@@ -40,6 +41,10 @@ const HELP = `usage:
   wisp spell install <file|url> add a spell someone sent (https, gist:<id>); off until --on
   wisp spell on|off|rm <id>     turn a spell on or off, or remove it   (wisp spell off --all)
   wisp spell export <id>        print the spell file to share
+  wisp computer                 is this computer on your wisp Grid? its address there
+  wisp computer on              add it, so your phone and other computers reach it   (--grid HOST, default grid.trywisp.dev;
+                                signs in first: allow the code in your browser)
+  wisp computer off             take it off the grid
   wisp mcp                      run the MCP server (stdio) for other agents and editors
   wisp skill [install]          print / install the wisp agent skill   (--agent claude|codex|opencode|all  --project)
   wisp grid dev|init|serve|doctor  wisp Grid: wisp for many people on your server   (wisp grid help)
@@ -49,7 +54,7 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 
-const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells', 'grid']);
+const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells', 'grid', 'computer']);
 const LS_STATES = ['running', 'waiting', 'review', 'done'];
 // grid/cli.js's GRID_COMMANDS (not imported: every command would load the grid). A test keeps them equal.
 const GRID_SUB = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'waitlist', 'help']);
@@ -88,6 +93,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--on') flags.on = true;
   else if (a === '--all') flags.all = true;
   else if (a === '--days') flags.days = Number(argv[++i]);
+  else if (a === '--grid') flags.grid = argv[++i];
   else if (a === '--version' || a === '-v') {
     console.log(JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).version);
     process.exit(0);
@@ -99,7 +105,7 @@ for (let i = 0; i < argv.length; i++) {
 // Newer commands are also common first words of a task ("ship the docs", "usage of X"), so they
 // only count when the rest fits; `wisp run` falls back to a task when no recipe has that name.
 const SESSION_ID = /^[a-f0-9]{12}$/;
-const FITS = { grid: (w) => !w[1] || GRID_SUB.has(w[1]), ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), btw: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, run: (w) => w.length > 1 };
+const FITS = { grid: (w) => !w[1] || GRID_SUB.has(w[1]), ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), btw: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, computer: (w) => w.length === 1 || (w.length === 2 && ['on', 'off', 'status'].includes(w[1])), run: (w) => w.length > 1 };
 const command = literal !== 'task' && COMMANDS.has(words[0]) && (FITS[words[0]]?.(words) ?? true) ? words[0] : null;
 const cwd = flags.cwd || process.cwd();
 const die = (msg) => {
@@ -201,6 +207,8 @@ async function scripted(cmd, args) {
     case 'spell':
     case 'spells':
       return spellCommand(wisp, args, { out, need, show });
+    case 'computer':
+      return computerCommand(wisp, args, { out });
     case 'usage': {
       const u = await wisp.usage({ days: flags.days || 30 });
       const money = (v) => `$${v.toFixed(2)}`;
@@ -252,6 +260,82 @@ async function spellCommand(wisp, [sub = 'ls', ...rest], { out, need, show }) {
     default:
       die(`unknown: wisp spell ${sub} (ls, cast, install, on, off, rm, export)`);
   }
+}
+
+// wisp computer …: this computer on a wisp Grid (server/services/computer.js), the same as Machines →
+// Reach this computer from anywhere. Not signed in yet: the device sign-in (services/cloud.js) runs
+// here, you allow the code in a browser, and wisp adds the computer once it's done.
+async function computerCommand(wisp, [sub = 'status'], { out }) {
+  const api = (method, p, body) => wisp.request(method, p, body);
+  const host = (u) => {
+    try {
+      return new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`).host;
+    } catch {
+      return u;
+    }
+  };
+  const say = (v) => {
+    if (v.cloud) return '  ● this is a cloud computer: it’s on its grid already';
+    if (v.on) return `  ● ${v.name} is on ${host(v.grid)}: ${v.state}${v.error ? ` (${v.error})` : ''}\n    ${v.url}`;
+    const why = v.error ? `${v.error} ` : '';
+    return v.account ? `  ○ off. ${why}Signed in to ${host(v.account.grid)} as ${v.account.handle}: wisp computer on adds it` : `  ○ off. ${why}wisp computer on signs in to a wisp Grid and adds it`;
+  };
+  // The tunnel comes up a moment after the grid has the computer: wait a little for it.
+  const settle = async () => {
+    let v = await api('GET', '/computer');
+    for (let end = Date.now() + 15_000; v.on && v.state !== 'online' && Date.now() < end; v = await api('GET', '/computer')) await new Promise((r) => setTimeout(r, 500));
+    return v;
+  };
+  switch (sub) {
+    case 'status': {
+      const v = await api('GET', '/computer');
+      return out(v, say(v));
+    }
+    case 'off':
+      return out(await api('POST', '/computer', { on: false }), '  ✓ off: this computer left the grid');
+    case 'on': {
+      let v = await api('GET', '/computer');
+      if (v.cloud) return out(v, say(v));
+      const want = flags.grid && host(flags.grid);
+      const at = v.on ? v.grid : v.account?.grid;
+      if (want && at && host(at) !== want) die(`this computer uses ${host(at)}. To move it, run wisp computer off and sign out of ${host(at)} in Machines first.`);
+      if (!v.account) {
+        await signIn(wisp, flags.grid || 'grid.trywisp.dev');
+        v = await api('GET', '/computer');
+      }
+      if (!v.on) await api('POST', '/computer', { on: true });
+      v = await settle();
+      return out(v, say(v));
+    }
+    default:
+      die(`unknown: wisp computer ${sub} (status, on, off)`);
+  }
+}
+
+// The device sign-in, from the terminal: print the code, open the page, wait for the browser.
+async function signIn(wisp, grid) {
+  let f = await wisp.request('POST', '/cloud/signin', { url: grid, addComputer: true });
+  console.error(`\n  Sign in to ${new URL(f.grid).host} and allow this code: ${f.userCode}\n    ${f.verifyUrl}\n\n  Waiting for the browser… (Ctrl-C cancels)`);
+  if (flags.open && process.stdout.isTTY) openUrl(f.verifyUrl);
+  const cancel = () => wisp.request('DELETE', `/cloud/signin/${f.id}`).catch(() => {}).finally(() => process.exit(130));
+  process.once('SIGINT', cancel);
+  try {
+    while (f.state === 'waiting') {
+      await new Promise((r) => setTimeout(r, 1000));
+      f = await wisp.request('GET', `/cloud/signin/${f.id}`);
+    }
+  } finally {
+    process.off('SIGINT', cancel);
+  }
+  if (f.state !== 'done') die(f.error || `sign-in ${f.state}`);
+  console.error(`  ✓ signed in as ${f.user?.handle || 'you'}`);
+}
+
+// No shell: the address comes from the grid.
+function openUrl(u) {
+  if (!/^https?:$/.test(new URL(u).protocol)) return;
+  const [cmd, args] = process.platform === 'darwin' ? ['open', [u]] : process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', u]] : ['xdg-open', [u]];
+  spawn(cmd, args, { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
 }
 
 // Installs skills/wisp/SKILL.md where each harness looks for skills.

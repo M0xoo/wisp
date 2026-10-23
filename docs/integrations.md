@@ -103,6 +103,9 @@ wisp merge <id>                                  # squash-merge it, fast-forward
 wisp run <recipe> [values… | key=value…]         # run a saved recipe
 wisp recipes [--json]
 wisp usage [--days 30] [--json]
+wisp computer [--json]                          # is this computer on your wisp Grid? its address there
+wisp computer on [--grid HOST] [--no-open]      # add it (signs in first: prints a code to allow in a browser)
+wisp computer off                                # take it off the grid
 wisp -- show me where auth is configured        # a task whose first word is a command name
 ```
 
