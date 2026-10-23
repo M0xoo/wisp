@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-10-23
+
 ### Changed
 
 - **Small things that read more clearly.** Settings has a cog (the old icon looked like a theme switch). The prompt box names its mode ("Full auto" isn't just an amber sparkle any more) and where tasks run ("This computer"). Compare is a + on the harness pill rather than "vs". No folder and recipes have their own icons, so the sparkle doesn't stand for four things. The sidebar's foot keeps "Get the app" spelled out.
