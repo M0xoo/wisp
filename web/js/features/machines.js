@@ -39,12 +39,12 @@ export function setMachines(list, { quiet = false } = {}) {
   if (!quiet && list.some((m) => (was.get(m.id) || false) !== (m.state === 'online'))) loadSessions();
 }
 
-// In the phone app, Machines (SSH from this computer to others) isn't shown: the button goes back
-// to the app's own list of computers (mobile/www), where you switch or add one.
+// In the phone app, Machines (SSH from this computer to others) isn't shown: the button opens the
+// app's own list of computers (mobile/www), where you switch or add one. As a page on top of this
+// one, so Back (the button there, or the phone's) comes back here; ?from names this computer.
 const COMPUTERS = 'https://localhost/';
 export function openComputers() {
-  if (history.length > 1) history.back();
-  else location.replace(COMPUTERS);
+  location.href = `${COMPUTERS}?from=${encodeURIComponent(COMPUTER || '')}`;
 }
 
 export function paintMachinesBtn() {
