@@ -110,6 +110,7 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
       sidebar: { props: { width: 420, side: 'right', details: 'full' }, style: { background: '#fafafa' } },
       'split.main': { props: { readWidth: 1100 } },
       'split.home': { props: { greeting: 'Hi' } },
+      tips: { props: { count: 5 }, style: { fontSize: '12px' } },
       'split.title': { style: { fontSize: '22px' } },
       'split.details': { props: { width: 280 }, style: { fontSize: '12px' } },
       'split.pr': { style: { borderRadius: '6px' } },
@@ -137,6 +138,9 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
   assert.ok(problems({ ...base0, buttons: [{ slot: 'split.details', panel: 'x' }] }).length);
   // int props keep their 1–40 range
   assert.ok(problems({ ...base0, parts: { 'card.sub': { props: { lines: 41 } } } }).some((x) => /lines: int from 1 to 40/.test(x)));
+  // the tips under the prompt box: hide them, or show more or fewer
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['tips'] } }), []);
+  assert.ok(problems({ ...base0, parts: { tips: { props: { count: 0 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
 });
 
 test('take over in wisp: the terminal setting, its parts, font size and header slot', () => {

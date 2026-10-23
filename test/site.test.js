@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, markdown, AGENTS, GUIDES } from '../scripts/site.mjs';
 import { adapters } from '../server/adapters/index.js';
+import { TIPS } from '../web/js/tips-data.js';
 
 const DOCS = fileURLToPath(new URL('../docs/', import.meta.url));
 const ADAPTERS = fileURLToPath(new URL('../server/adapters/', import.meta.url));
@@ -126,4 +127,17 @@ test('the privacy policy has the contact and the account deletion anchor Play li
   assert.match(html, /<li><a href="#delete-your-wisp-cloud-account">/);
   for (const f of ['index.html', 'cloud.html']) assert.match(fs.readFileSync(path.join(DOCS, f), 'utf8'), /<a href="privacy.html">Privacy<\/a>/, f);
   assert.match(read(pages.find((p) => p.path === '/changelog.html')), /<a href="\/privacy.html">Privacy<\/a>/);
+});
+
+test('every tip under the prompt box opens a real page on the site, at a heading it has', () => {
+  assert.ok(TIPS.length >= 30, 'a long list to rotate through');
+  const files = new Map(pages.filter((p) => p.file).map((p) => [p.path, p.file]));
+  for (const [text, href] of TIPS) {
+    assert.ok(text.length <= 130, `short enough for one line: ${text}`);
+    const u = new URL(href);
+    assert.equal(u.origin, SITE, href);
+    const file = files.get(u.pathname) || files.get(`${u.pathname}index.html`);
+    assert.ok(file || fs.existsSync(path.join(DOCS, u.pathname)), `no page for ${href}`);
+    if (u.hash) assert.match(file ? fs.readFileSync(path.join(out, file), 'utf8') : '', new RegExp(`id="${u.hash.slice(1)}"`), href);
+  }
 });
