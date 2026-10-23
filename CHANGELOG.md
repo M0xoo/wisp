@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Phone app: a way back from your computers.** *Add a machine* under the prompt, **Computers** in the top bar or *Your computers* in Settings now open the list on top of the wisp you were in: a **‹ <computer>** button at its top, or the phone's Back (button or edge swipe), takes you back to your prompt as you left it.
 
+- **wisp Grid: the account page keeps up by itself.** A computer coming online or going offline, one being added or removed, a new signed-in device, or your cloud wisp waking or falling asleep now shows on the page as it happens, without reloading it. The grid also notices a computer that disconnects at once, instead of up to half a minute later.
+
 ## [0.34.0] - 2026-10-23
 
 ### Added

@@ -106,13 +106,20 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   const stats = createGridTelemetry(cfg);
   const accounts = createAccounts({ db, cfg, secrets, onAudit: stats.audit });
   const limit = limiter();
+  // Account pages open in a browser, each with an event stream (GET /events): told when something
+  // on the page changed (a computer came online, the cloud wisp woke), they fetch it again.
+  const watchers = new Map(); // user id -> Set of responses
+  const notify = (userId) => {
+    for (const res of watchers.get(userId) || []) res.write('event: change\ndata: {}\n\n');
+  };
   const tunnels = createTunnels({
     log,
     onChange: (id, up) => {
-      if (accounts.computer(id)) accounts.seenComputer(id);
-      if (!up) return;
       const c = accounts.computer(id);
-      if (c) log(`grid: computer ${c.label} connected`);
+      if (!c) return;
+      accounts.seenComputer(id);
+      notify(c.user_id);
+      if (up) log(`grid: computer ${c.label} connected`);
     },
   });
   const interval = cfg.auth.dev ? 2 : 5; // device-code polling, seconds
@@ -151,6 +158,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         log(`grid: ${e.user.handle} ${e.event}: ${err.message}`);
       }
     }
+    notify(e.user.id);
     if (e.event === 'started' || e.event === 'idle' || e.event === 'failed') log(`grid: ${e.user.handle} ${e.event}${e.error ? `: ${e.error}` : ''}`);
   });
   // After a restart: nothing runs, but scheduled tasks still wake their wisp.
@@ -226,6 +234,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         const body = await readBody(req);
         const r = accounts.pollCode(body.device_code, interval);
         if (r.error) return send(400, { error: r.error });
+        notify(r.user.id);
         return send(200, { token: r.token, token_type: 'Bearer', user: userView(r.user), instance: instanceView(r.user) });
       }
       const dev = accounts.device(req.headers.authorization);
@@ -243,13 +252,16 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (req.method === 'GET' && p === '/api/computers') return send(200, { computers: accounts.computers(dev.user.id).map((c) => computerView(c, dev)) });
       if (req.method === 'POST' && p === '/api/computers') {
         const body = await readBody(req);
-        return send(200, computerView(accounts.addComputer(dev, body.name), dev));
+        const added = computerView(accounts.addComputer(dev, body.name), dev);
+        notify(dev.user.id);
+        return send(200, added);
       }
       const del = req.method === 'DELETE' && /^\/api\/computers\/([a-f0-9]+)$/.exec(p);
       if (del) {
         const c = ownComputer(dev.user.id, del[1]);
         accounts.removeComputer(dev.user.id, c.id);
         tunnels.close(c.id);
+        notify(dev.user.id);
         return send(200, { ok: true });
       }
       if (req.method === 'POST' && p === '/api/device/revoke') {
@@ -264,6 +276,20 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages }));
       const u = s.user;
       return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
+    }
+    if (req.method === 'GET' && p === '/events') {
+      if (!s) return json(res, 401, { error: 'Sign in again.' });
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-accel-buffering': 'no', ...SECURITY });
+      res.write('retry: 3000\n\n');
+      const set = watchers.get(s.user.id) || new Set();
+      watchers.set(s.user.id, set.add(res));
+      const ping = setInterval(() => res.write(': ping\n\n'), 25_000); // keeps proxies from dropping it
+      res.on('close', () => {
+        clearInterval(ping);
+        set.delete(res);
+        if (!set.size && watchers.get(s.user.id) === set) watchers.delete(s.user.id);
+      });
+      return;
     }
     if (req.method === 'GET' && p === '/signin') {
       if (s && !url.searchParams.get('link')) return redirect(res, safePath(url.searchParams.get('return')));
@@ -382,6 +408,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         const c = ownComputer(s.user.id, m[1]);
         accounts.removeComputer(s.user.id, c.id);
         tunnels.close(c.id);
+        notify(s.user.id);
         return redirect(res, `/?m=${encodeURIComponent(`${c.name} removed.`)}`);
       }
       if (p === '/identities/unlink') {
@@ -411,6 +438,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const gone = accounts.computers(userId).filter((c) => c.device_id === deviceId);
     accounts.revokeDevice(userId, deviceId);
     for (const c of gone) tunnels.close(c.id);
+    notify(userId);
   }
 
   // Delete an account: disabled first, so no session or device starts its box again meanwhile; then
@@ -652,6 +680,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     async close() {
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
       tunnels.closeAll();
+      for (const set of watchers.values()) for (const res of set) res.end();
       for (const x of servers) x.closeAllConnections?.();
       await hostd.close();
       stats.close();

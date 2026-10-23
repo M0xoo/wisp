@@ -406,7 +406,6 @@ export function accountPage({ cfg, user, instance, devices, computers = [], iden
     title: 'Your wisp',
     user,
     csrf,
-    head: st === 'starting' || st === 'stopping' ? '<meta http-equiv="refresh" content="2">' : '',
     body: `${msg ? `<div class="flash ${tone}">${esc(msg)}</div>` : ''}
       <h1 class="h1">Hi ${esc((user.name || user.handle).split(' ')[0])}</h1>
       <p class="sub">Your wisps on ${esc(host)}. Open any of them here, in the phone app, or from wisp on another computer.</p>
@@ -417,10 +416,10 @@ export function accountPage({ cfg, user, instance, devices, computers = [], iden
       </div>
 
       <h2 class="sec">Cloud</h2>
-      <div class="group">${cloudRow}</div>
+      <div class="group" data-live="cloud">${cloudRow}</div>
 
-      <h2 class="sec">Your computers <span class="n">${computers.length ? `${online} of ${computers.length} online` : ''}</span></h2>
-      <div class="group">${computers.map(computerRow).join('')}
+      <h2 class="sec">Your computers <span class="n" data-live="online">${computers.length ? `${online} of ${computers.length} online` : ''}</span></h2>
+      <div class="group" data-live="computers">${computers.map(computerRow).join('')}
         <details class="w add"${computers.length ? '' : ' open'}>
           <summary><span class="w-ic">${I.plus}</span><div class="w-tx"><b>Add a computer</b><small>Three steps, about a minute. No SSH, no open ports.</small></div><span class="chev">${I.chev}</span></summary>
           <ol class="steps">
@@ -443,7 +442,7 @@ export function accountPage({ cfg, user, instance, devices, computers = [], iden
 
       <h2 class="sec">Signed-in devices</h2>
       <p class="hint">Apps that can open your wisps. Removing a computer’s device also takes it off the grid.</p>
-      <div class="group">${
+      <div class="group" data-live="devices">${
         devices.length
           ? devices
               .map((d) => {
@@ -468,9 +467,23 @@ export function accountPage({ cfg, user, instance, devices, computers = [], iden
       <div class="group"><form class="r del" method="post" action="/account/delete"><span class="ic">${I.trash}</span><div class="tx"><b>Delete your account and your cloud wisp</b><small>Your cloud wisp, its files and your agents’ sign-ins there are deleted for good. Your computers keep their own wisp.</small></div>
         ${hidden}<input class="input" name="confirm" placeholder="Type ${esc(user.handle)}" aria-label="Type ${esc(user.handle)} to confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required pattern="${esc(user.handle)}"><button class="ghost line danger">Delete</button></form></div>
       <div class="foot"><form class="inline" method="post" action="/signout?all=1">${hidden}<button class="ghost">Sign out everywhere</button></form></div>
-      <script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.textContent;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>`,
+      <script>document.addEventListener('click',async(e)=>{const b=e.target.closest('[data-copy]');if(!b)return;try{await navigator.clipboard.writeText(b.dataset.copy);const s=b.querySelector('span'),t=s.textContent;s.textContent='Copied';setTimeout(()=>s.textContent=t,1200)}catch{}})</script>${LIVE}`,
   });
 }
+
+// Keeps the account page current without a reload: the grid says on GET /events when something on
+// it changed (a computer came online or went away, the cloud wisp woke or fell asleep), and the page
+// fetches itself and swaps only the [data-live] rows that differ, so the rest (an open "Add a
+// computer", a half-typed field) stays as it is. Missed events (the stream dropped, the tab came
+// back from the cache) are caught up the same way.
+const LIVE = `<script>(()=>{let t=0,opened=false;
+const morph=(cur,next)=>{const a=[...cur.children],b=[...next.children];if(!b.length&&!a.length){if(cur.innerHTML!==next.innerHTML)cur.innerHTML=next.innerHTML;return}
+b.forEach((n,i)=>{const o=a[i];if(!o)return cur.append(n);if(o.tagName==='DETAILS'&&n.tagName==='DETAILS')n.open=o.open;if(o.outerHTML!==n.outerHTML)o.replaceWith(n)});a.slice(b.length).forEach((o)=>o.remove())};
+const sync=async()=>{try{const r=await fetch('/',{cache:'no-store',headers:{accept:'text/html'}});if(!r.ok)return;const doc=new DOMParser().parseFromString(await r.text(),'text/html');const fresh=doc.querySelectorAll('[data-live]');if(!fresh.length)return location.reload();
+fresh.forEach((n)=>{const cur=document.querySelector('[data-live="'+n.dataset.live+'"]');if(cur)morph(cur,n)})}catch{}};
+const soon=()=>{clearTimeout(t);t=setTimeout(sync,150)};
+const es=new EventSource('/events');es.addEventListener('change',soon);es.onopen=()=>{if(opened)soon();opened=true};
+addEventListener('pageshow',(e)=>{if(e.persisted)soon()})})()</script>`;
 
 // Opens the Android app (its intent filter in mobile/android/…/AndroidManifest.xml).
 export const APP_URL = 'dev.trywisp.mobile://signed-in';
