@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-24
+
 ### Added
 
 - **Delegate to your other machines:** the launcher's **Subagents** button is now **Delegate**, and each delegate picks where it runs: *With the lead* (as before), this computer, or any of your machines, with the harness, model and thinking level installed there. The lead's place is shown (and switchable) at the top. A delegate away from the lead gets a copy of the lead's work there (uncommitted edits too), runs hidden, and its changes come back to the lead's folder as a patch when it finishes (a three-way merge if the lead moved on; conflicts and patches that don't apply are reported to the lead). The lead hears each delegate's place in its team note. API: `machine` (`here` or a machine id) on each `subagents` member.
