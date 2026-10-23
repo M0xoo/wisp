@@ -166,3 +166,30 @@ test('a lead without a team gets no delegate tool and no team note', async () =>
   const run = records(RECORD, 'claude').find((r) => r.stdin.includes('DELEGATE nothing'));
   assert.ok(!run.argv.includes('--disallowedTools'), 'built-in subagents stay on without a team');
 });
+
+test('a follow-up gives a task launched without subagents a team, and another follow-up takes it away', async () => {
+  const s = await api('/sessions', { prompt: 'DELEGATE not yet', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await settled(s.id);
+  await assert.rejects(api(`/sessions/${s.id}/reply`, { text: 'x', subagents: [{ agent: 'nope' }] }), /unknown subagent harness/);
+  await assert.rejects(api(`/sessions/${s.id}/reply`, { text: 'x', preset: 'missing' }), /no such subagent preset/);
+
+  await api(`/sessions/${s.id}/reply`, { text: 'DELEGATE now', subagents: [{ agent: 'codex', use: 'tests' }] });
+  const done = await until(async () => {
+    const x = await api(`/sessions/${s.id}`);
+    return x.turns.length === 2 && x.state === 'review' && x;
+  });
+  assert.deepEqual(done.subagents.map((m) => m.name), ['codex']);
+  assert.equal(done.turns[1].delegations?.[0]?.name, 'codex');
+  const run = records(RECORD, 'claude').find((r) => r.stdin.includes('DELEGATE now'));
+  assert.ok(run.argv.includes('--disallowedTools'), 'built-in subagents switch off once there is a team');
+  assert.match(run.argv.join(' '), /`codex`: Codex · default model\. Use it for: tests/);
+
+  await api(`/sessions/${s.id}/reply`, { text: 'DELEGATE without', subagents: [] });
+  const after = await until(async () => {
+    const x = await api(`/sessions/${s.id}`);
+    return x.turns.length === 3 && x.state === 'review' && x;
+  });
+  assert.equal(after.subagents, undefined);
+  assert.match(after.turns[2].presentation.blocks[0].summary, /no delegate tool/);
+  assert.equal(Object.keys(after.children).length, 1, 'the child session it used stays linked');
+});

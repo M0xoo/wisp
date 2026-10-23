@@ -161,11 +161,11 @@ export function createLaunch(app) {
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
   // One that starts with /btw is a side question instead: the run carries on (see askBtw).
-  async function replyTo(s, text, attachments = [], queue, mode, run) {
+  async function replyTo(s, text, attachments = [], queue, mode, run, team) {
     const question = btwQuestion(text);
     if (question !== null) return { btw: await askBtw(s, question, attachments) };
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
-    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run });
+    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run, team });
   }
 
   // /btw: answered by a read-only run of its own, next to the task's run (server/btw.js).
