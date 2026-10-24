@@ -59,6 +59,27 @@ if (argv[0] === '--version' || argv[0] === '-v') {
 // Sign-in checks (server/agent-login.js) run in wisp's own folder: say nothing rather than do the
 // work below, which would leave math.js and notes.txt in the checkout.
 if ((name === 'claude' && argv.join(' ') === 'auth status') || (name === 'codex' && argv.join(' ') === 'login status') || (name === 'cursor-agent' && argv.join(' ') === 'status')) process.exit(0);
+// --help, laid out like each real CLI's entry for its thinking-level flag (agy prints to stderr).
+if (argv[0] === '--help') {
+  const help = {
+    claude: '  --effort <level>        Effort level for the current session\n                          (low, medium, high, xhigh, max)\n  --environment <id>      Create a new cloud session',
+    agy: '  --effort                Reasoning effort for the current CLI session (low|medium|high|xhigh|max)\n  -i                      Short alias for --prompt-interactive',
+    copilot: '      --reasoning-effort <level>\n          Set the reasoning effort level [possible values: none, minimal, low, medium, high, xhigh, max]\n      --context <tier>\n          Set the context window tier [possible values: default, long_context]',
+  }[name];
+  (name === 'agy' ? console.error : console.log)(`Usage: ${name} [options]\n\n${help || ''}`);
+  process.exit(0);
+}
+// codex's catalog; FAKE_CODEX_NO_DEBUG: an older codex without `debug models`.
+if (name === 'codex' && argv.join(' ') === 'debug models') {
+  if (process.env.FAKE_CODEX_NO_DEBUG) process.exit(2);
+  const levels = (...e) => e.map((effort) => ({ effort }));
+  console.log(JSON.stringify({ models: [
+    { slug: 'gpt-10-mini', display_name: 'GPT-10-Mini', visibility: 'list', priority: 6, supported_reasoning_levels: levels('low', 'high') },
+    { slug: 'gpt-10', display_name: 'GPT-10', description: 'Biggest', visibility: 'list', priority: 3, supported_reasoning_levels: levels('low', 'medium', 'high', 'xhigh', 'max', 'ultra') },
+    { slug: 'codex-auto-review', visibility: 'hide', priority: 1 },
+  ] }));
+  process.exit(0);
+}
 if (name === 'opencode' && argv[0] === 'models') {
   // --verbose follows each id with pretty-printed metadata, including reasoning variants.
   if (argv.includes('--verbose')) {

@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectFirst, exitText, flatten, rel, spawnJsonl } from './common.js';
+import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
@@ -94,7 +94,9 @@ export default {
   async detect() {
     const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_CLAUDE_BIN);
     BIN = bin;
-    return found;
+    if (!found.available) return found;
+    const efforts = helpEfforts(await helpText(BIN));
+    return efforts.length ? { ...found, efforts } : found;
   },
 
   // What a permission prompt is about, for the approval card and for matching "always allow".

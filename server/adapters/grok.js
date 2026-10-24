@@ -44,7 +44,8 @@ export default {
     const found = await detectVersion(BIN);
     if (!found.available) return found;
     // `grok models` prints "  * grok-4.7 (default)" / "  - grok-4.6" lines.
-    const ids = [...(await quietOutput(BIN, ['models'])).matchAll(/^\s+[*-]\s+([\w.\-/:]+)/gm)].map((m) => m[1]);
+    const out = await quietOutput(BIN, ['models']);
+    const ids = [...out.matchAll(/^\s+[*-]\s+([\w.\-/:]+)/gm)].map((m) => m[1]);
     if (!ids.length) return found;
     const meta = cachedModels();
     const models = ids.map((id) => {
@@ -52,7 +53,9 @@ export default {
       const efforts = info.supports_reasoning_effort === false ? [] : effortsOf(info.reasoning_efforts);
       return { id, label: info.name || id, hint: clip(info.description || id, 60), ...(efforts && { efforts }) };
     });
-    return { ...found, models: [this.models[0], ...models] };
+    // Default runs grok's own default model ("* id"), so it takes that model's levels.
+    const def = models.find((m) => m.id === out.match(/^\s+\*\s+([\w.\-/:]+)/m)?.[1]);
+    return { ...found, ...(def?.efforts && { efforts: def.efforts }), models: [this.models[0], ...models] };
   },
 
   run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {

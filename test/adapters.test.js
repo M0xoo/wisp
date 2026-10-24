@@ -12,7 +12,8 @@ process.env.FAKE_RECORD = RECORD;
 // grok's model catalog cache, where detect() reads each model's reasoning levels.
 process.env.GROK_HOME = tmp('grok-home');
 fs.writeFileSync(path.join(process.env.GROK_HOME, 'models_cache.json'), JSON.stringify({ models: { 'grok-9': { info: { name: 'Grok 9', description: 'Big', supports_reasoning_effort: true, reasoning_efforts: [{ id: 'xhigh' }, { id: 'high' }, { id: 'low' }] } } } }));
-// codex's, where detect() reads its models: hidden ones stay out, best (lowest priority) first.
+// codex's copy of its catalog, read when `codex debug models` isn't there; config.toml picks the
+// model Default runs.
 process.env.CODEX_HOME = tmp('codex-home');
 fs.writeFileSync(
   path.join(process.env.CODEX_HOME, 'models_cache.json'),
@@ -24,6 +25,7 @@ fs.writeFileSync(
     ],
   }),
 );
+fs.writeFileSync(path.join(process.env.CODEX_HOME, 'config.toml'), 'model = "gpt-9-mini"\n\n[profiles.x]\nmodel = "gpt-9"\n');
 installFakeBins();
 
 const { adapters } = await import('../server/adapters/index.js');
@@ -77,10 +79,15 @@ for (const id of Object.keys(BIN)) {
       assert.deepEqual(models.slice(1), ['fake/model-a', 'fake/model-b']);
       assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'high'], []], 'per-model reasoning variants');
     }
+    // Thinking levels from the CLI itself (--help, the catalog), not a list wisp keeps.
+    const levels = { claude: ['low', 'medium', 'high', 'xhigh', 'max'], antigravity: ['low', 'medium', 'high', 'xhigh', 'max'], copilot: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], grok: ['low', 'high', 'xhigh'] };
+    if (levels[id]) assert.deepEqual(found.efforts, levels[id], 'levels the CLI reports');
     if (id === 'codex') {
-      assert.deepEqual(models.slice(1), ['gpt-9', 'gpt-9-mini'], 'listed models from the catalog cache, by priority');
-      assert.deepEqual(found.models.map((m) => m.label), ['Default', 'GPT-9', 'GPT-9-Mini']);
-      assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['medium', 'max'], ['low', 'high']], 'each model’s own levels');
+      assert.deepEqual(models.slice(1), ['gpt-10', 'gpt-10-mini'], 'listed models from `codex debug models`, by priority');
+      assert.deepEqual(found.models.map((m) => m.label), ['Default', 'GPT-10', 'GPT-10-Mini']);
+      assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'], ['low', 'high']], 'each model’s own levels');
+      // config.toml names gpt-9-mini, which this catalog lacks: Default takes codex's first choice.
+      assert.deepEqual(found.efforts, ['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
     }
     if (id === 'cursor') assert.deepEqual(models.slice(1), ['fast-1', 'big-2']);
     if (id === 'antigravity') {
@@ -97,6 +104,19 @@ for (const id of Object.keys(BIN)) {
       assert.deepEqual(found.models.map((m) => m.label), ['Default', 'Claude Opus 9.5', 'GPT-9.1 Sol']);
     }
   });
+
+  if (id === 'codex')
+    test('codex: without `debug models`, detect() reads the cached catalog; Default takes config.toml’s model', async () => {
+      process.env.FAKE_CODEX_NO_DEBUG = '1';
+      try {
+        const found = await adapters.codex.detect();
+        assert.deepEqual(found.models.map((m) => m.id), ['', 'gpt-9', 'gpt-9-mini'], 'hidden models stay out');
+        assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['medium', 'max'], ['low', 'high']]);
+        assert.deepEqual(found.efforts, ['low', 'high'], 'the top-level model, not the profile’s');
+      } finally {
+        delete process.env.FAKE_CODEX_NO_DEBUG;
+      }
+    });
 
   test(`${id}: a turn yields session, tools, real diffs and the final presentation`, async () => {
     const cwd = makeRepo();
