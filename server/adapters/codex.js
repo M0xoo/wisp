@@ -1,5 +1,6 @@
 // Codex CLI adapter — drives `codex exec --json` (JSONL thread/turn/item events).
 
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, detectFirst, exitText, fileTracker, flatten, rel, spawnJsonl, withProtocol } from './common.js';
@@ -64,7 +65,17 @@ export default {
   async detect() {
     const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_CODEX_BIN);
     BIN = bin;
-    return found;
+    if (!found.available) return found;
+    // codex has no command that lists models, but it caches the catalog it fetched: the models
+    // its own /model picker shows ("list"), best first, each with the thinking levels it takes.
+    const models = cachedModels()
+      .filter((m) => m?.slug && m.visibility === 'list')
+      .sort((a, b) => (a.priority ?? 1e9) - (b.priority ?? 1e9))
+      .map((m) => {
+        const efforts = Array.isArray(m.supported_reasoning_levels) ? m.supported_reasoning_levels.map((l) => l.effort).filter(Boolean) : undefined;
+        return { id: m.slug, label: m.display_name || m.slug, hint: clip(m.description || m.slug, 60), ...(efforts && { efforts }) };
+      });
+    return models.length ? { ...found, models: [this.models[0], ...models] } : found;
   },
 
   // dirs: the task's other folders, writable like cwd.
@@ -226,6 +237,17 @@ export function unwrapShell(cmd) {
     s.match(/^"?(?:[^"]*[\\/])?(?:powershell|pwsh)(?:\.exe)?"?(?: -NoProfile| -NoLogo)* -(?:Command|c) (['"]?)([\s\S]*)\1$/i) ||
     s.match(/^"?(?:[^"]*[\\/])?cmd(?:\.exe)?"? \/[cC] (['"]?)([\s\S]*)\1$/);
   return m ? m[2] : s;
+}
+
+// codex caches the model catalog in $CODEX_HOME (~/.codex) after it signs in or starts.
+function cachedModels() {
+  try {
+    const home = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+    const list = JSON.parse(fs.readFileSync(path.join(home, 'models_cache.json'), 'utf8')).models;
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
 }
 
 function describeMcp(item) {

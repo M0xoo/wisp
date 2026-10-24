@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Long links no longer run off the screen:** a prompt or answer with a long URL (or any unbroken word) now wraps inside its card instead of spilling past the edge on phones.
 - **Compare on Windows no longer fails to make its worktrees now and then:** two checkouts into one repo at the same moment could catch each other half made (`failed to read .git/worktrees/…/commondir`). Worktrees in one repo are now made one after the other.
 - **Edit diffs from Antigravity, Copilot, Codex, OpenCode, Cursor and Grok no longer show an empty "before" now and then:** a file read the instant the harness was rewriting it is no longer taken for its old content.
+- **Codex lets you pick a model:** the picker only offered *Default*. It now lists the models Codex's own `/model` shows (read from its catalog in `~/.codex/models_cache.json`), each with the thinking levels it supports.
 
 ## [0.38.0] - 2026-10-24
 

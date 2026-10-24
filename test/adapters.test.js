@@ -12,6 +12,18 @@ process.env.FAKE_RECORD = RECORD;
 // grok's model catalog cache, where detect() reads each model's reasoning levels.
 process.env.GROK_HOME = tmp('grok-home');
 fs.writeFileSync(path.join(process.env.GROK_HOME, 'models_cache.json'), JSON.stringify({ models: { 'grok-9': { info: { name: 'Grok 9', description: 'Big', supports_reasoning_effort: true, reasoning_efforts: [{ id: 'xhigh' }, { id: 'high' }, { id: 'low' }] } } } }));
+// codex's, where detect() reads its models: hidden ones stay out, best (lowest priority) first.
+process.env.CODEX_HOME = tmp('codex-home');
+fs.writeFileSync(
+  path.join(process.env.CODEX_HOME, 'models_cache.json'),
+  JSON.stringify({
+    models: [
+      { slug: 'gpt-9-mini', display_name: 'GPT-9-Mini', description: 'Small', visibility: 'list', priority: 9, supported_reasoning_levels: [{ effort: 'low' }, { effort: 'high' }] },
+      { slug: 'codex-auto-review', display_name: 'Codex Auto Review', visibility: 'hide', priority: 1 },
+      { slug: 'gpt-9', display_name: 'GPT-9', description: 'Big', visibility: 'list', priority: 2, supported_reasoning_levels: [{ effort: 'medium' }, { effort: 'max' }] },
+    ],
+  }),
+);
 installFakeBins();
 
 const { adapters } = await import('../server/adapters/index.js');
@@ -64,6 +76,11 @@ for (const id of Object.keys(BIN)) {
     if (id === 'opencode') {
       assert.deepEqual(models.slice(1), ['fake/model-a', 'fake/model-b']);
       assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'high'], []], 'per-model reasoning variants');
+    }
+    if (id === 'codex') {
+      assert.deepEqual(models.slice(1), ['gpt-9', 'gpt-9-mini'], 'listed models from the catalog cache, by priority');
+      assert.deepEqual(found.models.map((m) => m.label), ['Default', 'GPT-9', 'GPT-9-Mini']);
+      assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['medium', 'max'], ['low', 'high']], 'each model’s own levels');
     }
     if (id === 'cursor') assert.deepEqual(models.slice(1), ['fast-1', 'big-2']);
     if (id === 'antigravity') {
