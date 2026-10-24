@@ -27,8 +27,6 @@
   border-bottom: 1px solid transparent; transition: border-color 0.2s;
 }
 .topbar.scrolled { border-bottom-color: var(--line); }
-/* Settings' name shows only in split view's foot, when no account is there to sit beside it */
-#settingsBtn > span { display: none; }
 
 .to-top {
   position: fixed; top: 116px; left: 0; right: 0; margin-inline: auto; z-index: 20; display: flex; align-items: center; gap: 7px;

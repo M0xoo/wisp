@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Signed out, the sidebar keeps your account row:** after signing out of a wisp Grid the foot still shows who you were, greyed, saying *Not connected · Sign in*; a click signs you back in. Never signed in, the same row offers the sign-in.
 - **A new sidebar in split view:** *New task* is a small prompt box, with *Machines* and *Automations* side by side under it as tiles. Settings moved to the sidebar's foot, and when you're signed in to a wisp Grid (or on your cloud computer) the foot shows you: your avatar, name, handle and grid, with a ring that lights up while the grid is reachable. Click it to open your account. Group headings trail into a hairline, and the list sits on its own quieter surface. Spells reach the new parts as `sidebar.nav` and `sidebar.account`.
 
 ### Fixed
