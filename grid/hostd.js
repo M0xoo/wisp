@@ -95,7 +95,8 @@ export async function deleteBox({ dataDir, driver, container = {}, user }) {
   const root = path.join(dataDir, 'users', user.id);
   try {
     // Retried: on Windows a wisp that just exited can hold its files open for a moment (EBUSY, EPERM).
-    fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    // The async rm retries the whole removal with a growing delay; rmSync gave up within a second.
+    await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   } catch (err) {
     throw new Error(`Couldn’t delete ${root} (${err.code || err.message}): its files may belong to the box’s user; remove it as root.`);
   }

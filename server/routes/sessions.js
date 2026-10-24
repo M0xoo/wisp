@@ -337,7 +337,7 @@ export function register(r, app) {
   const undo = ({ what, busy, apply, label, event, after }) =>
     one(async (c, s) => {
       notTour(s, what);
-      if (runner.live.has(s.id)) return c.send(409, { error: busy });
+      if (runner.working(s)) return c.send(409, { error: busy });
       const body = await c.body();
       const turn = turnOf(s, body.turnId);
       if (!turn) return c.send(404, { error: 'no such turn' });

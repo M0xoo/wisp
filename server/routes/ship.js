@@ -32,7 +32,7 @@ export function register(r, app) {
     '/sessions/:id/ship',
     one(async (c, s) => {
       if (!hasTrees(s)) return c.send(400, { error: NO_TREE });
-      if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
+      if (runner.working(s)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
       if (s.shipping) return c.send(409, { error: 'Already shipping: wait for it to land.' });
       const body = await c.body();
       const draft = app.ship.draft(s);
@@ -57,7 +57,7 @@ export function register(r, app) {
     '/sessions/:id/fix-conflicts',
     one(async (c, s) => {
       if (s.pr?.state !== 'OPEN' || !s.worktree) return c.send(400, { error: 'No open pull request.' });
-      if (runner.live.has(s.id)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
+      if (runner.working(s)) return c.send(409, { error: 'Still working: wait for it to finish, or stop it.' });
       if (!s.pr.conflict) await app.ship.refreshPr(s);
       if (s.conflictFix?.step !== 'fixing') await app.ship.fixConflicts(s, { force: true });
       if (s.conflictFix?.step !== 'fixing') {

@@ -667,6 +667,16 @@ export class Runner extends EventEmitter {
     this.live.get(session.id).stop();
   }
 
+  // Whether a run still works on the session. A CLI only lingering after its result (up to
+  // LINGER_MS) is let go here: the task already shows as done, so Ship it and undo don't wait on it.
+  working(session) {
+    const handle = this.live.get(session.id);
+    if (!handle) return false;
+    if (session.turns.at(-1)?.status === 'running' || session.queue.length) return true;
+    handle.release();
+    return this.live.has(session.id);
+  }
+
   // Stop the current run but keep the queue: done.finally() starts the next follow-up.
   #interrupt(session) {
     if (this.interrupting.has(session.id)) return; // already on its way down
