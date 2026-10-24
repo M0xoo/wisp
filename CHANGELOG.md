@@ -7,7 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+<<<<<<< HEAD
 - **Automated tasks look different in the list:** a task a recipe started shows a bolt instead of the round status dot, and one a trigger started (a schedule, failed CI, a labelled issue) shows a circular arrow, in the project's colour and with the same pulse while it works. Hover it for the recipe's or trigger's name.
+=======
+- **Agents' answers save you the follow-up you'd have typed:** wisp now tells agents which block to reach for. A code change ends with the next ship step as a one-click action, worded the way you ask for it. A UI change comes with a screenshot or live preview. A release or deploy lists every stage, done or not. A branch is checked against its base before it's handed back. An audit lets you pick which findings to fix. A long plan comes as a document. Warnings are kept for what needs your attention.
+>>>>>>> e6b7138 (feat(protocol): tell agents which block to reach for)
 - **Signed out, the sidebar keeps your account row:** after signing out of a wisp Grid the foot still shows who you were, greyed, saying *Not connected · Sign in*; a click signs you back in. Never signed in, the same row offers the sign-in.
 - **A new sidebar in split view:** *New task* is a small prompt box, with *Machines* and *Automations* side by side under it as tiles. Settings moved to the sidebar's foot, and when you're signed in to a wisp Grid (or on your cloud computer) the foot shows you: your avatar, name, handle and grid, with a ring that lights up while the grid is reachable. Click it to open your account. Group headings trail into a hairline, and the list sits on its own quieter surface. Spells reach the new parts as `sidebar.nav` and `sidebar.account`.
 

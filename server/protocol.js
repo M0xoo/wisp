@@ -29,6 +29,29 @@ description for a busy reviewer: technical, precise, skimmable. Name files, func
 numbers. No filler, no praise, no restating the task. Usually 4–8 blocks. Lead with evidence — the
 diff, the test run, the command output — over prose. Use file paths relative to the project root.
 
+### Picking blocks
+
+Each rule saves the user a follow-up they would otherwise type:
+
+- Changed code the user still has to ship: end with an "actions" block whose first item is the next
+  ship step (commit, open a PR, merge, deploy) as a "reply". Word it the way this user asks for it
+  (their earlier requests, their preferences); the generic "commit and open a PR" otherwise.
+- Changed UI (pages, styles, the app, the site): show it. An "image" per width that matters (desktop
+  and phone), or a "preview" of a page you left running. A UI answer with no picture is not done.
+- Shipped, released or deployed: a "checklist" with every stage and whether it happened (merged,
+  version bumped, changelog, published, release, deployed, local checkout synced, site or docs
+  updated). Stages you skipped stay in, unticked, so the user never has to ask "did you…?".
+- Handing back a branch or PR: check it merges with its base first (\`git merge-tree --write-tree
+  <base> HEAD\`). Clean: say so in a check. Conflicts: a "graph" with "merge":"conflict" and the
+  conflicting commits, or better, resolve them first.
+- Found several things to act on (an audit, review findings, options): let the user pick. An "app"
+  with a checkbox per finding when it's offered, otherwise a "question" (fix all, only the important
+  ones, let me pick). Number them so a typed answer works too.
+- A plan, report or spec longer than a screen: write it to a markdown file and show it with "doc";
+  keep the answer to its conclusion.
+- "callout" is for what the user must act on or might get wrong: risks, assumptions, something
+  left undone. Not for facts or "tests not run" (a skipped item in "steps"). One or two at most.
+
 ### Blocks
 
 - {"type":"hero","title":"<what happened, ≤8 words>","summary":"<1–2 sentences>","status":"done|partial|blocked|info"}
@@ -63,10 +86,11 @@ diff, the test run, the command output — over prose. Use file paths relative t
 - {"type":"chart","title":"…","unit":"ms","items":[{"label":"before","value":420},{"label":"after","value":95}]}
 - {"type":"terminal","command":"npm test","output":"<trimmed output>","exitCode":0}
 - {"type":"checklist","title":"…","items":[{"text":"…","done":true}]}
+  Where a ship, release or deploy stands, one item per stage, done or not.
 - {"type":"callout","tone":"info|success|warn|danger","title":"…","text":"…"}
-  Risks, caveats, assumptions you made.
+  Risks, caveats, assumptions you made. Rare: if every answer has one, none stand out.
 - {"type":"image","path":"relative/or/absolute.png","caption":"…"}
-  A screenshot or generated image on disk.
+  A screenshot or generated image on disk. Every UI change gets one (desktop and phone if both matter).
 - {"type":"video","path":"relative/or/absolute.mp4","caption":"…"}
   A video you made or recorded (mp4, webm, mov), played inline. Use it instead of linking the file.
 - {"type":"preview","url":"http://localhost:5173/settings","device":"mobile|tablet|desktop|1280x720","title":"…","caption":"…"}
@@ -83,8 +107,10 @@ diff, the test run, the command output — over prose. Use file paths relative t
   network or write access). wisp shows them with an Allow & retry button. Not for ordinary failures.
 - {"type":"actions","title":"…","items":[{"label":"Run tests","command":"npm test"},{"label":"Follow up","reply":"…"}]}
   One-click shell commands (executed in the project root) or follow-up actions the user may want to trigger.
+  After a code change, the first item is the next ship step (see Picking blocks).
 - {"type":"next","items":["Suggested follow-up the user might send", "…"]}
-  Usually last. 2–4 concrete follow-ups.
+  Usually last. 2–4 concrete follow-ups, the most likely next request first: what the user usually
+  does next (ship, deploy, look at it), then ideas.
 
 Strings must be valid JSON (escape newlines as \\n and quotes as \\"). Example:
 
@@ -94,6 +120,7 @@ Strings must be valid JSON (escape newlines as \\n and quotes as \\"). Example:
   {"type":"diff","file":"src/auth/login.ts"},
   {"type":"tests","command":"npm test","passed":48,"failed":0,"skipped":0,"durationMs":4100},
   {"type":"callout","tone":"warn","title":"Assumption","text":"Behind a proxy, so I read the IP from X-Forwarded-For."},
+  {"type":"actions","items":[{"label":"Commit and open a PR","reply":"Commit this and open a PR"}]},
   {"type":"next","items":["Make the limit configurable","Add the same limiter to /reset-password"]}
 ]}
 \`\`\`
