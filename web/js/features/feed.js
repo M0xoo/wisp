@@ -256,7 +256,7 @@ function renderHead(n, s) {
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
   n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
   paintHtml(n.head, `
-    <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
+    ${qDot(s)}
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
       ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
@@ -301,6 +301,15 @@ async function answerInRow(id, b) {
     b.classList.remove('on');
     toastError(err);
   }
+}
+
+// A task's status mark. One a recipe or trigger started shows its glyph instead of the plain dot
+// (the same ones its details show), so automations stand out in the list.
+const ORIGIN_ICON = { recipe: 'bolt', trigger: 'replay' };
+export function qDot(s, { ring = true } = {}) {
+  const ic = ORIGIN_ICON[s.origin?.kind];
+  const cls = `q-dot ${ring && s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''} ${ic ? 'auto' : ''}`;
+  return ic ? `<span class="${cls}" title="${esc(`Started by the ${s.origin.kind} ${s.origin.name || ''}`.trim())}">${icon(ic)}</span>` : `<span class="${cls}"></span>`;
 }
 
 // One-click done on review rows. A sidebar row keeps it while open, and rows without one keep its
@@ -395,7 +404,7 @@ function taskItem(t) {
   const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : autoLine || (places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep');
   g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
   paintHtml(g.head, `
-    <span class="q-dot ${t.state === 'running' ? 'live' : ''} ${t.state === 'waiting' ? 'waiting' : ''}"></span>
+    ${qDot(t)}
     <span class="it-main">
       <span class="it-title">${esc(t.title)}</span>
       <span class="it-sub">${esc(status)}</span>

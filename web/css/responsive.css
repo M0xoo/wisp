@@ -123,6 +123,7 @@ body.wisp-mobile .opt .k { display: none; }
 /* A row gives its title the whole width: status, harness, time, done and the chevron go under it. */
 body.wisp-mobile .it-head { grid-template-columns: 10px 1fr; row-gap: 6px; }
 body.wisp-mobile .it-head > .q-dot { align-self: start; margin-top: 8px; }
+body.wisp-mobile .it-head > .q-dot.auto { margin-top: 5px; }
 body.wisp-mobile .it-head > .it-side { grid-column: 2; flex-wrap: wrap; row-gap: 4px; min-height: 24px; }
 /* …the time right after the harness, done and the chevron at the end of the line. */
 body.wisp-mobile .it-side > :is(.it-quick, .it-quick-gap) { margin-left: auto; }

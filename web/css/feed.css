@@ -60,6 +60,10 @@
   content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--pc); animation: ring 1.8s ease-out infinite;
 }
 .q-dot.waiting { background: var(--warn); --pc: var(--warn); }
+/* Started by a recipe or trigger: its glyph in the dot's colour, centred on the dot's column. */
+.q-dot.auto { width: 12px; height: 12px; margin-left: -1px; background: none; border-radius: 0; color: var(--pc); display: grid; place-items: center; }
+.q-dot.auto .i { width: 12px; height: 12px; }
+.q-dot.auto::after { border-radius: 50%; }
 .it-main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .it-title { font-size: 14px; font-weight: 500; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: 0; border-radius: 5px; }
 .item.unread .it-title, .item.st-waiting .it-title, .item.open .it-title { color: var(--ink); font-weight: 600; }

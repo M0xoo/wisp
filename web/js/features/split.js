@@ -23,7 +23,7 @@ import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { inGrid, load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
-import { collapse, expand, groups, headPills, renderFeed, setFocus } from './feed.js';
+import { collapse, expand, groups, headPills, qDot, renderFeed, setFocus } from './feed.js';
 import { barCover, scrollByPx, stage, topInset } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
@@ -348,7 +348,7 @@ export function paintHead(s) {
   h.className = `split-head c-${s.color} st-${s.state}`;
   const html = `
     <div class="sh-row">
-      <span class="q-dot ${s.state === 'running' ? 'live' : ''} ${s.state === 'waiting' ? 'waiting' : ''}"></span>
+      ${qDot(s)}
       <h2 class="sh-title" title="Rename (M)">${esc(s.title)}</h2>
       <span class="sh-acts">${slotHtml('split.head', s)}<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button></span>
     </div>`;
@@ -376,7 +376,7 @@ function paintHome() {
     ? `<h4>Needs you<span class="n">${all.length > needs.length ? `${needs.length} of ${all.length}` : all.length}</span></h4>${needs
         .map(
           (s) => `<button class="sh-task c-${s.color}" data-id="${s.id}">
-            <span class="q-dot ${s.state === 'waiting' ? 'waiting' : ''}"></span>
+            ${qDot(s, { ring: false })}
             <span class="sh-t" title="${esc(s.title)}">${esc(s.title)}</span>
             <span class="sh-s ${s.state === 'waiting' ? 'asking' : ''}">${s.state === 'waiting' ? 'Asking' : esc(STATUS_LABEL[s.status] || STATUS_LABEL.done)}</span>
             <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>
