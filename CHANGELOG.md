@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **The logo takes you to the prompt box:** clicking wisp's logo in the top bar closes the open task in split view and shows the prompt box, or scrolls the feed back up to it, focused.
 - **Menu titles stay on one line:** *Add a delegate* (and *Run on*) no longer break in two next to their hint; the hint moves under the title when it doesn't fit.
 - **Toasts no longer cover the reply box:** a toast such as *… is ready · Open* sat over an open task's follow-up buttons (Ship it, Mark done). It now rises above the reply box, including when you open a task while the toast is showing.
 - **A phone browser's reply box fits on one line:** at phone width the follow-up's permission mode is just its icon, as in the Android app, so *Full auto* no longer wraps onto two lines. The floating *Collapse* button no longer sits on the open card; tap the card's head to collapse it.

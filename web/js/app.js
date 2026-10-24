@@ -12,7 +12,7 @@ import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
 import { renderFeed, reveal, scheduleRefetch, syncUrl } from './features/feed.js';
-import { renderLauncher } from './features/launcher.js';
+import { focusLauncher, renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
 import { paintGetApp } from './features/getapp.js';
@@ -38,6 +38,13 @@ $('#searchBtn').onclick = openPalette;
 $('#machinesBtn').onclick = () => openMachines();
 $('#autoBtn').onclick = () => openAutomations({ tab: (S.config.triggers || []).length && !(S.config.recipes || []).length ? 'triggers' : 'recipes' });
 $('#updateBtn').onclick = installUpdate;
+// The logo goes back to the prompt box: split view's home, or the top of the feed. A modified
+// click still opens the link (a new tab or window).
+$('#topbar .brand').onclick = (e) => {
+  if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  focusLauncher();
+};
 $('#searchBtn').title = `Search (${combo('K')})`;
 $('#searchBtn .mod-k').textContent = combo('K');
 $('#secDone .toggle-done').onclick = () => {
