@@ -7,7 +7,7 @@
 // first message.
 
 import path from 'node:path';
-import { attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { attachmentNote, clip, detectVersion, exitText, fileTracker, helpEfforts, helpText, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const BIN = process.env.WISP_ANTIGRAVITY_BIN || 'agy';
@@ -47,12 +47,14 @@ export default {
     if (!found.available) return found;
     // `agy models` prints a "Fetching…" line, then "slug<TAB>Label" lines (older builds pad with
     // spaces). Most slugs bake the effort in (…-high), so those get no separate selector.
+    const [list, help] = await Promise.all([quietOutput(BIN, ['models']), helpText(BIN)]);
+    const efforts = helpEfforts(help);
     const models = [];
-    for (const line of (await quietOutput(BIN, ['models'])).split('\n')) {
+    for (const line of list.split('\n')) {
       const m = line.trim().match(/^([\w.\-]+)(?:\t|\s{2,})\s*(.+)$/);
       if (m) models.push({ id: m[1], label: m[2].trim(), hint: m[1], ...(EFFORT_SUFFIX.test(m[1]) ? { efforts: [] } : {}) });
     }
-    return { ...found, models: [this.models[0], ...models] };
+    return { ...found, ...(efforts.length && { efforts }), models: [this.models[0], ...models] };
   },
 
   run({ prompt, attachments = [], cwd, resumeId, mode, model, effort, systemPrompt, onEvent }) {

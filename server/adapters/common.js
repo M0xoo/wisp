@@ -38,6 +38,24 @@ export function quietOutput(bin, args, timeout = 15_000) {
   });
 }
 
+// `bin --help`, from whichever stream it prints to (agy uses stderr), or ''.
+export function helpText(bin) {
+  return new Promise((resolve) => {
+    execFile(bin, ['--help'], { timeout: 15_000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => resolve(err ? '' : `${stdout}\n${stderr}`));
+  });
+}
+
+// The thinking levels a CLI's --help gives for its effort flag: "(low, medium, high)",
+// "(low|medium|high)" or "[possible values: low, medium, high]". [] when it lists none.
+export function helpEfforts(text) {
+  const at = text.search(/--(?:reasoning-)?effort\b/);
+  if (at < 0) return [];
+  // Just this flag's entry: up to the next option.
+  const entry = text.slice(at).split(/\n\s*-{1,2}\w/)[0];
+  const m = entry.match(/(?:\(\s*|possible values:\s*)([a-z]+(?:\s*[,|]\s*[a-z]+)+)/);
+  return m ? m[1].split(/\s*[,|]\s*/) : [];
+}
+
 // Spawn a CLI that prints one JSON object per line. onJson gets each parsed line;
 // onClose({ code, signal, stderr, stopped, stopRequested }) must emit the final `result` if the
 // stream didn't. stopped: killed by stop() or a signal; stopRequested: by stop() only.

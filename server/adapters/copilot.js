@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, helpEfforts, helpText, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const BIN = process.env.WISP_COPILOT_BIN || 'copilot';
@@ -52,9 +52,10 @@ export default {
   async detect() {
     const found = await detectVersion(BIN);
     if (!found.available) return found;
-    const ids = modelIds(await quietOutput(BIN, ['help', 'config']));
-    if (!ids.length) return found;
-    return { ...found, models: [this.models[0], ...ids.map((id) => ({ id, label: modelLabel(id), hint: id }))] };
+    const [config, help] = await Promise.all([quietOutput(BIN, ['help', 'config']), helpText(BIN)]);
+    const ids = modelIds(config);
+    const efforts = helpEfforts(help);
+    return { ...found, ...(efforts.length && { efforts }), ...(ids.length && { models: [this.models[0], ...ids.map((id) => ({ id, label: modelLabel(id), hint: id }))] }) };
   },
 
   // grants: --allow-tool rules (shell(npm publish)) for what the user allowed after a refusal.

@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectFirst, exitText, fileTracker, flatten, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, detectFirst, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const DEFAULT_BIN = process.env.WISP_CODEX_BIN || 'codex';
@@ -66,16 +66,19 @@ export default {
     const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_CODEX_BIN);
     BIN = bin;
     if (!found.available) return found;
-    // codex has no command that lists models, but it caches the catalog it fetched: the models
-    // its own /model picker shows ("list"), best first, each with the thinking levels it takes.
-    const models = cachedModels()
+    // `codex debug models` prints the catalog (older builds lack it: then the copy codex caches).
+    // Keep what its own /model picker shows ("list"), best first, each with the levels it takes.
+    const models = (await catalog())
       .filter((m) => m?.slug && m.visibility === 'list')
       .sort((a, b) => (a.priority ?? 1e9) - (b.priority ?? 1e9))
       .map((m) => {
         const efforts = Array.isArray(m.supported_reasoning_levels) ? m.supported_reasoning_levels.map((l) => l.effort).filter(Boolean) : undefined;
         return { id: m.slug, label: m.display_name || m.slug, hint: clip(m.description || m.slug, 60), ...(efforts && { efforts }) };
       });
-    return models.length ? { ...found, models: [this.models[0], ...models] } : found;
+    if (!models.length) return found;
+    // Default runs the model config.toml names, else codex's first choice: it takes those levels.
+    const def = models.find((m) => m.id === configuredModel()) || models[0];
+    return { ...found, ...(def.efforts && { efforts: def.efforts }), models: [this.models[0], ...models] };
   },
 
   // dirs: the task's other folders, writable like cwd.
@@ -239,14 +242,26 @@ export function unwrapShell(cmd) {
   return m ? m[2] : s;
 }
 
-// codex caches the model catalog in $CODEX_HOME (~/.codex) after it signs in or starts.
-function cachedModels() {
+const codexHome = () => process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+
+// The model catalog: from the CLI, else what it cached in $CODEX_HOME after signing in or starting.
+async function catalog() {
+  for (const read of [async () => JSON.parse(await quietOutput(BIN, ['debug', 'models'])), () => JSON.parse(fs.readFileSync(path.join(codexHome(), 'models_cache.json'), 'utf8'))]) {
+    try {
+      const list = (await read()).models;
+      if (Array.isArray(list) && list.length) return list;
+    } catch {}
+  }
+  return [];
+}
+
+// The top-level `model = "…"` in config.toml (before any [table]), or ''.
+function configuredModel() {
   try {
-    const home = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
-    const list = JSON.parse(fs.readFileSync(path.join(home, 'models_cache.json'), 'utf8')).models;
-    return Array.isArray(list) ? list : [];
+    const top = fs.readFileSync(path.join(codexHome(), 'config.toml'), 'utf8').split(/^\s*\[/m)[0];
+    return top.match(/^\s*model\s*=\s*["']([^"']+)["']/m)?.[1] || '';
   } catch {
-    return [];
+    return '';
   }
 }
 
