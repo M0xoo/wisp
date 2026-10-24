@@ -19,7 +19,7 @@
 .lp-gl .link { margin-left: 2px; }
 .where-btn .chev { width: 11px; height: 11px; opacity: 0.6; transform: rotate(90deg); }
 .where-menu { min-width: 300px; }
-.wm-h { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.wm-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 10px 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
 .wm-h small { font-weight: 400; color: var(--faint); }
 .where-menu .wm-row { gap: 10px; }
 .wm-check { display: grid; place-items: center; width: 16px; height: 16px; flex: none; border-radius: 5px; border: 1.5px solid var(--line-2); color: transparent; }
