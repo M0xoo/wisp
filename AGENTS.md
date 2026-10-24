@@ -34,6 +34,9 @@ this covers how the code is laid out and the rules a change has to follow.
   edit the scripts, not the output.
 - `test/`: `node --test`. The `test` script in `package.json` lists every file: add new ones there.
   `test/helpers.js` installs fake harnesses (`test/fixtures/fake-agent.mjs`) and a fake `gh`.
+- `qa/`: end-to-end scenarios per surface (web, grid, desktop, Android) in `qa/scenarios/`, and
+  scripts that run them against an isolated wisp with fake agents (`node qa/web.mjs`, …). Not part
+  of `npm test`; see `qa/README.md`. A change to a flow they cover updates its scenario.
 
 ## Commands
 

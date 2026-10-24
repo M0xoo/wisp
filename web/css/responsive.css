@@ -12,6 +12,9 @@
   .feed-wrap { padding: 14px 16px 80px; }
   .launcher.docked { width: calc(100% - 32px); }
   .it-side .q-proj, .it-actions span, .c-done span, .c-ship span, .q-machine span { display: none; }
+  /* the follow-up's mode is just its icon here too (as in the app), or "Full auto" wraps */
+  .c-bar .c-mode span { display: none; }
+  .c-bar .c-mode { padding: 0; justify-content: center; }
   /* a phone row has little width: the title gets two lines instead of a few words */
   .item:not(.open) .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
   .it-side { gap: 8px; }
@@ -31,6 +34,11 @@
 /* Touch screens have no keys to press: drop the shortcut hints on floating buttons. */
 @media (hover: none) and (pointer: coarse) {
   :is(.collapse-all, .to-top, .split-new, .search-btn) kbd, .key-hint, .pal-foot { display: none; }
+}
+/* A phone in a browser, as in the app: the floating Collapse sat on the open card's reply box.
+   Tapping the card's head collapses it. */
+@media (hover: none) and (pointer: coarse) and (max-width: 720px) {
+  .collapse-all { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
