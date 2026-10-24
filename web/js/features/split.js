@@ -209,15 +209,16 @@ export function paintMe() {
   lastMe = key;
   save('wisp.me', saved);
   if (a.dataset.h !== saved.html) (a.innerHTML = saved.html), (a.dataset.h = saved.html);
-  if (saved.href) a.href = saved.href;
-  else a.removeAttribute('href');
+  // Signed out it's a button (opens the sign-in), not a link: say so, and keep the pointer.
+  if (saved.href) (a.href = saved.href), a.removeAttribute('role');
+  else a.removeAttribute('href'), a.setAttribute('role', 'button');
   a.title = saved.title;
   a.hidden = false;
 }
 $('#splitMe').addEventListener('click', (e) => {
   if (e.currentTarget.hasAttribute('href')) return;
   e.preventDefault();
-  import('./machines.js').then((m) => m.openMachines());
+  import('./machines.js').then((m) => m.openMachines({ focusGrid: true }));
 });
 $('#splitMe').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.currentTarget.hasAttribute('href')) e.currentTarget.click();

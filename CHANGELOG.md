@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **The account row in the sidebar shows a pointer:** hovering *wisp Grid · Not connected* showed a text cursor; it's a button. Clicking it puts you in the grid's address to sign in, not in Machines' SSH field.
 - **The logo takes you to the prompt box:** clicking wisp's logo in the top bar closes the open task in split view and shows the prompt box, or scrolls the feed back up to it, focused.
 - **Menu titles stay on one line:** *Add a delegate* (and *Run on*) no longer break in two next to their hint; the hint moves under the title when it doesn't fit.
 - **Toasts no longer cover the reply box:** a toast such as *… is ready · Open* sat over an open task's follow-up buttons (Ship it, Mark done). It now rises above the reply box, including when you open a task while the toast is showing.

@@ -74,7 +74,7 @@ body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(cal
 .sf-me[hidden] { display: none; }
 .sf-me {
   flex: 0 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0; height: 40px; padding: 0 10px 0 4px;
-  border-radius: 99px; color: var(--ink); text-decoration: none; transition: background 0.15s;
+  border-radius: 99px; color: var(--ink); text-decoration: none; cursor: pointer; user-select: none; transition: background 0.15s;
 }
 .sf-me:hover { background: var(--bg-2); }
 .sf-av {
