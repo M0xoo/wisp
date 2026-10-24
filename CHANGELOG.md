@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-25
+
 ### Changed
 
 - **Automated tasks look different in the list:** a task a recipe started shows a bolt instead of the round status dot, and one a trigger started (a schedule, failed CI, a labelled issue) shows a circular arrow, in the project's colour and with the same pulse while it works. Hover it for the recipe's or trigger's name.
