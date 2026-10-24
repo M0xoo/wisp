@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Ship it works as soon as a task is done:** for up to 3 seconds after a task showed as ready, *Ship it*, *Fix conflicts* and undo could answer *Still working* while the agent's CLI was still exiting. wisp now lets that CLI go and carries on. Deleting a wisp Grid account also waits longer for Windows to release the box's files.
 - **The reply box names the harness you switched to:** while a task runs, picking another harness for the follow-up left the box saying *Steer Claude Code…*. It now says *Hand over to Codex — interrupts Claude Code and sends now* (or *Queue a follow-up for Codex* when queueing).
 - **Deleting a running task just deletes it:** it no longer comes back under *Needs you* for a moment with a "ready" toast (and a phone or webhook notification) as its run is stopped.
 - **wisp Grid shuts down cleanly with starts waiting:** stopping the grid while someone's wisp waited for room let that start carry on after the database had closed (`statement has been finalized`). Waiting starts now give up when the grid stops, and nothing is recorded after it has.

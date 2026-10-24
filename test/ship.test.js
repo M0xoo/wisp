@@ -195,6 +195,20 @@ async function closePrs(...ids) {
   for (const id of ids) await api(`/sessions/${id}/pr`, { body: {} }).catch(() => {});
 }
 
+test('Ship it works at once while the CLI is still exiting after its result', async () => {
+  process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the run is still live when the task shows as done
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() and ship right away', cwd: repo.dir, agent: 'claude' } });
+  try {
+    await settled(s.id);
+    const pr = await api(`/sessions/${s.id}/ship`, { body: { title: 'fix: add adds' } });
+    assert.ok(pr.number);
+  } finally {
+    delete process.env.FAKE_LINGER;
+    await closePrs(s.id);
+  }
+});
+
 test('a conflicting PR is left alone by default; with Auto-fix on, a follow-up merges main in and wisp pushes it', async () => {
   const { repo, s, pr } = await conflictedPr('Fix add() before main moves');
   try {
