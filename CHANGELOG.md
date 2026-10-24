@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **wisp Grid shuts down cleanly with starts waiting:** stopping the grid while someone's wisp waited for room let that start carry on after the database had closed (`statement has been finalized`). Waiting starts now give up when the grid stops, and nothing is recorded after it has.
 - **The account row in the sidebar shows a pointer:** hovering *wisp Grid · Not connected* showed a text cursor; it's a button. Clicking it puts you in the grid's address to sign in, not in Machines' SSH field.
 - **The logo takes you to the prompt box:** clicking wisp's logo in the top bar closes the open task in split view and shows the prompt box, or scrolls the feed back up to it, focused.
 - **Menu titles stay on one line:** *Add a delegate* (and *Run on*) no longer break in two next to their hint; the hint moves under the title when it doesn't fit.

@@ -167,6 +167,7 @@ export class Hostd extends EventEmitter {
   // Running, or started and waited for. Several callers share one start. wake: a scheduled
   // task's, which waits behind people and never evicts anyone.
   async ensure(user, { wake = false } = {}) {
+    if (this.closed) throw Object.assign(new Error('The grid is shutting down.'), { status: 503 });
     const i = this.#of(user);
     if (i.gone) throw Object.assign(new Error('This account is being deleted.'), { status: 410 });
     if (!wake) i.lastTouch = Date.now();
@@ -236,6 +237,7 @@ export class Hostd extends EventEmitter {
     for (;;) {
       const ok = await this.#serial(async () => {
         if (i.gone) throw Object.assign(new Error('This account is being deleted.'), { status: 410 });
+        if (this.closed) throw Object.assign(new Error('The grid is shutting down.'), { status: 503 });
         if (!this.#first(i)) return false;
         // A few at most: memory comes back as each box exits.
         for (let n = 0; !this.#room() && !i.wake && n < 3; n++) {
@@ -447,8 +449,13 @@ export class Hostd extends EventEmitter {
   }
 
   async close() {
+    this.closed = true;
     clearInterval(this.timer);
     for (const i of this.inst.values()) clearTimeout(i.wakeTimer);
+    // Starts still waiting for room give up now, not after the grid (and its database) is gone.
+    const queued = [...this.inst.values()].filter((i) => i.state === 'queued').map((i) => i.ready.catch(() => {}));
+    this.emit('room');
+    await Promise.all(queued);
     await Promise.all([...this.inst.keys()].map((id) => this.stop(id, 'grid stopped')));
   }
 }
