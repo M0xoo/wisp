@@ -318,8 +318,12 @@ export function updateDock(id) {
         ? `${name} is open in a terminal: carry on there, or end it to follow up here. /btw asks on the side`
       : s.state === 'running'
         ? queueing()
-          ? `Queue a follow-up — sent when ${name} finishes. /btw asks now`
-          : `Steer ${name} — interrupts and sends now. /btw asks without interrupting`
+          ? next !== name
+            ? `Queue a follow-up for ${next} — sent when ${name} finishes. /btw asks now`
+            : `Queue a follow-up — sent when ${name} finishes. /btw asks now`
+          : next !== name
+            ? `Hand over to ${next} — interrupts ${name} and sends now. /btw asks without interrupting`
+            : `Steer ${name} — interrupts and sends now. /btw asks without interrupting`
         : S.replyPlaces.has(id)
           ? `Follow up on ${replyPlace(id) ? placeName(replyPlace(id)) : here} with ${next}…`
           : s.state === 'done'
