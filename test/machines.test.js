@@ -482,7 +482,8 @@ test('connect, add a project, launch, follow up, delegate and stop wisp over the
   assert.match(led.turns[0].presentation.blocks[0].summary, /### boxer/);
   const boxer = records(RECORD, 'codex').filter((r) => r.stdin.includes('Check math.js for boxer')).at(-1);
   assert.match(boxer.stdin, /You are a subagent/);
-  assert.ok(!same(fs.realpathSync(boxer.cwd), led.worktree.cwd), 'ran in a worktree over there');
+  // Its worktree may already be cleaned up by now, so check where it was rather than realpath it.
+  assert.ok(boxer.cwd.startsWith(fs.realpathSync(path.join(THERE, 'me_devbox', 'worktrees')) + path.sep), `ran in a worktree over there, not ${boxer.cwd}`);
   assert.equal(fs.readFileSync(path.join(led.worktree.cwd, 'notes.txt'), 'utf8'), 'new file\n'); // its new file, back here
   assert.ok(led.turns[0].changes.find((c) => c.file === 'notes.txt')?.by?.includes('boxer'), 'credited on the lead turn');
   // Its run over there is done with: deleted, and never listed here.

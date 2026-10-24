@@ -394,3 +394,24 @@ test('copilot: a policy that blocks wisp’s MCP server, and a session error, sa
   assert.equal(results[0].isError, true);
   assert.equal(results[0].text, 'You have exceeded your premium request allowance.');
 });
+
+// A harness announces an edit and writes at once: the snapshot can land between the truncate and
+// the write and read an empty file. That isn't what the file held before.
+test('a snapshot caught mid-write falls back to git for the before side', async () => {
+  const { fileTracker } = await import('../server/adapters/common.js');
+  const cwd = makeRepo();
+  const files = fileTracker(cwd);
+  const math = path.join(cwd, 'math.js');
+  fs.writeFileSync(math, ''); // truncated, not written yet
+  files.remember(math);
+  fs.writeFileSync(math, 'export function add(a, b) {\n  return a + b;\n}\n');
+  const edit = files.change(math);
+  assert.equal(edit.op, 'write');
+  assert.match(edit.edits[0].before, /a - b[\s\S]*\/\/ uncommitted/);
+
+  const notes = path.join(cwd, 'notes.txt');
+  fs.writeFileSync(notes, '');
+  files.remember(notes);
+  fs.writeFileSync(notes, 'new file\n');
+  assert.equal(files.change(notes).op, 'create');
+});

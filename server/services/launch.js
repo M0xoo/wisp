@@ -92,8 +92,8 @@ export function createLaunch(app) {
     }
     if (wantTree) {
       const must = body.worktree === true || (comparing && mode !== 'plan');
-      // One fetch for the whole launch, then the checkouts side by side: compare runs used to
-      // fetch and check out one after the other before anything showed up in the feed.
+      // One fetch for the whole launch, then the checkouts (git.js has them take turns in the
+      // repo): compare runs used to fetch once per run before anything showed up in the feed.
       const results = await worktreeSource(cwd).then(
         (source) => source && Promise.allSettled(ids.map((id) => createWorktree({ cwd, home: store.home, id, title: body.prompt, source }))),
         (err) => [{ status: 'rejected', reason: err }],

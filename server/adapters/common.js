@@ -157,7 +157,8 @@ export function fileTracker(cwd) {
       const after = readSnapshot(path.resolve(cwd, file));
       let before;
       if (known.has(r)) before = known.get(r);
-      else if (announced.has(r) && announced.get(r) !== after) before = announced.get(r);
+      // An empty snapshot may be the write caught half way (truncated, not written yet): ask git.
+      else if (announced.has(r) && announced.get(r) !== after && announced.get(r) !== '') before = announced.get(r);
       else before = fromGit(r);
       known.set(r, after);
       announced.delete(r);
