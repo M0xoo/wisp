@@ -150,8 +150,9 @@ cd mobile/android && ./gradlew testDebugUnitTest
 against `ssh-keygen -lf`. `TunnelTest` needs a real sshd and wisp, so it runs only when asked:
 
 ```sh
-# a throwaway sshd on 127.0.0.1:2299 that accepts /tmp/wsshd/client, and wisp on 4733
-node -e "import('../../server/machines/bootstrap.js').then(m => process.stdout.write(m.bootstrapScript({ port: 4733, command: 'false', apiVersion: 'any' })))" > /tmp/wsshd/script.sh
+# a throwaway sshd on 127.0.0.1:2299 that accepts /tmp/wsshd/client; the script starts this
+# checkout's wisp on 4733 (and starts it again when startsWispAgainWhenItStops kills it)
+node -e "import('../../server/machines/bootstrap.js').then(m => process.stdout.write(m.bootstrapScript({ port: 4733, command: 'node ' + require('path').resolve('../../bin/wisp.js'), apiVersion: 'any' })))" > /tmp/wsshd/script.sh
 WISP_SSH_TEST=$USER@127.0.0.1:2299 WISP_SSH_KEY=/tmp/wsshd/client \
 WISP_SSH_SCRIPT=/tmp/wsshd/script.sh WISP_SSH_PORT=4733 ./gradlew testDebugUnitTest
 ```
