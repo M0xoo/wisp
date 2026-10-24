@@ -117,7 +117,7 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
       'split.details': { props: { width: 280 }, style: { fontSize: '12px' } },
       'split.pr': { style: { borderRadius: '6px' } },
     },
-    ui: { hide: ['sidebar.new', 'topbar.view', 'sidebar.foot', 'split.actions'] },
+    ui: { hide: ['sidebar.new', 'topbar.view', 'sidebar.foot', 'sidebar.nav', 'sidebar.account', 'split.actions'] },
     buttons: [
       { slot: 'sidebar.top', icon: 'github', do: { open: 'https://github.com/pulls' } },
       { slot: 'split.head', label: 'PR', when: { hasPr: true }, do: { open: '{pr.url}' } },

@@ -39,7 +39,7 @@ export function createCloud(app) {
     if (e === 'access_denied') return finish(f, 'denied', 'Sign-in was declined in the browser.');
     if (e || r.status >= 400) return finish(f, 'failed', r.body.error_description || e || `The grid said ${r.status}.`);
     const { token, user, instance } = r.body;
-    const m = app.machines.addGrid({ url: instance.url, grid: f.grid, handle: user.handle, name: instance.name || 'Cloud', token, user: { handle: user.handle, name: user.name || '', email: user.email || '' } });
+    const m = app.machines.addGrid({ url: instance.url, grid: f.grid, handle: user.handle, name: instance.name || 'Cloud', token, user: { handle: user.handle, name: user.name || '', email: user.email || '', avatar: user.avatar || '' } });
     Object.assign(f, { machineId: m.id, user });
     // Signed in from Machines: this computer joins the grid as well. Either way, your other
     // computers there show up.

@@ -104,9 +104,12 @@ export const PARTS = {
   'card.body': '#feed .it-body',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
-  // The top bar is the sidebar's head there; Get the app, Machines and Automations sit in its foot.
+  // The top bar is the sidebar's head there. Machines and Automations sit under New task (nav);
+  // you on the grid, Update, Get the app and Settings in its foot.
   'sidebar.foot': '#splitFoot',
   'sidebar.new': '#splitNew',
+  'sidebar.nav': '#splitNav',
+  'sidebar.account': '#splitMe',
   'sidebar.grip': '#splitGrip',
   'split.main': '#splitMain',
   'split.home': '#splitHome',

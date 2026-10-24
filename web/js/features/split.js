@@ -4,8 +4,9 @@
 // everything that looks things up through the card keeps working. Home, with nothing open, is the
 // prompt box. Below SPLIT_MIN_WIDTH the page falls back to the feed; the setting stays. With no
 // layout picked, windows SPLIT_DEFAULT_WIDTH and wider get split view, narrower ones the feed.
-// The top bar becomes the sidebar's head (its Update, Get the app, Machines and Automations move to
-// the sidebar's foot), so the open task has the window's full height: its header is just the title,
+// The top bar becomes the sidebar's head (Machines and Automations move under New task as rows; Update,
+// Get the app and Settings to the sidebar's foot, beside you on the grid when you're signed in to one),
+// so the open task has the window's full height: its header is just the title,
 // and on a wide pane what the card says about it, its PR and its actions sit in a details column on
 // the right that stays put while the task scrolls. The head's sidebar button (or [) hides the list
 // so the task gets the whole window; the feed's own one opens split view.
@@ -19,7 +20,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, icon } from '../core/dom.js';
 import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
-import { load, MOBILE, S, save } from '../core/state.js';
+import { inGrid, load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
 import { collapse, expand, groups, headPills, renderFeed, setFocus } from './feed.js';
@@ -61,6 +62,7 @@ export function applyView() {
   if (want !== isSplit() || (want && first)) (want ? enter : leave)();
   else paintSplit();
   paintViewBtn(); // says what it does in the layout now shown
+  if (inGrid()) paintMe(); // elsewhere the account comes with the machines
 }
 
 export async function setView(v) {
@@ -107,8 +109,10 @@ const home = $('#splitHome');
 const launchSlot = $('#launchSlot');
 const feedTop = $('#spFeedTop');
 const foot = $('#splitFoot');
-// The top bar's buttons that sit in the sidebar's foot in split view, in the bar's order.
-const FOOT = ['#updateBtn', '#getAppBtn', '#machinesBtn', '#autoBtn'];
+const nav = $('#splitNav');
+// The top bar's buttons that sit under New task, and in the sidebar's foot, in split view.
+const NAV = ['#machinesBtn', '#autoBtn'];
+const FOOT = ['#updateBtn', '#getAppBtn'];
 
 function enter() {
   // One task at a time: keep the focused one if it's open, else the first.
@@ -120,7 +124,9 @@ function enter() {
   launchSlot.style.height = '';
   // Already in place when index.html laid it out: re-inserting would replay their entrances.
   if (launchSlot.parentNode !== $('.sh-launch', home)) $('.sh-launch', home).append(launchSlot, feedTop);
-  if (foot.childElementCount !== FOOT.length) foot.append(...FOOT.map((sel) => $(sel)));
+  if ($(NAV[0]).parentNode !== nav) nav.append(...NAV.map((sel) => $(sel)));
+  if ($(FOOT[0]).parentNode !== foot) foot.append(...FOOT.map((sel) => $(sel)));
+  placeSettings();
   document.body.classList.add('split');
   $('#splitMain').hidden = false;
   $('#splitGrip').hidden = false;
@@ -136,7 +142,8 @@ function enter() {
 function leave() {
   const open = splitOpen();
   $('#feed').before(launchSlot, feedTop);
-  $('#spTop').before(...FOOT.map((sel) => $(sel)));
+  $('#spTop').before(...[...FOOT, ...NAV].map((sel) => $(sel)));
+  $('#searchBtn').after($('#settingsBtn'));
   document.body.classList.remove('split', 'pane-wide');
   $('#splitMain').hidden = true;
   $('#splitGrip').hidden = true;
@@ -146,6 +153,51 @@ function leave() {
   if (S.sessions.size) renderFeed();
   const card = open && S.nodes.get(open)?.card;
   if (card) requestAnimationFrame(() => card.scrollIntoView({ block: 'start' }));
+}
+
+// Settings sits in the foot, or with search in the pane's corner while the list is hidden.
+function placeSettings() {
+  const b = $('#settingsBtn');
+  const to = sideHidden ? $('#searchBtn') : foot.lastElementChild;
+  if (b.previousElementSibling !== to) to.after(b);
+}
+
+// You, in the foot: the account this wisp is on a grid with, as the grid's own page shows it. A
+// cloud computer is yours on the grid; a computer signed in to one has its account in Machines.
+// Remembered (wisp.me) so index.html paints it before the config lands.
+let lastMe;
+function meInfo() {
+  if (inGrid()) {
+    const g = S.config.grid;
+    const handle = g.handle || new URL(g.address).hostname.split('.')[0];
+    return { handle, name: g.name || '', avatar: '', grid: g.url, on: true };
+  }
+  const m = S.machines.find((x) => x.kind === 'grid' && !x.computer);
+  if (!m) return null;
+  return { handle: m.user?.handle || m.handle, name: m.user?.name || '', avatar: m.user?.avatar || '', grid: m.grid, on: m.state === 'online' };
+}
+export function paintMe() {
+  const a = $('#splitMe');
+  const me = meInfo();
+  let host = '';
+  try {
+    host = me && new URL(/^https?:/.test(me.grid) ? me.grid : `https://${me.grid}`).host;
+  } catch {}
+  const saved = me && {
+    html: `<span class="sf-av${me.on ? ' on' : ''}">${me.avatar ? `<img src="${esc(me.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<b>${esc((me.name || me.handle || '?').trim()[0].toUpperCase())}</b></span><span class="sf-who"><b>${esc(me.name || me.handle)}</b><small>${esc(me.name ? `${me.handle} · ${host}` : host)}</small></span>`,
+    href: host ? `https://${host}/account` : '',
+    title: `Signed in as ${me.handle} on ${host}${me.on ? '' : " (not connected right now)"}: open your account`,
+  };
+  const key = JSON.stringify(saved || null);
+  if (key === lastMe) return;
+  lastMe = key;
+  foot.classList.toggle('me', !!saved);
+  a.hidden = !saved;
+  save('wisp.me', saved || null);
+  if (!saved) return;
+  if (a.dataset.h !== saved.html) (a.innerHTML = saved.html), (a.dataset.h = saved.html);
+  a.href = saved.href;
+  a.title = saved.title;
 }
 
 // --- each task keeps its place ------------------------------------------------------------------
@@ -349,6 +401,7 @@ function paintProps() {
   document.body.classList.toggle('side-right', spellProp('sidebar', 'side') === 'right');
   document.body.classList.toggle('side-full', spellProp('sidebar', 'details') === 'full');
   document.body.classList.toggle('side-hidden', sideHidden); // only applies in split view
+  if (isSplit()) placeSettings();
   beforePaint(measure);
 }
 
@@ -420,5 +473,7 @@ grip.addEventListener('dblclick', () => {
 wide.addEventListener('change', applyView);
 big.addEventListener('change', applyView); // the default follows the window while none is picked
 bus.on('spells', applyView);
+bus.on('config', paintMe);
+bus.on('machines', paintMe);
 // Before the config lands, from the last layout seen (no flash of the feed on reload).
 queueMicrotask(applyView);

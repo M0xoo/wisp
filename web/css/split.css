@@ -10,7 +10,7 @@ body.split .stage {
 }
 body.split .feed-wrap {
   grid-row: 2; grid-column: 1; min-height: 0; max-width: none; margin: 0; padding: 0 10px 40px;
-  overflow-y: auto; border-right: 1px solid var(--line); background: var(--bg);
+  overflow-y: auto; border-right: 1px solid var(--line); background: var(--rail);
 }
 body.split .split-main { grid-row: 1 / -1; grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) var(--side-w); }
@@ -20,14 +20,14 @@ body.split.side-right .split-main { grid-column: 1; }
 /* The sidebar's head: the brand and the icon buttons on one line, the project filter under them. */
 body.split .topbar {
   grid-row: 1; grid-column: 1; height: auto; flex-wrap: wrap; gap: 2px; padding: 10px 10px 4px 14px;
-  border-bottom: 0; border-right: 1px solid var(--line); background: var(--bg); backdrop-filter: none;
+  border-bottom: 0; border-right: 1px solid var(--line); background: var(--rail); backdrop-filter: none;
 }
 body.split .topbar .brand { height: 32px; margin-right: auto; }
 body.split .topbar .sp-top { order: 1; }
 body.split .topbar .search-btn { order: 2; width: 32px; padding: 0; justify-content: center; border-color: transparent; background: none; }
 body.split .topbar .search-btn:hover { background: var(--bg-2); }
 body.split .topbar .search-btn :is(span, kbd) { display: none; }
-body.split .topbar #settingsBtn { order: 3; }
+body.split .topbar #settingsBtn { order: 3; } /* only while the list is hidden: it lives in the foot */
 /* the sidebar button sits at the list's inner edge, and stays at that edge once the list is hidden */
 body.split .topbar .view-btn { order: 4; }
 body.split:is(.side-right:not(.side-hidden), .side-hidden:not(.side-right)) .topbar .view-btn { order: -1; }
@@ -59,18 +59,48 @@ body.split.side-hidden.side-right .split-head {
 }
 body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(calc(var(--bar-w, 120px) + 8px), calc(var(--pad) - 8px)); }
 
-/* The sidebar's foot: Update, Get the app, Machines and Automations, out of the way. */
+/* The sidebar's foot: you on the grid (a lantern: the avatar's ring lights up while your grid is
+   reachable), then Update, Get the app and Settings. Not signed in: Settings, with its name. */
 .split-foot[hidden] { display: none; }
 .split-foot {
   grid-row: 3; grid-column: 1; container: foot / inline-size; display: flex; align-items: center; gap: 2px; min-width: 0;
-  padding: 8px 10px; border-top: 1px solid var(--line); border-right: 1px solid var(--line); background: var(--bg);
+  padding: 8px 8px 10px; border-right: 1px solid var(--line); background: var(--rail);
 }
 .split-foot > * { flex: none; }
+.split-foot .sf-grow { flex: 1; }
 .split-foot .auto-btn { padding: 0 8px; border-color: transparent; background: none; }
 .split-foot .auto-btn:hover { background: var(--bg-2); border-color: transparent; }
-/* less room: Get the app goes to its icon first, then the rest (their tooltips name them) */
-@container foot (max-width: 300px) { .split-foot .getapp-btn > span { display: none; } }
-@container foot (max-width: 250px) { .split-foot :is(.auto-btn, .update-btn) > span { display: none; } }
+.split-foot #settingsBtn { order: 4; }
+.split-foot:not(.me) #settingsBtn { order: -1; display: inline-flex; align-items: center; width: auto; gap: 8px; padding: 0 12px 0 9px; border-radius: 9px; font-size: 13px; }
+.split-foot:not(.me) #settingsBtn > span { display: inline; }
+.sf-me[hidden] { display: none; }
+.sf-me {
+  flex: 0 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0; height: 40px; padding: 0 10px 0 4px;
+  border-radius: 99px; color: var(--ink); text-decoration: none; transition: background 0.15s;
+}
+.sf-me:hover { background: var(--bg-2); }
+.sf-av {
+  position: relative; flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); font-size: 12.5px; color: var(--ink-2);
+}
+.sf-av > * { grid-area: 1 / 1; }
+.sf-av img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.sf-av:has(img) > b { visibility: hidden; }
+/* reachable: an accent ring with a soft halo, and the orb on its rim */
+.sf-av.on { box-shadow: 0 0 0 1.5px var(--rail), 0 0 0 3px var(--accent), 0 0 14px -2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.sf-av::after {
+  content: ''; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--faint); box-shadow: 0 0 0 2px var(--rail);
+}
+.sf-av.on::after { background: var(--accent); }
+.sf-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.sf-who :is(b, small) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sf-who b { font-size: 13px; font-weight: 600; }
+.sf-who small { font-size: 11.5px; color: var(--faint); }
+/* less room: Get the app goes to its icon first, then Update; you keep your avatar */
+.split-foot .getapp-btn > span { display: none; }
+@container foot (max-width: 250px) { .split-foot .update-btn > span, .sf-who small { display: none; } }
+@container foot (max-width: 210px) { .sf-who { display: none; } .sf-me { padding-right: 4px; } }
 body.split :is(.collapse-all, .to-top) { display: none; }
 body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
 
@@ -85,25 +115,42 @@ body.split.side-right .split-grip { left: auto; right: calc(var(--side-w) - 4px)
 .split-grip[hidden] { display: none; }
 
 /* ---------- the sidebar: the feed's own groups and cards, as rows ---------- */
+/* New task is a small prompt box (wisp starts from one); under it Machines and Automations side by
+   side as tiles, their counts on the right. */
 .split-top {
-  position: sticky; top: 0; z-index: 4; display: flex; align-items: center; gap: 6px;
-  margin: 0 -10px; padding: 10px 10px 8px; background: var(--bg);
+  position: sticky; top: 0; z-index: 4; container: stop / inline-size; display: flex; flex-direction: column; gap: 8px;
+  margin: 0 -10px; padding: 10px 10px 10px; background: var(--rail);
 }
 .split-top[hidden] { display: none; }
+.st-row { display: flex; align-items: center; gap: 6px; }
 .split-new {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px 0 11px;
-  border-radius: 9px; color: var(--muted); font-size: 13px; font-weight: 500; transition: color 0.15s, background 0.15s;
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 8px 0 11px;
+  border: 1px solid var(--line-2); border-radius: 11px; background: var(--surface); box-shadow: var(--shadow-1);
+  color: var(--muted); font-size: 13px; transition: color 0.15s, border-color 0.15s;
 }
-.split-new .i { width: 15px; height: 15px; }
+.split-new .i { width: 15px; height: 15px; color: var(--accent); }
 .split-new span { flex: 1; text-align: left; }
-.split-new:hover, .split-new.on { background: var(--bg-2); color: var(--ink); }
+.split-new:hover { border-color: var(--faint); color: var(--ink); }
+/* home: the prompt box is open beside it */
+.split-new.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); color: var(--ink); }
 .sp-side { display: flex; gap: 4px; }
+.split-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.split-nav:empty { display: none; }
+.split-nav .auto-btn {
+  min-width: 0; height: 32px; gap: 8px; padding: 0 8px 0 10px; border-color: transparent; border-radius: 9px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink-2);
+}
+.split-nav .auto-btn:hover { border-color: transparent; background: var(--bg-2); color: var(--ink); }
+.split-nav .auto-btn > span { flex: 1; min-width: 0; overflow: hidden; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.split-nav .auto-btn .i { color: var(--muted); }
+@container stop (max-width: 250px) { .split-nav { grid-template-columns: 1fr; } }
 .sp-side:empty { display: none; }
 
 body.split .feed { margin-top: 8px; }
 body.split .f-group { margin-bottom: 14px; }
 body.split .f-group.collapsed { margin-bottom: 2px; }
-body.split .f-group h4 { padding: 0 6px; }
+body.split .f-group h4 { padding: 0 6px; font-size: 11.5px; letter-spacing: 0.02em; }
+body.split .f-group h4:not(.toggle-done)::after { content: ''; flex: 1; height: 1px; margin-left: 6px; background: var(--line); }
 body.split .f-list { gap: 2px; }
 body.split .feed-empty { padding: 32px 12px; }
 body.split .feed-empty .orb.big { display: none; }
