@@ -42,7 +42,8 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
 - **Steps:** click **Open**.
 - **Expected:** `/go` → `ada.wisp.localhost:8090/_grid/auth?t=…` → wisp's page (the waking page
   first if the start is slow, which reloads itself). The launcher says *Cloud computer*; the
-  sidebar footer says **Connect** (not Machines). No console errors.
+  sidebar says **Connect** (not Machines) under *New task*, and its foot shows you (your initial,
+  name, handle and the grid) with the avatar's ring lit. No console errors.
 
 ### GRID-06 · A task in the cloud wisp
 *Automated: qa/grid.mjs* (`grid-cloud-wisp-task.png`, `grid-cloud-wisp-phone.png`)

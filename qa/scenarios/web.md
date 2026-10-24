@@ -21,7 +21,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** open `/`.
 - **Expected:** sidebar with *New task*, *Needs you* listing *Welcome to wisp*; the home shows
   *What should wisp do next?*, the launcher (prompt box, *This computer*, permission mode, harness)
-  and *Tips*; footer has *Get the app*, *Machines*, *Automations*. No console errors.
+  and *Tips*; *Machines* and *Automations* side by side under *New task*; the foot has *Settings*
+  (named) and *Get the app* (its icon). No console errors.
 - **Automated**
 
 ### WEB-03 · Welcome tour renders every block
@@ -135,7 +136,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Automated** (API), **Suite** (`test/btw.test.js`)
 
 ### WEB-23 · Machines, Automations, Get the app dialogs
-- **Steps:** click each footer button.
+- **Steps:** click *Machines* and *Automations* under *New task*, and *Get the app* in the foot.
 - **Expected:** each opens its panel/dialog and closes with Esc.
 - **Automated**
 

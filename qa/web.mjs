@@ -72,7 +72,7 @@ try {
   await check('WEB-02', 'first paint: split view home', async () => {
     await p.goto(w.url);
     await p.getByText('What should wisp do next?').waitFor();
-    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'This computer', 'Tips', 'Get the app', 'Machines', 'Automations'])
+    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'This computer', 'Tips', 'Settings', 'Machines', 'Automations'])
       ok(await p.getByText(t, { exact: false }).first().isVisible(), `"${t}" not visible`);
     await p.shot('home');
     p.clean();
@@ -372,9 +372,9 @@ try {
   });
 
   await check('WEB-23', 'Machines, Automations, Get the app open and close', async () => {
-    for (const label of ['Machines', 'Automations', 'Get the app']) {
+    for (const [label, sel] of [['Machines', '#machinesBtn'], ['Automations', '#autoBtn'], ['Get the app', '#getAppBtn']]) {
       await press(p, 'Escape');
-      await p.locator('#splitFoot, footer').getByText(label, { exact: true }).first().click();
+      await p.locator(sel).click();
       await p.waitForTimeout(500);
       await p.screenshot({ path: path.join(OUT, `web-foot-${label.replace(/ /g, '-').toLowerCase()}.png`) });
       await press(p, 'Escape');

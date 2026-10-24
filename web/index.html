@@ -127,15 +127,19 @@
       <button class="search-btn" id="searchBtn" title="Search">
         <svg class="i"><use href="#i-search"/></svg><span>Search</span><kbd class="mod-k"></kbd>
       </button>
-      <button class="icon-btn" id="settingsBtn" title="Settings">
-        <svg class="i"><use href="#i-settings"/></svg>
+      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+        <svg class="i"><use href="#i-settings"/></svg><span>Settings</span>
       </button>
     </header>
     <div class="feed-wrap" id="feedWrap">
-      <!-- Split view only: the top of the task list. -->
+      <!-- Split view only: the top of the task list. New task, then what split.js moves here from
+           the top bar (Machines, Automations) as rows. -->
       <div class="split-top" id="splitTop" hidden>
-        <button class="split-new" id="splitNew" title="New task: back to the prompt box (N)"><svg class="i"><use href="#i-plus"/></svg><span>New task</span><kbd>N</kbd></button>
-        <span class="sp-side" id="spSide"></span>
+        <div class="st-row">
+          <button class="split-new" id="splitNew" title="New task: back to the prompt box (N)"><svg class="i"><use href="#i-plus"/></svg><span>New task</span><kbd>N</kbd></button>
+          <span class="sp-side" id="spSide"></span>
+        </div>
+        <nav class="split-nav" id="splitNav" aria-label="wisp"></nav>
       </div>
       <div class="launch-slot" id="launchSlot">
         <!-- First paint, before the scripts load: the launcher's shape with quiet placeholders where its
@@ -157,9 +161,9 @@
       </div>
       <div class="feed-empty" id="feedEmpty" hidden></div>
     </div>
-    <!-- Split view only: the sidebar's foot. split.js moves Update, Get the app, Machines and
-         Automations here from the top bar, which becomes the sidebar's head. -->
-    <footer class="split-foot" id="splitFoot" hidden></footer>
+    <!-- Split view only: the sidebar's foot. You on the grid, when signed in to one (split.js), then
+         Update, Get the app and Settings, moved here from the top bar, which becomes the sidebar's head. -->
+    <footer class="split-foot" id="splitFoot" hidden><a class="sf-me" id="splitMe" target="_blank" rel="noopener" hidden></a><span class="sf-grow"></span></footer>
     <!-- Split view only (features/split.js): home is the prompt box; an open task shows its header
          here and its body is laid over #splitStage. -->
     <section class="split-main" id="splitMain" hidden>
@@ -195,7 +199,11 @@
       var w = JSON.parse(localStorage.getItem('wisp.sideW'));
       if (w > 0) document.documentElement.style.setProperty('--side-w', w + 'px');
       q('#splitHome .sh-launch').append(q('#launchSlot'), q('#spFeedTop'));
-      q('#splitFoot').append(q('#updateBtn'), q('#getAppBtn'), q('#machinesBtn'), q('#autoBtn'));
+      q('#splitNav').append(q('#machinesBtn'), q('#autoBtn'));
+      q('#splitFoot').append(q('#updateBtn'), q('#getAppBtn'));
+      if (!JSON.parse(localStorage.getItem('wisp.sideHidden'))) q('#splitFoot').append(q('#settingsBtn'));
+      var me = JSON.parse(localStorage.getItem('wisp.me'));
+      if (me) { q('#splitMe').innerHTML = me.html; q('#splitMe').href = me.href; q('#splitMe').title = me.title; q('#splitMe').hidden = false; q('#splitFoot').classList.add('me'); }
       document.body.classList.add('split');
       if (JSON.parse(localStorage.getItem('wisp.sideHidden'))) document.body.classList.add('side-hidden');
       ['#splitMain', '#splitGrip', '#splitTop', '#splitFoot'].forEach(function (s) { q(s).hidden = false; });
