@@ -57,6 +57,8 @@ export function installFakeBins() {
     }
   }
   process.env.PATH = `${dir}${path.delimiter}${process.env.PATH}`;
+  // Not this computer's codex model catalog (~/.codex/models_cache.json).
+  process.env.CODEX_HOME ||= tmp('codex-home');
   return dir;
 }
 
