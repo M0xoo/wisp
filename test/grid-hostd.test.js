@@ -129,6 +129,24 @@ test('admit: a box starts only with the memory for it; capacity says how many mo
   assert.deepEqual(h.takePeak(), { peak: 2, waits: 0 }, 'the peak starts again from what is up now');
 });
 
+test('close: a start still waiting for room gives up, and nothing changes after close returns', async () => {
+  const h = hostd({ maxRunning: 1 });
+  const [a, b] = ['ada', 'bob'].map(user);
+  h.status(a, { live: 1 });
+  await h.ensure(a);
+  const queued = assert.rejects(h.ensure(b), /shutting down/);
+  await until(() => h.state(b.id) === 'queued');
+  const late = [];
+  await h.close();
+  h.on('change', (e) => late.push(e));
+  await queued;
+  assert.equal(h.state(a.id), 'stopped');
+  assert.equal(h.state(b.id), 'stopped');
+  await assert.rejects(h.ensure(b), /shutting down/);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.deepEqual(late, [], 'the grid closes its database once close returns');
+});
+
 test('admit is on by default for containers on Linux only', () => {
   const d = tmp('hostd-admit');
   const p = new Hostd({ dataDir: d, driver: 'process', idleMs: 1e9, checkMs: 1e9 });

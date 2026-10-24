@@ -641,7 +641,7 @@ test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are
     const last = await until(() => tg.sent.filter((m) => m.text.startsWith('✅')).at(1));
     tgUpdate({ callback_query: { id: 'cb1', data: last.reply_markup.inline_keyboard[0][0].callback_data, message: { message_id: tg.msg, chat: { id: 42 } } } });
     await until(async () => (await session(s.id)).state === 'done');
-    assert.ok(tg.calls.includes('answerCallbackQuery'));
+    await until(() => tg.calls.includes('answerCallbackQuery')); // answered after the task is marked done
 
     // Starting tasks: off by default, so /new is refused and nothing launches.
     assert.equal(view.telegram.allowStart, false);

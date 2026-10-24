@@ -122,9 +122,11 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   const notify = (userId) => {
     for (const res of watchers.get(userId) || []) res.write('event: change\ndata: {}\n\n');
   };
+  let shut = false; // the database is closed: a late socket or exit handler has nothing to record
   const tunnels = createTunnels({
     log,
     onChange: (id, up) => {
+      if (shut) return;
       const c = accounts.computer(id);
       if (!c) return;
       accounts.seenComputer(id);
@@ -145,6 +147,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     log,
   });
   hostd.on('change', (e) => {
+    if (shut) return;
     stats.box(e);
     const t = Date.now();
     // A box can stop after its account is gone (deleted from the command line, maybe between
@@ -736,6 +739,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       await hostd.close();
       stats.close();
       await closed;
+      shut = true;
       db.close();
     },
   };
