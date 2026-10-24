@@ -609,6 +609,10 @@ test('search engines: the landing page is indexable with a canonical; people’s
   const home = await browser().go(`${base}/`);
   assert.equal(home.headers['x-robots-tag'], undefined);
   assert.match(home.text, new RegExp(`<link rel="canonical" href="${cfg.publicUrl}/">`));
+  // Link checkers (ad review, unfurlers) probe with HEAD: the landing page must answer it too
+  const head = await browser().go(`${base}/?utm_source=x`, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.match(head.headers['content-type'], /text\/html/);
   assert.equal((await browser().go(`${base}/signin`)).headers['x-robots-tag'], 'noindex');
   const robots = await browser().go(`${base}/robots.txt`);
   assert.equal(robots.status, 200);

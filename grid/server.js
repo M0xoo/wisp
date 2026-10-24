@@ -308,7 +308,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
 
     if (p === '/healthz') return json(res, 200, { ok: true });
-    if (req.method === 'GET' && (p === '/' || p === '/account')) {
+    // HEAD too: link checkers (ad review, unfurlers) probe with it, and a 404 there reads as a dead page
+    if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages }));
       const u = s.user;
       return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));

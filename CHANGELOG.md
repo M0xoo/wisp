@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **wisp Grid's landing page answers link checkers:** a `HEAD` request to the sign-in page (or the account page) got a 404 while a normal visit worked, so ad review and link previews could take the page for dead. Both now answer `HEAD` like `GET`.
+
 ## [0.39.0] - 2026-10-25
 
 ### Changed
