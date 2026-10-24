@@ -85,7 +85,7 @@ export function offlineToast(id) {
 
 const STEP_ICON = { done: 'check', fail: 'x', warn: 'warn', run: '', pending: '' };
 
-export function openMachines({ host, focusAdd = false } = {}) {
+export function openMachines({ host, focusAdd = false, focusGrid = false } = {}) {
   if (MOBILE) return openComputers();
   // A cloud computer doesn't SSH out: how to reach it through the grid instead.
   if (inGrid()) return import('./settings.js').then((m) => m.openSettings({ pane: 'machines' }));
@@ -417,6 +417,16 @@ export function openMachines({ host, focusAdd = false } = {}) {
   if (focusAdd && S.machines.length) {
     editing = '';
     paint();
+  }
+  // Signing in to a grid (the sidebar's account row): its address, once mountGridHere has drawn the form.
+  if (focusGrid) {
+    const until = Date.now() + 3000;
+    const tryFocus = () => {
+      const input = $('.mc-grid input[name="grid"]', node);
+      if (input) return input.focus(), input.select();
+      if (node.isConnected && Date.now() < until) setTimeout(tryFocus, 50);
+    };
+    return setTimeout(tryFocus, 60);
   }
   if (focusAdd || !S.machines.length) setTimeout(() => $('.mc-add input[name="target"]', node)?.focus(), 60);
 }
