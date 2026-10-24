@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Long links no longer run off the screen:** a prompt or answer with a long URL (or any unbroken word) now wraps inside its card instead of spilling past the edge on phones.
+
 ## [0.38.0] - 2026-10-24
 
 ### Added

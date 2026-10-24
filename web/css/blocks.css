@@ -22,7 +22,7 @@
 .b-hero p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--ink-2); max-width: 70ch; text-wrap: pretty; }
 
 /* markdown */
-.prose { color: var(--ink-2); line-height: 1.65; }
+.prose { color: var(--ink-2); line-height: 1.65; overflow-wrap: break-word; }
 .prose > :first-child { margin-top: 0; }
 .prose > :last-child { margin-bottom: 0; }
 .prose p, .prose ul, .prose ol, .prose pre, .prose blockquote, .prose .table-wrap { margin: 0 0 12px; }

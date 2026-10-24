@@ -140,7 +140,7 @@
 .t-unfold .chev { width: 12px; height: 12px; transform: rotate(90deg); }
 
 .ask { position: relative; margin: 0 0 20px; padding: 10px 14px; border-radius: var(--radius); background: var(--bg-2); }
-.ask-text { white-space: pre-wrap; color: var(--ink); font-size: 14px; }
+.ask-text { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); font-size: 14px; }
 .ask-text.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .ask-foot { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .ask time { font-size: 11.5px; color: var(--faint); }
