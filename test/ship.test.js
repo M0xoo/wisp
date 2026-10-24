@@ -711,3 +711,15 @@ test('phone: ntfy buttons and Telegram replies answer the agent; forged taps are
     fake.close();
   }
 });
+
+// Worktrees made at once in one repo (compare runs) take turns: on Windows, git reading the
+// other's half-made .git/worktrees entry failed the launch.
+test('worktrees made side by side in one repo all come out whole', async () => {
+  const { createWorktree, worktreeSource } = await import('../server/git.js');
+  const cwd = makeRepo();
+  const home = tmp('wt-home');
+  const source = await worktreeSource(cwd);
+  const trees = await Promise.all(['aaaaaa1', 'bbbbbb2', 'cccccc3', 'dddddd4'].map((id) => createWorktree({ cwd, home, id, title: 'same task', source })));
+  assert.equal(new Set(trees.map((t) => t.branch)).size, 4);
+  for (const t of trees) assert.ok(fs.existsSync(path.join(t.path, 'math.js')), t.path);
+});

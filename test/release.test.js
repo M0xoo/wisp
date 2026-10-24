@@ -7,7 +7,8 @@ import { section, notes, nightlyNotes } from '../scripts/release-notes.mjs';
 import { nightlyVersion } from '../scripts/nightly-version.mjs';
 import { newer } from '../server/update.js';
 
-const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+// Windows checkouts have CRLF line ends; the patterns below match \n.
+const read = (f) => fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const CHANGELOG = `# Changelog\n\n## [Unreleased]\n\n- next\n\n## [1.2.0] - 2026-10-23\n\n### Added\n\n- **A thing.** It works.\n\n## [1.1.0] - 2026-10-01\n\n- older\n`;
 
 test('release notes are the version\'s CHANGELOG section, CRLF or not', () => {

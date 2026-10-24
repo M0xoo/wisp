@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { git } from './git.js';
+import { addWorktree, git } from './git.js';
 import { killTree } from './proc.js';
 
 const MAX_OUTPUT = 400 * 1024;
@@ -140,7 +140,7 @@ export async function baseline(wt, command) {
       (async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-base-'));
         try {
-          await git(wt.root, ['worktree', 'add', '--quiet', '--detach', dir, wt.head]);
+          await addWorktree(wt.root, ['--detach', dir, wt.head]);
           // node_modules and virtualenvs aren't in git: borrow the task's, so the base can run too.
           for (const d of ['node_modules', '.venv', 'venv']) {
             const from = path.join(wt.path, d);

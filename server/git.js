@@ -32,6 +32,19 @@ export const gitSync = (cwd, args, opts = {}) => execFileSync(GIT(), args, { cwd
 export const gh = (cwd, args, opts) => run(GH(), args, { cwd, timeout: 120_000, ...opts });
 const quiet = (p) => p.catch(() => '');
 
+// `git worktree add` reads every other worktree's files under .git/worktrees; two at once in one
+// repo can catch the other half-made ("failed to read .git/worktrees/…/commondir", on Windows).
+// So adds into the same repo take turns.
+const adding = new Map(); // repo -> the last add queued there
+export function addWorktree(root, args) {
+  const key = realpath(root);
+  const next = (adding.get(key) || Promise.resolve()).catch(() => {}).then(() => git(root, ['worktree', 'add', '--quiet', ...args]));
+  adding.set(key, next);
+  const clear = () => adding.get(key) === next && adding.delete(key);
+  next.then(clear, clear);
+  return next;
+}
+
 export async function repoRoot(cwd) {
   const top = await quiet(git(cwd, ['rev-parse', '--show-toplevel']));
   return top ? path.resolve(top) : null;
@@ -89,7 +102,7 @@ export async function createWorktree({ cwd, home, id, title, source }) {
   if (await quiet(git(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]))) branch = `wisp/${slug(title) || 'task'}-${id}`;
   const dir = path.join(home, 'worktrees', `${path.basename(root)}-${id}`);
   fs.mkdirSync(path.dirname(dir), { recursive: true });
-  await git(root, ['worktree', 'add', '--quiet', '--no-track', '-b', branch, dir, base.ref]);
+  await addWorktree(root, ['--no-track', '-b', branch, dir, base.ref]);
   // Launched from a subfolder of the repo: keep working in that subfolder.
   const sub = path.relative(realpath(root), realpath(cwd));
   return { path: dir, cwd: sub && !sub.startsWith('..') ? path.join(dir, sub) : dir, branch, base: base.branch, baseRef: base.ref, head: base.sha || null, remote: base.remote, root, createdAt: Date.now() };
@@ -99,7 +112,7 @@ export async function createWorktree({ cwd, home, id, title, source }) {
 export async function ensureWorktree(wt) {
   if (!wt || fs.existsSync(wt.path)) return;
   await quiet(git(wt.root, ['worktree', 'prune']));
-  await git(wt.root, ['worktree', 'add', '--quiet', wt.path, wt.branch]);
+  await addWorktree(wt.root, [wt.path, wt.branch]);
 }
 
 // { dirty: changed paths, ahead: commits past the base, unpushed: commits not on the remote branch, exists }
@@ -376,7 +389,7 @@ export async function unpackWork({ cwd, home, id, title, pack, file }) {
   const dir = path.join(home, 'worktrees', `${path.basename(root)}-${id}`);
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   try {
-    await git(root, ['worktree', 'add', '--quiet', '--no-track', '-b', branch, dir, `${local}^`]);
+    await addWorktree(root, ['--no-track', '-b', branch, dir, `${local}^`]);
     await git(dir, ['read-tree', '-u', '--reset', local]);
     await git(dir, ['reset', '--quiet']);
   } finally {
