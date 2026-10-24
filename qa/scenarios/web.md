@@ -21,8 +21,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** open `/`.
 - **Expected:** sidebar with *New task*, *Needs you* listing *Welcome to wisp*; the home shows
   *What should wisp do next?*, the launcher (prompt box, *This computer*, permission mode, harness)
-  and *Tips*; *Machines* and *Automations* side by side under *New task*; the foot has *Settings*
-  (named) and *Get the app* (its icon). No console errors.
+  and *Tips*; *Machines* and *Automations* side by side under *New task*; the foot says *wisp Grid · Not
+  connected · Sign in* (a click opens Machines' sign-in), then *Get the app* and *Settings* (icons). No console errors.
 - **Automated**
 
 ### WEB-03 · Welcome tour renders every block

@@ -164,41 +164,64 @@ function placeSettings() {
 
 // You, in the foot: the account this wisp is on a grid with, as the grid's own page shows it. A
 // cloud computer is yours on the grid; a computer signed in to one has its account in Machines.
-// Remembered (wisp.me) so index.html paints it before the config lands.
+// Signed out, the row stays where it was: the last account (wisp.lastMe), greyed, saying it's not
+// connected, and a click signs in again; never signed in, the same row with the cloud. Remembered
+// (wisp.me) so index.html paints it before the config lands.
 let lastMe;
+const hostOf = (g) => {
+  try {
+    return new URL(/^https?:/.test(g) ? g : `https://${g}`).host;
+  } catch {
+    return '';
+  }
+};
 function meInfo() {
   if (inGrid()) {
     const g = S.config.grid;
     const handle = g.handle || new URL(g.address).hostname.split('.')[0];
-    return { handle, name: g.name || '', avatar: '', grid: g.url, on: true };
+    return { handle, name: g.name || '', avatar: '', grid: g.url, state: 'on' };
   }
   const m = S.machines.find((x) => x.kind === 'grid' && !x.computer);
-  if (!m) return null;
-  return { handle: m.user?.handle || m.handle, name: m.user?.name || '', avatar: m.user?.avatar || '', grid: m.grid, on: m.state === 'online' };
+  if (!m) return { ...(load('wisp.lastMe', null) || {}), state: 'out' };
+  const me = { handle: m.user?.handle || m.handle, name: m.user?.name || '', avatar: m.user?.avatar || '', grid: m.grid };
+  save('wisp.lastMe', me);
+  return { ...me, state: m.state === 'online' ? 'on' : 'off' };
 }
 export function paintMe() {
   const a = $('#splitMe');
   const me = meInfo();
-  let host = '';
-  try {
-    host = me && new URL(/^https?:/.test(me.grid) ? me.grid : `https://${me.grid}`).host;
-  } catch {}
-  const saved = me && {
-    html: `<span class="sf-av${me.on ? ' on' : ''}">${me.avatar ? `<img src="${esc(me.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<b>${esc((me.name || me.handle || '?').trim()[0].toUpperCase())}</b></span><span class="sf-who"><b>${esc(me.name || me.handle)}</b><small>${esc(me.name ? `${me.handle} · ${host}` : host)}</small></span>`,
-    href: host ? `https://${host}/account` : '',
-    title: `Signed in as ${me.handle} on ${host}${me.on ? '' : " (not connected right now)"}: open your account`,
+  const host = me.grid ? hostOf(me.grid) : '';
+  const out = me.state === 'out';
+  const who = me.name || me.handle;
+  const av = who
+    ? `${me.avatar ? `<img src="${esc(me.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<b>${esc(who.trim()[0].toUpperCase())}</b>`
+    : icon('cloud');
+  const sub = out ? 'Not connected · Sign in' : me.name ? `${me.handle} · ${host}` : host;
+  const saved = {
+    html: `<span class="sf-av${me.state === 'on' ? ' on' : ''}${out ? ' out' : ''}">${av}</span><span class="sf-who"><b>${esc(who || 'wisp Grid')}</b><small>${esc(sub)}</small></span>`,
+    href: !out && host ? `https://${host}/account` : '',
+    title: out
+      ? `Not connected to a wisp Grid${host ? ` (last: ${me.handle} on ${host})` : ''}: sign in`
+      : `Signed in as ${me.handle} on ${host}${me.state === 'on' ? '' : ' (not connected right now)'}: open your account`,
   };
-  const key = JSON.stringify(saved || null);
+  const key = JSON.stringify(saved);
   if (key === lastMe) return;
   lastMe = key;
-  foot.classList.toggle('me', !!saved);
-  a.hidden = !saved;
-  save('wisp.me', saved || null);
-  if (!saved) return;
+  save('wisp.me', saved);
   if (a.dataset.h !== saved.html) (a.innerHTML = saved.html), (a.dataset.h = saved.html);
-  a.href = saved.href;
+  if (saved.href) a.href = saved.href;
+  else a.removeAttribute('href');
   a.title = saved.title;
+  a.hidden = false;
 }
+$('#splitMe').addEventListener('click', (e) => {
+  if (e.currentTarget.hasAttribute('href')) return;
+  e.preventDefault();
+  import('./machines.js').then((m) => m.openMachines());
+});
+$('#splitMe').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.currentTarget.hasAttribute('href')) e.currentTarget.click();
+});
 
 // --- each task keeps its place ------------------------------------------------------------------
 

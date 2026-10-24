@@ -72,7 +72,7 @@ try {
   await check('WEB-02', 'first paint: split view home', async () => {
     await p.goto(w.url);
     await p.getByText('What should wisp do next?').waitFor();
-    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'This computer', 'Tips', 'Settings', 'Machines', 'Automations'])
+    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'This computer', 'Tips', 'Not connected', 'Machines', 'Automations'])
       ok(await p.getByText(t, { exact: false }).first().isVisible(), `"${t}" not visible`);
     await p.shot('home');
     p.clean();

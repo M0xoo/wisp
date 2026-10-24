@@ -128,7 +128,7 @@
         <svg class="i"><use href="#i-search"/></svg><span>Search</span><kbd class="mod-k"></kbd>
       </button>
       <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
-        <svg class="i"><use href="#i-settings"/></svg><span>Settings</span>
+        <svg class="i"><use href="#i-settings"/></svg>
       </button>
     </header>
     <div class="feed-wrap" id="feedWrap">
@@ -161,9 +161,9 @@
       </div>
       <div class="feed-empty" id="feedEmpty" hidden></div>
     </div>
-    <!-- Split view only: the sidebar's foot. You on the grid, when signed in to one (split.js), then
+    <!-- Split view only: the sidebar's foot. You on the grid, or that you're not connected (split.js), then
          Update, Get the app and Settings, moved here from the top bar, which becomes the sidebar's head. -->
-    <footer class="split-foot" id="splitFoot" hidden><a class="sf-me" id="splitMe" target="_blank" rel="noopener" hidden></a><span class="sf-grow"></span></footer>
+    <footer class="split-foot" id="splitFoot" hidden><a class="sf-me" id="splitMe" target="_blank" rel="noopener" tabindex="0" hidden></a><span class="sf-grow"></span></footer>
     <!-- Split view only (features/split.js): home is the prompt box; an open task shows its header
          here and its body is laid over #splitStage. -->
     <section class="split-main" id="splitMain" hidden>
@@ -203,7 +203,7 @@
       q('#splitFoot').append(q('#updateBtn'), q('#getAppBtn'));
       if (!JSON.parse(localStorage.getItem('wisp.sideHidden'))) q('#splitFoot').append(q('#settingsBtn'));
       var me = JSON.parse(localStorage.getItem('wisp.me'));
-      if (me) { q('#splitMe').innerHTML = me.html; q('#splitMe').href = me.href; q('#splitMe').title = me.title; q('#splitMe').hidden = false; q('#splitFoot').classList.add('me'); }
+      if (me) { q('#splitMe').innerHTML = me.html; if (me.href) q('#splitMe').href = me.href; q('#splitMe').title = me.title; q('#splitMe').hidden = false; }
       document.body.classList.add('split');
       if (JSON.parse(localStorage.getItem('wisp.sideHidden'))) document.body.classList.add('side-hidden');
       ['#splitMain', '#splitGrip', '#splitTop', '#splitFoot'].forEach(function (s) { q(s).hidden = false; });
