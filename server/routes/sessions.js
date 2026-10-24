@@ -168,19 +168,25 @@ export function register(r, app) {
     'DELETE',
     '/sessions/:id',
     one(async (c, s) => {
-      runner.stop(s);
-      runner.stopSides(s);
-      await runner.live.get(s.id)?.done;
-      cleanupCheckpoints(workdir(s), s.id);
-      for (const cid of Object.values(s.children || {})) {
-        await runner.live.get(cid)?.done;
-        if (store.get(cid)) (store.delete(cid), app.broadcast('removed', { id: cid }));
+      const ids = [s.id, ...Object.values(s.children || {})];
+      for (const id of ids) runner.deleting.add(id);
+      try {
+        runner.stop(s);
+        runner.stopSides(s);
+        await runner.live.get(s.id)?.done;
+        cleanupCheckpoints(workdir(s), s.id);
+        for (const cid of Object.values(s.children || {})) {
+          await runner.live.get(cid)?.done;
+          if (store.get(cid)) (store.delete(cid), app.broadcast('removed', { id: cid }));
+        }
+        // Its worktree goes with it; the branch only if it holds nothing beyond its base.
+        for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: s.delegated ? 'force' : true }).catch(() => {}); // a delegate's branch only held the lead's work
+        app.terms.close(s.id);
+        store.delete(s.id);
+        app.broadcast('removed', { id: s.id });
+      } finally {
+        for (const id of ids) runner.deleting.delete(id);
       }
-      // Its worktree goes with it; the branch only if it holds nothing beyond its base.
-      for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: s.delegated ? 'force' : true }).catch(() => {}); // a delegate's branch only held the lead's work
-      app.terms.close(s.id);
-      store.delete(s.id);
-      app.broadcast('removed', { id: s.id });
       c.send(200, { ok: true });
     }),
   );

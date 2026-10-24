@@ -210,6 +210,7 @@ export class Runner extends EventEmitter {
     this.stopping = new Set();
     this.interrupting = new Set();
     this.handing = new Set(); // ids whose run ended with a follow-up waiting to start: they stay in Working
+    this.deleting = new Set(); // ids being deleted: their run ends quietly, no card back in Needs you, no "ready"
     this.answers = new Map(); // askId -> answer, until the MCP server picks it up
     this.sides = new Map(); // /btw id -> { sessionId, handle }: side questions being answered
     this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
@@ -978,7 +979,7 @@ export class Runner extends EventEmitter {
     if (holding) setImmediate(() => this.pipeline.run(session, turn));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
-    else if (!handing && !session.parentId && !session.delegated) this.emit('finished', { session: summarize(session, this.store) });
+    else if (!handing && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,
@@ -989,7 +990,7 @@ export class Runner extends EventEmitter {
     session.unread = !quiet;
     this.store.save(session, { now: true });
     this.#touch(session, { turn: session.turns.at(-1)?.id });
-    if (!quiet && !session.parentId && !session.delegated) this.emit('finished', { session: summarize(session, this.store) });
+    if (!quiet && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // A line in a turn's activity from wisp itself (Auto's check, repair, hand-over).
@@ -1001,6 +1002,7 @@ export class Runner extends EventEmitter {
   }
 
   #touch(session, { turn, quiet } = {}) {
+    if (this.deleting.has(session.id)) return; // going away: a last summary would bring its card back
     session.updatedAt = Date.now();
     this.store.save(session);
     if (!quiet) this.emit('summary', summarize(session, this.store));

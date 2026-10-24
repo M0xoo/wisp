@@ -572,6 +572,29 @@ test('opencode: a rejected permission retries with exactly that pattern allowed;
 
 // --- /btw: side questions answered next to the run, which carries on ---
 
+test('deleting a running session ends it quietly: no summary back in Needs you, no "ready"', async () => {
+  process.env.FAKE_HANG = '1';
+  const seen = [];
+  const onSummary = (x) => x.id === sid && seen.push(`summary:${x.state}`);
+  const onFinished = ({ session: x }) => x.id === sid && seen.push('finished');
+  let sid;
+  try {
+    const s = await api('/sessions', { prompt: 'long task', cwd: makeRepo(), agent: 'codex' });
+    sid = s.id;
+    await until(async () => (await session(s.id)).turns[0].activity.length > 0);
+    srv.runner.on('summary', onSummary);
+    srv.runner.on('finished', onFinished);
+    assert.equal((await del(`/sessions/${s.id}`)).status, 200);
+    assert.deepEqual(seen, []);
+    assert.equal(srv.runner.deleting.size, 0);
+    assert.equal((await fetch(`${base}/api/sessions/${s.id}`)).status, 404);
+  } finally {
+    srv.runner.off('summary', onSummary);
+    srv.runner.off('finished', onFinished);
+    delete process.env.FAKE_HANG;
+  }
+});
+
 const btwOf = (x, id) => x.turns.flatMap((t) => t.btw || []).find((b) => b.id === id);
 const answered = (sid, id) =>
   until(async () => {
