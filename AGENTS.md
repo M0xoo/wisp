@@ -37,6 +37,8 @@ this covers how the code is laid out and the rules a change has to follow.
 - `qa/`: end-to-end scenarios per surface (web, grid, desktop, Android) in `qa/scenarios/`, and
   scripts that run them against an isolated wisp with fake agents (`node qa/web.mjs`, …). Not part
   of `npm test`; see `qa/README.md`. A change to a flow they cover updates its scenario.
+- `design/`: how wisp looks and behaves (UI, UX, phones, words, the site) and the checklist for a UI
+  change. Read `design/README.md` before touching `web/`, `mobile/`, `electron/` or `docs/`.
 
 ## Commands
 
@@ -53,6 +55,13 @@ every OS on Node 20 and 22, plus the real CLIs (`real-clis.yml`) after each merg
 adds the Node LTS and the newest Node and runs the suite three times per job. A test that fails
 there only some of the time is flaky: fix it, don't retry it. Tests can't rely on the network
 (no `npx` downloads) or on which harness Auto picks.
+
+## UI and UX
+
+Every UI change follows `design/` and ends with `design/checklist.md`: seen in real Chrome at
+desktop and phone widths, in light and dark, in split view and the feed. In short: tokens only,
+instant actions that roll back with a toast, nothing that jumps or loads empty, the same action under
+the same name everywhere, phones first-class.
 
 ## Everything is customizable by spells
 
