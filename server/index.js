@@ -231,7 +231,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       },
     },
     // A member's follow-up on a task it's part of, or yours on its job: sent like any follow-up.
-    followUp: (s, text, { queue = false } = {}) => app.launcher.replyTo(s, text, [], queue),
+    // team: the task's delegates with the member added, so its agent can hand the work back.
+    followUp: (s, text, { queue = false, team } = {}) => app.launcher.replyTo(s, text, [], queue, undefined, undefined, team),
     onChange: () => app.broadcast('config', {}),
     exists: (dir) => fs.existsSync(dir) && fs.statSync(dir).isDirectory(),
   });
