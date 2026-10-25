@@ -20,7 +20,7 @@
 import { blocksToMarkdown } from './render.js';
 import { cronMatches, nextRun, parseCron } from './triggers.js';
 import { adapters } from './adapters/index.js';
-import { normalizeTeam } from './subagents.js';
+import { MAX_SUBAGENTS, normalizeTeam } from './subagents.js';
 import { bad, MODES, newId, truncate } from './util.js';
 
 export const MAX_CREW = 12;
@@ -194,7 +194,7 @@ Put one \`crew\` block last in your final message's blocks. wisp reads it and do
 - notebook: the whole notebook rewritten, only to tidy it (it has ${m.notebook.length} characters; keep it under ${NOTEBOOK_SOFT}). Drop what's stale.
 - wakeIn: minutes until wisp should start a check-in (at least ${WAKE_MIN}), when you want to look again sooner than your schedule (a deploy to check on, a run to wait for).
 - quiet: ${job.job === 'checkin' ? 'true when this check-in found nothing the user needs to see: wisp logs it and doesn’t notify them. Leave it out when there is something to report.' : 'only for check-ins; this job is waited on, so always report.'}
-- followUp: a message wisp sends to the agent working on one of your tasks above, as a follow-up from you (the user sees it in that task, from you). Use it when that agent should act on what you found (fix this, rerun that) or was waiting on you. Its task is one of the ids above (${job.from?.id && (m.links || []).some((l) => l.id === job.from.id) ? `\`${job.from.id}\` is this job's` : 'none for this job'}). At most 3 (a list); only when it helps: your answer already reaches the user.
+- followUp: a message wisp sends to the agent working on one of your tasks above, as a follow-up from you (the user sees it in that task, from you). Use it when that agent should act on what you found (fix this, rerun that) or was waiting on you. Its task is one of the ids above (${job.job === 'delegated' ? 'not the one that delegated this job: its agent reads your report' : job.from?.id && (m.links || []).some((l) => l.id === job.from.id) ? `\`${job.from.id}\` is this job's` : 'none for this job'}). wisp adds you to that task's delegates, so its agent can hand the work back to you. At most 3 (a list); only when it helps: your answer already reaches the user.
 Leave out the fields you don't need, and keep secrets out of the notebook.`;
 }
 
@@ -449,16 +449,33 @@ export class Crew {
   #sendFollowUps(m, s, list = []) {
     for (const f of list) {
       const id = f.task || s.crew?.from?.id;
+      // A delegated job's lead already reads its report: a follow-up there says it twice, and the
+      // two could bounce work back and forth.
+      if (s.crew?.job === 'delegated' && id === s.crew.from?.id) continue;
       const task = (m.links || []).some((l) => l.id === id) && this.store.get(id);
       if (!task || !this.followUp) continue;
       const text = `@[${m.name}](crew:${m.id}) (your crew${m.role ? `’s ${m.role}` : ''}):\n\n${f.text}`;
-      Promise.resolve(this.followUp(task, text)).catch((err) => console.warn(`wisp: crew follow-up: ${err.message}`));
+      Promise.resolve(this.followUp(task, text, { team: this.#joinTeam(task, m) })).catch((err) => console.warn(`wisp: crew follow-up: ${err.message}`));
       // The job says where it followed up (its thread shows it); one on another machine can't be marked.
       const job = this.store.get(s.id);
       if (job?.crew && !job.crew.sent?.some((x) => x.id === task.id)) {
         (job.crew.sent ||= []).push({ id: task.id, title: task.title });
         this.runner.refresh?.(job);
       }
+    }
+  }
+
+  // A member that follows up on a task joins its delegates, so its agent can hand the work back
+  // (check my fix). Not a subagent's or a delegated job's (no loops), nor past a full team.
+  #joinTeam(task, m) {
+    const have = task.subagents || [];
+    if (task.parentId || task.delegated || task.crew?.job === 'delegated' || task.crew?.id === m.id) return undefined;
+    if (have.some((x) => x.crew === m.id) || have.length >= MAX_SUBAGENTS) return undefined;
+    const use = `${m.role ? `${m.role}. ` : ''}They followed up in this task: hand your work back to them when it should be checked`;
+    try {
+      return normalizeTeam([...have, { crew: m.id, name: handleOf(m.name), label: m.name, role: m.role, agent: m.agent, use }], adapters);
+    } catch {
+      return undefined; // too many copies in all: the follow-up still goes, without them
     }
   }
 

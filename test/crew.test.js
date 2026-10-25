@@ -251,6 +251,10 @@ test('a member follows up on the task that tagged it by itself, and you reply in
   assert.equal(m.links[0].id, task.id, 'the task is linked to Ada');
   const job = (await api('/sessions')).find((x) => x.id === t.turns[1].btw[0].job);
   assert.deepEqual(job.crew.sent, [{ id: task.id, title: t.title }]);
+  // Ada joined the task's delegates with that follow-up, so its agent can hand the work back.
+  assert.deepEqual((t.subagents || []).map((x) => [x.name, x.crew]), [['ada', ada.id]]);
+  const told = records(RECORD, 'claude').find((x) => x.stdin.includes('Please rerun the tests after my note'));
+  assert.match(told.argv.join(' '), /`ada`: Ada, CI watcher, a member of the user's crew.*hand your work back to them/s);
   // You reply in the thread: the same job carries on, its answer lands right under yours.
   const e = await api(`/sessions/${task.id}/crew-reply`, { entry: first.id, text: 'and the docs?' });
   assert.equal(e.thread, first.id);
@@ -265,6 +269,19 @@ test('a member follows up on the task that tagged it by itself, and you reply in
   assert.equal(again.turns[1].prompt, 'and the docs?');
   assert.deepEqual([again.state, again.unread], ['done', false], 'its answer went to the thread: filed again, nobody pinged');
   await assert.rejects(api(`/sessions/${task.id}/crew-reply`, { entry: 'nope', text: 'x' }), /no longer on your crew/);
+  // The task's agent hands it back: a delegated job for Ada, whose follow-up to that same task is
+  // dropped (the agent reads its report already), so the two can't bounce work back and forth.
+  await api(`/sessions/${task.id}/reply`, { text: 'DELEGATE the check, CREWFOLLOW' });
+  const back = await until(async () => {
+    const x = await api(`/sessions/${task.id}`);
+    return x.turns.length === 3 && x.state !== 'running' && x;
+  });
+  const d = back.turns[2].delegations[0];
+  assert.equal(d.crew, ada.id);
+  const kid = await api(`/sessions/${d.sessionId}`);
+  assert.equal(kid.crew.job, 'delegated');
+  assert.equal(kid.crew.sent, undefined, 'no follow-up to the lead that delegated it');
+  assert.equal((await api(`/sessions/${task.id}`)).turns.length, 3);
 });
 
 test('a member has delegates of its own, other crew members too, but never itself and no loops', async () => {
