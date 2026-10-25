@@ -27,7 +27,7 @@ import { toggleTranscript } from './turns.js';
 import { openUsage } from './usage.js';
 import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
-import { isSplit, setView, sideShown, toggleSidebar, viewPref } from './split.js';
+import { isSplit, isStacked, sideShown, toggleSidebar } from './split.js';
 import { setTheme, themePref } from './theme.js';
 import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } from './crew.js';
 import { importCrew, shareMember } from './crew-share.js';
@@ -121,12 +121,9 @@ function paletteItems() {
         ]),
     { group: a, label: 'Settings', icon: 'settings', keywords: 'preferences lessons learn retro editor terminal notifications', run: openSettings },
   );
-  // The phone always shows the feed and has no keyboard: no layout switch, no shortcuts list.
+  // The phone has no keyboard: no shortcuts list. Stacked, the list is already its own screen.
   if (!MOBILE) items.push(
-    viewPref() === 'split'
-      ? { group: a, label: 'Feed view', sub: 'One column, cards open in place', icon: 'feed', kbd: '\\', keywords: 'layout view single column list', run: () => setView('feed') }
-      : { group: a, label: 'Split view', sub: 'Tasks in a sidebar, the open one beside it', icon: 'split', kbd: '\\', keywords: 'layout view sidebar columns panes master detail', run: () => setView('split') },
-    ...(isSplit() ? [{ group: a, label: sideShown() ? 'Hide the task list' : 'Show the task list', icon: 'split', kbd: '[', keywords: 'sidebar collapse expand toggle focus full width', run: toggleSidebar }] : []),
+    ...(isSplit() && !isStacked() ? [{ group: a, label: sideShown() ? 'Hide the task list' : 'Show the task list', icon: 'split', kbd: '[', keywords: 'sidebar collapse expand toggle focus full width', run: toggleSidebar }] : []),
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
   // Theme: the two you're not on.

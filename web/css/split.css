@@ -144,7 +144,7 @@ body.split.side-right .split-grip { left: auto; right: calc(var(--side-w) - 4px)
   background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink-2);
 }
 .split-nav .auto-btn:hover { border-color: transparent; background: var(--bg-2); color: var(--ink); }
-.split-nav .auto-btn > span { flex: 1; min-width: 0; overflow: hidden; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
+.split-nav .auto-btn > span { display: block; flex: 1; min-width: 0; overflow: hidden; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
 .split-nav .auto-btn .i { color: var(--muted); }
 @container stop (max-width: 250px) { .split-nav { grid-template-columns: 1fr; } }
 .sp-side:empty { display: none; }
@@ -384,3 +384,71 @@ body.split #feed .item.open > .it-body .composer { box-shadow: var(--shadow-1); 
 body.split #feed .item.open .composer:not(.awake):not(:has(.reply:focus)):not(:has(.open)):has(.reply:placeholder-shown):not(:has(.tray:not([hidden]))) .c-bar { display: none; }
 body.split #feed .item.open .composer:not(.awake):not(:has(.reply:focus)) { box-shadow: none; }
 body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }
+
+/* ---------- stacked (body.stack: windows under 900px, the phone app) ---------- */
+/* One pane at a time. The list is the window; a task, a crew member's thread or home (New task)
+   opens over it as a page (body.stack-page) whose head starts with Back. The list stays laid out
+   underneath, off-screen (the open card's body lives in it, and it keeps its scroll for Back). */
+body.split.stack .stage { grid-template-columns: minmax(0, 1fr); }
+body.split.stack :is(.topbar, .feed-wrap, .split-foot) { grid-column: 1; border-left: 0; border-right: 0; }
+body.split.stack .split-main { grid-column: 1; }
+body.split.stack :is(.split-grip, .view-btn) { display: none; }
+body.split.stack:not(.stack-page) .split-main { display: none; }
+body.split.stack.stack-page :is(.topbar, .split-foot) { display: none; }
+body.split.stack.stack-page .feed-wrap { position: absolute; top: 0; bottom: 0; left: -100vw; width: 100vw; visibility: hidden; }
+body.split.stack.stack-page #feed .item.open > .it-body { visibility: visible; }
+body.split.stack .feed-wrap { padding: 0 8px 32px; }
+body.split.stack .split-top { margin: 0 -8px; padding: 8px 8px 10px; }
+/* The list's rows get the room a sidebar doesn't have: titles on two lines. */
+body.split.stack #feed .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+body.split.stack #feed .item.open .it-title { white-space: normal; }
+
+/* The page's head: Back, the title (two lines at most, so a long one never pushes the rest off), the
+   split.head slot. A fixed minimum height, so a title that wraps or changes doesn't move the task. */
+.split-main .sh-back { display: none; }
+/* The same 56px box on every page (task, member, home), so Back sits on the same spot in each. */
+body.split.stack .split-main .sh-back { display: inline-flex; flex: none; width: 44px; height: 44px; margin: 0 0 0 -10px; justify-content: center; }
+body.split.stack .sh-back .i { width: 20px; height: 20px; }
+body.split.stack .split-head { min-height: 56px; align-items: center; padding: 6px 12px 6px 16px; }
+body.split.stack .split-head .sh-row { align-items: center; gap: 6px; }
+body.split.stack .split-head .sh-title {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere;
+  font-size: 15px; line-height: 1.3;
+}
+body.split.stack .split-head .sh-acts { min-height: 44px; }
+body.split.stack .crew-view .cv-top .sh-back { margin-right: -2px; }
+
+/* Home as a page: Back beside the greeting, the prompt box under it; no tips or keys on a phone. */
+.sh-bar { display: contents; }
+body.split.stack .split-home { padding: 0 16px 32px; align-items: stretch; }
+body.split.stack .split-home > * { max-width: none; }
+body.split.stack .sh-bar { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 6px 0; margin-bottom: 8px; }
+body.split.stack .sh-hello { margin: 0; padding: 0; font-size: 19px; }
+body.split.stack :is(.sh-tips, .sh-keys) { display: none; }
+body.split.stack .split-new.on { border-color: var(--line-2); color: var(--muted); }
+
+/* The task's body fills the page; its bar stays sticky over it. */
+body.split.stack #feed .item.open > .it-body { padding: 0 16px; }
+body.split.stack #feed .item.open > .it-body > .it-dock { padding: 10px 0 calc(12px + env(safe-area-inset-bottom)); }
+
+/* Opening a page slides it in from the right (split.js adds .stack-in for the move only, so a
+   refresh, the first paint or the window narrowing onto a page never replays it). */
+body.split.stack #feed .item.open > .it-body { animation: none; }
+body.split.stack.stack-in :is(.split-main, #feed .item.open > .it-body) { animation: stack-in 0.22s var(--ease); }
+@keyframes stack-in { from { transform: translateX(32px); opacity: 0; } }
+/* The phone app: the floating New task sits over the list, above its foot (Settings is in the
+   foot's corner), with room under the last row to scroll it clear. */
+body.wisp-mobile.split.stack .feed-wrap { padding-bottom: 88px; }
+body.wisp-mobile.split.stack .prompt-fab { bottom: calc(76px + env(safe-area-inset-bottom)); }
+/* On a touch screen the row's done button is always there (no hover): its own column after the
+   time and state, not over them. The task bar's buttons take a thumb, as in the app. */
+@media (hover: none) and (pointer: coarse) {
+  body.split.stack .it-bar .ghost.xs { min-width: 44px; height: 44px; }
+}
+@media (hover: none) {
+  body.split.stack #feed .it-head { grid-template-columns: 10px minmax(0, 1fr) auto 36px; }
+  body.split.stack #feed .it-quick { top: 50%; right: 8px; width: 36px; height: 36px; margin: -18px 0 0; background: none; }
+}
+/* The Mac window buttons sit over the page's top-left corner: Back starts to their right. */
+body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top) { padding-left: 88px; }
+body.electron.mac.split.stack .sh-bar { padding-left: 72px; }

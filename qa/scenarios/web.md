@@ -81,10 +81,9 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** the palette lists the task under sessions and opens it; `Esc` closes.
 - **Automated**
 
-### WEB-13 · Feed view ↔ split view
-- **Steps:** press `\`; press `\` again.
-- **Expected:** the one-column feed with the same cards, then split view again. The choice is kept
-  after a reload.
+### WEB-13 · Split view is the only layout
+- **Steps:** press `\`; reload; open Settings → General.
+- **Expected:** split view throughout (the feed is gone); no *Layout* row in Settings.
 - **Automated**
 
 ### WEB-14 · Keyboard: J / K / N / Esc
@@ -103,9 +102,12 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** both themes render with readable text; screenshots of home and an open task.
 - **Automated** (Chrome `prefers-color-scheme`)
 
-### WEB-17 · Narrow windows fall back to the feed
-- **Steps:** resize to 860×900 (under `SPLIT_MIN_WIDTH`).
-- **Expected:** the feed layout, no horizontal scroll.
+### WEB-17 · Narrow windows stack
+- **Steps:** resize to 860×600 (under `SPLIT_MIN_WIDTH`); scroll the list a little; open a task;
+  click its Back; click **New task**; `Esc` twice.
+- **Expected:** the list fills the window, no horizontal scroll. The task opens as a page of its
+  own (Back, the title, the task); Back returns to the list where it was scrolled. New task opens
+  home as a page with the prompt focused; Esc goes back to the list.
 - **Automated**
 
 ### WEB-18 · Phone width (mobile browser)

@@ -52,7 +52,6 @@ export const SPELL_EXAMPLES = [
     ask: 'Split view with a wider task list showing full details, and a PR button in the task header',
     spell: {
       wispSpell: 1, id: 'split-wide', name: 'Wide split view', version: '1.0.0',
-      settings: { view: 'split' },
       parts: { sidebar: { props: { width: 420, details: 'full' } }, 'split.main': { props: { readWidth: 1000 } }, 'split.home': { props: { greeting: 'What should we ship today?' } } },
       buttons: [{ slot: 'split.head', icon: 'github', label: 'PR', when: { hasPr: true }, do: { open: '{pr.url}' } }],
     },
@@ -107,7 +106,7 @@ export function spellReference() {
       parts: '{ "<part>": { style?: { cssProp: value }, props?: {...}, order?: [...] (card.head only) } }',
       ui: '{ hide: [parts], tokens: { "--accent": "#7c5cff" }, dark: { … tokens for dark mode } }',
       prompt: '["text", { text, when }] — added to agents\' system prompts while the spell is on',
-      settings: '{ key: value } — wins over the user\'s setting while the spell is on (view: "split" switches wisp to the sidebar layout)',
+      settings: '{ key: value } — wins over the user\'s setting while the spell is on (theme: "dark" keeps wisp dark)',
       slash: '[{ name, args?, hint?, do }] — /name in a follow-up box; {args} in do\'s text is what the user typed after it',
       commands: '[{ label, keywords?, icon?, key?, do }] — ⌘K items (key: a single key like "g" or "shift+g", only when no built-in uses it)',
       hooks: `[{ on, if?, max?, do }] — on: ${Object.keys(EVENTS).join(' | ')}; if: { ${HOOK_IF.join(', ')} }; do: one of ${[...HOOK_ACTIONS].join(', ')}; max: times per task (default 1)`,

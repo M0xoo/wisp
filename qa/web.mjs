@@ -226,21 +226,22 @@ try {
     p.clean();
   });
 
-  await check('WEB-13', 'feed view ↔ split view, kept after reload', async () => {
+  await check('WEB-13', 'split view is the only layout: no feed, no switch', async () => {
     await press(p, 'Escape');
     await p.locator('body').click({ position: { x: 700, y: 5 } }).catch(() => {});
     await press(p, '\\');
-    const layout = () => p.evaluate(() => (document.body.classList.contains('split') ? 'split' : 'feed'));
-    await p.waitForTimeout(500);
-    const a = await layout();
-    await p.shot('feed');
+    await p.waitForTimeout(400);
+    const split = () => p.evaluate(() => document.body.classList.contains('split'));
+    ok(await split(), '\\ left split view');
     await p.reload();
     await p.waitForTimeout(1500);
-    const b = await layout();
-    await press(p, '\\');
-    await p.waitForTimeout(500);
-    const c = await layout();
-    ok(a === 'feed' && b === 'feed' && c === 'split', `layouts ${a} → reload ${b} → toggle ${c}`);
+    ok(await split(), 'no split view after a reload');
+    await p.locator('#settingsBtn').click();
+    await p.locator('section.sx-pane[data-pane="general"]').waitFor({ state: 'visible', timeout: 3000 });
+    ok(!(await p.locator('.view-seg').count()), 'Settings still has a Layout switch');
+    await press(p, 'Escape');
+    await until(async () => !(await p.locator('#overlay').isVisible()), { timeout: 2000, what: 'Settings to close on Esc' });
+    await p.evaluate(() => document.activeElement?.blur()); // the reload focused the prompt box
     p.clean();
   });
 
@@ -297,14 +298,33 @@ try {
     }
   });
 
-  await check('WEB-17', 'narrow window falls back to the feed', async () => {
-    const q = await page({ viewport: { width: 860, height: 900 } });
+  await check('WEB-17', 'narrow window stacks: the list, a task as a page, Back to the list where it was', async () => {
+    const q = await page({ viewport: { width: 860, height: 600 } });
     await q.goto(w.url);
     await q.waitForTimeout(1500);
-    const side = await q.evaluate(() => document.querySelector('#spSide')?.offsetWidth || 0);
-    await q.shot('narrow');
-    ok(side === 0, `split sidebar shown at 860px (${side}px)`);
+    const st = () => q.evaluate(() => ({ stack: document.body.classList.contains('stack'), page: document.body.classList.contains('stack-page'), top: document.querySelector('#feedWrap').scrollTop }));
+    const a = await st();
+    ok(a.stack && !a.page, `not the stacked list at 860px (${JSON.stringify(a)})`);
     await noOverflow(q);
+    await q.shot('narrow');
+    await q.evaluate(() => (document.querySelector('#feedWrap').scrollTop = 40));
+    const before = (await st()).top;
+    await q.locator(`.item[data-id="${fresh.id}"] .it-head`).click();
+    await q.waitForTimeout(600);
+    ok((await st()).page, 'opening a task did not open its page');
+    ok(await q.locator('#splitHead .sh-back').isVisible(), 'no Back on the task page');
+    await q.shot('narrow-task');
+    await q.locator('#splitHead .sh-back').click();
+    await q.waitForTimeout(300);
+    const b = await st();
+    ok(!b.page && b.top === before, `Back: page ${b.page}, list at ${b.top} (was ${before})`);
+    await q.locator('#splitNew').click();
+    await q.waitForTimeout(300);
+    ok((await st()).page && (await q.evaluate(() => document.activeElement?.id === 'prompt')), 'New task did not open home with the prompt focused');
+    await press(q, 'Escape'); // out of the prompt
+    await press(q, 'Escape'); // home → the list
+    await q.waitForTimeout(300);
+    ok(!(await st()).page, 'Esc did not go back to the list');
     q.clean();
     await q.context().close();
   });
@@ -322,6 +342,8 @@ try {
     await q.waitForTimeout(1500);
     await noOverflow(q);
     await q.shot('phone-task');
+    // The follow-up box is one line until you're in it: its bar (and the mode button) shows then.
+    await q.locator('.it-body:visible .reply').first().click();
     const mode = await q.locator('.it-body:visible .c-mode').first().boundingBox();
     ok(mode && mode.height <= 44, `follow-up mode button wraps (${mode?.height}px tall)`);
     ok(!(await q.locator('.collapse-all').isVisible()), 'floating Collapse shows over the card on a phone');

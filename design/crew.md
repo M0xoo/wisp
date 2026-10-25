@@ -19,15 +19,15 @@ Named agents that stay on hand and keep working: *Scout · CI watcher*, *Quill �
 A member is like a teammate you keep a conversation with. Everything about it happens in one place,
 its thread; its work never mixes with your tasks.
 
-- **The list.** The *Crew* section is pinned above *Working*, in split view and the feed, rows in a
+- **The list.** The *Crew* section is pinned above *Working*, in the task list, rows in a
   fixed order (when they joined). A row never moves: what changes is its status line (*Asking you:
   …*, *Running tests · 2 jobs*, *Reported: …*, *Looks again 14:30*, *Every 30 min*, *Paused*), the
   dot on its face (amber: asking you; blue: a report you haven't read) and its spirit's mood. Under a
   member sit its recent jobs as ordinary cards: live first (asking you, working, an unread report),
   then the ones it finished, newest first, until you mark them done or archive them; three at most (plus the one open),
   and an open member keeps every live one. Quiet check-ins are archived, so only the thread has them. Crew jobs never show in *Needs you*, *Working* or *Done*.
-- **Opening a member** is opening a task: in split view its thread takes the main pane (any open task
-  closes), in the feed it unfolds under the row. The row looks selected.
+- **Opening a member** is opening a task: its thread takes the main pane (any open task closes), or
+  stacked, a page with Back. The row looks selected.
 - **The thread**: a task's header (face, name, role, state, Pause, ⋯, close), then its jobs oldest
   first, each what was asked and where from (*You*, *Check-in*, *Tagged in “…”*, *Delegated by
   “…”*, *Trigger …*) and the member's answer: working (its live line), asking you (the question, its

@@ -60,7 +60,7 @@ there only some of the time is flaky: fix it, don't retry it. Tests can't rely o
 ## UI and UX
 
 Every UI change follows `design/` and ends with `design/checklist.md`: seen in real Chrome at
-desktop and phone widths, in light and dark, in split view and the feed. In short: tokens only,
+desktop and phone widths, in light and dark, side by side and stacked. In short: tokens only,
 instant actions that roll back with a toast, nothing that jumps or loads empty, the same action under
 the same name everywhere, phones first-class.
 
@@ -98,20 +98,22 @@ names to its DOM. When you add or change UI:
 7. **Test it** in `test/spells.test.js`: the new slot / part / prop / setting is accepted, and bad
    values are refused with a useful message.
 
-Example: the split view (`web/js/features/split.js`) is reachable through the `view` setting, the
+Example: the split view (`web/js/features/split.js`) is reachable through the
 `sidebar.top` and `split.head` slots, the `sidebar`, `split.*` and `topbar.view` parts, and the
 `sidebar` (`width`, `side`: left by default, `details`), `split.main` (`readWidth`) and `split.home` (`greeting`)
 props.
 
-## Split view and the feed
+## Split view
 
-The page has two layouts, chosen by the `view` setting (`feed` or `split`; `\` switches). Both use
-the same card nodes (`S.nodes`) and code paths. In split view at most one card is open: its head
-stays in the sidebar and its `.it-body` is `position: fixed` over `#splitStage` (split.js keeps
-`--sb-*` on that box), so code that looks things up through `n.card` keeps working. Scrolling goes
-through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`, `feedAnchor`, `topInset`,
-`watching`), which moves the right scroller in either layout: use it instead of touching
-`#stage` directly. Windows under `SPLIT_MIN_WIDTH` (900px) always get the feed.
+The page has one layout, split view (the feed and its `view` setting are gone; a spell that still
+sets `view` loads with a warning). The task list's cards (`S.nodes`) are rows in the sidebar; at
+most one is open: its head stays in the list and its `.it-body` is `position: fixed` over
+`#splitStage` (split.js keeps `--sb-*` on that box), so code that looks things up through `n.card`
+keeps working. Under `SPLIT_MIN_WIDTH` (900px), and always in the phone app, the panes stack
+(`body.stack`, `isStacked()`): the list fills the window, and a task, a crew member's thread or home
+opens over it as a page (`body.stack-page`, set only by `paintSplit`) with Back (`goBack()`; `goHome()`
+is New task). Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, `keepInPlace`,
+`feedAnchor`, `topInset`, `watching`): use it instead of touching `#stage` directly.
 
 ## Conventions
 

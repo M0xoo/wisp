@@ -32,14 +32,11 @@ export const SLOTS = {
 
 export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head']);
 
-// The layouts (the `view` setting): feed = one column, cards open in place; split = cards in a
-// sidebar, the open one in the main pane. Split needs a window at least SPLIT_MIN_WIDTH wide.
-export const VIEWS = ['feed', 'split'];
 // Light or dark: system follows the OS (the page's `prefers-color-scheme`).
 export const THEMES = ['system', 'light', 'dark'];
+// Split view (the only layout) puts the list beside the open task from this width; narrower, and
+// in the phone app, they stack: the list, and the open task as a page over it with Back.
 export const SPLIT_MIN_WIDTH = 900;
-// With no layout picked, windows this wide open in split view and narrower ones in the feed.
-export const SPLIT_DEFAULT_WIDTH = 1280;
 
 // Parts: things a spell can restyle, give props or hide. Selectors are wisp's own markup.
 // Never here: questions, approvals, waiting pills, the spell review and Settings → Spells.
@@ -163,6 +160,8 @@ export const PARTS = {
   tips: '#splitHome .sh-tips',
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
+  // Stacked (narrow windows, the phone app): Back to the list, on a task's page and on home.
+  'split.back': '.split-main .sh-back',
   'split.body': 'body.split #feed .item.open > .it-body',
   // The open task's details column, fixed on the right while its body scrolls: what the card head
   // says (state, PR, harness, project, time), how it runs (branch, mode, …), its PR and its actions.
@@ -318,7 +317,6 @@ export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'notify', 'webh
 // Settings a spell may set (while on). Telemetry, feedback, the update channel (a shared spell
 // mustn't move you onto nightlies) and anything secret are not here.
 export const SETTINGS = {
-  view: VIEWS,
   theme: THEMES,
   editor: ['vscode', 'cursor', 'windsurf', 'zed', 'idea', 'none'],
   // Take over in: wisp (a terminal in the page), auto, or a terminal app (not a custom command).

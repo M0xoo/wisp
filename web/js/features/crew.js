@@ -22,7 +22,7 @@ import { toast, toastError, tryApi } from '../ui/toast.js';
 import { PART_LABEL, PARTS, SPIRIT, isSpirit, parseSpirit, rollSpirit, spiritCode, spiritDefs, spiritSvg } from '../spirit.js';
 import { collapse, placeCards, renderFeed, reveal } from './feed.js';
 import { mentionBox } from './mentions.js';
-import { goHome, isSplit, splitOpen } from './split.js';
+import { goBack, isSplit, isStacked, splitOpen } from './split.js';
 import { projectList } from './project-list.js';
 import { runnerPicker } from './runner-picker.js';
 import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
@@ -300,7 +300,7 @@ export function crewBack() {
   }
   if (!open) {
     closeMember();
-    goHome();
+    goBack({ focus: true }); // home (stacked: the list)
     return true;
   }
   return false;
@@ -640,15 +640,16 @@ function buildView(id) {
     if (!m) return;
     const st = memberState(m);
     const split = isSplit();
-    // Header: like a task's.
-    const top = `${avatarHtml(m, { size: 30, dot: false })}
+    const stacked = isStacked();
+    // Header: like a task's (stacked, Back to the list first, and no Close).
+    const top = `${stacked ? `<button class="icon-btn sh-back" data-a="close" title="Back to tasks" aria-label="Back to tasks">${icon('back')}</button>` : ''}${avatarHtml(m, { size: 30, dot: false })}
       <div class="cv-who"><h2 class="sh-title">${esc(m.name)}</h2>${m.role ? `<span class="cv-role">${esc(m.role)}</span>` : ''}</div>
       <span class="cv-state ${statusLine(m, st).cls}">${esc(statusLine(m, st).text)}</span>
       <span class="sh-acts">
         ${slotHtml('crew.page', null)}
         <button class="ghost sm" data-a="pause" aria-label="${m.paused ? 'Resume' : 'Pause'}" title="${m.paused ? 'Resume: check-ins and triggers start again' : 'Pause: no check-ins, triggers or delegations until you resume'}">${icon(m.paused ? 'play' : 'pause')}<span>${m.paused ? 'Resume' : 'Pause'}</span></button>
         <button class="icon-btn" data-a="more" title="More" aria-label="More">${icon('dots')}</button>
-        ${split ? `<button class="icon-btn" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>` : ''}
+        ${split && !stacked ? `<button class="icon-btn" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>` : ''}
       </span>`;
     const hd = $('.cv-top', node);
     const hkey = top.replace(/<svg[\s\S]*?<\/svg>/, `[${st.mood}:${m.avatar}]`);

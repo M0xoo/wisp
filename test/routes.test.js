@@ -97,22 +97,16 @@ test('Full auto is the default mode; a saved Edits switches once, Plan sticks', 
   assert.equal(new Store(home('plan')).config.defaults.mode, 'plan');
 });
 
-test('no layout picked: the page chooses (split on big screens); a saved feed resets once, a pick after sticks', async () => {
+test('the layout switch is gone: a saved view (feed or split) is dropped on load', async () => {
   const fs = await import('node:fs');
   const path = await import('node:path');
   const { Store } = await import('../server/store.js');
   assert.equal(new Store(tmp('view-fresh')).config.defaults.view, undefined);
-  const home = (view) => {
+  for (const view of ['feed', 'split']) {
     const h = tmp(`view-${view}`);
     fs.writeFileSync(path.join(h, 'config.json'), JSON.stringify({ autoIntroduced: true, fullAutoIntroduced: true, defaults: { agent: 'claude', mode: 'auto', view } }));
-    return h;
-  };
-  const feed = new Store(home('feed'));
-  assert.equal(feed.config.defaults.view, undefined);
-  feed.config.defaults.view = 'feed';
-  feed.saveConfig();
-  assert.equal(new Store(feed.home).config.defaults.view, 'feed', 'picked after the switch: kept');
-  assert.equal(new Store(home('split')).config.defaults.view, 'split');
+    assert.equal(new Store(h).config.defaults.view, undefined, view);
+  }
 });
 
 test('a scratch launch runs in its own empty folder, without a project or worktree', async () => {

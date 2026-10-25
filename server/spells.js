@@ -305,6 +305,11 @@ export function normalizeSpell(raw) {
 
   const settings = {};
   for (const [k, v] of Object.entries(obj(j.settings) || {})) {
+    // The layout switch is gone (split view is the only one): spells that set it still load.
+    if (k === 'view') {
+      warnings.push('settings.view: split view is the only layout now, ignored');
+      continue;
+    }
     const t = SETTINGS[k];
     if (!t) p.at_(`settings.${k}`, `not a setting spells can change (${Object.keys(SETTINGS).join(', ')})`);
     else if (Array.isArray(t) ? !t.includes(v) : typeof v !== 'string') p.at_(`settings.${k}`, Array.isArray(t) ? t.join(' | ') : 'a string');
@@ -446,7 +451,7 @@ export function describeSpell(s) {
   const cards = (w) => (w ? ` (cards ${Object.entries(w).map(([k, v]) => `${k}: ${v}`).join(', ')})` : '');
   for (const b of s.buttons || []) lines.push(`${WHERE[b.slot] || b.slot} “${b.label || b.icon}”${cards(b.when)} that ${act(b.do)}`);
   for (const c of s.chips || []) lines.push(`${WHERE[c.slot] || c.slot}${c.text ? ` showing “${c.text}”` : ''}${cards(c.when)}${c.do ? ` that ${act(c.do)}` : ''}`);
-  for (const x of s.panels || []) lines.push(`A ${x.as === 'card' ? `panel in each card (${x.slot})` : x.as === 'feed' ? 'panel pinned above the feed' : `${x.as}`} “${x.title || x.id}”`);
+  for (const x of s.panels || []) lines.push(`A ${x.as === 'card' ? `panel in each card (${x.slot})` : x.as === 'feed' ? 'panel on home' : `${x.as}`} “${x.title || x.id}”`);
   for (const b of s.blocks || []) lines.push(`A “${b.type}” block agents can use in their reports`);
   for (const [name, v] of Object.entries(s.parts || {})) lines.push(`Changes ${name}${v.style ? ` (${Object.keys(v.style).join(', ')})` : ''}${v.props ? ` (${Object.entries(v.props).map(([k, x]) => `${k}: ${x}`).join(', ')})` : ''}${v.order ? ` (order: ${v.order.join(', ')})` : ''}`);
   if (s.ui?.hide?.length) lines.push(`Hides ${s.ui.hide.join(', ')}`);

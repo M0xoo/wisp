@@ -50,22 +50,26 @@ Never send builds to someone's own phone as part of QA.
 - **Run:** `qa/mobile.mjs` (390 and 412 wide), Emulator
 - **Steps:** open `http://<wisp>/?m=Studio` with `wispMobile` in the user agent.
 - **Expected:** `body.wisp-mobile`; the top bar's Machines button reads the computer's name
-  (*Studio*), not *Machines*; nowhere says *This computer*; a floating **New task** button; no
-  split view, no feed/split switch, no keyboard hints (`kbd`), no tips; no sideways scroll; no
-  page errors.
+  (*Studio*), not *Machines*; nowhere says *This computer*; the task list fills the screen
+  (stacked split view) with a floating **New task** button and no New task row; no sidebar switch,
+  no keyboard hints (`kbd`), no tips; no sideways scroll; no page errors.
 
 ### MOB-06 Desktop-only actions are gone; Computers goes back to the list
 - **Run:** `qa/mobile.mjs`, Emulator
-- **Steps:** open a finished task → **More**; then tap the computer button in the top bar.
-- **Expected:** the menu has no *Open project in editor* (still has Delete task). The top-bar
+- **Steps:** open a finished task → **More**; press the phone's Back; then tap the computer
+  button in the top bar.
+- **Expected:** the task opens as a page of its own (Back, its title, the task), not in place in the
+  list. The menu has no *Open project in editor* (still has Delete task). Back closes the page
+  (the menu first, if open), back on the list where it was scrolled. The top-bar
   button goes to `https://localhost/?from=<computer>`, the app's own list. Take over runs in the
   in-page terminal (inline), never a terminal app.
 
-### MOB-07 Start a task from the New task sheet
+### MOB-07 Start a task from New task
 - **Run:** `qa/mobile.mjs` (fake agents), Emulator (cloud wisp on a dev grid)
 - **Steps:** tap **New task**, type a prompt, tap send.
-- **Expected:** the sheet opens with the prompt box focused and closes on send; the task's card
-  shows up, finishes and its presentation (hero, stats, files) renders without sideways scroll.
+- **Expected:** home opens as a page (Back, the prompt box focused, Needs you under it); sending
+  goes back to the list, where the task's row shows up, finishes, and opens with its presentation
+  (hero, stats, files) rendered without sideways scroll.
 
 ### MOB-08 Long URLs wrap
 - **Run:** `qa/mobile.mjs`

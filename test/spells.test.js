@@ -111,10 +111,17 @@ test('the follow-up box’s Delegate button and the Delegate popover are parts s
   assert.deepEqual(normalizeSpell({ ...base0, parts: { 'composer.team': { style: { color: 'red' } } } }).spell.parts['composer.team'].style, { color: 'red' });
 });
 
-test('split view: the view setting, sidebar and split slots, parts and pixel props', () => {
+test('the layout switch is gone: a spell that still sets settings.view loads, with a warning', () => {
+  for (const view of ['feed', 'split', 'grid']) {
+    const out = normalizeSpell({ ...base0, settings: { view, theme: 'dark' } });
+    assert.deepEqual(out.spell.settings, { theme: 'dark' });
+    assert.ok(out.warnings.some((w) => /settings\.view/.test(w) && /only layout/.test(w)), out.warnings.join('\n'));
+  }
+});
+
+test('split view: sidebar and split slots, parts and pixel props', () => {
   const ok = {
     ...base0,
-    settings: { view: 'split' },
     parts: {
       sidebar: { props: { width: 420, side: 'right', details: 'full' }, style: { background: '#fafafa' } },
       'split.main': { props: { readWidth: 1100 } },
@@ -123,6 +130,7 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
       'split.title': { style: { fontSize: '22px' } },
       'split.details': { props: { width: 280 }, style: { fontSize: '12px' } },
       'split.pr': { style: { borderRadius: '6px' } },
+      'split.back': { style: { color: 'red' } },
     },
     ui: { hide: ['sidebar.new', 'topbar.view', 'sidebar.foot', 'sidebar.nav', 'sidebar.account', 'split.actions'] },
     buttons: [
@@ -135,9 +143,8 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
   assert.deepEqual(normalizeSpell(ok).spell.parts.sidebar.props, { width: 420, side: 'right', details: 'full' });
   assert.deepEqual(normalizeSpell(ok).spell.parts['split.details'].props, { width: 280 });
   assert.ok(schema.SLOTS['sidebar.top'] && schema.CARD_SLOTS.has('split.head') && schema.CARD_SLOTS.has('split.details'));
-  assert.ok(spellReference().settings.view.includes('split'));
-  const p = problems({ ...base0, settings: { view: 'grid' }, parts: { sidebar: { props: { width: 40, side: 'top' } }, 'split.main': { props: { readWidth: 5000 } }, 'split.details': { props: { width: 90, side: 'left' } } } });
-  assert.ok(p.some((x) => /settings\.view/.test(x) && /feed \| split/.test(x)), p.join('\n'));
+  assert.ok(!('view' in spellReference().settings));
+  const p = problems({ ...base0, parts: { sidebar: { props: { width: 40, side: 'top' } }, 'split.main': { props: { readWidth: 5000 } }, 'split.details': { props: { width: 90, side: 'left' } } } });
   assert.ok(p.some((x) => /width: px from 160 to 1600/.test(x)), p.join('\n'));
   assert.ok(p.some((x) => /readWidth: px from 160 to 1600/.test(x)), p.join('\n'));
   assert.ok(p.some((x) => /side: left \| right/.test(x)), p.join('\n'));
