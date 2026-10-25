@@ -104,7 +104,7 @@ body.split .f-group.crew { margin-bottom: 14px; }
 .ce-cron { max-width: 260px; }
 .ce-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ce-proj span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ce-mode { width: auto; }
+.ce-mode { height: 30px; }
 .ce-par { display: inline-flex; align-items: center; gap: 2px; height: 30px; padding: 0 3px; border-radius: 8px; border: 1px solid var(--line-2); font-size: 12.5px; color: var(--ink-2); }
 .ce-par b { font-weight: 500; padding: 0 4px; font-variant-numeric: tabular-nums; }
 .ce-par button { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); }

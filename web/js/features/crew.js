@@ -24,7 +24,7 @@ import { mentionBox } from './mentions.js';
 import { goHome, isSplit, splitOpen } from './split.js';
 import { projectList } from './project-list.js';
 import { runnerPicker } from './runner-picker.js';
-import { MODES, agentName, harnessesAt, harnessLogo, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
+import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { connectMachine } from './machines.js';
 import { placeMenu } from './place-menu.js';
 import { machineById, pathAt, placeName, placesOf } from './places.js';
@@ -847,7 +847,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
           <button type="button" class="tog-btn ce-proj" title="The project their jobs run in">${icon('folder')}<span></span>${icon('chevron', 'chev')}</button>
           <button type="button" class="runner-btn ce-runner" title="Harness, model and thinking level" aria-haspopup="dialog"></button>`}
           <button type="button" class="tog-btn team-btn ce-team" aria-haspopup="dialog"></button>
-          <select class="ce-mode" name="mode" title="What they may do without asking">${MODES.map((x) => `<option value="${x.id}">${x.label}</option>`).join('')}</select>
+          <button type="button" class="mode-btn ce-mode" aria-haspopup="menu"></button>
           <span class="ce-par" title="Jobs they run at the same time; more wait their turn">
             <button type="button" data-par="-1" aria-label="One fewer at once">${icon('minus')}</button><b></b><button type="button" data-par="1" aria-label="One more at once">${icon('plus')}</button>
           </span>
@@ -872,7 +872,6 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
   $f('name').value = d.name;
   $f('role').value = d.role;
   $f('brief').value = d.brief;
-  $f('mode').value = d.mode;
   $f('cron').value = d.cron;
   if ($f('checkin')) $f('checkin').checked = !!d.checkin;
   if (task && !d.brief) {
@@ -901,6 +900,12 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     $('[data-par="1"]', node).disabled = d.parallel >= 5;
     // Its delegates: the button the launcher has, with the member as the lead.
     paintTeamBtn($('.ce-team', node), d.team, '', d.agent || task?.agent);
+    // What they may do without asking: the launcher's mode button and menu.
+    const m = MODES.find((x) => x.id === d.mode) || MODES[0];
+    const mb = $('.ce-mode', node);
+    mb.className = `mode-btn ce-mode m-${m.id}`;
+    mb.innerHTML = `${icon(m.icon)}<span>${m.label}</span>`;
+    mb.title = `${m.label}: ${m.hint}`;
     $('.ce-team', node).title = d.team.length ? `${$('.ce-team', node).title}\n\nEvery job of theirs can hand work to these.` : 'Delegates: agents (or other crew members) every job of theirs can hand work to';
     if (task) return;
     const p = S.config.projects?.find((x) => pathAt(x, d.machine) === d.cwd);
@@ -1009,6 +1014,13 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       });
       return;
     }
+    if (e.target.closest('.ce-mode')) {
+      modeMenu(e.target.closest('.ce-mode'), d.mode, (id) => {
+        d.mode = id;
+        paintBar();
+      });
+      return;
+    }
     if (e.target.closest('.ce-team')) {
       teamEditor(e.target.closest('.ce-team'), { lead: d.agent || task?.agent || 'auto', leadModel: d.model, leadEffort: d.effort, team: d.team, places: [d.machine || ''], exclude: member?.id || '' }, (team) => {
         d.team = team;
@@ -1032,7 +1044,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
 
   f.onsubmit = async (e) => {
     e.preventDefault();
-    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, parallel: d.parallel, mode: $f('mode').value, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
+    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
     if (!body.name) return $f('name').focus();
     const again = () => crewEditor({ member, task, draft: { ...d, ...body, checkin: $f('checkin')?.checked } });
     close();
