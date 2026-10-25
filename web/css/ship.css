@@ -190,3 +190,14 @@ body.split.pane-wide .it-bar > .it-props > .pill.overlap.clash { color: var(--wa
 body.split.pane-wide .it-bar > .it-props > .pill.overlap .i { width: 13px; height: 13px; margin-left: 1px; color: var(--tone); }
 /* Phones: the icon alone keeps the title its room; the open card spells it out */
 @media (max-width: 520px) { .pill.overlap .ov-l { display: none; } .pill.overlap { padding: 0 6px; } }
+.ov-more { align-self: flex-start; margin: 1px 0 1px 21px; color: var(--ink-2); }
+.ov-more:hover { color: var(--ink); }
+.ov-modal { width: min(560px, calc(100vw - 32px)); }
+.ov-modal .hint { margin: -6px 0 12px; }
+.ov-list { display: flex; flex-direction: column; gap: 2px; max-height: min(60vh, 520px); overflow: auto; }
+.ov-list .ov-row { padding: 8px 6px 8px 8px; border-radius: 8px; align-items: flex-start; }
+.ov-list .ov-row:hover { background: var(--surface-2); }
+.ov-list .ov-row > .i { margin-top: 2px; color: var(--muted); }
+/* In the dialog there's room: the files wrap instead of trailing off */
+.ov-list .ov-text { white-space: normal; }
+.ov-list .ov-text b { display: block; margin-bottom: 2px; }

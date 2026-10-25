@@ -97,6 +97,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
     // After a change to a session's own fields: persist it and send its new summary.
     sessionChanged(s, opts) {
+      app.overlaps?.changed(s);
       store.save(s, opts);
       events.broadcast('summary', summarize(s, store));
     },

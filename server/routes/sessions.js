@@ -203,6 +203,7 @@ export function register(r, app) {
         for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: s.delegated ? 'force' : true }).catch(() => {}); // a delegate's branch only held the lead's work
         app.terms.close(s.id);
         store.delete(s.id);
+        app.overlaps?.dropped(s);
         app.broadcast('removed', { id: s.id });
       } finally {
         for (const id of ids) runner.deleting.delete(id);
