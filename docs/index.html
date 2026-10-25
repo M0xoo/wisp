@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=41" />
+  <link rel="stylesheet" href="style.css?v=48" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -225,70 +225,76 @@
   </header>
 
   <main id="top">
-    <!-- ───────── hero: a working copy of the launcher ───────── -->
+    <!-- ───────── hero: the pitch, both ways in, and a night of work played back ───────── -->
     <section class="hero">
-      <div class="wrap hero-grid">
-      <div class="hero-head">
-        <h1>All your coding agents. <span class="soft">One place, any machine.</span></h1>
-        <p class="lede">Claude Code, Codex and five more, running in parallel on your laptop, your servers or the cloud. Hire a crew that checks in on its own, race two agents and keep the better one, and read a one-screen report instead of a transcript. Free and open source.</p>
-        <!-- what wisp does, one link per section; the launcher's demo lights the one it's showing -->
-        <nav class="rail" aria-label="What wisp does" data-rail>
-          <a href="#report" data-f="report"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1.8"/><path d="M5.6 5.5h4.8M5.6 8h4.8M5.6 10.5h2.8"/></svg>One-screen reports</a>
-          <a href="#crew" data-f="crew"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 13.5V8a4.5 4.5 0 0 1 9 0v5.5l-1.5-1-1.5 1-1.5-1-1.5 1-1.5-1z"/><circle cx="6.4" cy="8" r=".6" fill="currentColor"/><circle cx="9.6" cy="8" r=".6" fill="currentColor"/></svg>Crew on a schedule</a>
-          <a href="#machines" data-f="machines"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.4"/><path d="M1.5 13h13"/></svg>Any machine</a>
-          <a href="#compare" data-f="compare"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="5" height="10" rx="1.4"/><rect x="9" y="3" width="5" height="10" rx="1.4"/></svg>Keep the better one</a>
-          <a href="#delegate" data-f="delegate"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3.5" r="1.8"/><circle cx="3.5" cy="12.5" r="1.8"/><circle cx="12.5" cy="12.5" r="1.8"/><path d="M8 5.3v2.2M4.2 10.8 8 7.5l3.8 3.3"/></svg>Lead with helpers</a>
-          <a href="#spells" data-f="spells"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5 9 7"/><path d="M11 1.8l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" fill="currentColor" stroke="none"/></svg>Restyle with spells</a>
-        </nav>
-      </div>
-      <div class="hero-top">
-        <div class="desk-cta" id="deskCta" data-tabs>
-          <p class="desk-or">Or install it on your computer:</p>
-          <div class="hero-tabs" role="tablist" aria-label="How to get wisp">
-            <button class="tab" role="tab" id="htab-npx" aria-controls="heroPanel" aria-selected="true" tabindex="0" data-tab="npx" data-cmd="npx wisp-agents" data-note="macOS · Linux and Windows in beta · Node 20+ · MIT">npx</button>
-            <button class="tab" role="tab" id="htab-npm" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="npm" data-cmd="npm install -g wisp-agents" data-note="Puts the wisp command on your PATH · any OS · Node 20+">npm</button>
-            <button class="tab" role="tab" id="htab-curl" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="curl" data-cmd="curl -fsSL https://trywisp.dev/install.sh | bash" data-note="macOS and Linux · checks for Node 20+, then installs with npm">curl</button>
-            <button class="tab" role="tab" id="htab-brew" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="brew" data-cmd="brew install m0xoo/tap/wisp-agents" data-note="Homebrew · CLI and browser mode; the desktop app is the download">brew</button>
-            <button class="tab" role="tab" id="htab-app" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="app" data-note="Free, no Node needed">Download</button>
+      <div class="h-glow" aria-hidden="true"></div>
+      <div class="wrap h-head">
+        <a class="h-news" href="#crew"><span class="h-news-tag">New</span>Hire a crew of agents<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></a>
+        <h1>Your coding agents,<br /> <span class="h-rot" data-rot="working while you sleep.|on every machine you own.|racing each other.|checking in on their own.|reporting in one screen.">working while you sleep.</span></h1>
+        <p class="lede">wisp runs Claude Code, Codex and five more in parallel, on your laptop, your servers or the cloud. Close the lid; come back to a one-screen report from each of them. Free and open source.</p>
+
+        <div class="h-ctas">
+          <a class="h-cloud" href="https://grid.trywisp.dev" data-cloud-cta="hero" aria-label="Open wisp Cloud at grid.trywisp.dev">
+            <span class="h-cloud-txt"><b data-seats-cta="Get the next seat">Try it in the cloud</b><small><span data-seats-full="Preview full">Free preview</span> · nothing to install</small></span>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </a>
+          <div class="h-install" id="deskCta" data-tabs>
+            <div role="tabpanel" id="heroPanel" aria-labelledby="htab-npx">
+              <a class="cmd dl" hidden href="https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg" data-tab-dl><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg><span data-dl-label>Download for macOS</span><span class="copy" data-dl-kind>.dmg</span></a>
+              <button class="cmd" id="heroCmd" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy install command">
+                <span class="p">$</span><code data-tab-code>npx wisp-agents</code><span class="copy">Copy</span>
+              </button>
+            </div>
+            <div class="hero-tabs" role="tablist" aria-label="How to get wisp">
+              <button class="tab" role="tab" id="htab-npx" aria-controls="heroPanel" aria-selected="true" tabindex="0" data-tab="npx" data-cmd="npx wisp-agents" data-note="macOS · Linux and Windows in beta · Node 20+ · MIT">npx</button>
+              <button class="tab" role="tab" id="htab-npm" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="npm" data-cmd="npm install -g wisp-agents" data-note="Puts the wisp command on your PATH · any OS · Node 20+">npm</button>
+              <button class="tab" role="tab" id="htab-curl" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="curl" data-cmd="curl -fsSL https://trywisp.dev/install.sh | bash" data-note="macOS and Linux · checks for Node 20+, then installs with npm">curl</button>
+              <button class="tab" role="tab" id="htab-brew" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="brew" data-cmd="brew install m0xoo/tap/wisp-agents" data-note="Homebrew · CLI and browser mode; the desktop app is the download">brew</button>
+              <button class="tab" role="tab" id="htab-app" aria-controls="heroPanel" aria-selected="false" tabindex="-1" data-tab="app" data-note="Free, no Node needed">Download</button>
+            </div>
           </div>
-          <div role="tabpanel" id="heroPanel" aria-labelledby="htab-npx">
-            <a class="cmd dl" hidden href="https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg" data-tab-dl><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg><span data-dl-label>Download for macOS</span><span class="copy" data-dl-kind>.dmg</span></a>
-            <button class="cmd" id="heroCmd" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy install command">
-              <span class="p">$</span><code data-tab-code>npx wisp-agents</code><span class="copy">Copy</span>
-            </button>
-          </div>
-          <p class="fine" id="deskFine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
         </div>
-        <a class="cloud-cta" href="https://grid.trywisp.dev" data-cloud-cta="hero" aria-label="Open wisp Cloud at grid.trywisp.dev">
-          <span class="cc-or"><span class="cc-or-d">Or skip the install:</span><span class="cc-or-m">Try it in your browser, nothing to install:</span></span>
-          <span class="cc-bar">
-            <span class="cc-url"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.6" fill="currentColor"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span class="cc-host"><b>you</b>.grid.trywisp.dev</span></span>
-            <span class="cc-go"><span class="cc-long" data-seats-cta="Get the next seat">Use wisp Cloud</span><span class="cc-short">Open</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          </span>
-          <span class="cc-notes"><span><i></i>GitHub or Google sign-in</span><span>Runs with your laptop shut</span><span data-seats-full="Preview full">Free preview</span></span>
-        </a>
+        <p class="fine h-fine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
       </div>
 
-      <div class="desk" id="desk" data-ui>
-        <form class="launch" id="launch" autocomplete="off">
-          <div class="l-projects" aria-hidden="true"><span class="in">in</span><span class="chip on"><i class="c-violet"></i>api-server</span><span class="chip"><i class="c-teal"></i>web-app</span><span class="chip"><i class="c-amber"></i>mobile</span></div>
-          <label class="sr" for="task">Describe a task</label>
-          <input id="task" class="l-input" placeholder="What should I go do?" spellcheck="false" maxlength="140" />
-          <div class="l-bar">
-            <span class="l-runner" id="runner"><svg class="spark" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" fill="currentColor"/></svg>Auto<span class="muted">Balanced</span></span>
-            <span class="l-wt"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10M11 3v3a3 3 0 0 1-3 3H5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="5" cy="3" r="1.6" fill="currentColor"/><circle cx="11" cy="3" r="1.6" fill="currentColor"/><circle cx="5" cy="13" r="1.6" fill="currentColor"/></svg>Worktree</span>
-            <span class="grow"></span>
-            <span class="l-hint" id="hint">Try it: type a task, press ↵</span>
-            <button class="l-send" type="submit" aria-label="Launch">↵</button>
+      <!-- The night shift: six tasks on three machines, played from midnight to morning. The rows
+           and the report are in the markup, so the window has its real shape before main.js runs. -->
+      <div class="wrap-wide h-stage">
+        <div class="window h-win morning" id="night" data-ui>
+          <div class="win-bar">
+            <span class="lights"><i></i><i></i><i></i></span>
+            <span class="win-title">wisp</span>
+            <span class="h-clock" aria-hidden="true"><svg class="h-moon" viewBox="0 0 16 16"><path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6z"/></svg><svg class="h-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg><b data-hclock>07:30</b></span>
+            <button class="h-replay" type="button" data-replay hidden>Replay the night</button>
           </div>
-        </form>
-
-        <div class="queue" id="queue" aria-live="polite">
-          <div class="q-ghosts" aria-hidden="true"><i></i><i></i><i></i></div>
-          <section class="q-group" data-g="needs"><h4>Needs you <span class="n">0</span></h4><div class="q-list"></div></section>
-          <section class="q-group" data-g="working"><h4>Working <span class="n">0</span></h4><div class="q-list"></div></section>
+          <div class="h-body">
+            <aside class="h-side">
+              <div class="h-side-top"><span>Tonight</span><span class="h-count" data-count>5 done · 1 needs you</span></div>
+              <ol class="h-rows">
+                <li class="h-row" data-s="done" data-at="00:40"><span class="h-dot"></span><span class="h-main"><b>Check CI on main</b><small data-live="Scout · watching run #418" data-done="CI green again · cached the rates call">CI green again · cached the rates call</small></span><span class="h-who"><span class="cw-av h-face c-sky" data-face="ghost.sky.visor.flat.antenna" title="Scout, a crew member"></span><span class="h-where">cloud</span></span></li>
+                <li class="h-row on" data-s="done" data-at="01:55" data-report><span class="h-dot"></span><span class="h-main"><b>Fix the flaky session-expiry test</b><small data-live="Editing src/auth/session.ts" data-done="214 passed · +42 −9">214 passed · +42 −9</small></span><span class="h-who"><img src="assets/logos/claudecode-color.svg" alt="Claude Code" width="16" height="16" /><span class="h-where">laptop</span></span></li>
+                <li class="h-row" data-s="asks" data-at="03:10"><span class="h-dot"></span><span class="h-main"><b>Migrate billing webhooks to Stripe v2</b><small data-live="Claude Code and Codex, same prompt" data-done="Asks: keep a v1 handler for 30 days?">Asks: keep a v1 handler for 30 days?</small></span><span class="h-who"><span class="h-pair"><img src="assets/logos/claudecode-color.svg" alt="Claude Code" width="16" height="16" /><img src="assets/logos/codex-color.svg" alt="Codex" width="16" height="16" /></span><span class="h-where">cloud</span></span></li>
+                <li class="h-row" data-s="done" data-at="04:25"><span class="h-dot"></span><span class="h-main"><b>Upgrade to Node 22, fix what breaks</b><small data-live="Running npm test · 3 failing" data-done="3 adapters fixed · PR #212">3 adapters fixed · PR #212</small></span><span class="h-who"><img src="assets/logos/codex-color.svg" alt="Codex" width="16" height="16" /><span class="h-where">dev-box</span></span></li>
+                <li class="h-row" data-s="done" data-at="05:50"><span class="h-dot"></span><span class="h-main"><b>Paginate the /invoices endpoint</b><small data-live="Leading 2 helpers on ci-box" data-done="Cursor param, max 200 · PR #184">Cursor param, max 200 · PR #184</small></span><span class="h-who"><img class="mono" src="assets/logos/cursor.svg" alt="Cursor" width="16" height="16" /><span class="h-where">dev-box</span></span></li>
+                <li class="h-row" data-s="done" data-at="06:45"><span class="h-dot"></span><span class="h-main"><b>Review PR #142 before I merge</b><small data-live="Quill · reading 11 files" data-done="Approved · 2 comments">Approved · 2 comments</small></span><span class="h-who"><span class="cw-av h-face c-violet" data-face="blob.violet.wide.flat.headphones" title="Quill, a crew member"></span><span class="h-where">cloud</span></span></li>
+              </ol>
+            </aside>
+            <div class="h-report" data-show="1">
+              <p class="h-kicker"><span class="h-ok">Done</span>Claude Code · laptop · 1h 57m</p>
+              <h3>Session-expiry test no longer flakes</h3>
+              <p class="h-sum">The test slept 50 ms and raced the token's TTL. SessionStore now takes a clock, and the test drives it.</p>
+              <div class="h-stats"><span><b>3</b>files</span><span><b><em class="h-add">+42</em> <em class="h-del">−9</em></b>lines</span><span><b>214</b>tests passed</span></div>
+              <pre class="h-diff"><span class="d-h">src/auth/session.ts</span>
+<span class="d-del">-  isExpired(t) { return Date.now() &gt; t.exp; }</span>
+<span class="d-add">+  constructor(private clock = systemClock) {}</span>
+<span class="d-add">+  isExpired(t) { return this.clock.now() &gt; t.exp; }</span></pre>
+              <div class="h-tests"><i></i><span>npm test · 214 passed · 0 failed</span></div>
+              <div class="h-acts"><span class="h-ship">Ship it<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg></span><span class="h-act">Follow up</span><span class="h-act">Rerun</span></div>
+            </div>
+          </div>
+          <div class="h-toast" data-toast><svg class="h-sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg>Good morning. 5 reports and 1 question.</div>
         </div>
-      </div>
+        <p class="h-caption">One night with wisp: six tasks on your laptop, a dev box and wisp Cloud. You slept through it.</p>
       </div>
     </section>
 
@@ -562,7 +568,7 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=21"></script>
+  <script src="main.js?v=22"></script>
   <script src="relay.js?v=2" defer></script>
   <script src="spells.js?v=4" defer></script>
   <script src="control.js?v=1" defer></script>
