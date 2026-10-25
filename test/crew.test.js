@@ -234,6 +234,24 @@ test('@Name further in a prompt: the task’s agent can delegate to them, and th
   assert.match(told.argv.join(' '), /`ada`: Ada, CI watcher, a member of the user's crew/);
 });
 
+test('@Name first and another further in: the second joins the first one’s job as a delegate', async () => {
+  const di = await api('/crew', { name: 'Di', role: 'Designer', agent: 'claude', cwd: repo });
+  const job = await api('/sessions', { prompt: '@Ada and @[Di](crew:' + di.id + ') redo the crew section', cwd: repo });
+  assert.deepEqual(jobOf(job), { id: ada.id, job: 'task' });
+  assert.deepEqual(job.team.map((x) => x.crew), [di.id], 'Di is on Ada’s team for it, not dropped');
+  await ended(job.id);
+  const told = records(RECORD, 'claude').find((x) => x.stdin.includes('redo the crew section'));
+  assert.match(told.argv.join(' '), /`di`: Di, Designer, a member of the user's crew.*hand them their part/);
+  // The same in a follow-up: Ada answers on the task, with Di to hand work to.
+  const task = await api('/sessions', { prompt: 'Fix the add function', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await ended(task.id);
+  const r = await api(`/sessions/${task.id}/reply`, { text: '@Ada look at this with @Di' });
+  const answer = await api(`/sessions/${r.crew[0].job}`);
+  assert.deepEqual(answer.subagents.map((x) => x.crew), [di.id]);
+  await ended(answer.id);
+  await api(`/crew/${di.id}`, undefined, 'DELETE');
+});
+
 test('a member follows up on the task that tagged it by itself, and you reply in its thread there', async () => {
   const task = await api('/sessions', { prompt: 'Ship the login fix', cwd: makeRepo(), agent: 'claude', worktree: false });
   await ended(task.id);
