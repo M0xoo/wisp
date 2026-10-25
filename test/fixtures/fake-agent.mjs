@@ -33,6 +33,7 @@
 // (what the transcript shows).
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
+// With DELEGATE SLOW each subagent works 3s first, long enough to interrupt the lead meanwhile.
 // Permissions: with APPROVE, claude asks wisp's `approve` tool (its --permission-prompt-tool)
 // before `npm publish` (twice with APPROVE TWICE). With BLOCKED, `npm publish` is refused unless
 // the run allows it (claude --allowedTools Bash(npm publish), or a Full auto run): claude reports
@@ -294,6 +295,7 @@ const final = (answer) => {
 
 const hang = () => setInterval(() => {}, 1 << 30);
 if (process.env.FAKE_DELAY) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_DELAY)));
+if (/Check math\.js for [\w#-]+ slowly/.test(stdin)) await new Promise((r) => setTimeout(r, 3000));
 // wisp's merge-conflict fix-up: really merge the base in (this side wins each conflict), or with
 // FAKE_LEAVE_CONFLICTS=1 stop halfway, conflicts and all.
 const fixup = stdin.match(/`git merge ([\w.-]+\/[\w./-]+)`/);
@@ -316,7 +318,7 @@ const ask = async () => {
   if (stdin.includes('DELEGATE') && srv) {
     const names = (list) => list.find((t) => t.name === 'delegate').inputSchema.properties.tasks.items.properties.subagent.enum.filter((n) => !n.includes('#'));
     const times = stdin.includes('DELEGATE TWICE') ? 2 : 1;
-    const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${i ? ` (${i + 1})` : ''}` }))) }));
+    const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${stdin.includes('DELEGATE SLOW') ? ' slowly' : ''}${i ? ` (${i + 1})` : ''}` }))) }));
     return report ? `delegated (${report.length} chars) ${report.match(/### [\w#-]+/g)?.join(' ')}` : 'no delegate tool';
   }
   const mention = stdin.match(/\(wisp task ([a-z0-9]+)\)/);
