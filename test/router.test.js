@@ -9,6 +9,7 @@ import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
 const { Router, classify, reward, betaSample, tierOf, infraError, splitKey, levelsFor } = await import('../server/router.js');
+const { adapters } = await import('../server/adapters/index.js');
 
 const AGENTS = [
   { id: 'claude', name: 'Claude Code', available: true, models: [{ id: '' }, { id: 'opus', label: 'Opus' }, { id: 'sonnet', label: 'Sonnet' }, { id: 'haiku', label: 'Haiku' }] },
@@ -316,7 +317,8 @@ test('Auto is the default harness, and a launch with it runs on a real one, with
   const cwd = makeRepo();
   const s = await api('/sessions', { prompt: 'fix the add bug', cwd, agent: 'auto', model: 'cheap', mode: 'edits', worktree: false });
   assert.notEqual(s.agent, 'auto');
-  assert.ok(['claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok'].includes(s.agent));
+  // Any registered harness: Auto may pick a different one from run to run.
+  assert.ok(Object.hasOwn(adapters, s.agent), s.agent);
   assert.equal(s.route.goal, 'cheap');
   assert.equal(s.route.type, 'bug');
   // Cheap thinks low wherever the harness has levels, and the session runs at the level Auto picked.
