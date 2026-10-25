@@ -3,7 +3,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { toolsDir } from '../util.js';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectFirst, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectFirst, exitText, fileTracker, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const exe = process.platform === 'win32' ? 'opencode.cmd' : 'opencode';
@@ -243,7 +243,7 @@ function describeTool(name, input, cwd) {
     case 'wisp_wisp_session':
       return { kind: 'tool', label: `Reading wisp task ${clip(input?.id || '', 40)}` };
     default:
-      return { kind: 'tool', label: `Using ${name.replace(/_/g, ' ')}` };
+      return crewToolLabel(name.replace(/^wisp_/, ''), input) || { kind: 'tool', label: `Using ${name.replace(/_/g, ' ')}` };
   }
 }
 

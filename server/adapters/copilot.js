@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, helpEfforts, helpText, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectVersion, exitText, fileTracker, helpEfforts, helpText, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const BIN = process.env.WISP_COPILOT_BIN || 'copilot';
@@ -311,7 +311,7 @@ function describeMcp(server, tool, input) {
     case 'wisp_session':
       return { kind: 'tool', label: `Reading wisp task ${clip(input?.id || '', 40)}` };
     default:
-      return { kind: 'tool', label: `Using wisp · ${tool}` };
+      return crewToolLabel(tool, input) || { kind: 'tool', label: `Using wisp · ${tool}` };
   }
 }
 

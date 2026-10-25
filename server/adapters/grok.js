@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectVersion, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectVersion, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
 
 const BIN = process.env.WISP_GROK_BIN || 'grok';
@@ -258,7 +258,7 @@ function describeMcp(tool, input) {
     case 'wisp__wisp_session':
       return { kind: 'tool', label: `Reading wisp task ${clip(input?.id || '', 40)}` };
     default:
-      return { kind: 'tool', label: `Using ${tool.split('__').join(' · ') || 'an integration'}` };
+      return crewToolLabel(tool.replace(/^wisp__/, ''), input) || { kind: 'tool', label: `Using ${tool.split('__').join(' · ') || 'an integration'}` };
   }
 }
 

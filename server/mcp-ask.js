@@ -9,10 +9,13 @@
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
 // reports, e.g. a task the user mentioned in the prompt.
+// `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove` read and change the user's crew
+// (server/crew.js) when the user asks; wisp refuses changes from subagents and crew members' jobs.
 // With WISP_SPELLS (a Cast a spell task): `wisp_spells`, `wisp_spell_schema`, `wisp_spell_data` and
 // `wisp_spell_check`, to write a spell for the user to keep.
 
 import readline from 'node:readline';
+import { CREW_TOOLS } from './crew-tools.js';
 
 const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS } = process.env;
 let TEAM = [];
@@ -97,6 +100,13 @@ const SESSION = {
     required: ['id'],
   },
 };
+
+async function crewTool(name, args = {}) {
+  const path = `/api/internal/crew/${WISP_SESSION}`;
+  const r = name === 'wisp_crew' ? await call(path) : await call(path, args, { wisp_crew_add: 'POST', wisp_crew_edit: 'PATCH', wisp_crew_remove: 'DELETE' }[name]);
+  if (r.error) throw new Error(r.error);
+  return r.text;
+}
 
 // Cast a spell tasks (WISP_SPELLS) get the tools to write one: what's installed, the reference,
 // a data source's real answer, and a check that validates without installing anything.
@@ -216,9 +226,9 @@ async function delegate({ tasks, wait = true }) {
 const send = (msg) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...msg }) + '\n');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function call(path, body) {
+async function call(path, body, method = body ? 'POST' : 'GET') {
   const res = await fetch(`${WISP_URL}${path}`, {
-    method: body ? 'POST' : 'GET',
+    method,
     headers: { 'content-type': 'application/json', 'x-wisp-token': WISP_TOKEN },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -268,7 +278,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, STATS, SESSIONS, SESSION, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -281,6 +291,8 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, result: { content: [{ type: 'text', text: await sessions(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_session') {
       send({ id, result: { content: [{ type: 'text', text: await session(params.arguments || {}) }] } });
+    } else if (method === 'tools/call' && CREW_TOOLS.some((t) => t.name === params?.name)) {
+      send({ id, result: { content: [{ type: 'text', text: await crewTool(params.name, params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'delegate') {
       send({ id, result: { content: [{ type: 'text', text: await delegate(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'subagent_results') {

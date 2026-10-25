@@ -1,5 +1,6 @@
 // `wisp mcp`: a stdio MCP server that lets any MCP-capable agent or editor (Claude Code, Codex,
-// opencode, Cursor, Antigravity, Grok, Copilot, Claude Desktop, Zed, …) hand tasks to wisp and read the results back.
+// opencode, Cursor, Antigravity, Grok, Copilot, Claude Desktop, Zed, …) hand tasks to wisp and read the results back,
+// and manage the user's crew.
 // It talks to the running wisp over HTTP (starting a headless one if needed) via the client SDK.
 //
 //   claude mcp add wisp -- npx -y wisp-agents mcp
@@ -7,6 +8,7 @@
 import readline from 'node:readline';
 import { WispClient } from './client.js';
 import { VERSION } from './util.js';
+import { CREW_FIELDS, CREW_TOOLS, memberLine } from './crew-tools.js';
 
 const AGENTS = ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok', 'copilot'];
 const DEFAULT_WAIT_S = 240; // stay under typical MCP client tool-call timeouts; call wisp_wait again for more
@@ -92,6 +94,7 @@ const TOOLS = [
     description: 'Which harnesses are installed, with their models and thinking levels.',
     inputSchema: { type: 'object', properties: {} },
   },
+  ...CREW_TOOLS,
 ];
 
 let client;
@@ -107,6 +110,8 @@ async function describe(id, extra = '') {
     s?.state === 'waiting' ? '\n\n_Answer with wisp_reply._' : s?.state === 'running' ? '\n\n_Still running. Call wisp_wait to block until it finishes._' : '';
   return `${head}\n\n${p.markdown}${hint}`;
 }
+
+const pick = (a) => Object.fromEntries(CREW_FIELDS.filter((k) => a[k] !== undefined).map((k) => [k, a[k]]));
 
 async function callTool(name, a = {}) {
   const c = await wisp();
@@ -141,6 +146,22 @@ async function callTool(name, a = {}) {
       return (await c.agents())
         .map((x) => `- **${x.id}** (${x.name}) — ${x.available ? `installed${x.version ? ` ${x.version}` : ''}; models: ${(x.models || []).map((m) => m.id).filter(Boolean).slice(0, 12).join(', ') || 'default'}` : 'not installed'}`)
         .join('\n');
+    case 'wisp_crew': {
+      const list = await c.crew();
+      return list.length ? list.map(memberLine).join('\n') : 'No crew yet. Add a member with wisp_crew_add.';
+    }
+    case 'wisp_crew_add': {
+      const fields = pick(a);
+      const m = await c.addCrew({ ...fields, cwd: fields.cwd ?? process.cwd(), checkin: a.checkin === true });
+      return `Added ${m.name} to the crew.\n\n${memberLine(m)}${m.session ? `\n\nTheir first check-in is running (session \`${m.session.id}\`).` : ''}`;
+    }
+    case 'wisp_crew_edit':
+      return `Updated.\n\n${memberLine(await c.updateCrew(String(a.member || '').replace(/^@/, ''), pick(a)))}`;
+    case 'wisp_crew_remove': {
+      const m = await c.crewMember(String(a.member || '').replace(/^@/, ''));
+      await c.removeCrew(m.id);
+      return `Removed ${m.name} from the crew. Their jobs stay as ordinary sessions.`;
+    }
     default:
       throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32602 });
   }
@@ -164,7 +185,7 @@ export function serveMcp({ input = process.stdin, output = process.stdout } = {}
           protocolVersion: params?.protocolVersion || '2025-06-18',
           capabilities: { tools: {} },
           serverInfo: { name: 'wisp', version: VERSION },
-          instructions: 'wisp runs coding agents in the background. Launch with wisp_launch, then wisp_wait / wisp_get for the result; wisp_reply to follow up or answer a question.',
+          instructions: 'wisp runs coding agents in the background. Launch with wisp_launch, then wisp_wait / wisp_get for the result; wisp_reply to follow up or answer a question. wisp_crew* manage the user\'s crew of long-lived agents.',
         },
       });
     if (method === 'tools/list') return send({ id, result: { tools: TOOLS } });

@@ -209,7 +209,7 @@ const s = await wisp.launch({ prompt: 'fix the flaky auth test', cwd: '/path/to/
 console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markdown);
 ```
 
-- **MCP** (`wisp mcp`): `wisp_launch`, `wisp_wait`, `wisp_get`, `wisp_reply`, `wisp_list`, `wisp_stop`, `wisp_agents`. Config snippets for Claude Code, Codex, opencode, Cursor and Claude Desktop are in the docs.
+- **MCP** (`wisp mcp`): `wisp_launch`, `wisp_wait`, `wisp_get`, `wisp_reply`, `wisp_list`, `wisp_stop`, `wisp_agents`, and `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit`, `wisp_crew_remove` for your crew. Config snippets for Claude Code, Codex, opencode, Cursor and Claude Desktop are in the docs.
 - **Skill** ([`skills/wisp/SKILL.md`](skills/wisp/SKILL.md)): when to delegate, how to brief, and to pass a waiting agent's question on to you instead of answering it.
 - **HTTP API**: `GET /api/openapi.json`. The new routes are `/api/health`, `/api/sessions/:id/wait` (long-poll), `/api/sessions/:id/presentation` (blocks + markdown), and filters on `/api/sessions`.
 - **Discovery**: the running server writes `~/.wisp/server.json` (`url`, `port`, `pid`, `version`).
@@ -424,6 +424,8 @@ A check-in that found nothing marks itself `quiet`: it's logged and archived (it
 - `@Ada does this look right?` as a follow-up: Ada answers on that task, under your message, and its agent isn't interrupted. **Reply to Ada** carries the thread on there; it's the same job, so Ada remembers it.
 - `fix the bug, then have @Ada review it`: Ada joins the task's delegates, and its agent hands Ada the review. The Delegate popover lists your crew under **Add delegate** too.
 - A trigger's **Send to** (Automations): a schedule, failed CI or a labelled issue goes to them.
+
+**Ask any task to change the crew.** *Add a crew member who reviews new PRs every hour*, *pause Ada*, *remove Quill*: every agent wisp runs has `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove`, and writes the brief from what you asked. A subagent or a member's own job can't change the crew. `wisp mcp` has the same tools, so Claude Code, Codex or any MCP client outside wisp can manage it too.
 
 **They follow up by themselves.** A member tagged in a task, or delegated to by one, can send that task's agent a follow-up of its own when it finds something that agent should act on (`followUp` in its block). It shows in the task as *@Ada (your crew’s CI watcher): …*, Ada's thread there moves along with it, and Ada's job says where it followed up. Ada also joins that task's delegates, so its agent can hand the work back for her to check; that delegated job reports to the agent rather than following up again, so they can't loop.
 

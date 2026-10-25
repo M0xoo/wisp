@@ -122,6 +122,16 @@ export function withProtocol(prompt, systemPrompt, resumeId) {
 
 export { clip, MAX_SNAPSHOT, rel };
 
+// The crew tools of wisp's MCP server (mcp-ask.js), by bare tool name; null for any other tool.
+export function crewToolLabel(tool, input = {}) {
+  const who = clip(String(input?.member || input?.name || ''), 40);
+  if (tool === 'wisp_crew') return { kind: 'tool', label: 'Listing your crew' };
+  if (tool === 'wisp_crew_add') return { kind: 'tool', label: `Adding ${who || 'a member'} to your crew` };
+  if (tool === 'wisp_crew_edit') return { kind: 'tool', label: `Changing ${who || 'a crew member'}` };
+  if (tool === 'wisp_crew_remove') return { kind: 'tool', label: `Removing ${who || 'a member'} from your crew` };
+  return null;
+}
+
 export function flatten(content) {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) return content.map((c) => c.text || '').join('\n');
