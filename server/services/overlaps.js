@@ -116,6 +116,9 @@ export function createOverlaps(app) {
     if (keyOf(s)) schedule(keyOf(s), 0);
   };
 
+  // Overlaps are worked out, not kept: ones saved by an earlier wisp start over.
+  for (const s of store.all()) delete s.overlaps;
+
   const sweep = setInterval(() => {
     const keys = new Set(store.all().filter((s) => s.overlaps?.length).map(keyOf));
     for (const key of keys) if (key && !timers.has(key)) schedule(key);
