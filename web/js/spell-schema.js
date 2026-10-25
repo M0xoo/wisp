@@ -176,11 +176,6 @@ export const PARTS = {
   // A video in a reply: the player, and its Download and Show in folder buttons.
   video: '.b-video',
   'video.tools': '.b-video .img-tools',
-  // Pictures and videos next to each other in a reply, shown one at a time: the box, its previous /
-  // next arrows and its "2 / 3" count.
-  gallery: '.b-gallery',
-  'gallery.nav': '.b-gallery .gal-nav',
-  'gallery.count': '.b-gallery .gal-count',
   // A live web page in a reply, framed as a phone, tablet or browser window: its address and size
   // switcher, the stage it sits on (max-height sets how tall it may get), and the line under it.
   preview: '.b-preview',
