@@ -434,6 +434,7 @@ const SHOW = 30; // jobs shown; Show earlier adds more
 const views = new Map(); // member id -> view
 const sending = new Map(); // member id -> [{ id, prompt }]: jobs sent, not started yet
 const readSent = new Set(); // reports marked read from here
+const noting = new Set(); // members whose notebook is open for writing
 
 function viewFor(id) {
   let v = views.get(id);
@@ -630,6 +631,18 @@ function buildView(id) {
     if (a === 'checkin') return checkIn(id);
     if (a === 'pause') return togglePause(id);
     if (a === 'edit') return crewEditor({ member: m });
+    if (a === 'note-edit' || a === 'note-done') {
+      noting[a === 'note-edit' ? 'add' : 'delete'](id);
+      paint();
+      const nb = $('.cv-notebook', node);
+      return nb?.focus({ preventScroll: true });
+    }
+    const clip = e.target.closest('[data-clip]')?.dataset.clip;
+    if (clip) {
+      const k = `${clip}:${id}`;
+      unclipped[unclipped.has(k) ? 'delete' : 'add'](k);
+      return paint();
+    }
     if (a === 'remove') return removeMember(id, e.target.closest('[data-a]'));
     if (a === 'more') return memberMenu(id, { anchor: e.target.closest('[data-a]') });
     if (e.target.closest('.cv-earlier')) {
@@ -719,9 +732,12 @@ function paintSide(m, st, side) {
       <button class="ghost" data-a="edit">${icon('pen')}<span>Edit…</span></button>
       <button class="ghost danger" data-a="remove">${icon('trash')}<span>Remove from crew</span></button>
     </div>
-    <div class="cv-sec"><h5>Notebook <small class="cv-count"></small></h5><textarea class="textarea mono cv-notebook" spellcheck="false" placeholder="Empty so far. They add to it as they work; you can edit it too."></textarea><small class="cv-saved"></small></div>
-    <div class="cv-sec"><h5>Brief <button class="link xs" data-a="edit">Edit</button></h5><div class="cv-brief">${m.brief ? `<div class="prose">${md(m.brief)}</div>` : '<p class="cv-none">No brief: they do what each job asks.</p>'}</div></div>
-    ${m.links?.length ? `<div class="cv-sec"><h5>Part of</h5>${m.links.slice(0, 6).map((l) => `<button class="cv-link" data-session="${esc(l.id)}" ${S.sessions.has(l.id) ? '' : 'disabled'}>${icon('read')}<span>${esc(l.title || 'A task')}</span></button>`).join('')}</div>` : ''}`;
+    <div class="cv-sec cv-nb">
+      <h5>Notebook <small class="cv-saved"></small><small class="cv-count"></small>${noting.has(m.id) ? '<button class="link xs" data-a="note-done">Done</button>' : '<button class="link xs" data-a="note-edit">Edit</button>'}</h5>
+      ${noting.has(m.id) ? '<textarea class="textarea cv-notebook" spellcheck="false" placeholder="What they should keep in mind between jobs. They add to it as they work."></textarea>' : clipped(m.notebook, 'note', m.id, 'Empty so far. They add to it as they work; you can write in it too.')}
+    </div>
+    <div class="cv-sec"><h5>Brief <button class="link xs" data-a="edit">Edit</button></h5>${clipped(m.brief, 'brief', m.id, 'No brief: they do what each job asks.')}</div>
+    ${m.links?.length ? `<div class="cv-sec"><h5>Part of</h5><div class="cv-links">${m.links.slice(0, 6).map((l) => `<button class="cv-link" data-session="${esc(l.id)}" ${S.sessions.has(l.id) ? '' : 'disabled'}><span>${esc(l.title || 'A task')}</span>${icon('chevron')}</button>`).join('')}</div></div>` : ''}`;
   const key = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
   if (side.dataset.h !== key) {
     const nb = $('.cv-notebook', side);
@@ -730,17 +746,42 @@ function paintSide(m, st, side) {
       // Keep the notebook being edited; repaint the rest around it.
       const keep = nb.closest('.cv-sec');
       const fresh = el(`<div>${html}</div>`);
-      $('.cv-notebook', fresh).closest('.cv-sec').replaceWith(keep);
+      $('.cv-nb', fresh).replaceWith(keep);
       side.replaceChildren(...fresh.childNodes);
     } else side.innerHTML = html;
     side.dataset.h = key;
-    wireNotebook(m.id, side);
   }
   const nb = $('.cv-notebook', side);
-  if (document.activeElement !== nb && nb.value !== (m.notebook || '')) nb.value = m.notebook || '';
-  $('.cv-count', side).textContent = `${nb.value.length.toLocaleString()} / 6,000`;
-  $('.cv-count', side).classList.toggle('over', nb.value.length > 6000);
+  if (nb) {
+    if (document.activeElement !== nb && nb.value !== (m.notebook || '')) nb.value = m.notebook || '';
+    wireNotebook(m.id, side);
+  }
+  countNotebook(side, nb ? nb.value : m.notebook || '', !!nb);
 }
+
+// A notebook or brief, read as prose; a long one shows its start, Show all opens the rest.
+const CLIP = 420; // characters
+const unclipped = new Set(); // `${kind}:${member id}` opened in full
+function clipped(text, kind, id, empty) {
+  if (!text?.trim()) return kind === 'note' ? `<button class="cv-none cv-nb-empty" data-a="note-edit">${esc(empty)}</button>` : `<p class="cv-none">${esc(empty)}</p>`;
+  const long = text.length > CLIP || text.split('\n').length > 8;
+  const open = unclipped.has(`${kind}:${id}`);
+  return `<div class="cv-text${long && !open ? ' clip' : ''}"><div class="prose">${md(text)}</div></div>${long ? `<button class="link xs cv-all" data-clip="${kind}">${open ? 'Show less' : 'Show all'}</button>` : ''}`;
+}
+
+// The size only matters while you write, or when it's nearly full (they're asked to tidy at 6,000).
+function countNotebook(side, text, editing) {
+  const c = $('.cv-count', side);
+  const n = text.length;
+  c.textContent = editing || n > 4800 ? `${n.toLocaleString()} / 6,000` : '';
+  c.classList.toggle('over', n > 6000);
+}
+
+// Grows with what's written, up to a point; a folded panel (no height yet) keeps its rows.
+const fitNotebook = (ta) => {
+  ta.style.height = 'auto';
+  if (ta.scrollHeight) ta.style.height = `${Math.min(ta.scrollHeight + 2, 420)}px`;
+};
 
 // The notebook saves itself a moment after you stop typing (and when you leave it).
 function wireNotebook(id, side) {
@@ -756,8 +797,10 @@ function wireNotebook(id, side) {
     const ok = await patchMember(m, { notebook: nb.value });
     $('.cv-saved', side).textContent = ok ? 'Saved' : '';
   };
+  fitNotebook(nb);
+  nb.addEventListener('input', () => fitNotebook(nb));
   nb.addEventListener('input', () => {
-    $('.cv-count', side).textContent = `${nb.value.length.toLocaleString()} / 6,000`;
+    countNotebook(side, nb.value, true);
     $('.cv-saved', side).textContent = '';
     clearTimeout(typing);
     typing = setTimeout(save_, 900);
