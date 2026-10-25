@@ -163,8 +163,9 @@ test('webhooks get session.finished with the markdown', async () => {
   }
 });
 
-test('wisp mcp: tools/list, launch with wait, list', async () => {
-  const child = spawn(process.execPath, [BIN, 'mcp'], { cwd: makeRepo(), env: { ...process.env, WISP_PORT: String(port) }, stdio: ['pipe', 'pipe', 'inherit'] });
+test('wisp mcp: tools/list, launch with wait, list, the crew', async () => {
+  const cwd = makeRepo();
+  const child = spawn(process.execPath, [BIN, 'mcp'], { cwd, env: { ...process.env, WISP_PORT: String(port) }, stdio: ['pipe', 'pipe', 'inherit'] });
   const pending = new Map();
   readline.createInterface({ input: child.stdout }).on('line', (l) => {
     const m = JSON.parse(l);
@@ -181,7 +182,7 @@ test('wisp mcp: tools/list, launch with wait, list', async () => {
     const init = await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {} });
     assert.equal(init.result.serverInfo.name, 'wisp');
     const { result } = await rpc('tools/list', {});
-    assert.deepEqual(result.tools.map((t) => t.name), ['wisp_launch', 'wisp_list', 'wisp_get', 'wisp_wait', 'wisp_reply', 'wisp_stop', 'wisp_agents']);
+    assert.deepEqual(result.tools.map((t) => t.name), ['wisp_launch', 'wisp_list', 'wisp_get', 'wisp_wait', 'wisp_reply', 'wisp_stop', 'wisp_agents', 'wisp_crew', 'wisp_crew_add', 'wisp_crew_edit', 'wisp_crew_remove']);
     const launched = await rpc('tools/call', { name: 'wisp_launch', arguments: { prompt: 'fix it', agent: 'claude', wait: true, timeout_seconds: 20 } });
     const text = launched.result.content[0].text;
     assert.ok(!launched.result.isError, text);
@@ -191,6 +192,16 @@ test('wisp mcp: tools/list, launch with wait, list', async () => {
     assert.match(listed.result.content[0].text, /Fake claude finished/);
     const bad = await rpc('tools/call', { name: 'wisp_get', arguments: { id: 'nope' } });
     assert.equal(bad.result.isError, true);
+    // The crew: added in the server's folder, changed and removed by @handle.
+    const text1 = async (name, args) => (await rpc('tools/call', { name, arguments: args })).result.content[0].text;
+    assert.match(await text1('wisp_crew_add', { name: 'Mo', role: 'Release helper', agent: 'claude' }), /Added Mo to the crew\.\n\n- \*\*Mo\*\* \(@mo, id `\w+`\) — Release helper/);
+    assert.equal(fs.realpathSync((await wisp.crew()).find((m) => m.name === 'Mo').cwd), fs.realpathSync(cwd), 'the folder wisp mcp runs in');
+    assert.match(await text1('wisp_crew_edit', { member: '@mo', cron: '0 9 * * *' }), /checks in on `0 9 \* \* \*`/);
+    assert.match(await text1('wisp_crew', {}), /\*\*Mo\*\*/);
+    assert.match(await text1('wisp_crew_remove', { member: 'Mo' }), /Removed Mo from the crew/);
+    assert.ok(!(await wisp.crew()).some((m) => m.name === 'Mo'));
+    const missing = await rpc('tools/call', { name: 'wisp_crew_remove', arguments: { member: 'Nobody' } });
+    assert.equal(missing.result.isError, true);
   } finally {
     child.kill();
   }

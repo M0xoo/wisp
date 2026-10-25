@@ -360,3 +360,30 @@ test('a task joins the crew: its folder, harness and first prompt become the mem
   const st = await api('/status');
   assert.ok(st.nextWakeAt && st.nextWakeAt <= cy.nextAt);
 });
+
+test('an agent adds, changes and removes crew members when the user asks; a member’s job can’t', async () => {
+  const cwd = makeRepo();
+  const said = async (prompt) => {
+    const s = await api('/sessions', { prompt, cwd, agent: 'claude', mode: 'edits', worktree: false });
+    return (await ended(s.id)).turns.at(-1).presentation.blocks[0].summary;
+  };
+  assert.match(await said('CREWHIRE: add a docs writer to my crew'), /Added Quill to the user's crew\. \| \d+ on the user's crew:/);
+  let quill = (await api('/crew')).find((m) => m.name === 'Quill');
+  assert.deepEqual([quill.role, quill.brief, quill.cron, quill.agent, quill.cwd], ['Docs writer', 'Keep the README current.', '0 9 * * 1-5', 'claude', cwd], 'no folder given: the task’s project');
+  // A second Quill is refused, and the agent hears why.
+  assert.match(await said('CREWHIRE again'), /wisp: Quill is already on your crew/);
+
+  assert.match(await said('CREWEDIT: make Quill the docs lead and pause them'), /Updated Quill\..*Docs lead.*paused/);
+  quill = await api(`/crew/${quill.id}`);
+  assert.deepEqual([quill.role, quill.paused, quill.brief], ['Docs lead', true, 'Keep the README current.'], 'only the fields given change');
+
+  // A member's own job can't change the crew.
+  const bo = await api('/crew', { name: 'Bo', cwd, agent: 'claude', mode: 'edits' });
+  const { session } = await api(`/crew/${bo.id}/jobs`, { prompt: 'CREWFIRE Quill' });
+  assert.match((await ended(session.id)).turns.at(-1).presentation.blocks[0].summary, /Only a task the user started can change their crew/);
+  assert.ok((await api('/crew')).some((m) => m.name === 'Quill'));
+
+  assert.match(await said('CREWFIRE: remove Quill from my crew'), /Removed Quill from the user's crew/);
+  assert.ok(!(await api('/crew')).some((m) => m.name === 'Quill'));
+  await api(`/crew/${bo.id}`, undefined, 'DELETE');
+});

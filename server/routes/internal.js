@@ -1,5 +1,5 @@
 // Bridge for the MCP servers running inside an agent process (ask_user, approve, delegate, wisp_stats,
-// wisp_sessions, wisp_session). Every call
+// wisp_sessions, wisp_session, wisp_crew*). Every call
 // carries the per-run token wisp handed the agent; nothing else may use these.
 
 import { adapters } from '../adapters/index.js';
@@ -9,6 +9,7 @@ import { summarize } from '../runner.js';
 import { delegationReport } from '../subagents.js';
 import { toolStats, toolStatsText } from '../usage.js';
 import { clip } from '../util.js';
+import { CREW_FIELDS, memberLine } from '../crew-tools.js';
 import { describeSpell, normalizeSpell } from '../spells.js';
 import { spellReference } from '../spell-guide.js';
 import { ghProblem, wispPathProblem } from '../../web/js/spell-schema.js';
@@ -188,6 +189,75 @@ export function register(r, app) {
         ? `${all.length} task${all.length === 1 ? '' : 's'}${all.length > list.length ? `, the newest ${list.length}` : ''}. Read one with wisp_session.\n\n${list.map(sessionLine).join('\n')}`
         : 'No tasks match.';
       c.send(200, { text });
+    }),
+    opts,
+  );
+
+  // wisp_crew, wisp_crew_add, wisp_crew_edit, wisp_crew_remove: the user's crew, read and changed by
+  // an agent the user asked to. Only the user's own tasks change it: not a subagent, nor a member's
+  // job (no member hiring or firing members on its own). A refusal is the tool's answer, not an error.
+  r.route(
+    'GET',
+    '/internal/crew/:id',
+    guarded((c) => {
+      const s = lead(c);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const list = app.crew.list.map((m) => app.crew.view(m));
+      c.send(200, { text: list.length ? `${list.length} on the user's crew:\n\n${list.map(memberLine).join('\n')}` : 'The user has no crew yet. Add a member with wisp_crew_add.' });
+    }),
+    opts,
+  );
+  const crewChange = (fn) =>
+    guarded(async (c) => {
+      const s = lead(c);
+      if (!s) return c.send(404, { error: 'no such session' });
+      if (s.parentId || s.crew) return c.send(200, { error: 'Only a task the user started can change their crew; a subagent or a crew member’s job can’t. Tell the user what to change instead.' });
+      const body = await c.body();
+      try {
+        c.send(200, await fn(s, body || {}));
+      } catch (err) {
+        c.send(200, { error: err.message });
+      }
+    });
+  const pick = (body) => Object.fromEntries(CREW_FIELDS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
+  const named = (key) => {
+    const m = app.crew.find(String(key || '').trim().replace(/^@/, ''));
+    if (!m) throw new Error(`No one called “${key}” on the user's crew. List it with wisp_crew.`);
+    return m;
+  };
+  r.route(
+    'POST',
+    '/internal/crew/:id',
+    crewChange(async (s, body) => {
+      // No folder given: the asking task's project (its worktree is the task's, not the member's).
+      const cwd = body.cwd !== undefined ? String(body.cwd || '') : store.projectFor?.(s.cwd)?.path || (store.isScratch?.(s.cwd) ? '' : s.cwd);
+      const m = app.crew.create({ ...pick(body), cwd });
+      telemetry.track('crew_tool', { agent: s.agent, op: 'add' });
+      const out = body.checkin === true ? await app.crew.checkin(m).catch(() => ({})) : {};
+      return { text: `Added ${m.name} to the user's crew.\n\n${memberLine(app.crew.view(m))}${out.session ? `\n\nTheir first check-in is running (task \`${out.session.id}\`).` : ''}\n\nThe user can talk to them as @${m.name} in any prompt.` };
+    }),
+    opts,
+  );
+  r.route(
+    'PATCH',
+    '/internal/crew/:id',
+    crewChange(async (s, body) => {
+      const m = named(body.member);
+      app.crew.update(m, pick(body));
+      telemetry.track('crew_tool', { agent: s.agent, op: 'edit' });
+      return { text: `Updated ${m.name}.\n\n${memberLine(app.crew.view(m))}` };
+    }),
+    opts,
+  );
+  r.route(
+    'DELETE',
+    '/internal/crew/:id',
+    crewChange(async (s, body) => {
+      const m = named(body.member);
+      const running = app.crew.busy(m);
+      app.crew.remove(m);
+      telemetry.track('crew_tool', { agent: s.agent, op: 'remove' });
+      return { text: `Removed ${m.name} from the user's crew. Their brief, notebook and schedule are gone; their jobs stay as ordinary tasks${running ? ` (${running} still running)` : ''}, and triggers that sent them work are off.` };
     }),
     opts,
   );

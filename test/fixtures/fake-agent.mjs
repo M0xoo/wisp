@@ -344,6 +344,14 @@ const ask = async () => {
     if (stdin.includes('APPROVE TWICE')) answers.push(await once());
     return answers.join(' | ');
   }
+  // CREWHIRE / CREWEDIT / CREWFIRE: the user asked for a change to their crew.
+  if (stdin.includes('CREWHIRE') && srv) {
+    const added = await mcpCall(srv, 'wisp_crew_add', { name: 'Quill', role: 'Docs writer', brief: 'Keep the README current.', cron: '0 9 * * 1-5', agent: 'claude' });
+    const list = await mcpCall(srv, 'wisp_crew', {});
+    return `${added.split('\n')[0]} | ${list.split('\n')[0]}`;
+  }
+  if (stdin.includes('CREWEDIT') && srv) return (await mcpCall(srv, 'wisp_crew_edit', { member: '@quill', role: 'Docs lead', paused: true })).split('\n').join(' ');
+  if (stdin.includes('CREWFIRE') && srv) return (await mcpCall(srv, 'wisp_crew_remove', { member: 'Quill' })).split('\n')[0];
   if (stdin.includes('STATS') && srv) {
     const text = await mcpCall(srv, 'wisp_stats', { days: 7, agent: 'claude' });
     return text ? text.split('\n').slice(0, 2).join(' ') : 'no wisp_stats tool';

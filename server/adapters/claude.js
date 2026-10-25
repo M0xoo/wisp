@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
+import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
@@ -283,7 +283,7 @@ function describeTool(name, input, cwd) {
     case 'mcp__wisp__wisp_session':
       return { kind: 'tool', label: `Reading wisp task ${clip(input?.id || '', 40)}` };
     default:
-      return { kind: 'tool', label: name.startsWith('mcp__') ? `Using ${name.split('__').slice(1).join(' · ')}` : `Using ${name}` };
+      return crewToolLabel(name.replace(/^mcp__wisp__/, ''), input) || { kind: 'tool', label: name.startsWith('mcp__') ? `Using ${name.split('__').slice(1).join(' · ')}` : `Using ${name}` };
   }
 }
 

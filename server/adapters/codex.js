@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ASK_TIMEOUT_MS, attachmentNote, clip, detectFirst, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
+import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectFirst, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
 
 const DEFAULT_BIN = process.env.WISP_CODEX_BIN || 'codex';
@@ -271,5 +271,5 @@ function describeMcp(item) {
   if (item.server === 'wisp' && item.tool === 'wisp_stats') return { kind: 'tool', label: 'Reading wisp stats' };
   if (item.server === 'wisp' && item.tool === 'wisp_sessions') return { kind: 'tool', label: 'Listing wisp tasks' };
   if (item.server === 'wisp' && item.tool === 'wisp_session') return { kind: 'tool', label: 'Reading a wisp task' };
-  return { kind: 'tool', label: `Using ${item.server} · ${item.tool}` };
+  return (item.server === 'wisp' && crewToolLabel(item.tool, item.arguments)) || { kind: 'tool', label: `Using ${item.server} · ${item.tool}` };
 }

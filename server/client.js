@@ -69,6 +69,8 @@ export class WispClient {
   }
 
   async request(method, p, body, { raw = false, signal } = {}) {
+    // wisp takes only JSON on anything but a read, a body-less DELETE included.
+    if (body === undefined && method !== 'GET' && method !== 'HEAD') body = {};
     const isBuf = body instanceof Uint8Array || body instanceof ArrayBuffer;
     const res = await fetch(`${this.url}/api${p}`, {
       method,
@@ -104,6 +106,13 @@ export class WispClient {
   projects = () => this.request('GET', '/projects');
   addProject = (dir, { name } = {}) => this.request('POST', '/projects', { path: path.resolve(dir), name });
   removeProject = (id) => this.request('DELETE', `/projects/${id}`);
+
+  // The crew (server/crew.js). A member is found by id, name or @handle.
+  crew = () => this.request('GET', '/crew');
+  crewMember = (id) => this.request('GET', `/crew/${encodeURIComponent(id)}`);
+  addCrew = (member) => this.request('POST', '/crew', member); // { name, role, brief, cwd, agent, …, checkin }
+  updateCrew = (id, patch) => this.request('PATCH', `/crew/${encodeURIComponent(id)}`, patch);
+  removeCrew = (id) => this.request('DELETE', `/crew/${encodeURIComponent(id)}`);
 
   // filter: { state, cwd, project, archived, limit }
   sessions(filter = {}) {
