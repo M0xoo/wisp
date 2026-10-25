@@ -62,9 +62,25 @@
 .lb-bar .i { width: 16px; height: 16px; }
 .lb-pct { min-width: 56px; }
 .lb-sep { width: 1px; height: 20px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }
+/* Previous and next, when the reply has more than one picture: round buttons at the sides, out of
+   the picture's way; the bar says which one this is. */
+.lb-nav {
+  position: absolute; top: 50%; display: grid; place-items: center; width: 44px; height: 44px; margin-top: -22px; border-radius: 50%;
+  color: rgb(255 255 255 / 0.8); background: rgb(30 30 34 / 0.72); border: 1px solid rgb(255 255 255 / 0.1); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
+}
+.lb-nav:hover { background: rgb(50 50 56 / 0.86); color: #fff; }
+.lb-nav:disabled { opacity: 0.3; pointer-events: none; }
+.lb-nav .i { width: 20px; height: 20px; }
+.lb-prev { left: max(16px, env(safe-area-inset-left)); }
+.lb-next { right: max(16px, env(safe-area-inset-right)); }
+.lb-count { min-width: 52px; padding: 0 6px; text-align: center; color: rgb(255 255 255 / 0.75); font: 500 12.5px/1 var(--sans); font-variant-numeric: tabular-nums; }
+.lb.zoomed .lb-nav { opacity: 0; pointer-events: none; }
 /* A phone reads a screenshot edge to edge; the original wouldn't open outside the app's tunnel. */
-@media (max-width: 640px) { .lb-img { max-width: 100vw; max-height: calc(100dvh - 140px); border-radius: 0; } }
+@media (max-width: 640px) { .lb-img { max-width: 100vw; max-height: calc(100dvh - 140px); border-radius: 0; } .lb-nav { top: auto; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 62px); width: 40px; height: 40px; } }
 body.wisp-mobile .lb-open { display: none; }
+/* A narrow phone pinches to zoom: the count takes the zoom buttons' room. */
+@media (max-width: 380px) { .lb-set :is(.lb-out, .lb-in) { display: none; } }
 /* The doc reader (ui/reader.js): a markdown file full screen, a page on a dimmed desk, headings
    down the side when there's room. The bar under the head fills as you read. */
 .overlay:has(> .dr) { padding: 0; }

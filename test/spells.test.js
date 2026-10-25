@@ -191,6 +191,11 @@ test('a video in a reply and its buttons are parts, and video is a built-in bloc
   assert.ok(schema.BUILTIN_BLOCKS.includes('video'));
 });
 
+test('a gallery of pictures and videos and its arrows are parts, and so are the viewer\'s arrows', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['gallery.count', 'viewer.nav'] }, parts: { gallery: { style: { borderRadius: '4px' } }, 'gallery.nav': { style: { background: 'var(--bg)' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'gallery.nav': { props: { size: 4 } } } }).some((x) => /gallery\.nav/.test(x)));
+});
+
 test('a preview in a reply is a part, its stage can be made taller, and preview is a built-in block', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['preview.foot'] }, parts: { 'preview.stage': { style: { maxHeight: '900px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'preview.stage': { props: { size: 4 } } } }).some((x) => /preview\.stage/.test(x)));
