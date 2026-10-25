@@ -3,6 +3,8 @@
 
 import { summarize } from '../runner.js';
 import { bad } from '../util.js';
+import { splitId } from '../machines.js';
+import { crewMentions } from '../crew.js';
 
 export function register(r, app) {
   const { store, crew } = app;
@@ -12,7 +14,9 @@ export function register(r, app) {
     return fn(c, m);
   };
   // A job just started is a session; one waiting for room is its place in the queue.
-  const started = (m, out) => (out.session ? { session: summarize(out.session, store), member: crew.view(m) } : { queued: out.queued, member: crew.view(m) });
+  // A job on the member's machine is already a summary.
+  const sumOf = (x) => (x.turns ? summarize(x, store) : x);
+  const started = (m, out) => (out.session ? { session: sumOf(out.session), member: crew.view(m) } : { queued: out.queued, member: crew.view(m) });
 
   r.route('GET', '/crew', (c) => c.send(200, crew.list.map((m) => crew.view(m))));
   // checkin: true starts a first check-in right away (so a new member shows what it does).
@@ -20,9 +24,9 @@ export function register(r, app) {
     const body = await c.body();
     const m = crew.create(body);
     const out = body.checkin === true ? await crew.checkin(m).catch(() => ({})) : {};
-    c.send(201, { ...crew.view(m), ...(out.session && { session: summarize(out.session, store) }) });
+    c.send(201, { ...crew.view(m), ...(out.session && { session: sumOf(out.session) }) });
   });
-  r.route('GET', '/crew/:id', member((c, m) => c.send(200, { ...crew.view(m), jobList: crew.jobs(m).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50).map((s) => summarize(s, store)) })));
+  r.route('GET', '/crew/:id', member((c, m) => c.send(200, { ...crew.view(m), jobList: crew.jobs(m).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50).map(sumOf) })));
   r.route(
     'PATCH',
     '/crew/:id',
@@ -46,7 +50,9 @@ export function register(r, app) {
     member(async (c, m) => {
       const { prompt, attachments } = await c.body();
       if (!String(prompt || '').trim()) throw bad('Tell them what to do.');
-      c.send(201, started(m, await crew.assign(m, { prompt, job: 'task', attachments: Array.isArray(attachments) ? attachments : [] })));
+      // @Quill in it: Quill joins this job's delegates.
+      const tagged = crewMentions(String(prompt), crew.list).all;
+      c.send(201, started(m, await crew.assign(m, { prompt, job: 'task', attachments: Array.isArray(attachments) ? attachments : [], tagged })));
     }),
   );
   r.route(
@@ -59,9 +65,27 @@ export function register(r, app) {
     }),
   );
 
+  // You reply to a member's answer on a task: its job carries on, the answer lands under yours.
+  r.route('POST', '/sessions/:id/crew-reply', async (c) => {
+    const s = store.get(c.params.id);
+    if (!s) return c.send(404, { error: 'no such session' });
+    const { entry, text } = await c.body();
+    if (!String(text || '').trim()) throw bad('Type your reply first.');
+    c.send(201, await crew.replyIn(s, String(entry || ''), String(text).trim()));
+  });
+
   // A task joins the crew: it becomes the new member's first job.
   r.route('POST', '/sessions/:id/crew', async (c) => {
     const s = store.get(c.params.id);
+    // A task on a machine: the member lives on that machine, with the task's folder and harness.
+    const away = !s && splitId(c.params.id);
+    if (away) {
+      const sum = (await app.machines.sessions({}, { only: away.machine })).find((x) => x.id === c.params.id);
+      if (!sum) return c.send(404, { error: 'no such session' });
+      const body = await c.body();
+      const m = crew.create({ machine: away.machine, cwd: sum.scratch ? '' : sum.cwd, agent: sum.agent, model: sum.model, effort: sum.effort, mode: sum.mode, brief: sum.title, ...body });
+      return c.send(201, crew.view(m));
+    }
     if (!s) return c.send(404, { error: 'no such session' });
     if (s.crew && crew.get(s.crew.id)) throw bad(`This task is already ${crew.get(s.crew.id).name}’s.`, 409);
     if (s.parentId || s.agent === 'wisp') throw bad('Only a task of your own can join the crew.');

@@ -48,6 +48,52 @@ export async function askBtw(id, question, { attachments = [], files = [], resto
   }
 }
 
+// Reply in a crew thread: a box under the last message; your reply joins the thread at once and
+// the member's answer fills in under it. Off again, with the text back, if the server refuses.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('.btw-reply[data-reply]');
+  if (!b) return;
+  const node = b.closest('.btw');
+  if ($('.btw-replyform', node)) return $('.btw-replyform input', node).focus();
+  const m = memberById(S.full.get(b.closest('.item')?.dataset.id)?.turns.flatMap((t) => t.btw || []).find((x) => x.id === b.dataset.reply)?.crew?.id);
+  const f = el(`<form class="btw-replyform"><input class="input sm" placeholder="Reply to ${esc(m?.name || 'them')}…" autocomplete="off" spellcheck="false"><button class="primary sm">Send</button><button type="button" class="link xs" data-cancel>Cancel</button></form>`);
+  b.closest('.btw-foot').after(f);
+  $('input', f).focus();
+  $('[data-cancel]', f).onclick = () => {
+    f.remove();
+  };
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const text = $('input', f).value.trim();
+    if (!text) return;
+    f.remove();
+    replyCrew(b.closest('.item').dataset.id, b.dataset.reply, text);
+  };
+});
+
+async function replyCrew(id, entryId, text) {
+  const s = S.full.get(id);
+  const turn = s?.turns.find((t) => t.btw?.some((b) => b.id === entryId));
+  const parent = turn?.btw.find((b) => b.id === entryId);
+  if (!parent) return;
+  const pend = { id: `pending-${++seq}`, question: text, status: 'running', askedAt: Date.now(), crew: parent.crew, job: parent.job, thread: parent.thread || parent.id };
+  turn.btw.splice(turn.btw.indexOf(parent) + 1, 0, pend);
+  paintBtw(id);
+  try {
+    const entry = await api(`/sessions/${id}/crew-reply`, { method: 'POST', body: { entry: entryId, text } });
+    const node = $(`.btw[data-id="${pend.id}"]`, S.nodes.get(id)?.card);
+    if (node) node.dataset.id = entry.id;
+    S.nodes.get(id)?.btwSeen?.add(entry.id);
+    const cur = S.full.get(id)?.turns.find((t) => t.id === turn.id) || turn;
+    cur.btw = (cur.btw || []).map((b) => (b === pend ? entry : b)).filter((b, i, a) => a.findIndex((x) => x.id === b.id) === i);
+    paintBtw(id);
+  } catch (err) {
+    turn.btw = turn.btw.filter((b) => b !== pend);
+    paintBtw(id);
+    toastError(err);
+  }
+}
+
 // "@Ada what do you make of this?" in a follow-up: the message goes to Ada (server/crew.js), and
 // her answer lands on the card like a side answer. Optimistic, like askBtw: on the card at once,
 // off again (with the text back) if the server refuses.
@@ -137,16 +183,21 @@ export function paintBtw(id) {
     const ids = new Set(items.map((b) => b.id));
     for (const c of [...list.children]) if (!ids.has(c.dataset.id)) c.remove();
     items.forEach((b, i) => {
-      const key = `${b.status}|${b.job || ''}|${b.queued ? 1 : 0}|${b.answer || b.error || ''}`;
+      // The last message of a crew thread offers Reply; the one before it stops when yours lands.
+      const last = !!b.crew && (items[i + 1]?.thread || '') !== (b.thread || b.id);
+      const key = `${b.status}|${b.job || ''}|${b.queued ? 1 : 0}|${last ? 1 : 0}|${b.answer || b.error || ''}`;
       let node = [...list.children].find((c) => c.dataset.id === b.id);
       if (!node || node.dataset.key !== key) {
-        const next = item(s, b);
+        if (node?.querySelector('.btw-replyform input')?.value) return; // a reply being typed stays
+        const next = item(s, b, last);
         next.dataset.key = key;
         if (!node && !first && !n.btwSeen.has(b.id)) next.classList.add('new');
         if (node?.dataset.key.startsWith('running|') && b.status !== 'running') next.classList.add('landed');
-        $('.btw-x', next).onclick = () => {
-          dismissBtw(id, b.id);
-        };
+        const x = $('.btw-x', next);
+        if (x)
+          x.onclick = () => {
+            dismissBtw(id, b.id);
+          };
         if (node) node.replaceWith(next);
         node = next;
       }
@@ -158,25 +209,32 @@ export function paintBtw(id) {
 
 // A crew member's answer to an @mention (server/crew.js): its face and name instead of "btw",
 // and a link to the job it ran as.
-function crewItem(b) {
+// A thread with a member reads as one conversation: its first message has the member's tag and the
+// close button; the ones after it (your replies, entry.thread) sit under it. The last one, once
+// answered, offers Reply: the same job carries on, so the member remembers the thread.
+function crewItem(b, last) {
   const m = memberById(b.crew.id) || { ...b.crew, log: [] };
   const job = b.job && S.sessions.has(b.job) ? `<a class="link xs btw-job" href="#/s/${esc(b.job)}">Open ${esc(m.name)}’s job</a>` : '';
+  const reply = last && b.status !== 'running' && b.job && memberById(b.crew.id) ? `<button class="link xs btw-reply" data-reply="${esc(b.id)}">${icon('enter')}Reply to ${esc(m.name)}</button>` : '';
   const body =
     b.status === 'running'
       ? `<div class="btw-wait"><span class="btw-dots"><i></i><i></i><i></i></span>${esc(m.name)} ${b.queued ? 'will start on it when a job finishes' : 'is on it · this task carries on'}<span class="elapsed" data-start="${b.askedAt}">${fmtDuration(Date.now() - b.askedAt)}</span>${job}</div>`
       : b.status === 'error'
         ? `<div class="btw-err">${icon('warn')}<span>${esc(b.error || 'No answer.')}</span>${job}</div>`
-        : `<div class="btw-a prose">${md(b.answer || '')}</div>${job ? `<div class="btw-foot">${job}</div>` : ''}`;
+        : `<div class="btw-a prose">${md(b.answer || '')}</div>`;
+  const foot = b.status === 'running' ? '' : reply || job ? `<div class="btw-foot">${reply}${job}</div>` : '';
+  const tag = b.thread ? `<span class="btw-tag you">You</span>` : `<span class="btw-tag crew" title="${esc(`You asked ${m.name}, ${fmtDate(b.askedAt, SHORT_TIME)}`)}">${avatarHtml(m, { size: 18, dot: false, state: b.status === 'running' ? 'live' : 'idle' })}${esc(m.name)}</span>`;
   return el(`
-    <div class="btw crew st-${b.status}" data-id="${esc(b.id)}">
-      <div class="btw-q"><span class="btw-tag crew" title="${esc(`You asked ${m.name}, ${fmtDate(b.askedAt, SHORT_TIME)}`)}">${avatarHtml(m, { size: 18, dot: false, state: b.status === 'running' ? 'live' : 'idle' })}${esc(m.name)}</span><span class="btw-text">${mentionHtml(esc(b.question), { link: false })}</span></div>
+    <div class="btw crew st-${b.status}${b.thread ? ' thread' : ''}${last ? ' last' : ''}" data-id="${esc(b.id)}">
+      <div class="btw-q">${tag}<span class="btw-text">${mentionHtml(esc(b.question), { link: false })}</span></div>
       ${body}
-      <button class="icon-btn btw-x" title="Dismiss">${icon('x')}</button>
+      ${foot}
+      ${b.thread ? '' : `<button class="icon-btn btw-x" title="Dismiss">${icon('x')}</button>`}
     </div>`);
 }
 
-function item(s, b) {
-  if (b.crew) return crewItem(b);
+function item(s, b, last) {
+  if (b.crew) return crewItem(b, last);
   const who = agentName(b.agent || s.agent);
   const at = fmtDate(b.askedAt, SHORT_TIME);
   const how = b.status !== 'done' ? '' : b.forked ? 'on a copy of the conversation' : 'from wisp’s record of the task';

@@ -33,6 +33,7 @@ export function register(r, app) {
     defaults: { ...store.config.defaults },
     lockedBy: app.spells.settings().lockedBy,
     recipes: [...store.config.recipes, ...app.spells.recipes()],
+    crew: app.crew ? app.crew.list.map((m) => app.crew.view(m)) : store.config.crew, // with nextAt and what's running
     spells: app.spells.forPage(),
     spellsSafe: app.spells.safe,
   });

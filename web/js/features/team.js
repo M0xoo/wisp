@@ -90,7 +90,8 @@ const stateDot = (k) => (k && k !== HERE_KEY ? `<i class="dot ${placeState(k) ==
 // The delegate editor: who the lead can hand work to, where each one runs and on what, plus a
 // name and a "use it for" note. lead / leadModel / leadEffort: the lead's run. places: where the
 // lead runs ('' = this computer). pickLead(k): move the lead there (the launcher), else it's shown.
-export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team, presetId, places, pickLead }, onChange) {
+// exclude: a crew member id that can't be its own delegate (the crew editor, features/crew.js).
+export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team, presetId, places, pickLead, exclude = '' }, onChange) {
   const open = $('.team-pop');
   if (open) return open.close();
   let members = team.map((m) => ({ ...m }));
@@ -113,7 +114,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     </div>`);
   const list = $('.tp-list', node);
   const foot = $('.tp-foot', node);
-  const crewFree = () => crewList().filter((c) => !members.some((m) => m.crew === c.id));
+  const crewFree = () => crewList().filter((c) => c.id !== exclude && !members.some((m) => m.crew === c.id));
   const commit = () => onChange(uniqueNames(members), preset);
   let typing;
   const commitSoon = () => (clearTimeout(typing), (typing = setTimeout(commit, 300)));

@@ -13,6 +13,7 @@ import { shipDialog, shippable } from './ship.js';
 import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
 import { goHome, isSplit, splitOpen, toggleSidebar, toggleView } from './split.js';
+import { crewBack } from './crew.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
 const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
@@ -33,6 +34,7 @@ export function onKey(e) {
   if (e.key === 'Escape') {
     if (!$('#overlay').hidden) return $('#overlay .sx-back') ? $('#overlay .sx-back').click() : closeOverlay();
     if (typing) return e.target.blur();
+    if (crewBack()) return; // a crew job → its member's thread → home
     if (isSplit() && splitOpen()) return goHome({ focus: false });
     if (S.focus && S.open.has(S.focus)) {
       collapse(S.focus);

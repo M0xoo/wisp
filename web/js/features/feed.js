@@ -22,7 +22,7 @@ import { slotHtml } from './spells.js';
 import { onBack } from '../ui/back.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
-import { crewDot, paintCrew } from './crew.js';
+import { crewDot, memberById, paintCrew, pinJob } from './crew.js';
 import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 function visible(list) {
@@ -59,6 +59,7 @@ export function groups() {
   const every = [];
   const seen = new Set();
   for (const s of visible([...S.sessions.values()])) {
+    if (s.crew && memberById(s.crew.id)) continue; // a crew member's job: under the member (crew.js)
     const t = taskOf(s);
     if (t.runs && seen.has(t.key)) continue;
     if (t.runs) seen.add(t.key);
@@ -121,6 +122,16 @@ function paintFold(sec) {
   if (h.getAttribute('aria-expanded') !== String(open)) h.setAttribute('aria-expanded', String(open));
 }
 
+// The cards of `list` in `box`, in order. Only what changed moves: moving a node would blur a
+// composer the user is typing in (and replay entrances).
+export function placeCards(box, list) {
+  list.forEach((s, i) => {
+    const { card } = s.runs ? taskItem(s) : item(s);
+    if (box.children[i] !== card) box.insertBefore(card, box.children[i] || null);
+  });
+  while (box.children.length > list.length) box.lastElementChild.remove();
+}
+
 export function renderFeed() {
   const { needs, working, done, archived } = groups();
   const place = (sec, list) => {
@@ -152,8 +163,10 @@ export function renderFeed() {
   place($('#secArchived'), archived);
   paintFold($('#secCrew'));
 
+  // The crew's live jobs, nested under their members.
+  const crewShown = paintCrew();
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
-  const tasks = [...needs, ...working, ...done, ...archived];
+  const tasks = [...needs, ...working, ...done, ...archived, ...crewShown];
   const shown = new Set(tasks.flatMap((s) => (s.runs || [s]).map((r) => r.id)));
   for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id), kept.delete(id));
   const keys = new Set(tasks.map((t) => t.key));
@@ -168,7 +181,6 @@ export function renderFeed() {
   const n = [...S.sessions.values()].filter((s) => (s.state === 'review' && s.unread) || s.state === 'waiting').length;
   document.title = n ? `(${n}) wisp` : 'wisp';
   renderProjects();
-  paintCrew(); // the crew's rows say what their jobs are doing
   paintSplit();
 }
 
@@ -624,7 +636,10 @@ export const sectionOf = (s) => {
 export function reveal(id) {
   const s = S.sessions.get(id);
   if (!s) return;
-  const sec = { needs: 'secNeeds', working: 'secWorking', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
+  // A crew member's job opens under the member (Crew unfolded), wherever it is in its life.
+  const crew = s.crew && memberById(s.crew.id);
+  if (crew) pinJob(id);
+  const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
   if (!sectionOpen(sec)) toggleSection(sec, true);
   if (S.filter !== 'all' && !inProject(s, S.filter)) {
     S.filter = 'all';

@@ -230,9 +230,13 @@ export function openapi({ version, port }) {
         parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
         post: { summary: 'Start a check-in now (409 while one runs)', responses: { 201: json({ type: 'object', properties: { session: ref('Summary'), queued: { type: 'integer' }, member: ref('CrewMember') } }), 409: json(ref('Error'), 'Already checking in') } },
       },
+      '/sessions/{id}/crew-reply': {
+        parameters: [id],
+        post: { summary: 'Reply to a crew member’s answer on this task (one of its btw entries with `crew`): the member’s job carries on, and its answer lands right under your reply (entry.thread names the first one)', requestBody: body({ type: 'object', required: ['entry', 'text'], properties: { entry: { type: 'string' }, text: { type: 'string' } } }), responses: { 201: json(ref('Btw')), 400: err[400], 404: err[404] } },
+      },
       '/sessions/{id}/crew': {
         parameters: [id],
-        post: { summary: 'Turn a task into a crew member: its folder, harness and model become the member’s, its first prompt the brief (unless given), and the task its first job', requestBody: body(ref('CrewMember')), responses: { 201: json(ref('CrewMember')), 400: err[400], 409: json(ref('Error'), 'Already a crew member’s') } },
+        post: { summary: 'Turn a task into a crew member: its folder, harness and model become the member’s, its first prompt the brief (unless given), and the task its first job. A task on a machine makes a member on that machine', requestBody: body(ref('CrewMember')), responses: { 201: json(ref('CrewMember')), 400: err[400], 409: json(ref('Error'), 'Already a crew member’s') } },
       },
       '/remote': {
         get: { summary: 'Phone channels (ntfy, Telegram) with secrets masked, and their status', responses: { 200: json({ type: 'object' }) } },
@@ -513,7 +517,8 @@ export function openapi({ version, port }) {
             avatar: { type: 'string', description: 'An emoji; empty shows the initial' },
             color: { enum: ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'] },
             brief: { type: 'string', description: 'Their standing job, in every job’s prompt' },
-            cwd: { type: 'string', description: 'The folder their jobs run in; empty = no project' },
+            cwd: { type: 'string', description: 'The folder their jobs run in (on their machine, if they have one); empty = no project' },
+            machine: { type: 'string', description: 'A machine id: their jobs run there as its tasks; their memory, schedule and queue stay here. Empty = this computer' },
             agent: { type: 'string', description: 'Harness id, or auto' },
             model: { type: 'string' },
             effort: { type: 'string' },

@@ -88,6 +88,8 @@ after(async () => {
   srv.server.close();
 });
 
+// A crew job's summary: who and what kind, without its prompt.
+const jobOf = (x) => (({ id, job, from }) => ({ id, job, ...(from && { from }) }))(x.crew);
 test('ids, hints, ~/.ssh/config hosts and the bootstrap script', () => {
   assert.equal(qualify('abc123', 'm1'), 'abc123@m1');
   assert.deepEqual(splitId('abc123@m1'), { id: 'abc123', machine: 'm1' });
@@ -489,6 +491,36 @@ test('connect, add a project, launch, follow up, delegate and stop wisp over the
   // Its run over there is done with: deleted, and never listed here.
   await until(async () => !fs.existsSync(boxer.cwd));
   assert.ok(!(await call('GET', '/sessions')).some((x) => x.delegated || x.title === 'Check math.js for boxer'));
+
+  // A crew member on the machine: its jobs run there with the note we write from its memory, and
+  // what a job remembers comes back here (server/crew.js).
+  await assert.rejects(call('POST', '/crew', { name: 'Nope', machine: 'zzzzzz' }), /isn’t one of yours/);
+  const scout = await call('POST', '/crew', { name: 'Scout', role: 'CI watcher', machine: m.id, cwd: repo, agent: 'claude', brief: 'Watch CI. CREWQUIET' });
+  assert.equal(scout.machine, m.id);
+  const job = await call('POST', `/crew/${scout.id}/jobs`, { prompt: 'CREWNOTE check the deploy' });
+  assert.match(job.session.id, new RegExp(`@${m.id}$`));
+  assert.deepEqual(jobOf(job.session), { id: scout.id, job: 'task' });
+  const filed = await until(
+    async () => {
+      const x = await call('GET', `/crew/${scout.id}`);
+      return x.log.some((l) => l.sessionId === job.session.id) && x;
+    },
+    { timeout: 60_000 },
+  );
+  assert.equal(filed.notebook, '- deploy is v2');
+  assert.ok(filed.wakeAt > Date.now(), 'its wake-up came back too');
+  assert.deepEqual(filed.away, {}, 'nothing left waiting');
+  const crewRun = records(RECORD, 'claude').filter((r) => r.stdin.includes('CREWNOTE check the deploy')).at(-1);
+  assert.match(crewRun.argv.join(' '), /## You are Scout, on the user's crew[\s\S]*Watch CI\. CREWQUIET/);
+  assert.ok(crewRun.cwd.startsWith(fs.realpathSync(path.join(THERE, 'me_devbox')) + path.sep), `ran over there, not ${crewRun.cwd}`);
+  const thereJob = await call('GET', `/sessions/${job.session.id}`);
+  assert.ok(!thereJob.turns[0].presentation.blocks.some((b) => b.type === 'crew'), 'the crew block is hidden there too');
+  assert.deepEqual(thereJob.turns[0].crewOut.remember, ['deploy is v2']);
+  // A check-in that found nothing is archived over there and logged here as quiet.
+  const ck = await call('POST', `/crew/${scout.id}/checkin`, {});
+  await until(async () => (await call('GET', `/crew/${scout.id}`)).log.some((l) => l.quiet && l.sessionId === ck.session.id), { timeout: 60_000 });
+  assert.ok((await call('GET', `/sessions/${ck.session.id}`)).archived);
+  await call('DELETE', `/crew/${scout.id}`);
 
   // Offline: the last sessions seen stay listed; actions say it's offline.
   await call('POST', `/machines/${m.id}/disconnect`);

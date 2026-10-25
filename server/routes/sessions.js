@@ -108,6 +108,8 @@ export function register(r, app) {
     members
       .filter((m) => !have.some((x) => x.crew === m.id))
       .map((m) => ({ crew: m.id, name: handleOf(m.name), label: m.name, role: m.role, agent: m.agent, use: m.role ? `${m.role}. The user tagged them in this task` : 'The user tagged them in this task' }));
+  // A crew job is a session here, or the summary of one on the member's machine.
+  const sumOf = (x) => (x.turns ? summarize(x, store) : x);
   const turnOf = (s, turnId) => (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
 
   r.route('GET', '/sessions', async (c) => {
@@ -138,7 +140,7 @@ export function register(r, app) {
       if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
       const jobs = [];
       for (const m of t.lead) jobs.push({ m, out: await app.crew.assign(m, { prompt: t.rest, job: 'task', attachments: Array.isArray(body.attachments) ? body.attachments : [] }) });
-      const list = jobs.map(({ m, out }) => (out.session ? summarize(out.session, store) : { queued: out.queued, crew: { id: m.id, name: m.name } }));
+      const list = jobs.map(({ m, out }) => (out.session ? sumOf(out.session) : { queued: out.queued, crew: { id: m.id, name: m.name } }));
       return c.send(201, list.length > 1 ? { ...list[0], group: list } : list[0]);
     }
     if (t.all.length) body.subagents = [...(body.subagents || store.config.teams.find((x) => x.id === body.preset)?.members || []), ...asDelegates(t.all, body.subagents || [])];
@@ -154,7 +156,7 @@ export function register(r, app) {
       app.ship.recheck(s, { lazy: true }); // edits made outside wisp (in an editor) show up too
       // Crew members' jobs it delegated count as its children here too.
       const kids = [...Object.values(s.children || {}), ...s.turns.flatMap((t) => (t.delegations || []).filter((d) => d.crew).map((d) => d.sessionId))];
-      c.send(200, kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid)]).filter(([, x]) => x)) } : s);
+      c.send(200, kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid) || runner.crewChild(cid)]).filter(([, x]) => x)) } : s);
     }),
   );
   r.route(

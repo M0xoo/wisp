@@ -188,10 +188,10 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** builds without error; no horizontal overflow, no console errors.
 - **Automated** (build + render), **Suite** (`test/site.test.js`)
 
-### WEB-32 · Crew: add, check in, @mention, delegate
-- **Steps:** in the *Crew* section click **+**, pick the *CI watcher* template, open the spirit maker (click the face), change the eyes, roll once, **Add to crew**. Open the member, send a job from the box, click **Check in**. In a task's follow-up type `@`, pick the member, ask something. Launch `fix it, then have @Name review it` with `DELEGATE`. Add a schedule trigger with **Send to** the member and run it.
-- **Expected:** the row appears at once, above *Working*, with its spirit; it floats while a job runs. Jobs show the member's face on their cards. The `@` answer lands on the task under the message, without a new turn. The delegation runs as the member's job in its own folder and its report reaches the lead. A quiet check-in is archived and logged; the notebook gains the lines the job remembered. Light and dark, split view, feed and 390px.
-- **Manual** (UI), **Suite** (`test/crew.test.js`, `test/web-pure.test.js`, `test/spells.test.js`)
+### WEB-32 · Crew: add, open, answer, delegate, follow up
+- **Steps:** in the *Crew* section click **+**, pick the *CI watcher* template, open the spirit maker (click the face), change the eyes, roll once, add a delegate, **Add to crew**. Click the member: its thread opens in the main pane (in place in the feed). Send `ASK …` from the box; answer its question in the thread; **Open job**, then Esc twice. In another task's follow-up type `@`, pick the member, ask something with `CREWFOLLOW`; **Reply to …** under its answer. Add a schedule trigger with **Send to** the member and run it.
+- **Expected:** the row appears at once, above *Working*; crew jobs never show in *Needs you* / *Working* / *Done*, only the live ones under the member. The job shows *Starting up* at once, then *Asking you* with the question, choices and a box (and an amber dot on the face); the answer carries it on. Open job opens the task with the member as a crumb; Esc goes back to the thread at that job, then home. No toast while the thread is on screen. The `@` answer lands under the message, the member's own follow-up reaches the task's agent with the thread moved along, and Reply continues the same job. Light and dark, split view, feed and 390px.
+- **Manual** (UI), **Suite** (`test/crew.test.js`, `test/web-pure.test.js`, `test/spells.test.js`, `test/machines.test.js`)
 
 ### WEB-33 · Fold the task list's sections
 - **Steps:** with tasks in *Needs you* and *Working*, click each heading (*Needs you*, *Crew*, *Working*, *Done*, *Archived*), then Tab to one and press Enter. Reload. In split view open a Working task, fold *Working*, then press Esc.

@@ -7,7 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { installFakeBins, makeRepo, records, tmp, until } from './helpers.js';
-import { applyMemory, crewMentions, crewNote, dueNow, nextCheckin, normalizeMember, NOTEBOOK_MAX, takeCrewBlock } from '../server/crew.js';
+import { applyMemory, crewJobOf, crewMentions, crewNote, dueNow, nextCheckin, normalizeMember, NOTEBOOK_MAX, takeCrewBlock } from '../server/crew.js';
 
 const RECORD = tmp('crew-record');
 process.env.FAKE_RECORD = RECORD;
@@ -17,6 +17,8 @@ installFakeBins();
 
 // --- pure ------------------------------------------------------------------------------------------
 
+// A crew job's summary: who and what kind, without its prompt.
+const jobOf = (x) => (({ id, job, from }) => ({ id, job, ...(from && { from }) }))(x.crew);
 test('a member needs a unique, plain name, a known harness and a valid schedule', () => {
   assert.throws(() => normalizeMember({}), /Give them a name/);
   assert.throws(() => normalizeMember({ name: '<b>x' }), /up to 24 letters/);
@@ -36,6 +38,21 @@ test('a member needs a unique, plain name, a known harness and a valid schedule'
   assert.equal(edited.id, m.id);
   assert.equal(edited.notebook, 'facts');
   assert.equal(edited.log.length, 1);
+});
+
+test('a member on a machine: a machine you have, its folder there unchecked here; a job sent from another wisp', () => {
+  assert.throws(() => normalizeMember({ name: 'Ada', machine: 'nope99' }), /isn’t one of yours/);
+  const m = normalizeMember({ name: 'Ada', machine: 'abc123', cwd: '/home/me/repo' }, null, { exists: () => false, machineOk: (id) => id === 'abc123' });
+  assert.deepEqual([m.machine, m.cwd, m.away, m.seen], ['abc123', '/home/me/repo', {}, []]);
+  // Moving it to another place drops what it was waiting on there; its memory stays.
+  m.away = { 'x@abc123': {} };
+  m.notebook = 'kept';
+  const moved = normalizeMember({ machine: '' }, m, { taken: [m], exists: () => true, machineOk: () => true });
+  assert.deepEqual([moved.machine, moved.away, moved.notebook], ['', {}, 'kept']);
+  assert.equal(crewJobOf({ id: 'abc123def', note: 'x' }).job, 'task');
+  assert.deepEqual(crewJobOf({ id: 'abc123def', job: 'mention', from: { id: 'a', title: 'T' }, note: 'n', evil: 1 }), { id: 'abc123def', job: 'mention', from: { id: 'a', title: 'T' }, note: 'n' });
+  assert.equal(crewJobOf({ id: 'Bad id', note: 'x' }), null);
+  assert.equal(crewJobOf({ id: 'abc123def' }), null, 'no note, no crew job');
 });
 
 test('@mentions: stored tokens and plain names, addressed (leading) or in passing', () => {
@@ -144,7 +161,7 @@ test('a check-in that found nothing is filed quietly, and what it learned is rem
   ada = await api('/crew', { name: 'Ada', role: 'CI watcher', avatar: '🦊', brief: 'Watch CI. CREWQUIET', cwd: repo, agent: 'claude', mode: 'edits', parallel: 1 });
   assert.equal(ada.handle, 'ada');
   const { session } = await api(`/crew/${ada.id}/checkin`, {});
-  assert.deepEqual(session.crew, { id: ada.id, job: 'checkin' });
+  assert.deepEqual(jobOf(session), { id: ada.id, job: 'checkin' });
   const done = await ended(session.id);
   assert.equal(done.state, 'done');
   assert.equal(done.archived, true);
@@ -165,7 +182,7 @@ test('a check-in that found nothing is filed quietly, and what it learned is rem
 
 test('@Name at the start of a prompt is a job for them; past their limit, work waits in the queue', async () => {
   const first = await api('/sessions', { prompt: '@Ada CREWNOTE check the deploy', cwd: repo });
-  assert.deepEqual(first.crew, { id: ada.id, job: 'task' });
+  assert.deepEqual(jobOf(first), { id: ada.id, job: 'task' });
   const second = await api('/sessions', { prompt: '@[Ada](crew:' + ada.id + ') and the docs', cwd: repo });
   assert.equal(second.queued, 1, 'parallel 1: the second job waits');
   const a = await ended(first.id);
@@ -210,18 +227,76 @@ test('@Name further in a prompt: the task’s agent can delegate to them, and th
   const d = done.turns[0].delegations[0];
   assert.equal(d.crew, ada.id);
   const job = done.childSessions[d.sessionId];
-  assert.deepEqual(job.crew, { id: ada.id, job: 'delegated', from: { id: lead.id, title: job.crew.from.title } });
+  assert.deepEqual(jobOf(job), { id: ada.id, job: 'delegated', from: { id: lead.id, title: job.crew.from.title } });
   assert.equal(job.cwd, repo, 'it works in its own folder');
   assert.match(done.turns[0].presentation.blocks[0].summary, /### ada/);
   const told = records(RECORD, 'claude').find((x) => x.stdin.includes('DELEGATE this review'));
   assert.match(told.argv.join(' '), /`ada`: Ada, CI watcher, a member of the user's crew/);
 });
 
+test('a member follows up on the task that tagged it by itself, and you reply in its thread there', async () => {
+  const task = await api('/sessions', { prompt: 'Ship the login fix', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await ended(task.id);
+  const r = await api(`/sessions/${task.id}/reply`, { text: '@Ada CREWFOLLOW have a look' });
+  const first = r.crew[0];
+  // Its answer lands on the task, and its own follow-up reaches the task's agent, from Ada.
+  const t = await until(async () => {
+    const x = await api(`/sessions/${task.id}`);
+    return x.turns.length === 2 && x.turns[1].status !== 'running' && x;
+  });
+  assert.match(t.turns[1].prompt, new RegExp(`^@\\[Ada\\]\\(crew:${ada.id}\\) \\(your crew’s CI watcher\\):\n\nPlease rerun the tests after my note\\.$`));
+  assert.equal(t.turns[1].btw[0].status, 'done', 'its thread moved along with its follow-up');
+  assert.equal(t.turns[0].btw, undefined);
+  const m = await api(`/crew/${ada.id}`);
+  assert.equal(m.links[0].id, task.id, 'the task is linked to Ada');
+  const job = (await api('/sessions')).find((x) => x.id === t.turns[1].btw[0].job);
+  assert.deepEqual(job.crew.sent, [{ id: task.id, title: t.title }]);
+  // You reply in the thread: the same job carries on, its answer lands right under yours.
+  const e = await api(`/sessions/${task.id}/crew-reply`, { entry: first.id, text: 'and the docs?' });
+  assert.equal(e.thread, first.id);
+  const after = await until(async () => {
+    const x = await api(`/sessions/${task.id}`);
+    const list = x.turns[1].btw;
+    return list.find((b) => b.id === e.id)?.status === 'done' && list;
+  });
+  assert.deepEqual(after.map((b) => b.id).slice(0, 2), [first.id, e.id], 'right after the answer it continues');
+  const again = await api(`/sessions/${job.id}`);
+  assert.equal(again.turns.length, 2, 'the same job, a second turn');
+  assert.equal(again.turns[1].prompt, 'and the docs?');
+  assert.deepEqual([again.state, again.unread], ['done', false], 'its answer went to the thread: filed again, nobody pinged');
+  await assert.rejects(api(`/sessions/${task.id}/crew-reply`, { entry: 'nope', text: 'x' }), /no longer on your crew/);
+});
+
+test('a member has delegates of its own, other crew members too, but never itself and no loops', async () => {
+  const bo = await api('/crew', { name: 'Bo', role: 'Tester', agent: 'claude', cwd: repo, team: [{ crew: ada.id, name: 'ada', label: 'Ada' }, { agent: 'codex', use: 'tests' }] });
+  assert.deepEqual(bo.team.map((x) => x.crew || x.agent), [ada.id, 'codex']);
+  const self = await api(`/crew/${ada.id}`, { team: [{ crew: ada.id, name: 'ada' }, { agent: 'codex' }] }, 'PATCH');
+  assert.deepEqual(self.team.map((x) => x.crew || x.agent), ['codex'], 'not itself');
+  const { session } = await api(`/crew/${bo.id}/jobs`, { prompt: 'Look around' });
+  assert.deepEqual(session.team.map((x) => x.crew || x.agent), [ada.id, 'codex'], 'its job gets its team');
+  await ended(session.id);
+  // @Name in a job you send: they join that job's delegates (not the member's team).
+  const cy = await api('/crew', { name: 'Cy', agent: 'claude', cwd: repo });
+  const tagged = await api(`/crew/${bo.id}/jobs`, { prompt: 'Look again with @Cy' });
+  assert.deepEqual(tagged.session.team.map((x) => x.crew || x.agent), [ada.id, 'codex', cy.id]);
+  assert.deepEqual((await api(`/crew/${bo.id}`)).team.length, 2);
+  await ended(tagged.session.id);
+  await api(`/crew/${cy.id}`, null, 'DELETE');
+  // A job delegated to Ada hands nothing on to the crew: Ada's codex only.
+  await api(`/crew/${ada.id}`, { team: [{ crew: bo.id, name: 'bo' }, { agent: 'codex' }] }, 'PATCH');
+  const lead = await api('/sessions', { prompt: 'DELEGATE this, with @Ada', cwd: makeRepo(), agent: 'claude', worktree: false });
+  const done = await ended(lead.id);
+  const kid = done.childSessions[done.turns[0].delegations[0].sessionId];
+  assert.deepEqual((kid.subagents || []).map((x) => x.crew || x.agent), ['codex']);
+  await api(`/crew/${ada.id}`, { team: [] }, 'PATCH');
+  await api(`/crew/${bo.id}`, null, 'DELETE');
+});
+
 test('a trigger sends its work to a crew member', async () => {
   const t = await api('/triggers', { kind: 'schedule', cron: '0 0 1 1 *', crew: ada.id, prompt: 'Weekly dependency check' });
   assert.equal(t.cwd, repo, 'the member’s folder');
   const { started } = await api(`/triggers/${t.id}/run`, {});
-  assert.deepEqual(started[0].crew, { id: ada.id, job: 'trigger', from: { id: t.id, title: t.name } });
+  assert.deepEqual(jobOf(started[0]), { id: ada.id, job: 'trigger', from: { id: t.id, title: t.name } });
   assert.equal(started[0].origin.kind, 'trigger');
   await ended(started[0].id);
   // Leaving the crew turns the trigger off.
@@ -244,7 +319,7 @@ test('a task joins the crew: its folder, harness and first prompt become the mem
   assert.equal(cy.brief, 'Keep the changelog tidy');
   assert.ok(cy.nextAt > Date.now());
   const sum = (await api('/sessions')).find((x) => x.id === s.id);
-  assert.deepEqual(sum.crew, { id: cy.id, job: 'task' });
+  assert.deepEqual(jobOf(sum), { id: cy.id, job: 'task' });
   await assert.rejects(api(`/sessions/${s.id}/crew`, { name: 'Dee' }), /already Cy’s/);
   // The next wake-up counts toward /status, so a host wakes wisp for it.
   const st = await api('/status');
