@@ -47,6 +47,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
 | **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. To ask without interrupting, start with `/btw` (`/btw did you update the docs too?`): a separate read-only run answers on a copy of the conversation, and the agent keeps working. |
 | **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
+| **Crew** | Named agents with a face, a role, a schedule and a memory that keep working for you: they check in, report when something changed, take jobs in parallel and answer to `@Name` in any prompt. See [Crew](#crew). |
 | **Auto** | The default harness: wisp picks the harness, model and thinking level per task from what worked before, and learns from merges, 👍 / 👎 and follow-ups. See [Auto](#auto). |
 | **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, or GitHub Copilot CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
 | **Take over** | Resumes the harness's own session (`claude --resume <id>`, `codex resume <id>`, …) in the project folder, in a terminal inside wisp by default (macOS and Linux). Settings → General → **Take over in** can open it in a terminal app instead: Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
@@ -391,6 +392,35 @@ The top of the popover shows the lead and where it runs; click the place to move
 Tasks sent in one `delegate` call run in parallel, and delegating to the same member again continues its conversation. A follow-up that interrupts the lead leaves its delegates working: the lead's next turn is told about them and collects their reports, and a report that finishes after the lead is done comes back to it as a follow-up from wisp. **Stop** stops them all. Their edits count as the lead's: they show up in its diffs, rollback and Ship it, credited to the member. A member away from the lead works there on a copy of the lead's work, packed like a [moved task](#machines) (uncommitted edits included), in a hidden session that can't ask you anything. Its live line shows on the lead's card, and stopping the lead stops it. When it finishes, its changes come back to the lead's folder as a patch, merged three ways if the lead changed things meanwhile. If lines clash, the report lists the conflicted files; a patch that doesn't apply is saved and the report says where. The session over there is then deleted. The wisp you launched from carries all of this, so the lead itself can run on a machine too. Delegating to another place needs a git repo; without one, the member's changes stay where it ran.
 
 Claude Code, Codex, opencode, Grok and Copilot can lead; Cursor and Antigravity can be members. API: `subagents` (each with an optional `machine`: `here` or a machine id) or a saved `preset` on `POST /sessions`, and `/teams` for presets.
+
+## Crew
+
+Your crew are named agents that stay on hand and keep working: *Scout · CI watcher* checks CI every 30 minutes and fixes what breaks, *Quill · PR reviewer* reads new pull requests every hour. They sit in the **Crew** section above *Working*. Click **+** to add one (from scratch, or from a template), or turn any task into one with **Add to crew…** (right-click, *More* or ⌘K). Each one has:
+
+- **A face.** A spirit you build from a body, a glow, eyes, a mouth and an extra, or roll with the dice (an emoji works too). It breathes and blinks while idle, floats and looks around while a job runs, hops when it's asking you something, and sleeps while paused.
+- **A name and a role.** `@Name` reaches them from any prompt or follow-up.
+- **A brief:** their standing job, how you like it done, what they should never do.
+- **A schedule** (every 30 min, hourly, weekday mornings, a cron, or only when asked), a project, a harness and model, a mode, and how many jobs they run at once (1–5; the rest wait in their queue).
+
+**Their work runs as tasks.** Every job (a check-in, a job you send, a delegation, a trigger, an `@mention`) is a task of its own, with their face on the card, so several run side by side and each starts with a fresh context. What carries over is their memory:
+
+| | Who keeps it | What's in it |
+|---|---|---|
+| **Brief** | you | the job, in every job's prompt |
+| **Notebook** | them, and you | lasting facts and last-seen state ("build 41 was green", "the user wants short reviews"). Each job ends with a hidden `crew` block that adds lines (`remember`) or rewrites it (`notebook`); past 6,000 characters they're asked to tidy it, past 12,000 the oldest lines go. Edit it on their page. |
+| **Log** | wisp | one line per finished job; the newest 12 go in every prompt |
+
+A check-in that found nothing marks itself `quiet`: it's logged and archived (its worktree goes) instead of landing in *Needs you*. The same block can ask for an earlier check-in (`wakeIn`, in minutes). An answer that went somewhere else (to the task that `@`-mentioned them, or to the lead that delegated) is filed under *Done*.
+
+**Giving them work.**
+
+- Their page: the box at the top, or **Check in** now.
+- `@Ada check the deploy` as a new task: it's Ada's job, in Ada's folder.
+- `@Ada does this look right?` as a follow-up: Ada answers on that task, under your message, and its agent isn't interrupted.
+- `fix the bug, then have @Ada review it`: Ada joins the task's delegates, and its agent hands Ada the review. The Delegate popover lists your crew under **Add delegate** too.
+- A trigger's **Send to** (Automations): a schedule, failed CI or a labelled issue goes to them.
+
+API: `GET`/`POST /crew`, `GET`/`PATCH`/`DELETE /crew/:id` (id or name), `POST /crew/:id/jobs`, `POST /crew/:id/checkin`, `POST /sessions/:id/crew` (a task joins), `crew` on a trigger, `{ crew: id }` in `subagents`. A follow-up starting with `@Name` returns `{ crew: [entry] }`. Crew members run on this computer.
 
 ## Checkpoints and rollback
 

@@ -55,7 +55,7 @@ export function register(r, app) {
 
   r.route('GET', '/triggers', (c) => c.send(200, store.config.triggers.map(triggerView)));
   r.route('POST', '/triggers', async (c) => {
-    const t = normalizeTrigger(await c.body(), null, { recipes: store.config.recipes });
+    const t = normalizeTrigger(await c.body(), null, { recipes: store.config.recipes, crew: store.config.crew });
     store.config.triggers.push(t);
     app.configChanged();
     c.send(201, triggerView(t));
@@ -69,7 +69,7 @@ export function register(r, app) {
     'PATCH',
     '/triggers/:id',
     trigger(async (c, t) => {
-      Object.assign(t, normalizeTrigger(await c.body(), t, { recipes: store.config.recipes }));
+      Object.assign(t, normalizeTrigger(await c.body(), t, { recipes: store.config.recipes, crew: store.config.crew }));
       app.configChanged();
       c.send(200, triggerView(t));
     }),

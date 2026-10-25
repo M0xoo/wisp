@@ -40,7 +40,8 @@ export function createLaunch(app) {
 
   // body: { prompt, cwd, also: [folder], scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
   //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs } }
-  async function launch(body, origin = null) {
+  // crew: a crew member's job ({ id, job, from? }, server/crew.js); only the crew sets it, never a request.
+  async function launch(body, origin = null, { crew = null } = {}) {
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
     // kind 'spell': Cast a spell. The agent changes wisp, not a project: an empty scratch folder of
     // its own, one run. Edits mode, not Plan: Claude's Plan mode refuses MCP tools (the spell tools),
@@ -116,7 +117,7 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
   // Where a launch runs: body.machine ('' = here), else a project folder that only exists on a

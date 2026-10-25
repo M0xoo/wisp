@@ -26,6 +26,7 @@ export const SLOTS = {
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
+  'crew.page': "A crew member's page: a button in its header, next to Check in.",
 };
 
 export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head']);
@@ -55,6 +56,13 @@ export const PARTS = {
   'topbar.view': '#viewBtn',
   feed: '#feed',
   'section.done': '#secDone',
+  // The crew: named agents pinned above Working (both layouts), each row a member with its spirit;
+  // a member's page, and the editor that adds one.
+  'section.crew': '#secCrew',
+  'crew.row': '#secCrew .cr-row',
+  'crew.avatar': '.cr-av',
+  'crew.page': '.crew-page',
+  'crew.editor': '.crew-edit',
   'section.archived': '#secArchived',
   toTop: '#toTop',
   launcher: '#launcher',
@@ -238,7 +246,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

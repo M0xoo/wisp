@@ -22,8 +22,7 @@ export function register(r, app) {
   // Whether anything is going on, for whoever starts and stops this wisp (wisp Grid stops an idle
   // one): turns running, side questions, open pages, the last change, and the next scheduled task.
   r.route('GET', '/status', (c) => {
-    const next = (store.config.triggers || [])
-      .map((t) => triggerView(t).nextAt)
+    const next = [...(store.config.triggers || []).map((t) => triggerView(t).nextAt), app.crew?.nextWake()] // crew check-ins wake it too
       .filter(Boolean)
       .sort((a, b) => a - b)[0];
     c.send(200, { live: runner.live.size, sides: runner.sides.size, terms: app.terms?.active() || 0, clients: [...app.events.clients].filter((x) => !x.relay).length, lastActivityAt: app.lastActivityAt || null, nextWakeAt: next || null, version: VERSION });

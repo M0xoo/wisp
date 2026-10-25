@@ -12,6 +12,8 @@ import * as bus from '../web/js/core/bus.js';
 import { shared } from '../web/js/core/api.js';
 import { finalAnswer, layout, messageText, sameStep } from '../web/js/features/transcript.js';
 import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
+import { isSpirit, parseSpirit, rollSpirit, SPIRIT, spiritCode, spiritDefs, spiritSvg } from '../web/js/spirit.js';
+import { decode, encode, mentionHtml, plain } from '../web/js/mention-text.js';
 
 test('esc escapes HTML and treats null as empty', () => {
   assert.equal(esc(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -266,4 +268,36 @@ test('shared: a second caller shares the load on its way; since(t) reuses one as
   fail = false;
   await load.since(t2); // the one since t2 failed: it doesn't count
   assert.equal(calls, 4);
+});
+
+test('spirits: a name always rolls the same one, every part draws, and repaints are identical', () => {
+  assert.equal(rollSpirit('Ada'), rollSpirit('Ada'));
+  assert.ok(isSpirit(rollSpirit('Ada')));
+  assert.equal(isSpirit('🦊'), false);
+  // An unknown part falls back to the first; a bad code rolls from the seed.
+  assert.deepEqual(parseSpirit('cube.teal.dots.smile.none'), { shape: 'flame', color: 'teal', eyes: 'dots', mouth: 'smile', extra: 'none' });
+  assert.deepEqual(parseSpirit('nope', 'Ada'), parseSpirit(rollSpirit('Ada')));
+  for (const k of Object.keys(SPIRIT))
+    for (const v of SPIRIT[k]) {
+      const code = spiritCode({ ...parseSpirit('blob.teal.dots.smile.none'), [k]: v });
+      const svg = spiritSvg(code, { state: 'live' });
+      assert.match(svg, /^<svg class="spirit c-\w+ st-live sh-\w+"/);
+      assert.equal(svg, spiritSvg(code, { state: 'live' }), 'the same markup every time');
+      assert.match(svg, /url\(#sp-grad-\w+\)/);
+    }
+  // Sleeping closes its eyes; small ones drop the mouth and extra.
+  assert.notEqual(spiritSvg('blob.teal.wide.smile.crown', { state: 'sleep' }), spiritSvg('blob.teal.wide.smile.crown'));
+  assert.ok(!spiritSvg('blob.teal.wide.smile.crown', { small: true }).includes('var(--spirit-gold)'));
+  assert.equal((spiritDefs().match(/<radialGradient/g) || []).length, SPIRIT.color.length);
+});
+
+test('crew mentions: stored as @[Name](crew:id), shown as @Name, chips open the member', () => {
+  const stored = 'ask @[Ada](crew:abc123def4) and @[Fix login](wisp:aaaaaaaaaaaa)';
+  const d = decode(stored);
+  assert.equal(d.text, 'ask @Ada and @Fix login');
+  assert.deepEqual(d.mentions, [{ id: 'abc123def4', title: 'Ada', kind: 'crew' }, { id: 'aaaaaaaaaaaa', title: 'Fix login' }]);
+  assert.equal(encode(d.text, d.mentions), stored);
+  assert.equal(plain(stored), 'ask @Ada and @Fix login');
+  assert.match(mentionHtml(esc(stored)), /<button type="button" class="mn crew" data-crew="abc123def4"/);
+  assert.match(mentionHtml(esc(stored)), /<a class="mn" href="#\/s\/aaaaaaaaaaaa"/);
 });

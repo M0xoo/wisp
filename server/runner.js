@@ -175,11 +175,13 @@ export function summarize(s, store) {
     // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.
     team: (s.subagents || []).flatMap((m) =>
       copies(m).map((name) => {
-        const child = store?.get(s.children?.[name]);
-        return { name, agent: m.agent, model: m.model, effort: m.effort, used: !!child, busy: child?.state === 'running' };
+        // A crew member's jobs are its own tasks: the latest one this lead handed it.
+        const child = store?.get(m.crew ? s.turns.flatMap((t) => t.delegations || []).findLast((d) => d.member === m.name)?.sessionId : s.children?.[name]);
+        return { name, agent: child?.agent || m.agent, model: m.model, effort: m.effort, used: !!child, busy: child?.state === 'running', ...(m.crew && { crew: m.crew }) };
       }),
     ),
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
+    ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }) } }), // a crew member's job (server/crew.js)
     ...(s.delegated && { delegated: true }), // a delegate's run for a lead on another wisp (services/relay.js), not a task
     ...relaysOf(s, store),
     followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
@@ -218,6 +220,11 @@ export class Runner extends EventEmitter {
     this.promptExtra = () => ''; // (session) => text appended to the system prompt (learned preferences)
     this.spellBlocks = () => []; // (session) => block types spells add, for the protocol
     this.routeAuto = null; // (prompt, { cwd }) => { agent, model, route } for subagents set to Auto
+    // The crew (server/crew.js): a job's note in its system prompt, what its turn hands back
+    // ({ quiet }), and a lead's delegation to a member (a job of its own, made by the crew).
+    this.crewNote = () => '';
+    this.crewTurn = () => ({});
+    this.crewDelegate = null;
     this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
 
     // Anything that was mid-flight when wisp last died is now orphaned.
@@ -239,7 +246,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -271,6 +278,7 @@ export class Runner extends EventEmitter {
       ...(parentId && { parentId, member }),
       ...(relay && { relay }), // a member on another machine: { machine, place, upstream? } (services/relay.js)
       ...(delegated && { delegated }), // a delegate's run for a lead elsewhere: { lead, name }
+      ...(crew && { crew }), // a crew member's job: { id, job, from?, reply? } (server/crew.js)
       ...(route && { route }), // how Auto picked agent, model and level (server/router.js)
     };
     this.store.put(session);
@@ -459,6 +467,11 @@ export class Runner extends EventEmitter {
     }
   }
 
+  // A side entry changed (a /btw answer, or a crew member's answer to an @mention: server/crew.js).
+  sideChanged(session, turn) {
+    this.#btwChanged(session, turn);
+  }
+
   // A side question changed: the card repaints it in place. The task's own state is untouched.
   #btwChanged(session, turn) {
     this.store.save(session);
@@ -542,7 +555,7 @@ export class Runner extends EventEmitter {
 
   // delegate: the lead hands tasks to members of its team. Each member is one child session,
   // created on first use and resumed after that. Returns one record (or { error }) per task.
-  delegate(lead, tasks) {
+  async delegate(lead, tasks) {
     const turn = lead.turns.at(-1);
     if (turn?.status !== 'running') throw bad('The lead agent is not running.', 409);
     const team = lead.subagents || [];
@@ -569,6 +582,18 @@ export class Runner extends EventEmitter {
         continue;
       }
       claimed.add(slot);
+      // A crew member: the crew starts a job for it, in its own folder, that the user sees.
+      if (m.crew) {
+        const job = await Promise.resolve(this.crewDelegate?.(lead, m, prompt) ?? { error: 'The crew is not available.' }).catch((err) => ({ error: err.message }));
+        if (job.error) {
+          out.push({ subagent: want, error: job.error });
+          continue;
+        }
+        const d = { id: newId(), name: slot, member: m.name, crew: m.crew, agent: job.agent, model: job.model, effort: job.effort, sessionId: job.id, turnId: job.turns.at(-1).id, prompt, startedAt: Date.now() };
+        (turn.delegations ||= []).push(d);
+        out.push(d);
+        continue;
+      }
       let child = this.store.get(lead.children?.[slot]);
       // A member on another machine: the wisp that reaches it runs it there (services/relay.js).
       const relay = m.machine ? { machine: m.machine, place: m.place || '', ...(m.upstream && { upstream: true }) } : null;
@@ -678,7 +703,7 @@ export class Runner extends EventEmitter {
 
   // A child's state changed: the lead's card shows it, so the lead's turn re-renders too.
   #touchLead(child) {
-    const lead = child.parentId && this.store.get(child.parentId);
+    const lead = (child.parentId || child.crew?.from?.id) && this.store.get(child.parentId || child.crew.from.id);
     if (!lead) return;
     const turn = lead.turns.findLast((t) => t.delegations?.some((d) => d.sessionId === child.id)) || lead.turns.at(-1);
     this.#touch(lead, { turn: turn?.id });
@@ -755,7 +780,8 @@ export class Runner extends EventEmitter {
       ? systemPrompt({ ask: SUBAGENT_ASK })
       : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
-    return base + spell + workspaceNote(session) + this.promptExtra(session);
+    const crew = session.crew ? this.crewNote(session) : '';
+    return base + spell + crew + workspaceNote(session) + this.promptExtra(session);
   }
 
   // wisp's own MCP server (ask_user, delegate), for harnesses that take one. Subagents get none.
@@ -775,7 +801,7 @@ export class Runner extends EventEmitter {
           WISP_TURN: session.turns.at(-1)?.id || '', // so a run's leftover helper can tell its turn is over
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
-          ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
+          ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: m.crew ? `${m.label || m.name} of the user's crew${m.role ? `, ${m.role}` : ''}` : adapters[m.agent]?.name || m.agent, model: m.crew ? 'own folder and memory' : m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
         },
       },
     };
@@ -982,6 +1008,7 @@ export class Runner extends EventEmitter {
   }
 
   #finishTurn(session, turn, ev, reason) {
+    let crewOut = {};
     turn.endedAt = Date.now();
     delete turn.interim;
     delete turn.background;
@@ -1012,6 +1039,7 @@ export class Runner extends EventEmitter {
       turn.status = 'done';
       turn.raw = ev.text; // kept so the turn can be re-parsed if the parser improves
       turn.presentation = parsePresentation(ev.text);
+      if (session.crew) crewOut = this.crewTurn(session, turn) || {}; // its memory comes out of the report
       this.store.keepImages(session, turn);
       this.store.keepDocs?.(session, turn);
       const hero = heroOf(turn.presentation);
@@ -1028,6 +1056,10 @@ export class Runner extends EventEmitter {
     const holding = !handing && !!this.pipeline?.wants(session, turn, ev);
     session.state = holding || handing ? 'running' : 'review';
     session.unread = !holding && !handing;
+    // A crew check-in that found nothing (archived too), or a job whose answer went elsewhere:
+    // filed under Done, nobody is pinged.
+    const quiet = (crewOut.quiet || crewOut.filed) && !holding && !handing;
+    if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) });
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
@@ -1036,7 +1068,7 @@ export class Runner extends EventEmitter {
     if (holding) setImmediate(() => this.pipeline.run(session, turn));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
-    else if (!handing && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
+    else if (!handing && !quiet && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,

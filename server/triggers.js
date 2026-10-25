@@ -86,12 +86,18 @@ export function nextRun(c, from = Date.now()) {
 // --- config ----------------------------------------------------------------------------------
 
 
-export function normalizeTrigger(body, prev = null, { recipes = [] } = {}) {
+// crew: the members a trigger may send its work to (server/crew.js). One that does runs as that
+// member's job, in the member's folder, so it needs no folder of its own.
+export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } = {}) {
   const v = (k, d = '') => (body[k] !== undefined ? body[k] : prev?.[k] !== undefined ? prev[k] : d);
   const kind = String(v('kind', 'schedule'));
   if (!KINDS.has(kind)) throw bad('kind must be schedule, ci or issues.');
-  const cwd = String(v('cwd'));
-  if (!cwd || !path.isAbsolute(cwd) || !fs.existsSync(cwd)) throw bad(`Not a project folder: ${cwd || '(none)'}`);
+  const to = String(v('crew'));
+  if (to && !crew.some((m) => m.id === to)) throw bad('That crew member is no longer on your crew.');
+  const member = crew.find((m) => m.id === to);
+  const cwd = String(v('cwd') || (member?.cwd ?? ''));
+  if (kind !== 'schedule' && !cwd) throw bad('Pick the project whose GitHub repo to watch.');
+  if ((cwd || !member) && (!cwd || !path.isAbsolute(cwd) || !fs.existsSync(cwd))) throw bad(`Not a project folder: ${cwd || '(none)'}`);
   const recipeId = String(v('recipeId'));
   if (recipeId && !findRecipe(recipes, recipeId)) throw bad('That recipe no longer exists.');
   const prompt = String(v('prompt') || (recipeId ? '' : DEFAULT_PROMPTS[kind])).trim();
@@ -109,6 +115,7 @@ export function normalizeTrigger(body, prev = null, { recipes = [] } = {}) {
     kind,
     enabled: v('enabled', true) !== false,
     cwd,
+    crew: to, // a crew member's id: the work goes to them instead of a new task
     prompt,
     recipeId,
     params: typeof v('params', {}) === 'object' && v('params', {}) ? v('params', {}) : {},
@@ -146,9 +153,10 @@ export function triggerView(t) {
 // --- the loop --------------------------------------------------------------------------------
 
 export class Triggers {
-  // launch(body, origin) starts a session like POST /api/sessions; onChange() after state changes.
-  constructor({ store, launch, onChange = () => {}, gh = ghCli, now = () => Date.now() }) {
-    Object.assign(this, { store, launch, onChange, gh, now });
+  // launch(body, origin) starts a session like POST /api/sessions; assign(crewId, work) hands it
+  // to a crew member instead; onChange() after state changes.
+  constructor({ store, launch, assign = null, onChange = () => {}, gh = ghCli, now = () => Date.now() }) {
+    Object.assign(this, { store, launch, assign, onChange, gh, now });
     this.busy = new Set();
   }
 
@@ -213,6 +221,14 @@ export class Triggers {
     const template = recipe ? recipe.prompt : t.prompt;
     const prompt = fill(template, { ...t.params, ...vars }, { strict: false }).trim();
     if (!prompt) throw new Error('The prompt came out empty.');
+    if (t.crew) {
+      if (!this.assign) throw new Error('The crew is not available.');
+      const out = await this.assign(t.crew, { prompt, job: 'trigger', from: { id: t.id, title: t.name }, origin: { kind: 'trigger', id: t.id, name: t.name } });
+      t.lastRunAt = this.now();
+      t.lastSessionId = out.id || t.lastSessionId;
+      t.runs = (t.runs || 0) + 1;
+      return out;
+    }
     const s = await this.launch(
       {
         prompt,

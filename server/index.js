@@ -22,6 +22,8 @@ import { createSpellData } from './spells-data.js';
 import { setSpellBlocks } from './render.js';
 import { createSpellHooks } from './services/spell-hooks.js';
 import { Triggers } from './triggers.js';
+import { Crew } from './crew.js';
+import { removeWorktree } from './git.js';
 import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
 import { Secrets } from './secrets.js';
@@ -61,11 +63,12 @@ import * as proxyRoutes from './routes/proxy.js';
 import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
 import * as spellRoutes from './routes/spells.js';
+import * as crewRoutes from './routes/crew.js';
 
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes];
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes, crewRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -205,7 +208,24 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
   });
   app.sendFeedback = createFeedback(app);
-  app.triggers = new Triggers({ store, launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0], onChange: () => app.broadcast('config', {}) });
+  // The crew: long-lived agents with a schedule and memory, whose jobs are tasks (server/crew.js).
+  app.crew = new Crew({ store, runner, launch: (body, origin, opts) => app.launcher.launch(body, origin, opts), onChange: () => app.broadcast('config', {}), exists: (dir) => fs.existsSync(dir) && fs.statSync(dir).isDirectory() });
+  // A quiet check-in is archived as it ends: its worktree goes like any archived task's.
+  runner.on('ended', ({ session: s }) => {
+    if (s.crew && s.archived) for (const x of [s, ...(s.also || [])]) if (x.worktree) removeWorktree(x.worktree, { branch: true }).catch(() => {});
+  });
+  app.triggers = new Triggers({
+    store,
+    launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0],
+    // A trigger that sends its work to a crew member: the member's job, or its place in the queue.
+    assign: async (crewId, work) => {
+      const m = app.crew.get(crewId);
+      if (!m) throw new Error('That crew member left your crew.');
+      const out = await app.crew.assign(m, work);
+      return out.session ? summarize(out.session, store) : { queued: out.queued, crew: m.id };
+    },
+    onChange: () => app.broadcast('config', {}),
+  });
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
   app.overlaps = createOverlaps(app);
@@ -262,6 +282,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     } catch {}
     app.retro.stop();
     app.triggers.stop();
+    app.crew.stop();
     app.remote.stop();
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
@@ -288,6 +309,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   fs.writeFileSync(serverFile, JSON.stringify({ url: `http://127.0.0.1:${port}`, port, pid: process.pid, version: VERSION, apiVersion: API_VERSION, startedAt: Date.now() }, null, 2));
   app.updater.start();
   app.triggers.start();
+  app.crew.start();
   app.remote.start();
   app.machines.start();
   app.computer.start();

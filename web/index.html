@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="/css/ship.css">
   <link rel="stylesheet" href="/css/automations.css">
   <link rel="stylesheet" href="/css/subagents.css">
+  <link rel="stylesheet" href="/css/crew.css">
   <link rel="stylesheet" href="/css/auto.css">
   <link rel="stylesheet" href="/css/transcript.css">
   <link rel="stylesheet" href="/css/split.css">
@@ -99,6 +100,8 @@
       <symbol id="i-rotate" viewBox="0 0 24 24"><rect x="3.5" y="10" width="13" height="10" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 3.5a7.5 7.5 0 017.5 7.5M17.5 9l2 2 2-2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A7.5 7.5 0 019.5 4.5a7.5 7.5 0 1010 10z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5.5v13l11-6.5-11-6.5z" fill="currentColor"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="7" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/></symbol>
+      <symbol id="i-crew" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 19.5c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5.2 6.6a2.4 2.4 0 00.4 4.6M2.5 17.5c.3-1.8 1.2-3 2.6-3.6M18.8 6.6a2.4 2.4 0 01-.4 4.6M21.5 17.5c-.3-1.8-1.2-3-2.6-3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
     </defs>
   </svg>
 
@@ -155,6 +158,8 @@
       <div class="sp-feedtop" id="spFeedTop" hidden></div>
       <div class="feed" id="feed">
         <section class="f-group needs" id="secNeeds" hidden><h4>Needs you<span class="n"></span></h4><div class="f-list"></div></section>
+        <!-- The crew (features/crew.js): named agents that stay on hand, pinned above Working. -->
+        <section class="f-group crew" id="secCrew" hidden><h4>Crew<span class="n"></span><button class="cr-add" type="button" title="Add a crew member" aria-label="Add a crew member"><svg class="i"><use href="#i-plus"/></svg></button></h4><div class="cr-list"></div></section>
         <section class="f-group working" id="secWorking" hidden><h4>Working<span class="n"></span></h4><div class="f-list"></div></section>
         <section class="f-group done" id="secDone" hidden><h4 class="toggle-done">Done<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>
         <section class="f-group done archived" id="secArchived" hidden><h4 class="toggle-done">Archived<span class="n"></span><svg class="i chev"><use href="#i-chevron"/></svg></h4><div class="f-list"></div></section>

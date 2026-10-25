@@ -20,6 +20,7 @@ Use these, everywhere in the page, the app, the site and the CHANGELOG:
 | prompt box / reply box (*follow-up*) | input, chat box |
 | *Computers* (in the phone app), *Machines* (on desktop) | servers, hosts |
 | spell | plugin, theme, mod |
+| *Crew*, crew member, *job*, spirit (its avatar) | agents, assistants, bots (an agent is the harness running a task) |
 | Settings → *Section* → *Row* | the config, preferences |
 
 When you rename something, change every place it shows (menus, palette, settings, tooltips,

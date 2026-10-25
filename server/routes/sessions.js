@@ -14,6 +14,7 @@ import { MIME } from '../http/static.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
 import { alsoDirs, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
+import { crewMentions, handleOf } from '../crew.js';
 import { ptySupported } from '../pty.js';
 import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
@@ -100,6 +101,13 @@ export function register(r, app) {
   const ensureTrees = async (s) => {
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
   };
+  // @Name in a prompt: a message that starts with members is addressed to them (lead); members
+  // named further in join the task as delegates its agent can hand work to.
+  const tagged = (text) => (app.crew?.list.length ? crewMentions(text, app.crew.list) : { all: [], lead: [], rest: text });
+  const asDelegates = (members, have = []) =>
+    members
+      .filter((m) => !have.some((x) => x.crew === m.id))
+      .map((m) => ({ crew: m.id, name: handleOf(m.name), label: m.name, role: m.role, agent: m.agent, use: m.role ? `${m.role}. The user tagged them in this task` : 'The user tagged them in this task' }));
   const turnOf = (s, turnId) => (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
 
   r.route('GET', '/sessions', async (c) => {
@@ -124,6 +132,16 @@ export function register(r, app) {
     // A machine's wisp hands on where a recipe, trigger or Telegram launch came from.
     const o = body.origin;
     const origin = o && ['recipe', 'trigger', 'telegram'].includes(o.kind) ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
+    // "@Ada check the deploy": a job for Ada (each member named first gets it), not a task of its own.
+    const t = !body.machine && !body.kind ? tagged(String(body.prompt || '')) : { all: [], lead: [] };
+    if (t.lead.length) {
+      if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
+      const jobs = [];
+      for (const m of t.lead) jobs.push({ m, out: await app.crew.assign(m, { prompt: t.rest, job: 'task', attachments: Array.isArray(body.attachments) ? body.attachments : [] }) });
+      const list = jobs.map(({ m, out }) => (out.session ? summarize(out.session, store) : { queued: out.queued, crew: { id: m.id, name: m.name } }));
+      return c.send(201, list.length > 1 ? { ...list[0], group: list } : list[0]);
+    }
+    if (t.all.length) body.subagents = [...(body.subagents || store.config.teams.find((x) => x.id === body.preset)?.members || []), ...asDelegates(t.all, body.subagents || [])];
     const out = await launcher.launchAny(body, origin);
     c.send(201, out.length > 1 ? { ...out[0], group: out } : out[0]);
   });
@@ -134,7 +152,9 @@ export function register(r, app) {
     '/sessions/:id',
     one((c, s) => {
       app.ship.recheck(s, { lazy: true }); // edits made outside wisp (in an editor) show up too
-      c.send(200, s.children ? { ...s, childSessions: Object.fromEntries(Object.values(s.children).map((cid) => [cid, store.get(cid)]).filter(([, x]) => x)) } : s);
+      // Crew members' jobs it delegated count as its children here too.
+      const kids = [...Object.values(s.children || {}), ...s.turns.flatMap((t) => (t.delegations || []).filter((d) => d.crew).map((d) => d.sessionId))];
+      c.send(200, kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid)]).filter(([, x]) => x)) } : s);
     }),
   );
   r.route(
@@ -250,8 +270,22 @@ export function register(r, app) {
       // Two agents on one conversation would trample each other.
       if (app.terms.get(s.id)?.code === null && btwQuestion(text) === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
+      // "@Ada what do you make of this?": Ada answers on the task, under the message; the task's
+      // own agent isn't interrupted. Members named further in join its team for this follow-up on.
+      const t = btwQuestion(text) === null && !machine ? tagged(text.trim()) : { all: [], lead: [] };
+      if (t.lead.length) {
+        if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
+        const asked = [];
+        for (const m of t.lead) asked.push((await app.crew.ask(m, s, t.rest, Array.isArray(attachments) ? attachments : [])).entry);
+        return c.send(200, { crew: asked });
+      }
       // subagents / preset: give the lead a team (or another one, [] for none) from this follow-up on.
-      const team = subagents !== undefined || preset !== undefined ? followUpTeam(s, { subagents, preset }) : undefined;
+      let team = subagents !== undefined || preset !== undefined ? followUpTeam(s, { subagents, preset }) : undefined;
+      if (t.all.length && !s.parentId) {
+        const have = team || s.subagents || [];
+        const more = asDelegates(t.all, have);
+        if (more.length) team = normalizeTeam([...have, ...more], adapters);
+      }
       // machine: carry the task on on a machine instead (services/move.js). '' is here, where it is.
       // A /btw side question never moves it.
       if (typeof machine === 'string' && machine && btwQuestion(text) === null) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));

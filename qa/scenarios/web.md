@@ -187,3 +187,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** `node scripts/site.mjs`; open `docs/index.html` at 1440 and 390 wide.
 - **Expected:** builds without error; no horizontal overflow, no console errors.
 - **Automated** (build + render), **Suite** (`test/site.test.js`)
+
+### WEB-32 · Crew: add, check in, @mention, delegate
+- **Steps:** in the *Crew* section click **+**, pick the *CI watcher* template, open the spirit maker (click the face), change the eyes, roll once, **Add to crew**. Open the member, send a job from the box, click **Check in**. In a task's follow-up type `@`, pick the member, ask something. Launch `fix it, then have @Name review it` with `DELEGATE`. Add a schedule trigger with **Send to** the member and run it.
+- **Expected:** the row appears at once, above *Working*, with its spirit; it floats while a job runs. Jobs show the member's face on their cards. The `@` answer lands on the task under the message, without a new turn. The delegation runs as the member's job in its own folder and its report reaches the lead. A quiet check-in is archived and logged; the notebook gains the lines the job remembered. Light and dark, split view, feed and 390px.
+- **Manual** (UI), **Suite** (`test/crew.test.js`, `test/web-pure.test.js`, `test/spells.test.js`)

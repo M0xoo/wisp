@@ -28,6 +28,7 @@ import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
 import { isSplit, setView, sideShown, toggleSidebar, viewPref } from './split.js';
 import { setTheme, themePref } from './theme.js';
+import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } from './crew.js';
 
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
@@ -60,10 +61,17 @@ function paletteItems() {
     if (cur.pr?.state === 'OPEN') items.push({ group: g, label: `Merge PR #${cur.pr.number}…`, sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
+    const member = cur.crew && memberById(cur.crew.id);
+    if (member) items.push({ group: g, label: `Open ${member.name}`, sub, icon: 'crew', keywords: 'crew agent member', run: () => openCrew(member.id) });
+    else if (!cur.parentId && cur.agent !== 'wisp') items.push({ group: g, label: 'Add to crew…', sub, icon: 'crew', keywords: 'crew agent assistant persistent schedule avatar', run: () => addToCrew(id) });
     items.push({ group: g, label: transcriptOn(id) ? 'Show the presentation' : 'Show the full transcript', sub, icon: 'transcript', kbd: 'V', keywords: 'transcript log messages steps tool calls verbose activity history', run: () => withCard(id, () => toggleTranscript(id)) });
     items.push({ group: g, label: 'Rename', sub, icon: 'pen', kbd: 'M', run: () => withCard(id, () => rename(id)) });
     items.push({ group: g, label: 'Delete task', sub, icon: 'trash', kbd: '⌫', keywords: 'remove', run: () => deleteSession(id) });
   }
+
+  // The crew: open a member, or add one.
+  for (const m of crewList()) items.push({ group: 'Crew', label: m.name, sub: [m.role, m.paused ? 'Paused' : cadenceLabel(m.cron)].filter(Boolean).join(' · '), icon: 'crew', keywords: `crew agent @${m.name} ${m.brief.slice(0, 200)}`, run: () => openCrew(m.id) });
+  items.push({ group: 'Crew', label: 'Add a crew member…', icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar spirit', run: () => crewEditor() });
 
   const sessions = [...S.sessions.values()].filter((s) => !s.pending).sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
   for (const s of sessions) {

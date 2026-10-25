@@ -152,6 +152,20 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
   assert.ok(problems({ ...base0, parts: { tips: { props: { count: 0 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
 });
 
+test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
+  const ok = {
+    ...base0,
+    parts: { 'section.crew': { style: { fontSize: '12px' } }, 'crew.row': { style: { padding: '2px' } }, 'crew.avatar': { style: { borderRadius: '8px' } }, 'crew.page': { style: { width: '900px' } }, 'crew.editor': { hide: false } },
+    buttons: [{ slot: 'crew.page', icon: 'crew', label: 'Standup', do: { open: 'https://example.com' } }],
+  };
+  assert.deepEqual(problems(ok), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['section.crew'] } }), []);
+  assert.ok(schema.SLOTS['crew.page'] && !schema.CARD_SLOTS.has('crew.page'));
+  assert.ok(schema.ICONS.includes('crew') && schema.ICONS.includes('pause'));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'crew.page', panel: 'x' }] }).length);
+  assert.ok(problems({ ...base0, parts: { 'crew.nope': { hide: true } } }).some((x) => /crew\.nope/.test(x)));
+});
+
 test('take over in wisp: the terminal setting, its parts, font size and header slot', () => {
   const ok = {
     ...base0,

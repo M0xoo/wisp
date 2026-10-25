@@ -22,6 +22,7 @@ import { slotHtml } from './spells.js';
 import { onBack } from '../ui/back.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
+import { crewDot, paintCrew } from './crew.js';
 import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 function visible(list) {
@@ -146,6 +147,7 @@ export function renderFeed() {
   const n = [...S.sessions.values()].filter((s) => (s.state === 'review' && s.unread) || s.state === 'waiting').length;
   document.title = n ? `(${n}) wisp` : 'wisp';
   renderProjects();
+  paintCrew(); // the crew's rows say what their jobs are doing
   paintSplit();
 }
 
@@ -257,7 +259,7 @@ function renderHead(n, s) {
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
   n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
   paintHtml(n.head, `
-    ${qDot(s)}
+    ${(s.crew && crewDot(s)) || qDot(s)}
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
       ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}

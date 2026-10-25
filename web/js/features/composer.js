@@ -11,7 +11,8 @@ import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
-import { askBtw } from './btw.js';
+import { askBtw, askCrew } from './btw.js';
+import { addressedTo } from './crew.js';
 import { expand, renderFeed, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { mentionBox } from './mentions.js';
@@ -448,6 +449,21 @@ export async function sendReply(id, text) {
       n?.tray?.restore(files);
     };
     return askBtw(id, question, { attachments, files, restore });
+  }
+  // "@Ada …": a message for a crew member, answered on this card; the task's agent carries on.
+  const to = addressedTo(text);
+  if (to.members.length) {
+    if (!to.rest) return toast(`Tell ${esc(to.members.map((m) => m.name).join(' and '))} what to do after the name.`);
+    if (n?.tray?.busy) toast('Waiting for uploads…');
+    const attachments = n?.tray ? await n.tray.ids() : [];
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    const files = n?.tray?.take() || [];
+    const restore = () => {
+      if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+      n?.tray?.restore(files);
+    };
+    return askCrew(id, text, to.members, to.rest, { attachments, restore });
   }
   // /spell <what to change>: cast a spell (a task of its own) instead of sending a follow-up.
   const ask = spellAsk(text);

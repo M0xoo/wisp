@@ -19,6 +19,7 @@ import { MACHINE_STATE, machineById, placeName } from './places.js';
 import { runnerPicker } from './runner-picker.js';
 import { agentById, agentName, effortLabel, harnessesAt, harnessLogo, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { ctxFor } from './turns.js';
+import { avatarHtml, crewList, memberById } from './crew.js';
 
 const MAX_TEAM = 6; // rows
 const MAX_COPIES = 5; // parallel copies of one row
@@ -53,7 +54,7 @@ export function teamStack(lead, team) {
   const tip = `${agentName(lead)} with ${team.map((m) => `${m.name}${m.busy ? ' (working)' : m.used === false ? ' (unused)' : ''}`).join(', ')}`;
   return `<span class="team-stack" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">
     <span class="ts-l">${harnessLogo(lead)}</span>
-    ${shown.map((m, i) => `<span class="ts-m${m.used === false ? ' idle' : ''}${m.busy ? ' busy' : ''}" style="--i:${i}">${harnessLogo(m.agent)}</span>`).join('')}
+    ${shown.map((m, i) => `<span class="ts-m${m.used === false ? ' idle' : ''}${m.busy ? ' busy' : ''}${m.crew ? ' crew' : ''}" style="--i:${i}">${m.crew && memberById(m.crew) ? avatarHtml(memberById(m.crew), { size: 18, dot: false, state: m.busy ? 'live' : 'idle', small: true }) : harnessLogo(m.agent)}</span>`).join('')}
     ${team.length > shown.length ? `<span class="ts-m ts-more" style="--i:${shown.length}">+${team.length - shown.length}</span>` : ''}
   </span>`;
 }
@@ -112,6 +113,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     </div>`);
   const list = $('.tp-list', node);
   const foot = $('.tp-foot', node);
+  const crewFree = () => crewList().filter((c) => !members.some((m) => m.crew === c.id));
   const commit = () => onChange(uniqueNames(members), preset);
   let typing;
   const commitSoon = () => (clearTimeout(typing), (typing = setTimeout(commit, 300)));
@@ -141,7 +143,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
   const paintFoot = () => {
     const full = members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES;
     foot.innerHTML = `
-      <button class="ghost sm tp-add" ${full ? 'disabled' : ''} ${S.machines.length ? 'aria-haspopup="menu"' : ''}>${icon('plus')}Add delegate${S.machines.length ? icon('chevron', 'chev') : ''}</button>
+      <button class="ghost sm tp-add" ${full ? 'disabled' : ''} ${S.machines.length || crewFree().length ? 'aria-haspopup="menu"' : ''}>${icon('plus')}Add delegate${S.machines.length || crewFree().length ? icon('chevron', 'chev') : ''}</button>
       <span class="tp-count" title="Agents in all, counting copies (max ${MAX_INSTANCES})">${teamSize(members)} agent${teamSize(members) === 1 ? '' : 's'}</span>
       <span class="grow"></span>
       ${members.length ? `<button class="link xs tp-clear">Clear</button><button class="ghost sm tp-save">${icon('check')}Save as preset</button>` : ''}`;
@@ -158,8 +160,10 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     const named = uniqueNames(members);
     list.innerHTML = members.length
       ? members
-          .map(
-            (m, i) => `<div class="tp-row" data-i="${i}">
+          .map((m, i) =>
+            m.crew
+              ? crewRow(m, i)
+              : `<div class="tp-row" data-i="${i}">
               <div class="tp-top">
                 ${placeChip(m)}
                 <button class="runner-btn tp-runner" title="Harness, model and thinking level${m.machine ? ` on ${esc(memberPlaceName(m))}` : ''}" aria-haspopup="dialog"></button>
@@ -179,14 +183,38 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
           )
           .join('')
       : `<div class="tp-empty">${icon('agent')}<p>No delegates yet. Add one per job: Codex for tests next to the lead, or a model on your GPU box for the heavy lifting.</p></div>`;
-    $$('.tp-row', list).forEach((row, i) => paintRunnerBtn($('.tp-runner', row), members[i].agent, members[i].model, members[i].effort));
+    $$('.tp-row', list).forEach((row, i) => !members[i].crew && paintRunnerBtn($('.tp-runner', row), members[i].agent, members[i].model, members[i].effort));
     paintFoot();
     paintLead();
   };
 
+  // A crew member (features/crew.js): its face, name and role. It brings its own folder, harness
+  // and memory, so there's nothing to pick but what the lead should use it for.
+  const crewRow = (m, i) => {
+    const c = memberById(m.crew);
+    return `<div class="tp-row crew" data-i="${i}">
+      <div class="tp-top">
+        ${c ? avatarHtml(c, { size: 26, dot: false }) : `<span class="cr-av">${icon('crew')}</span>`}
+        <span class="tp-crew"><b>${esc(c?.name || m.label || m.name)}</b><small>${esc(c ? [c.role, 'your crew · own folder and memory'].filter(Boolean).join(' · ') : 'no longer on your crew')}</small></span>
+        <span class="grow"></span>
+        <button class="icon-btn tp-del" title="Remove">${icon('x')}</button>
+      </div>
+      <div class="tp-bottom">
+        <label class="field sm tp-use"><span>Use for</span><input value="${esc(m.use || '')}" placeholder="${esc(c?.role || 'what to hand them')}" maxlength="300" spellcheck="false" autocomplete="off"></label>
+      </div>
+    </div>`;
+  };
+  const addCrew = (id) => {
+    const c = memberById(id);
+    if (!c || members.length >= MAX_TEAM || teamSize(members) >= MAX_INSTANCES || members.some((m) => m.crew === id)) return;
+    members.push({ crew: c.id, name: c.name, label: c.name, role: c.role, agent: c.agent, use: c.role || '', count: 1 });
+    paintList();
+    commit();
+  };
+
   // A harness that's installed where the member runs, keeping its pick when that place has it.
   const fitRunner = (m) => {
-    if (m.agent === 'auto') return;
+    if (m.agent === 'auto' || m.crew) return;
     const pool = harnessesAt(placesFor(m, leadPlaces()));
     if (pool.find((a) => a.id === m.agent)?.available) return;
     const a = pool.find((x) => x.available && x.id === lead) || pool.find((x) => x.available);
@@ -230,6 +258,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     const menu = el(`<div class="menu where-menu place-menu tp-where" role="menu">
       <div class="wm-h">${adding ? 'Add a delegate' : 'Runs on'} <small>${others.length ? 'away from the lead, its changes come back when done' : ''}</small></div>
       ${row('')}${others.map(row).join('')}
+      ${adding && crewFree().length ? `<div class="wm-sep"></div><div class="wm-h">Your crew <small>they work in their own folder, with their memory</small></div>${crewFree().map((c) => `<button class="wm-row" data-crew="${c.id}">${avatarHtml(c, { size: 24, dot: false })}<span class="wm-name"><b>${esc(c.name)}</b><small>${esc(c.role || 'Crew member')}</small></span></button>`).join('')}` : ''}
       <div class="wm-sep"></div>
       <button data-a="add">${icon('plus')}${S.machines.length ? 'Add a machine…' : 'Add a machine to delegate to another computer…'}</button>
     </div>`);
@@ -241,6 +270,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
       const b = ev.target.closest('.wm-row');
       if (!b) return;
       shut();
+      if (b.dataset.crew) return addCrew(b.dataset.crew);
       onPick(b.dataset.k);
     };
     const shut = popover(menu, { anchor: btn, capture: true, onClose: () => btn.setAttribute('aria-expanded', 'false') });
@@ -375,7 +405,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
   foot.addEventListener('click', (e) => {
     const addBtn = e.target.closest('.tp-add');
     // With machines around, Add asks where; without, it's one click.
-    if (addBtn) S.machines.length ? whereMenu(addBtn, { adding: true, onPick: add }) : add();
+    if (addBtn) S.machines.length || crewFree().length ? whereMenu(addBtn, { adding: true, onPick: add }) : add();
     if (e.target.closest('.tp-save')) askName();
     if (e.target.closest('.tp-clear')) {
       members = [];
