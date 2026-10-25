@@ -1,8 +1,9 @@
 import { $, el } from '../core/dom.js';
 import { esc } from '../md.js';
 
-// Toasts sit low and centred, where an open task's docked reply box is: lift them above it so
-// they never cover its buttons, and keep checking while any show (a task opened under a toast).
+// Toasts sit low and centred, where an open task's docked reply box is (or a crew thread's box, or
+// the crew editor's buttons on a phone): lift them above it so they never cover its buttons, and
+// keep checking while any show (a task opened under a toast).
 let watch = 0;
 function keepClear() {
   clearDock();
@@ -17,7 +18,7 @@ function clearDock() {
   const box = $('#toasts');
   const cx = innerWidth / 2;
   let top = innerHeight;
-  for (const c of document.querySelectorAll('.it-dock .composer, .launcher')) {
+  for (const c of document.querySelectorAll('.it-dock .composer, .launcher, .crew-view:not([hidden]) .cv-box, .crew-edit .ce-foot')) {
     const r = c.getBoundingClientRect();
     if (r.width && r.left < cx && r.right > cx && r.bottom > innerHeight - 140 && r.top < innerHeight) top = Math.min(top, r.top);
   }

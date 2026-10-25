@@ -142,7 +142,7 @@ function rowHtml(m, st) {
       <span class="cr-top"><b class="cr-name">${esc(m.name)}</b>${m.role ? `<span class="cr-role">${esc(m.role)}</span>` : ''}</span>
       <span class="cr-sub ${line.cls}" title="${esc(line.text)}">${esc(line.text)}</span>
     </span>
-    <span class="cr-side">${st.live.length ? `<span class="cr-n" title="${st.live.length} working">${st.live.length}</span>` : last ? `<span class="q-time" ${timeAttrs(last)}>${ago(last)}</span>` : ''}</span>`;
+    <span class="cr-side">${st.live.length ? `<span class="cr-n" title="${st.live.length} working">${st.live.length}</span>` : last ? `<span class="q-time" ${timeAttrs(last)}>${ago(last)}</span>` : ''}${icon('chevron', 'chev')}</span>`;
 }
 
 // Blocks keyed by member, rows rewritten only when what they say changed and never re-appended (a
@@ -385,7 +385,7 @@ function memberMenu(id, { x, y, anchor } = {}) {
   if (!m) return;
   $('.menu.cr-menu')?.close();
   const menu = el(`<div class="menu cr-menu">
-      <button data-a="open">${icon('crew')}Open ${esc(m.name)}</button>
+      ${inView(id) ? '' : `<button data-a="open">${icon('crew')}Open ${esc(m.name)}</button>`}
       <button data-a="checkin">${icon('clock')}Check in now</button>
       <button data-a="pause">${icon(m.paused ? 'play' : 'pause')}${m.paused ? 'Resume' : 'Pause'}</button>
       <button data-a="edit">${icon('pen')}Edit…</button>
@@ -469,8 +469,8 @@ function jobHtml(m, s, { follow = false } = {}) {
   if (asks)
     say = `<div class="cv-asks">
         <p class="cv-q">${esc(s.question || 'Needs your approval to carry on.')}</p>
-        ${s.approval ? `<div class="cv-opts"><button class="ghost sm" data-answer="Allow">${icon('check')}Allow</button><button class="ghost sm" data-answer="Deny">${icon('x')}Deny</button></div>` : s.options?.length ? `<div class="cv-opts">${s.options.map((o) => `<button class="lp-chip" data-answer="${esc(o.label || o)}">${esc(o.label || o)}</button>`).join('')}</div>` : ''}
-        ${s.approval ? '' : `<form class="cv-inline" data-answer-form><input class="input sm" placeholder="Answer ${esc(m.name)}…" autocomplete="off" spellcheck="false"><button class="primary sm">Answer</button></form>`}
+        ${s.approval ? `<div class="q-opts"><button class="opt go" data-answer="Allow">${icon('check')}Allow</button><button class="opt no" data-answer="Deny">${icon('x')}Deny</button></div>` : s.options?.length ? `<div class="q-opts">${s.options.map((o) => `<button class="opt" data-answer="${esc(o.label || o)}">${esc(o.label || o)}</button>`).join('')}</div>` : ''}
+        ${s.approval ? '' : `<form class="cv-inline" data-answer-form><input class="input" placeholder="${s.options?.length ? 'Or answer in your own words…' : `Answer ${esc(m.name)}…`}" autocomplete="off" spellcheck="false"><button class="primary sm">Answer</button></form>`}
       </div>`;
   else if (live) say = `<p class="cv-live"><span class="q-live running">${esc(s.live || 'Starting up')}</span><span class="elapsed" data-start="${s.updatedAt}">${fmtDuration(Date.now() - s.updatedAt)}</span></p>`;
   else say = `<p class="cv-title">${esc(s.title)}</p>${s.preview ? `<p class="cv-sum">${esc(s.preview)}</p>` : ''}`;
@@ -532,6 +532,7 @@ function buildView(id) {
   };
   ta.addEventListener('input', autosize);
   mentionBox(ta); // @ the rest of the crew, tasks pasted by id
+  ta.dataset.crew = id;
 
   const atEnd = () => scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 40;
 
@@ -546,7 +547,7 @@ function buildView(id) {
       <span class="cv-state ${statusLine(m, st).cls}">${esc(statusLine(m, st).text)}</span>
       <span class="sh-acts">
         ${slotHtml('crew.page', null)}
-        <button class="ghost sm" data-a="pause" title="${m.paused ? 'Resume: check-ins and triggers start again' : 'Pause: no check-ins, triggers or delegations until you resume'}">${icon(m.paused ? 'play' : 'pause')}<span>${m.paused ? 'Resume' : 'Pause'}</span></button>
+        <button class="ghost sm" data-a="pause" aria-label="${m.paused ? 'Resume' : 'Pause'}" title="${m.paused ? 'Resume: check-ins and triggers start again' : 'Pause: no check-ins, triggers or delegations until you resume'}">${icon(m.paused ? 'play' : 'pause')}<span>${m.paused ? 'Resume' : 'Pause'}</span></button>
         <button class="icon-btn" data-a="more" title="More" aria-label="More">${icon('dots')}</button>
         ${split ? `<button class="icon-btn" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>` : ''}
       </span>`;
@@ -720,12 +721,12 @@ function paintSide(m, st, side) {
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
     ['folder', project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')],
     [m.machine ? 'server' : 'laptop', m.machine ? placeName(m.machine) : 'This computer'],
-    ['agent', `${agentName(m.agent)}${m.model ? ` · ${m.model}` : ''}`],
+    [`logo:${m.agent}`, `${agentName(m.agent)}${m.agent === 'auto' ? '' : ` · ${m.model || 'Default model'}`}`],
     ['spark', MODES.find((x) => x.id === m.mode)?.label || 'Full auto'],
   ];
   const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');
   const html = `
-    <div class="cv-facts">${facts.map(([ic, t]) => `<div class="m">${icon(ic)}<span>${esc(t)}</span></div>`).join('')}
+    <div class="cv-facts">${facts.map(([ic, t]) => `<div class="m">${ic.startsWith('logo:') ? `<span class="cv-logo">${harnessLogo(ic.slice(5))}</span>` : icon(ic)}<span>${esc(t)}</span></div>`).join('')}
       <div class="m">${icon('agent')}<span>${team ? `<span class="cv-team">${team}</span>` : 'No delegates'}</span></div></div>
     <div class="cv-actions">
       <button class="ghost" data-a="checkin">${icon('clock')}<span>Check in now</span></button>
@@ -1173,7 +1174,7 @@ function pickerFor(ta) {
   const m = before.match(/(^|[\s(])@([\p{L}\p{N}._-]{0,24})$/u);
   if (!m) return closePicker();
   const q = m[2].toLowerCase();
-  const list = crewList().filter((x) => !q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q)).slice(0, 6);
+  const list = crewList().filter((x) => x.id !== ta.dataset.crew && (!q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q))).slice(0, 6);
   if (!list.length) return closePicker();
   const start = caret - m[2].length - 1;
   if (!picker || picker.ta !== ta) {
