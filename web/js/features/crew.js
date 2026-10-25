@@ -565,6 +565,9 @@ function buildView(id) {
     ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
   };
   ta.addEventListener('input', autosize);
+  // The details may run down beside the box (crew.css): they need its height.
+  const dock = $('.cv-dock', node);
+  new ResizeObserver(() => node.style.setProperty('--cv-dock-h', `${dock.offsetHeight}px`)).observe(dock);
   mentionBox(ta); // @ the rest of the crew, tasks pasted by id
   ta.dataset.crew = id;
 
