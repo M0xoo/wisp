@@ -71,6 +71,12 @@ export const PARTS = {
   'crew.details': '.crew-view .cv-about',
   'crew.compose': '.crew-view .cv-dock',
   'crew.editor': '.crew-edit',
+  // Its skills and instructions files (the section in its details), and the editor for one.
+  'crew.kit': '.crew-view .cv-kit',
+  'crew.kitEditor': '.kit-edit',
+  // Generate: the dialog that has a member build its kit, and the files it proposed, under that job.
+  'crew.kitGenerate': '.kit-gen',
+  'crew.offer': '.crew-view .cv-offer',
   'section.archived': '#secArchived',
   toTop: '#toTop',
   launcher: '#launcher',

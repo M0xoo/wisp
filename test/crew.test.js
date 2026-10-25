@@ -7,7 +7,10 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { installFakeBins, makeRepo, records, tmp, until } from './helpers.js';
-import { applyMemory, crewJobOf, crewMentions, crewNote, dueNow, nextCheckin, normalizeMember, NOTEBOOK_MAX, takeCrewBlock } from '../server/crew.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { applyMemory, crewJobOf, crewMentions, crewNote, dueNow, localKit, nextCheckin, normalizeKit, offerFiles, normalizeMember, NOTEBOOK_MAX, takeCrewBlock } from '../server/crew.js';
+import { parseSkillMd } from '../web/js/skill-md.js';
 
 const RECORD = tmp('crew-record');
 process.env.FAKE_RECORD = RECORD;
@@ -53,6 +56,68 @@ test('a member on a machine: a machine you have, its folder there unchecked here
   assert.deepEqual(crewJobOf({ id: 'abc123def', job: 'mention', from: { id: 'a', title: 'T' }, note: 'n', evil: 1 }), { id: 'abc123def', job: 'mention', from: { id: 'a', title: 'T' }, note: 'n' });
   assert.equal(crewJobOf({ id: 'Bad id', note: 'x' }), null);
   assert.equal(crewJobOf({ id: 'abc123def' }), null, 'no note, no crew job');
+});
+
+test('a kit: instructions files and skills, checked; the note has the instructions and lists the skills', () => {
+  assert.throws(() => normalizeKit('x'), /a list of files/);
+  assert.throws(() => normalizeKit([{ kind: 'macro', name: 'a', body: 'b' }]), /skill or an instructions file/);
+  assert.throws(() => normalizeKit([{ kind: 'skill', name: 'Release Notes', description: 'x', body: 'b' }]), /lowercase letters, digits and dashes/);
+  assert.throws(() => normalizeKit([{ kind: 'skill', name: 'notes', body: 'b' }]), /Say when notes should be used/);
+  assert.throws(() => normalizeKit([{ kind: 'rules', name: 'AGENTS.md', body: '  ' }]), /AGENTS\.md is empty/);
+  assert.throws(() => normalizeKit([{ kind: 'rules', name: 'a.md', body: 'x'.repeat(50_001) }]), /too long/);
+  assert.throws(() => normalizeKit([{ kind: 'rules', name: 'a.md', body: 'x' }, { kind: 'rules', name: 'A.md', body: 'y' }]), /two instructions files named A\.md/);
+  assert.throws(() => normalizeKit(Array.from({ length: 25 }, (_, i) => ({ kind: 'rules', name: `r${i}`, body: 'x' }))), /At most 24/);
+  const kit = normalizeKit([
+    { kind: 'rules', name: 'AGENTS.md', body: 'Never push to main.\r\n' },
+    { kind: 'skill', name: 'release-notes', description: 'Writing  release notes.', body: '1. Read the tags.', path: '/nope', on: true },
+    { kind: 'skill', name: 'old', description: 'Unused.', body: 'x', on: false },
+  ], () => false);
+  assert.deepEqual(kit.map((k) => [k.kind, k.name, k.on]), [['rules', 'AGENTS.md', true], ['skill', 'release-notes', true], ['skill', 'old', false]]);
+  assert.equal(kit[1].description, 'Writing release notes.');
+  assert.equal(kit[1].path, undefined, 'a folder that isn’t there is dropped');
+  assert.ok(kit.every((k) => /^[a-z0-9]{6,40}$/.test(k.id)));
+  // Editing the member keeps its kit; kit: [] clears it.
+  const m = normalizeMember({ name: 'Ada', kit });
+  assert.equal(normalizeMember({ role: 'x' }, m, { taken: [m] }).kit.length, 3);
+  assert.equal(normalizeMember({ kit: [] }, m, { taken: [m] }).kit.length, 0);
+  // Here: the instructions in full, the skills by name with their file; off ones not at all.
+  const here = crewNote(m, { job: 'task' }, { 'release-notes': '/w/crew/x/skills/release-notes/SKILL.md' });
+  assert.match(here, /### Your instructions \(from the user\)[\s\S]*#### AGENTS\.md\n\nNever push to main\./);
+  assert.match(here, /- \*\*release-notes\*\*: Writing release notes\. `\/w\/crew\/x\/skills\/release-notes\/SKILL\.md`/);
+  assert.doesNotMatch(here, /1\. Read the tags|Unused/);
+  // On another machine (no files): the skills written out.
+  assert.match(crewNote(m, { job: 'task' }), /#### Skill: release-notes\n\nWhen: Writing release notes\.\n\n1\. Read the tags\./);
+  assert.doesNotMatch(crewNote(normalizeMember({ name: 'Bo' }), {}), /Your instructions|Your skills/);
+});
+
+test('kit offers: a job proposes files, each checked on its own; a kit job is told how', () => {
+  const data = takeCrewBlock({ blocks: [{ type: 'hero', title: 'x' }, { type: 'crew', kit: [{ kind: 'skill', name: 'Release Notes', description: 'Releases.', body: 'Steps' }, 'junk', { kind: 'skill', name: 'x', body: 'no description' }, { kind: 'instructions', name: 'AGENTS.md', body: 'Rules' }] }] });
+  assert.deepEqual(offerFiles(data.kit), [{ kind: 'skill', name: 'release-notes', description: 'Releases.', body: 'Steps' }, { kind: 'rules', name: 'AGENTS.md', body: 'Rules' }]);
+  const m = normalizeMember({ name: 'Ada', role: 'UI engineer' });
+  assert.deepEqual(m.offers, []);
+  assert.match(crewNote(m, { job: 'task', kit: true }), /build your own kit[\s\S]*2 to 6 files/);
+  assert.doesNotMatch(crewNote(m, { job: 'task' }), /build your own kit/);
+  assert.match(crewNote(m, { job: 'task' }), /- kit: skills or instructions files you propose/);
+});
+
+test('SKILL.md front matter, and the skills and instructions already on a computer', () => {
+  assert.deepEqual(parseSkillMd('---\r\nname: pdf\r\ndescription: >\r\n  Fill PDF forms\r\n  and merge them.\r\n---\r\n\r\n# PDF\r\nSteps'), { name: 'pdf', description: 'Fill PDF forms and merge them.', body: '# PDF\nSteps' });
+  assert.deepEqual(parseSkillMd('---\nname: "x"\ndescription: \'Quoted: yes\'\n---\nB'), { name: 'x', description: 'Quoted: yes', body: 'B' });
+  assert.deepEqual(parseSkillMd('# Just text'), { name: '', description: '', body: '# Just text' });
+  const home = tmp('kit-home');
+  const proj = tmp('kit-proj');
+  fs.mkdirSync(path.join(home, '.claude/skills/pdf/scripts'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.claude/skills/pdf/SKILL.md'), '---\nname: pdf\ndescription: PDFs.\n---\nUse scripts/fill.py');
+  fs.mkdirSync(path.join(home, '.agents/skills/Notes'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.agents/skills/Notes/SKILL.md'), 'No front matter');
+  fs.mkdirSync(path.join(home, '.agents/skills/empty'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.codex/AGENTS.md'), 'Be brief.');
+  fs.writeFileSync(path.join(proj, 'AGENTS.md'), 'Run npm test.');
+  const { skills, rules } = localKit({ home, cwd: proj });
+  assert.deepEqual(skills.map((x) => [x.name, x.description, x.from, x.files || 0]), [['pdf', 'PDFs.', '~/.claude/skills/pdf', 1], ['notes', '', '~/.agents/skills/Notes', 0]]);
+  assert.equal(skills[0].path, path.join(home, '.claude/skills/pdf'), 'a skill with files beside it keeps its folder');
+  assert.deepEqual(rules.map((x) => [x.name, x.from, x.body]), [['AGENTS.md', '~/.codex/AGENTS.md', 'Be brief.'], ['AGENTS.md', `${path.basename(proj)}/AGENTS.md`, 'Run npm test.']]);
 });
 
 test('@mentions: stored tokens and plain names, addressed (leading) or in passing', () => {
@@ -341,6 +406,57 @@ test('a trigger sends its work to a crew member', async () => {
   const after = (await api('/triggers')).find((x) => x.id === t2.id);
   assert.equal(after.enabled, false);
   await assert.rejects(api('/triggers', { kind: 'schedule', cron: '0 0 1 1 *', crew: bo.id, prompt: 'x' }), /no longer on your crew/);
+});
+
+test('a member’s skills are written out as SKILL.md files its jobs read, and listed in their prompt', async () => {
+  const cwd = makeRepo();
+  const kit = [
+    { kind: 'rules', name: 'AGENTS.md', body: 'KITRULE always run the tests' },
+    { kind: 'skill', name: 'release-notes', description: 'Writing release notes.', body: 'KITSKILL read the tags' },
+  ];
+  const di = await api('/crew', { name: 'Di', agent: 'claude', cwd, kit });
+  assert.deepEqual(di.kit.map((k) => [k.kind, k.name, k.on]), [['rules', 'AGENTS.md', true], ['skill', 'release-notes', true]]);
+  await assert.rejects(api(`/crew/${di.id}`, { kit: [{ kind: 'skill', name: 'x', body: 'y' }] }, 'PATCH'), /Say when x should be used/);
+  const { session } = await api(`/crew/${di.id}/jobs`, { prompt: 'KITJOB write the notes' });
+  await ended(session.id);
+  const run = records(RECORD, 'claude').find((r) => r.stdin.includes('KITJOB'));
+  const file = path.join(process.env.WISP_HOME, 'crew', di.id, 'skills', 'release-notes', 'SKILL.md');
+  const args = run.argv.join(' ');
+  assert.match(args, /KITRULE always run the tests/);
+  assert.ok(args.includes(`**release-notes**: Writing release notes. \`${file}\``));
+  assert.doesNotMatch(args, /KITSKILL/, 'a skill’s steps stay in its file');
+  assert.ok(run.argv.includes(path.dirname(file)), 'its folder is readable (--add-dir)');
+  assert.match(fs.readFileSync(file, 'utf8'), /^---\nname: release-notes\ndescription: "Writing release notes\."\n---\n\nKITSKILL read the tags/);
+  // Turned off, its file goes on the next job; leaving the crew removes the rest.
+  await api(`/crew/${di.id}`, { kit: di.kit.map((k) => ({ ...k, on: k.kind !== 'skill' })) }, 'PATCH');
+  await ended((await api(`/crew/${di.id}/jobs`, { prompt: 'KITJOB2' })).session.id);
+  assert.equal(fs.existsSync(file), false);
+  assert.doesNotMatch(records(RECORD, 'claude').find((r) => r.stdin.includes('KITJOB2')).argv.join(' '), /release-notes/);
+  await api(`/crew/${di.id}`, null, 'DELETE');
+  assert.equal(fs.existsSync(path.join(process.env.WISP_HOME, 'crew', di.id)), false);
+  // Build your kit: the job proposes files, kept on the member as an offer until you pick.
+  const ed = await api('/crew', { name: 'Ed', role: 'UI engineer', agent: 'claude', cwd });
+  const out = await api(`/crew/${ed.id}/jobs`, { prompt: 'CREWKIT be the best UI engineer', kit: true });
+  assert.equal(out.session.crew.kit, true);
+  await ended(out.session.id);
+  assert.match(records(RECORD, 'claude').find((r) => r.stdin.includes('CREWKIT')).argv.join(' '), /build your own kit/);
+  const offered = await until(async () => (await api(`/crew/${ed.id}`)).offers?.[0]);
+  assert.deepEqual([offered.job, offered.state, offered.files.map((f) => f.name)], [out.session.id, 'open', ['ui-review', 'AGENTS.md']]);
+  assert.equal((await api(`/crew/${ed.id}`)).kit.length, 0, 'nothing joins the kit by itself');
+  // Adding them: the kit with the files, and the offer settled, in one PATCH.
+  const after = await api(`/crew/${ed.id}`, { kit: offered.files, offers: [{ id: offered.id, state: 'taken', names: ['ui-review', 'AGENTS.md'] }] }, 'PATCH');
+  assert.deepEqual(after.kit.map((k) => k.name), ['ui-review', 'AGENTS.md']);
+  assert.deepEqual([after.offers[0].state, after.offers[0].names], ['taken', ['ui-review', 'AGENTS.md']]);
+  // A bad kit settles nothing.
+  await assert.rejects(api(`/crew/${ed.id}`, { kit: [{ kind: 'skill', name: 'x', body: 'y' }], offers: [{ id: offered.id, state: 'dismissed' }] }, 'PATCH'), /Say when/);
+  assert.equal((await api(`/crew/${ed.id}`)).offers[0].state, 'taken');
+  // A kit job with no goal gets one from the role.
+  const plain = await api(`/crew/${ed.id}/jobs`, { kit: true });
+  assert.ok(plain.session || plain.queued);
+  await api(`/crew/${ed.id}`, null, 'DELETE');
+  // What's on this computer, to add.
+  const local = await api('/crew-kit');
+  assert.ok(Array.isArray(local.skills) && Array.isArray(local.rules));
 });
 
 test('a task joins the crew: its folder, harness and first prompt become the member’s', async () => {

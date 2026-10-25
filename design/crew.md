@@ -83,6 +83,34 @@ that forget everything. The crew avoids both:
   everything else has someone waiting on it.
 - **They pick their own next look** with `wakeIn` (minutes, at least 5), on top of the schedule.
 
+## Skills and instructions
+
+A member's **kit** (`kit` on the member, `web/js/skill-md.js`, `web/js/features/crew-kit.js`): files it
+uses on every job, kept with it rather than in a repo, so a member without a project or on another
+machine still has them.
+
+- **Instructions file** (`rules`): an AGENTS.md just for them, in full in every job's note, after the
+  brief. Theirs win over the repo's for their work.
+- **Skill**: a name (lowercase-with-dashes), *when to use it* and the steps, as Claude's SKILL.md.
+  Progressive: the note lists each skill's name, when and the path of its SKILL.md, written to
+  `<home>/crew/<id>/skills/<name>/`; the job reads it only when it fits, and the folder is added to
+  the harness's readable dirs. A skill imported from this computer keeps its own folder (`path`) for
+  its scripts and references. On another machine there is no file to read, so the skills go in full.
+- **The section** sits beside the thread after the brief: a row a file (icon, name, when / size), a
+  switch in a fixed column (off: kept, not used), the row opens the editor. **Add** offers *Instructions
+  file*, *Skill*, *From this computer…* (the harnesses' skills and AGENTS.md / CLAUDE.md files, and the
+  project's) and *Upload .md files…*; `.md` files dropped on the section join too. Everything saves the
+  whole kit optimistically and rolls back with a toast.
+- **Generate** (*Generate with Ada…*, first in **Add**): a goal and suggestions, then an ordinary job
+  (`crew.kit: true`, shown as *You · Build your kit*) whose note says how to study the job and the
+  project and to hand files back as `kit` in the crew block. Any job may do that, rarely. What comes
+  back is an **offer** on the member (`m.offers`, one a job, newest 10), each file checked on its own so
+  one bad file doesn't lose the rest. The thread shows it under that job: a box a file (ticked), a
+  click reads or edits it first (*Added* once saved), *Replaces yours* / *Same as yours* for a name
+  they have, then **Add n to their kit** and **Dismiss**. Adding is one PATCH of the kit and the offer;
+  afterwards the job keeps one line, *Added to their kit: …*. Never added without you: these files
+  go in every job's prompt.
+
 ## On another machine
 
 A member with `machine` keeps its identity, memory, schedule and queue here: one source of truth, so

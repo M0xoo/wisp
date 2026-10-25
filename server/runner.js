@@ -183,7 +183,7 @@ export function summarize(s, store) {
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
     // A crew member's job (server/crew.js): what it was asked (for the member's thread) and the
     // tasks it followed up in.
-    ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }), prompt: plainMentions(s.turns[0]?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 280), ...(s.crew.sent?.length && { sent: s.crew.sent }) } }),
+    ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }), prompt: plainMentions(s.turns[0]?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 280), ...(s.crew.sent?.length && { sent: s.crew.sent }), ...(s.crew.kit && { kit: true }) } }),
     ...(s.delegated && { delegated: true }), // a delegate's run for a lead on another wisp (services/relay.js), not a task
     ...relaysOf(s, store),
     followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
@@ -225,6 +225,7 @@ export class Runner extends EventEmitter {
     // The crew (server/crew.js): a job's note in its system prompt, what its turn hands back
     // ({ quiet }), and a lead's delegation to a member (a job of its own, made by the crew).
     this.crewNote = () => '';
+    this.crewDirs = () => [];
     this.crewTurn = () => ({});
     this.crewDelegate = null;
     this.crewChild = () => null; // a member's job on another machine, as last fetched (id → session)
@@ -876,7 +877,7 @@ export class Runner extends EventEmitter {
       prompt: [handoff, still, text].filter(Boolean).join('\n\n'),
       attachments,
       cwd: workdir(session),
-      dirs: alsoDirs((session.parentId && this.store.get(session.parentId)) || session), // the task's other folders (a subagent's are its lead's)
+      dirs: [...alsoDirs((session.parentId && this.store.get(session.parentId)) || session), ...(session.crew ? this.crewDirs(session) : [])], // the task's other folders (a subagent's are its lead's), a crew job's skills
       resumeId: session.agentSessionId,
       mode,
       grants,
