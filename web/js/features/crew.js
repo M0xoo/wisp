@@ -1058,10 +1058,11 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       return;
     }
     if (e.target.closest('.ce-mode')) {
-      modeMenu(e.target.closest('.ce-mode'), d.mode, (id) => {
+      const mb = e.target.closest('.ce-mode');
+      modeMenu(mb, d.mode, (id) => {
         d.mode = id;
         paintBar();
-      });
+      }, mb);
       return;
     }
     if (e.target.closest('.ce-team')) {
