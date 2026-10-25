@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-25
+
 ### Added
 
 - **Every section of the task list folds:** click *Needs you*, *Crew* or *Working* (or Tab to it and press Enter) to fold it away, like *Done* and *Archived*, in split view's sidebar and the feed. wisp remembers what you folded; *Needs you* folded still shows how many tasks wait on you, the task you have open stays in its row, and opening a task from a notification or link unfolds its section. Spells reach the new parts as `section.needs`, `section.working` and `section.heading`.
