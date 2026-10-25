@@ -13,6 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **On a phone, a task opens as a page of its own.** In the Android app and in browser windows under 900px wide, the task list fills the screen; tapping a task opens it full screen with **Back** (the button, Esc, or the phone's Back) to the list, right where you left it. A crew member's thread and **New task** (the prompt box, with Needs you under it) open the same way; sending a task goes back to the list. The app starts on the list. Spells can restyle Back as `split.back`.
+- **Split view is the only layout: the one-column feed is gone.** Settings → General → *Layout*, the `\` key and the palette's *Feed view* are removed. A spell that sets `settings.view` still loads, with a warning that it's ignored.
 - **A crew member's finished jobs stay under them in the sidebar.** Reading a report no longer makes the job vanish: under each member are their three most recent jobs, live ones first (asking you, working, an unread report), then what they finished, until you mark it done or archive it. *N more · open …* leads to the rest in their thread. Quiet check-ins still only show in the thread.
 
 ## [0.41.0] - 2026-10-25

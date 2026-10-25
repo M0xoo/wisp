@@ -64,7 +64,7 @@ function previewButtons(spell) {
 async function previewPanel(host, spell) {
   const p = (spell.panels || [])[0];
   if (!p) return;
-  host.append(el(`<div class="sp-pv-panel"><small>${esc(p.title || p.id)} · ${p.as === 'card' ? 'in each card' : p.as === 'feed' ? 'above the feed' : 'a dialog'}</small><div class="sp-pv-body"><div class="it-loading"><span class="orb tiny"></span>Rendering with your data…</div></div></div>`));
+  host.append(el(`<div class="sp-pv-panel"><small>${esc(p.title || p.id)} · ${p.as === 'card' ? 'in each card' : p.as === 'feed' ? 'on home' : 'a dialog'}</small><div class="sp-pv-body"><div class="it-loading"><span class="orb tiny"></span>Rendering with your data…</div></div></div>`));
   const body = $('.sp-pv-body', host);
   try {
     const sample = p.as === 'card' ? [...S.sessions.values()].find((s) => !s.pending && s.agent !== 'wisp') : null;
@@ -404,7 +404,7 @@ document.addEventListener('drop', async (e) => {
 export function routeSpell() {
   const m = location.hash.match(/^#\/spell\?src=(.+)$/);
   if (!m) return false;
-  history.replaceState(null, '', '#/');
+  history.replaceState(history.state, '', '#/'); // the phone's Back entries keep their state
   reviewImport({ url: decodeURIComponent(m[1]) }).catch(toastError);
   return true;
 }

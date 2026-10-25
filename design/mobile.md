@@ -5,7 +5,7 @@ wisp runs on a phone in two ways, and they're not the same:
 | | Narrow browser (≤ 720px) | Android app (`mobile/`) |
 |---|---|---|
 | How to tell | CSS `@media (max-width: 720px)`, `(hover: none) and (pointer: coarse)` | JS `MOBILE` (`web/js/core/state.js`, the `wispMobile` user agent), CSS `body.wisp-mobile` |
-| Layout | the feed (split needs 900px) | the feed, always; no view switch |
+| Layout | split view, stacked: the list, a task as a page with Back | the same, always (even on a tablet) |
 | What it connects to | the wisp it's served from | *Computers* (desktop's *Machines* isn't shown) |
 | First paint | the server | the service worker's cache (`web/sw.js`) and the last snapshot (`cache.js`) |
 
@@ -40,9 +40,13 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 - **Back** closes the newest dialog, menu or open task, then leaves the computer. Anything that opens
   and should close on Back registers with `onBack(close)` (`web/js/ui/back.js`); `popover()` and
   overlays already do.
-- One task open at a time. The prompt box docks at the bottom, one line until tapped; *New task* is
-  the floating button (`fab.js`), opening the box as a sheet. Sending, Back or a tap outside closes it,
-  and the draft stays.
+- The list fills the screen. A task opens as a page of its own (`split.js`), its head Back, the
+  title (two lines at most) and the `split.head` slot; Back returns to the list where it was. It
+  takes one history entry while it shows (`onBack`), however many tasks you go through on it.
+- *New task* is the floating button (`fab.js`) over the list (the list's own New task row is hidden
+  in the app): it opens home as a page, the prompt box focused. Sending goes back to the list, where
+  the new task shows; Back leaves it, and the draft stays.
+- The app starts on the list, never inside a task it had open.
 - Hide desktop-only actions with `MOBILE` (*Open project in editor*, the layout switch, keyboard
   shortcuts), not by width; or give them a phone version (the terminal opens inline).
 - Keep `server/machines/bootstrap.js` and `server/shq.js` free of Node imports: the app runs them.

@@ -106,11 +106,6 @@ await check('DESK-03', 'nothing clickable under the traffic lights (split view, 
   ok((await cls()).hidden, '[ did not hide the list');
   await view('split-list-hidden');
   await key('[');
-  await key('\\');
-  ok(!(await cls()).split, '\\ did not switch to the feed');
-  await view('feed');
-  await key('\\');
-  ok((await cls()).split, '\\ did not switch back to split view');
   ok(!Object.keys(bad).length, `under the lights: ${JSON.stringify(bad)}`);
 });
 

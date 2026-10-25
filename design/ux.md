@@ -81,14 +81,21 @@ The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.
   open task. Keep that order when you add a layer.
 - Clicking the logo goes back to the prompt box, focused (#270).
 
-## Split view and the feed
+## Split view, side by side and stacked
 
-- Both layouts render the same card nodes. A change to a row, card, task bar, composer or details
-  must be made and checked in **both** (`body.split` rules live in `split.css`, the feed's in
-  `feed.css`).
+- Split view is the only layout (the feed is gone). From 900px the list and the open task sit side
+  by side; under 900px, and always in the phone app, they stack (`body.stack`): the list fills the
+  window, and a task, a crew member's thread or home (New task) opens over it as a page
+  (`body.stack-page`) whose head starts with **Back** (icon only, *Back to tasks*, or *Back to
+  ‹member›* for a crew job). A change to a row, task bar, composer or details is checked in **both**
+  (`split.css` holds the stacked rules at its end).
+- Back (the button, Esc, the phone's Back) goes from a crew job to its member, then to the list. The
+  list stays laid out under the page (never `display: none`: the open body lives in it), so it's
+  where it was scrolled when you come back.
+- A page slides in only when you open it (`.stack-in`, for the move only): never on the first paint,
+  a refresh or the window narrowing onto it.
 - Split view's home always lists what needs you under **Needs you**, above the tips. Tips show only
-  on split home: never in the feed or the phone app.
-- Windows under 900px always get the feed; the phone app always gets the feed.
+  on the side-by-side home: never stacked or in the phone app.
 
 ## Same actions, same names
 

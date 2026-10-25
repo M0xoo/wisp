@@ -19,12 +19,11 @@ import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
-import { onBack } from '../ui/back.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
 import { aheadLabel, isScheduled, laterPill, laterTip, planRows } from './later.js';
 import { crewDot, memberById, paintCrew, pinJob } from './crew.js';
-import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
+import { backToPlace, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -259,8 +258,9 @@ function item(s) {
       if (isSplit()) {
         carryDock(s.id);
         if (S.open.has(s.id)) paintSplit();
-        // Ready to type the follow-up once it's shown (j / k keep the keys in the list).
-        Promise.resolve(S.open.has(s.id) || expand(s.id)).then(() => focusReply(s.id));
+        // Ready to type the follow-up once it's shown (j / k keep the keys in the list). Not on a
+        // page of its own: a phone's keyboard would cover the task it just opened.
+        Promise.resolve(S.open.has(s.id) || expand(s.id)).then(() => isStacked() || focusReply(s.id));
         return;
       }
       toggle(s.id);
@@ -503,9 +503,8 @@ export function toggle(id) {
 export async function expand(id, { scroll = true } = {}) {
   const n = S.nodes.get(id);
   if (!n) return;
-  // Split view shows one task at a time, and so does the phone, where Back closes it.
-  if (isSplit() || MOBILE) for (const o of [...S.open]) if (o !== id) collapse(o);
-  if (MOBILE && !backs.has(id)) backs.set(id, onBack(() => collapse(id)));
+  // One task at a time, in the main pane (or, stacked, as a page over the list).
+  for (const o of [...S.open]) if (o !== id) collapse(o);
   S.open.add(id);
   saveOpen();
   n.card.classList.add('open');
@@ -517,8 +516,6 @@ export async function expand(id, { scroll = true } = {}) {
   placeCollapseAll();
   paintSplit();
   syncUrl();
-  // Split view opens the task in the main pane, so the list doesn't move to it.
-  if (scroll && !isSplit()) requestAnimationFrame(() => n.card.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   // Closed a moment ago (j/k through the list) or fetched ahead: it shows at once as it was, then
   // the refetch brings what changed meanwhile. A fetch ahead still on its way is waited for.
   if (!S.full.has(id) && fetching.has(id)) {
@@ -565,12 +562,7 @@ function prefetchAround(id) {
   });
 }
 
-// The phone: the history entry each open task holds, so Back closes it (ui/back.js).
-const backs = new Map();
-
 export function collapse(id) {
-  backs.get(id)?.();
-  backs.delete(id);
   const n = S.nodes.get(id);
   S.open.delete(id);
   saveOpen();
@@ -595,14 +587,14 @@ export function collapse(id) {
   if (n?.card.closest('.f-group.collapsed')) renderFeed();
 }
 
-// The address names the open task (#/s/<id>; in the feed, the one opened last), so a reload or a
+// The address names the open task (#/s/<id>), so a reload or a
 // copied link opens it again. Off until route() has read the address the page was loaded with. The
 // phone has no address bar: there it's only cleared, so a tapped notification always routes.
 let urlOn = false;
 export function syncUrl({ start = false } = {}) {
   urlOn ||= start;
   if (!urlOn) return;
-  const id = MOBILE ? null : isSplit() ? splitOpen() : [...S.open].at(-1);
+  const id = MOBILE ? null : splitOpen();
   const h = location.hash;
   if (id) {
     if (h !== `#/s/${id}`) history.replaceState(history.state, '', `#/s/${id}`);
@@ -678,7 +670,6 @@ export function reveal(id) {
   S.open.add(id);
   saveOpen();
   syncUrl();
-  if (!isSplit()) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 export const feedIds = () => $$('#feed .item[data-id]:not(.pending)').map((x) => x.dataset.id);
@@ -689,36 +680,17 @@ export const feedIds = () => $$('#feed .item[data-id]:not(.pending)').map((x) =>
 // out; the returned function applies the change locally and places the next card.
 export function handOff(id) {
   const card = S.nodes.get(id)?.card;
-  // Split view: the next task takes the main pane if this one had it.
-  if (isSplit() && card?.isConnected) {
-    const nextUp = (card.nextElementSibling || card.previousElementSibling)?.dataset.id || feedIds().find((x) => x !== id);
-    const had = S.open.has(id);
-    return (apply) => {
-      if (had) collapse(id);
-      apply();
-      renderFeed();
-      if (!nextUp || !S.nodes.has(nextUp)) return;
-      setFocus(nextUp);
-      if (had) expand(nextUp);
-    };
-  }
   if (!card?.isConnected) return (apply) => (apply(), renderFeed());
+  // The next task takes the main pane if this one had it. Stacked, done with the page is back to
+  // the list, where the next one sits in its place.
   const nextUp = (card.nextElementSibling || card.previousElementSibling)?.dataset.id || feedIds().find((x) => x !== id);
-  const r = card.getBoundingClientRect();
-  const inset = topInset();
-  const slot = r.bottom > inset && r.top < innerHeight ? Math.max(inset, r.top) : null;
   const had = S.open.has(id);
   return (apply) => {
     if (had) collapse(id);
     apply(); // don't wait for the live update to drop the card
     renderFeed();
     if (!nextUp || !S.nodes.has(nextUp)) return;
-    setFocus(nextUp, { scroll: slot === null });
-    const next = S.nodes.get(nextUp).card;
-    if (slot !== null && next.isConnected) scrollByPx(next.getBoundingClientRect().top - slot);
-    // Reading one report after another: done with an open one, the next one that needs you opens
-    // in its place, as split view does.
-    const ns = S.sessions.get(nextUp);
-    if (had && ns && !ns.pending && !S.open.has(nextUp) && sectionOf(ns) === 'needs') expand(nextUp, { scroll: false });
+    setFocus(nextUp);
+    if (had && !isStacked()) expand(nextUp);
   };
 }

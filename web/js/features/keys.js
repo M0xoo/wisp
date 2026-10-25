@@ -6,14 +6,13 @@ import { modKey, shortcuts } from '../ui/kbd.js';
 import { closeOverlay } from '../ui/overlay.js';
 import { deleteSession, rename, rerun, setArchived, takeOver, toggleDone } from './actions.js';
 import { openPalette } from './commands.js';
-import { collapse, collapseAll, expand, feedIds, setFocus, toggle } from './feed.js';
+import { collapseAll, expand, feedIds, setFocus, toggle } from './feed.js';
 import { focusLauncher } from './launcher.js';
 import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
 import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
-import { goHome, isSplit, splitOpen, toggleSidebar, toggleView } from './split.js';
-import { crewBack } from './crew.js';
+import { goBack, splitOpen, stackPage, toggleSidebar } from './split.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
 const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
@@ -34,12 +33,8 @@ export function onKey(e) {
   if (e.key === 'Escape') {
     if (!$('#overlay').hidden) return $('#overlay .sx-back') ? $('#overlay .sx-back').click() : closeOverlay();
     if (typing) return e.target.blur();
-    if (crewBack()) return; // a crew job → its member's thread → home
-    if (isSplit() && splitOpen()) return goHome({ focus: false });
-    if (S.focus && S.open.has(S.focus)) {
-      collapse(S.focus);
-      S.nodes.get(S.focus)?.card.scrollIntoView({ block: 'nearest' });
-    }
+    // A crew job → its member's thread → home (stacked: the list).
+    if (S.crewOpen || splitOpen() || stackPage()) goBack();
     return;
   }
   if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#overlay').hidden) return;
@@ -65,7 +60,7 @@ export function onKey(e) {
     const i = ids.indexOf(id);
     const next = i < 0 ? ids[0] : ids[k === 'j' ? Math.min(ids.length - 1, i + 1) : Math.max(0, i - 1)];
     setFocus(next);
-    if (isSplit()) expand(next, { scroll: false }); // split view: moving opens the task beside the list
+    expand(next, { scroll: false }); // moving opens the task beside the list
   } else if ((k === 'o' || (k === 'enter' && !e.target.closest('button, a'))) && id) {
     e.preventDefault();
     toggle(id);
@@ -95,7 +90,6 @@ export function onKey(e) {
     if (S.open.has(id)) focusReply();
     else expand(id).then(focusReply);
   } else if (k === '?') shortcuts();
-  else if (k === '\\') toggleView();
   else if (k === '[') toggleSidebar();
   else if (/^[1-9]$/.test(k) && id && S.open.has(id)) {
     const card = S.nodes.get(id).card;

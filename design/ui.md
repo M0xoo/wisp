@@ -101,11 +101,11 @@ Use what's in `web/css/tokens.css` and `web/css/base.css`; don't style a control
 
 | Width | What changes |
 |---|---|
-| ≥ 900px (`SPLIT_MIN_WIDTH`) | split view allowed (the default on big screens) |
-| < 900px | always the feed |
-| ≤ 720px | phone layout: tighter top bar, the layout button hides, labels fold to icons |
+| ≥ 900px (`SPLIT_MIN_WIDTH`) | split view side by side: the list beside the open task |
+| < 900px | stacked (`body.stack`): the list, and what's open as a page over it with Back |
+| ≤ 720px | phone layout: tighter top bar, labels fold to icons |
 | ≤ 640 / 520px | further folds (team label, launcher chips); `@container launcher` for the box itself |
 | `hover: none` + `pointer: coarse` | touch: no shortcut hints, no hover-only controls |
 
-Prefer container queries for a component that sits in different widths (the launcher is in the
-feed and in split home). Use `min-width: 0` on flex/grid children that hold text so they can shrink.
+Prefer container queries for a component that sits in different widths (the launcher is in
+split home at any width). Use `min-width: 0` on flex/grid children that hold text so they can shrink.

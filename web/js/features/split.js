@@ -2,36 +2,35 @@
 // own (same nodes, same code paths): in split view at most one is open, its head stays in the
 // sidebar and its body is laid over the main pane (position: fixed to #splitStage's box), so
 // everything that looks things up through the card keeps working. Home, with nothing open, is the
-// prompt box. Below SPLIT_MIN_WIDTH the page falls back to the feed; the setting stays. With no
-// layout picked, windows SPLIT_DEFAULT_WIDTH and wider get split view, narrower ones the feed.
+// prompt box. It's the only layout: below SPLIT_MIN_WIDTH, and always in the phone app, it stacks
+// (body.stack): the list fills the window, and a task, a crew member's thread or home (New task)
+// opens over it as a page of its own, with Back (the head's button, Esc, the phone's Back) to the list.
 // The top bar becomes the sidebar's head (Machines and Automations move under New task as rows; Update,
 // Get the app and Settings to the sidebar's foot, beside you on the grid when you're signed in to one),
 // so the open task has the window's full height: its header is just the title,
 // and on a wide pane what the card says about it, its PR and its actions sit in a details column on
 // the right that stays put while the task scrolls. The head's sidebar button (or [) hides the list
-// so the task gets the whole window; the feed's own one opens split view.
+// so the task gets the whole window.
 //
-// Spells reach all of it through spell-schema.js: the `view` setting, the sidebar.top, split.head
+// Spells reach all of it through spell-schema.js: the sidebar.top, split.head
 // and split.details slots, the sidebar / split.* parts and their props (width, side, details,
 // readWidth, greeting, the details column's width).
 
 import { esc } from '../md.js';
-import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, icon } from '../core/dom.js';
 import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { inGrid, load, MOBILE, S, save } from '../core/state.js';
-import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
-import { toast, tryApi } from '../ui/toast.js';
+import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
+import { onBack } from '../ui/back.js';
 import { collapse, expand, groups, headPills, qDot, renderFeed, reveal, setFocus } from './feed.js';
-import { barCover, scrollByPx, stage, topInset } from './scroll.js';
+import { barCover, stage } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
-import { avatarHtml, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView } from './crew.js';
+import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView } from './crew.js';
 import { openUpcoming, upcoming, upcomingRow } from './later.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
-const big = matchMedia(`(min-width: ${SPLIT_DEFAULT_WIDTH}px)`);
 const SIDE_W = 340;
 const READ_W = 860;
 const DETAILS_W = 232;
@@ -39,11 +38,8 @@ const DETAILS_W = 232;
 const DETAILS_PANE = 860;
 
 export const isSplit = () => document.body.classList.contains('split');
-// The layout asked for: the setting (yours, or a spell's while it's on); none picked, split view on
-// big screens and the feed elsewhere. Before /config lands (it always has `home`): the last one
-// seen, so the first paint is already the right one.
-const autoView = () => (big.matches ? 'split' : 'feed');
-export const viewPref = () => S.config.defaults?.view || ('home' in S.config ? autoView() : load('wisp.view', autoView()));
+// One pane at a time: the list, or what's open over it as a page.
+export const isStacked = () => MOBILE || !wide.matches;
 
 // The task open in the main pane (null on home).
 export const splitOpen = () => (isSplit() ? [...S.open].find((id) => S.nodes.get(id)?.card.isConnected) || null : null);
@@ -55,55 +51,50 @@ export const sidebar = $('#feedWrap');
 let booted = false;
 
 export function applyView() {
-  save('wisp.view', viewPref());
   paintProps();
-  // The phone app always gets the feed (its switchers are hidden), even on a wide tablet.
-  const want = viewPref() === 'split' && wide.matches && !MOBILE;
-  const first = !booted;
-  booted = true;
-  if (want !== isSplit() || (want && first)) (want ? enter : leave)();
+  if (!booted) enter();
   else paintSplit();
-  paintViewBtn(); // says what it does in the layout now shown
+  booted = true;
+  paintViewBtn();
   if (inGrid()) paintMe(); // elsewhere the account comes with the machines
 }
 
-export async function setView(v) {
-  if (v === viewPref()) return;
-  const by = S.config.lockedBy?.view;
-  if (by) return toast(`${icon('wizard')} The layout is set by the spell <b>${esc(by.name)}</b>. Turn it off in Settings → Spells to change it.`);
-  const was = S.config.defaults.view; // unset: the default for the window's width
-  S.config.defaults.view = v;
-  applyView();
-  if (v === 'split' && !wide.matches) toast(`Split view needs a window at least ${SPLIT_MIN_WIDTH}px wide: it starts once there's room.`);
-  const ok = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { view: v } } }));
-  if (!ok) {
-    if (was) S.config.defaults.view = was;
-    else delete S.config.defaults.view;
-    applyView();
-  }
-  bus.emit('view');
-}
-export const toggleView = () => {
-  if (!MOBILE) setView(viewPref() === 'split' ? 'feed' : 'split');
-};
-
-// The task list hidden in split view. Yours alone (kept in this browser), like the list's width.
+// The task list hidden beside the open task ([). Yours alone (kept in this browser), like the
+// list's width. Stacked, the list is already out of the way while something's open.
 let sideHidden = load('wisp.sideHidden', false);
-export const sideShown = () => isSplit() && !sideHidden;
+const listHidden = () => sideHidden && !isStacked();
+export const sideShown = () => isSplit() && !listHidden();
 export function toggleSidebar() {
-  if (!isSplit()) return;
+  if (!isSplit() || isStacked()) return;
   sideHidden = !sideHidden;
   save('wisp.sideHidden', sideHidden);
   paintProps();
   paintViewBtn();
 }
 
-// Nothing open: the prompt box, focused.
+// Stacked: home shows as a page only once asked for (New task); otherwise nothing open is the list.
+let homeAsked = false;
+// Stacked and something's open over the list: a task, a member's thread or home.
+export const stackPage = () => document.body.classList.contains('stack-page');
+
+// Nothing open: the prompt box, focused (New task).
 export function goHome({ focus = true } = {}) {
   leaveCrew(); // a crew member's thread too
   for (const id of [...S.open]) collapse(id);
+  homeAsked = isStacked();
   paintSplit();
   if (focus) $('#prompt')?.focus({ preventScroll: true });
+}
+
+// Back (Esc, the head's ×, the stacked page's Back, the phone's Back): a crew job goes back to its
+// member's thread, the thread home. Stacked, home is the list.
+export function goBack({ focus = false } = {}) {
+  if (crewBack()) return;
+  if (!isStacked()) return goHome({ focus });
+  leaveCrew();
+  for (const id of [...S.open]) collapse(id);
+  homeAsked = false;
+  paintSplit();
 }
 
 // --- entering and leaving ----------------------------------------------------------------------
@@ -142,26 +133,10 @@ function enter() {
   n?.card.scrollIntoView({ block: 'nearest' });
 }
 
-function leave() {
-  const open = splitOpen();
-  $('#feed').before(launchSlot, feedTop);
-  $('#spTop').before(...[...FOOT, ...NAV].map((sel) => $(sel)));
-  $('#searchBtn').after($('#settingsBtn'));
-  document.body.classList.remove('split', 'pane-wide');
-  $('#splitMain').hidden = true;
-  $('#splitGrip').hidden = true;
-  $('#splitTop').hidden = true;
-  foot.hidden = true;
-  for (const id of S.open) placePr(S.nodes.get(id)?.body);
-  if (S.sessions.size) renderFeed();
-  const card = open && S.nodes.get(open)?.card;
-  if (card) requestAnimationFrame(() => card.scrollIntoView({ block: 'start' }));
-}
-
 // Settings sits in the foot, or with search in the pane's corner while the list is hidden.
 function placeSettings() {
   const b = $('#settingsBtn');
-  const to = sideHidden ? $('#searchBtn') : foot.lastElementChild;
+  const to = listHidden() ? $('#searchBtn') : foot.lastElementChild;
   if (b.previousElementSibling !== to) to.after(b);
 }
 
@@ -240,10 +215,6 @@ const savePlaces = () => {
   while (places.size > MAX_PLACES) places.delete(places.keys().next().value);
   save('wisp.places', Object.fromEntries(places));
 };
-// The tasks open when the page loaded: in the feed, only the one being read as it went away goes
-// back to its place, once (an Open there scrolls to the card's top).
-const reloaded = new Set(S.open);
-
 export function keepPlace(id) {
   const n = S.nodes.get(id);
   const body = n?.body;
@@ -257,25 +228,9 @@ export function keepPlace(id) {
   savePlaces();
 }
 
-// The feed has one scroller for every card: the place kept is the open card's under the top bar.
-function keepFeedPlace() {
-  const top = topInset();
-  for (const id of S.open) {
-    const n = S.nodes.get(id);
-    const r = n?.card.isConnected && n.body?.querySelector('.turns') && n.card.getBoundingClientRect();
-    if (!r || r.top > top || r.bottom <= top) continue;
-    const turn = $$('.turn', n.body).find((t) => t.getBoundingClientRect().bottom > top);
-    if (!turn) return;
-    places.delete(id);
-    places.set(id, { feed: true, end: false, turn: turn.dataset.turn, dy: turn.getBoundingClientRect().top - top, showAll: n.showAll });
-    return savePlaces();
-  }
-}
-
 const leaving = () => {
   const id = splitOpen();
   if (id) keepPlace(id);
-  else if (!isSplit()) keepFeedPlace();
 };
 addEventListener('pagehide', leaving);
 document.addEventListener('visibilitychange', () => {
@@ -287,22 +242,15 @@ export function backToPlace(id, again = true) {
   const p = places.get(id);
   const n = S.nodes.get(id);
   const body = n?.body;
-  if (!p || !body?.querySelector('.turns') || (!isSplit() && !(p.feed && reloaded.has(id)))) return;
+  // Places kept by the feed (gone now) were for its one scroller, not the task's own.
+  if (!p || p.feed || !body?.querySelector('.turns')) return;
   // On a reload the open tasks render before their cards are in the list.
   if (!n.card.isConnected) return again && requestAnimationFrame(() => backToPlace(id, false));
-  reloaded.delete(id);
-  if (isSplit() && splitOpen() !== id) return;
+  if (splitOpen() !== id) return;
   places.delete(id);
   savePlaces();
   // It was reading turns behind "Show earlier": show them again.
   if (p.showAll && !n.showAll) (n.showAll = true), renderBody(id, { fresh: false });
-  if (!isSplit()) {
-    const turn = p.turn && $(`.turn[data-turn="${p.turn}"]`, body);
-    // Measured without the body's entry animation (it rises 6px into place).
-    const rise = new DOMMatrixReadOnly(getComputedStyle(body).transform).m42 || 0;
-    if (turn) scrollByPx(turn.getBoundingClientRect().top - rise - topInset() - p.dy);
-    return;
-  }
   if (p.end) return (body.scrollTop = body.scrollHeight);
   const turn = p.turn && $(`.turn[data-turn="${p.turn}"]`, body);
   if (!turn) return (body.scrollTop = p.top);
@@ -319,11 +267,14 @@ export function paintSplit() {
   const s = id && S.sessions.get(id);
   paintCrewView(); // a crew member's thread fills the pane while no task is open (crew.js)
   const crew = crewViewShown();
-  home.hidden = !!s || crew;
+  const stacked = isStacked();
+  if (s || crew) homeAsked = false;
+  paintPage(stacked && (!!s || crew || homeAsked));
+  home.hidden = !!s || crew || (stacked && !homeAsked);
   $('#splitHead').hidden = !s;
   const shown = !!s && $('#splitStage').hidden;
   $('#splitStage').hidden = !s;
-  $('#splitNew').classList.toggle('on', !s && !crew);
+  $('#splitNew').classList.toggle('on', !s && !crew && !stacked);
   const side = slotHtml('sidebar.top');
   const host = $('#spSide');
   if (host.dataset.h !== side) (host.innerHTML = side), (host.dataset.h = side);
@@ -333,6 +284,33 @@ export function paintSplit() {
   // now (the body's scroll is restored right after); otherwise the next frame, before it paints.
   if (shown) measure();
   else beforePaint(measure);
+}
+
+// Stacked: a page over the list while something's open. It slides in when you open it (not on the
+// first paint, nor when the window narrows onto it); the list stays laid out underneath, where it
+// was scrolled, for Back. In the phone app it takes one history entry, so Back closes it.
+let paged = false;
+let pageBack = null;
+let painted = false;
+function paintPage(on) {
+  const b = document.body;
+  const opened = on && !paged && painted && b.classList.contains('stack');
+  painted = true;
+  if (on !== paged) {
+    paged = on;
+    b.classList.toggle('stack-page', on);
+    if (opened) {
+      b.classList.add('stack-in');
+      clearTimeout(paintPage.t);
+      paintPage.t = setTimeout(() => b.classList.remove('stack-in'), 260);
+    }
+  }
+  if (on && !pageBack)
+    pageBack = onBack(() => {
+      pageBack = null;
+      goBack();
+    });
+  else if (!on && pageBack) (pageBack(), (pageBack = null));
 }
 
 // The open task's header is its title (and the split.head slot). What the card head says about the
@@ -351,14 +329,22 @@ export function paintHead(s) {
           : '';
   h.dataset.id = s.id;
   h.className = `split-head c-${s.color} st-${s.state}`;
+  // Stacked, Back replaces the crumb, the dot and Close: back to the member for its job, else the list.
+  const stacked = isStacked();
   const html = `
     <div class="sh-row">
-      ${crumb(s) || qDot(s)}
-      <h2 class="sh-title" title="Rename (M)">${esc(s.title)}</h2>
-      <span class="sh-acts">${slotHtml('split.head', s)}<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button></span>
+      ${stacked ? backBtn(s) : crumb(s) || qDot(s)}
+      <h2 class="sh-title" title="${MOBILE ? '' : 'Rename (M)'}">${esc(s.title)}</h2>
+      <span class="sh-acts">${slotHtml('split.head', s)}${stacked ? '' : `<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}</span>
     </div>`;
   if (h.dataset.h !== html) (h.innerHTML = html), (h.dataset.h = html);
   paintDetails(s, pill);
+}
+
+function backBtn(s) {
+  const m = s?.crew && S.crewOpen === s.crew.id && memberById(s.crew.id);
+  const label = m ? `Back to ${m.name}` : 'Back to tasks';
+  return `<button class="icon-btn sh-back" title="${esc(label)}" aria-label="${esc(label)}">${icon('back')}</button>`;
 }
 
 // A crew member's job: the member, as a way back to its thread (Esc too).
@@ -409,7 +395,7 @@ function paintHome() {
   const coming = $('.sh-coming', home);
   if (coming.dataset.h !== up) (coming.innerHTML = up), (coming.dataset.h = up);
   coming.hidden = !up;
-  $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list · <kbd>\\</kbd> feed view';
+  $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list';
 }
 
 // The open body is fixed to #splitStage's box: whatever moves the box (the header wrapping, the
@@ -417,10 +403,13 @@ function paintHome() {
 // writes what changed: a new --sb-* on body restyles the whole page.
 let lastBox = '';
 function measure() {
-  const r = $('#splitStage').getBoundingClientRect();
+  const box = $('#splitStage').getBoundingClientRect();
+  // Without the page's slide in (stacked): the body slides with it, from where it'll rest.
+  const m = new DOMMatrixReadOnly(getComputedStyle($('#splitMain')).transform);
+  const r = { top: Math.round(box.top - m.m42), left: Math.round(box.left - m.m41), width: box.width, height: box.height };
   const wideNow = isSplit() && r.width >= DETAILS_PANE;
   // With the list hidden the top bar's buttons float over the pane's corner: the header keeps clear.
-  const bar = isSplit() && sideHidden ? $('#topbar').offsetWidth : 0;
+  const bar = isSplit() && listHidden() ? $('#topbar').offsetWidth : 0;
   const key = `${r.top} ${r.left} ${r.width} ${r.height} ${wideNow} ${bar}`;
   if (key === lastBox) return;
   lastBox = key;
@@ -446,37 +435,29 @@ function paintProps() {
   // The list sits on the left unless a spell asks for the right.
   document.body.classList.toggle('side-right', spellProp('sidebar', 'side') === 'right');
   document.body.classList.toggle('side-full', spellProp('sidebar', 'details') === 'full');
-  document.body.classList.toggle('side-hidden', sideHidden); // only applies in split view
+  document.body.classList.toggle('stack', isStacked());
+  document.body.classList.toggle('side-hidden', listHidden());
   if (isSplit()) placeSettings();
   beforePaint(measure);
 }
 
-// The sidebar button: in split view it hides and shows the task list, in the feed it opens split
-// view (the feed comes back with \\, the command palette or Settings).
+// The sidebar button hides and shows the task list (not there when stacked).
 const viewBtn = $('#viewBtn');
 function paintViewBtn() {
   viewBtn.setAttribute('aria-pressed', sideShown());
-  viewBtn.title = isSplit()
-    ? `${sideHidden ? 'Show' : 'Hide'} the task list ([)`
-    : viewPref() === 'split'
-      ? `Split view needs a window at least ${SPLIT_MIN_WIDTH}px wide`
-      : 'Split view: tasks in a sidebar, the open one beside it (\\)';
+  viewBtn.title = `${sideHidden ? 'Show' : 'Hide'} the task list ([)`;
   viewBtn.setAttribute('aria-label', viewBtn.title);
 }
 
 // --- wiring --------------------------------------------------------------------------------------
 
 viewBtn.onclick = () => {
-  if (isSplit()) return toggleSidebar();
-  if (MOBILE) return;
-  if (viewPref() === 'split') return toast(`Split view needs a window at least ${SPLIT_MIN_WIDTH}px wide: it starts once there's room.`);
-  // Asked for the sidebar: it comes with the list showing.
-  if (sideHidden) (sideHidden = false), save('wisp.sideHidden', false);
-  setView('split');
+  toggleSidebar();
 };
 $('#splitNew').onclick = () => goHome();
 $('#splitHead').addEventListener('click', (e) => {
-  if (e.target.closest('.sh-close')) return goHome();
+  if (e.target.closest('.sh-close')) return goBack({ focus: true });
+  if (e.target.closest('.sh-back')) return goBack();
 });
 $('#splitHead').addEventListener('dblclick', (e) => {
   const id = $('#splitHead').dataset.id;
@@ -484,6 +465,7 @@ $('#splitHead').addEventListener('dblclick', (e) => {
 });
 let shown = []; // Coming up's rows, as painted
 home.addEventListener('click', (e) => {
+  if (e.target.closest('.sh-back')) return goBack();
   const up = e.target.closest('.sh-up');
   if (up) return openUpcoming(shown[up.dataset.up], up, e);
   const id = e.target.closest('.sh-task')?.dataset.id;
@@ -520,10 +502,13 @@ grip.addEventListener('dblclick', () => {
   paintProps();
 });
 
-wide.addEventListener('change', applyView);
-big.addEventListener('change', applyView); // the default follows the window while none is picked
+// Crossing SPLIT_MIN_WIDTH stacks the panes or lays them side by side, what's open staying open.
+wide.addEventListener('change', () => {
+  paintProps();
+  paintSplit();
+});
 bus.on('spells', applyView);
 bus.on('config', paintMe);
 bus.on('machines', paintMe);
-// Before the config lands, from the last layout seen (no flash of the feed on reload).
+// index.html laid it out already: this takes over before anything paints.
 queueMicrotask(applyView);

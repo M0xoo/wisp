@@ -74,8 +74,6 @@ body.wisp-mobile .topbar .machines-btn.auto-btn { position: relative; flex: 0 8 
 body.wisp-mobile .machines-btn span { display: inline; min-width: 0; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.wisp-mobile .machines-btn .i { color: var(--muted); }
 body.wisp-mobile :is(.topbar .p-chip, .machines-btn)::before { content: ''; position: absolute; inset: -6px -2px; }
-/* Split view needs a wide window: the phone app always shows the feed, so no layout switchers. */
-body.wisp-mobile .view-btn, body.wisp-mobile .view-group { display: none; }
 /* A follow-up's bar is narrow on a phone: its mode button is just the icon (coloured per mode; the menu names it). */
 body.wisp-mobile .c-bar .c-mode span { display: none; }
 body.wisp-mobile .c-bar .c-mode { padding: 0; justify-content: center; }
@@ -140,20 +138,18 @@ body.wisp-mobile .it-choices.sent { opacity: 0.55; pointer-events: none; }
 body.wisp-mobile .stage { scroll-padding-top: 60px; scrollbar-gutter: auto; }
 body.wisp-mobile .feed-wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 body.wisp-mobile .feed { margin-top: 8px; }
-/* The prompt box isn't on the page: New task (features/fab.js), floating in reach of a thumb,
-   opens it as a sheet from the bottom over the feed. A tap outside it, Back or sending closes it. */
+/* New task (features/fab.js) floats over the list in reach of a thumb, instead of the list's own
+   New task row, and opens home as a page (split.js). */
 .prompt-fab { display: none; }
 body.wisp-mobile .prompt-fab {
   position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 30; display: inline-flex; align-items: center; gap: 8px;
   height: 56px; padding: 0 20px 0 16px; border-radius: 28px; background: var(--ink); color: var(--bg); font-size: 15px; font-weight: 600; box-shadow: var(--shadow-2);
 }
 body.wisp-mobile .prompt-fab .i { width: 20px; height: 20px; }
-/* Out of the way while a task is open (its own follow-up box is at its foot) or the sheet is up. */
-body.wisp-mobile:is(.prompt-open, :has(#feed .item.open)) .prompt-fab { display: none; }
-body.wisp-mobile #launchSlot { display: none; }
-body.wisp-mobile.prompt-open #launchSlot { display: block; position: fixed; inset: 0; z-index: 35; height: auto !important; background: rgba(0, 0, 0, 0.32); animation: fade-in 0.2s var(--ease); }
-body.wisp-mobile.prompt-open #launcher { position: absolute; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); max-height: calc(100% - 72px); overflow-y: auto; box-shadow: var(--shadow-2); animation: sheet-up 0.24s var(--ease); }
-@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
+/* Only on the list: a page (a task, home) has its own box at hand. */
+body.wisp-mobile.stack-page .prompt-fab { display: none; }
+body.wisp-mobile .split-top .st-row:has(> .sp-side:empty) { display: none; }
+body.wisp-mobile .split-new { display: none; }
 /* An empty Recipes row is an ad for a feature: not worth a phone's screen. */
 body.wisp-mobile .launcher .l-recipes:has(.lr-empty) { display: none; }
 /* Its buttons keep their names and scroll sideways; Send stays at the end, always in view. */

@@ -97,7 +97,8 @@ try {
         return {
           machines: document.querySelector('#machinesBtn span')?.textContent,
           fab: vis(document.querySelector('#promptFab')),
-          split: document.body.classList.contains('split') || vis(document.querySelector('#spSide')),
+          stacked: document.body.classList.contains('split') && document.body.classList.contains('stack') && !document.body.classList.contains('stack-page'),
+          newRow: vis(document.querySelector('#splitNew')),
           kbd: [...document.querySelectorAll('kbd, .key-hint')].filter(vis).length,
           view: vis(document.querySelector('#viewBtn')),
           thisComputer: /This computer/.test(document.body.innerText),
@@ -106,9 +107,10 @@ try {
       });
       ok(ui.machines === COMPUTER, `Machines button reads "${ui.machines}", expected "${COMPUTER}"`);
       ok(ui.fab, 'no floating New task button');
-      ok(!ui.split, 'split view shows in the app');
+      ok(ui.stacked, 'not the stacked task list');
+      ok(!ui.newRow, 'the list shows its New task row beside the floating button');
       ok(ui.kbd === 0, `${ui.kbd} keyboard hints visible`);
-      ok(!ui.view, 'the feed/split view switch shows');
+      ok(!ui.view, 'the sidebar switch shows');
       ok(!ui.thisComputer, '"This computer" shows instead of the computer name');
       ok(!ui.tips, 'tips show on the phone');
       ok((await overflow(page)) <= 0, `page scrolls sideways by ${await overflow(page)}px`);
@@ -126,6 +128,8 @@ try {
     // Open the finished task and its More menu.
     await page.locator(`.item[data-id="${first.json.id}"] .it-head`).tap();
     await page.waitForTimeout(800);
+    ok(await page.evaluate(() => document.body.classList.contains('stack-page')), 'the task did not open as a page');
+    await shot(page, 'task-page');
     const more = page.locator('.item.open [data-a="more"], .item.open button[title*="More" i]').first();
     if (await more.count()) {
       await more.tap();
@@ -136,6 +140,9 @@ try {
       await shot(page, 'more-menu');
       await page.keyboard.press('Escape');
     } else throw new Error('no More button on the open task');
+    // The phone's Back (history back in the WebView) closes the page: back on the list.
+    await page.goBack();
+    await page.waitForFunction(() => !document.body.classList.contains('stack-page'), null, { timeout: 5000 });
     // The Computers button goes to https://localhost/ (the app's list); in Chrome that just fails to load.
     const nav = page.waitForRequest((r) => r.url().startsWith('https://localhost/'), { timeout: 5000 });
     await page.locator('#machinesBtn').tap();
@@ -144,19 +151,19 @@ try {
     await ctx.close();
   });
 
-  await check('MOB-07', 'launch from the New task sheet with a fake agent; the presentation renders', async () => {
+  await check('MOB-07', 'launch from home (New task) with a fake agent; the presentation renders', async () => {
     const ctx = await phone(PHONES[1]);
     const page = await ctx.newPage();
     const before = new Set((await api(wisp.url, '/api/sessions')).json.map((s) => s.id));
     await page.goto(`${wisp.url}/?m=${COMPUTER}`);
     await page.waitForSelector('#promptFab');
     await page.locator('#promptFab').tap();
-    ok(await page.evaluate(() => document.body.classList.contains('prompt-open')), 'the sheet did not open');
+    ok(await page.evaluate(() => document.body.classList.contains('stack-page') && document.activeElement?.id === 'prompt'), 'home did not open with the prompt focused');
     await page.locator('#prompt').fill('add a subtract function');
-    await shot(page, 'sheet');
-    ok((await overflow(page)) <= 0, 'the sheet scrolls sideways');
+    await shot(page, 'home');
+    ok((await overflow(page)) <= 0, 'home scrolls sideways');
     await page.locator('#launch').tap();
-    await page.waitForFunction(() => !document.body.classList.contains('prompt-open'), null, { timeout: 5000 });
+    await page.waitForFunction(() => !document.body.classList.contains('stack-page'), null, { timeout: 5000 });
     // Its card shows up and finishes with the fake agent's report.
     const id = await until(async () => (await api(wisp.url, '/api/sessions')).json?.find((s) => !before.has(s.id))?.id, { what: 'the launched task' });
     await until(async () => (await api(wisp.url, `/api/sessions/${id}`)).json?.state !== 'running', { timeout: 60_000, what: 'the launched task to finish' });
@@ -176,7 +183,8 @@ try {
     const ctx = await phone(PHONES[1]);
     const page = await ctx.newPage();
     await page.goto(`${wisp.url}/?m=${COMPUTER}#/s/${s.json.id}`);
-    await page.waitForSelector('.item.open', { timeout: 10_000 });
+    // The task's page (the list under it is laid out but hidden).
+    await page.waitForSelector('.item.open > .it-body', { timeout: 10_000 });
     await page.waitForTimeout(1000);
     ok((await overflow(page)) <= 0, `page scrolls sideways by ${await overflow(page)}px`);
     await shot(page, 'long-url');
@@ -205,7 +213,7 @@ try {
     ok(note.title && note.title.includes(':'), `notification title "${note.title}"`);
     // A tap on it opens the task (MainActivity calls window.wispOpen).
     await page.evaluate((id) => window.wispOpen(id), s.json.id);
-    await page.waitForSelector(`.item.open[data-id="${s.json.id}"]`, { timeout: 5000 });
+    await page.waitForSelector(`.item.open[data-id="${s.json.id}"] > .it-body`, { timeout: 5000 });
     await ctx.close();
   });
 

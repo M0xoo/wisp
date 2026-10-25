@@ -32,7 +32,7 @@ const spellOf = (id) => SPELL_EXAMPLES.find((x) => x.spell.id === id).spell;
 const FIELDS = [
   ['description', 'One sentence, shown in Settings → Spells and on its review'],
   ['chips', 'Small labels on a card head or under the prompt and follow-up boxes, from a template or a script'],
-  ['panels', 'Dialogs, drawers and panels above the feed or inside a card, drawn by a script from the spell’s data'],
+  ['panels', 'Dialogs, drawers and panels on home or inside a card, drawn by a script from the spell’s data'],
   ['parts', 'Restyle a named part of wisp, set its props (a monospace prompt box, compact cards) or reorder the card head'],
   ['ui', '<code>hide</code> named parts; <code>tokens</code> and <code>dark</code> recolour wisp'],
   ['blocks', 'New report block types agents can use'],
@@ -1306,8 +1306,8 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
         <thead><tr><th>Slot</th><th>Where</th></tr></thead>
         <tbody>${Object.entries(SLOTS).map(([k, d]) => `<tr><td><code>${k}</code></td><td>${esc(d)}</td></tr>`).join('')}</tbody>
       </table></div>
-      <p>Panels open as a <code>dialog</code>, a side <code>drawer</code>, pinned above the <code>feed</code>, or inside an open <code>card</code>. To restyle or hide something, a spell names a part (<code>card.title</code>, <code>launcher.input</code>, <code>topbar.machines</code>, …) and sets a short list of allowed CSS properties, props such as <code>density</code> or <code>monospace</code>, or the order of the card head.</p>
-      <p>The split view (tasks in a sidebar, the open one beside it) is a spell’s too: <code>settings: { "view": "split" }</code> switches to it, the <code>sidebar</code> part takes <code>width</code>, <code>side</code> (<code>left</code>, the default, or <code>right</code>) and <code>details</code> (<code>full</code> shows the model, machine and project on every row), <code>split.main</code> takes a <code>readWidth</code>, <code>split.home</code> a <code>greeting</code> over the prompt box, <code>split.details</code> (the open task’s details column, with its PR and actions) a <code>width</code>, and the <code>sidebar.top</code>, <code>split.head</code> and <code>split.details</code> slots take buttons. With no layout set, windows 1280px and wider open in split view.</p>
+      <p>Panels open as a <code>dialog</code>, a side <code>drawer</code>, pinned on home (<code>feed</code>, under the prompt box), or inside an open <code>card</code>. To restyle or hide something, a spell names a part (<code>card.title</code>, <code>launcher.input</code>, <code>topbar.machines</code>, …) and sets a short list of allowed CSS properties, props such as <code>density</code> or <code>monospace</code>, or the order of the card head.</p>
+      <p>The split view (tasks in a sidebar, the open one beside it; on a phone the open one is a page with Back) is a spell’s too: the <code>sidebar</code> part takes <code>width</code>, <code>side</code> (<code>left</code>, the default, or <code>right</code>) and <code>details</code> (<code>full</code> shows the model, machine and project on every row), <code>split.main</code> takes a <code>readWidth</code>, <code>split.home</code> a <code>greeting</code> over the prompt box, <code>split.details</code> (the open task’s details column, with its PR and actions) a <code>width</code>, and the <code>sidebar.top</code>, <code>split.head</code> and <code>split.details</code> slots take buttons.</p>
     </section>
 
     <section>

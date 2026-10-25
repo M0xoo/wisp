@@ -7,7 +7,8 @@ Copy this into your notes and tick it off. A UI change isn't verified until it h
 - [ ] Rendered in real Chrome (not reasoned about from the CSS) at **1440px**, **1000px** and
       **390px** wide.
 - [ ] In **light and dark**.
-- [ ] In **split view and the feed** (and split view's home, if you touched the launcher or Needs you).
+- [ ] In split view **side by side and stacked** (under 900px: the list, the task's page, Back; and
+  home, if you touched the launcher or Needs you).
 - [ ] In the **phone app's** page if it shows there (`node qa/mobile.mjs`, or `body.wisp-mobile` with
       the `wispMobile` user agent).
 - [ ] A screenshot of the result goes in the reply / PR.

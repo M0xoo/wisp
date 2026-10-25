@@ -32,7 +32,8 @@ shell's.
 - Automated: qa/desktop.mjs
 
 ## DESK-03 · Title bar on macOS (hiddenInset)
-- **Steps:** in split view, with the list hidden (`[`), and in the feed (`\`), look at the top-left.
+- **Steps:** in split view, with the list hidden (`[`), and in a window under 900px wide (stacked: the
+  list, then a task's page with Back), look at the top-left.
 - **Expected:** nothing clickable under the traffic lights (x 12–76, y 10–36): the brand and the
   topbar buttons sit to their right. The top bar (and split head) drags the window; its buttons
   still click.

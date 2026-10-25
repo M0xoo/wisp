@@ -331,7 +331,7 @@ document.addEventListener('drop', async (e) => {
 export function routeCrew() {
   const m = location.hash.match(/^#\/crew\?src=(.+)$/);
   if (!m) return false;
-  history.replaceState(null, '', '#/');
+  history.replaceState(history.state, '', '#/'); // the phone's Back entries keep their state
   importCrew({ url: decodeURIComponent(m[1]) });
   return true;
 }

@@ -28,7 +28,6 @@ import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
 import { spellsPane } from './spell-ui.js';
-import { setView, viewPref } from './split.js';
 import { setTheme, themePref } from './theme.js';
 import { loadUpdate, updateState } from './update.js';
 
@@ -115,9 +114,6 @@ export function openSettings(opts) {
           </div>
           <div class="sx-group">
             ${row('Theme', 'System follows your computer’s light or dark setting', `<fieldset class="pk-seg theme-seg">${[['system', 'laptop', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([v, i, l]) => `<button type="button" data-v="${v}">${icon(i)}${l}</button>`).join('')}</fieldset>`)}
-          </div>
-          <div class="sx-group view-group">
-            ${row('Layout', 'Feed: one column, cards open in place. Split: tasks in a sidebar, the open one beside it (in windows 900px and wider; the default from 1280px)<span class="key-hint">. <kbd>\\</kbd> switches</span>', `<fieldset class="pk-seg view-seg">${[['feed', 'Feed'], ['split', 'Split']].map(([v, l]) => `<button type="button" data-view="${v}">${icon(v)}${l}</button>`).join('')}</fieldset>`)}
           </div>
           <div class="sx-group">
             ${row('Full transcript', 'Every message and step the agent took, with its presentation at the end. Any one card switches with its Transcript button<span class="key-hint"> or <kbd>V</kbd></span>', '<button class="switch" id="txDefault" role="switch"></button>')}
@@ -465,19 +461,7 @@ export function openSettings(opts) {
     if (!saved) setTx(was);
   };
   paintTx();
-  // Layout: switches at once, and back if the save is refused (setView does both).
-  const paintView = () => $$('.view-seg button', node).forEach((b) => b.classList.toggle('on', b.dataset.view === viewPref()));
-  $$('.view-seg button', node).forEach((b) => {
-    b.onclick = () => {
-      const saved = setView(b.dataset.view);
-      paintView();
-      saved.then(paintView);
-    };
-  });
-  paintView();
-  bus.on('view', paintView, { node });
-  bus.on('config', paintView, { node });
-  // Theme: same as the layout, switches at once and back if the save is refused.
+  // Theme: switches at once, and back if the save is refused.
   const paintTheme = () => $$('.theme-seg button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === themePref()));
   $$('.theme-seg button', node).forEach((b) => {
     b.onclick = () => {
@@ -582,7 +566,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { view: '.view-seg', theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

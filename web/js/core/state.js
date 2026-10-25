@@ -57,7 +57,7 @@ export class Drafts extends Map {
 export const S = {
   sessions: new Map(), // id -> summary
   full: new Map(), // id -> full session, for expanded items
-  open: new Set(load('wisp.open', [])), // expanded item ids
+  open: new Set(MOBILE ? [] : load('wisp.open', [])), // expanded item ids (the phone app starts on the list)
   nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll, unfolded, latestTurn }
   tasks: new Map(), // compare task key -> { card, head, runs, lead }
   focus: null, // id of the keyboard-focused item

@@ -2,7 +2,6 @@
 // machines), in which project (any of them runs anywhere), on what, and shows a placeholder card
 // until the server answers.
 
-import { closePrompt, openPrompt } from './fab.js';
 import { esc } from '../md.js';
 import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
@@ -32,7 +31,7 @@ import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
 import { SPELL_HINT, spellAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
-import { goHome, isSplit } from './split.js';
+import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, timeMenu, whenTip } from './later.js';
@@ -396,7 +395,7 @@ export function renderLauncher() {
       ta.dispatchEvent(new Event('input'));
       when = null;
       paintWhen();
-      closePrompt();
+      leaveHome();
       const body = w.reminder
         ? { text: w.rest }
         : { prompt: w.rest, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, agent: r.agent, mode: over?.mode || curMode, model: r.model, effort: r.effort, worktree: S.config.defaults.worktree === 'off' ? false : undefined, subagents: team.length && canLead(r.agent) ? team : undefined };
@@ -428,7 +427,7 @@ export function renderLauncher() {
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
-    closePrompt(); // the phone's prompt sheet (features/fab.js): the new task shows in the feed
+    leaveHome();
     save('wisp.sent', remember(load('wisp.sent', []), prompt));
     sentAt = null;
     if (S.filter !== 'all' && targets.some((t) => t.project?.scratch || (t.project?.id !== S.filter && !t.also.some((p) => p.id === S.filter)))) {
@@ -893,10 +892,13 @@ function showLaunched(btn, card) {
   setTimeout(() => card.classList.remove('arrived'), 1600);
 }
 
+// Sent from home as a page of its own (stacked): back to the list, where the new task shows.
+function leaveHome() {
+  if (isStacked() && stackPage()) goBack();
+}
+
 export function focusLauncher() {
-  // The phone: the prompt box is a sheet New task opens (features/fab.js).
-  if (MOBILE) return openPrompt();
-  // Split view: the prompt box is home, in the main pane.
+  // The prompt box is home, in the main pane (stacked: a page over the list).
   if (isSplit()) return goHome();
   // Docked under the top bar it opens where it is, so you keep your place in the feed.
   if (!$('#launcher').classList.contains('docked')) stage.scrollTo({ top: 0, behavior: 'smooth' });
