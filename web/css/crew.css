@@ -251,7 +251,8 @@ body.split #crewView { flex: 1; }
 .cv-about > summary .chev { transition: transform 0.2s; }
 .cv-about[open] > summary .chev { transform: rotate(90deg); }
 .cv-about > .cv-side { padding: 4px 12px 12px; }
-.crew-view.wide .cv-about { order: 0; position: sticky; top: 0; margin: 0; border: 0; background: none; }
+/* stuck at the gap it starts at (.cv-cols' padding), so it doesn't move up when the thread scrolls */
+.crew-view.wide .cv-about { order: 0; position: sticky; top: 18px; margin: 0; border: 0; background: none; }
 /* the box below leaves this column free: run down beside it rather than push the pane into a scroll */
 .crew-view.wide .cv-about { margin-bottom: calc(-1 * var(--cv-dock-h, 0px)); }
 .crew-view.wide .cv-about > summary { display: none; }
