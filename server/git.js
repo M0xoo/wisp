@@ -11,8 +11,10 @@ import { bad } from './util.js';
 
 const GIT = () => process.env.WISP_GIT_BIN || 'git';
 const GH = () => process.env.WISP_GH_BIN || 'gh';
-// Never wait on a credential or confirmation prompt nobody can see.
-const QUIET_ENV = { GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GIT_EDITOR: 'true' };
+// Never wait on a credential or confirmation prompt nobody can see. No optional locks: a `git status`
+// polled for a card would otherwise take index.lock to refresh the index, and Ship it's `git add`
+// in the same worktree fails with "index.lock: File exists".
+const QUIET_ENV = { GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', GIT_EDITOR: 'true', GIT_OPTIONAL_LOCKS: '0' };
 
 export function run(bin, args, { cwd, timeout = 60_000, env } = {}) {
   return new Promise((resolve, reject) => {
