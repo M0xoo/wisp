@@ -74,6 +74,8 @@ export const PARTS = {
   // Its skills and instructions files (the section in its details), and the editor for one.
   'crew.kit': '.crew-view .cv-kit',
   'crew.kitEditor': '.kit-edit',
+  // Its notebook, opened to read and write in full (Edit beside Notebook).
+  'crew.notebookEditor': '.nb-edit',
   // Generate: the dialog that has a member build its kit, and the files it proposed, under that job.
   'crew.kitGenerate': '.kit-gen',
   'crew.offer': '.crew-view .cv-offer',
