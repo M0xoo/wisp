@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=39" />
+  <link rel="stylesheet" href="style.css?v=40" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -206,6 +206,7 @@
       <a class="brand" href="#top" aria-label="wisp home"><span class="mark" aria-hidden="true"></span>wisp</a>
       <nav class="links" aria-label="Primary">
         <a href="#report">The report</a>
+        <a href="#crew">Crew</a>
         <a href="#machines">Machines</a>
         <a href="#delegate">Delegate</a>
         <a href="#spells">Spells</a>
@@ -326,6 +327,23 @@
           </ul>
         </div>
       </div>
+    </section>
+
+    <!-- ───────── crew: named agents that keep working (crew.js) ───────── -->
+    <section class="control crew wrap" id="crew">
+      <div class="spells-head">
+        <h2>Hire a crew. They keep working while you don't.</h2>
+        <p>A <b>crew member</b> is an agent with a name, a face, a brief and a schedule. Scout watches CI and fixes what breaks, Quill reviews new pull requests, Sorter triages issues. They check in on their own, stay quiet when nothing changed, and remember what they learned.</p>
+      </div>
+      <div class="spells-grid">
+        <div data-crew id="crewDemo" aria-label="Try it: hire crew members, open their threads, and have one check in"></div>
+      </div>
+      <dl class="relay-facts spells-facts">
+        <div><dt>Fresh context, real memory</dt><dd>Every job is a task of its own, so several run side by side. What carries over is small: your brief, their notebook, and a one-line log per job.</dd></div>
+        <div><dt>One thread each</dt><dd>Their work never mixes with your tasks. Open a member and every job is there, oldest first; answer a question right in it.</dd></div>
+        <div><dt>@Name anywhere</dt><dd>Tag them in any prompt or follow-up, put them on a team as a delegate, send them a trigger, or run them on another machine.</dd></div>
+      </dl>
+      <p class="relay-links"><a href="https://github.com/M0xoo/wisp#crew">How the crew works →</a><a href="guides/run-coding-agents-in-the-background.html">Agents in the background →</a></p>
     </section>
 
     <!-- ───────── compare ───────── -->
@@ -541,5 +559,6 @@
   <script src="control.js?v=1" defer></script>
   <script src="compare.js?v=1" defer></script>
   <script src="delegate.js?v=1" defer></script>
+  <script type="module" src="crew.js?v=2"></script>
 </body>
 </html>

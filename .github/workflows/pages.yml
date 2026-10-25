@@ -9,6 +9,7 @@ on:
       - 'scripts/site.mjs'
       - 'scripts/guides.mjs'
       - 'server/adapters/**'
+      - 'web/js/spirit.js'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
