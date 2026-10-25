@@ -67,6 +67,7 @@ export const S = {
   filter: load('wisp.filter', 'all'),
   showDone: load('wisp.showDone', false),
   showArchived: false,
+  folded: new Set(load('wisp.folded', [])), // Needs you, Crew and Working sections the user folded
   drafts: new Drafts(),
   replyModes: new Map(), // session id → the mode its next follow-up switches to
   replyRunners: new Map(), // session id → { agent, model, effort } its next follow-up switches to

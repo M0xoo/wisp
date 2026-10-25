@@ -152,6 +152,11 @@ test('split view: the view setting, sidebar and split slots, parts and pixel pro
   assert.ok(problems({ ...base0, parts: { tips: { props: { count: 0 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
 });
 
+test('every task-list section and its folding heading are parts', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['section.needs', 'section.working'] }, parts: { 'section.heading': { style: { fontSize: '13px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['section.waiting'] } }).length);
+});
+
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,

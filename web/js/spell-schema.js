@@ -55,7 +55,11 @@ export const PARTS = {
   'topbar.settings': '#settingsBtn',
   'topbar.view': '#viewBtn',
   feed: '#feed',
+  // The task list's sections; every heading folds its section.
+  'section.needs': '#secNeeds',
+  'section.working': '#secWorking',
   'section.done': '#secDone',
+  'section.heading': '#feed .f-group > h4',
   // The crew: named agents pinned above Working (both layouts), each row a member with its spirit;
   // a member's page, and the editor that adds one.
   'section.crew': '#secCrew',
