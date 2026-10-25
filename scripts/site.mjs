@@ -728,6 +728,8 @@ export function build(out = DOCS) {
     fs.mkdirSync(path.dirname(path.join(out, p.file)), { recursive: true });
     fs.writeFileSync(path.join(out, p.file), p.html);
   }
+  // The crew section draws the app's own spirits (docs/crew.js imports it).
+  fs.copyFileSync(path.join(ROOT, 'web/js/spirit.js'), path.join(out, 'spirit.js'));
   const urls = pages.filter((p) => !p.noindex).map((p) => `  <url>\n    <loc>${SITE}${p.path}</loc>\n    <lastmod>${lastmod(p.sources)}</lastmod>\n    <priority>${p.priority}</priority>\n  </url>`);
   fs.writeFileSync(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`);
   return pages;
