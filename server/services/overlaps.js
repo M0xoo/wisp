@@ -1,4 +1,4 @@
-// Open tasks in the same repo that change the same files. Each gets `overlaps`, so its card can
+// Active tasks in the same repo that change the same files. Each gets `overlaps`, so its card can
 // warn before both are shipped or merged: [{ id, title, files, more, conflicts }], where conflicts
 // lists the files a merge of the two would leave conflicted ([] when they'd merge cleanly, null when
 // git can't tell). Each task's work is read whenever wisp rechecks its worktree (services/ship.js);
@@ -20,12 +20,17 @@ export function createOverlaps(app) {
 
   // Tasks in one repo branched from the same base are compared with each other.
   const keyOf = (s) => (s?.worktree ? `${s.worktree.root}\0${s.worktree.base}` : null);
-  const open = (s) => !!(s?.worktree && !s.parentId && !s.archived && !['MERGED', 'CLOSED'].includes(s.pr?.state) && fs.existsSync(s.worktree.path));
+  // Only tasks still in play: Working, or waiting in Needs you. Done, stopped, archived, merged or
+  // closed tasks never warn, and drop out of the others' warnings as soon as they leave.
+  const ACTIVE = new Set(['running', 'waiting', 'review']);
+  const open = (s) =>
+    !!(s?.worktree && !s.parentId && !s.archived && ACTIVE.has(s.state) && s.turns?.at(-1)?.status !== 'stopped' && !['MERGED', 'CLOSED'].includes(s.pr?.state) && fs.existsSync(s.worktree.path));
 
   const look = async (id) => {
     const s = store.get(id);
-    // While its agent works, its last reading stands: wisp doesn't read a worktree mid-run.
-    if (open(s) && app.runner?.live?.has(id) && work.has(id)) return;
+    // While its agent works, its last reading stands (none yet: read when the turn ends). wisp
+    // never reads a worktree mid-run.
+    if (open(s) && app.runner?.live?.has(id)) return;
     const t = open(s) ? await touchedFiles(s.worktree).catch(() => null) : null;
     if (t?.files.length) work.set(id, { key: keyOf(s), files: t.files, head: t.head });
     else work.delete(id);
@@ -73,14 +78,14 @@ export function createOverlaps(app) {
     }
   };
 
-  const schedule = (key) => {
+  const schedule = (key, ms = COMPARE_MS) => {
     clearTimeout(timers.get(key));
     timers.set(
       key,
       setTimeout(() => {
         timers.delete(key);
         compare(key).catch(() => {});
-      }, COMPARE_MS),
+      }, ms),
     );
   };
 
@@ -92,6 +97,25 @@ export function createOverlaps(app) {
     schedule(key);
   };
 
+  // Any change to a task: one that left play (done, archived, stopped…) stops counting at once,
+  // and one back in play (Needs you again) is read and compared again.
+  const changed = (s) => {
+    const key = keyOf(s);
+    if (!key || s.parentId) return;
+    if (open(s)) {
+      if (!work.has(s.id) && !looking.get(key)?.has(s.id) && !app.runner?.live?.has(s.id)) touch(s);
+      return;
+    }
+    if (!(work.has(s.id) || s.overlaps)) return;
+    work.delete(s.id);
+    schedule(key, 0);
+  };
+  // Deleted: gone from the store, so the others are compared again without it.
+  const dropped = (s) => {
+    work.delete(s.id);
+    if (keyOf(s)) schedule(keyOf(s), 0);
+  };
+
   const sweep = setInterval(() => {
     const keys = new Set(store.all().filter((s) => s.overlaps?.length).map(keyOf));
     for (const key of keys) if (key && !timers.has(key)) schedule(key);
@@ -100,6 +124,8 @@ export function createOverlaps(app) {
 
   return {
     touch,
+    changed,
+    dropped,
     stop() {
       clearInterval(sweep);
       for (const t of timers.values()) clearTimeout(t);
