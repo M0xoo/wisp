@@ -778,6 +778,14 @@ R.callout = (b) => {
   return el(`<div class="b-callout tone-${tone}"><span class="ic">${icon(ic)}</span><div>${b.title ? `<b>${esc(b.title)}</b>` : ''}<div class="prose">${md(b.text || '')}</div></div></div>`);
 };
 
+// Full screen goes through the reply's other pictures and videos too, in order (ui/viewer.js).
+function zoomInSet(media, ctx) {
+  const all = [...(media.closest('.presentation') || media.parentNode).querySelectorAll('.b-image:not(.broken) img, .b-video:not(.broken) video')];
+  const list = all.map((m) => ({ src: m.dataset.src, alt: m.tagName === 'VIDEO' ? m.getAttribute('aria-label') : m.alt, video: m.tagName === 'VIDEO' }));
+  const at = Math.max(0, all.indexOf(media));
+  ctx.zoom(list[at]?.src || media.dataset.src, list[at]?.alt || '', { list, index: at });
+}
+
 // Show in folder, for a file on disk (not a link). The phone can't open a folder: no button there.
 const folderButton = (b, ctx) => (MOBILE || !ctx.reveal || /^https?:/.test(b.src || '') ? '' : `<button class="img-folder" title="Show in folder" aria-label="Show in folder">${icon('folder')}</button>`);
 function bindFolder(node, b, ctx) {
@@ -798,11 +806,7 @@ R.image = (b, ctx) => {
   bindImageButtons(node, src, b.path || b.caption || '');
   bindFolder(node, b, ctx);
   img.dataset.src = src;
-  // The viewer goes through the reply's other pictures too, in order.
-  img.addEventListener('click', () => {
-    const all = [...(node.closest('.presentation') || node).querySelectorAll('.b-image:not(.broken) img')];
-    ctx.zoom(src, img.alt, { list: all.map((i) => ({ src: i.dataset.src, alt: i.alt })), index: all.indexOf(img) });
-  });
+  img.addEventListener('click', () => zoomInSet(img, ctx));
   img.addEventListener('error', () => node.classList.add('broken'));
   return node;
 };
@@ -811,10 +815,27 @@ R.image = (b, ctx) => {
 R.video = (b, ctx) => {
   const src = /^https?:/.test(b.src || '') ? b.src : ctx.fileUrl(b.path || b.src || '');
   const dl = MOBILE ? '' : `<button class="img-save" title="Download" aria-label="Download">${icon('download')}</button>`;
-  const node = el(`<figure class="b-video card"><div class="img-box"><video controls playsinline preload="metadata"></video><div class="img-tools">${dl}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
+  // Full screen is wisp's viewer, with the reply's other pictures and videos: the button here, and
+  // the player's own (or a double-click), which hands over to it.
+  const full = `<button class="img-full" title="Full screen" aria-label="Full screen">${icon('expand')}</button>`;
+  const node = el(`<figure class="b-video card"><div class="img-box"><video controls playsinline preload="metadata"></video><div class="img-tools">${full}${dl}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
   const video = node.querySelector('video');
   video.src = src;
+  video.dataset.src = src;
   video.setAttribute('aria-label', b.caption || b.path || 'Video');
+  node.querySelector('.img-full').onclick = (e) => {
+    e.stopPropagation();
+    video.pause();
+    zoomInSet(video, ctx);
+  };
+  const handOver = () => {
+    if ((document.fullscreenElement || document.webkitFullscreenElement) !== video) return;
+    (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+    video.pause();
+    zoomInSet(video, ctx);
+  };
+  video.addEventListener('fullscreenchange', handOver);
+  video.addEventListener('webkitfullscreenchange', handOver);
   const btn = node.querySelector('.img-save');
   if (btn) {
     btn.onclick = (e) => {
@@ -826,78 +847,6 @@ R.video = (b, ctx) => {
   video.addEventListener('error', () => node.classList.add('broken'));
   return node;
 };
-
-// Pictures and videos next to each other in a reply: one at a time, with previous / next (the
-// arrows, ← / → once it has focus, or a swipe). They're stacked in one grid cell, so the box is as
-// tall as the tallest and doesn't jump between them.
-function gallery(figs) {
-  const node = el(`
-    <div class="b-gallery" tabindex="0" role="group" aria-roledescription="carousel" aria-label="${figs.length} pictures and videos">
-      <div class="gal-track"></div>
-      <button class="gal-nav gal-prev" title="Previous (←)" aria-label="Previous">${icon('back')}</button>
-      <button class="gal-nav gal-next" title="Next (→)" aria-label="Next">${icon('chevron')}</button>
-      <span class="gal-count" aria-live="polite"></span>
-    </div>`);
-  const track = node.querySelector('.gal-track');
-  track.append(...figs);
-  let at = 0;
-  const show = (i) => {
-    at = Math.max(0, Math.min(figs.length - 1, i));
-    figs.forEach((f, j) => {
-      const off = j !== at;
-      f.classList.toggle('gal-off', off);
-      f.inert = off;
-      if (off) f.querySelector('video')?.pause();
-    });
-    node.querySelector('.gal-count').textContent = `${at + 1} / ${figs.length}`;
-    node.querySelector('.gal-prev').disabled = at === 0;
-    node.querySelector('.gal-next').disabled = at === figs.length - 1;
-  };
-  node.querySelector('.gal-prev').onclick = () => {
-    show(at - 1);
-  };
-  node.querySelector('.gal-next').onclick = () => {
-    show(at + 1);
-  };
-  node.addEventListener('keydown', (e) => {
-    // A focused video seeks with the arrows; the viewer opened from here takes them while it's up.
-    if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest('video') || document.querySelector('#overlay:not([hidden])')) return;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      show(at + (e.key === 'ArrowLeft' ? -1 : 1));
-    }
-  });
-  // A finger swiped sideways goes along; the tap that ends it doesn't also open the picture.
-  let sw = null;
-  let swiped = false;
-  track.addEventListener('pointerdown', (e) => {
-    sw = e.pointerType === 'mouse' || e.target.closest('video, button') ? null : { x: e.clientX, y: e.clientY };
-    swiped = false;
-  });
-  track.addEventListener('pointerup', (e) => {
-    if (!sw) return;
-    const dx = e.clientX - sw.x;
-    const dy = e.clientY - sw.y;
-    sw = null;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
-    swiped = true;
-    show(at + (dx < 0 ? 1 : -1));
-  });
-  track.addEventListener('pointercancel', () => {
-    sw = null;
-  });
-  track.addEventListener(
-    'click',
-    (e) => {
-      if (!swiped) return;
-      swiped = false;
-      e.stopPropagation();
-    },
-    true,
-  );
-  show(0);
-  return node;
-}
 
 // A web page the agent pointed at, live in a sandboxed frame at the screen size it picked (preview-frame.js).
 R.preview = (b, ctx) => previewBlock(b, ctx);
@@ -1148,8 +1097,6 @@ export const registerBlock = (type, fn) => (R[type] = fn);
 let fallback = () => null;
 export const setBlockFallback = (fn) => (fallback = fn);
 
-const MEDIA = new Set(['image', 'video']);
-
 export function renderPresentation(presentation, ctx) {
   const wrap = document.createElement('div');
   wrap.className = 'presentation';
@@ -1158,20 +1105,7 @@ export function renderPresentation(presentation, ctx) {
   const own = presentation && ctx?.session?.id && ctx.turn?.id && presentation === ctx.turn.presentation;
   still = !!own && !firstShow(`${ctx.session.id}:${ctx.turn.id}`);
   if (still) wrap.classList.add('still');
-  // Group consecutive half-width-friendly blocks? Keep it a single calm column. Pictures and
-  // videos next to each other go into one gallery.
-  let run = [];
-  const flush = () => {
-    if (run.length > 1) {
-      const holder = document.createElement('div');
-      holder.className = 'blk blk-gallery';
-      holder.style.setProperty('--d', run[0].style.getPropertyValue('--d'));
-      run[0].before(holder);
-      holder.append(gallery(run.map((h) => h.firstElementChild)));
-      run.forEach((h) => h.remove());
-    }
-    run = [];
-  };
+  // Group consecutive half-width-friendly blocks? Keep it a single calm column.
   blocks.forEach((b, i) => {
     const delay = quiet() ? 0 : Math.min(i, 10) * 110;
     let node;
@@ -1186,10 +1120,7 @@ export function renderPresentation(presentation, ctx) {
     holder.style.setProperty('--d', `${delay}ms`);
     holder.append(node);
     wrap.append(holder);
-    if (MEDIA.has(b.type) && node.matches('.b-image, .b-video')) run.push(holder);
-    else flush();
   });
-  flush();
   still = false;
   if (presentation?.fallback) {
     wrap.prepend(el(`<div class="blk"><div class="fallback-note">${icon('info')} The agent answered in plain text instead of a wisp presentation.</div></div>`));

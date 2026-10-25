@@ -7,8 +7,9 @@ import { imageButtons, bindImageButtons, copyImage } from './image.js';
 // with a mouse) or the wheel zoom at that point, a drag pans, a tap beside it, a swipe down,
 // Escape or × closes. Copy (also ⌘C / Ctrl+C) and Download take it elsewhere. The phone app's
 // WebView has no pinch zoom of its own, so this is the only way to read a screenshot there.
-// Given the other pictures of the reply (`set`: { list: [{ src, alt }], index }), the arrows, ← / →
-// and a sideways swipe go through them.
+// Given the other pictures and videos of the reply (`set`: { list: [{ src, alt, video }], index }),
+// the arrows, ← / → and a sideways swipe go through them. A video plays here with its own
+// controls; it doesn't zoom or copy.
 
 const MAX = 8;
 
@@ -17,20 +18,22 @@ export function viewImage(src, alt = '', set = null) {
   let at = list ? Math.max(0, Math.min(list.length - 1, set.index || 0)) : 0;
   const node = el(`
     <div class="lb${list ? ' lb-set' : ''}">
-      <img class="lb-img" src="${esc(src)}" alt="${esc(alt)}" draggable="false">
+      <img class="lb-img" alt="" draggable="false">
+      <video class="lb-vid" controls playsinline hidden></video>
       ${list ? `<button class="lb-nav lb-prev" title="Previous (←)" aria-label="Previous picture">${icon('back')}</button><button class="lb-nav lb-next" title="Next (→)" aria-label="Next picture">${icon('chevron')}</button>` : ''}
       <div class="lb-bar">
         ${list ? '<span class="lb-count" aria-live="polite"></span><span class="lb-sep"></span>' : ''}
         <button class="lb-out" title="Zoom out" aria-label="Zoom out">${icon('minus')}</button>
         <button class="lb-pct" title="Zoom to fit or in"></button>
         <button class="lb-in" title="Zoom in" aria-label="Zoom in">${icon('plus')}</button>
-        <span class="lb-sep"></span>
+        <span class="lb-sep lb-zsep"></span>
         ${imageButtons()}
         <a class="lb-open" href="${esc(src)}" target="_blank" rel="noopener" title="Open the original" aria-label="Open the original">${icon('external')}</a>
         <button class="lb-close" title="Close" aria-label="Close">${icon('x')}</button>
       </div>
     </div>`);
   const img = node.querySelector('.lb-img');
+  const vid = node.querySelector('.lb-vid');
   const pct = node.querySelector('.lb-pct');
   const open = node.querySelector('.lb-open');
   let s = 1;
@@ -86,7 +89,7 @@ export function viewImage(src, alt = '', set = null) {
     start = { mx: m.x, my: m.y, d: m.d, s, x, y, touch };
   };
   node.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.lb-bar, .lb-nav') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (e.target.closest('.lb-bar, .lb-nav, .lb-vid') || (e.pointerType === 'mouse' && e.button !== 0)) return;
     node.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) moved = false;
@@ -157,6 +160,7 @@ export function viewImage(src, alt = '', set = null) {
     'wheel',
     (e) => {
       e.preventDefault();
+      if (isVideo) return;
       // A trackpad pinch arrives as a ctrl+wheel with small steps; a mouse notch is about 100px.
       const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
       scaleAt(s * Math.exp(-d * (e.ctrlKey ? 0.01 : 0.002)), e.clientX, e.clientY);
@@ -174,15 +178,32 @@ export function viewImage(src, alt = '', set = null) {
   pct.onclick = () => {
     toggle(...centre());
   };
-  // Shows the picture `d` steps along the set, at fit. False at either end.
+  // Puts up a picture or a video, at fit.
+  let isVideo = false;
+  const load = (it) => {
+    ({ src, alt = '' } = it);
+    isVideo = !!it.video;
+    node.classList.toggle('lb-video', isVideo);
+    img.hidden = isVideo;
+    vid.hidden = !isVideo;
+    if (isVideo) {
+      img.removeAttribute('src');
+      vid.src = src;
+      vid.setAttribute('aria-label', alt || 'Video');
+    } else {
+      vid.pause();
+      vid.removeAttribute('src');
+      img.src = src;
+      img.alt = alt;
+    }
+    if (open) open.href = src;
+    bindImageButtons(node, src, alt);
+  };
+  // Shows the one `d` steps along the set. False at either end.
   const go = (d) => {
     if (!list || !list[at + d]) return false;
     at += d;
-    ({ src, alt } = list[at]);
-    img.src = src;
-    img.alt = alt;
-    if (open) open.href = src;
-    bindImageButtons(node, src, alt);
+    load(list[at]);
     s = 1;
     x = 0;
     y = 0;
@@ -208,6 +229,9 @@ export function viewImage(src, alt = '', set = null) {
   // The page's keys stand down while a dialog is open (Escape still closes it).
   const onKey = (e) => {
     if (!node.isConnected) return cleanup();
+    // A focused video seeks with the arrows; it has no zoom or copy.
+    if (e.target === vid && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+    if (isVideo && !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
     if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'c') {
       e.preventDefault();
       return copyImage(src, node.querySelector('.img-copy'));
@@ -224,13 +248,15 @@ export function viewImage(src, alt = '', set = null) {
     paint();
   };
   const cleanup = () => {
+    // A video taken off the page would play on, heard and not seen.
+    vid.pause();
     removeEventListener('keydown', onKey);
     removeEventListener('resize', onResize);
   };
   addEventListener('keydown', onKey);
   addEventListener('resize', onResize);
   img.addEventListener('load', () => paint());
-  bindImageButtons(node, src, alt);
+  load(list ? list[at] : { src, alt, video: set?.video });
   const close = overlay(node, { onClose: cleanup });
   node.querySelector('.lb-close').onclick = () => {
     close();
