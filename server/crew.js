@@ -22,6 +22,9 @@ import { cronMatches, nextRun, parseCron } from './triggers.js';
 import { adapters } from './adapters/index.js';
 import { MAX_SUBAGENTS, normalizeTeam } from './subagents.js';
 import { bad, MODES, newId, truncate } from './util.js';
+import { KIT_BODY_MAX, KIT_MAX, KIT_TOTAL_MAX, RULES_NAME, SKILL_NAME, parseSkillMd, skillMd, skillName } from '../web/js/skill-md.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 export const MAX_CREW = 12;
 export const MAX_PARALLEL = 5;
@@ -41,6 +44,8 @@ const NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,23}$/u;
 const PLACE = /^[\w-]{1,40}$/; // a machine id
 const NOTE_MAX = 60_000;
 const SEEN_MAX = 200;
+const OFFERS_MAX = 10;
+const OFFER_FILES = 12;
 const ID = /^[a-z0-9]{6,40}$/;
 // The kept parts of a job's report, for the log, a lead and an @mention's answer.
 const KEEP = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tests', 'commits', 'checklist', 'callout', 'question', 'next']);
@@ -91,6 +96,7 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
     parallel: Math.min(MAX_PARALLEL, Math.max(1, Math.floor(Number(v('parallel', 2))) || 2)),
     // Its delegates (like a task's): every job it runs may hand them work. Other crew members
     // count; itself doesn't.
+    kit: normalizeKit(body.kit !== undefined ? body.kit : prev?.kit || [], exists),
     team: normalizeTeam((body.team !== undefined ? body.team : prev?.team || []).filter((x) => !prev || x?.crew !== prev.id), adapters),
     paused: v('paused', false) === true,
     notebook,
@@ -100,6 +106,7 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
     away: machine === (prev?.machine || '') ? prev?.away || {} : {}, // jobs running on its machine: { [job id]: { reply? } }
     seen: prev?.seen || [], // turns of its jobs there already filed ("<job id>:<turn count>")
     links: prev?.links || [], // tasks it was tagged in or delegated by, newest first: it may follow up on them
+    offers: prev?.offers || [], // skills and instructions its jobs proposed for its kit, for you to pick from
     wakeAt: body.wakeAt === null ? null : prev?.wakeAt || null,
     checkins: prev?.checkins || 0,
     lastCheckinAt: prev?.lastCheckinAt || null,
@@ -112,6 +119,111 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
 // A spirit's code ("flame.teal.visor.smile.antenna"), or an emoji of a few code points.
 const SPIRIT = /^[a-z]{1,12}(\.[a-z]{1,12}){4}$/;
 const avatarOf = (a) => (SPIRIT.test(String(a || '')) ? String(a) : [...String(a || '').trim()].slice(0, 4).join(''));
+
+// Its kit (web/js/skill-md.js): instructions files it follows on every job, and skills it reads
+// when a job fits one's description. A skill imported from this computer keeps its folder (path),
+// for the scripts and references beside its SKILL.md.
+export function normalizeKit(list, exists = () => true) {
+  if (!Array.isArray(list)) throw bad('kit must be a list of files.');
+  if (list.length > KIT_MAX) throw bad(`At most ${KIT_MAX} skills and instructions files per member.`);
+  const out = [];
+  let total = 0;
+  for (const x of list) {
+    if (!x || typeof x !== 'object') throw bad('Each kit file needs a kind, a name and a body.');
+    const kind = x.kind === 'skill' ? 'skill' : x.kind === 'rules' ? 'rules' : null;
+    if (!kind) throw bad('A kit file is a skill or an instructions file (kind: skill or rules).');
+    const name = String(x.name || '').trim();
+    if (kind === 'skill' && !SKILL_NAME.test(name)) throw bad(`A skill’s name is up to 64 lowercase letters, digits and dashes${name ? `, not "${truncate(name, 40)}"` : ''}.`);
+    if (kind === 'rules' && !RULES_NAME.test(name)) throw bad('An instructions file’s name is up to 60 letters, digits, spaces, dots or dashes, like AGENTS.md.');
+    if (out.some((y) => y.kind === kind && y.name.toLowerCase() === name.toLowerCase())) throw bad(`There are two ${kind === 'skill' ? 'skills' : 'instructions files'} named ${name}.`);
+    const description = String(x.description || '').replace(/\s+/g, ' ').trim().slice(0, 1024);
+    if (kind === 'skill' && !description) throw bad(`Say when ${name} should be used: that’s how they know to read it.`);
+    const body = String(x.body || '').replace(/\r\n/g, '\n').trim();
+    if (!body) throw bad(`${name} is empty.`);
+    if (body.length > KIT_BODY_MAX) throw bad(`${name} is too long (${body.length.toLocaleString('en')} characters; at most ${KIT_BODY_MAX.toLocaleString('en')}).`);
+    total += body.length;
+    if (total > KIT_TOTAL_MAX) throw bad(`Their skills and instructions add up to more than ${KIT_TOTAL_MAX.toLocaleString('en')} characters. Trim or remove some.`);
+    const dir = kind === 'skill' && typeof x.path === 'string' && path.isAbsolute(x.path) && x.path.length < 500 && exists(x.path) ? x.path : '';
+    out.push({ id: ID.test(x.id || '') ? x.id : newId(), kind, name, ...(kind === 'skill' && { description }), body, ...(dir && { path: dir }), on: x.on !== false });
+  }
+  return out;
+}
+
+// The files a job proposed (its crew block's kit) that would pass as kit files: each checked on
+// its own, so one bad file doesn't lose the rest. A skill's name is made fit (Release Notes → release-notes).
+export function offerFiles(list = []) {
+  const out = [];
+  for (const x of list.slice(0, OFFER_FILES)) {
+    const kind = x.kind === 'rules' || x.kind === 'instructions' ? 'rules' : 'skill';
+    try {
+      const [k] = normalizeKit([{ ...x, kind, name: kind === 'skill' ? skillName(x.name) : String(x.name || 'AGENTS.md').replace(/[^\w .-]/g, '').trim() }]);
+      if (!out.some((y) => y.kind === k.kind && y.name.toLowerCase() === k.name.toLowerCase())) out.push((({ id, on, path: _, ...rest }) => rest)(k));
+    } catch {}
+  }
+  return out;
+}
+
+// What a job's note says about the kit. files (a member here): skill name → its SKILL.md on disk,
+// read when needed. Without them (a job on another machine) the skills are written out in full.
+function kitNote(m, files = null) {
+  const kit = (m.kit || []).filter((k) => k.on !== false);
+  const rules = kit.filter((k) => k.kind === 'rules');
+  const skills = kit.filter((k) => k.kind === 'skill');
+  let out = '';
+  if (rules.length) out += `\n### Your instructions (from the user)\n\nFollow these on every job, as you would an AGENTS.md. Where they differ from the project's own, these win for your work.\n\n${rules.map((r) => `#### ${r.name}\n\n${r.body}`).join('\n\n')}\n`;
+  if (!skills.length) return out;
+  out += `\n### Your skills\n\nA skill is the user's how-to for one kind of work. When a job fits a skill's description, follow that skill.${files ? ' Read its SKILL.md (with your file-reading tool) before you start on that part.' : ''}\n\n`;
+  if (files) out += skills.map((k) => `- **${k.name}**: ${k.description} \`${files[k.name]}\`${k.path ? ` (its other files are in \`${k.path}\`)` : ''}`).join('\n') + '\n';
+  else out += skills.map((k) => `#### Skill: ${k.name}\n\nWhen: ${k.description}\n\n${k.body}`).join('\n\n') + '\n';
+  return out;
+}
+
+// Skills and instructions files already on this computer, to add to a kit: the harnesses' own
+// (~/.claude/skills, ~/.codex/AGENTS.md, …) and a project's (cwd). { skills, rules }, each with
+// where it came from (from) and its text.
+const SKILL_DIRS = ['.claude/skills', '.agents/skills', '.codex/skills', '.gemini/skills'];
+const RULES_FILES = ['.claude/CLAUDE.md', '.codex/AGENTS.md', '.gemini/GEMINI.md', '.config/opencode/AGENTS.md'];
+const PROJECT_RULES = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'];
+export function localKit({ home, cwd = '' }) {
+  const roots = [{ dir: home, label: '~', rules: RULES_FILES }, ...(cwd && cwd !== home ? [{ dir: cwd, label: path.basename(cwd), rules: PROJECT_RULES }] : [])];
+  const read = (f) => {
+    try {
+      const st = fs.statSync(f);
+      return st.isFile() && st.size <= KIT_BODY_MAX * 2 ? fs.readFileSync(f, 'utf8') : null;
+    } catch {
+      return null;
+    }
+  };
+  const skills = [];
+  const rules = [];
+  for (const r of roots) {
+    for (const rel of r.rules) {
+      const text = read(path.join(r.dir, rel));
+      if (text?.trim()) rules.push({ name: path.basename(rel), from: `${r.label}/${rel}`, body: text.trim().slice(0, KIT_BODY_MAX) });
+    }
+    for (const rel of SKILL_DIRS) {
+      let dirs = [];
+      try {
+        dirs = fs.readdirSync(path.join(r.dir, rel), { withFileTypes: true }).filter((d) => d.isDirectory() || d.isSymbolicLink());
+      } catch {}
+      for (const d of dirs) {
+        const dir = path.join(r.dir, rel, d.name);
+        const text = read(path.join(dir, 'SKILL.md'));
+        if (!text) continue;
+        const sk = parseSkillMd(text);
+        const name = skillName(sk.name || d.name);
+        if (!name || !sk.body || skills.some((x) => x.name === name)) continue;
+        let files = 0;
+        try {
+          files = fs.readdirSync(dir).filter((f) => f !== 'SKILL.md' && !f.startsWith('.')).length;
+        } catch {}
+        skills.push({ name, description: sk.description, body: sk.body.slice(0, KIT_BODY_MAX), from: `${r.label}/${rel}/${d.name}`, ...(files && { path: dir, files }) });
+        if (skills.length >= 100) break;
+      }
+    }
+  }
+  return { skills, rules };
+}
 
 function clampNotebook(text) {
   let t = String(text || '').replace(/\r\n/g, '\n').trim();
@@ -154,7 +266,7 @@ const JOB_LABEL = { checkin: 'check-in', task: 'from the user', delegated: 'dele
 
 // Appended to a job's system prompt: who it is, its memory, where this job came from and how to
 // hand memory back.
-export function crewNote(m, job = {}) {
+export function crewNote(m, job = {}, files = null) {
   const log = (m.log || []).slice(0, LOG_IN_PROMPT);
   const from = job.from?.title ? `"${job.from.title}" (wisp task ${job.from.id})` : 'another task';
   const what = {
@@ -163,7 +275,7 @@ export function crewNote(m, job = {}) {
     delegated: `Delegated to you by the agent working on ${from}. That agent reads your report; it can't see your notebook, so say everything it needs.`,
     trigger: `Started by the trigger "${job.from?.title || 'a trigger'}".`,
     mention: `The user tagged you in ${from}. Your answer shows there, under their message. Read that task with wisp_session if you need its context.`,
-  }[job.job || 'task'];
+  }[job.job || 'task'] + (job.kit ? `\n\nThe user asked you to build your own kit: the skills and instructions files that make you excellent at the goal in their message. First learn what that takes here: your brief and notebook, your current kit, and (if you have a project) its README, AGENTS.md / CLAUDE.md, design and contributing docs, and how its code is actually written. Then propose files with \`kit\` in your crew block (see below): one instructions file (\`rules\`, e.g. AGENTS.md: how you always work, your standards, what you never do) and a few focused skills (each one kind of work, a description that says exactly when to use it, then concrete steps, checklists, commands and file paths from this project, not generic advice). 2 to 6 files. To improve one you have, propose it under the same name. Don't write them to disk: wisp shows them to the user, who picks what to add. In your report, list each file and why.` : '');
   return `
 
 ## You are ${m.name}, on the user's crew
@@ -173,7 +285,7 @@ ${m.role ? `Your role: ${m.role}. ` : ''}You are one of the user's long-lived ag
 ### Your brief (from the user)
 
 ${m.brief || '(none yet: do what each job asks)'}
-
+${kitNote(m, files)}
 ### Your notebook
 
 ${m.notebook ? `<notebook>\n${m.notebook}\n</notebook>` : 'Empty so far.'}
@@ -194,6 +306,7 @@ Put one \`crew\` block last in your final message's blocks. wisp reads it and do
 - notebook: the whole notebook rewritten, only to tidy it (it has ${m.notebook.length} characters; keep it under ${NOTEBOOK_SOFT}). Drop what's stale.
 - wakeIn: minutes until wisp should start a check-in (at least ${WAKE_MIN}), when you want to look again sooner than your schedule (a deploy to check on, a run to wait for).
 - quiet: ${job.job === 'checkin' ? 'true when this check-in found nothing the user needs to see: wisp logs it and doesn’t notify them. Leave it out when there is something to report.' : 'only for check-ins; this job is waited on, so always report.'}
+- kit: skills or instructions files you propose for your own kit, when a job asked for that or you found a lasting how-to worth keeping (rarely otherwise): [{"kind":"skill","name":"lowercase-with-dashes","description":"when to use it","body":"markdown steps"},{"kind":"rules","name":"AGENTS.md","body":"markdown"}]. The user reviews them before they're added; the same name replaces yours.
 - followUp: a message wisp sends to the agent working on one of your tasks above, as a follow-up from you (the user sees it in that task, from you). Use it when that agent should act on what you found (fix this, rerun that) or was waiting on you. Its task is one of the ids above (${job.job === 'delegated' ? 'not the one that delegated this job: its agent reads your report' : job.from?.id && (m.links || []).some((l) => l.id === job.from.id) ? `\`${job.from.id}\` is this job's` : 'none for this job'}). wisp adds you to that task's delegates, so its agent can hand the work back to you. At most 3 (a list); only when it helps: your answer already reaches the user.
 Leave out the fields you don't need, and keep secrets out of the notebook.`;
 }
@@ -224,11 +337,14 @@ export function takeCrewBlock(presentation) {
     if (typeof b.notebook === 'string') out.notebook = b.notebook;
     if (Number(b.wakeIn) > 0) out.wakeIn = Number(b.wakeIn);
     if (b.quiet === true) out.quiet = true;
+    if (Array.isArray(b.kit))
+      for (const k of b.kit) if (k && typeof k === 'object') (out.kit ||= []).push({ kind: String(k.kind || ''), name: String(k.name || '').trim().slice(0, 64), description: String(k.description || '').slice(0, 1024), body: String(k.body || '').slice(0, KIT_BODY_MAX) });
     for (const f of [b.followUp].flat())
       if (f && typeof f === 'object' && typeof f.text === 'string' && f.text.trim()) (out.followUps ||= []).push({ task: String(f.task || '').slice(0, 60), text: f.text.trim().slice(0, 4000) });
   }
   out.remember = out.remember.slice(0, 12);
   if (out.followUps) out.followUps = out.followUps.slice(0, 3);
+  if (out.kit) out.kit = out.kit.slice(0, OFFER_FILES);
   if (!presentation.blocks.length) presentation.blocks = [{ type: 'hero', title: 'Nothing new', summary: '', status: 'info' }];
   return out;
 }
@@ -325,7 +441,14 @@ export class Crew {
     // A job here for a member of another wisp carries its note; a member of ours, we write it.
     runner.crewNote = (s) => {
       const m = this.get(s.crew?.id);
-      return m ? crewNote(m, s.crew) : s.crew?.note || '';
+      return m ? crewNote(m, s.crew, m.machine ? null : this.kitFiles(m)) : s.crew?.note || '';
+    };
+    // Its skills' folders, readable by the job (a harness that limits reads to its folders).
+    runner.crewDirs = (s) => {
+      const m = this.get(s.crew?.id);
+      const files = m && !m.machine ? this.kitFiles(m) : null;
+      if (!files) return [];
+      return [...new Set((m.kit || []).filter((k) => k.kind === 'skill' && k.on !== false).flatMap((k) => [path.dirname(files[k.name]), k.path || []].flat()))];
     };
     runner.crewChild = (id) => this.fetched.get(id) || null;
     runner.crewTurn = (s, turn) => this.#turnDone(s, turn);
@@ -361,6 +484,32 @@ export class Crew {
     return this.jobs(m).filter((s) => s.state === 'running' || s.state === 'waiting').length + (this.starting.get(m.id) || 0);
   }
 
+  // Writes the member's skills out as SKILL.md files (<home>/crew/<id>/skills/<name>/) for a job
+  // to read, dropping ones it no longer has. Returns name → file, or null without a home (a stub).
+  kitFiles(m) {
+    if (!this.store.home) return null;
+    const root = path.join(this.store.home, 'crew', m.id, 'skills');
+    const skills = (m.kit || []).filter((k) => k.kind === 'skill' && k.on !== false);
+    const files = {};
+    try {
+      fs.mkdirSync(root, { recursive: true });
+      for (const d of fs.readdirSync(root)) if (!skills.some((k) => k.name === d)) fs.rmSync(path.join(root, d), { recursive: true, force: true });
+      for (const k of skills) {
+        const file = path.join(root, k.name, 'SKILL.md');
+        const text = skillMd(k);
+        if ((fs.existsSync(file) && fs.readFileSync(file, 'utf8')) !== text) {
+          fs.mkdirSync(path.dirname(file), { recursive: true });
+          fs.writeFileSync(file, text);
+        }
+        files[k.name] = file;
+      }
+    } catch (err) {
+      console.warn(`wisp: crew skills for ${m.name}: ${err.message}`);
+      return null;
+    }
+    return files;
+  }
+
   #norm(body, prev) {
     return normalizeMember(body, prev, { taken: this.list, exists: this.exists, machineOk: (id) => !!this.remote?.ok(id) });
   }
@@ -386,6 +535,7 @@ export class Crew {
     this.store.config.crew = this.list.filter((x) => x !== m);
     for (const x of this.list) x.team = (x.team || []).filter((t) => t.crew !== m.id);
     for (const t of this.store.config.triggers || []) if (t.crew === m.id) Object.assign(t, { crew: '', enabled: false, lastError: `${m.name} left your crew.` });
+    if (this.store.home) fs.rmSync(path.join(this.store.home, 'crew', m.id), { recursive: true, force: true });
     this.#changed();
   }
 
@@ -402,12 +552,13 @@ export class Crew {
   // Hand the member a job. Past its parallel limit (or while paused, for anything but your own
   // tasks) it waits in the member's queue. Resolves with { session } or { queued }.
   // tagged: crew members named in the prompt (@Quill), who join this job's delegates.
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [] } = {}) {
+  // kit: the job builds the member's kit (it proposes files; you pick).
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false } = {}) {
     if (!JOBS.has(job)) job = 'task';
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
     const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
-    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(extra.length && { team: extra }), at: this.now() };
+    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), at: this.now() };
     if (from?.id && (job === 'mention' || job === 'delegated')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
       if (m.queue.length >= QUEUE_MAX) throw bad(`${m.name} already has ${QUEUE_MAX} jobs waiting.`, 429);
@@ -422,7 +573,7 @@ export class Crew {
     this.starting.set(m.id, (this.starting.get(m.id) || 0) + 1);
     try {
       if (w.job === 'checkin') Object.assign(m, { checkins: (m.checkins || 0) + 1, lastCheckinAt: this.now() });
-      const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }) };
+      const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.kit && { kit: true }) };
       const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
       if (m.machine) return await this.#startAway(m, body, crew, w.origin);
       const [s] = await this.launch(body, w.origin || null, { crew });
@@ -449,6 +600,23 @@ export class Crew {
     const mine = [...(m.team || []), ...extra.filter((x) => !(m.team || []).some((t) => t.crew === x.crew))];
     const team = normalizeTeam(mine.filter((x) => x.crew !== m.id && !(x.crew && (job === 'delegated' || m.machine))), adapters);
     return team.length ? { subagents: team } : {};
+  }
+
+  // Files a job proposed for the member's kit: kept on the member until you add or dismiss them
+  // (its thread shows them under that job). A follow-up on the job replaces its earlier offer.
+  #offer(m, s, list) {
+    const files = offerFiles(list);
+    if (!files.length) return;
+    const offer = { id: newId(), job: s.id, at: this.now(), files, state: 'open' };
+    m.offers = [offer, ...(m.offers || []).filter((o) => o.job !== s.id)].slice(0, OFFERS_MAX);
+  }
+
+  // You added (taken: the names added) or dismissed an offer.
+  settleOffer(m, id, { state, names = [] }) {
+    const o = (m.offers || []).find((x) => x.id === id);
+    if (!o || !['taken', 'dismissed'].includes(state)) return;
+    Object.assign(o, { state, names: names.filter((n) => typeof n === 'string').map((n) => n.slice(0, 64)).slice(0, OFFER_FILES), settledAt: this.now() });
+    this.#changed();
   }
 
   // A task that tagged or delegated to the member: it may follow up there later (newest first).
@@ -636,6 +804,7 @@ export class Crew {
     const data = takeCrewBlock(turn.presentation);
     // A member of another wisp: its memory lives there, which fetches this turn's block (crewOut).
     if (m) applyMemory(m, data, this.now());
+    if (m && data?.kit) this.#offer(m, s, data.kit);
     if (data) turn.crewOut = data;
     const quiet = !!data?.quiet && s.crew.job === 'checkin' && s.turns.length === 1;
     // An answer to an @mention lands on the task that asked, a delegation's on its lead: the job
@@ -662,6 +831,7 @@ export class Crew {
       if (m.seen.length > SEEN_MAX) m.seen.splice(0, m.seen.length - SEEN_MAX);
       this.fetched.set(s.id, s);
       if (turn.status === 'done') applyMemory(m, turn.crewOut, this.now());
+      if (turn.status === 'done' && turn.crewOut?.kit) this.#offer(m, s, turn.crewOut.kit);
       const quiet = turn.status === 'done' && !!s.archived && s.crew?.job === 'checkin';
       m.log.unshift(logEntry(s, turn, { quiet }));
       m.log.length = Math.min(m.log.length, LOG_MAX);

@@ -216,6 +216,13 @@ export function openapi({ version, port }) {
         get: { summary: 'Your crew: long-lived agents with a name, role, avatar, brief, schedule and memory (notebook, log). Their work runs as tasks (jobs, `crew` on a session summary); running counts jobs now, nextAt is the next check-in', responses: { 200: json({ type: 'array', items: ref('CrewMember') }) } },
         post: { summary: 'Add a crew member. checkin: true starts its first check-in at once', requestBody: body(ref('CrewMember')), responses: { 201: json(ref('CrewMember')), 400: err[400] } },
       },
+      '/crew-kit': {
+        get: {
+          summary: 'Skills (SKILL.md folders in ~/.claude/skills, ~/.agents/skills, …) and instructions files (~/.claude/CLAUDE.md, ~/.codex/AGENTS.md, …) on this computer, to add to a crew member’s kit. cwd: a project’s too',
+          parameters: [{ name: 'cwd', in: 'query', schema: { type: 'string' } }],
+          responses: { 200: json({ type: 'object', properties: { skills: { type: 'array', items: { type: 'object' } }, rules: { type: 'array', items: { type: 'object' } } } }) },
+        },
+      },
       '/crew/{cid}': {
         parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' }, description: 'Crew member id or name' }],
         get: { summary: 'A crew member, with its latest jobs (jobList)', responses: { 200: json(ref('CrewMember')), 404: err[404] } },
@@ -224,7 +231,7 @@ export function openapi({ version, port }) {
       },
       '/crew/{cid}/jobs': {
         parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
-        post: { summary: 'Hand a crew member a job. Past its parallel limit it waits in the member’s queue ({ queued })', requestBody: body({ type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } } } }), responses: { 201: json({ type: 'object', properties: { session: ref('Summary'), queued: { type: 'integer' }, member: ref('CrewMember') } }), 400: err[400] } },
+        post: { summary: 'Hand a crew member a job. Past its parallel limit it waits in the member’s queue ({ queued })', requestBody: body({ type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, kit: { type: 'boolean', description: 'They build their own kit: study the job and the project, then propose skills and instructions files (offers) for you to pick from. prompt is the goal' } } }), responses: { 201: json({ type: 'object', properties: { session: ref('Summary'), queued: { type: 'integer' }, member: ref('CrewMember') } }), 400: err[400] } },
       },
       '/crew/{cid}/checkin': {
         parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
@@ -527,9 +534,19 @@ export function openapi({ version, port }) {
             parallel: { type: 'integer', minimum: 1, maximum: 5, description: 'Jobs at once; more wait in the queue' },
             paused: { type: 'boolean', description: 'No check-ins, triggers or delegations start; your own jobs still do' },
             notebook: { type: 'string', description: 'Their memory, kept by them (a hidden crew block ends each job) and editable by you' },
+            kit: {
+              type: 'array',
+              description: 'Their skills and instructions files. rules (an AGENTS.md) are in every job’s prompt; a skill’s name and description are, and the job reads its SKILL.md when it fits. on: false keeps one without using it',
+              items: { type: 'object', required: ['kind', 'name', 'body'], properties: { id: { type: 'string' }, kind: { enum: ['rules', 'skill'] }, name: { type: 'string' }, description: { type: 'string' }, body: { type: 'string' }, path: { type: 'string', description: 'A skill’s folder on this computer (its scripts and references)' }, on: { type: 'boolean' } } },
+            },
             log: { type: 'array', readOnly: true, items: { type: 'object' }, description: 'One line per finished job, newest first' },
             queue: { type: 'array', items: { type: 'object' }, description: 'Jobs waiting for room' },
             wakeAt: { type: ['integer', 'null'], description: 'A check-in they asked for; null clears it' },
+            offers: {
+              type: 'array',
+              description: 'Skills and instructions files their jobs proposed for their kit (newest first): { id, job, at, files, state: open | taken | dismissed, names }. PATCH offers: [{ id, state, names }] settles them (send the kit with the files you add)',
+              items: { type: 'object' },
+            },
             running: { type: 'integer', readOnly: true },
             nextAt: { type: ['integer', 'null'], readOnly: true },
             checkin: { type: 'boolean', writeOnly: true, description: 'POST /crew: start a first check-in' },

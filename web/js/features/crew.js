@@ -30,6 +30,7 @@ import { placeMenu } from './place-menu.js';
 import { machineById, pathAt, placeName, placesOf } from './places.js';
 import { slotHtml } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
+import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
 
 // The spirits' glows, defined once for the whole page.
 document.body.insertAdjacentHTML('beforeend', spiritDefs());
@@ -379,12 +380,13 @@ export async function removeMember(id, anchor) {
 
 // Hand a member a job. It shows in the thread at once (Starting up) and the box gets its text
 // back if the server refuses.
-export async function sendJob(m, prompt, { restore } = {}) {
+// kit: they build their own kit (crew-kit.js): what they propose comes back under the job.
+export async function sendJob(m, prompt, { restore, kit = false } = {}) {
   const pend = { id: `sending-${Date.now()}`, prompt };
   sending.set(m.id, [...(sending.get(m.id) || []), pend]);
   renderFeed();
   try {
-    const out = await api(`/crew/${m.id}/jobs`, { method: 'POST', body: { prompt } });
+    const out = await api(`/crew/${m.id}/jobs`, { method: 'POST', body: { prompt, ...(kit && { kit: true }) } });
     if (out.member) Object.assign(m, out.member);
     if (out.session && !S.sessions.has(out.session.id)) S.sessions.set(out.session.id, out.session);
     if (!inView(m.id)) toast(out.session ? `Sent to ${esc(m.name)}` : `${esc(m.name)} is busy: it starts when a job finishes`, { action: { label: 'Open', run: () => openMember(m.id, { entry: out.session?.id }) } });
@@ -466,7 +468,7 @@ function origin(s) {
   const link = c.from?.id && S.sessions.has(c.from.id) ? `data-session="${esc(c.from.id)}"` : '';
   const label = {
     checkin: 'Check-in',
-    task: 'You',
+    task: c.kit ? 'You · <b>Build your kit</b>' : 'You',
     mention: from ? `Tagged in <button class="cv-from" ${link}>“${from}”</button>` : 'Tagged in a task',
     delegated: from ? `Delegated by <button class="cv-from" ${link}>“${from}”</button>` : 'Delegated',
     trigger: from ? `Trigger <b>${from}</b>` : 'Trigger',
@@ -499,6 +501,7 @@ function jobHtml(m, s, { follow = false } = {}) {
           <div class="cv-head">${pill}${s.machine ? `<span class="cv-where">${icon('server')}${esc(s.machine.name)}</span>` : ''}</div>
           ${say}
           ${sent ? `<div class="cv-sents">${sent}</div>` : ''}
+          ${live || asks ? '' : offerHtml(m, (m.offers || []).find((o) => o.job === s.id))}
           <div class="cv-acts">
             <button class="ghost xs" data-open="${esc(s.id)}">${icon('expand')}Open job</button>
             ${live || asks ? '' : `<button class="ghost xs" data-follow>${icon('enter')}Follow up</button>`}
@@ -592,7 +595,7 @@ function buildView(id) {
     // Keyed: an unchanged entry stays put (its spirit keeps moving, an answer being typed stays).
     want.forEach((w, i) => {
       let n = [...thread.children].find((c) => c.dataset.key === w.key);
-      const busy = n && n.contains(document.activeElement) && document.activeElement.value;
+      const busy = n && n.contains(document.activeElement) && document.activeElement.type !== 'checkbox' && document.activeElement.value; // an answer being typed
       if (n && n.dataset.h !== w.html && !busy) {
         const next = el(w.html);
         next.dataset.key = w.key;
@@ -644,6 +647,8 @@ function buildView(id) {
   node.addEventListener('click', (e) => {
     const m = memberById(id);
     if (!m) return;
+    if (e.target.closest('.cv-kit')) return kitClick(e, m, patchMember, sendJob);
+    if (e.target.closest('.cv-offer')) return offerClick(e, m, patchMember, paint);
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'close') return closeMember();
     if (a === 'checkin') return checkIn(id);
@@ -718,6 +723,27 @@ function buildView(id) {
       $('.cv-dock', node).requestSubmit();
     }
   });
+  // .md files dropped on Skills and instructions join the member's kit.
+  node.addEventListener('dragover', (e) => {
+    const kit = e.target.closest?.('.cv-kit');
+    if (!kit || !e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation(); // not the page's own drop (attachments)
+    kit.classList.add('drop');
+  });
+  node.addEventListener('dragleave', (e) => {
+    const kit = e.target.closest?.('.cv-kit');
+    if (kit && !kit.contains(e.relatedTarget)) kit.classList.remove('drop');
+  });
+  node.addEventListener('drop', (e) => {
+    const kit = e.target.closest?.('.cv-kit');
+    const m = memberById(id);
+    if (!kit || !m || !e.dataTransfer?.files.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    kit.classList.remove('drop');
+    addFiles(m, patchMember, [...e.dataTransfer.files]);
+  });
   about.addEventListener('toggle', () => {
     if (!node.classList.contains('wide')) about.dataset.user = about.open ? '1' : '';
   });
@@ -755,6 +781,7 @@ function paintSide(m, st, side) {
       ${noting.has(m.id) ? '<textarea class="textarea cv-notebook" spellcheck="false" placeholder="What they should keep in mind between jobs. They add to it as they work."></textarea>' : clipped(m.notebook, 'note', m.id, 'Empty so far. They add to it as they work; you can write in it too.')}
     </div>
     <div class="cv-sec"><h5>Brief <button class="link xs" data-a="edit">Edit</button></h5>${clipped(m.brief, 'brief', m.id, 'No brief: they do what each job asks.')}</div>
+    ${kitHtml(m)}
     ${m.links?.length ? `<div class="cv-sec"><h5>Part of</h5><div class="cv-links">${m.links.slice(0, 6).map((l) => `<button class="cv-link" data-session="${esc(l.id)}" ${S.sessions.has(l.id) ? '' : 'disabled'}><span>${esc(l.title || 'A task')}</span>${icon('chevron')}</button>`).join('')}</div></div>` : ''}`;
   const key = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
   if (side.dataset.h !== key) {

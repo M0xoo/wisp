@@ -32,7 +32,7 @@
 // A prompt with NARRATE makes claude say a long message and run a command that prints something
 // (what the transcript shows).
 // A crew member's job: CREWQUIET in its brief makes a check-in quiet; CREWNOTE in the prompt
-// remembers a fact and asks for a wake-up (a `crew` block); CREWFOLLOW follows up on the task that
+// remembers a fact and asks for a wake-up (a `crew` block); CREWKIT proposes kit files; CREWFOLLOW follows up on the task that
 // tagged it.
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
@@ -300,6 +300,9 @@ const final = (answer) => {
   if (crewBrief && stdin.includes('CREWNOTE')) blocks.push({ type: 'crew', remember: ['deploy is v2'], wakeIn: 30 });
   // CREWFOLLOW: the member follows up on the task that tagged it, by itself.
   if (crewBrief && stdin.includes('CREWFOLLOW')) blocks.push({ type: 'crew', followUp: { text: 'Please rerun the tests after my note.' } });
+  // CREWKIT: the member proposes files for its kit (one of them unusable: no description).
+  if (crewBrief && stdin.includes('CREWKIT'))
+    blocks.push({ type: 'crew', kit: [{ kind: 'skill', name: 'UI Review', description: 'Reviewing a UI change.', body: '1. Open it at 390px.' }, { kind: 'rules', name: 'AGENTS.md', body: 'Tokens only.' }, { kind: 'skill', name: 'nope', body: 'x' }] });
   return 'All done.\n```wisp\n' + JSON.stringify({ blocks }) + '\n```';
 };
 
