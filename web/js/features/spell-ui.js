@@ -38,6 +38,14 @@ export const EXAMPLES = [
   'Codex tasks always run the linter before they report',
 ];
 
+// A spell that brought crew members: keep them as yours, or remove them with it ('keep' |
+// 'remove', null to stop). Without any, 'keep'.
+async function crewChoice(id, anchor) {
+  const s = await api(`/spells/${encodeURIComponent(id)}`).catch(() => null);
+  if (!s?.crew?.length) return 'keep';
+  return (await import('./crew-share.js')).crewWithSpell(s, anchor);
+}
+
 // --- the spell block -------------------------------------------------------------------------
 
 function previewButtons(spell) {
@@ -76,8 +84,10 @@ registerBlock('spell', (b, ctx) => {
     const node = el(`<div class="b-spell card"><div class="sp-head">${icon('wizard')}<b>Remove the spell ${esc(have?.name || b.remove)}</b></div><p class="sp-desc">Turns it off and deletes it. Whatever it changed goes back to how wisp was.</p><div class="sp-acts"><button class="ghost sm danger" data-a="rm">${icon('trash')}Remove</button></div></div>`);
     $('[data-a="rm"]', node).onclick = async (e) => {
       const btn = e.currentTarget;
+      const crew = await crewChoice(b.remove, btn);
+      if (!crew) return;
       btn.disabled = true;
-      const r = await tryApi(() => api(`/spells/${encodeURIComponent(b.remove)}`, { method: 'DELETE' }));
+      const r = await tryApi(() => api(`/spells/${encodeURIComponent(b.remove)}${crew === 'remove' ? '?crew=remove' : ''}`, { method: 'DELETE' }));
       if (r) (btn.innerHTML = `${icon('check')}Removed`), bus.emit('spells:changed');
       else btn.disabled = false;
     };
@@ -371,9 +381,11 @@ export function spellsPane(section) {
       return toast('Copied. Paste it to a colleague; they add it in Settings → Spells');
     }
     if (a === 'remove') {
+      const crew = await crewChoice(id, b);
+      if (!crew) return;
       const row = b.closest('.sp-row');
       row.hidden = true; // optimistic
-      const r = await tryApi(() => api(`/spells/${id}`, { method: 'DELETE' }));
+      const r = await tryApi(() => api(`/spells/${id}${crew === 'remove' ? '?crew=remove' : ''}`, { method: 'DELETE' }));
       if (!r) row.hidden = false;
       else bus.emit('spells:changed');
     }

@@ -10,6 +10,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { guides } from './guides.mjs';
+import { TEMPLATES } from '../web/js/crew-templates.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DOCS = path.join(ROOT, 'docs');
@@ -728,6 +729,9 @@ export function build(out = DOCS) {
     fs.mkdirSync(path.dirname(path.join(out, p.file)), { recursive: true });
     fs.writeFileSync(path.join(out, p.file), p.html);
   }
+  // The crew templates as files to import (wisp crew import https://trywisp.dev/crew/ci.crew.json).
+  fs.mkdirSync(path.join(out, 'crew'), { recursive: true });
+  for (const t of TEMPLATES) fs.writeFileSync(path.join(out, 'crew', `${t.key}.crew.json`), `${JSON.stringify({ wispCrew: 1, members: [t] }, null, 2)}\n`);
   // The crew section draws the app's own spirits (docs/crew.js imports it).
   fs.copyFileSync(path.join(ROOT, 'web/js/spirit.js'), path.join(out, 'spirit.js'));
   const urls = pages.filter((p) => !p.noindex).map((p) => `  <url>\n    <loc>${SITE}${p.path}</loc>\n    <lastmod>${lastmod(p.sources)}</lastmod>\n    <priority>${p.priority}</priority>\n  </url>`);

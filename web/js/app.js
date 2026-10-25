@@ -24,6 +24,7 @@ import { promptFab } from './features/fab.js';
 import { openSettings, telemetryNotice } from './features/settings.js';
 import { installUpdate, loadUpdate } from './features/update.js';
 import { routeSpell } from './features/spell-ui.js';
+import { routeCrew } from './features/crew-share.js';
 import './features/spells.js';
 import './features/tips.js';
 
@@ -89,7 +90,7 @@ paintGetApp();
 // #/s/<id> (notifications, CLI, links, the address bar) opens that task; from then on the address
 // follows the open task (syncUrl).
 function route() {
-  const m = !routeSpell() && location.hash.match(/^#\/s\/(\w+)/); // #/spell?src=…: a shared spell to review
+  const m = !routeSpell() && !routeCrew() && location.hash.match(/^#\/s\/(\w+)/); // #/spell?src=…: a shared spell to review
   if (m) reveal(m[1]);
   syncUrl({ start: true });
 }

@@ -45,7 +45,7 @@
   border-color: var(--accent); background-color: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft);
 }
 :is(.input, .textarea, .field input)::placeholder { color: var(--faint); }
-:is(.input, .textarea, select):disabled { opacity: 0.55; cursor: not-allowed; }
+:is(.input, .textarea, select, .field input):disabled { opacity: 0.55; cursor: not-allowed; }
 :is(.input, .textarea, select):is([aria-invalid='true'], :user-invalid) { border-color: var(--bad); }
 :is(.input, .textarea, select):is([aria-invalid='true'], :user-invalid):focus { box-shadow: 0 0 0 3px var(--del-bg); }
 .textarea { display: block; height: auto; min-height: 64px; padding: 7px 10px; line-height: 1.5; resize: vertical; }

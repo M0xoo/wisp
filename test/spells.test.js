@@ -172,6 +172,11 @@ test('the crew: its section, rows, faces, page and editor are parts; the page ta
   // Skills and instructions: the section and its editor.
   assert.deepEqual(problems({ ...base0, parts: { 'crew.kit': { hide: true }, 'crew.kitEditor': { style: { width: '900px' } }, 'crew.notebookEditor': { style: { width: '900px' } }, 'crew.kitGenerate': { hide: true }, 'crew.offer': { style: { padding: '4px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'crew.kits': { hide: true } } }).some((x) => /crew\.kits/.test(x)));
+  // Sharing: Share, and Import with its review. Never the review that gates a spell's own members,
+  // nor the note saying which spell a member is from.
+  assert.deepEqual(problems({ ...base0, parts: { 'crew.share': { style: { width: '700px' } }, 'crew.import': { style: { width: '800px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['crew.review'] } }).some((x) => /crew\.review isn't a part/.test(x)));
+  assert.ok(problems({ ...base0, parts: { 'crew.spellNote': { hide: true } } }).some((x) => /crew\.spellNote/.test(x)));
 });
 
 test('take over in wisp: the terminal setting, its parts, font size and header slot', () => {
@@ -273,6 +278,26 @@ test('describeSpell says what a spell does and how risky it is', () => {
   assert.equal(describeSpell(ex2).kind, 'runs');
   assert.match(describeSpell(ex('my-prs')).lines.join('\n'), /A floating button “My PRs” that opens every link in prs/);
   assert.match(describeSpell(ex('my-prs')).lines.join('\n'), /Reads GitHub: `gh search prs/);
+});
+
+test('crew: members a spell brings, each a blueprint; risk by what starts them; no paths', () => {
+  const member = { key: 'quill', name: 'Quill', role: 'PR reviewer', brief: 'Review PRs.', mode: 'plan' };
+  assert.deepEqual(problems({ ...base0, crew: [member] }), []);
+  const on = (x) => describeSpell(normalizeSpell({ ...base0, crew: [{ ...member, ...x }] }).spell);
+  assert.equal(on({}).kind, 'acts', 'on call, in Plan: acts only when you hand it work');
+  assert.equal(on({ cron: '0 * * * *' }).kind, 'runs', 'a schedule starts jobs on its own');
+  assert.equal(on({ on: ['finished'] }).kind, 'runs', 'so do events');
+  assert.equal(on({ mode: 'auto' }).kind, 'runs', 'and Full auto runs commands');
+  assert.match(on({ cron: '0 * * * *', on: ['ci'] }).lines.join('\n'), /A crew member, Quill · PR reviewer: works hourly, when CI fails, in Plan mode\. Joins paused/);
+  assert.ok(problems({ ...base0, crew: [{ ...member, cwd: '/Users/me/repo' }] }).some((x) => /crew\[0\] \(Quill\): cwd: a shared member has no folder/.test(x)));
+  assert.ok(problems({ ...base0, crew: [{ ...member, cron: 'hourly' }] }).some((x) => /cron: A schedule needs 5 fields/.test(x)));
+  assert.ok(problems({ ...base0, crew: [{ ...member, kit: [{ kind: 'skill', name: 'x', body: 'y' }] }] }).some((x) => /kit: Say when x should be used/.test(x)));
+  assert.ok(problems({ ...base0, crew: [{ ...member, on: ['issues'] }] }).some((x) => /on: issues isn't one of/.test(x)));
+  assert.ok(problems({ ...base0, crew: Array.from({ length: 11 }, (_, i) => ({ name: `M${i}` })) }).some((x) => /crew: at most 10 members/.test(x)));
+  assert.ok(problems({ ...base0, crew: [member, { ...member }] }).some((x) => /two members share/.test(x)));
+  // The worked example the Cast a spell agent sees is one.
+  assert.equal(SPELL_EXAMPLES.find((e) => e.spell.crew)?.spell.crew[0].name, 'Quill');
+  assert.match(JSON.stringify(spellReference().fields.crew), /They join paused/);
 });
 
 test('scopes: project, harness and mode', () => {

@@ -151,6 +151,14 @@ async function callTool(name, a = {}) {
       return list.length ? list.map(memberLine).join('\n') : 'No crew yet. Add a member with wisp_crew_add.';
     }
     case 'wisp_crew_add': {
+      if (a.from) {
+        const from = String(a.from).trim();
+        const src = /^(https:|gist:)/i.test(from) ? { url: from } : { text: from };
+        const review = await c.importCrew({ ...src, dryRun: true });
+        if (review.spell) return 'That is a spell, not a crew file: add it with `wisp spell install`.';
+        const r = await c.importCrew({ ...src, choices: Object.fromEntries(review.members.map((x) => [x.key, { cwd: a.cwd ?? process.cwd() }])) });
+        return `Added ${r.members.map((m) => m.name).join(', ')} to the crew, paused until the user resumes them.\n\n${r.members.map(memberLine).join('\n')}`;
+      }
       const fields = pick(a);
       const m = await c.addCrew({ ...fields, cwd: fields.cwd ?? process.cwd(), checkin: a.checkin === true });
       return `Added ${m.name} to the crew.\n\n${memberLine(m)}${m.session ? `\n\nTheir first check-in is running (session \`${m.session.id}\`).` : ''}`;

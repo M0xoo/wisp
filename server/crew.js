@@ -43,7 +43,7 @@ const LINKS_IN_PROMPT = 8;
 const QUEUE_MAX = 20;
 const WAKE_MIN = 5; // minutes
 const WAKE_MAX = 7 * 24 * 60;
-const NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,23}$/u;
+export const NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,23}$/u;
 const PLACE = /^[\w-]{1,40}$/; // a machine id
 const NOTE_MAX = 60_000;
 const SEEN_MAX = 200;
@@ -52,6 +52,13 @@ const OFFER_FILES = 12;
 const ID = /^[a-z0-9]{6,40}$/;
 // The kept parts of a job's report, for the log, a lead and an @mention's answer.
 const KEEP = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tests', 'commits', 'checklist', 'callout', 'question', 'next']);
+
+// A member a spell brings (m.spell = { id, key, name, def }): the spell owns who they are, these
+// fields of its blueprint (server/crew-share.js); the rest (project, machine, harness, model,
+// effort, how many at once, paused) is yours. A spell changing REVIEWED ones pauses the member
+// until you've seen the change (m.changed = { from: the old definition, or null for a new member }).
+export const DEFINITION = ['name', 'role', 'avatar', 'color', 'brief', 'cron', 'on', 'mode', 'kit', 'team'];
+export const REVIEWED = ['brief', 'kit', 'cron', 'on', 'mode'];
 
 // How a mention of a member is stored in a prompt (the page's prompt boxes make these; a plain
 // `@Ada` typed anywhere works too).
@@ -121,7 +128,7 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
 
 // A spirit's code ("flame.teal.visor.smile.antenna"), or an emoji of a few code points.
 const SPIRIT = /^[a-z]{1,12}(\.[a-z]{1,12}){4}$/;
-const avatarOf = (a) => (SPIRIT.test(String(a || '')) ? String(a) : [...String(a || '').trim()].slice(0, 4).join(''));
+export const avatarOf = (a) => (SPIRIT.test(String(a || '')) ? String(a) : [...String(a || '').trim()].slice(0, 4).join(''));
 
 // Its kit (web/js/skill-md.js): instructions files it follows on every job, and skills it reads
 // when a job fits one's description. A skill imported from this computer keeps its folder (path),
@@ -228,7 +235,7 @@ export function localKit({ home, cwd = '' }) {
   return { skills, rules };
 }
 
-function clampNotebook(text) {
+export function clampNotebook(text) {
   let t = String(text || '').replace(/\r\n/g, '\n').trim();
   // Over the cap: the oldest lines go first (new facts are appended at the end).
   while (t.length > NOTEBOOK_MAX && t.includes('\n')) t = t.slice(t.indexOf('\n') + 1);
@@ -532,8 +539,18 @@ export class Crew {
     return m;
   }
 
-  update(m, body) {
+  // bySpell: the spell applying its blueprint (server/crew-share.js), past the lock on what it owns.
+  update(m, body, { bySpell = false } = {}) {
     const wasPaused = m.paused;
+    if (m.spell && !bySpell) {
+      const owned = DEFINITION.filter((k) => k !== 'on' && body[k] !== undefined && JSON.stringify(body[k]) !== JSON.stringify(m[k]));
+      if (owned.length) throw bad(`${m.name} comes from the “${m.spell.name}” spell, which sets their ${owned.join(', ')}. Make them yours first (Make it mine).`, 409);
+    }
+    // A member whose spell changed what they do resumes only once you've seen the change.
+    if (m.changed && m.paused && body.paused === false && !bySpell) {
+      if (body.accept !== true) throw bad(`${m.spell ? `The “${m.spell.name}” spell` : 'Their spell'} changed what ${m.name} does: review it before they resume.`, 409);
+      delete m.changed;
+    }
     Object.assign(m, this.#norm(body, m));
     this.#changed();
     if (wasPaused && !m.paused) this.drain(m);
@@ -873,6 +890,17 @@ export class Crew {
     if (turn.status === 'done') this.#sendFollowUps(m, s, turn.crewOut?.followUps);
     this.#changed();
     setImmediate(() => this.drain(m));
+  }
+
+  // Make a spell's member yours: everything about them becomes editable, and the spell no longer
+  // changes them (a review it asked for still stands).
+  detach(m) {
+    delete m.spell;
+    this.#changed();
+  }
+
+  changed() {
+    this.#changed();
   }
 
   #changed() {

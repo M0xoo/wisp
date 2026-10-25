@@ -15,6 +15,7 @@ import {
   ghProblem, kebab, scriptBody, scriptExports, styleProblem, wispPathProblem,
 } from '../web/js/spell-schema.js';
 import { normalizeRecipe } from './recipes.js';
+import { normalizeBlueprints, SPELL_CREW_MAX } from './crew-share.js';
 import { bad, clip, truncate, writeJsonAtomic } from './util.js';
 
 const ID = /^[a-z0-9][a-z0-9-]{0,40}$/;
@@ -109,7 +110,7 @@ export function normalizeSpell(raw) {
   if (!ID.test(id)) p.at_('id', 'lowercase letters, digits and dashes, starting with a letter or digit (at most 41)');
   const name = str(j.name, 60).trim();
   if (!name) p.at_('name', 'required');
-  const known = new Set(['wispSpell', 'id', 'name', 'version', 'description', 'author', 'wisp', 'harnesses', 'when', 'data', 'buttons', 'chips', 'panels', 'blocks', 'parts', 'ui', 'prompt', 'settings', 'slash', 'commands', 'hooks', 'recipes', 'script']);
+  const known = new Set(['wispSpell', 'id', 'name', 'version', 'description', 'author', 'wisp', 'harnesses', 'when', 'data', 'buttons', 'chips', 'panels', 'blocks', 'parts', 'ui', 'prompt', 'settings', 'slash', 'commands', 'hooks', 'recipes', 'crew', 'script']);
   const warnings = Object.keys(j).filter((k) => !known.has(k)).map((k) => `${k}: not something spells know about yet, ignored`);
 
   // script: plain JS whose exported functions render panels, chips and blocks in the sandbox.
@@ -346,6 +347,15 @@ export function normalizeSpell(raw) {
     }
   });
 
+  // crew: members the spell brings (server/crew-share.js), each a blueprint. They join paused.
+  let crew = [];
+  if (arr(j.crew).length > SPELL_CREW_MAX) p.at_('crew', `at most ${SPELL_CREW_MAX} members`);
+  try {
+    crew = normalizeBlueprints(arr(j.crew).slice(0, SPELL_CREW_MAX), 'crew');
+  } catch (err) {
+    p.push(err.message);
+  }
+
   if (p.length) throw Object.assign(bad(`This spell has ${p.length} problem${p.length > 1 ? 's' : ''}:\n- ${p.join('\n- ')}`), { problems: [...p] });
 
   return {
@@ -372,6 +382,7 @@ export function normalizeSpell(raw) {
       ...(commands.length && { commands }),
       ...(hooks.length && { hooks }),
       ...(recipes.length && { recipes: recipes.map(({ spell, ...r }) => r) }),
+      ...(crew.length && { crew }),
       ...(script && { script }),
     },
     warnings,
@@ -394,6 +405,10 @@ export function scopeMatches(scope, { project, agent, mode, cwd } = {}) {
   if (scope.project && !scope.project.some((x) => x === project?.name || x === project?.id || (x.startsWith('/') && String(cwd || '').startsWith(x)))) return false;
   return true;
 }
+
+const CRON_WORDS = { '*/30 * * * *': 'every 30 min', '0 * * * *': 'hourly', '0 9 * * 1-5': 'weekday mornings', '0 9 * * *': 'every morning', '0 9 * * 1': 'on Mondays' };
+const ON_WORDS = { finished: 'when a task finishes', done: 'when a task is marked done', ci: 'when CI fails' };
+const MODE_WORDS = { plan: 'Plan', edits: 'Edits', auto: 'Full auto' };
 
 // What a spell does, in plain words, with the riskiest kind it reaches (for the review badges).
 export function describeSpell(s) {
@@ -445,6 +460,12 @@ export function describeSpell(s) {
     lines.push(`On its own, when ${h.on.replace('.', ' ')}${Object.keys(h.if).length ? ` (${Object.entries(h.if).map(([k, v]) => `${k}: ${v}`).join(', ')})` : ''}: ${act(h.do)}, at most ${h.max}× per task`);
   }
   for (const r of s.recipes || []) lines.push(`A recipe “${r.name}”`);
+  // A member that starts jobs on its own (a schedule, events) or works in Full auto can run commands.
+  for (const b of s.crew || []) {
+    bump(b.cron || b.on.length || b.mode === 'auto' ? 'runs' : 'acts');
+    const when = [b.cron ? CRON_WORDS[b.cron] || `on \`${b.cron}\`` : '', ...b.on.map((k) => ON_WORDS[k])].filter(Boolean).join(', ') || 'only when asked';
+    lines.push(`A crew member, ${b.name}${b.role ? ` · ${b.role}` : ''}: works ${when}, in ${MODE_WORDS[b.mode]} mode${b.kit.length ? `, with ${b.kit.length} skill${b.kit.length > 1 ? 's and instructions files' : ' or instructions file'}` : ''}. Joins paused`);
+  }
   for (const [k, d] of Object.entries(s.data || {})) {
     if (d.gh) bump('reads');
     lines.push(d.gh ? `Reads GitHub: \`gh ${d.gh.join(' ')}\`` : `Reads wisp's ${d.wisp}`);

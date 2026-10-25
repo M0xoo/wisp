@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Share a crew member, or your whole crew.** **Share…** on a member (its ⋯ menu, right-click, ⌘K) gives who they are: name, face, brief, schedule, what starts them, mode, harness, delegates and, if you tick them, their skills and instructions and notebook. Their project, computer, log and jobs stay with you. **Copy** it, **Download** a `.crew.json`, **Create a gist** (secret, after you confirm) or save it **As a spell**. A scan for keys and tokens blocks a share that holds one and says where. On the phone, Share offers Copy and the gist.
+- **Import someone's crew member.** Drop a `.crew.json` on wisp, paste it or a link (https, `gist:<id>`) in **Import crew members…** (⌘K, or *Import…* under *Start from* when adding a member), run `wisp crew import`, or ask an agent (*add the member from gist:abc123*). A review shows each member with the name they get (*Scout 2* when the name's taken), their harness here, their brief and kit, and their project; one that starts when CI fails needs one. They join paused, with their triggers. Also `wisp crew` and `wisp crew export`, and `POST /crew/import` / `POST /crew/export`.
+- **Spells can bring crew members.** `crew` in a spell is a list of members, each with a brief, schedule, events, mode, kit and delegates. They join paused; the first **Resume** shows what they do and asks for their project. The spell keeps them up to date, and an update that changes what they do pauses them until **Resume** has shown you the change. Switched off, they leave the crew and come back as they were. **Make it mine** lets a member go from its spell; removing the spell asks whether to keep them. A spell with a member that starts on its own is marked *Runs commands*. Spells reach Share and Import as `crew.share` and `crew.import`; the review that gates a spell's own members can't be restyled or hidden.
+
 ### Changed
 
 - **A crew member's details fit the window without scrolling.** One line per fact, Check in now / Edit… / Remove in a row, shorter notebook and brief previews (Show all opens the rest), and one line per skill.

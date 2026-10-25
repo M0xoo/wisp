@@ -356,6 +356,8 @@ const ask = async () => {
     return `${added.split('\n')[0]} | ${list.split('\n')[0]}`;
   }
   if (stdin.includes('CREWEDIT') && srv) return (await mcpCall(srv, 'wisp_crew_edit', { member: '@quill', role: 'Docs lead', paused: true })).split('\n').join(' ');
+  // CREWIMPORT: the user gave a shared crew file.
+  if (stdin.includes('CREWIMPORT') && srv) return (await mcpCall(srv, 'wisp_crew_add', { from: JSON.stringify({ wispCrew: 1, members: [{ name: 'Iris', role: 'Importer', brief: 'Came in a file.', on: ['finished'] }] }) })).split('\n')[0];
   if (stdin.includes('CREWFIRE') && srv) return (await mcpCall(srv, 'wisp_crew_remove', { member: 'Quill' })).split('\n')[0];
   if (stdin.includes('STATS') && srv) {
     const text = await mcpCall(srv, 'wisp_stats', { days: 7, agent: 'claude' });

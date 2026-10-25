@@ -4,7 +4,9 @@
 import { summarize } from '../runner.js';
 import { bad } from '../util.js';
 import { splitId } from '../machines.js';
-import { crewMentions, localKit } from '../crew.js';
+import { crewMentions, localKit, MAX_CREW } from '../crew.js';
+import { applyImport, createGist, exportCrew, parseCrewFile, planImport } from '../crew-share.js';
+import { fetchShared } from './spells.js';
 import os from 'node:os';
 
 export function register(r, app) {
@@ -21,6 +23,11 @@ export function register(r, app) {
   // work. When that's refused (CI with no project), a new member goes and an edit is undone.
   const syncOn = (m, body, { prevCwd, undo }) => {
     if (!Array.isArray(body.on)) return;
+    // A spell's member: the spell says what starts them (Resume sends that, to make its triggers).
+    if (m.spell && JSON.stringify([...new Set(body.on)].sort()) !== JSON.stringify(m.spell.def.on)) {
+      undo();
+      throw bad(`${m.name} comes from the “${m.spell.name}” spell, which sets what starts them. Make them yours first (Make it mine).`, 409);
+    }
     try {
       app.triggers.syncMember(m, body.on, { prevCwd });
     } catch (err) {
@@ -86,6 +93,60 @@ export function register(r, app) {
       c.send(201, started(m, out));
     }),
   );
+
+  // Make a spell's member yours: the spell no longer changes them, and you can change anything.
+  r.route(
+    'POST',
+    '/crew/:id/detach',
+    member((c, m) => {
+      if (!m.spell) throw bad(`${m.name} is already yours.`);
+      crew.detach(m);
+      c.send(200, crew.view(m));
+    }),
+  );
+
+  // Share members (ids: ids, names or handles): the .crew.json file, notes on what stays here, and
+  // with gist: true a secret gist of it. Nothing leaves while the secret scan finds anything.
+  r.route('POST', '/crew/export', async (c) => {
+    const body = await c.body();
+    const out = exportCrew(crew, body.ids, { kit: body.kit !== false, notebook: body.notebook === true, team: body.team === true });
+    if (out.hits.length) {
+      const where = out.hits.map((h) => `${h.what} in ${h.where}, line ${h.line}`);
+      return c.send(422, { error: `That looks like a secret: ${where.join('; ')}. Take it out before you share.`, hits: out.hits });
+    }
+    const names = out.bundle.members.map((b) => b.name).join(', ');
+    const gist = body.gist === true ? await createGist(out.bundle, out.file, { description: `${names}: ${out.bundle.members.length > 1 ? 'wisp crew members' : 'a wisp crew member'}` }) : null;
+    app.telemetry?.track('crew_shared', { members: out.bundle.members.length, gist: !!gist, notebook: body.notebook === true });
+    c.send(200, { bundle: out.bundle, notes: out.notes, file: out.file, ...(gist && { gist }) });
+  });
+
+  // Add shared members ({ text } pasted or a file's text, { url } https or gist:<id>, or { bundle }).
+  // dryRun: the review: who joins, as what name, on which harness, and who needs a project.
+  // choices: { [key]: { name, cwd, skip } } from the review. They join paused. A spell answers
+  // { spell } instead, for the spell review.
+  r.route('POST', '/crew/import', async (c) => {
+    const body = await c.body();
+    let json = body.bundle;
+    let source = { kind: 'file' };
+    if (body.url) ({ json, source } = await fetchShared(body.url, 'crew'));
+    else if (typeof body.text === 'string') {
+      try {
+        json = JSON.parse(body.text);
+      } catch (err) {
+        throw bad(`That isn't JSON (or a link): ${err.message}`);
+      }
+    }
+    if (!json) throw bad('Paste a crew file, or a link to one (https or gist:<id>).');
+    const parsed = parseCrewFile(json);
+    if (parsed.spell) return c.send(200, { spell: parsed.spell, source });
+    const agents = (await app.auto?.agents?.().catch(() => null)) || [];
+    const choices = body.choices && typeof body.choices === 'object' ? body.choices : {};
+    const plan = planImport(parsed.members, { crew, agents, choices });
+    if (body.dryRun === true) return c.send(200, { members: plan, source, room: MAX_CREW - crew.list.length });
+    const made = applyImport(plan, { crew, triggers: app.triggers });
+    app.telemetry?.track('crew_imported', { members: made.length, source: source.kind });
+    c.send(201, { members: made.map((m) => crew.view(m)) });
+  });
 
   // You reply to a member's answer on a task: its job carries on, the answer lands under yours.
   r.route('POST', '/sessions/:id/crew-reply', async (c) => {

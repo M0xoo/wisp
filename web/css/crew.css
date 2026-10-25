@@ -447,3 +447,111 @@ body.wisp-mobile .cv-bar .send { min-width: 44px; height: 44px; }
 body.wisp-mobile .cv-asks .opt { min-height: 44px; }
 body.wisp-mobile .cv-inline :is(.input, button) { height: 44px; }
 body.wisp-mobile .cv-sent { height: 36px; }
+
+/* ---------- sharing (crew-share.js): Share, Import and its review, a spell member's review ---------- */
+.crew-share { width: min(520px, 100%); }
+.crew-import { width: min(640px, 100%); }
+.crew-review { width: min(580px, 100%); }
+.cs-who { display: flex; align-items: center; gap: 10px; }
+.cs-face { flex: none; display: block; }
+.cs-face + .cs-face { margin-left: -16px; }
+.cs-name { display: flex; flex-direction: column; min-width: 0; margin-left: 2px; }
+.cs-name b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.cs-name small { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(.crew-share, .crew-review) > .hint { margin: 10px 0 14px; }
+.cs-opts { display: flex; flex-direction: column; gap: 10px; padding: 12px 0 2px; border-top: 1px solid var(--line); }
+.cs-opts .check { align-items: flex-start; }
+.cs-opts .check input { flex: none; margin: 2px 0 0; }
+.cs-opts .check small { display: block; font-size: 12px; color: var(--faint); }
+.cs-opts .check:has(input:disabled) { opacity: 0.55; cursor: default; }
+.cs-out { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.cs-out:empty { display: none; }
+:is(.cs-note, .ci-note, .cs-bad) { display: flex; gap: 7px; margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+:is(.cs-note, .ci-note, .cs-bad) .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--faint); }
+.cs-bad { padding: 8px 10px; border-radius: var(--radius); color: var(--ink-2); background: color-mix(in srgb, var(--bad) 9%, transparent); }
+.cs-bad .i { color: var(--bad); }
+.cs-gist { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); font-size: 12.5px; color: var(--ink-2); }
+.cs-gist > span { flex: 1; min-width: 200px; }
+.cs-gist > .i { flex: none; width: 14px; height: 14px; color: var(--good); }
+.cs-gist code, .ci-src code { font-size: 11.5px; padding: 1px 5px; border-radius: 5px; background: var(--bg-2); }
+:is(.crew-share, .crew-import, .crew-review) .ce-foot { margin-top: 14px; }
+
+.modal .ci-src { margin: -6px 0 12px; }
+.ci-list { display: flex; flex-direction: column; gap: 10px; max-height: min(58vh, 560px); overflow: auto; }
+.ci-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.ci-card.skip :is(.ci-main, .ci-face) { opacity: 0.45; }
+.ci-pick { flex: none; padding-top: 10px; cursor: pointer; }
+.ci-pick input { margin: 0; }
+.ci-face { flex: none; display: block; }
+.ci-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.ci-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.ci-name { width: 180px; max-width: 100%; font-weight: 600; }
+.ci-role { font-size: 12.5px; color: var(--muted); }
+:is(.ci-facts, .cr-facts) { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+:is(.ci-facts, .cr-facts) > span { display: inline-flex; align-items: center; gap: 5px; }
+:is(.ci-facts, .cr-facts) .i { width: 12px; height: 12px; color: var(--faint); }
+.ci-facts .cv-logo { display: grid; place-items: center; width: 13px; height: 13px; }
+.ci-facts .cv-logo > * { width: 13px; height: 13px; }
+.ci-more summary { width: fit-content; font-size: 12px; color: var(--muted); cursor: pointer; }
+.ci-more summary:hover { color: var(--ink); }
+.ci-more .prose { margin-top: 6px; font-size: 12.5px; max-height: 180px; overflow: auto; }
+.ci-kit { display: flex; flex-wrap: wrap; gap: 6px; }
+.ci-more .ci-kit { margin-top: 8px; }
+.ci-kit > span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--bg-2); font: 500 11.5px/1.5 var(--mono); color: var(--ink-2); }
+.ci-kit .i { width: 11px; height: 11px; color: var(--faint); }
+.ci-kit .cr-plus .i { color: var(--good); }
+.ci-kit .cr-minus { color: var(--muted); text-decoration: line-through; }
+.ci-proj { align-self: flex-start; }
+.ci-proj span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ci-proj.need { border-color: var(--warn); color: var(--ink); }
+.ci-paused { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.ci-paused .i { width: 12px; height: 12px; }
+
+.cr-body { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow: auto; }
+.cr-body .cv-sec h5 { color: var(--ink-2); }
+.cr-body .prose { font-size: 12.5px; }
+.cr-change { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0; font-size: 12.5px; color: var(--ink); }
+.cr-body .cv-sec .i { width: 12px; height: 12px; margin: 0 6px; color: var(--faint); vertical-align: -1px; }
+.cr-diff { display: grid; gap: 6px; }
+.cr-diff :is(del, ins) { display: block; padding: 6px 10px; border-radius: var(--radius); text-decoration: none; }
+.cr-diff small { font-size: 11.5px; font-weight: 600; color: var(--faint); }
+.cr-diff del { background: var(--bg-2); color: var(--muted); }
+.cr-diff ins { border: 1px solid var(--line-2); color: var(--ink); }
+.cr-diff .prose > :first-child { margin-top: 0; }
+.cr-diff .prose > :last-child { margin-bottom: 0; }
+.cr-was { color: var(--muted); text-decoration: line-through; }
+.cr-proj { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 14px; font-size: 12.5px; }
+.cr-proj > span { font-weight: 600; color: var(--ink); }
+.cr-proj small { flex-basis: 100%; font-size: 12px; color: var(--faint); }
+.crew-review > .ci-note { margin-top: 12px; }
+
+/* a member a spell brought: the note in its details and in the editor */
+.cv-spell p { display: flex; align-items: flex-start; gap: 7px; margin: 0; font-size: 12.5px; color: var(--muted); }
+.cv-spell p > .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--accent); }
+.cv-spell .link { display: inline; margin: 0; padding: 0; font-size: 12.5px; }
+.ce-spell { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: -4px 0 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); font-size: 12.5px; color: var(--ink-2); }
+.ce-spell > .i { flex: none; width: 14px; height: 14px; color: var(--accent); }
+.ce-spell > span { flex: 1; min-width: 0; }
+.ce-spell button { flex: none; }
+.crew-edit :is(input, textarea, button):disabled { cursor: not-allowed; }
+.crew-edit :is(.lp-chip, .tog-btn, .mode-btn, .ce-face):disabled { opacity: 0.55; }
+.crew-edit .ce-face:disabled:hover { transform: none; }
+.ce-import { color: var(--muted); }
+.ce-import .i { width: 13px; height: 13px; }
+.ck-open:disabled { cursor: default; }
+.ck-open:disabled:hover { background: none; color: var(--ink-2); }
+
+/* the phone app: 44px targets in the dialogs */
+body.wisp-mobile .ci-pick { display: grid; place-items: center; min-width: 44px; min-height: 44px; margin: -2px -8px 0 -10px; padding: 0; }
+body.wisp-mobile .ci-more summary { display: flex; align-items: center; min-height: 44px; }
+body.wisp-mobile :is(.ci-proj, .cs-gist .ghost) { min-height: 44px; }
+body.wisp-mobile .cs-opts .check { min-height: 44px; }
+body.wisp-mobile :is(.crew-share, .crew-import, .crew-review) .ce-foot button { min-height: 44px; }
+
+@media (max-width: 520px) {
+  .ci-card { padding: 10px; gap: 8px; }
+  .ci-name { width: 100%; }
+  .ce-spell { flex-wrap: wrap; }
+  .ce-spell > span { flex-basis: calc(100% - 22px); }
+}
+.cs-bad[hidden] { display: none; }

@@ -75,6 +75,19 @@ export const SPELL_EXAMPLES = [
       hooks: [{ on: 'turn.finished', if: { testsFailed: true }, max: 1, do: { reply: 'Some tests fail. Fix them, rerun the suite and report again.' } }],
     },
   },
+  {
+    ask: 'A crew member who reviews my PRs every hour, with a review checklist',
+    spell: {
+      wispSpell: 1, id: 'pr-reviewer', name: 'PR reviewer', version: '1.0.0', description: 'Quill, a crew member who reviews new and changed pull requests every hour.',
+      crew: [
+        {
+          key: 'quill', name: 'Quill', role: 'PR reviewer', avatar: 'blob.violet.wide.flat.headphones', cron: '0 * * * *', mode: 'plan',
+          brief: 'Review pull requests that are new or changed since your last check-in (`gh pr list`, `gh pr diff`). Look for bugs, missing tests and risky changes, worst first, one short review per PR. Never push, approve or merge.',
+          kit: [{ kind: 'skill', name: 'review-checklist', description: 'When reviewing a pull request', body: '1. Read the description and the linked issue.\n2. Read the diff file by file; note bugs first, then missing tests, then style.\n3. Run the tests when the change touches logic.\n4. One short review: what to fix, worst first.' }],
+        },
+      ],
+    },
+  },
 ];
 
 // The full reference, as JSON (wisp_spell_schema).
@@ -99,6 +112,7 @@ export function spellReference() {
       commands: '[{ label, keywords?, icon?, key?, do }] — ⌘K items (key: a single key like "g" or "shift+g", only when no built-in uses it)',
       hooks: `[{ on, if?, max?, do }] — on: ${Object.keys(EVENTS).join(' | ')}; if: { ${HOOK_IF.join(', ')} }; do: one of ${[...HOOK_ACTIONS].join(', ')}; max: times per task (default 1)`,
       recipes: '[{ name, prompt with {params}, agent?, mode? }] — saved prompts',
+      crew: '[{ key, name, role?, avatar?, brief, cron?: "5-field cron" (empty: only when asked), on?: [finished | done | ci], mode?: plan|edits|auto, agent?, model?, effort?, parallel?: 1-5, kit?: [{ kind: skill|rules, name, description (skills), body }], team?: [{ crew: "<key of another member here>" } | { agent }] }] — crew members the spell brings (at most 10). They join paused; the user reviews each and picks its project (one that starts when CI fails needs one). The spell owns who they are: change them by bumping the version. Prefer mode plan for a reviewer or watcher',
       script: 'JS with `export function name(data, ctx) { return … }` functions. It runs in a sandbox with no network, no DOM and no wisp API: it can only compute and return values (blocks, strings, numbers, lists of links). To make something interactive, return an app block: { type: "app", title, html: "<style>…</style>…<script>…</script>", height?, fallback?: [blocks] }. wisp runs its html in a sandboxed frame with no network, themed by wisp\'s CSS variables (var(--ink), --surface, --line, --accent, …); in it, wisp.send(text) offers text for the user to send to the task as a follow-up, wisp.save(obj) / wisp.state keep its state. Make it work from 320px wide. ctx: { session } (the card\'s task summary, when there is one), { block } for agent blocks (the block is also the first argument).',
     },
     templates: '{field} in text, labels, links and gh args is filled from the card\'s task summary: id, title, state, status, agent, model, mode, project, branch, cwd, preview, pr.number, pr.url, pr.state, pr.checks …; in slash commands {args} too. Missing fields become empty.',

@@ -4,29 +4,44 @@ import { spawn } from 'node:child_process';
 import { describeSpell, normalizeSpell } from '../spells.js';
 import { summarize } from '../runner.js';
 import { bad } from '../util.js';
+import { releaseSpellCrew } from '../crew-share.js';
 
 const MAX_SPELL_BYTES = 512 * 1024;
 const MAX_OPEN = 20;
 
 // Fetch a spell from a link: any https URL to the JSON, or gist:<id> (the first *.spell.json in it).
 export async function fetchSpell(src) {
+  const { json, source } = await fetchShared(src, 'spell');
+  return { spell: json, source };
+}
+
+// The same for any shared file: kind 'spell' (*.spell.json) or 'crew' (*.crew.json, server/crew-share.js).
+export async function fetchShared(src, kind = 'spell') {
   const s = String(src || '').trim();
   const gist = /^gist:([a-f0-9]{6,64})$/i.exec(s) || /^https:\/\/gist\.github\.com\/(?:[\w-]+\/)?([a-f0-9]{6,64})\/?$/i.exec(s);
   const get = async (url, json) => {
     const res = await fetch(url, { headers: { accept: json ? 'application/vnd.github+json' : 'application/json', 'user-agent': 'wisp' }, signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw bad(`Couldn't fetch ${url}: ${res.status}`);
     const text = await res.text();
-    if (text.length > MAX_SPELL_BYTES) throw bad('That spell is bigger than 512 KB.');
+    if (text.length > MAX_SPELL_BYTES) throw bad(`That ${kind === 'crew' ? 'file' : 'spell'} is bigger than 512 KB.`);
     return text;
   };
   if (gist) {
     const g = JSON.parse(await get(`https://api.github.com/gists/${gist[1]}`, true));
-    const file = Object.values(g.files || {}).find((f) => /\.spell\.json$/i.test(f.filename)) || Object.values(g.files || {}).find((f) => /\.json$/i.test(f.filename));
-    if (!file) throw bad('That gist has no .spell.json file.');
-    return { spell: JSON.parse(file.truncated ? await get(file.raw_url) : file.content), source: { kind: 'gist', url: `gist:${gist[1]}`, owner: g.owner?.login || '' } };
+    const file = Object.values(g.files || {}).find((f) => f.filename.toLowerCase().endsWith(`.${kind}.json`)) || Object.values(g.files || {}).find((f) => /\.json$/i.test(f.filename));
+    if (!file) throw bad(`That gist has no .${kind}.json file.`);
+    return { json: parseJson(file.truncated ? await get(file.raw_url) : file.content), source: { kind: 'gist', url: `gist:${gist[1]}`, owner: g.owner?.login || '' } };
   }
-  if (!/^https:\/\//i.test(s)) throw bad('A spell link is an https URL or gist:<id>.');
-  return { spell: JSON.parse(await get(s)), source: { kind: 'url', url: s } };
+  if (!/^https:\/\//i.test(s)) throw bad(`A ${kind === 'crew' ? 'crew' : 'spell'} link is an https URL or gist:<id>.`);
+  return { json: parseJson(await get(s)), source: { kind: 'url', url: s } };
+}
+
+function parseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw bad(`That isn't JSON: ${err.message}`);
+  }
 }
 
 // The body's spell: { spell: {…} }, { text: '<json>' } (pasted), or { url } (fetched).
@@ -107,7 +122,9 @@ export function register(r, app) {
       c.send(200, spells.setEnabled(s.id, body.enabled));
     }),
   );
+  // Its crew members stay on as yours, unless ?crew=remove (Settings → Spells asks which).
   r.route('DELETE', '/spells/:id', (c) => {
+    if (app.crew && spells.get(c.params.id)) releaseSpellCrew(app, c.params.id, { keep: c.query.get('crew') !== 'remove' });
     spells.remove(c.params.id);
     c.send(200, { ok: true });
   });
