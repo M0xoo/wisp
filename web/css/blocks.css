@@ -541,6 +541,40 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
   .doc-page { padding: 16px 16px 8px; max-height: 300px; }
 }
 
+/* task: another wisp task, opened with a click (blocks.js R.task) */
+.b-task {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; text-align: left; font: inherit; color: var(--ink);
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.b-task:hover { border-color: var(--line-2); background: var(--surface-2); }
+.b-task:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tk-ic {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px;
+  color: var(--pc, var(--accent)); background: color-mix(in srgb, var(--pc, var(--accent)) 12%, transparent);
+}
+.tk-ic .i { width: 16px; height: 16px; }
+.tk-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.tk-main b { font: 600 14px/1.3 var(--display); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-meta { display: flex; gap: 8px; min-width: 0; font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; }
+.tk-meta i { font-style: normal; overflow: hidden; text-overflow: ellipsis; }
+.tk-meta i + i::before { content: '·'; margin-right: 8px; }
+.tk-note { font-size: 13px; color: var(--muted); }
+.b-task .pill { flex: none; }
+.tk-open { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.tk-open .i { width: 13px; height: 13px; transition: transform 0.15s var(--ease); }
+.b-task:hover .tk-open { color: var(--ink); }
+.b-task:hover .tk-open .i { transform: translateX(2px); }
+.b-task.missing { cursor: default; }
+.b-task.missing:hover { background: none; border-color: var(--line); }
+.b-task.missing .tk-ic { color: var(--faint); background: var(--bg-2); }
+.b-task.missing b { color: var(--muted); }
+@media (max-width: 640px) {
+  .b-task { flex-wrap: wrap; }
+  .tk-main { flex-basis: calc(100% - 44px); }
+  .b-task .pill { margin-left: 44px; }
+  .tk-open { margin-left: auto; }
+}
+
 /* next */
 .b-next { padding-top: 6px; }
 .next-label { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }

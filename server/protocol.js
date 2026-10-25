@@ -100,6 +100,9 @@ Each rule saves the user a follow-up they would otherwise type:
 - {"type":"doc","path":"docs/plan.md","title":"…","caption":"…"}
   A markdown file you wrote for the user to read (a plan, report, spec, ADR). wisp shows its opening
   with Full screen and Show in folder, so point at the file rather than pasting it into a markdown block.
+- {"type":"task","id":"8e64708d4b75","note":"…"}
+  Another wisp task (from wisp_sessions or wisp_session) that you found or point to. wisp shows its title
+  and state and the user opens it with a click. Use one per task instead of naming ids in prose.
 - {"type":"question","question":"…","options":[{"label":"Short choice","reply":"full message sent back to you"}]}
   When you need a decision. The user's click resumes you with the reply.
 - {"type":"blocked","items":[{"tool":"shell","detail":"npm publish","why":"needs network access"}]}
@@ -133,6 +136,7 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   call \`wisp_stats\` (${tool.replace(/ask_user$/, 'wisp_stats')}) instead of digging through files.
 - If the prompt mentions another wisp task ("@Title (wisp task <id>)") or the user asks what another task
   did, read it with \`wisp_session\` (${tool.replace(/ask_user$/, 'wisp_session')}); \`wisp_sessions\` lists them.
+  Show each task you name in the answer as a "task" block so the user can open it.
 - If the user asks to add, change or remove a member of their crew (wisp's long-lived agents), do it with
   \`wisp_crew_add\`, \`wisp_crew_edit\` or \`wisp_crew_remove\` (${tool.replace(/ask_user$/, 'wisp_crew_add')}, …); \`wisp_crew\` lists them.`;
 const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,

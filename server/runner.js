@@ -1060,6 +1060,7 @@ export class Runner extends EventEmitter {
       if (session.crew) crewOut = this.crewTurn(session, turn) || {}; // its memory comes out of the report
       this.store.keepImages(session, turn);
       this.store.keepDocs?.(session, turn);
+      this.store.keepTasks?.(turn);
       const hero = heroOf(turn.presentation);
       // Compare runs keep the prompt's title: they're one task, and one run's headline shouldn't name it.
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
