@@ -113,6 +113,8 @@ export class WispClient {
   addCrew = (member) => this.request('POST', '/crew', member); // { name, role, brief, cwd, agent, …, checkin }
   updateCrew = (id, patch) => this.request('PATCH', `/crew/${encodeURIComponent(id)}`, patch);
   removeCrew = (id) => this.request('DELETE', `/crew/${encodeURIComponent(id)}`);
+  importCrew = (body) => this.request('POST', '/crew/import', body); // { text | url, choices, dryRun }
+  exportCrew = (body) => this.request('POST', '/crew/export', body); // { ids, kit, notebook, team, gist }
 
   // filter: { state, cwd, project, archived, limit }
   sessions(filter = {}) {

@@ -10,6 +10,8 @@ import { delegationReport } from '../subagents.js';
 import { toolStats, toolStatsText } from '../usage.js';
 import { clip } from '../util.js';
 import { CREW_FIELDS, memberLine } from '../crew-tools.js';
+import { applyImport, parseCrewFile, planImport } from '../crew-share.js';
+import { fetchShared } from './spells.js';
 import { describeSpell, normalizeSpell } from '../spells.js';
 import { spellReference } from '../spell-guide.js';
 import { ghProblem, wispPathProblem } from '../../web/js/spell-schema.js';
@@ -231,6 +233,18 @@ export function register(r, app) {
     crewChange(async (s, body) => {
       // No folder given: the asking task's project (its worktree is the task's, not the member's).
       const cwd = body.cwd !== undefined ? String(body.cwd || '') : store.projectFor?.(s.cwd)?.path || (store.isScratch?.(s.cwd) ? '' : s.cwd);
+      // from: members someone shared (server/crew-share.js), paused until the user resumes them.
+      if (body.from) {
+        const from = String(body.from).trim();
+        const json = /^(https:|gist:)/i.test(from) ? (await fetchShared(from, 'crew')).json : JSON.parse(from);
+        const parsed = parseCrewFile(json);
+        if (parsed.spell) throw new Error('That is a spell, not a crew file: the user adds it in Settings → Spells (or with wisp spell install).');
+        const agents = (await app.auto?.agents?.().catch(() => null)) || [];
+        const plan = planImport(parsed.members, { crew: app.crew, agents, choices: Object.fromEntries(parsed.members.map((b) => [b.key, { cwd }])) });
+        const made = applyImport(plan, { crew: app.crew, triggers: app.triggers });
+        telemetry.track('crew_imported', { members: made.length, source: 'agent' });
+        return { text: `Added ${made.map((m) => m.name).join(', ')} to the user's crew, paused: they start once the user presses Resume on them.\n\n${made.map((m) => memberLine(app.crew.view(m))).join('\n')}${plan.some((p) => p.notes.length) ? `\n\nNotes:\n${plan.flatMap((p) => p.notes).map((n) => `- ${n}`).join('\n')}` : ''}` };
+      }
       const m = app.crew.create({ ...pick(body), cwd });
       telemetry.track('crew_tool', { agent: s.agent, op: 'add' });
       const out = body.checkin === true ? await app.crew.checkin(m).catch(() => ({})) : {};

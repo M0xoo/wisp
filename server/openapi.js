@@ -233,6 +233,24 @@ export function openapi({ version, port }) {
         parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
         post: { summary: 'Hand a crew member a job. Past its parallel limit it waits in the member’s queue ({ queued })', requestBody: body({ type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, kit: { type: 'boolean', description: 'They build their own kit: study the job and the project, then propose skills and instructions files (offers) for you to pick from. prompt is the goal' } } }), responses: { 201: json({ type: 'object', properties: { session: ref('Summary'), queued: { type: 'integer' }, member: ref('CrewMember') } }), 400: err[400] } },
       },
+      '/crew/{cid}/detach': {
+        parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
+        post: { summary: 'Make a member a spell brought yours (Make it mine): the spell no longer changes them, and everything about them can be edited', responses: { 200: json(ref('CrewMember')), 400: err[400], 404: err[404] } },
+      },
+      '/crew/export': {
+        post: {
+          summary: 'Share crew members: their .crew.json file ({ wispCrew: 1, members: [blueprint] }: who they are, never their folder, machine or log), notes on what stays here, and with gist: true a secret gist of it. 422 with hits when the secret scan finds a key or token in a brief, notebook or kit file',
+          requestBody: body({ type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'string' }, description: 'Member ids, names or handles' }, kit: { type: 'boolean', description: 'Their skills and instructions files (default true)' }, notebook: { type: 'boolean', description: 'Their notebook (default false)' }, team: { type: 'boolean', description: 'The crew members they delegate to, too' }, gist: { type: 'boolean', description: 'Post it to a secret gist with gh' } } }),
+          responses: { 200: json({ type: 'object', properties: { bundle: { type: 'object' }, notes: { type: 'array', items: { type: 'string' } }, file: { type: 'string' }, gist: { type: 'object', properties: { url: { type: 'string' }, ref: { type: 'string' } } } } }), 404: err[404], 422: json({ type: 'object', properties: { error: { type: 'string' }, hits: { type: 'array', items: { type: 'object' } } } }, 'A secret in what would be shared') },
+        },
+      },
+      '/crew/import': {
+        post: {
+          summary: 'Add members someone shared: { text } (a .crew.json file or JSON), { url } (https or gist:<id>) or { bundle }. dryRun: the review (members with the name they get, harness, notes, needsProject), nothing added. choices: { [key]: { name, cwd, skip } }. They join paused, with the triggers that send them work; a CI watcher needs a cwd. A spell answers { spell }',
+          requestBody: body({ type: 'object', properties: { text: { type: 'string' }, url: { type: 'string' }, bundle: { type: 'object' }, dryRun: { type: 'boolean' }, choices: { type: 'object' } } }),
+          responses: { 200: json({ type: 'object', properties: { members: { type: 'array', items: { type: 'object' } }, room: { type: 'integer' }, spell: { type: 'object' } } }), 201: json({ type: 'object', properties: { members: { type: 'array', items: ref('CrewMember') } } }), 400: err[400] },
+        },
+      },
       '/crew/{cid}/checkin': {
         parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
         post: { summary: 'Start a check-in now (409 while one runs)', responses: { 201: json({ type: 'object', properties: { session: ref('Summary'), queued: { type: 'integer' }, member: ref('CrewMember') } }), 409: json(ref('Error'), 'Already checking in') } },
@@ -327,7 +345,7 @@ export function openapi({ version, port }) {
         parameters: [spellId],
         get: { summary: 'One spell', responses: { 200: json({ type: 'object' }), 404: err[404] } },
         patch: { summary: 'Turn a spell on or off. 409 when its block types or slash commands clash with one that is on', requestBody: body({ type: 'object', required: ['enabled'], properties: { enabled: { type: 'boolean' } } }), responses: { 200: json({ type: 'object' }), 404: err[404], 409: json({ type: 'object' }) } },
-        delete: { summary: 'Remove a spell', responses: { 200: json({ type: 'object' }), 404: err[404] } },
+        delete: { summary: 'Remove a spell. Crew members it brought stay on as yours, unless crew=remove', parameters: [{ name: 'crew', in: 'query', schema: { enum: ['keep', 'remove'] } }], responses: { 200: json({ type: 'object' }), 404: err[404] } },
       },
       '/spells/{id}/export': { parameters: [spellId], get: { summary: 'The spell file to share (.spell.json)', responses: { 200: json({ type: 'object' }), 404: err[404] } } },
       '/spells/{id}/data/{name}': {
@@ -551,6 +569,9 @@ export function openapi({ version, port }) {
             nextAt: { type: ['integer', 'null'], readOnly: true },
             checkin: { type: 'boolean', writeOnly: true, description: 'POST /crew: start a first check-in' },
             on: { type: 'array', items: { enum: ['finished', 'done', 'ci', 'issues'] }, description: 'What else starts their jobs: the kinds of the triggers that are on and send them work. Sent (finished, done, ci), it makes or removes those triggers' },
+            spell: { type: 'object', readOnly: true, description: 'A member a spell brought: { id, key, name, def }. The spell owns def (name, role, avatar, brief, schedule, on, mode, kit, delegates); changing those is refused (409) until POST /crew/{cid}/detach' },
+            changed: { type: 'object', readOnly: true, description: 'Their spell changed what they do (from: the old definition, null for a member it just added): they are paused, and resume only with accept: true' },
+            accept: { type: 'boolean', writeOnly: true, description: 'PATCH with paused: false: you saw what their spell changed' },
           },
         },
         Trigger: {

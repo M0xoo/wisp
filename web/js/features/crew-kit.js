@@ -21,23 +21,26 @@ const size = (n) => (n < 1000 ? `${n} characters` : `${(n / 1000).toFixed(n < 10
 const same = (a, b) => a.kind === b.kind && a.name.toLowerCase() === b.name.toLowerCase();
 
 // The section: one row a file (what it is, its switch), or what it's for while empty.
+// A spell's member: its spell owns the kit, so the rows read but don't change (Make it mine first).
 export function kitHtml(m) {
   const kit = m.kit || [];
+  const locked = !!m.spell;
   const rows = kit
     .map(
       (k) => `<div class="ck-row${k.on === false ? ' off' : ''}" data-kit-row="${esc(k.id)}">
-        <button class="ck-open" data-kit="${esc(k.id)}" title="${k.kind === 'skill' ? 'Edit this skill' : 'Edit these instructions'}">${icon(k.kind === 'skill' ? 'spark' : 'file')}<span class="ck-text one"><b>${esc(k.name)}</b><small title="${esc(k.kind === 'skill' ? k.description : `Every job · ${size(k.body.length)}`)}">${esc(k.kind === 'skill' ? k.description : `Every job · ${size(k.body.length)}`)}</small></span></button>
-        <button class="switch" role="switch" aria-checked="${k.on !== false}" data-kit-on="${esc(k.id)}" title="${k.on === false ? 'Off: kept, not used' : 'On: in their jobs'}" aria-label="Use ${esc(k.name)}"></button>
+        <button class="ck-open" data-kit="${esc(k.id)}" title="${locked ? `From the “${esc(m.spell.name)}” spell` : k.kind === 'skill' ? 'Edit this skill' : 'Edit these instructions'}" ${locked ? 'disabled' : ''}>${icon(k.kind === 'skill' ? 'spark' : 'file')}<span class="ck-text one"><b>${esc(k.name)}</b><small title="${esc(k.kind === 'skill' ? k.description : `Every job · ${size(k.body.length)}`)}">${esc(k.kind === 'skill' ? k.description : `Every job · ${size(k.body.length)}`)}</small></span></button>
+        <button class="switch" role="switch" aria-checked="${k.on !== false}" data-kit-on="${esc(k.id)}" title="${k.on === false ? 'Off: kept, not used' : 'On: in their jobs'}" aria-label="Use ${esc(k.name)}" ${locked ? 'disabled' : ''}></button>
       </div>`,
     )
     .join('');
-  return `<div class="cv-sec cv-kit"><h5>Skills and instructions ${kit.length ? `<small>${kit.length}</small>` : ''}<button class="link xs" data-kit-add aria-haspopup="menu">${icon('plus')}Add</button></h5>
-    ${rows || `<p class="cv-none">An AGENTS.md they follow on every job, or skills they read when a job needs one. Drop .md files here too.</p>`}</div>`;
+  return `<div class="cv-sec cv-kit"><h5>Skills and instructions ${kit.length ? `<small>${kit.length}</small>` : ''}${locked ? '' : `<button class="link xs" data-kit-add aria-haspopup="menu">${icon('plus')}Add</button>`}</h5>
+    ${rows || `<p class="cv-none">${locked ? 'None: their spell gave them no skills or instructions.' : 'An AGENTS.md they follow on every job, or skills they read when a job needs one. Drop .md files here too.'}</p>`}</div>`;
 }
 
 // A click in the section. patch(m, body) saves (crew.js patchMember, optimistic); send(m, prompt,
 // { kit }) hands it a job (crew.js sendJob).
 export function kitClick(e, m, patch, send) {
+  if (m.spell) return;
   const add = e.target.closest('[data-kit-add]');
   if (add) return addMenu(add, m, patch, send);
   const on = e.target.closest('[data-kit-on]')?.dataset.kitOn;

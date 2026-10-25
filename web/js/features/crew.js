@@ -31,6 +31,8 @@ import { machineById, pathAt, placeName, placesOf } from './places.js';
 import { slotHtml } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
+import { importCrew, reviewChange, shareMember } from './crew-share.js';
+import { TEMPLATES } from '../crew-templates.js';
 
 // The spirits' glows, defined once for the whole page.
 document.body.insertAdjacentHTML('beforeend', spiritDefs());
@@ -57,22 +59,13 @@ export const EVENTS = [
   ['done', 'I mark a task done', 'a task is marked done'],
   ['ci', 'CI fails', 'CI fails'],
 ];
-const eventsLabel = (m) => {
+export const eventsLabel = (m) => {
   const on = EVENTS.filter(([k]) => m.on?.includes(k)).map(([, , w]) => w);
   return on.length ? `When ${on.join(' or ').replace(' or a task ', ' or ')}` : ''; // "a task finishes or is marked done"
 };
 // Their schedule and what else wakes them, in words.
-const cadenceText = (m) => [m.cron ? cadenceLabel(m.cron) : '', eventsLabel(m)].filter(Boolean).join(' · ') || 'On call';
+export const cadenceText = (m) => [m.cron ? cadenceLabel(m.cron) : '', eventsLabel(m)].filter(Boolean).join(' · ') || 'On call';
 
-// Ready-made members: a name, a spirit, a schedule and a brief that already work.
-const TEMPLATES = [
-  { key: 'verify', name: 'Vera', role: 'Verifier', avatar: 'bean.teal.visor.smile.halo', cron: '', on: ['finished'], brief: 'When a task finishes, check its work: read it with wisp_session, run the tests, try the change and look for what it missed. When something is wrong, send that task a follow-up saying exactly what to fix. When it holds up, stay quiet.' },
-  { key: 'ci', name: 'Scout', role: 'CI watcher', avatar: 'ghost.sky.visor.flat.antenna', cron: '*/30 * * * *', brief: 'Watch CI on the default branch (`gh run list`). When a run fails, find the cause in its logs (`gh run view <id> --log-failed`) and fix it on a branch, or say why it is flaky. When everything is green, stay quiet.' },
-  { key: 'review', name: 'Quill', role: 'PR reviewer', avatar: 'blob.violet.wide.flat.headphones', cron: '0 * * * *', brief: 'Review pull requests that are new or changed since your last check-in (`gh pr list`, `gh pr diff`). Look for bugs, missing tests and risky changes, worst first, one short review per PR. Never push, approve or merge.' },
-  { key: 'triage', name: 'Sorter', role: 'Issue triager', avatar: 'bean.amber.happy.smile.leaf', cron: '0 9 * * 1-5', brief: 'Read new GitHub issues. Spot duplicates, note missing repro steps, and list the ones worth doing first with a one-line plan each. Never close an issue.' },
-  { key: 'deps', name: 'Tinker', role: 'Dependency keeper', avatar: 'star.lime.dots.grin.beanie', cron: '0 9 * * 1', brief: 'Check for outdated and vulnerable dependencies (`npm outdated`, `npm audit`, or the project’s own). Update the safe ones on a branch, run the tests, and report what changed and what needs a decision.' },
-  { key: 'notes', name: 'Echo', role: 'Release notes', avatar: 'drop.rose.happy.cat.halo', cron: '0 17 * * 5', brief: 'Read what merged this week (git log, merged PRs) and draft the CHANGELOG entries in the project’s voice. Leave them uncommitted for me to review.' },
-];
 
 // --- avatars ----------------------------------------------------------------------------------
 
@@ -161,6 +154,7 @@ function statusLine(m, st) {
   if (st.live.length) return { cls: 'live', text: busyLine(st.live) };
   const report = st.jobs.filter((s) => s.state === 'review' && s.unread && !s.archived).sort((a, b) => b.updatedAt - a.updatedAt)[0];
   if (report) return { cls: 'report', text: `Reported: ${report.title}` };
+  if (m.changed && m.paused) return { cls: '', text: m.changed.from ? 'Paused: their spell changed' : 'New from a spell: review to start' };
   if (m.queue?.length) return { cls: '', text: `${m.queue.length} waiting` };
   if (m.paused) return { cls: '', text: 'Paused' };
   if (m.wakeAt && m.wakeAt > Date.now()) return { cls: '', text: `Looks again ${whenLabel(m.wakeAt)}` };
@@ -369,6 +363,8 @@ export async function checkIn(id) {
 export async function togglePause(id) {
   const m = memberById(id);
   if (!m) return;
+  // Their spell changed what they do (or just brought them): they resume once you've seen it.
+  if (m.paused && m.changed) return reviewChange(m);
   if (await patchMember(m, { paused: !m.paused })) toast(m.paused ? `Paused ${esc(m.name)}: no check-ins until you resume` : `${esc(m.name)} is back on`);
 }
 
@@ -423,6 +419,8 @@ function memberMenu(id, { x, y, anchor } = {}) {
       <button data-a="checkin">${icon('clock')}Check in now</button>
       <button data-a="pause">${icon(m.paused ? 'play' : 'pause')}${m.paused ? 'Resume' : 'Pause'}</button>
       <button data-a="edit">${icon('pen')}Edit…</button>
+      <button data-a="share">${icon('arrow')}Share…</button>
+      ${m.spell ? `<button data-a="mine">${icon('wizard')}Make it mine</button>` : ''}
       <button data-a="remove" class="danger">${icon('trash')}Remove from crew</button>
     </div>`);
   menu.onclick = (e) => {
@@ -432,6 +430,8 @@ function memberMenu(id, { x, y, anchor } = {}) {
     if (a === 'checkin') checkIn(id);
     if (a === 'pause') togglePause(id);
     if (a === 'edit') crewEditor({ member: m });
+    if (a === 'share') shareMember(id);
+    if (a === 'mine') makeMine(id);
     if (a === 'remove') removeMember(id, anchor);
   };
   const close = popover(menu, { anchor });
@@ -442,6 +442,25 @@ function memberMenu(id, { x, y, anchor } = {}) {
   const top = r ? (r.bottom + 6 + h > innerHeight ? r.top - h - 6 : r.bottom + 6) : y;
   menu.style.left = `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`;
   menu.style.top = `${Math.max(8, Math.min(top, innerHeight - h - 8))}px`;
+}
+
+// A spell's member becomes yours: the spell lets go of them, and everything about them can change.
+export async function makeMine(id, { then } = {}) {
+  const m = memberById(id);
+  if (!m?.spell) return;
+  const was = m.spell;
+  delete m.spell;
+  renderFeed();
+  try {
+    Object.assign(m, await api(`/crew/${id}/detach`, { method: 'POST', body: {} }));
+    renderFeed();
+    toast(`${esc(m.name)} is yours now: the “${esc(was.name)}” spell won’t change them`);
+    then?.();
+  } catch (err) {
+    m.spell = was;
+    renderFeed();
+    toastError(err);
+  }
 }
 
 // The name the rest of the page knows it by.
@@ -672,6 +691,7 @@ function buildView(id) {
     if (a === 'checkin') return checkIn(id);
     if (a === 'pause') return togglePause(id);
     if (a === 'edit') return crewEditor({ member: m });
+    if (a === 'share') return shareMember(id);
     if (a === 'note-edit') return notebookEditor(m);
     const clip = e.target.closest('[data-clip]')?.dataset.clip;
     if (clip) {
@@ -680,6 +700,7 @@ function buildView(id) {
       return paint();
     }
     if (a === 'remove') return removeMember(id, e.target.closest('[data-a]'));
+    if (a === 'mine') return makeMine(id);
     if (a === 'more') return memberMenu(id, { anchor: e.target.closest('[data-a]') });
     if (e.target.closest('.cv-earlier')) {
       show += SHOW;
@@ -793,7 +814,8 @@ function paintSide(m, st, side) {
       <h5>Notebook <small class="cv-count"></small><button class="link xs" data-a="note-edit">Edit</button></h5>
       ${clipped(m.notebook, 'note', m.id, 'Empty so far. They add to it as they work; you can write in it too.')}
     </div>
-    <div class="cv-sec"><h5>Brief <button class="link xs" data-a="edit">Edit</button></h5>${clipped(m.brief, 'brief', m.id, 'No brief: they do what each job asks.')}</div>
+    ${m.spell ? `<div class="cv-sec cv-spell"><p>${icon('wizard')}<span>From the “${esc(m.spell.name)}” spell, which keeps them up to date. <button class="link xs" data-a="mine">Make it mine</button></span></p></div>` : ''}
+    <div class="cv-sec"><h5>Brief ${m.spell ? '' : '<button class="link xs" data-a="edit">Edit</button>'}</h5>${clipped(m.brief, 'brief', m.id, 'No brief: they do what each job asks.')}</div>
     ${kitHtml(m)}
     ${m.links?.length ? `<div class="cv-sec"><h5>Part of</h5><div class="cv-links">${m.links.slice(0, 6).map((l) => `<button class="cv-link" data-session="${esc(l.id)}" ${S.sessions.has(l.id) ? '' : 'disabled'}><span>${esc(l.title || 'A task')}</span>${icon('chevron')}</button>`).join('')}</div></div>` : ''}`;
   const key = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
@@ -908,6 +930,7 @@ async function followJob(id, text, { restore } = {}) {
 // member: edit it. task: a task (summary) joining the crew; its folder and harness come with it.
 export function crewEditor({ member = null, task = null, draft = null } = {}) {
   const editing = !!member;
+  const locked = !!member?.spell; // a spell's member: the spell owns who they are (server/crew-share.js)
   const d = draft || {
     name: member?.name || '',
     role: member?.role || '',
@@ -929,7 +952,8 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
   const custom = () => !CADENCES.some(([c]) => c === d.cron);
   const node = el(`<div class="modal crew-edit" role="dialog">
       <header><h2>${editing ? `Edit ${esc(member.name)}` : task ? 'Add this task to your crew' : 'Add to your crew'}</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
-      ${editing || task ? '' : `<div class="ce-templates"><span class="ce-lbl">Start from</span>${TEMPLATES.map((t) => `<button type="button" class="lp-chip" data-tpl="${t.key}"><span class="ce-tav">${spiritSvg(t.avatar, { small: true })}</span>${esc(t.role)}</button>`).join('')}</div>`}
+      ${editing || task ? '' : `<div class="ce-templates"><span class="ce-lbl">Start from</span>${TEMPLATES.map((t) => `<button type="button" class="lp-chip" data-tpl="${t.key}"><span class="ce-tav">${spiritSvg(t.avatar, { small: true })}</span>${esc(t.role)}</button>`).join('')}<button type="button" class="lp-chip ce-import" data-a="import" title="A member someone shared: a .crew.json file, its JSON or a link">${icon('download')}Import…</button></div>`}
+      ${locked ? `<div class="ce-spell">${icon('wizard')}<span>The “${esc(member.spell.name)}” spell sets who they are, their job, schedule and mode. Where and how they run is yours.</span><button type="button" class="ghost xs" data-a="mine">Make it mine</button></div>` : ''}
       <form class="ce-form">
         <div class="ce-who">
           <button type="button" class="ce-face" title="Change how they look" aria-label="Change how they look"></button>
@@ -978,6 +1002,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
   };
   $f('name').value = d.name;
   $f('role').value = d.role;
+  if (locked) for (const x of $$('[name="name"], [name="role"], [name="brief"], [name="cron"], [data-cron], [data-on], .ce-face, .ce-mode, .ce-team', node)) x.disabled = true;
   $f('brief').value = d.brief;
   $f('cron').value = d.cron;
   if ($f('checkin')) $f('checkin').checked = !!d.checkin;
@@ -1058,6 +1083,15 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
   };
 
   node.addEventListener('click', (e) => {
+    if (e.target.closest('[data-a="import"]')) {
+      close();
+      return importCrew();
+    }
+    if (e.target.closest('[data-a="mine"]')) {
+      close();
+      return makeMine(member.id, { then: () => crewEditor({ member: memberById(member.id) }) });
+    }
+    if (locked && e.target.closest('[disabled]')) return;
     if (e.target.closest('.ce-face')) {
       // The first click on the face opens the maker; the dice on it rolls a new one.
       if (e.target.closest('.ce-dice') || !maker.hidden) setFace(rollSpirit(Math.random()));
@@ -1167,10 +1201,12 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     e.preventDefault();
     const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, on: d.on, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
     if (!body.name) return $f('name').focus();
+    // A spell's member: only where and how they run is yours to change.
+    if (locked) for (const k of ['name', 'role', 'avatar', 'color', 'brief', 'cron', 'on', 'mode', 'team']) delete body[k];
     const again = () => crewEditor({ member, task, draft: { ...d, ...body, checkin: $f('checkin')?.checked } });
     close();
     if (editing) {
-      if (await patchMember(member, body)) toast(`Saved ${esc(body.name)}`);
+      if (await patchMember(member, body)) toast(`Saved ${esc(member.name)}`);
       else again();
       return;
     }

@@ -80,6 +80,11 @@ export const PARTS = {
   'crew.kitGenerate': '.kit-gen',
   'crew.offer': '.crew-view .cv-offer',
   'crew.editor.events': '.crew-edit .ce-events', // its "Also starts when" chips
+  // Sharing (crew-share.js): Share (a file, JSON, a gist or a spell) and Import with its review. Not
+  // the review a spell's member needs before it resumes, nor the note saying which spell it's from:
+  // a spell mustn't hide what gates its own members.
+  'crew.share': '.crew-share',
+  'crew.import': '.crew-import',
   'section.archived': '#secArchived',
   toTop: '#toTop',
   launcher: '#launcher',

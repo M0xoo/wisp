@@ -1,5 +1,5 @@
 // A stand-in for the GitHub CLI: just the commands wisp runs (pr create/view/ready/merge, run list,
-// issue list). Pull requests live in a JSON file; merging really pushes the PR head to the base
+// issue list, gist create). Pull requests live in a JSON file; merging really pushes the PR head to the base
 // branch of the repo's origin, so the "sync your local main" step has something to fetch.
 //
 //   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [], review, mergeable } (created if missing)
@@ -76,6 +76,15 @@ if (a === 'pr' && b === 'create') {
 } else if (a === 'issue' && b === 'list') {
   if (typeof state.issues === 'string') console.log(state.issues); // a broken reply
   else console.log(JSON.stringify((state.issues || []).filter((i) => (i.labels || []).includes(flag('--label')))));
+} else if (a === 'gist' && b === 'create') {
+  // Kept in the state file (its files, and whether it was public) so tests can read it back.
+  const f = argv[2];
+  state.gists ||= {};
+  const id = `abc${String(Object.keys(state.gists).length + 1).padStart(5, '0')}`;
+  state.gists[id] = { public: argv.includes('--public') || argv.includes('-p'), description: flag('--desc') || flag('-d') || '', files: { [path.basename(f)]: fs.readFileSync(f, 'utf8') } };
+  save();
+  process.stderr.write('- Creating gist\n');
+  console.log(`https://gist.github.com/acme/${id}`);
 } else {
   fail(`fake gh: unsupported: ${argv.join(' ')}`);
 }

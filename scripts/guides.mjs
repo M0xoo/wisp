@@ -11,6 +11,7 @@
 
 import { ACTIONS, EVENTS, GH_READ, HOOK_IF, SLOTS, WISP_DATA } from '../web/js/spell-schema.js';
 import { SPELL_EXAMPLES } from '../server/spell-guide.js';
+import { TEMPLATES } from '../web/js/crew-templates.js';
 
 const REACH = { safe: 'Safe', acts: 'Acts for you', runs: 'Runs commands' };
 // An action's doc starts with its JSON example ({ "open": "…" } open one link); keep the words after it.
@@ -41,6 +42,7 @@ const FIELDS = [
   ['commands', '⌘K items, optionally with a single-key shortcut'],
   ['hooks', 'Something wisp does on its own when a turn finishes, fails, starts or waits'],
   ['recipes', 'Saved prompts with <code>{params}</code>'],
+  ['crew', 'Crew members the spell brings: a name, brief, schedule, mode and skills. They join paused, you pick their project, and the spell keeps them up to date (a change to what they do pauses them until you’ve seen it)'],
   ['harnesses, when', 'Which harnesses, projects, agents and modes its rules, blocks and hooks apply to'],
   ['script', 'JavaScript functions that turn data into blocks, strings or links, run in a sandbox. An <code>app</code> block makes it interactive: a small page of your own, sandboxed too, that can offer a follow-up to the task'],
 ];
@@ -1396,6 +1398,53 @@ wisp spell off --all`)}
         ['What if I ask for something spells can’t do?', 'The agent says so in its report and does the closest thing spells can. Spells can only use the slots, parts, actions and data sources in wisp’s reference, so they can’t reach further than that.'],
       ],
       related: ['run-coding-agents-in-the-background', 'multi-agent-coding', 'run-claude-code-and-codex-in-parallel'],
+    },
+
+    {
+      slug: 'share-crew-members',
+      title: 'Share an AI coding agent with your team: wisp crew members',
+      h1: 'Share a crew member with your team',
+      card: 'A CI watcher or PR reviewer you tuned, as a file or a link: they import it, pick a project, and it starts paused.',
+      description: 'Share a wisp crew member, a long-lived coding agent with a brief, schedule and skills, as a .crew.json file, a secret gist or a spell. Teammates import it in one step.',
+      lede: 'A crew member in wisp is a long-lived agent with a name, a brief, a schedule and its own skills: a CI watcher, a PR reviewer. Once one works well, share it. <b>Share…</b> gives a <code>.crew.json</code> file, a secret gist or a spell, and your teammate imports it with a review of what it does. It arrives paused, in a project they pick.',
+      figure: `<figure class="doc-shot"><pre data-lang="json"><code>${esc(JSON.stringify({ wispCrew: 1, members: [{ key: TEMPLATES[1].key, name: TEMPLATES[1].name, role: TEMPLATES[1].role, avatar: TEMPLATES[1].avatar, brief: TEMPLATES[1].brief, cron: TEMPLATES[1].cron, on: [], mode: 'plan', kit: [{ kind: 'skill', name: 'read-ci-logs', description: 'When a CI run failed', body: '1. gh run view <id> --log-failed\n2. …' }] }] }, null, 2))}</code></pre><figcaption>scout.crew.json: who the member is. Never a folder, a computer or what they did.</figcaption></figure>`,
+      body: `
+    <section>
+      <h2 id="share">Share one</h2>
+      <ol class="doc-steps">
+        <li>Open the member and press <b>Share…</b> (its ⋯ menu, right-click, or ⌘K → <i>Share Scout…</i>).</li>
+        <li>Choose what goes: their skills and instructions (on), their notebook (off: it holds what they learned about your code), and the crew members they delegate to.</li>
+        <li><b>Copy</b> it for a chat, <b>Download</b> the <code>.crew.json</code>, or <b>Create a gist</b>: a secret gist on your GitHub account, after you confirm. <b>As a spell</b> saves a spell that brings them.</li>
+      </ol>
+      <p>Before anything leaves, wisp scans the brief, notebook and skills for API keys, tokens and private keys, and won’t share one it finds; it tells you the line.</p>
+      ${sh('wisp crew export scout > scout.crew.json\nwisp crew export scout --team --gist      # with their delegates, as a secret gist')}
+    </section>
+
+    <section>
+      <h2 id="import">Import one</h2>
+      <p>Drop the file on wisp, or paste it or the link into <b>Import…</b> (the last chip under <i>Start from</i> when you add a member). The review shows each member with the name they get (a clash becomes <i>Scout 2</i>), the harness they’ll use here, their brief and skills, and the project they work in. One that starts when CI fails needs a project. They join paused: press Resume when you’re ready.</p>
+      ${sh('wisp crew import gist:3f2a9c…\nwisp crew import https://trywisp.dev/crew/ci.crew.json')}
+      <p>Or ask any agent in wisp: <i>add the member from gist:3f2a9c…</i>.</p>
+    </section>
+
+    <section>
+      <h2 id="gallery">Ready-made members</h2>
+      <p>The members wisp offers under <i>Start from</i>, as files you can import:</p>
+      <ul class="doc-list">${TEMPLATES.map((t) => `<li><b>${esc(t.name)} · ${esc(t.role)}</b> (<a href="/crew/${t.key}.crew.json">${t.key}.crew.json</a>): ${esc(t.brief)}</li>`).join('')}</ul>
+    </section>
+
+    <section>
+      <h2 id="spells">For a team: a spell that keeps them up to date</h2>
+      <p>A spell can bring crew members (<code>crew</code> in the spell). The spell owns who they are and updates them when you publish a new version; each person picks the project and keeps the notebook. When an update changes what a member does, wisp pauses them and shows the change on Resume.</p>
+    </section>
+`,
+      faq: [
+        ['What does a shared member include?', 'Their name, face, role, brief, schedule, what else starts them, mode, harness and delegates, and if you tick them, their skills and instructions and notebook. Never their project folder, computer, log or jobs.'],
+        ['Is the gist public?', 'No. wisp creates a secret gist with your gh login and asks first. It isn’t listed on your profile, but anyone with its link can read it.'],
+        ['What if my teammate doesn’t have the same harness?', 'The review says so, and the member runs on Auto, which picks a harness they have.'],
+        ['Can a shared member run on its own straight away?', 'No. Imported members start paused, and a member from a spell shows you what it does before its first Resume.'],
+      ],
+      related: ['customize-wisp-with-spells', 'run-coding-agents-in-the-background', 'multi-agent-coding'],
     },
   ];
 }

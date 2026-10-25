@@ -29,11 +29,15 @@ export const CREW_TOOLS = [
     description:
       'Add a member to the user\'s crew in wisp, when the user asks for one ("add a crew member who watches CI"). They work as tasks: ' +
       'on their schedule (cron), when the user tags @Name in a prompt, or when another task delegates to them. Write the brief to them, ' +
-      'from what the user asked. Pick a short, friendly name if the user gave none. Returns the new member.',
+      'from what the user asked. Pick a short, friendly name if the user gave none. Returns the new member. ' +
+      'When the user gives a shared crew file or link ("add the member from gist:abc123"), pass it as `from` instead.',
     inputSchema: {
       type: 'object',
-      properties: { ...MEMBER_PROPS, checkin: { type: 'boolean', description: 'Start their first check-in right away. Default false.' } },
-      required: ['name'],
+      properties: {
+        ...MEMBER_PROPS,
+        checkin: { type: 'boolean', description: 'Start their first check-in right away. Default false.' },
+        from: { type: 'string', description: 'Instead of the fields above: members someone shared, as a link to a .crew.json file (https, or gist:<id>) or its JSON. They join paused, in cwd (default: the current project), until the user resumes them.' },
+      },
     },
   },
   {

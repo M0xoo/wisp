@@ -23,6 +23,7 @@ import { setSpellBlocks } from './render.js';
 import { createSpellHooks } from './services/spell-hooks.js';
 import { Triggers } from './triggers.js';
 import { Crew } from './crew.js';
+import { syncSpellCrew } from './crew-share.js';
 import { removeWorktree } from './git.js';
 import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
@@ -252,6 +253,12 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
     onChange: () => app.broadcast('config', {}),
   });
+  // A spell's crew members join and leave the crew with it (server/crew-share.js).
+  app.spells.onChange = () => {
+    syncSpellCrew(app);
+    app.configChanged();
+  };
+  syncSpellCrew(app);
   // Triggers (and crew members) that watch for a task finishing. After the turn's own handlers.
   runner.on('finished', ({ session }) => setImmediate(() => app.triggers.taskEvent('finished', store.get(session.id))));
   // Phone: answers and follow-ups coming back from ntfy / Telegram.

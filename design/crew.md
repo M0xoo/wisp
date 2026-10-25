@@ -111,6 +111,26 @@ machine still has them.
   afterwards the job keeps one line, *Added to their kit: …*. Never added without you: these files
   go in every job's prompt.
 
+## Sharing, and members from spells
+
+How it works and why is in [crew-sharing.md](crew-sharing.md); code in `server/crew-share.js` and
+`web/js/features/crew-share.js`. For the page:
+
+- **Share…** sits with a member's other actions under the same name: ⋯ menu, right-click, ⌘K (*Share Ada…*, and *Share your crew…*). The dialog checks the file
+  as it opens and on every option change, so notes (*Quill stays here*) and a secret the scan found
+  show before you press anything; a secret disables every way out. Copy and Download close it; the
+  gist asks first, then stays open with its `gist:` link. The phone (`MOBILE`) gets Copy and the gist.
+- **Import…** is the last chip under *Start from* in the editor, and in ⌘K; a `.crew.json` dropped
+  anywhere opens its review, and `#/crew?src=gist:…` too. The review is a card a member: tick,
+  the name (editable; clashes come back numbered), facts like the details column, notes, the
+  brief and kit folded, the project. Add puts the rows in the list at once, paused; refused, they go
+  and the review comes back as you left it.
+- **A spell's member** says so in its details (*From the “…” spell*, **Make it mine**) and in its
+  editor, where what the spell sets is disabled. Its kit has no Add and no switches. Paused for a
+  review, its row says *New from a spell: review to start* or *Paused: their spell changed*, and
+  Resume (header, menu) opens the review instead of resuming: what it does (new) or each change, old
+  and new, then its project and **Resume …**.
+
 ## On another machine
 
 A member with `machine` keeps its identity, memory, schedule and queue here: one source of truth, so

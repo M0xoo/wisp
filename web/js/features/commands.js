@@ -29,6 +29,7 @@ import { openCast } from './spell-ui.js';
 import { isSplit, setView, sideShown, toggleSidebar, viewPref } from './split.js';
 import { setTheme, themePref } from './theme.js';
 import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } from './crew.js';
+import { importCrew, shareMember } from './crew-share.js';
 
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
@@ -72,6 +73,10 @@ function paletteItems() {
   // The crew: open a member, or add one.
   for (const m of crewList()) items.push({ group: 'Crew', label: m.name, sub: [m.role, m.paused ? 'Paused' : cadenceLabel(m.cron)].filter(Boolean).join(' · '), icon: 'crew', keywords: `crew agent @${m.name} ${m.brief.slice(0, 200)}`, run: () => openCrew(m.id) });
   items.push({ group: 'Crew', label: 'Add a crew member…', icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar spirit', run: () => crewEditor() });
+  // Sharing them: one, all of them, or one someone shared with you (crew-share.js).
+  for (const m of crewList()) items.push({ group: 'Crew', label: `Share ${m.name}…`, icon: 'arrow', keywords: 'crew export gist file copy send colleague', run: () => shareMember(m.id) });
+  if (crewList().length > 1) items.push({ group: 'Crew', label: 'Share your crew…', icon: 'arrow', keywords: 'crew export all members gist file', run: () => shareMember(crewList().map((m) => m.id)) });
+  items.push({ group: 'Crew', label: 'Import crew members…', icon: 'download', keywords: 'crew import shared gist file .crew.json add', run: () => importCrew() });
 
   const sessions = [...S.sessions.values()].filter((s) => !s.pending).sort((a, b) => a.archived - b.archived || b.updatedAt - a.updatedAt);
   for (const s of sessions) {

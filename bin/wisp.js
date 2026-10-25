@@ -7,6 +7,7 @@
 //   wisp ls | show | wait | reply | btw | stop    script sessions (see --help)
 //   wisp run <recipe> [values…]             run a saved recipe
 //   wisp spell [ls|cast|install|on|off|rm|export]  spells: changes to wisp itself
+//   wisp crew [ls|import|export]  your crew, and sharing members as .crew.json files
 //   wisp computer [on|off]     this computer on your wisp Grid: reach it from your phone and other computers
 //   wisp mcp                   stdio MCP server, so other agents and editors can use wisp
 //   wisp skill [install]       the agent skill that teaches other agents to use wisp
@@ -41,6 +42,9 @@ const HELP = `usage:
   wisp spell install <file|url> add a spell someone sent (https, gist:<id>); off until --on
   wisp spell on|off|rm <id>     turn a spell on or off, or remove it   (wisp spell off --all)
   wisp spell export <id>        print the spell file to share
+  wisp crew                     list your crew
+  wisp crew import <file|url>   add members someone shared (.crew.json, https, gist:<id>); paused, in this folder (--cwd)
+  wisp crew export <name…>      print their .crew.json   (--notebook  --team: who they delegate to  --no-kit  --gist: a secret gist)
   wisp computer                 is this computer on your wisp Grid? its address there
   wisp computer on              add it, so your phone and other computers reach it   (--grid HOST, default grid.trywisp.dev;
                                 signs in first: allow the code in your browser)
@@ -54,7 +58,7 @@ launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|ant
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
 options:        --port N  --browser  --no-open  --json  --version`;
 
-const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells', 'grid', 'computer']);
+const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells', 'crew', 'grid', 'computer']);
 const LS_STATES = ['running', 'waiting', 'review', 'done'];
 // grid/cli.js's GRID_COMMANDS (not imported: every command would load the grid). A test keeps them equal.
 const GRID_SUB = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'waitlist', 'help']);
@@ -94,6 +98,10 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--all') flags.all = true;
   else if (a === '--days') flags.days = Number(argv[++i]);
   else if (a === '--grid') flags.grid = argv[++i];
+  else if (a === '--notebook') flags.notebook = true;
+  else if (a === '--team') flags.team = true;
+  else if (a === '--no-kit') flags.kit = false;
+  else if (a === '--gist') flags.gist = true;
   else if (a === '--version' || a === '-v') {
     console.log(JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url))).version);
     process.exit(0);
@@ -105,7 +113,7 @@ for (let i = 0; i < argv.length; i++) {
 // Newer commands are also common first words of a task ("ship the docs", "usage of X"), so they
 // only count when the rest fits; `wisp run` falls back to a task when no recipe has that name.
 const SESSION_ID = /^[a-f0-9]{12}$/;
-const FITS = { grid: (w) => !w[1] || GRID_SUB.has(w[1]), ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), btw: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, computer: (w) => w.length === 1 || (w.length === 2 && ['on', 'off', 'status'].includes(w[1])), run: (w) => w.length > 1 };
+const FITS = { grid: (w) => !w[1] || GRID_SUB.has(w[1]), ship: (w) => SESSION_ID.test(w[1] || ''), merge: (w) => SESSION_ID.test(w[1] || ''), btw: (w) => SESSION_ID.test(w[1] || ''), usage: (w) => w.length === 1, recipes: (w) => w.length === 1, computer: (w) => w.length === 1 || (w.length === 2 && ['on', 'off', 'status'].includes(w[1])), run: (w) => w.length > 1, crew: (w) => w.length === 1 || (w[1] === 'ls' && w.length === 2) || (['import', 'export'].includes(w[1]) && w.length > 2) };
 const command = literal !== 'task' && COMMANDS.has(words[0]) && (FITS[words[0]]?.(words) ?? true) ? words[0] : null;
 const cwd = flags.cwd || process.cwd();
 const die = (msg) => {
@@ -207,6 +215,8 @@ async function scripted(cmd, args) {
     case 'spell':
     case 'spells':
       return spellCommand(wisp, args, { out, need, show });
+    case 'crew':
+      return crewCommand(wisp, args, { out, need });
     case 'computer':
       return computerCommand(wisp, args, { out });
     case 'usage': {
@@ -259,6 +269,34 @@ async function spellCommand(wisp, [sub = 'ls', ...rest], { out, need, show }) {
     }
     default:
       die(`unknown: wisp spell ${sub} (ls, cast, install, on, off, rm, export)`);
+  }
+}
+
+// wisp crew …: list the crew, and share members as .crew.json files (server/crew-share.js).
+async function crewCommand(wisp, [sub = 'ls', ...rest], { out, need }) {
+  switch (sub) {
+    case 'ls':
+    case 'list': {
+      const list = await wisp.crew();
+      return out(list, list.map((m) => `${m.paused ? '○' : '●'} ${m.name.padEnd(24)} ${(m.role || '').padEnd(20)} ${m.cron || 'on call'}${m.spell ? `  (spell: ${m.spell.name})` : ''}`).join('\n') || 'No crew yet. Add someone in wisp, or import a shared one: wisp crew import scout.crew.json');
+    }
+    case 'import': {
+      const src = need(rest[0], 'a .crew.json file or a link');
+      const body = /^(https:\/\/|gist:)/i.test(src) ? { url: src } : { text: fs.readFileSync(path.resolve(src), 'utf8') };
+      const review = await wisp.importCrew({ ...body, dryRun: true });
+      if (review.spell) die('That is a spell: wisp spell install ' + src);
+      const r = await wisp.importCrew({ ...body, choices: Object.fromEntries(review.members.map((m) => [m.key, { cwd }])) });
+      const notes = review.members.flatMap((m) => m.notes);
+      return out(r, [...r.members.map((m) => `  ✓ added ${m.name}${m.role ? ` · ${m.role}` : ''}, paused`), ...notes.map((n) => `    · ${n}`), `  Resume them in wisp to start.`].join('\n'));
+    }
+    case 'export': {
+      const r = await wisp.exportCrew({ ids: rest, kit: flags.kit !== false, notebook: !!flags.notebook, team: !!flags.team, gist: !!flags.gist });
+      for (const n of r.notes) console.error(`  · ${n}`);
+      if (r.gist) return out(r, `  ✓ secret gist: ${r.gist.url}\n  Share it as ${r.gist.ref}: they run  wisp crew import ${r.gist.ref}`);
+      return console.log(JSON.stringify(r.bundle, null, 2));
+    }
+    default:
+      die(`unknown: wisp crew ${sub} (ls, import, export)`);
   }
 }
 
