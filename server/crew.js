@@ -294,6 +294,17 @@ export function crewMentions(text = '', members = []) {
   return { all: list.map((h) => h.member), lead, rest: lead.length ? src.slice(at).trim() : src };
 }
 
+// A member tagged in a task or job, as one of its delegates. The user named them, so the agent is
+// told to bring them in rather than leave it to its own judgement.
+export const taggedDelegate = (m, where = 'task') => ({
+  crew: m.id,
+  name: handleOf(m.name),
+  label: m.name,
+  role: m.role,
+  agent: m.agent,
+  use: `${m.role ? `${m.role}. ` : ''}The user tagged them in this ${where} to work on it with you: hand them their part rather than doing it all yourself`,
+});
+
 // Stored crew mentions as an agent or a person reads them: `@Ada`.
 export const plainCrew = (text = '') => String(text).replace(CREW_MENTION, '@$1');
 
@@ -395,7 +406,7 @@ export class Crew {
     if (!JOBS.has(job)) job = 'task';
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
-    const extra = tagged.filter((x) => x.id !== m.id).map((x) => ({ crew: x.id, name: handleOf(x.name), label: x.name, role: x.role, agent: x.agent, use: x.role ? `${x.role}. The user tagged them in this job` : 'The user tagged them in this job' }));
+    const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
     const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(extra.length && { team: extra }), at: this.now() };
     if (from?.id && (job === 'mention' || job === 'delegated')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
@@ -567,7 +578,8 @@ export class Crew {
 
   // @Name in a follow-up: the member gets the message as a job, and its answer shows on the task
   // under the message (a side entry like /btw's, with the member as who answers).
-  async ask(m, task, text, attachments = []) {
+  // tagged: other members named in it, who join the job's delegates.
+  async ask(m, task, text, attachments = [], tagged = []) {
     const turn = task.turns.at(-1);
     if (!turn) throw bad('Nothing to ask about yet.', 409);
     const entry = { id: newId(), question: text, status: 'running', askedAt: this.now(), crew: { id: m.id, name: m.name, avatar: m.avatar, color: m.color } };
@@ -575,7 +587,7 @@ export class Crew {
     this.runner.sideChanged(task, turn);
     const reply = { sessionId: task.id, turnId: turn.id, entryId: entry.id };
     try {
-      const out = await this.assign(m, { prompt: text, job: 'mention', from: { id: task.id, title: task.title }, attachments, reply });
+      const out = await this.assign(m, { prompt: text, job: 'mention', from: { id: task.id, title: task.title }, attachments, reply, tagged });
       if (out.session) entry.job = out.session.id;
       else entry.queued = true;
       this.runner.sideChanged(task, turn);

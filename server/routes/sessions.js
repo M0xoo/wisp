@@ -14,7 +14,7 @@ import { MIME } from '../http/static.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
 import { alsoDirs, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
-import { crewMentions, handleOf } from '../crew.js';
+import { crewMentions, taggedDelegate } from '../crew.js';
 import { ptySupported } from '../pty.js';
 import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
@@ -107,7 +107,9 @@ export function register(r, app) {
   const asDelegates = (members, have = []) =>
     members
       .filter((m) => !have.some((x) => x.crew === m.id))
-      .map((m) => ({ crew: m.id, name: handleOf(m.name), label: m.name, role: m.role, agent: m.agent, use: m.role ? `${m.role}. The user tagged them in this task` : 'The user tagged them in this task' }));
+      .map((m) => taggedDelegate(m));
+  // "@Ada fix it with @Bo": Bo joins Ada's job as one of its delegates.
+  const others = (t) => t.all.filter((m) => !t.lead.includes(m));
   // A crew job is a session here, or the summary of one on the member's machine.
   const sumOf = (x) => (x.turns ? summarize(x, store) : x);
   const turnOf = (s, turnId) => (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
@@ -139,7 +141,7 @@ export function register(r, app) {
     if (t.lead.length) {
       if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
       const jobs = [];
-      for (const m of t.lead) jobs.push({ m, out: await app.crew.assign(m, { prompt: t.rest, job: 'task', attachments: Array.isArray(body.attachments) ? body.attachments : [] }) });
+      for (const m of t.lead) jobs.push({ m, out: await app.crew.assign(m, { prompt: t.rest, job: 'task', attachments: Array.isArray(body.attachments) ? body.attachments : [], tagged: others(t) }) });
       const list = jobs.map(({ m, out }) => (out.session ? sumOf(out.session) : { queued: out.queued, crew: { id: m.id, name: m.name } }));
       return c.send(201, list.length > 1 ? { ...list[0], group: list } : list[0]);
     }
@@ -279,7 +281,7 @@ export function register(r, app) {
       if (t.lead.length) {
         if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
         const asked = [];
-        for (const m of t.lead) asked.push((await app.crew.ask(m, s, t.rest, Array.isArray(attachments) ? attachments : [])).entry);
+        for (const m of t.lead) asked.push((await app.crew.ask(m, s, t.rest, Array.isArray(attachments) ? attachments : [], others(t))).entry);
         return c.send(200, { crew: asked });
       }
       // subagents / preset: give the lead a team (or another one, [] for none) from this follow-up on.
