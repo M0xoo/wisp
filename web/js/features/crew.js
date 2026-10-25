@@ -106,7 +106,7 @@ export function crewDot(s) {
 //
 // One block per member: its row, then (in the feed) its thread when it's open, then its recent
 // jobs as ordinary cards, nested under it: what's live first (asking you, working, an unread
-// report), then what it finished, newest first, until you archive it. The rest is in its thread.
+// report), then what it finished, newest first, until you mark it done or archive it. The rest is in its thread.
 // Nothing of the crew's shows in Needs you, Working or Done (split view's home lists their
 // questions and unread reports with yours, split.js paintHome).
 
@@ -127,10 +127,11 @@ export function pinJob(id) {
 }
 
 // A member's jobs under it, most urgent first: asking you, working, an unread report, then the
-// finished ones, newest first. Archived ones (quiet check-ins too) are only in its thread.
+// finished ones, newest first. Ones you marked done or archived (quiet check-ins too) are only in
+// its thread.
 function memberJobs(m, st) {
   const rank = (s) => (s.pending || s.state === 'running' ? 1 : s.state === 'waiting' ? 0 : s.state === 'review' && s.unread ? 2 : 3);
-  const list = [...st.sent, ...st.jobs.filter((s) => !s.archived || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id))];
+  const list = [...st.sent, ...st.jobs.filter((s) => (!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id))];
   list.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   const open = S.crewOpen === m.id;
   const keep = list.filter((s, i) => i < JOBS_MAX || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));
