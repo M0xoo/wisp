@@ -210,6 +210,9 @@ export const PARTS = {
   'doc.preview': '.b-doc .doc-page',
   'doc.reader': '.dr',
   'doc.contents': '.dr-toc',
+  // Another wisp task in a reply (the task block): the card, and its Open label.
+  task: '.b-task',
+  'task.open': '.b-task .tk-open',
   // An interactive block in an answer (an agent's or a spell's app) and its title row. Not the
   // strip that asks before sending what the app offers: that one always shows.
   'block.app': '.b-app',
@@ -356,7 +359,7 @@ export function wispPathProblem(p) {
 }
 
 // Built-in presentation blocks (a spell's agent block type can't reuse these names).
-export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'video', 'preview', 'doc', 'question', 'blocked', 'actions', 'next', 'spell', 'app'];
+export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'video', 'preview', 'doc', 'task', 'question', 'blocked', 'actions', 'next', 'spell', 'app'];
 
 // {field} templates over a context object (dotted paths): "PR #{pr.number}". Missing → ''.
 export function fillTemplate(tpl, ctx = {}) {

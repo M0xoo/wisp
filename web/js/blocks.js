@@ -1,9 +1,10 @@
 // Presentation blocks. Each renderer gets (block, ctx) and returns an element.
-// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line), fileUrl(path), reveal(path) }
+// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line), fileUrl(path), reveal(path), openTask(id) }
 
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
 import { load, MOBILE, save, S } from './core/state.js';
+import { agoLong, STATUS_LABEL } from './core/format.js';
 import { imageButtons, bindImageButtons, imageName, saveImage } from './ui/image.js';
 import { ask } from './ui/confirm.js';
 import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
@@ -901,6 +902,42 @@ R.doc = (b, ctx) => {
     new ResizeObserver(() => {
       if (page.clientHeight) page.classList.toggle('fits', lines.length <= DOC_PREVIEW_LINES && page.scrollHeight <= page.clientHeight + 1);
     }).observe(page);
+  }
+  return node;
+};
+
+// task: another wisp task the agent points at (a search hit, a source). It reads the task as it is
+// now; one that's gone keeps the title the server kept (Store.keepTasks) and can't be opened.
+function taskPill(t) {
+  if (t.archived) return `<span class="pill st-done"><i></i>Archived</span>`;
+  if (t.state === 'running') return `<span class="pill st-running"><i></i>Working</span>`;
+  if (t.state === 'waiting') return `<span class="pill st-waiting"><i></i>Asking</span>`;
+  if (t.state === 'review') return `<span class="pill st-${esc(t.status || 'done')}"><i></i>${STATUS_LABEL[t.status] || STATUS_LABEL.done}</span>`;
+  return `<span class="pill st-done"><i></i>Done</span>`;
+}
+
+R.task = (b, ctx) => {
+  const id = String(b.id || '').trim();
+  const t = S.sessions.get(id);
+  const title = t?.title || b.title || 'A wisp task';
+  const harness = t && (S.agents?.find((a) => a.id === t.agent)?.name || t.agent);
+  const meta = t ? [t.project, harness, t.updatedAt && `updated ${agoLong(t.updatedAt)}`].filter(Boolean) : ['Deleted, or on another computer'];
+  const node = el(`
+    <button type="button" class="b-task card ${t ? `c-${esc(t.color || 'slate')}` : 'missing'}" ${t ? '' : 'disabled'} title="${t ? 'Open this task' : 'This task isn’t in your list'}">
+      <span class="tk-ic">${icon(t ? 'agent' : 'warn')}</span>
+      <span class="tk-main">
+        <b>${esc(title)}</b>
+        <span class="tk-meta">${meta.map((m) => `<i>${esc(m)}</i>`).join('')}</span>
+        ${b.note ? `<span class="tk-note">${inlineMd(b.note)}</span>` : ''}
+      </span>
+      ${t ? taskPill(t) : ''}
+      ${t ? `<span class="tk-open">Open${icon('arrow')}</span>` : ''}
+    </button>`);
+  if (t) {
+    node.addEventListener('click', () => {
+      if (ctx.openTask) ctx.openTask(id);
+      else location.hash = `#/s/${id}`;
+    });
   }
   return node;
 };

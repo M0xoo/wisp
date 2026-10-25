@@ -188,7 +188,7 @@ export function register(r, app) {
       const list = all.slice(0, Math.min(Math.max(Number(q.limit) || 20, 1), 100));
       telemetry.track('wisp_sessions', { agent: s.agent });
       const text = list.length
-        ? `${all.length} task${all.length === 1 ? '' : 's'}${all.length > list.length ? `, the newest ${list.length}` : ''}. Read one with wisp_session.\n\n${list.map(sessionLine).join('\n')}`
+        ? `${all.length} task${all.length === 1 ? '' : 's'}${all.length > list.length ? `, the newest ${list.length}` : ''}. Read one with wisp_session; show one in your answer with a task block.\n\n${list.map(sessionLine).join('\n')}`
         : 'No tasks match.';
       c.send(200, { text });
     }),

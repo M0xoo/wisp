@@ -13,7 +13,7 @@ import { viewImage } from '../ui/viewer.js';
 import { execAction, moreMenu, openInEditor, rerun, revealFile, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
-import { expand, fetchFull, renderFeed, scheduleRefetch, setFocus } from './feed.js';
+import { expand, fetchFull, renderFeed, reveal as revealTask, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
 import { agentName, DEFAULT_MODE, effortLabel, modelBadge, MODES } from './runners.js';
@@ -36,6 +36,7 @@ export function ctxFor(s, turn, isLatest) {
     fileUrl: (p) => `/api/sessions/${s.id}/file?path=${encodeURIComponent(p)}`,
     zoom: (src, alt, set) => viewImage(src, alt, set),
     reveal: (p) => revealFile(s, p),
+    openTask: (id) => revealTask(id),
     revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
     exec: (command, key) => execAction(s.id, turn.id, command, key),
     saveApp: (key, state) => saveAppState(s, turn, key, state),

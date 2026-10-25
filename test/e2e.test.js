@@ -183,7 +183,7 @@ test('a prompt that mentions another task: the agent reads it with wisp_session 
   assert.equal(done.turns[0].prompt, `Carry on from @[mention target: fix add()](wisp:${a.id}) please`, 'stored as typed');
   const summary = done.turns.at(-1).presentation.blocks[0].summary;
   assert.match(summary, /read # Fake claude finished/);
-  assert.match(summary, /listed \d+ tasks?(, the newest 2)?\. Read one with wisp_session\./);
+  assert.match(summary, /listed \d+ tasks?(, the newest 2)?\. Read one with wisp_session; show one in your answer with a task block\./);
 
   // Both reads need the run's token.
   for (const p of [`/api/internal/session/${b.id}?of=${a.id}`, `/api/internal/sessions/${b.id}`]) assert.equal((await fetch(`${base}${p}`)).status, 403);

@@ -263,6 +263,20 @@ export class Store {
     return changed;
   }
 
+  // A task block names another wisp task by id. Its title goes into the block as it was then, so the
+  // block still reads right in exports and once that task is deleted.
+  keepTasks(turn) {
+    let changed = false;
+    for (const b of turn.presentation?.blocks || []) {
+      if (b?.type !== 'task' || typeof b.id !== 'string' || typeof b.title === 'string') continue;
+      const s = this.get(b.id.trim());
+      if (!s) continue;
+      b.title = s.title;
+      changed = true;
+    }
+    return changed;
+  }
+
   flush() {
     for (const id of [...this.timers.keys()]) {
       const s = this.sessions.get(id);
