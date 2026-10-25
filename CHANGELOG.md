@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Schedule work for later, in the same task.** Type *in 10 min check again* in a task's reply box (or use the clock button beside Send) and wisp sends that follow-up into the same conversation at that time, so the agent carries on with everything it knew. Agents can do it themselves with the new `resume_later` tool ("the deploy takes 20 minutes, I'll look again then") instead of sleeping; crew members' jobs too (their `wakeIn` still starts a fresh check-in). Follow-ups show above the reply box (*At 14:45 · set by the agent*), with **Send now**, **Change time…** and **Cancel**, also in the right-click menu, More and ⌘K. An agent can chain 10 at most before it has to report back to you.
+- **"In 5 minutes do X" and "remind me … in 1 hour" in the prompt box.** A prompt that starts with a time is held and started then (a scheduled task); *remind me …* sets a reminder that needs no agent and lands in *Needs you* with a bell when due, with **Snooze…**. A chip under the box shows the time wisp read before you send; × or Alt+Enter runs it now, and text that only mentions a time is never delayed. Settings → *Read times in prompts* turns it off. Also **Start later** beside Launch.
+- **See what's coming.** A *Scheduled* section in the list (split view and the feed) holds tasks and reminders that haven't started and finished tasks with follow-ups to come, soonest first; split view's home lists *Coming up*: those, crew check-ins and schedule triggers, with their times. A task with a follow-up shows a clock pill with its time. wisp started late (or Grid woke it) catches up: follow-ups a few minutes late tell the agent so, a day late they wait for you in *Needs you*. API: `POST/PATCH/DELETE /sessions/:id/later`, `GET/POST /later`, `PATCH/DELETE /later/:id`. Spells reach it as `section.scheduled`, `split.upcoming` (a slot too, with `count`), `card.later`, `composer.later`, `composer.sendLater`, `launcher.later` and the `readTimes` setting.
+
 ### Changed
 
 - **A crew member's finished jobs stay under them in the sidebar.** Reading a report no longer makes the job vanish: under each member are their three most recent jobs, live ones first (asking you, working, an unread report), then what they finished, until you mark it done or archive it. *N more · open …* leads to the rest in their thread. Quiet check-ins still only show in the thread.

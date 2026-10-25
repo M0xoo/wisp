@@ -22,6 +22,7 @@ Use these, everywhere in the page, the app, the site and the CHANGELOG:
 | spell | plugin, theme, mod |
 | *Crew*, crew member, *job*, spirit (its avatar) | agents, assistants, bots (an agent is the harness running a task) |
 | Settings → *Section* → *Row* | the config, preferences |
+| *scheduled follow-up*, *scheduled task*, *reminder*; *Scheduled* (the list section), *Coming up* (split home) | wake-up, resume, timer (fine in code and in the agent's tool) |
 
 When you rename something, change every place it shows (menus, palette, settings, tooltips,
 toasts, docs, guides, README).
@@ -31,7 +32,7 @@ toasts, docs, guides, README).
 - Buttons say what happens: a verb, or verb + object (*Delete recipe*, *Add a delegate*). Never *OK*,
   *Submit* or *Yes*.
 - Sentence case. No trailing periods on labels, titles or menu items.
-- Times: relative in lists (*28m ago*), full date on hover.
+- Times: relative for the past in lists (*28m ago*), absolute for the future (*14:32*, *Mon 9:00*, never *in 18m*, which reads as *ago*); the full date, and *in 18 min*, on hover.
 - Use `…` on a label only when it opens something that asks more (*Rerun…*).
 - Settings rows: a short title and one line saying what it does, in the person's terms.
 

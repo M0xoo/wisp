@@ -13,6 +13,7 @@ import { normalizeWebhooks } from '../services/webhooks.js';
 import { cloneRepo, gh, git, parseRepo } from '../git.js';
 import { checkout, cloneRoot, discoverRepos, originAt } from '../services/places.js';
 import { expand } from '../util.js';
+import { triggerView } from '../triggers.js';
 
 // On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
 // the page offers connecting through the grid instead of SSH.
@@ -34,6 +35,7 @@ export function register(r, app) {
     lockedBy: app.spells.settings().lockedBy,
     recipes: [...store.config.recipes, ...app.spells.recipes()],
     crew: app.crew ? app.crew.list.map((m) => app.crew.view(m)) : store.config.crew, // with nextAt and what's running
+    triggers: store.config.triggers.map(triggerView), // with nextAt, for split home's Coming up
     spells: app.spells.forPage(),
     spellsSafe: app.spells.safe,
   });

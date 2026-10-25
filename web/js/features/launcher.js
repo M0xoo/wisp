@@ -34,6 +34,8 @@ import { SPELL_HINT, spellAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { goHome, isSplit } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
+import { parseWhen } from '../when.js';
+import { addPlan, aheadLabel, timeMenu, whenTip } from './later.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -128,9 +130,11 @@ export function renderLauncher() {
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       <span class="grow"></span>
       <button class="tog-btn" id="wtBtn"></button>
+      <button class="icon-btn" id="launchLater" aria-label="Start later" title="Start later" aria-haspopup="menu">${icon('clock')}</button>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
     </div>
-    <div class="l-recipes"></div>`;
+    <div class="l-recipes"></div>
+    <div class="l-when" hidden></div>`;
   renderLaunchChips();
   renderSetup();
   launcherParts(box); // what spells add to the prompt box
@@ -141,7 +145,7 @@ export function renderLauncher() {
   acceptFiles(box, ta, tray);
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
-  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe()));
+  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen()));
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
   // The phone (or any touch-only screen) has no keyboard shortcut to advertise.
   const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta || MOBILE || matchMedia('(hover: none)').matches
@@ -300,8 +304,51 @@ export function renderLauncher() {
   };
   box.spellLaunch = (v) => go(v);
 
+  // "in 5 min run the e2e suite", "remind me to … in 1 h": the time wisp read, shown in place of
+  // the recipes row once you pause typing. Only a shown time schedules; × (Not a time) holds for
+  // the draft, and Alt+Enter starts it now as typed.
+  let when = null;
+  let notTime = false;
+  let whenTimer = 0;
+  const whenRow = $('.l-when', box);
+  const laterBtn = $('#launchLater', box);
+  const paintWhen = () => {
+    const html = when
+      ? `<span class="when-chip" title="${esc(whenTip(when.at))}">${icon(when.reminder ? 'bell' : 'clock')}<span>${when.reminder ? `Reminds you at ${esc(aheadLabel(when.at))}` : `Starts ${new Date(when.at).toDateString() === new Date().toDateString() ? 'at ' : ''}${esc(aheadLabel(when.at))}`}</span>${when.reminder ? '' : '<button type="button" class="link" data-a="now">Start now</button>'}<button type="button" class="att-x" data-a="x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
+      : '';
+    if (whenRow.dataset.h !== html) (whenRow.innerHTML = html), (whenRow.dataset.h = html);
+    whenRow.hidden = !when;
+    box.classList.toggle('when-on', !!when);
+    const touch = matchMedia('(pointer: coarse)').matches;
+    const send = $('#launch', box);
+    send.title = when ? `${when.reminder ? 'Remind you' : 'Start'} at ${aheadLabel(when.at)}${touch ? '' : ' (Enter) · Alt+Enter starts now'}` : 'Launch (Enter · Shift+Enter for newline)';
+    laterBtn.disabled = !ta.value.trim();
+    laterBtn.title = laterBtn.disabled ? 'Type a task first' : 'Start later';
+    laterBtn.classList.toggle('on', !!when);
+  };
+  const readWhen = () => {
+    clearTimeout(whenTimer);
+    if (!ta.value.trim()) notTime = false;
+    const text = ta.value;
+    const ok = S.config.defaults?.readTimes !== 'off' && !notTime && !spellAsk(text.trim()) && !spellSlash(text.trim()) && !isFeedback(text.trim()) && !addressedTo(text).members.length;
+    if (!ok || !parseWhen(text)) return (when = null), paintWhen();
+    whenTimer = setTimeout(() => ((when = parseWhen(ta.value)), paintWhen()), 250);
+  };
+  whenRow.onclick = (e) => {
+    const a = e.target.closest('button')?.dataset.a;
+    if (a === 'now') (when = null), go(null, { now: true });
+    if (a === 'x') (notTime = true), (when = null), paintWhen(), ta.focus();
+  };
+  laterBtn.onclick = () => {
+    if (!ta.value.trim()) return;
+    timeMenu(laterBtn, { verb: 'Starts', back: ta, pick: (at) => go(null, { at }) });
+  };
+  paintWhen();
+  box.whenNow = () => when; // Enter reads it (keydown below)
+
   // over: a spell's launchWith ({ agent, model, effort, mode, text }) for this one launch.
-  const go = async (over = null) => {
+  // at: start it then instead (Start later, or the time read from the box); now: ignore that time.
+  const go = async (over = null, { at = null, now = false } = {}) => {
     if (over && !(over instanceof Event) && over.text && !ta.value.trim().startsWith(over.text)) ta.value = `${over.text}${ta.value.trim() ? `\n\n${ta.value.trim()}` : ''}`;
     if (over instanceof Event) over = null;
     const prompt = ta.value.trim();
@@ -337,6 +384,26 @@ export function renderLauncher() {
     const off = targets.find((t) => t.m && !usable(t.m));
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
+    // For later: a task (or a reminder) that starts at that time, kept by wisp until then.
+    const w = now ? null : at ? { at, rest: prompt, reminder: false } : when;
+    if (w) {
+      const t = targets[0];
+      if (!t.project) return toast('Pick a project that’s ready first: this one is still cloning.', { tone: 'bad' });
+      if (tray.busy || (await tray.ids()).length) return toast('A scheduled task can’t carry files yet. Start it now, or remove them.', { tone: 'bad' });
+      const r = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '' } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
+      ta.value = '';
+      S.drafts.delete('home');
+      ta.dispatchEvent(new Event('input'));
+      when = null;
+      paintWhen();
+      closePrompt();
+      const body = w.reminder
+        ? { text: w.rest }
+        : { prompt: w.rest, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, agent: r.agent, mode: over?.mode || curMode, model: r.model, effort: r.effort, worktree: S.config.defaults.worktree === 'off' ? false : undefined, subagents: team.length && canLead(r.agent) ? team : undefined };
+      const p = await addPlan(w.reminder ? 'reminder' : 'task', w.at, body);
+      if (!p) return !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
+      return toast(`${w.reminder ? 'Reminds you' : 'Starts'} ${esc(aheadLabel(w.at))}`);
+    }
     // Delegates on machines that aren't connected: connecting now has them ready by the first delegation.
     for (const m of team) if (m.machine && m.machine !== 'here' && machineById(m.machine)?.state === 'off') connectMachine(m.machine);
     const wanted = [over?.agent || agent?.id, ...compare.map((c) => c.agent)].filter((id) => id !== 'auto'); // Auto picks from what's there
@@ -437,7 +504,7 @@ export function renderLauncher() {
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      go();
+      go(null, { now: e.altKey });
     }
     if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();

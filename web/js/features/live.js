@@ -13,7 +13,7 @@ import { paintCrew } from './crew.js';
 import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
 import { loadMachines, openComputers, paintMachinesBtn, setMachines } from './machines.js';
-import { notifyFinished } from './notify.js';
+import { notifyFinished, notifyReminder } from './notify.js';
 import { renderProjects } from './projects.js';
 import { feedAnchor, keepFollowing, keepInPlace, watching } from './scroll.js';
 import { openSettings } from './settings.js';
@@ -59,6 +59,7 @@ export function connect() {
     follow ? keepFollowing(S.nodes.get(s.id).card, renderFeed) : keepInPlace(feedAnchor(s.id), renderFeed);
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
     if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal
+    else if (JSON.stringify(prev?.later || null) !== JSON.stringify(s.later || null) && S.nodes.has(s.id)) updateDock(s.id); // its scheduled follow-ups, above the box
     if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
     if (JSON.stringify(prev?.overlaps || null) !== JSON.stringify(s.overlaps || null)) renderOverlapStrip(s.id);
     if (prev?.state !== s.state || prev?.pr?.state !== s.pr?.state) spellEvent('summary');
@@ -66,6 +67,7 @@ export function connect() {
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
   es.addEventListener('finished', (e) => (notifyFinished(JSON.parse(e.data).session), spellEvent('finished')));
+  es.addEventListener('reminder', (e) => notifyReminder(JSON.parse(e.data).session));
   // A spell hook's notify, from the server.
   es.addEventListener('spell', (e) => {
     const m = JSON.parse(e.data);

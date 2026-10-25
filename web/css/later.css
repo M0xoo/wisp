@@ -1,0 +1,68 @@
+/* Later (features/later.js): scheduled follow-ups, tasks and reminders. Times ahead are absolute
+   and tabular, so a row's width never changes as the clock moves. */
+
+/* the pill on a card: the next follow-up's time */
+.pill.later-pill { --tone: var(--muted); gap: 4px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.pill.later-pill .i { width: 11px; height: 11px; color: var(--muted); }
+.pill.later-pill b { font-weight: 600; color: var(--muted); }
+/* a reminder that came due, where Finished would be */
+.pill.st-reminder { --tone: var(--warn); gap: 4px; }
+.pill.st-reminder .i { width: 11px; height: 11px; }
+
+/* Scheduled: rows for tasks and reminders that haven't started, then cards */
+.plan-row .q-dot.auto, .sh-up .q-dot.auto { color: var(--muted); }
+.plan-row .it-head { cursor: pointer; }
+.plan-row .it-title { color: var(--ink-2); }
+.f-group.scheduled .q-time { font-variant-numeric: tabular-nums; }
+.f-group.scheduled .it-sub .i { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; color: var(--muted); }
+
+/* the time menu: a choice per row, the time it means in a fixed column */
+.menu.later-menu { width: 240px; }
+.menu.later-menu button[role=menuitem] { justify-content: space-between; }
+.menu.later-menu button[hidden] { display: none; }
+.lm-t { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lm-pick { display: grid; gap: 8px; padding: 6px; }
+.lm-pick[hidden] { display: none; }
+.lm-in { width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; }
+.lm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.menu.later-plan { width: 280px; }
+.lp-what { margin: 4px 10px 6px; font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* above the reply box: a scheduled follow-up, built like a queued one */
+.cq.later { cursor: pointer; border-style: solid; border-color: var(--line); }
+.cq.later:hover { background: var(--bg-2); }
+.cq.later .cq-tag { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.cq.later .cq-tag .i { width: 11px; height: 11px; color: var(--muted); }
+
+/* the button beside Send, and what wisp read in the box */
+.c-later, #launchLater { color: var(--muted); }
+.c-later.open, #launchLater.open { background: var(--bg-2); color: var(--ink); }
+.c-later:disabled, #launchLater:disabled { opacity: 0.4; }
+.when-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 11.5px; color: var(--ink-2); }
+.when-chip > .i { width: 12px; height: 12px; color: var(--accent-ink); flex: none; }
+.when-chip > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.when-chip .link { font-size: 11.5px; }
+.when-chip .att-x { position: static; translate: none; width: 18px; height: 18px; }
+.it-props .later-pill { display: none; } /* the open task's rows above the box say it */
+.launcher.when-on .l-recipes { display: none; }
+.l-when[hidden] { display: none; }
+.l-when { display: flex; align-items: center; margin: 8px -12px -10px; padding: 7px 14px 8px; border-top: 1px solid var(--line); }
+.l-when .when-chip { height: 24px; }
+.split-home .launcher .l-when { border-top: 0; margin-top: 2px; padding-top: 2px; }
+/* a time was read: the clock beside Send says so (Send keeps its own icon) */
+.c-later.on, #launchLater.on { color: var(--accent-ink); }
+
+body.wisp-mobile .when-chip .link, body.wisp-mobile .when-chip .att-x { min-height: 44px; min-width: 44px; }
+.c-hint { min-width: 0; }
+.sh-s.reminder { color: var(--warn); font-weight: 500; }
+.sh-task:not(.sh-up) > .q-dot.auto { color: var(--warn); }
+/* phones: the card's pill shrinks to its clock (the time is in the open task, and its tooltip) */
+@media (max-width: 520px) {
+  #feed .it-head .later-pill { padding: 0 6px; }
+  #feed .it-head .later-pill .lp-t, #feed .it-head .later-pill b { display: none; }
+}
+/* phones: a read time takes a line of its own above the reply box's buttons */
+@media (max-width: 520px) {
+  .c-bar:has(.when-chip) { flex-wrap: wrap; }
+  .c-bar .c-hint:has(.when-chip) { flex-basis: 100%; order: -1; }
+}

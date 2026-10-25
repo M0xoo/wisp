@@ -1,6 +1,7 @@
 // What you can do to a session: done, archive, delete, rename, rerun, revert, take over, open files,
 // and the menus that offer it. Local changes apply at once and roll back if the server refuses.
 
+import { laterMenuHtml, runLaterAction } from './later.js';
 import { copy } from '../blocks.js';
 import { esc } from '../md.js';
 import { addToCrew, memberById, openCrew } from './crew.js';
@@ -185,6 +186,7 @@ export function moreMenu(id, anchor) {
       ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(sum)}
+      ${laterMenuHtml(sum)}
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
@@ -200,6 +202,7 @@ export function moreMenu(id, anchor) {
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
+    if (a?.startsWith('later-')) runLaterAction(a, sum, anchor);
     if (a === 'copy') {
       await tryApi(async () => {
         const { command } = await api(`/sessions/${id}/takeover`);
@@ -234,6 +237,7 @@ export function taskMenu(id, e) {
       ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(s)}
+      ${laterMenuHtml(s)}
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       ${slotHtml('card.menu', s).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${s.id}" `)}
@@ -253,6 +257,7 @@ export function taskMenu(id, e) {
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
+    if (a?.startsWith('later-')) runLaterAction(a, s, null, { x: e.clientX, y: e.clientY });
     if (a === 'done') toggleDone(id);
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);

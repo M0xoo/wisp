@@ -157,6 +157,15 @@ test('every task-list section and its folding heading are parts', () => {
   assert.ok(problems({ ...base0, ui: { hide: ['section.waiting'] } }).length);
 });
 
+test('later: Scheduled, Coming up, the follow-up rows, Send later and the time chip are parts; Coming up takes buttons and a count; readTimes is a setting', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['section.scheduled', 'split.upcoming', 'card.later', 'composer.sendLater', 'launcher.later'] }, parts: { 'composer.later': { style: { fontSize: '12px' } }, 'scheduled.row': { style: { opacity: '0.8' } }, 'split.upcoming': { props: { count: 8 } } } }), []);
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.upcoming', label: 'All', do: { open: 'https://example.com' } }] }), []);
+  assert.ok(problems({ ...base0, parts: { 'split.upcoming': { props: { count: 41 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'split.upcoming', panel: 'x' }] }).length);
+  assert.deepEqual(problems({ ...base0, settings: { readTimes: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { readTimes: 'sometimes' } }).some((x) => /readTimes/.test(x) && /on \| off/.test(x)));
+});
+
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,

@@ -37,6 +37,32 @@ export function register(r, app) {
   );
   r.route('GET', '/internal/ask/:id', guarded((c) => c.send(200, runner.pollAnswer(c.params.id))), opts);
 
+  // resume_later: the agent schedules a follow-up into its own task, or cancels one it made.
+  r.route(
+    'POST',
+    '/internal/later',
+    guarded(async (c) => {
+      const body = await c.body();
+      const s = store.get(body.session);
+      if (!s) return c.send(404, { error: 'no such session' });
+      if (s.parentId || s.delegated) return c.send(400, { error: 'A subagent can’t schedule follow-ups; say in your report what should be checked later, and your lead can.' });
+      const by = s.crew ? app.crew?.get(s.crew.id)?.name || 'agent' : 'agent';
+      const mine = (s.later || []).filter((l) => l.by === by);
+      if (body.cancel) {
+        const ok = mine.some((l) => l.id === body.cancel) && app.later.cancel(s, body.cancel);
+        return c.send(200, { text: ok ? 'Cancelled.' : 'No follow-up of yours with that id is pending.' });
+      }
+      const minutes = body.minutes !== undefined ? Number(body.minutes) : undefined;
+      if (body.at !== undefined && typeof body.at === 'string' && !/(Z|[+-]\d\d:?\d\d)$/.test(body.at.trim())) return c.send(400, { error: 'at must be an ISO time with its offset (2026-10-25T14:30+02:00), or use minutes.' });
+      const l = app.later.add(s, { text: body.message, by, ...(minutes !== undefined ? { in: minutes } : { at: body.at }) });
+      telemetry.track('resume_later', { agent: s.agent, minutes: Math.round((l.at - Date.now()) / 60_000) });
+      const when = (t) => new Date(t).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      const others = (s.later || []).filter((x) => x !== l).map((x) => `- ${x.id} at ${when(x.at)}: ${clip(x.text, 80)}`).join('\n');
+      c.send(200, { text: `Scheduled (id ${l.id}) for ${when(l.at)}, in ${Math.round((l.at - Date.now()) / 60_000)} min. Finish your turn now with your report, saying what you'll check then; wisp resumes this conversation at that time with your message.${others ? `\nAlso pending on this task:\n${others}` : ''}` });
+    }),
+    opts,
+  );
+
   // A live approval (the harness's permission prompt): { decision } at once, or an { id } to poll
   // like ask_user, whose answer carries the decision.
   r.route(

@@ -132,6 +132,9 @@ Strings must be valid JSON (escape newlines as \\n and quotes as \\"). Example:
 const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
   two very different approaches), call the \`ask_user\` tool (${tool}). It pauses you until
   the user answers in wisp — you keep all your context. Ask one crisp question with 2–4 options.
+- If you must wait before you can go on (a deploy, CI, "check again in 10 minutes") or the user asks you to do
+  something later ("in 5 minutes do X"), call \`resume_later\` (${tool.replace(/ask_user$/, 'resume_later')}) and end your
+  turn: wisp sends your message back into this conversation at that time. Never sleep or poll for it.
 - If the user asks about their past wisp tasks (which tools or harnesses they use, cost, success rate),
   call \`wisp_stats\` (${tool.replace(/ask_user$/, 'wisp_stats')}) instead of digging through files.
 - If the prompt mentions another wisp task ("@Title (wisp task <id>)") or the user asks what another task
