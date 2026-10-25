@@ -254,24 +254,27 @@ body.split #crewView { flex: 1; }
 .crew-view.wide .cv-about { order: 0; position: sticky; top: 0; margin: 0; border: 0; background: none; }
 .crew-view.wide .cv-about > summary { display: none; }
 .crew-view.wide .cv-about > .cv-side { padding: 0; }
-.cv-side { display: flex; flex-direction: column; gap: 14px; font-size: 12.5px; }
-.cv-facts { display: flex; flex-direction: column; gap: 8px; color: var(--ink-2); }
-.cv-facts .m { display: flex; align-items: flex-start; gap: 9px; min-width: 0; line-height: 1.45; }
+/* dense enough to fit a laptop window whole: one line per fact, the actions in a row, short clips */
+.cv-side { display: flex; flex-direction: column; gap: 10px; font-size: 12.5px; }
+.cv-facts { display: flex; flex-direction: column; gap: 5px; color: var(--ink-2); }
+.cv-facts .m { display: flex; align-items: flex-start; gap: 9px; min-width: 0; line-height: 1.4; }
 .cv-facts .m > .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--faint); }
-.cv-facts .m > span { min-width: 0; overflow-wrap: anywhere; }
+.cv-facts .m > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-facts .cv-logo { flex: none; display: grid; place-items: center; width: 13px; height: 13px; margin-top: 2px; }
 .cv-facts .cv-logo > * { width: 13px; height: 13px; }
 .cv-team { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
 .cv-mate { display: inline-grid; place-items: center; }
 .cv-mate.logo { width: 20px; height: 20px; border-radius: 50%; background: var(--bg-2); }
 .cv-mate.logo > * { width: 12px; height: 12px; }
-/* the actions: a list with their names, like a task's */
-.cv-actions { display: flex; flex-direction: column; gap: 1px; padding-top: 12px; border-top: 1px solid var(--line); }
-.cv-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 8px; gap: 10px; font-size: 13px; color: var(--muted); }
+/* the actions: one row, Remove an icon at its end (named in its tooltip and the member's menu) */
+.cv-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); }
+.cv-actions .ghost { height: 28px; padding: 0 8px; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.cv-actions .ghost:first-child { margin-left: -8px; }
+.cv-actions .ghost.danger { margin: 0 -8px 0 auto; }
 .cv-actions .ghost:hover { color: var(--ink); }
 .cv-actions .ghost.danger:hover { color: var(--bad); }
-.cv-actions .ghost .i { width: 15px; height: 15px; }
-.cv-sec { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.cv-actions .ghost .i { width: 14px; height: 14px; }
+.cv-sec { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
 .cv-sec > * { align-self: stretch; }
 .cv-sec h5 { display: flex; align-items: baseline; gap: 8px; min-height: 18px; margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
 .cv-sec h5 small { font-weight: 400; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -280,7 +283,7 @@ body.split #crewView { flex: 1; }
 .cv-sec h5 .link { margin-left: auto; }
 /* a notebook or brief: read as prose, a long one shows its start and fades out */
 .cv-text { position: relative; min-width: 0; }
-.cv-text.clip { max-height: 11em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+.cv-text.clip { max-height: 6.4em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
 .cv-text .prose { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); overflow-wrap: anywhere; }
 .cv-text .prose > :first-child { margin-top: 0; }
 .cv-text .prose > :last-child { margin-bottom: 0; }
@@ -314,7 +317,13 @@ body.split #crewView { flex: 1; }
 .ck-text b { font: 500 12px/1.4 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ck-text small { font-size: 11.5px; line-height: 1.4; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ck-row.off .ck-text { opacity: 0.55; }
-.ck-row .switch { transform: scale(0.85); }
+.ck-row .switch { transform: scale(0.8); }
+/* in the details: name and what it is on one line, the rest in its tooltip */
+.ck-text.one { flex-direction: row; align-items: baseline; gap: 6px; }
+.ck-text.one b { flex: none; max-width: 60%; }
+.ck-text.one small { flex: 1; min-width: 0; }
+.cv-kit .ck-open { padding: 3px 6px; }
+.cv-kit .ck-open > .i { margin-top: 1px; }
 .menu.ck-menu { position: fixed; z-index: 60; width: 280px; padding: 4px; }
 .menu.ck-menu button { align-items: flex-start; text-align: left; }
 .menu.ck-menu button > .i { margin-top: 2px; }

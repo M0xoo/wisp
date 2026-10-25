@@ -26,7 +26,7 @@ export function kitHtml(m) {
   const rows = kit
     .map(
       (k) => `<div class="ck-row${k.on === false ? ' off' : ''}" data-kit-row="${esc(k.id)}">
-        <button class="ck-open" data-kit="${esc(k.id)}" title="${k.kind === 'skill' ? 'Edit this skill' : 'Edit these instructions'}">${icon(k.kind === 'skill' ? 'spark' : 'file')}<span class="ck-text"><b>${esc(k.name)}</b><small>${esc(k.kind === 'skill' ? k.description : `Every job · ${size(k.body.length)}`)}</small></span></button>
+        <button class="ck-open" data-kit="${esc(k.id)}" title="${k.kind === 'skill' ? 'Edit this skill' : 'Edit these instructions'}">${icon(k.kind === 'skill' ? 'spark' : 'file')}<span class="ck-text one"><b>${esc(k.name)}</b><small title="${esc(k.kind === 'skill' ? k.description : `Every job · ${size(k.body.length)}`)}">${esc(k.kind === 'skill' ? k.description : `Every job · ${size(k.body.length)}`)}</small></span></button>
         <button class="switch" role="switch" aria-checked="${k.on !== false}" data-kit-on="${esc(k.id)}" title="${k.on === false ? 'Off: kept, not used' : 'On: in their jobs'}" aria-label="Use ${esc(k.name)}"></button>
       </div>`,
     )
