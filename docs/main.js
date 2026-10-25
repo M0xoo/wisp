@@ -247,22 +247,47 @@ $$('.hero-top > *, .desk, .strip, .r-head, .c-head, .cmp-shot, .cli-text, .term-
 });
 
 // ---------- hero: a working copy of the launcher ----------
-// It types three tasks and sends them off; their rows move from Working to Asking to Done the
-// way the app's do. Type your own and you get the command that runs it for real.
+// It shows what wisp does, one row at a time: a crew member checks in on its own, a task moves to
+// another machine and leads helpers there, two harnesses race and you keep one, a spell restyles
+// the queue, and the reports come back. The rail under the lede lights the feature on show. Type
+// your own task and you get the command that runs it for real.
 const desk = $('#desk');
 if (desk) {
   const form = $('#launch');
   const input = $('#task');
   const hint = $('#hint');
   const send = $('.l-send', form);
+  const queue = $('#queue');
   const lists = { needs: $('[data-g="needs"] .q-list', desk), working: $('[data-g="working"] .q-list', desk) };
   const cta = $('#deskCta');
+  const rail = new Map($$('[data-rail] a').map((a) => [a.dataset.f, a]));
   const LOGO = { claude: 'assets/logos/claudecode-color.svg', codex: 'assets/logos/codex-color.svg' };
   const PROJ = { 'api-server': 'c-violet', 'web-app': 'c-teal', 'your-repo': 'c-sky' };
+  const SCOUT = { name: 'Scout', avatar: 'ghost.sky.visor.flat.antenna' }; // the crew section's Scout
+  const MACHINE = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.4"/><path d="M1.5 13h13"/></svg>';
+  const SPARK = '<svg class="q-logo auto" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" fill="currentColor"/></svg>';
+  // The faces are the app's spirits (spirit.js, copied in by scripts/site.mjs). Until it loads a
+  // face is its tinted circle, the same size, so the row doesn't change shape when it arrives.
+  const spirits = import('./spirit.js').catch(() => null);
   const wait = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
   let demo = true; // false once the visitor starts typing
-  let sent = 0;
   const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  // Light the rail link for the feature on show: only while the demo plays and is on screen (on a
+  // phone the queue sits under the install box, and a lit link with nothing to see is just noise).
+  let shown = null;
+  let inView = false;
+  const paint = () => {
+    for (const [k, a] of rail) a.classList.toggle('on', demo && !calm && inView && k === shown);
+  };
+  const feature = (f) => {
+    shown = f;
+    paint();
+  };
+  new IntersectionObserver(([e]) => {
+    inView = e.isIntersecting;
+    paint();
+  }, { threshold: 0.35 }).observe(queue);
 
   const counts = () => {
     for (const [g, list] of Object.entries(lists)) $(`[data-g="${g}"] .n`, desk).textContent = list.children.length;
@@ -289,13 +314,19 @@ if (desk) {
     old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: calm ? 0 : 250 }).finished.then(() => (old.remove(), counts()));
   };
 
-  function row({ title, agent, project, mine }) {
+  // agent: 'claude' | 'codex' | 'auto', or ['claude', 'codex'] for a compare; crew: a member whose
+  // face stands in for the logo; where: the machine it runs on.
+  function row({ title, agent, project, mine, crew, where, sub = 'Starting up' }) {
     const el = document.createElement('div');
     el.className = `q-row new${mine ? ' mine' : ''}`;
     el.dataset.s = 'working';
-    const logo = agent === 'auto' ? '<svg class="q-logo auto" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" fill="currentColor"/></svg>' : `<span class="q-logo" style="background-image: url(${LOGO[agent]})"></span>`;
-    el.innerHTML = `<span class="q-dot"></span><span class="q-main"><span class="q-title">${esc(title)}</span><span class="q-sub">Starting up</span></span>
-      <span class="q-side"><span class="pill working"></span>${logo}<span class="q-proj"><i class="${PROJ[project]}"></i>${project}</span><span class="q-time">now</span></span>`;
+    const logo = (a) => (a === 'auto' ? SPARK : `<span class="q-logo" style="background-image: url(${LOGO[a]})"></span>`);
+    const who = crew
+      ? `<span class="cw-av q-face c-sky" title="${crew.name}"></span>`
+      : Array.isArray(agent) ? `<span class="q-pair">${agent.map(logo).join('')}</span>` : logo(agent);
+    el.innerHTML = `<span class="q-dot"></span><span class="q-main"><span class="q-title">${esc(title)}</span><span class="q-sub">${esc(sub)}</span></span>
+      <span class="q-side"><span class="pill working"></span>${who}${where ? `<span class="q-where">${MACHINE}<span>${where}</span></span>` : ''}${project ? `<span class="q-proj"><i class="${PROJ[project]}"></i>${project}</span>` : ''}<span class="q-time">now</span></span>`;
+    if (crew) spirits.then((m) => m && ($('.q-face', el).innerHTML = m.spiritSvg(crew.avatar, { state: MOOD[el.dataset.s], small: true })));
     let min = 0;
     el._clock = setInterval(() => ($('.q-time', el).textContent = `${++min}m`), 1100);
     return el;
@@ -307,11 +338,23 @@ if (desk) {
     void sub.offsetWidth;
     sub.classList.add('swap');
   };
+  const MOOD = { working: 'live', asking: 'asks', done: 'idle' };
   const state = (el, s, pill) => {
     el.dataset.s = s;
     const p = $('.pill', el);
     p.className = `pill ${s}`;
     p.textContent = pill || '';
+    const face = $('.q-face .spirit', el); // a crew face floats while working, hops when it asks
+    if (face) face.setAttribute('class', face.getAttribute('class').replace(/st-\w+/, `st-${MOOD[s]}`));
+  };
+  // The task moves to another machine: only the chip's name changes.
+  const hop = (el, to) => {
+    const name = $('.q-where span', el);
+    if (!name) return;
+    name.textContent = to;
+    name.classList.remove('swap');
+    void name.offsetWidth;
+    name.classList.add('swap');
   };
 
   // Type into the launcher, press send, and fly the words down into a new row.
@@ -327,8 +370,6 @@ if (desk) {
       await wait(380);
       form.classList.remove('typing');
     }
-    // "off" leaves the headline, once, as the first task is sent.
-    if (!sent++ && !calm) $('h1 .off')?.classList.add('fly');
     send.classList.add('press');
     setTimeout(() => send.classList.remove('press'), 140);
     trim();
@@ -357,56 +398,88 @@ if (desk) {
     return el;
   }
 
-  async function script() {
-    await wait(900);
-    const a = await launch('Fix the flaky session-expiry test', { agent: 'claude', project: 'api-server' });
-    if (!a) return;
-    await wait(700);
-    status(a, 'Reading test/auth.test.ts');
-    const b = await launch('Upgrade to Node 22 and fix whatever breaks', { agent: 'codex', project: 'web-app' });
-    if (!b) return;
-    status(a, 'Searching for “Date.now”');
-    await wait(600);
-    status(b, 'Reading package.json');
-    const c = await launch('Migrate billing webhooks to the new Stripe API', { agent: 'claude', project: 'api-server' });
-    if (!c) return;
-    status(a, 'Running npm test -- --repeat 200 auth');
-    await wait(900);
-    status(c, 'Reading src/billing/webhooks.ts');
-    status(b, 'Editing .nvmrc');
-    await wait(1600);
-    // The Stripe task needs a decision: it jumps to Needs you with its options.
-    ask(c);
-    await wait(1400);
-    status(b, 'Running npm test · 3 failing in date-fns adapter');
-    await wait(1200);
-    done(a, 'Session-expiry test no longer flakes · 212 passed');
-    if (demo) hint.classList.add('on');
-    await wait(2600);
-    done(b, 'Node 22: builds and tests pass, one dependency pinned');
+  // A crew member checks in on its own schedule: nobody types it, the row just arrives.
+  function checkIn(member, title, sub) {
+    if (!demo) return null;
+    trim();
+    const el = row({ title, crew: member, project: 'api-server', sub });
+    move(el, 'working');
+    return el;
   }
 
-  function ask(el) {
+  const COMPARE = {
+    q: 'Both pass. Keep which?',
+    choices: ['Claude Code’s', 'Codex’s'],
+    then: (el, i) => setTimeout(() => done(el, `Kept ${i ? 'Codex' : 'Claude Code'}’s · other worktree removed`), 1400),
+  };
+
+  async function script() {
+    await wait(900);
+    const a = checkIn(SCOUT, 'Scout: check CI on main', 'Check-in · every 30 min · gh run list');
+    if (!a) return;
+    feature('crew');
+    await wait(1400);
+    status(a, 'Run 42 failed in auth.test.js · reading it');
+    const b = await launch('Upgrade to Node 22 and fix whatever breaks', { agent: 'codex', project: 'web-app', where: 'laptop' });
+    if (!b) return;
+    status(b, 'Reading package.json');
+    await wait(600);
+    status(a, 'A timer races the expiry · fixing on a branch');
+    const c = await launch('Migrate billing webhooks to the new Stripe API', { agent: ['claude', 'codex'], project: 'api-server', sub: 'Claude Code and Codex, same prompt' });
+    if (!c) return;
+    feature('compare');
+    await wait(1000);
+    hop(b, 'dev-box');
+    status(b, 'Moved to dev-box · the laptop can sleep');
+    feature('machines');
+    await wait(1900);
+    status(b, 'Leading 2 helpers on ci-box · e2e tests, lint');
+    feature('delegate');
+    await wait(1700);
+    status(c, 'Both done · Claude Code 41 lines, Codex 58');
+    await wait(1100);
+    ask(c, COMPARE);
+    feature('compare');
+    await wait(1500);
+    done(a, 'Fixed the flaky session test · 214 passed');
+    feature('report');
+    await wait(2600);
+    done(b, 'Node 22: tests pass, one dependency pinned');
+    await wait(900);
+    const d = await launch('Make my task cards compact', { agent: 'claude', sub: 'Writing a spell for wisp itself' });
+    if (!d) return;
+    feature('spells');
+    await wait(1700);
+    done(d, 'Spell on: compact cards · undo it in Settings');
+    queue.classList.add('compact'); // the spell, on this very queue
+    await wait(2600);
+    feature(null);
+    if (demo) hint.classList.add('on');
+  }
+
+  // A question jumps the row to Needs you with its options; the demo answers it itself after a
+  // while, as if from your phone.
+  function ask(el, { q, choices, then }) {
     state(el, 'asking', 'Asking');
-    status(el, 'Asks: Keep a v1 handler alongside v2?');
+    status(el, `Asks: ${q}`);
     const opts = document.createElement('div');
     opts.className = 'q-opts';
-    opts.innerHTML = '<button type="button"><kbd>1</kbd>Keep both until the cutover</button><button type="button"><kbd>2</kbd>v2 only</button>';
+    opts.innerHTML = choices.map((c, i) => `<button type="button"><kbd>${i + 1}</kbd>${esc(c)}</button>`).join('');
     $('.q-main', el).append(opts);
     move(el, 'needs');
     let answered = false;
-    const answer = (txt) => {
+    const answer = (i, phone) => {
       if (answered) return;
       answered = true;
       opts.remove();
+      $('.q-pair', el)?.setAttribute('data-keep', i);
       state(el, 'working');
-      status(el, `↳ ${txt} · delivered to the running agent`);
+      status(el, `↳ Keep ${choices[i]}${phone ? ' · answered from your phone' : ''}`);
       move(el, 'working');
-      setTimeout(() => status(el, 'Editing src/billing/verify.ts'), 1800);
-      setTimeout(() => done(el, 'Webhooks on thin events, v1 kept until the cutover'), 5200);
+      then(el, i);
     };
-    $$('button', opts).forEach((btn) => btn.addEventListener('click', () => answer(btn.textContent.slice(1))));
-    setTimeout(() => answer('Keep both until the cutover'), demo ? 6500 : 60000);
+    $$('button', opts).forEach((btn, i) => btn.addEventListener('click', () => answer(i, false)));
+    setTimeout(() => answer(0, demo), demo ? 6500 : 60000);
   }
 
   function done(el, text) {
@@ -420,6 +493,7 @@ if (desk) {
   input.addEventListener('focus', () => {
     if (!demo) return;
     demo = false;
+    feature(null);
     input.value = '';
     form.classList.remove('typing');
     hint.classList.add('on');
@@ -443,14 +517,14 @@ if (desk) {
 
   counts();
   if (calm) {
-    // No motion: show the finished state.
-    const a = row({ title: 'Fix the flaky session-expiry test', agent: 'claude', project: 'api-server' });
-    const c = row({ title: 'Migrate billing webhooks to the new Stripe API', agent: 'claude', project: 'api-server' });
-    const b = row({ title: 'Upgrade to Node 22 and fix whatever breaks', agent: 'codex', project: 'web-app' });
+    // No motion: show the demo's middle, where every feature is on screen at once.
+    const a = row({ title: 'Scout: check CI on main', crew: SCOUT, project: 'api-server' });
+    const c = row({ title: 'Migrate billing webhooks to the new Stripe API', agent: ['claude', 'codex'], project: 'api-server' });
+    const b = row({ title: 'Upgrade to Node 22 and fix whatever breaks', agent: 'codex', project: 'web-app', where: 'dev-box' });
     move(b, 'working');
-    status(b, 'Running npm test · 3 failing in date-fns adapter');
-    ask(c);
-    done(a, 'Session-expiry test no longer flakes · 212 passed');
+    status(b, 'Moved to dev-box · leading 2 helpers on ci-box');
+    ask(c, COMPARE);
+    done(a, 'Fixed the flaky session test · 214 passed');
     hint.classList.add('on');
   } else {
     script();

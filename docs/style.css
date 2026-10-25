@@ -149,16 +149,21 @@ h2 { font-size: clamp(32px, 4.4vw, 54px); line-height: 1.04; font-weight: 680; l
 .hero-top { min-width: 0; } /* min-width: a long typed-task command must not widen the grid */
 h1 { font-size: clamp(30px, 6.6vw, 96px); line-height: 0.98; font-weight: 700; letter-spacing: -0.045em; }
 h1 .soft { display: block; color: var(--muted); }
-h1 .off { display: inline-block; }
-h1 .off.fly { animation: off-fly 0.9s cubic-bezier(0.5, 0, 0.75, 0) both; }
-@keyframes off-fly {
-  0% { translate: 0 0; opacity: 1; }
-  60% { translate: 0.9em -0.18em; opacity: 0; filter: blur(2px); }
-  61% { translate: -0.5em 0.12em; opacity: 0; filter: blur(2px); }
-  100% { translate: 0 0; opacity: 1; filter: none; }
-}
 .lede { margin-top: 32px; font-size: 19px; line-height: 1.5; color: var(--ink); max-width: 62ch; }
 .fine { font-size: 13px; color: var(--muted); }
+/* The rail: what wisp does, one link per section. Tone, not lines; the demo below lights the one
+   it's showing (.on), which only changes colour so nothing in the row moves. */
+.rail { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
+.rail a {
+  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 13px 0 11px; border-radius: 9px;
+  background: var(--tone); color: var(--ink-2); font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap;
+  transition: background 0.3s, color 0.3s;
+}
+.rail svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); transition: color 0.3s; }
+.rail a:hover { background: var(--tone-2); color: var(--ink); }
+.rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rail a.on { background: var(--accent-soft); color: var(--accent); }
+.rail a.on svg { color: var(--accent); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 .desk { min-width: 0; }
@@ -237,6 +242,26 @@ h1 .off.fly { animation: off-fly 0.9s cubic-bezier(0.5, 0, 0.75, 0) both; }
 .q-logo.auto { padding: 2px; color: var(--accent); }
 .q-proj { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 6px; background: var(--bg-2); color: var(--ink-2); }
 .q-time { width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
+/* The demo's feature rows: a crew member's face where the harness logo goes, two logos for a
+   compare (the loser fades once you keep one), and the machine a task runs on. */
+.q-side .q-face { --size: 22px; }
+.q-pair { display: inline-flex; gap: 3px; }
+.q-pair .q-logo { transition: opacity 0.4s; }
+.q-pair[data-keep='0'] .q-logo:last-child, .q-pair[data-keep='1'] .q-logo:first-child { opacity: 0.22; }
+.q-where { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 6px; background: var(--bg-2); color: var(--ink-2); }
+.q-where svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; color: var(--muted); }
+.q-where span { min-width: 6.4ch; } /* laptop → dev-box without the row's side growing */
+.q-where span.swap { animation: sub-in 0.35s ease both; }
+/* The spell the demo casts on itself: compact cards. */
+.queue.compact .q-row { padding-block: 6px; }
+.queue.compact .q-sub { font-size: 12.5px; }
+.q-row { transition: padding 0.4s ease; }
+@media (prefers-reduced-motion: reduce) { .q-row[data-s='working'] .q-dot, .q-row[data-s='asking'] .q-dot { animation: none; } }
+/* faces in the hero: the crew section's spirit palette (its rules are scoped to .crew) */
+.hero { --spirit-eye: #1d1a26; --spirit-trim: #2a2633; --spirit-shine: #ffffff; --spirit-gold: #f2c14e; --spirit-leaf: #6cc070; --spirit-blush: #ff8fa3; }
+.hero .q-face.c-sky, .hero .spirit-grad.c-sky { --pc: #3f8fd2; }
+.hero .spirit { background: none; } /* .c-* paints the project dots; a spirit only takes the colour */
+@media (prefers-color-scheme: dark) { .hero { --spirit-eye: #15131c; --spirit-trim: #d8d4e4; } }
 
 .desk-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .desk-cta .cmd { max-width: 100%; }
@@ -1123,6 +1148,7 @@ button.sw-tb { cursor: pointer; }
   .hero-top { padding-top: 0; }
   .l-hint { display: none; }
   .q-proj { display: none; }
+  .rail { margin-top: 24px; }
   .r-head, .c-head, .cli-grid, .faq, .r-report { grid-template-columns: 1fr; gap: 32px; }
   .relay-grid { grid-template-columns: 1fr; gap: 40px; }
   .relay-grid > [data-relay] { padding-top: 0; min-height: 430px; }
@@ -1152,6 +1178,11 @@ button.sw-tb { cursor: pointer; }
   .grid { grid-template-columns: 1fr; gap: 28px; }
   .faq details { padding: 0 18px; }
   .lede { font-size: 17px; }
+  /* two even columns, so six links make three tidy rows instead of a ragged wrap */
+  .rail { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .rail a { height: 38px; padding: 0 10px; font-size: 13.5px; gap: 7px; min-width: 0; }
+  .q-where { display: none; } /* the sub-line says where it moved */
+  .q-side .pill { display: none; } /* the dot and the orange question already say it; the title needs the room */
   .cmd { width: 100%; }
   .cmd code { margin-right: auto; }
   .desk-cta > [role='tabpanel'] { align-self: stretch; }

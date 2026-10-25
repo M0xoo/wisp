@@ -13,7 +13,7 @@
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="wisp" />
   <meta property="og:url" content="https://trywisp.dev/" />
-  <meta property="og:title" content="wisp — Send coding agents off. Read what they did." />
+  <meta property="og:title" content="wisp — All your coding agents. One place, any machine." />
   <meta property="og:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity, Grok and Copilot in parallel, in the background, on any of your machines. Get diffs, tests and decisions back as a one-screen report — no transcript." />
   <meta property="og:image" content="https://trywisp.dev/assets/og.png" />
   <meta property="og:image:width" content="1200" />
@@ -21,7 +21,7 @@
   <meta property="og:image:alt" content="wisp — Send coding agents off. Read what they did." />
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="wisp — Send coding agents off. Read what they did." />
+  <meta name="twitter:title" content="wisp — All your coding agents. One place, any machine." />
   <meta name="twitter:description" content="Run Claude Code, Codex, opencode, Cursor, Antigravity, Grok and Copilot in parallel, on any of your machines. Read a one-screen report instead of the transcript." />
   <meta name="twitter:image" content="https://trywisp.dev/assets/og.png" />
   <meta name="twitter:image:alt" content="wisp — Send coding agents off. Read what they did." />
@@ -189,7 +189,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=40" />
+  <link rel="stylesheet" href="style.css?v=41" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -229,8 +229,17 @@
     <section class="hero">
       <div class="wrap hero-grid">
       <div class="hero-head">
-        <h1>Send coding agents <span class="off">off</span>. <span class="soft">Read what they did.</span></h1>
-        <p class="lede">Claude Code, Codex and five more run in parallel, in the background, on any of your machines. Each one hands back a one-screen report instead of a transcript. Free and open source.</p>
+        <h1>All your coding agents. <span class="soft">One place, any machine.</span></h1>
+        <p class="lede">Claude Code, Codex and five more, running in parallel on your laptop, your servers or the cloud. Hire a crew that checks in on its own, race two agents and keep the better one, and read a one-screen report instead of a transcript. Free and open source.</p>
+        <!-- what wisp does, one link per section; the launcher's demo lights the one it's showing -->
+        <nav class="rail" aria-label="What wisp does" data-rail>
+          <a href="#report" data-f="report"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="2" width="10" height="12" rx="1.8"/><path d="M5.6 5.5h4.8M5.6 8h4.8M5.6 10.5h2.8"/></svg>One-screen reports</a>
+          <a href="#crew" data-f="crew"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 13.5V8a4.5 4.5 0 0 1 9 0v5.5l-1.5-1-1.5 1-1.5-1-1.5 1-1.5-1z"/><circle cx="6.4" cy="8" r=".6" fill="currentColor"/><circle cx="9.6" cy="8" r=".6" fill="currentColor"/></svg>Crew on a schedule</a>
+          <a href="#machines" data-f="machines"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.4"/><path d="M1.5 13h13"/></svg>Any machine</a>
+          <a href="#compare" data-f="compare"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="5" height="10" rx="1.4"/><rect x="9" y="3" width="5" height="10" rx="1.4"/></svg>Keep the better one</a>
+          <a href="#delegate" data-f="delegate"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3.5" r="1.8"/><circle cx="3.5" cy="12.5" r="1.8"/><circle cx="12.5" cy="12.5" r="1.8"/><path d="M8 5.3v2.2M4.2 10.8 8 7.5l3.8 3.3"/></svg>Lead with helpers</a>
+          <a href="#spells" data-f="spells"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 13.5 9 7"/><path d="M11 1.8l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" fill="currentColor" stroke="none"/></svg>Restyle with spells</a>
+        </nav>
       </div>
       <div class="hero-top">
         <div class="desk-cta" id="deskCta" data-tabs>
@@ -553,7 +562,7 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=20"></script>
+  <script src="main.js?v=21"></script>
   <script src="relay.js?v=2" defer></script>
   <script src="spells.js?v=4" defer></script>
   <script src="control.js?v=1" defer></script>
