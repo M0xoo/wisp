@@ -122,10 +122,27 @@ function liveJobs(m, st) {
   return { list: keep, more: live.length - keep.length };
 }
 
+// What a busy member is doing, in its own words: the job card under it already shows the live
+// line, so the row says what kind of work it is. Picked from the job's id, so it holds still.
+const BUSY = {
+  checkin: ['Making the rounds', 'Doing a sweep', 'Looking things over', 'On patrol'],
+  task: ['Heads-down on your ask', 'On it for you', 'Rolling up its sleeves', 'Deep in your request'],
+  delegated: ['Lending a hand to “%”', 'Helping out “%”', 'Pitching in on “%”'],
+  trigger: ['Answering %', 'Picking up %', 'Responding to %'],
+  mention: ['Chiming in on “%”', 'Weighing in on “%”', 'Replying in “%”'],
+};
+const MANY = ['Juggling % jobs', 'Spinning % plates', 'Running % jobs at once'];
+const pick = (list, id) => list[[...String(id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0) % list.length];
+function busyLine(live) {
+  if (live.length > 1) return pick(MANY, live.map((s) => s.id).sort().join()).replace('%', live.length);
+  const s = live[0];
+  return pick(BUSY[s.crew?.job] || BUSY.task, s.id).replace('%', s.crew?.from?.title || (s.crew?.job === 'trigger' ? 'a trigger' : 'a task'));
+}
+
 function statusLine(m, st) {
   const ask = st.jobs.find((s) => s.state === 'waiting');
   if (ask) return { cls: 'asks', text: `Asking you${ask.question ? `: ${ask.question}` : ''}` };
-  if (st.live.length) return { cls: 'live', text: `${st.live[0].live || 'Working'}${st.live.length > 1 ? ` · ${st.live.length} jobs` : ''}` };
+  if (st.live.length) return { cls: 'live', text: busyLine(st.live) };
   const report = st.jobs.filter((s) => s.state === 'review' && s.unread && !s.archived).sort((a, b) => b.updatedAt - a.updatedAt)[0];
   if (report) return { cls: 'report', text: `Reported: ${report.title}` };
   if (m.queue?.length) return { cls: '', text: `${m.queue.length} waiting` };
