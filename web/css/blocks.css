@@ -497,6 +497,33 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .b-video.broken .img-box { background: var(--surface-2); }
 .b-video.broken video, .b-video.broken .img-tools { display: none; }
 .b-video.broken .img-box::after { content: 'Video not found'; display: grid; place-items: center; height: 80px; font-size: 13px; color: var(--muted); }
+/* gallery: pictures and videos next to each other, one at a time (blocks.js gallery). They share one
+   grid cell, so the box keeps the tallest one's height (a shorter one is centred in it); the arrows sit at the sides of the media, the
+   count top left (the picture's own buttons are top right). pan-y leaves sideways swipes to it. */
+.b-gallery { position: relative; outline: none; border-radius: var(--radius); }
+.b-gallery:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.gal-track { display: grid; touch-action: pan-y pinch-zoom; }
+.gal-track > figure { grid-area: 1 / 1; display: flex; flex-direction: column; transition: opacity 0.18s; }
+.gal-track .img-box { flex: 1; display: grid; place-items: center; }
+.gal-track .b-image .img-box { background: var(--surface-2); }
+/* A video fills the box, so its controls sit at the bottom, clear of the arrows. */
+.gal-track .b-video .img-box { place-items: stretch; }
+.gal-track .b-video video { height: 100%; object-fit: contain; }
+.gal-track > figure.gal-off { visibility: hidden; opacity: 0; }
+.gal-nav {
+  position: absolute; top: calc(50% - 18px); display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%;
+  color: var(--ink); background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); box-shadow: var(--shadow-1);
+  transition: opacity 0.15s, background 0.15s;
+}
+.gal-nav:hover { background: var(--surface-2); }
+.gal-nav:disabled { opacity: 0; pointer-events: none; }
+.gal-nav .i { width: 18px; height: 18px; }
+.gal-prev { left: 10px; }
+.gal-next { right: 10px; }
+.gal-count {
+  position: absolute; top: 8px; left: 8px; padding: 4px 8px; border-radius: 999px; font: 500 12px/1 var(--sans); font-variant-numeric: tabular-nums;
+  color: var(--muted); background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); pointer-events: none;
+}
 /* doc: a markdown file as a page, its opening fading into Read all (blocks.js R.doc) */
 .b-doc { overflow: hidden; }
 .doc-head { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }

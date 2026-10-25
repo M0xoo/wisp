@@ -7,14 +7,20 @@ import { imageButtons, bindImageButtons, copyImage } from './image.js';
 // with a mouse) or the wheel zoom at that point, a drag pans, a tap beside it, a swipe down,
 // Escape or × closes. Copy (also ⌘C / Ctrl+C) and Download take it elsewhere. The phone app's
 // WebView has no pinch zoom of its own, so this is the only way to read a screenshot there.
+// Given the other pictures of the reply (`set`: { list: [{ src, alt }], index }), the arrows, ← / →
+// and a sideways swipe go through them.
 
 const MAX = 8;
 
-export function viewImage(src, alt = '') {
+export function viewImage(src, alt = '', set = null) {
+  const list = set?.list?.length > 1 ? set.list : null;
+  let at = list ? Math.max(0, Math.min(list.length - 1, set.index || 0)) : 0;
   const node = el(`
-    <div class="lb">
+    <div class="lb${list ? ' lb-set' : ''}">
       <img class="lb-img" src="${esc(src)}" alt="${esc(alt)}" draggable="false">
+      ${list ? `<button class="lb-nav lb-prev" title="Previous (←)" aria-label="Previous picture">${icon('back')}</button><button class="lb-nav lb-next" title="Next (→)" aria-label="Next picture">${icon('chevron')}</button>` : ''}
       <div class="lb-bar">
+        ${list ? '<span class="lb-count" aria-live="polite"></span><span class="lb-sep"></span>' : ''}
         <button class="lb-out" title="Zoom out" aria-label="Zoom out">${icon('minus')}</button>
         <button class="lb-pct" title="Zoom to fit or in"></button>
         <button class="lb-in" title="Zoom in" aria-label="Zoom in">${icon('plus')}</button>
@@ -26,6 +32,7 @@ export function viewImage(src, alt = '') {
     </div>`);
   const img = node.querySelector('.lb-img');
   const pct = node.querySelector('.lb-pct');
+  const open = node.querySelector('.lb-open');
   let s = 1;
   let x = 0;
   let y = 0;
@@ -79,7 +86,7 @@ export function viewImage(src, alt = '') {
     start = { mx: m.x, my: m.y, d: m.d, s, x, y, touch };
   };
   node.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.lb-bar') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (e.target.closest('.lb-bar, .lb-nav') || (e.pointerType === 'mouse' && e.button !== 0)) return;
     node.setPointerCapture(e.pointerId);
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) moved = false;
@@ -106,8 +113,15 @@ export function viewImage(src, alt = '') {
       paint();
     } else if (start.touch) {
       // At fit, a finger drags it away (the phone's way out of a picture); the backdrop fades with it.
-      y = m.y - start.my;
+      // In a set, a sideways drag pulls the next or previous one in instead.
+      start.side ??= !!list && Math.abs(m.x - start.mx) > Math.abs(m.y - start.my);
       img.classList.remove('glide');
+      if (start.side) {
+        x = m.x - start.mx;
+        img.style.transform = `translate(${x}px, 0)`;
+        return;
+      }
+      y = m.y - start.my;
       img.style.transform = `translate(0, ${y}px)`;
       node.style.setProperty('--dim', String(Math.max(0.15, 1 - Math.abs(y) / 360)));
     }
@@ -118,6 +132,11 @@ export function viewImage(src, alt = '') {
     if (pts.size) return begin(start.touch);
     node.classList.remove('held');
     if (moved && start.s <= 1.01 && start.touch && s <= 1.01) {
+      if (start.side) {
+        if (Math.abs(x) > 60 && go(x < 0 ? 1 : -1)) return;
+        x = 0;
+        return paint(true);
+      }
       if (Math.abs(y) > 90) return close();
       node.style.removeProperty('--dim');
       y = 0;
@@ -155,6 +174,37 @@ export function viewImage(src, alt = '') {
   pct.onclick = () => {
     toggle(...centre());
   };
+  // Shows the picture `d` steps along the set, at fit. False at either end.
+  const go = (d) => {
+    if (!list || !list[at + d]) return false;
+    at += d;
+    ({ src, alt } = list[at]);
+    img.src = src;
+    img.alt = alt;
+    if (open) open.href = src;
+    bindImageButtons(node, src, alt);
+    s = 1;
+    x = 0;
+    y = 0;
+    paint();
+    shown();
+    return true;
+  };
+  const shown = () => {
+    if (!list) return;
+    node.querySelector('.lb-count').textContent = `${at + 1} / ${list.length}`;
+    node.querySelector('.lb-prev').disabled = at === 0;
+    node.querySelector('.lb-next').disabled = at === list.length - 1;
+  };
+  if (list) {
+    node.querySelector('.lb-prev').onclick = () => {
+      go(-1);
+    };
+    node.querySelector('.lb-next').onclick = () => {
+      go(1);
+    };
+    shown();
+  }
   // The page's keys stand down while a dialog is open (Escape still closes it).
   const onKey = (e) => {
     if (!node.isConnected) return cleanup();
@@ -166,6 +216,8 @@ export function viewImage(src, alt = '') {
     if (e.key === '+' || e.key === '=') zoomAt(s * 1.6, ...centre());
     else if (e.key === '-') zoomAt(s / 1.6, ...centre());
     else if (e.key === '0') zoomAt(1, ...centre());
+    else if (e.key === 'ArrowLeft' && list) go(-1);
+    else if (e.key === 'ArrowRight' && list) go(1);
   };
   const onResize = () => {
     if (!node.isConnected) return cleanup();

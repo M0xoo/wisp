@@ -34,7 +34,7 @@ export function ctxFor(s, turn, isLatest) {
     draft: (text) => draftInto(s.id, text),
     openFile: (p, line) => openInEditor(s, p, line),
     fileUrl: (p) => `/api/sessions/${s.id}/file?path=${encodeURIComponent(p)}`,
-    zoom: (src, alt) => viewImage(src, alt),
+    zoom: (src, alt, set) => viewImage(src, alt, set),
     reveal: (p) => revealFile(s, p),
     revertFile: (file, restore) => revertFile(s.id, turn.id, file, restore),
     exec: (command, key) => execAction(s.id, turn.id, command, key),
@@ -300,7 +300,8 @@ function renderTurn(s, t, isLatest, fold, tx) {
     ask.querySelector('.ask-text').classList.toggle('clamped');
     e.target.textContent = ask.querySelector('.ask-text').classList.contains('clamped') ? 'Show all' : 'Show less';
   });
-  ask.querySelectorAll('.ask-atts img').forEach((img) => img.addEventListener('click', () => viewImage(img.src, img.alt)));
+  const atts = [...ask.querySelectorAll('.ask-atts img')];
+  atts.forEach((img, index) => img.addEventListener('click', () => viewImage(img.src, img.alt, { list: atts.map((i) => ({ src: i.src, alt: i.alt })), index })));
   node.append(ask);
 
   if (t.status === 'running') {

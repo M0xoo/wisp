@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **Two tasks changing the same files are flagged before you ship them:** when another open task in the same repo changes the same files, both cards show an *Overlap* pill, and the warning above the follow-up box names the other task and the files, with **Open**. If merging both would really conflict (wisp merges their work as it stands with `git merge-tree`, uncommitted edits included), the pill turns amber and says *Clash*, with the conflicting files. Ship it and Merge repeat the warning before you confirm. Runs of one compare are left out, and the warning clears once either task is merged or archived. Spells reach it as `card.overlap` and `card.overlapNote`.
 
+- **Several pictures or videos in a reply page through:** pictures and videos next to each other in an answer now show one at a time in a single box, with previous / next arrows, a *2 / 3* count, ← / → once it has focus and a swipe on a phone. The full-screen viewer goes through all the reply's pictures (or a message's attached pictures) the same way. Spells reach them as `gallery`, `gallery.nav`, `gallery.count` and `viewer.nav`.
+
 ### Changed
 
 - **Search puts recent things first:** in ⌘K and the project picker, a task you touched recently or a project you used recently now ranks above older ones that match the query about as well. Only a clearly better text match still wins over a newer one.
