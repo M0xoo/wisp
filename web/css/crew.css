@@ -77,57 +77,6 @@
 body:not(.split) .f-group.crew .cr-list { padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 body.split .f-group.crew { margin-bottom: 14px; }
 
-/* ---------- a member's page ---------- */
-.crew-page { width: min(860px, 100%); max-height: 88vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-.cp-head { display: flex; align-items: center; gap: 12px; margin: 0 !important; padding: 16px 16px 14px 20px; }
-.cp-head .grow { flex: 1; }
-.cp-who { min-width: 0; }
-.cp-who h2 { font-size: 20px; }
-.cp-who small { display: block; margin-top: 3px; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cp-ask { display: flex; align-items: flex-end; gap: 8px; margin: 0 20px 14px; padding: 6px 6px 6px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface-2); transition: border-color 0.15s, box-shadow 0.15s; }
-.cp-ask:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
-.cp-prompt { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: transparent; padding: 5px 0; font: 14px/1.5 var(--sans); color: var(--ink); max-height: 220px; }
-.cp-prompt::placeholder { color: var(--faint); }
-.cp-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); border-top: 1px solid var(--line); min-height: 0; overflow: hidden; }
-.cp-grid > section { overflow-y: auto; padding: 4px 20px 20px; }
-.cp-mem { border-left: 1px solid var(--line); background: var(--surface-2); --field-bg: var(--surface); }
-.crew-page h4 { display: flex; align-items: baseline; gap: 6px; margin: 16px 0 6px; font-size: 12px; font-weight: 600; color: var(--muted); }
-.crew-page h4 small { font-weight: 400; color: var(--faint); }
-.crew-page h4 .n { color: var(--faint); font-weight: 400; }
-.crew-page h4 .link { margin-left: auto; }
-.cp-job, .cp-log { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; column-gap: 10px; width: 100%; padding: 7px 8px; border-radius: 8px; text-align: left; }
-button.cp-job:hover, button.cp-log:not(:disabled):hover { background: var(--bg-2); }
-.cp-log:disabled { cursor: default; }
-.cp-ji { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); background: var(--bg-2); }
-.cp-ji .i { width: 13px; height: 13px; }
-.cp-job.running .cp-ji { color: var(--accent-ink); background: var(--accent-soft); }
-.cp-job.waiting .cp-ji { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
-.cp-jt { display: flex; flex-direction: column; min-width: 0; }
-.cp-jt b { font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cp-jt small { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cp-jk { font-size: 11.5px; color: var(--faint); }
-.cp-job.queued .cp-ji { background: transparent; border: 1px dashed var(--line-2); }
-.cp-log.quiet b { font-weight: 400; color: var(--muted); }
-.cp-log.st-blocked .cp-ji { color: var(--bad); }
-.cp-log.st-done .cp-ji { color: var(--good); }
-.cp-log .q-time { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.cp-empty { margin: 4px 0 8px; font-size: 12.5px; color: var(--faint); }
-.cp-notebook { width: 100%; min-height: 170px; resize: vertical; font-size: 12px; line-height: 1.55; }
-.cp-meta { display: flex; justify-content: space-between; margin: 4px 0 0; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.cp-count.over { color: var(--warn); }
-.cp-brief .prose { font-size: 13px; color: var(--ink-2); }
-.cp-brief .prose p { margin: 0 0 6px; }
-.cp-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 14px; margin: 0; font-size: 12.5px; }
-.cp-facts dt { color: var(--faint); }
-.cp-facts dd { margin: 0; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 720px) {
-  .crew-page { max-height: 92vh; }
-  .cp-grid { grid-template-columns: 1fr; overflow-y: auto; }
-  .cp-grid > section { overflow: visible; }
-  .cp-mem { border-left: 0; border-top: 1px solid var(--line); }
-  .cp-head [data-a="checkin"] span { display: none; }
-}
-
 /* ---------- the editor and the spirit maker ---------- */
 .crew-edit { width: min(640px, 100%); }
 .ce-templates { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -4px 0 16px; }
@@ -200,3 +149,179 @@ button.mn.crew { font: inherit; padding: 0; }
 .ts-m.crew .cr-av { --size: 18px; }
 .wm-row .cr-av { --size: 24px; }
 .toast .cr-av { display: inline-grid; vertical-align: -5px; margin-right: 2px; }
+
+/* ---------- a member's thread (crew.js): the main pane in split view, in place in the feed ---------- */
+.cr-member { display: flex; flex-direction: column; }
+.cr-row.open { background: var(--bg-2); border-color: var(--line-2); }
+/* its live jobs: ordinary cards, tucked in under the member */
+.cr-jobs { padding-left: 18px; gap: 4px; }
+.cr-jobs:not(:empty) { margin: 4px 0 6px; }
+.cr-more { align-self: flex-start; margin: 0 0 6px 26px; }
+.cr-more[hidden] { display: none; }
+.cr-sub.report { color: var(--ink-2); }
+
+.crew-view { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+.crew-view[hidden] { display: none; }
+body.split #crewView { flex: 1; }
+/* the header: a task's (#splitHead), with the member's face and its state */
+.cv-top { flex: none; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px max(24px, calc((100% - var(--read-w)) / 2)); border-bottom: 1px solid var(--line); }
+/* a wide pane: the reading column and the details beside it, centred together like a task's */
+.crew-view.wide { --cv-pad: max(24px, calc((100% - var(--read-w) - var(--det-w) - 48px) / 2)); }
+.crew-view.wide .cv-top { padding-left: var(--cv-pad); padding-right: calc(var(--cv-pad) - 8px); }
+.cv-who { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 0 1 auto; }
+.cv-who .sh-title { flex: none; }
+.cv-role { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--muted); }
+.cv-state { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--faint); }
+.cv-state.live { color: var(--accent-ink); }
+.cv-state.asks { color: var(--warn); font-weight: 500; }
+.cv-top .sh-acts .ghost.sm { gap: 6px; }
+
+/* the body: the thread in the reading column, the details beside it on a wide pane */
+.cv-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding: 0 max(24px, calc((100% - var(--read-w)) / 2)); }
+.crew-view.wide .cv-scroll { padding: 0 var(--cv-pad); }
+.cv-cols { flex: 1 0 auto; display: flex; flex-direction: column; padding-top: 18px; }
+.cv-main { min-width: 0; }
+.crew-view.wide .cv-cols { display: grid; grid-template-columns: minmax(0, 1fr) var(--det-w); column-gap: 48px; align-items: start; }
+/* the details: a fold above the thread; on a wide pane a column that stays put beside it */
+.cv-about { order: -1; margin: 0 0 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.cv-about > summary { display: flex; align-items: center; gap: 8px; padding: 9px 12px; list-style: none; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+.cv-about > summary::-webkit-details-marker { display: none; }
+.cv-about > summary > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--faint); }
+.cv-about > summary .i { width: 14px; height: 14px; color: var(--muted); }
+.cv-about > summary .chev { transition: transform 0.2s; }
+.cv-about[open] > summary .chev { transform: rotate(90deg); }
+.cv-about > .cv-side { padding: 4px 12px 12px; }
+.crew-view.wide .cv-about { order: 0; position: sticky; top: 0; margin: 0; border: 0; background: none; }
+.crew-view.wide .cv-about > summary { display: none; }
+.crew-view.wide .cv-about > .cv-side { padding: 0; }
+.cv-side { display: flex; flex-direction: column; gap: 14px; font-size: 12.5px; }
+.cv-facts { display: flex; flex-direction: column; gap: 8px; color: var(--ink-2); }
+.cv-facts .m { display: flex; align-items: flex-start; gap: 9px; min-width: 0; line-height: 1.45; }
+.cv-facts .m > .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--faint); }
+.cv-facts .m > span { min-width: 0; overflow-wrap: anywhere; }
+.cv-team { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.cv-mate { display: inline-grid; place-items: center; }
+.cv-mate.logo { width: 20px; height: 20px; border-radius: 50%; background: var(--bg-2); }
+.cv-mate.logo > * { width: 12px; height: 12px; }
+/* the actions: a list with their names, like a task's */
+.cv-actions { display: flex; flex-direction: column; gap: 1px; padding-top: 12px; border-top: 1px solid var(--line); }
+.cv-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 8px; gap: 10px; font-size: 13px; color: var(--muted); }
+.cv-actions .ghost:hover { color: var(--ink); }
+.cv-actions .ghost.danger:hover { color: var(--bad); }
+.cv-actions .ghost .i { width: 15px; height: 15px; }
+.cv-sec { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+.cv-sec h5 { display: flex; align-items: baseline; gap: 6px; margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.cv-sec h5 small { margin-left: auto; font-weight: 400; color: var(--faint); font-variant-numeric: tabular-nums; }
+.cv-sec h5 small.over { color: var(--warn); }
+.cv-sec h5 .link { margin-left: auto; }
+.cv-notebook { width: 100%; min-height: 140px; resize: vertical; font-size: 12px; line-height: 1.55; --field-bg: var(--surface); }
+.cv-saved { min-height: 14px; font-size: 11.5px; color: var(--faint); }
+.cv-brief .prose { font-size: 12.5px; color: var(--ink-2); }
+.cv-brief .prose p { margin: 0 0 6px; }
+.cv-none { margin: 0; color: var(--faint); }
+.cv-link { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 6px; margin: 0 -6px; border-radius: 6px; text-align: left; color: var(--ink-2); }
+.cv-link:hover:not(:disabled) { background: var(--bg-2); color: var(--ink); }
+.cv-link span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-link .i { flex: none; width: 13px; height: 13px; color: var(--faint); }
+
+/* the thread: each job, what it was asked and where from, then the member's answer */
+.cv-earlier { align-self: center; margin: 0 0 10px; }
+.cv-earlier[hidden] { display: none; }
+.cv-thread { display: flex; flex-direction: column; }
+.cv-job { padding: 14px 0; border-top: 1px solid var(--line); }
+.cv-thread > :first-child { border-top: 0; padding-top: 4px; }
+.cv-job.new { animation: rise 0.25s var(--ease); }
+.cv-job.flash { animation: cv-flash 1.6s var(--ease); }
+@keyframes cv-flash { 0%, 30% { background: var(--accent-soft); } 100% { background: transparent; } }
+.cv-req { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 8px; }
+.cv-kind { display: inline-flex; align-items: center; gap: 5px; flex: none; font-size: 12px; font-weight: 500; color: var(--muted); }
+.cv-kind .i { width: 12px; height: 12px; color: var(--faint); }
+.cv-kind.k-task { color: var(--ink-2); }
+.cv-kind b { font-weight: 500; color: var(--ink-2); }
+.cv-from { font: inherit; color: var(--ink-2); padding: 0; border-radius: 4px; }
+.cv-from[data-session]:hover { color: var(--accent-ink); text-decoration: underline; }
+.cv-req > time { margin-left: auto; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.cv-prompt { flex: 1 0 100%; padding: 8px 12px; border-radius: var(--radius); background: var(--bg-2); font-size: 13.5px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.cv-res { display: grid; grid-template-columns: 26px minmax(0, 1fr); column-gap: 12px; }
+.cv-res > .cr-av { margin-top: 1px; }
+.cv-say { min-width: 0; }
+.cv-head { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+.cv-head:empty { display: none; }
+.cv-where { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--faint); }
+.cv-where .i { width: 11px; height: 11px; }
+.cv-title { margin: 4px 0 0; font-size: 14.5px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.cv-sum { margin: 3px 0 0; font-size: 13.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.cv-job.unread .cv-title::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%; background: var(--accent); vertical-align: 2px; }
+.cv-live { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-size: 13px; }
+.cv-live .elapsed { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* asking you: the question, its choices, a box to answer, in the thread */
+.cv-asks { margin-top: 6px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
+.cv-q { margin: 0 0 8px; font-size: 13.5px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cv-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.cv-inline { display: flex; gap: 6px; }
+.cv-inline .input { flex: 1; min-width: 0; }
+.cv-say > .cv-inline { margin-top: 8px; }
+.cv-sents { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cv-sent { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 99px; border: 1px solid var(--line); font-size: 12px; color: var(--ink-2); }
+.cv-sent:hover { border-color: var(--line-2); color: var(--ink); }
+.cv-sent .i { width: 11px; height: 11px; color: var(--faint); }
+.cv-acts { display: flex; gap: 2px; margin: 6px 0 0 -8px; opacity: 0.75; transition: opacity 0.15s; }
+.cv-job:hover .cv-acts, .cv-acts:focus-within { opacity: 1; }
+.cv-acts .ghost { gap: 5px; color: var(--muted); }
+.cv-acts .ghost:hover { color: var(--ink); }
+.cv-acts .i { width: 12px; height: 12px; }
+.cv-job.queued .cv-req { align-items: center; margin: 0; }
+.cv-job.queued .cv-prompt { flex: 1 1 0; background: none; border: 1px dashed var(--line-2); padding: 6px 10px; -webkit-line-clamp: 1; }
+.cv-job.sending { opacity: 0.85; }
+.cv-quiet { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 12px; color: var(--faint); }
+.cv-quiet .i { width: 12px; height: 12px; }
+.cv-quiet > span { flex: 1; }
+.cv-quiet time { font-variant-numeric: tabular-nums; }
+.cv-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 40px 0 24px; text-align: center; color: var(--muted); font-size: 13px; }
+.cv-empty p { margin: 0; max-width: 420px; }
+.cv-empty b { color: var(--ink); }
+.cv-empty code { font: 12px var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--accent-soft); color: var(--accent-ink); }
+
+/* the box to hand the member a job: docked at the bottom, like a task's follow-up box */
+.cv-dock { position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding: 18px 0 18px; background: linear-gradient(to bottom, transparent, var(--bg) 18px); }
+.crew-view.wide .cv-dock { margin-right: calc(var(--det-w) + 48px); }
+.cv-box { padding: 6px 8px 6px 12px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); box-shadow: var(--shadow-1); transition: border-color 0.15s, box-shadow 0.15s; }
+.cv-box:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.cv-box .mn-wrap { position: relative; }
+.cv-input { display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; padding: 6px 0; font: 14px/1.5 var(--sans); color: var(--ink); max-height: 200px; }
+.cv-input::placeholder { color: var(--faint); }
+.cv-bar { display: flex; align-items: center; gap: 6px; }
+.cv-bar .grow { flex: 1; }
+.cv-bar .ghost .i { width: 12px; height: 12px; }
+
+/* the feed: the thread opens in place, under its member's row, on the cards' surface */
+body:not(.split) .cr-member > .crew-view { margin: 4px 0 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+body:not(.split) .crew-view .cv-top { min-height: 0; padding: 10px 14px; }
+body:not(.split) .crew-view .cv-scroll { overflow: visible; padding: 0 14px; }
+body:not(.split) .crew-view .cv-dock { position: static; padding: 10px 0 14px; background: none; }
+body:not(.split) .crew-view .cv-state { display: none; }
+
+/* a crew job's header: its member, as the way back to the thread */
+.sh-crumb { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 6px 0 3px; margin-left: -3px; border-radius: 99px; font-size: 13px; font-weight: 500; color: var(--ink-2); transition: background 0.15s; }
+.sh-crumb:hover { background: var(--bg-2); color: var(--ink); }
+.sh-crumb .chev { width: 11px; height: 11px; color: var(--faint); }
+
+/* a crew thread on a task: your replies under the member's answer, then Reply */
+.btw.crew.thread { margin-top: -6px; border-top-left-radius: 0; border-top-right-radius: 0; }
+.btw-tag.you { color: var(--ink-2); background: var(--bg-2); }
+.btw-foot { gap: 12px; }
+.btw-reply { display: inline-flex; align-items: center; gap: 4px; }
+.btw-reply .i { width: 12px; height: 12px; }
+.btw-replyform { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.btw-replyform .input { flex: 1; min-width: 0; }
+
+@media (max-width: 720px) {
+  .cv-top .sh-acts .ghost.sm span { display: none; }
+  .cv-role { display: none; }
+}
+
+/* the feed: the row above already shows who; the thread's header keeps its actions */
+body:not(.split) .crew-view .cv-top > .cr-av, body:not(.split) .crew-view .cv-who { display: none; }
+body:not(.split) .crew-view .cv-top { justify-content: flex-end; padding: 6px 10px; border-bottom: 0; }
+/* the Delegate popover over the crew editor */
+.overlay:not([hidden]) ~ .team-pop { z-index: 56; }

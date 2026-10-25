@@ -2,7 +2,7 @@
 
 Named agents that stay on hand and keep working: *Scout · CI watcher*, *Quill · PR reviewer*. Code:
 `server/crew.js` (members, schedule, queue, memory, mentions), `server/routes/crew.js`,
-`web/js/features/crew.js` (section, page, editor, `@` picker), `web/js/spirit.js` (avatars).
+`web/js/features/crew.js` (section, thread, editor, `@` picker), `web/js/spirit.js` (avatars).
 
 ## Naming
 
@@ -14,13 +14,45 @@ Named agents that stay on hand and keep working: *Scout · CI watcher*, *Quill �
   *Trigger*, *Tagged* (an `@mention`).
 - Their face is a **spirit**: a will-o'-the-wisp, which is where wisp got its name.
 
-## Where it sits
+## Where it sits, and the flow
 
-- The *Crew* section is pinned above *Working*, in split view and the feed, rows in a fixed order
-  (when they joined). A row never moves: what changes is its status line (*Running tests · 2 jobs*,
-  *Asking you*, *Looks again 14:30*, *Every 30 min*, *Paused*) and its spirit's mood.
-- Jobs are ordinary cards in *Needs you* / *Working* / *Done*, with the member's face where the
-  project dot goes (centred on the dot, so nothing shifts).
+A member is like a teammate you keep a conversation with. Everything about it happens in one place,
+its thread; its work never mixes with your tasks.
+
+- **The list.** The *Crew* section is pinned above *Working*, in split view and the feed, rows in a
+  fixed order (when they joined). A row never moves: what changes is its status line (*Asking you:
+  …*, *Running tests · 2 jobs*, *Reported: …*, *Looks again 14:30*, *Every 30 min*, *Paused*), the
+  dot on its face (amber: asking you; blue: a report you haven't read) and its spirit's mood. Under a
+  member sit only its live jobs (working, asking you, an unread report, or the one open), as ordinary
+  cards; three at most unless it's open. Crew jobs never show in *Needs you*, *Working* or *Done*.
+- **Opening a member** is opening a task: in split view its thread takes the main pane (any open task
+  closes), in the feed it unfolds under the row. The row looks selected.
+- **The thread**: a task's header (face, name, role, state, Pause, ⋯, close), then its jobs oldest
+  first, each what was asked and where from (*You*, *Check-in*, *Tagged in “…”*, *Delegated by
+  “…”*, *Trigger …*) and the member's answer: working (its live line), asking you (the question, its
+  choices or Allow / Deny, a box to answer), or done (headline, summary, the tasks it followed up in,
+  **Open job**, **Follow up**). Quiet check-ins fold into one faint line. At the bottom, the box that
+  hands it a job (it shows *Starting up* at once; `@` brings another member in as a delegate of that
+  job). Beside the thread on a wide pane (folded above it otherwise): schedule and next check-in, jobs
+  at once, project, computer, harness, mode, delegates, the actions, the notebook, the brief, and the
+  tasks it's part of.
+- **When it needs you**: the row and its face say so, a notification names it, and either opens the
+  thread at that job, where you answer without opening anything else. Answering is optimistic: the
+  job carries on at once and goes back to asking if the server refuses.
+- **When it finishes**: the answer fills in on its job, the row says *Reported: …*, a notification
+  names it. Seeing it in the thread marks it read. A quiet check-in only adds its line. No toast or
+  notification while its thread is on screen: it shows there.
+- **Opening a job** (**Open job**, a notification of the job itself, a link) opens it as a task in the
+  main pane, nested under its member, with the member as a crumb in the header. Esc goes from the job
+  back to the thread at that job, and from the thread home.
+- **In another task**: `@Ada …` starting a follow-up is answered under the message (the task's agent
+  isn't interrupted); **Reply to Ada** continues the same job, so Ada remembers the thread. A member
+  tagged in or delegated by a task can follow up there by itself (`followUp`), shown as *@Ada (your
+  crew’s …): …*; its thread moves along with that follow-up so the answer stays above it. Those jobs
+  are filed under Done: their answers already reached where they were asked.
+- **Delegates**: a member has a team like a task's (any harness, other crew members, never itself);
+  every job of its gets it. A job that was itself delegated hands nothing on to the crew, so members
+  can't loop; one on another machine can't reach the crew here.
 - With no crew yet, the section is one dashed row that invites you to add someone. It's useful, so it
   stays (ux.md: empty states are useful or absent).
 
@@ -50,3 +82,12 @@ that forget everything. The crew avoids both:
   archived (its worktree goes) instead of asking for your attention. Only check-ins can be quiet:
   everything else has someone waiting on it.
 - **They pick their own next look** with `wakeIn` (minutes, at least 5), on top of the schedule.
+
+## On another machine
+
+A member with `machine` keeps its identity, memory, schedule and queue here: one source of truth, so
+moving it between machines never splits what it knows. Its jobs run on the machine as that wisp's
+tasks, launched with `crewJob` (the member's id, the job's kind and the note written here). That
+wisp hides the `crew` block like ours and keeps it on the turn (`crewOut`); this wisp files it when
+the job's summary streams in as ended, or on the next tick for one it missed. Each turn is filed
+once (`seen`); answers it owes (`away`: an @mention's reply) are paid then.

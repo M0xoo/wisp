@@ -27,7 +27,7 @@ import { collapse, expand, groups, headPills, qDot, renderFeed, setFocus } from 
 import { barCover, scrollByPx, stage, topInset } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
-import { crewDot } from './crew.js';
+import { avatarHtml, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView } from './crew.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const big = matchMedia(`(min-width: ${SPLIT_DEFAULT_WIDTH}px)`);
@@ -99,6 +99,7 @@ export function toggleSidebar() {
 
 // Nothing open: the prompt box, focused.
 export function goHome({ focus = true } = {}) {
+  leaveCrew(); // a crew member's thread too
   for (const id of [...S.open]) collapse(id);
   paintSplit();
   if (focus) $('#prompt')?.focus({ preventScroll: true });
@@ -315,16 +316,18 @@ export function paintSplit() {
   if (!isSplit()) return;
   const id = splitOpen();
   const s = id && S.sessions.get(id);
-  home.hidden = !!s;
+  paintCrewView(); // a crew member's thread fills the pane while no task is open (crew.js)
+  const crew = crewViewShown();
+  home.hidden = !!s || crew;
   $('#splitHead').hidden = !s;
   const shown = !!s && $('#splitStage').hidden;
   $('#splitStage').hidden = !s;
-  $('#splitNew').classList.toggle('on', !s);
+  $('#splitNew').classList.toggle('on', !s && !crew);
   const side = slotHtml('sidebar.top');
   const host = $('#spSide');
   if (host.dataset.h !== side) (host.innerHTML = side), (host.dataset.h = side);
   if (s) paintHead(s);
-  else paintHome();
+  else if (!crew) paintHome();
   // Measuring forces a layout in the middle of a render. Only a pane that just appeared needs it
   // now (the body's scroll is restored right after); otherwise the next frame, before it paints.
   if (shown) measure();
@@ -349,12 +352,18 @@ export function paintHead(s) {
   h.className = `split-head c-${s.color} st-${s.state}`;
   const html = `
     <div class="sh-row">
-      ${qDot(s)}
+      ${crumb(s) || qDot(s)}
       <h2 class="sh-title" title="Rename (M)">${esc(s.title)}</h2>
       <span class="sh-acts">${slotHtml('split.head', s)}<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button></span>
     </div>`;
   if (h.dataset.h !== html) (h.innerHTML = html), (h.dataset.h = html);
   paintDetails(s, pill);
+}
+
+// A crew member's job: the member, as a way back to its thread (Esc too).
+function crumb(s) {
+  const m = s.crew && memberById(s.crew.id);
+  return m ? `<button class="sh-crumb" data-crew="${esc(m.id)}" title="Back to ${esc(m.name)} (Esc)">${avatarHtml(m, { size: 22, dot: false })}<span>${esc(m.name)}</span>${icon('chevron', 'chev')}</button>` : '';
 }
 
 function paintDetails(s, pill) {

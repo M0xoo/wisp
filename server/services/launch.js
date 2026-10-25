@@ -10,6 +10,7 @@ import { qualify } from '../machines.js';
 import { fill, positional } from '../recipes.js';
 import { summarize } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
+import { crewJobOf } from '../crew.js';
 import { bad, expand, MODES, newId } from '../util.js';
 
 export const MAX_COMPARE = 4;
@@ -42,6 +43,8 @@ export function createLaunch(app) {
   //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs } }
   // crew: a crew member's job ({ id, job, from? }, server/crew.js); only the crew sets it, never a request.
   async function launch(body, origin = null, { crew = null } = {}) {
+    // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
+    crew ||= crewJobOf(body.crewJob);
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
     // kind 'spell': Cast a spell. The agent changes wisp, not a project: an empty scratch folder of
     // its own, one run. Edits mode, not Plan: Claude's Plan mode refuses MCP tools (the spell tools),

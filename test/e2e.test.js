@@ -195,7 +195,8 @@ test('a follow-up can switch harness and model: the new harness gets the turns i
     const x = await session(s.id);
     return x.turns.length === n && x.state === 'review' && x;
   });
-  const last = (bin) => records(RECORD, bin).at(-1);
+  // The task's runs: a background retro (wisp's memory) may run on the same harness meanwhile.
+  const last = (bin) => records(RECORD, bin).filter((r) => !r.stdin.startsWith('# wisp retro')).at(-1);
   await turns(1);
 
   // Same harness, another model and level: the same conversation, resumed.

@@ -26,7 +26,7 @@ export const SLOTS = {
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
-  'crew.page': "A crew member's page: a button in its header, next to Check in.",
+  'crew.page': "A crew member's thread: a button in its header, next to Pause.",
 };
 
 export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head']);
@@ -65,7 +65,11 @@ export const PARTS = {
   'section.crew': '#secCrew',
   'crew.row': '#secCrew .cr-row',
   'crew.avatar': '.cr-av',
-  'crew.page': '.crew-page',
+  // A member's thread: the main pane in split view, in place in the feed.
+  'crew.page': '.crew-view',
+  'crew.thread': '.crew-view .cv-thread',
+  'crew.details': '.crew-view .cv-about',
+  'crew.compose': '.crew-view .cv-dock',
   'crew.editor': '.crew-edit',
   'section.archived': '#secArchived',
   toTop: '#toTop',

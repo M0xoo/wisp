@@ -11,10 +11,16 @@
 // (its page, or @Name in any prompt or follow-up), a lead's `delegate` call, or a trigger. Jobs past
 // the member's `parallel` limit wait in its queue. A check-in that found nothing says `quiet`: it's
 // logged and archived instead of landing in Needs you.
+//
+// A member can live on another machine (machine: its id). Its memory, schedule and queue stay
+// here; its jobs run there as that wisp's tasks, sent with the member's note (crewJob), and that
+// wisp keeps the crew block a job hands back on the turn (crewOut). When a job there finishes,
+// this wisp fetches it and files the memory, the log line and any @mention answer (remoteSeen).
 
 import { blocksToMarkdown } from './render.js';
 import { cronMatches, nextRun, parseCron } from './triggers.js';
 import { adapters } from './adapters/index.js';
+import { normalizeTeam } from './subagents.js';
 import { bad, MODES, newId, truncate } from './util.js';
 
 export const MAX_CREW = 12;
@@ -26,10 +32,15 @@ export const CREW_COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'o
 export const JOBS = new Set(['checkin', 'task', 'delegated', 'trigger', 'mention']);
 const LOG_MAX = 40;
 const LOG_IN_PROMPT = 12;
+const LINKS_MAX = 20;
+const LINKS_IN_PROMPT = 8;
 const QUEUE_MAX = 20;
 const WAKE_MIN = 5; // minutes
 const WAKE_MAX = 7 * 24 * 60;
 const NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,23}$/u;
+const PLACE = /^[\w-]{1,40}$/; // a machine id
+const NOTE_MAX = 60_000;
+const SEEN_MAX = 200;
 const ID = /^[a-z0-9]{6,40}$/;
 // The kept parts of a job's report, for the log, a lead and an @mention's answer.
 const KEEP = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tests', 'commits', 'checklist', 'callout', 'question', 'next']);
@@ -44,14 +55,17 @@ const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // body → a clean member. prev: the member being edited (its memory and bookkeeping carry on).
 // taken: the other members, for unique names.
-export function normalizeMember(body = {}, prev = null, { taken = [], exists = () => true } = {}) {
+// machineOk(id): a machine this wisp knows (a member on it runs its jobs there; its cwd is a folder there).
+export function normalizeMember(body = {}, prev = null, { taken = [], exists = () => true, machineOk = () => false } = {}) {
   const v = (k, d = '') => (body[k] !== undefined ? body[k] : prev?.[k] !== undefined ? prev[k] : d);
   const name = String(v('name')).replace(/\s+/g, ' ').trim();
   if (!name) throw bad('Give them a name.');
   if (!NAME.test(name)) throw bad('A name is up to 24 letters, digits, spaces, dots, dashes or underscores, starting with a letter or digit.');
   if (taken.some((m) => m.id !== prev?.id && handleOf(m.name) === handleOf(name))) throw bad(`${name} is already on your crew. Pick another name.`);
+  const machine = String(v('machine') || '');
+  if (machine && (!PLACE.test(machine) || !machineOk(machine))) throw bad('That machine isn’t one of yours. Add it in Machines first.');
   const cwd = String(v('cwd'));
-  if (cwd && !exists(cwd)) throw bad(`Not a folder on this computer: ${cwd}`);
+  if (cwd && !machine && !exists(cwd)) throw bad(`Not a folder on this computer: ${cwd}`);
   const agent = String(v('agent', 'auto')) || 'auto';
   if (agent !== 'auto' && (!adapters[agent] || agent === 'wisp')) throw bad(`Unknown harness: ${agent}`);
   const mode = String(v('mode', 'auto'));
@@ -68,17 +82,24 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
     color,
     brief: String(v('brief')).trim().slice(0, BRIEF_MAX),
     cwd,
+    machine, // '' = this computer
     agent,
     model: String(v('model')).slice(0, 120),
     effort: /^[\w-]{0,20}$/.test(String(v('effort'))) ? String(v('effort')) : '',
     mode,
     cron,
     parallel: Math.min(MAX_PARALLEL, Math.max(1, Math.floor(Number(v('parallel', 2))) || 2)),
+    // Its delegates (like a task's): every job it runs may hand them work. Other crew members
+    // count; itself doesn't.
+    team: normalizeTeam((body.team !== undefined ? body.team : prev?.team || []).filter((x) => !prev || x?.crew !== prev.id), adapters),
     paused: v('paused', false) === true,
     notebook,
     // Bookkeeping: what it did and what's next.
     log: prev?.log || [],
     queue: prev?.queue || [],
+    away: machine === (prev?.machine || '') ? prev?.away || {} : {}, // jobs running on its machine: { [job id]: { reply? } }
+    seen: prev?.seen || [], // turns of its jobs there already filed ("<job id>:<turn count>")
+    links: prev?.links || [], // tasks it was tagged in or delegated by, newest first: it may follow up on them
     wakeAt: body.wakeAt === null ? null : prev?.wakeAt || null,
     checkins: prev?.checkins || 0,
     lastCheckinAt: prev?.lastCheckinAt || null,
@@ -164,16 +185,25 @@ ${log.length ? log.map((l) => `- ${when(l.at)} · ${JOB_LABEL[l.job] || l.job} �
 ### This job
 
 ${what}
-
+${(m.links || []).length ? `\n### Tasks you're part of\n\nYou were tagged in or delegated by these. You may send their agent a follow-up (see followUp below):\n${m.links.slice(0, LINKS_IN_PROMPT).map((l) => `- \`${l.id}\` "${l.title}"`).join('\n')}\n` : ''}
 ### Memory and reporting
 
 Put one \`crew\` block last in your final message's blocks. wisp reads it and doesn't show it to the user:
-{"type":"crew","remember":["…"],"notebook":"…","wakeIn":30,"quiet":true}
+{"type":"crew","remember":["…"],"notebook":"…","wakeIn":30,"quiet":true,"followUp":{"task":"<id>","text":"…"}}
 - remember: lasting facts to add to your notebook: ids, versions and states you'll compare against next time, the user's preferences for this job, open threads. Other jobs of yours may write at the same time, so add lines with remember rather than rewriting.
 - notebook: the whole notebook rewritten, only to tidy it (it has ${m.notebook.length} characters; keep it under ${NOTEBOOK_SOFT}). Drop what's stale.
 - wakeIn: minutes until wisp should start a check-in (at least ${WAKE_MIN}), when you want to look again sooner than your schedule (a deploy to check on, a run to wait for).
 - quiet: ${job.job === 'checkin' ? 'true when this check-in found nothing the user needs to see: wisp logs it and doesn’t notify them. Leave it out when there is something to report.' : 'only for check-ins; this job is waited on, so always report.'}
+- followUp: a message wisp sends to the agent working on one of your tasks above, as a follow-up from you (the user sees it in that task, from you). Use it when that agent should act on what you found (fix this, rerun that) or was waiting on you. Its task is one of the ids above (${job.from?.id && (m.links || []).some((l) => l.id === job.from.id) ? `\`${job.from.id}\` is this job's` : 'none for this job'}). At most 3 (a list); only when it helps: your answer already reaches the user.
 Leave out the fields you don't need, and keep secrets out of the notebook.`;
+}
+
+// A job another wisp sent here for its crew member (crewJob on POST /sessions): which member,
+// what kind of job, and the member's note, made there from its memory. null when it isn't one.
+export function crewJobOf(x) {
+  if (!x || typeof x !== 'object' || !ID.test(x.id || '') || typeof x.note !== 'string') return null;
+  const from = x.from && typeof x.from === 'object' ? { id: String(x.from.id || '').slice(0, 60), title: String(x.from.title || '').slice(0, 200) } : null;
+  return { id: x.id, job: JOBS.has(x.job) ? x.job : 'task', ...(from && { from }), note: x.note.slice(0, NOTE_MAX), ...(x.wake === true && { wake: true }) };
 }
 
 // The prompt a check-in starts with.
@@ -194,8 +224,11 @@ export function takeCrewBlock(presentation) {
     if (typeof b.notebook === 'string') out.notebook = b.notebook;
     if (Number(b.wakeIn) > 0) out.wakeIn = Number(b.wakeIn);
     if (b.quiet === true) out.quiet = true;
+    for (const f of [b.followUp].flat())
+      if (f && typeof f === 'object' && typeof f.text === 'string' && f.text.trim()) (out.followUps ||= []).push({ task: String(f.task || '').slice(0, 60), text: f.text.trim().slice(0, 4000) });
   }
   out.remember = out.remember.slice(0, 12);
+  if (out.followUps) out.followUps = out.followUps.slice(0, 3);
   if (!presentation.blocks.length) presentation.blocks = [{ type: 'hero', title: 'Nothing new', summary: '', status: 'info' }];
   return out;
 }
@@ -219,6 +252,8 @@ export function logEntry(session, turn, { quiet = false } = {}) {
     job: session.crew?.job || 'task',
     title: truncate(hero?.title || (turn.status === 'error' ? 'Failed' : turn.status === 'stopped' ? 'Stopped' : 'Finished'), 80),
     summary: truncate(String(hero?.summary || '').replace(/\s+/g, ' '), 160),
+    prompt: truncate(plainCrew(turn.prompt || '').replace(/\s+/g, ' ').trim(), 200), // what it was asked
+    ...(session.crew?.from?.title && { from: session.crew.from }),
     status,
     ...(quiet && { quiet: true }),
     sessionId: session.id,
@@ -266,14 +301,22 @@ export const plainCrew = (text = '') => String(text).replace(CREW_MENTION, '@$1'
 
 // launch(body, origin, { crew }) starts a job like POST /api/sessions; onChange() after changes.
 export class Crew {
-  constructor({ store, runner, launch, onChange = () => {}, exists = () => true, now = () => Date.now() }) {
-    Object.assign(this, { store, runner, launch, onChange, exists, now });
+  // remote (members on machines): { ok(mid), launch(body, origin) → [summary], jobs(m) → the
+  // member's job summaries there, fetch(id) → a job's full session }, ids qualified (`id@machine`).
+  // followUp(task, text): a follow-up on a task, as the user would send it (services/launch.js replyTo).
+  constructor({ store, runner, launch, remote = null, followUp = null, onChange = () => {}, exists = () => true, now = () => Date.now() }) {
+    Object.assign(this, { store, runner, launch, remote, followUp, onChange, exists, now });
     store.config.crew ||= [];
+    for (const m of store.config.crew) Object.assign(m, { away: m.away || {}, seen: m.seen || [], links: m.links || [], machine: m.machine || '' }); // members from before these
     this.starting = new Map(); // member id -> jobs being launched (not sessions yet)
+    this.fetched = new Map(); // job id there -> its full session, as last fetched (a lead's delegation reads it)
+    this.filing = new Set(); // "<job id>:<turn count>" being fetched and filed now
+    // A job here for a member of another wisp carries its note; a member of ours, we write it.
     runner.crewNote = (s) => {
       const m = this.get(s.crew?.id);
-      return m ? crewNote(m, s.crew) : '';
+      return m ? crewNote(m, s.crew) : s.crew?.note || '';
     };
+    runner.crewChild = (id) => this.fetched.get(id) || null;
     runner.crewTurn = (s, turn) => this.#turnDone(s, turn);
     runner.crewDelegate = (lead, member, prompt) => this.#delegate(lead, member, prompt);
     runner.on('ended', (e) => this.#ended(e));
@@ -298,17 +341,22 @@ export class Crew {
     return { ...m, running: jobs.filter((s) => s.state === 'running' || s.state === 'waiting').length + (this.starting.get(m.id) || 0), jobs: jobs.length, nextAt: nextCheckin(m, this.now()), handle: handleOf(m.name) };
   }
 
+  // Its jobs: tasks here, or (a member on a machine) the summaries of its tasks there.
   jobs(m) {
-    return this.store.all().filter((s) => s.crew?.id === m.id);
+    return [...this.store.all().filter((s) => s.crew?.id === m.id), ...(m.machine && this.remote ? this.remote.jobs(m) : [])];
   }
 
   busy(m) {
     return this.jobs(m).filter((s) => s.state === 'running' || s.state === 'waiting').length + (this.starting.get(m.id) || 0);
   }
 
+  #norm(body, prev) {
+    return normalizeMember(body, prev, { taken: this.list, exists: this.exists, machineOk: (id) => !!this.remote?.ok(id) });
+  }
+
   create(body) {
     if (this.list.length >= MAX_CREW) throw bad(`Your crew is full (${MAX_CREW}). Remove someone first.`);
-    const m = normalizeMember(body, null, { taken: this.list, exists: this.exists });
+    const m = this.#norm(body, null);
     this.list.push(m);
     this.#changed();
     return m;
@@ -316,7 +364,7 @@ export class Crew {
 
   update(m, body) {
     const wasPaused = m.paused;
-    Object.assign(m, normalizeMember(body, m, { taken: this.list, exists: this.exists }));
+    Object.assign(m, this.#norm(body, m));
     this.#changed();
     if (wasPaused && !m.paused) this.drain(m);
     return m;
@@ -325,6 +373,7 @@ export class Crew {
   // Leaves the crew. Its jobs stay as ordinary tasks; triggers that sent it work stop.
   remove(m) {
     this.store.config.crew = this.list.filter((x) => x !== m);
+    for (const x of this.list) x.team = (x.team || []).filter((t) => t.crew !== m.id);
     for (const t of this.store.config.triggers || []) if (t.crew === m.id) Object.assign(t, { crew: '', enabled: false, lastError: `${m.name} left your crew.` });
     this.#changed();
   }
@@ -341,11 +390,14 @@ export class Crew {
 
   // Hand the member a job. Past its parallel limit (or while paused, for anything but your own
   // tasks) it waits in the member's queue. Resolves with { session } or { queued }.
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false } = {}) {
+  // tagged: crew members named in the prompt (@Quill), who join this job's delegates.
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [] } = {}) {
     if (!JOBS.has(job)) job = 'task';
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
-    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), at: this.now() };
+    const extra = tagged.filter((x) => x.id !== m.id).map((x) => ({ crew: x.id, name: handleOf(x.name), label: x.name, role: x.role, agent: x.agent, use: x.role ? `${x.role}. The user tagged them in this job` : 'The user tagged them in this job' }));
+    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(extra.length && { team: extra }), at: this.now() };
+    if (from?.id && (job === 'mention' || job === 'delegated')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
       if (m.queue.length >= QUEUE_MAX) throw bad(`${m.name} already has ${QUEUE_MAX} jobs waiting.`, 429);
       m.queue.push(w);
@@ -360,15 +412,87 @@ export class Crew {
     try {
       if (w.job === 'checkin') Object.assign(m, { checkins: (m.checkins || 0) + 1, lastCheckinAt: this.now() });
       const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }) };
-      const [s] = await this.launch(
-        { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [] },
-        w.origin || null,
-        { crew },
-      );
+      const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
+      if (m.machine) return await this.#startAway(m, body, crew, w.origin);
+      const [s] = await this.launch(body, w.origin || null, { crew });
       return s;
     } finally {
       this.starting.set(m.id, this.starting.get(m.id) - 1);
       this.#changed();
+    }
+  }
+
+  // A job on the member's machine: that wisp runs it with the note we write from the member's
+  // memory, and we remember what to do when it's done (an @mention's answer). Resolves with its summary.
+  async #startAway(m, body, crew, origin = null) {
+    if (!this.remote) throw bad('Machines aren’t available here.');
+    const { reply, ...sent } = crew;
+    const [s] = await this.remote.launch({ ...body, machine: m.machine, crewJob: { ...sent, note: crewNote(m, crew) } }, origin);
+    m.away[s.id] = { ...(reply && { reply }), at: this.now() };
+    return s;
+  }
+
+  // The delegates a job of the member gets. A delegated job hands nothing on to the crew (no
+  // loops between members), and one on a machine can't reach the crew here.
+  #teamFor(m, job, extra = []) {
+    const mine = [...(m.team || []), ...extra.filter((x) => !(m.team || []).some((t) => t.crew === x.crew))];
+    const team = normalizeTeam(mine.filter((x) => x.crew !== m.id && !(x.crew && (job === 'delegated' || m.machine))), adapters);
+    return team.length ? { subagents: team } : {};
+  }
+
+  // A task that tagged or delegated to the member: it may follow up there later (newest first).
+  #link(m, from) {
+    m.links = [{ id: from.id, title: from.title || '', at: this.now() }, ...(m.links || []).filter((l) => l.id !== from.id)].slice(0, LINKS_MAX);
+  }
+
+  // The follow-ups a job asked for, each to a task the member is linked to, as a message from it.
+  #sendFollowUps(m, s, list = []) {
+    for (const f of list) {
+      const id = f.task || s.crew?.from?.id;
+      const task = (m.links || []).some((l) => l.id === id) && this.store.get(id);
+      if (!task || !this.followUp) continue;
+      const text = `@[${m.name}](crew:${m.id}) (your crew${m.role ? `’s ${m.role}` : ''}):\n\n${f.text}`;
+      Promise.resolve(this.followUp(task, text)).catch((err) => console.warn(`wisp: crew follow-up: ${err.message}`));
+      // The job says where it followed up (its thread shows it); one on another machine can't be marked.
+      const job = this.store.get(s.id);
+      if (job?.crew && !job.crew.sent?.some((x) => x.id === task.id)) {
+        (job.crew.sent ||= []).push({ id: task.id, title: task.title });
+        this.runner.refresh?.(job);
+      }
+    }
+  }
+
+  // You follow up on a member's answer in a task: the same job carries on (it remembers the
+  // thread), and its answer lands under yours. Resolves with the new entry.
+  async replyIn(task, entryId, text) {
+    const turn = task.turns.find((t) => t.btw?.some((b) => b.id === entryId));
+    const parent = turn?.btw.find((b) => b.id === entryId);
+    const m = this.get(parent?.crew?.id);
+    if (!m) throw bad('They’re no longer on your crew.', 404);
+    if (!parent.job) throw bad(`${m.name} hasn’t started on it yet.`, 409);
+    const entry = { id: newId(), question: text, status: 'running', askedAt: this.now(), crew: parent.crew, job: parent.job, thread: parent.thread || parent.id };
+    // Right after the thread it continues, so it reads as one conversation.
+    let at = turn.btw.indexOf(parent);
+    while (turn.btw[at + 1]?.thread === entry.thread) at++;
+    turn.btw.splice(at + 1, 0, entry);
+    this.runner.sideChanged(task, turn);
+    const reply = { sessionId: task.id, turnId: turn.id, entryId: entry.id };
+    try {
+      const job = this.store.get(parent.job);
+      if (job) {
+        job.crew.reply = reply;
+        await this.followUp(job, text, { queue: true });
+      } else {
+        if (!m.machine || !this.remote?.reply) throw bad('That job is gone.', 404);
+        m.away[parent.job] = { reply, at: this.now() };
+        await this.remote.reply(parent.job, text);
+      }
+      this.#changed();
+      return entry;
+    } catch (err) {
+      Object.assign(entry, { status: 'error', error: err.message, answeredAt: this.now() });
+      this.runner.sideChanged(task, turn);
+      throw err;
     }
   }
 
@@ -404,6 +528,8 @@ export class Crew {
         await this.checkin(m, { wake }).catch((err) => this.#failed(m, { job: 'checkin' }, err));
         this.#changed();
       }
+      // Jobs on its machine that finished while we weren't told (a dropped stream, a restart).
+      if (m.machine) for (const s of this.jobs(m)) this.remoteSeen(s);
       this.drain(m);
     }
   }
@@ -461,8 +587,13 @@ export class Crew {
     const m = this.get(member.crew);
     if (!m) return { error: `${member.label || member.name} is no longer on the user's crew.` };
     if (this.busy(m) >= m.parallel) return { error: `${m.name} is already running ${m.parallel} job${m.parallel > 1 ? 's' : ''}, their limit. Wait for one with subagent_results, or do it yourself.` };
+    // On its machine: the lead reads the job as we last fetched it, refreshed when it's done.
+    if (m.machine)
+      return this.#startAway(m, { prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, ...this.#teamFor(m, 'delegated') }, { id: m.id, job: 'delegated', from: { id: lead.id, title: lead.title } })
+        .then((s) => this.remote.fetch(s.id))
+        .then((full) => (this.fetched.set(full.id, full), full));
     return this.launch(
-      { prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode },
+      { prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, ...this.#teamFor(m, 'delegated') },
       null,
       { crew: { id: m.id, job: 'delegated', from: { id: lead.id, title: lead.title } } },
     ).then(([s]) => this.store.get(s.id));
@@ -472,15 +603,51 @@ export class Crew {
   // check-in is filed rather than shown.
   #turnDone(s, turn) {
     const m = this.get(s.crew?.id);
-    if (!m || turn.status !== 'done') return {};
+    if ((!m && !s.crew?.note) || turn.status !== 'done') return {};
     const data = takeCrewBlock(turn.presentation);
-    applyMemory(m, data, this.now());
+    // A member of another wisp: its memory lives there, which fetches this turn's block (crewOut).
+    if (m) applyMemory(m, data, this.now());
+    if (data) turn.crewOut = data;
     const quiet = !!data?.quiet && s.crew.job === 'checkin' && s.turns.length === 1;
     // An answer to an @mention lands on the task that asked, a delegation's on its lead: the job
     // itself is filed under Done instead of waiting in Needs you too.
-    const filed = (s.crew.job === 'mention' || s.crew.job === 'delegated') && s.turns.length === 1;
-    if (data) this.#changed();
+    const filed = s.crew.job === 'mention' || s.crew.job === 'delegated'; // every turn: a reply in the thread too
+    if (data && m) this.#changed();
     return { quiet, filed };
+  }
+
+  // A job on a member's machine changed (its summary streamed in, or the tick saw it). Once a turn
+  // there has ended, fetch it and file it like one here: memory, log, an @mention's answer, the
+  // lead's delegation. Each turn once.
+  async remoteSeen(sum) {
+    const m = this.get(sum?.crew?.id);
+    if (!m?.machine || !this.remote || sum.state === 'running' || sum.pending) return;
+    const key = `${sum.id}:${sum.turnCount || 0}`;
+    if (m.seen.includes(key) || this.filing.has(key)) return;
+    this.filing.add(key);
+    try {
+      const s = await this.remote.fetch(sum.id);
+      const turn = s?.turns?.at(-1);
+      if (!turn || turn.status === 'running' || m.seen.includes(key)) return;
+      m.seen.push(key);
+      if (m.seen.length > SEEN_MAX) m.seen.splice(0, m.seen.length - SEEN_MAX);
+      this.fetched.set(s.id, s);
+      if (turn.status === 'done') applyMemory(m, turn.crewOut, this.now());
+      const quiet = turn.status === 'done' && !!s.archived && s.crew?.job === 'checkin';
+      m.log.unshift(logEntry(s, turn, { quiet }));
+      m.log.length = Math.min(m.log.length, LOG_MAX);
+      const reply = m.away[s.id]?.reply;
+      if (reply) this.#answer(reply, turn.status === 'done' ? { status: 'done', answer: reportText(turn) || '_No report._', job: s.id } : { status: 'error', error: turn.status === 'stopped' ? `${m.name} was stopped.` : `${m.name}’s job failed.`, job: s.id });
+      delete m.away[s.id];
+      if (turn.status === 'done') this.#sendFollowUps(m, s, turn.crewOut?.followUps);
+      if (s.crew?.from?.id) this.runner.touchLead?.(s.crew.from.id, s.id);
+      this.#changed();
+      setImmediate(() => this.drain(m));
+    } catch {
+      // the machine went away: the tick tries again
+    } finally {
+      this.filing.delete(key);
+    }
   }
 
   #ended({ session: s, turn, interrupted }) {
@@ -493,6 +660,7 @@ export class Crew {
       const ok = turn.status === 'done';
       this.#answer(s.crew.reply, ok ? { status: 'done', answer: reportText(turn) || '_No report._', job: s.id } : { status: 'error', error: turn.status === 'stopped' ? `${m.name} was stopped.` : `${m.name}’s job failed.`, job: s.id });
     }
+    if (turn.status === 'done') this.#sendFollowUps(m, s, turn.crewOut?.followUps);
     this.#changed();
     setImmediate(() => this.drain(m));
   }

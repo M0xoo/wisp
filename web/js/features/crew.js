@@ -11,18 +11,25 @@ import { esc, md } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { ago, timeAttrs, whenLabel } from '../core/format.js';
-import { launch, S } from '../core/state.js';
+import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
+import { fmtDuration } from '../blocks.js';
+import { launch, load, MOBILE, S, save } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { ask } from '../ui/confirm.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { PART_LABEL, PARTS, SPIRIT, isSpirit, parseSpirit, rollSpirit, spiritCode, spiritDefs, spiritSvg } from '../spirit.js';
-import { reveal } from './feed.js';
+import { collapse, placeCards, renderFeed, reveal } from './feed.js';
+import { mentionBox } from './mentions.js';
+import { goHome, isSplit, splitOpen } from './split.js';
 import { projectList } from './project-list.js';
 import { runnerPicker } from './runner-picker.js';
-import { MODES, agentName, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
+import { MODES, agentName, harnessesAt, harnessLogo, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
+import { connectMachine } from './machines.js';
+import { placeMenu } from './place-menu.js';
+import { machineById, pathAt, placeName, placesOf } from './places.js';
 import { slotHtml } from './spells.js';
+import { paintTeamBtn, teamEditor } from './team.js';
 
 // The spirits' glows, defined once for the whole page.
 document.body.insertAdjacentHTML('beforeend', spiritDefs());
@@ -84,61 +91,115 @@ export function crewDot(s) {
 }
 
 // --- the Crew section ----------------------------------------------------------------------------
+//
+// One block per member: its row, then (in the feed) its thread when it's open, then its live jobs
+// as ordinary cards, nested under it. Live: running, asking you, a report you haven't read, or open.
+// The rest of its work is in its thread. Nothing of the crew's shows in Needs you, Working or Done.
 
 const sec = $('#secCrew');
 const box = $('.cr-list', sec);
+const LIVE_MAX = 3; // nested under a closed member; an open one shows all its live jobs
+const pinned = new Set(); // jobs opened from a link or a toast: shown under their member until closed
+
+// The member open in the main pane (split view) or expanded in place (the feed). Yours alone.
+S.crewOpen = load('wisp.crewOpen', null);
+const setOpen = (id) => {
+  S.crewOpen = id;
+  save('wisp.crewOpen', id);
+};
+
+export function pinJob(id) {
+  pinned.add(id);
+}
+
+// A member's live jobs, most urgent first: asking you, working, an unread report.
+function liveJobs(m, st) {
+  const rank = (s) => (s.state === 'waiting' ? 0 : s.state === 'running' ? 1 : 2);
+  const live = st.jobs.filter((s) => s.state === 'running' || s.state === 'waiting' || (s.state === 'review' && s.unread && !s.archived) || S.open.has(s.id) || pinned.has(s.id));
+  live.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+  if (S.crewOpen === m.id || live.length <= LIVE_MAX) return { list: live, more: 0 };
+  const keep = live.filter((s, i) => i < LIVE_MAX || S.open.has(s.id) || pinned.has(s.id));
+  return { list: keep, more: live.length - keep.length };
+}
 
 function statusLine(m, st) {
-  if (st.asks) return { cls: 'asks', text: 'Asking you' };
-  if (st.live.length) {
-    const s = st.live[0];
-    return { cls: 'live', text: `${s.live || 'Working'}${st.live.length > 1 ? ` · ${st.live.length} jobs` : ''}` };
-  }
+  const ask = st.jobs.find((s) => s.state === 'waiting');
+  if (ask) return { cls: 'asks', text: `Asking you${ask.question ? `: ${ask.question}` : ''}` };
+  if (st.live.length) return { cls: 'live', text: `${st.live[0].live || 'Working'}${st.live.length > 1 ? ` · ${st.live.length} jobs` : ''}` };
+  const report = st.jobs.filter((s) => s.state === 'review' && s.unread && !s.archived).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  if (report) return { cls: 'report', text: `Reported: ${report.title}` };
   if (m.queue?.length) return { cls: '', text: `${m.queue.length} waiting` };
   if (m.paused) return { cls: '', text: 'Paused' };
   if (m.wakeAt && m.wakeAt > Date.now()) return { cls: '', text: `Looks again ${whenLabel(m.wakeAt)}` };
-  return { cls: '', text: m.cron ? cadenceLabel(m.cron) : 'On call' };
+  return { cls: '', text: `${m.cron ? cadenceLabel(m.cron) : 'On call'}${m.machine ? ` · on ${placeName(m.machine)}` : ''}` };
 }
 
-function rowHtml(m) {
-  const st = memberState(m);
+function rowHtml(m, st) {
   const line = statusLine(m, st);
-  const last = m.log?.[0];
+  const last = st.jobs.reduce((t, s) => Math.max(t, s.updatedAt || 0), m.log?.[0]?.at || 0);
   return `${avatarHtml(m)}
     <span class="cr-main">
       <span class="cr-top"><b class="cr-name">${esc(m.name)}</b>${m.role ? `<span class="cr-role">${esc(m.role)}</span>` : ''}</span>
-      <span class="cr-sub ${line.cls}">${esc(line.text)}</span>
+      <span class="cr-sub ${line.cls}" title="${esc(line.text)}">${esc(line.text)}</span>
     </span>
-    <span class="cr-side">${st.live.length ? `<span class="cr-n" title="${st.live.length} running">${st.live.length}</span>` : last ? `<span class="q-time" ${timeAttrs(last.at)}>${ago(last.at)}</span>` : ''}</span>`;
+    <span class="cr-side">${st.live.length ? `<span class="cr-n" title="${st.live.length} working">${st.live.length}</span>` : last ? `<span class="q-time" ${timeAttrs(last)}>${ago(last)}</span>` : ''}</span>`;
 }
 
-// Rows keyed by member: a row is only rewritten when what it says changed, and never re-appended
-// (its spirit would restart its animation).
+// Blocks keyed by member, rows rewritten only when what they say changed and never re-appended (a
+// spirit would restart its animation). Returns the job cards it placed, so the feed keeps them.
 export function paintCrew() {
   const list = crewList();
   sec.hidden = !('crew' in S.config); // until the config lands
   $('h4 .n', sec).textContent = list.length || '';
+  if (S.crewOpen && !memberById(S.crewOpen)) setOpen(null);
+  const shown = [];
   const want = list.length ? list : [null];
   want.forEach((m, i) => {
     const key = m ? m.id : 'empty';
-    let row = box.children[i];
-    if (row?.dataset.crew !== key) {
-      row = $$(':scope > [data-crew]', box).find((x) => x.dataset.crew === key) || el(m ? `<div class="cr-row" role="button" tabindex="0" data-crew="${key}"></div>` : `<button class="cr-row cr-empty" data-crew="empty">${icon('plus')}<span class="cr-main"><b>Add someone to your crew</b><span class="cr-sub">A named agent that checks in, reports, and answers to @name</span></span></button>`);
-      box.insertBefore(row, box.children[i] || null);
+    let block = box.children[i];
+    if (block?.dataset.crew !== key) {
+      block =
+        $$(':scope > [data-crew]', box).find((x) => x.dataset.crew === key) ||
+        el(
+          m
+            ? `<div class="cr-member" data-crew="${key}"><div class="cr-row" role="button" tabindex="0"></div><div class="cr-jobs f-list"></div><button class="cr-more link xs" hidden></button></div>`
+            : `<button class="cr-row cr-empty" data-crew="empty">${icon('plus')}<span class="cr-main"><b>Add someone to your crew</b><span class="cr-sub">A named agent that checks in, reports, and answers to @name</span></span></button>`,
+        );
+      box.insertBefore(block, box.children[i] || null);
     }
     if (!m) return;
-    const html = rowHtml(m);
+    const st = memberState(m);
+    const row = $('.cr-row', block);
+    const html = rowHtml(m, st);
     // The spirit stays (its animation keeps going); only the words around it change.
-    const h = html.replace(/<svg[\s\S]*?<\/svg>/, `[${memberState(m).mood}:${m.avatar}:${m.color}]`);
-    if (row.dataset.h !== h) {
-      row.innerHTML = html;
-      row.dataset.h = h;
-    }
+    const h = html.replace(/<svg[\s\S]*?<\/svg>/, `[${st.mood}:${m.avatar}:${m.color}]`);
+    if (row.dataset.h !== h) (row.innerHTML = html), (row.dataset.h = h);
     row.title = `${m.name}${m.role ? ` · ${m.role}` : ''}: open (or type @${m.name} in any prompt)`;
+    const open = S.crewOpen === m.id;
     row.classList.toggle('paused', !!m.paused);
+    row.classList.toggle('open', open);
+    row.setAttribute('aria-expanded', open);
+    // In the feed an open member's thread sits right under its row.
+    const inline = open && !isSplit();
+    const view = inline ? viewFor(m.id) : null;
+    if (view) {
+      if (view.node.parentNode !== block) row.after(view.node);
+      view.node.removeAttribute('id');
+      view.node.hidden = false;
+      view.paint();
+    }
+    if (!inline) for (const v of $$(':scope > .crew-view', block)) v.remove();
+    const { list: jobs, more } = liveJobs(m, st);
+    placeCards($('.cr-jobs', block), jobs);
+    shown.push(...jobs);
+    const mb = $('.cr-more', block);
+    mb.hidden = !more;
+    mb.textContent = `${more} more live · open ${m.name}`;
   });
   while (box.children.length > want.length) box.lastElementChild.remove();
-  page?.paint();
+  for (const id of pinned) if (!S.sessions.has(id)) pinned.delete(id);
+  paintCrewView();
+  return shown;
 }
 
 sec.addEventListener('click', (e) => {
@@ -146,23 +207,94 @@ sec.addEventListener('click', (e) => {
     crewEditor();
     return;
   }
-  const row = e.target.closest('.cr-row[data-crew]');
-  if (row) openCrew(row.dataset.crew);
+  const block = e.target.closest('.cr-member');
+  if (!block) return;
+  if (e.target.closest('.cr-more')) return openMember(block.dataset.crew);
+  if (e.target.closest('.cr-row')) {
+    // The feed: a second click folds it away, like a card. Split view: it stays (like a task).
+    if (!isSplit() && S.crewOpen === block.dataset.crew) return closeMember();
+    openMember(block.dataset.crew);
+  }
 });
 sec.addEventListener('keydown', (e) => {
-  const row = e.target.closest('.cr-row[data-crew]');
+  const row = e.target.closest('.cr-row');
   if (row && (e.key === 'Enter' || e.key === ' ')) {
     e.preventDefault();
     row.click();
   }
 });
 sec.addEventListener('contextmenu', (e) => {
-  const row = e.target.closest('.cr-row[data-crew]:not(.cr-empty)');
-  if (!row) return;
+  const block = e.target.closest('.cr-member');
+  if (!block || !e.target.closest('.cr-row')) return;
   e.preventDefault();
-  memberMenu(row.dataset.crew, { x: e.clientX, y: e.clientY });
+  memberMenu(block.dataset.crew, { x: e.clientX, y: e.clientY });
 });
-bus.on('config', () => paintCrew());
+bus.on('config', () => (S.sessions.size ? renderFeed() : paintCrew()));
+bus.on('machines', () => (S.sessions.size ? renderFeed() : paintCrew())); // a member's machine: its name, once machines load
+
+// --- opening a member -----------------------------------------------------------------------------
+
+// Open a member's thread: in split view it takes the main pane (any open task closes, as when
+// another task opens); in the feed it unfolds under its row. entry: a job to bring into view.
+export function openMember(id, { entry = null } = {}) {
+  if (!memberById(id)) return;
+  if (isSplit()) for (const o of [...S.open]) collapse(o);
+  pinned.clear(); // back in the thread: jobs opened from it go back to it
+  setOpen(id);
+  renderFeed();
+  const v = viewFor(id);
+  requestAnimationFrame(() => {
+    v.reveal(entry);
+    if (!entry) v.focus();
+  });
+  if (!isSplit()) $(`.cr-member[data-crew="${id}"]`, box)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+export function closeMember() {
+  if (!S.crewOpen) return;
+  setOpen(null);
+  renderFeed();
+}
+
+// Esc: from a member's job back to its thread; from the thread back home. True when it did.
+export function crewBack() {
+  if (!S.crewOpen || !isSplit()) return false;
+  const open = splitOpen();
+  if (open && S.sessions.get(open)?.crew?.id === S.crewOpen) {
+    openMember(S.crewOpen, { entry: open });
+    return true;
+  }
+  if (!open) {
+    closeMember();
+    goHome();
+    return true;
+  }
+  return false;
+}
+
+// Nothing of the crew stays open when home is asked for (New task, Esc).
+export function leaveCrew() {
+  if (S.crewOpen) setOpen(null);
+}
+
+// Split view: the thread fills the main pane while nothing else is open there. Another task
+// opening closes the member, unless it's one of its own jobs (then the thread is one Esc away).
+export function paintCrewView() {
+  const pane = $('#crewView');
+  if (!isSplit()) return pane && (pane.hidden = true);
+  const open = splitOpen();
+  if (S.crewOpen && open && S.sessions.get(open)?.crew?.id !== S.crewOpen) setOpen(null);
+  const showing = !!S.crewOpen && !open;
+  if (showing) {
+    const v = viewFor(S.crewOpen);
+    if (v.node.parentNode !== $('#splitMain')) $('#splitMain').append(v.node);
+    v.node.id = 'crewView';
+    v.node.hidden = false;
+    v.paint();
+  } else if (pane) pane.hidden = true;
+  for (const r of $$('.cr-row.open', box)) r.classList.toggle('open', !!S.crewOpen && r.closest('.cr-member').dataset.crew === S.crewOpen);
+}
+export const crewViewShown = () => isSplit() && !!S.crewOpen && !splitOpen();
 
 // --- actions --------------------------------------------------------------------------------------
 
@@ -170,25 +302,31 @@ bus.on('config', () => paintCrew());
 async function patchMember(m, body, { quiet = false } = {}) {
   const before = { ...m };
   Object.assign(m, body);
-  paintCrew();
+  renderFeed();
   try {
     Object.assign(m, await api(`/crew/${m.id}`, { method: 'PATCH', body }));
-    paintCrew();
+    renderFeed();
     return true;
   } catch (err) {
     Object.assign(m, before);
-    paintCrew();
+    renderFeed();
     if (!quiet) toastError(err);
     return false;
   }
 }
 
+// The member's thread is in view: what you do there shows there, no toast needed.
+const inView = (id) => S.crewOpen === id && (!isSplit() || !splitOpen());
+export const crewInView = (id) => inView(id);
+
 export async function checkIn(id) {
   const m = memberById(id);
   if (!m) return;
   const out = await tryApi(() => api(`/crew/${id}/checkin`, { method: 'POST', body: {} }));
-  if (out?.session) toast(`${esc(m.name)} is checking in`, { action: { label: 'Open', run: () => reveal(out.session.id) } });
-  else if (out?.queued) toast(`${esc(m.name)} will check in when a job finishes`);
+  if (out?.member) Object.assign(m, out.member);
+  if (out?.session && !S.sessions.has(out.session.id)) S.sessions.set(out.session.id, out.session);
+  renderFeed();
+  if (out && !inView(id)) toast(`${esc(m.name)} ${out.session ? 'is checking in' : 'will check in when a job finishes'}`, { action: { label: 'Open', run: () => openMember(id, { entry: out.session?.id }) } });
 }
 
 export async function togglePause(id) {
@@ -204,29 +342,37 @@ export async function removeMember(id, anchor) {
   const list = crewList();
   const at = list.indexOf(m);
   list.splice(at, 1);
-  page?.id === id && page.close();
-  paintCrew();
+  if (S.crewOpen === id) setOpen(null);
+  views.get(id)?.node.remove();
+  views.delete(id);
+  renderFeed();
   try {
     await api(`/crew/${id}`, { method: 'DELETE' });
     toast(`Removed ${esc(m.name)}`);
   } catch (err) {
     list.splice(at, 0, m);
-    paintCrew();
+    renderFeed();
     toastError(err);
   }
 }
 
-// Hand a member a job. The box empties at once and gets its text back if the server refuses.
+// Hand a member a job. It shows in the thread at once (Starting up) and the box gets its text
+// back if the server refuses.
 export async function sendJob(m, prompt, { restore } = {}) {
+  const pend = { id: `sending-${Date.now()}`, prompt };
+  sending.set(m.id, [...(sending.get(m.id) || []), pend]);
+  renderFeed();
   try {
     const out = await api(`/crew/${m.id}/jobs`, { method: 'POST', body: { prompt } });
     if (out.member) Object.assign(m, out.member);
-    paintCrew();
-    if (out.session) toast(`Sent to ${esc(m.name)}`, { action: { label: 'Open', run: () => reveal(out.session.id) } });
-    else toast(`${esc(m.name)} is busy: it starts when a job finishes (${out.queued} waiting)`);
+    if (out.session && !S.sessions.has(out.session.id)) S.sessions.set(out.session.id, out.session);
+    if (!inView(m.id)) toast(out.session ? `Sent to ${esc(m.name)}` : `${esc(m.name)} is busy: it starts when a job finishes`, { action: { label: 'Open', run: () => openMember(m.id, { entry: out.session?.id }) } });
   } catch (err) {
     restore?.();
     toastError(err);
+  } finally {
+    sending.set(m.id, (sending.get(m.id) || []).filter((x) => x !== pend));
+    renderFeed();
   }
 }
 
@@ -244,7 +390,7 @@ function memberMenu(id, { x, y, anchor } = {}) {
   menu.onclick = (e) => {
     const a = e.target.closest('button')?.dataset.a;
     close();
-    if (a === 'open') openCrew(id);
+    if (a === 'open') openMember(id);
     if (a === 'checkin') checkIn(id);
     if (a === 'pause') togglePause(id);
     if (a === 'edit') crewEditor({ member: m });
@@ -260,159 +406,394 @@ function memberMenu(id, { x, y, anchor } = {}) {
   menu.style.top = `${Math.max(8, Math.min(top, innerHeight - h - 8))}px`;
 }
 
-// --- a member's page --------------------------------------------------------------------------------
+// The name the rest of the page knows it by.
+export const openCrew = (id, opts) => openMember(id, opts);
 
-let page = null; // the open one: { id, node, paint, close }
+// The crumb in a crew job's header (split.js) goes back to its member's thread.
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('.sh-crumb[data-crew]');
+  if (!b) return;
+  e.preventDefault();
+  openMember(b.dataset.crew, { entry: splitOpen() });
+});
+
+// --- a member's thread -----------------------------------------------------------------------------
+//
+// Its jobs as a conversation, oldest first: what each was asked and where it came from, then the
+// member's answer. A job asking you shows the question with its choices and a box to answer in
+// place; a finished one has Open job (the whole task) and Follow up (that job carries on). Quiet
+// check-ins fold into one faint line. At the bottom, a box to hand the member a job; beside the
+// thread (under it on a narrow pane), what it is and how it works, its notebook, brief and tasks.
 
 const JOB_ICON = { checkin: 'clock', task: 'send', delegated: 'agent', trigger: 'bolt', mention: 'ask' };
-const JOB_WORD = { checkin: 'Check-in', task: 'Job', delegated: 'Delegated', trigger: 'Trigger', mention: 'Tagged' };
+const SHOW = 30; // jobs shown; Show earlier adds more
+const views = new Map(); // member id -> view
+const sending = new Map(); // member id -> [{ id, prompt }]: jobs sent, not started yet
+const readSent = new Set(); // reports marked read from here
 
-export function openCrew(id) {
-  const m0 = memberById(id);
-  if (!m0) return;
-  page?.close();
-  const node = el(`<div class="modal crew-page" role="dialog" aria-label="${esc(m0.name)}">
-      <header class="cp-head"></header>
-      <form class="cp-ask">
-        <textarea class="cp-prompt" rows="1" spellcheck="false"></textarea>
-        <button class="primary sm" title="Send (↵)">${icon('send')}<span>Send</span></button>
-      </form>
-      <div class="cp-grid">
-        <section class="cp-jobs"></section>
-        <section class="cp-mem">
-          <h4>Notebook <small>what they remember between jobs</small></h4>
-          <textarea class="textarea mono cp-notebook" spellcheck="false" placeholder="Empty so far. They add to it as they work; you can edit it too."></textarea>
-          <p class="cp-meta"><span class="cp-count"></span><span class="cp-saved"></span></p>
-          <h4>Brief <button class="link xs" data-a="edit">Edit</button></h4>
-          <div class="cp-brief"></div>
-          <h4>How they work</h4>
-          <dl class="cp-facts"></dl>
-        </section>
+function viewFor(id) {
+  let v = views.get(id);
+  if (!v) views.set(id, (v = buildView(id)));
+  return v;
+}
+
+// Where a job came from, as a chip: what kind, and from where (a task opens on click).
+function origin(s) {
+  const c = s.crew;
+  const from = c.from?.title ? esc(c.from.title) : '';
+  const link = c.from?.id && S.sessions.has(c.from.id) ? `data-session="${esc(c.from.id)}"` : '';
+  const label = {
+    checkin: 'Check-in',
+    task: 'You',
+    mention: from ? `Tagged in <button class="cv-from" ${link}>“${from}”</button>` : 'Tagged in a task',
+    delegated: from ? `Delegated by <button class="cv-from" ${link}>“${from}”</button>` : 'Delegated',
+    trigger: from ? `Trigger <b>${from}</b>` : 'Trigger',
+  }[c.job] || 'Job';
+  return `<span class="cv-kind k-${c.job}">${icon(JOB_ICON[c.job] || 'send')}${label}</span>`;
+}
+
+const quietJob = (s) => s.crew.job === 'checkin' && s.archived && s.state === 'done';
+
+function jobHtml(m, s, { follow = false } = {}) {
+  const live = s.state === 'running';
+  const asks = s.state === 'waiting';
+  const pill = asks ? '<span class="pill st-waiting"><i></i>Asking you</span>' : live ? '<span class="pill st-running"><i></i>Working</span>' : s.state === 'review' || s.state === 'done' ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>` : '';
+  const ask = s.crew.job !== 'checkin' && s.crew.prompt ? `<div class="cv-prompt">${esc(s.crew.prompt)}</div>` : '';
+  const sent = (s.crew.sent || []).map((x) => `<button class="cv-sent" data-session="${esc(x.id)}" title="Open the task">${icon('send')}Followed up in “${esc(x.title)}”</button>`).join('');
+  let say;
+  if (asks)
+    say = `<div class="cv-asks">
+        <p class="cv-q">${esc(s.question || 'Needs your approval to carry on.')}</p>
+        ${s.approval ? `<div class="cv-opts"><button class="ghost sm" data-answer="Allow">${icon('check')}Allow</button><button class="ghost sm" data-answer="Deny">${icon('x')}Deny</button></div>` : s.options?.length ? `<div class="cv-opts">${s.options.map((o) => `<button class="lp-chip" data-answer="${esc(o.label || o)}">${esc(o.label || o)}</button>`).join('')}</div>` : ''}
+        ${s.approval ? '' : `<form class="cv-inline" data-answer-form><input class="input sm" placeholder="Answer ${esc(m.name)}…" autocomplete="off" spellcheck="false"><button class="primary sm">Answer</button></form>`}
+      </div>`;
+  else if (live) say = `<p class="cv-live"><span class="q-live running">${esc(s.live || 'Starting up')}</span><span class="elapsed" data-start="${s.updatedAt}">${fmtDuration(Date.now() - s.updatedAt)}</span></p>`;
+  else say = `<p class="cv-title">${esc(s.title)}</p>${s.preview ? `<p class="cv-sum">${esc(s.preview)}</p>` : ''}`;
+  return `<article class="cv-job st-${s.state}${s.unread && s.state === 'review' ? ' unread' : ''}" data-id="${esc(s.id)}">
+      <div class="cv-req">${origin(s)}<time ${timeAttrs(s.createdAt)}>${ago(s.createdAt)}</time>${ask}</div>
+      <div class="cv-res">
+        ${avatarHtml(m, { size: 26, dot: false, state: asks ? 'asks' : live ? 'live' : 'idle' })}
+        <div class="cv-say">
+          <div class="cv-head">${pill}${s.machine ? `<span class="cv-where">${icon('server')}${esc(s.machine.name)}</span>` : ''}</div>
+          ${say}
+          ${sent ? `<div class="cv-sents">${sent}</div>` : ''}
+          <div class="cv-acts">
+            <button class="ghost xs" data-open="${esc(s.id)}">${icon('expand')}Open job</button>
+            ${live || asks ? '' : `<button class="ghost xs" data-follow>${icon('enter')}Follow up</button>`}
+          </div>
+          ${follow ? `<form class="cv-inline" data-follow-form><input class="input sm" placeholder="Follow up with ${esc(m.name)} on this…" autocomplete="off" spellcheck="false"><button class="primary sm">Send</button></form>` : ''}
+        </div>
       </div>
-    </div>`);
-  const close = overlay(node, { onClose: () => page?.node === node && (page = null) });
-  const ta = $('.cp-prompt', node);
-  const nb = $('.cp-notebook', node);
-  const autosize = (t) => {
-    t.style.height = 'auto';
-    t.style.height = `${Math.min(t.scrollHeight, 220)}px`;
+    </article>`;
+}
+
+function quietHtml(list) {
+  const last = list.at(-1);
+  return `<div class="cv-quiet" data-id="q-${esc(list[0].id)}">${icon('clock')}<span>${list.length > 1 ? `${list.length} check-ins` : 'Check-in'} · nothing new</span><time ${timeAttrs(last.updatedAt)}>${ago(last.updatedAt)}</time></div>`;
+}
+
+function buildView(id) {
+  const node = el(`<section class="crew-view" data-crew="${esc(id)}" hidden>
+      <header class="cv-top"></header>
+      <div class="cv-scroll">
+        <div class="cv-cols">
+          <div class="cv-main">
+            <button class="link xs cv-earlier" hidden></button>
+            <div class="cv-thread"></div>
+          </div>
+          <details class="cv-about"><summary></summary><div class="cv-side"></div></details>
+        </div>
+        <form class="cv-dock">
+          <div class="cv-box">
+            <textarea class="cv-input" rows="1" spellcheck="false"></textarea>
+            <div class="cv-bar">
+              <button type="button" class="ghost xs" data-a="checkin" title="Start a check-in now">${icon('clock')}Check in now</button>
+              <span class="grow"></span>
+              <button class="send" title="Send (↵)" aria-label="Send">${icon('enter')}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>`);
+  const thread = $('.cv-thread', node);
+  const scroller = $('.cv-scroll', node);
+  const ta = $('.cv-input', node);
+  const about = $('.cv-about', node);
+  let show = SHOW;
+  const following = new Set(); // jobs with their follow-up box open
+  const autosize = () => {
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
   };
-  ta.addEventListener('input', () => {
-    autosize(ta);
-  });
+  ta.addEventListener('input', autosize);
+  mentionBox(ta); // @ the rest of the crew, tasks pasted by id
+
+  const atEnd = () => scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 40;
 
   const paint = () => {
     const m = memberById(id);
-    if (!m) return close();
+    if (!m) return;
     const st = memberState(m);
-    const project = S.config.projects?.find((p) => p.path === m.cwd);
-    const head = `${avatarHtml(m, { size: 56, dot: false })}
-      <div class="cp-who"><h2>${esc(m.name)}</h2><small>${esc([m.role, statusLine(m, st).text].filter(Boolean).join(' · '))}</small></div>
-      <span class="grow"></span>
-      ${slotHtml('crew.page', null)}
-      <button class="ghost sm" data-a="checkin" title="Start a check-in now">${icon('clock')}<span>Check in</span></button>
-      <button class="icon-btn" data-a="more" title="More" aria-label="More">${icon('dots')}</button>
-      <button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button>`;
-    const hd = $('.cp-head', node);
-    const hkey = head.replace(/<svg[\s\S]*?<\/svg>/, `[${st.mood}:${m.avatar}]`);
-    if (hd.dataset.h !== hkey) {
-      hd.innerHTML = head;
-      hd.dataset.h = hkey;
-      $('.close', hd).onclick = () => {
-        close();
-      };
+    const split = isSplit();
+    // Header: like a task's.
+    const top = `${avatarHtml(m, { size: 30, dot: false })}
+      <div class="cv-who"><h2 class="sh-title">${esc(m.name)}</h2>${m.role ? `<span class="cv-role">${esc(m.role)}</span>` : ''}</div>
+      <span class="cv-state ${statusLine(m, st).cls}">${esc(statusLine(m, st).text)}</span>
+      <span class="sh-acts">
+        ${slotHtml('crew.page', null)}
+        <button class="ghost sm" data-a="pause" title="${m.paused ? 'Resume: check-ins and triggers start again' : 'Pause: no check-ins, triggers or delegations until you resume'}">${icon(m.paused ? 'play' : 'pause')}<span>${m.paused ? 'Resume' : 'Pause'}</span></button>
+        <button class="icon-btn" data-a="more" title="More" aria-label="More">${icon('dots')}</button>
+        ${split ? `<button class="icon-btn" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>` : ''}
+      </span>`;
+    const hd = $('.cv-top', node);
+    const hkey = top.replace(/<svg[\s\S]*?<\/svg>/, `[${st.mood}:${m.avatar}]`);
+    if (hd.dataset.h !== hkey) (hd.innerHTML = top), (hd.dataset.h = hkey);
+    ta.placeholder = `Give ${m.name} a job… (@ to bring in someone else)`;
+
+    // The thread: jobs oldest first, quiet check-ins folded together, then jobs sent but not started.
+    const end = atEnd();
+    const jobs = [...st.jobs].sort((a, b) => a.createdAt - b.createdAt);
+    const earlier = Math.max(0, jobs.length - show);
+    const btn = $('.cv-earlier', node);
+    btn.hidden = !earlier;
+    btn.textContent = `Show earlier · ${earlier}`;
+    const items = [];
+    for (const s of jobs.slice(earlier)) {
+      if (quietJob(s) && items.at(-1)?.quiet) items.at(-1).list.push(s);
+      else items.push(quietJob(s) ? { quiet: true, list: [s] } : { s });
     }
-    ta.placeholder = `Give ${m.name} a job…`;
-    // Jobs: running and waiting first, then what they did (the log, quiet check-ins faded).
-    const running = st.jobs.filter((s) => s.state === 'running' || s.state === 'waiting').sort((a, b) => b.createdAt - a.createdAt);
-    const jobRow = (s) => `<button class="cp-job ${s.state}" data-session="${s.id}">
-        <span class="cp-ji">${icon(JOB_ICON[s.crew.job] || 'send')}</span>
-        <span class="cp-jt"><b>${esc(s.title)}</b><small>${esc(s.state === 'waiting' ? 'Asking you' : s.live || 'Working')}</small></span>
-        <span class="cp-jk">${JOB_WORD[s.crew.job] || 'Job'}</span>
-      </button>`;
-    const logRow = (l) => `<button class="cp-log ${l.quiet ? 'quiet' : ''} st-${esc(l.status || 'done')}" ${l.sessionId && S.sessions.has(l.sessionId) ? `data-session="${l.sessionId}"` : 'disabled'}>
-        <span class="cp-ji">${icon(JOB_ICON[l.job] || 'send')}</span>
-        <span class="cp-jt"><b>${esc(l.title)}</b>${l.summary ? `<small>${esc(l.summary)}</small>` : ''}</span>
-        <span class="q-time" ${timeAttrs(l.at)}>${ago(l.at)}</span>
-      </button>`;
-    const queue = (m.queue || []).map((w) => `<div class="cp-job queued"><span class="cp-ji">${icon('queue')}</span><span class="cp-jt"><b>${esc(w.prompt.split('\n')[0].slice(0, 120))}</b><small>Waiting for a free slot</small></span><button class="icon-btn" data-drop="${w.id}" title="Drop this job" aria-label="Drop this job">${icon('x')}</button></div>`).join('');
-    const jobs = `<h4>Working on <span class="n">${running.length + (m.queue?.length || 0) || ''}</span></h4>
-      ${running.length || queue ? running.map(jobRow).join('') + queue : `<p class="cp-empty">Nothing right now${m.paused ? ' (paused)' : m.cron ? ` · ${esc(cadenceLabel(m.cron).toLowerCase())}` : ''}.</p>`}
-      <h4>Recent</h4>
-      ${m.log?.length ? m.log.slice(0, 25).map(logRow).join('') : `<p class="cp-empty">No jobs yet. Send one above, or check in.</p>`}`;
-    const jb = $('.cp-jobs', node);
-    if (jb.dataset.h !== jobs) (jb.innerHTML = jobs), (jb.dataset.h = jobs);
-    if (document.activeElement !== nb && nb.value !== (m.notebook || '')) nb.value = m.notebook || '';
-    $('.cp-count', node).textContent = `${(nb.value.length).toLocaleString()} / 6,000`;
-    $('.cp-count', node).classList.toggle('over', nb.value.length > 6000);
-    $('.cp-brief', node).innerHTML = m.brief ? `<div class="prose">${md(m.brief)}</div>` : '<p class="cp-empty">No brief: they do what each job asks.</p>';
-    $('.cp-facts', node).innerHTML = [
-      ['Checks in', m.paused ? 'Paused' : cadenceLabel(m.cron)],
-      ['At once', `${m.parallel} job${m.parallel > 1 ? 's' : ''}`],
-      ['Works in', project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')],
-      ['Runs on', `${agentName(m.agent)}${m.model ? ` · ${m.model}` : ''}`],
-      ['Mode', MODES.find((x) => x.id === m.mode)?.label || 'Full auto'],
-    ]
-      .map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`)
-      .join('');
+    const want = items.map((x) => (x.quiet ? { key: `q-${x.list[0].id}`, html: quietHtml(x.list) } : { key: x.s.id, html: jobHtml(m, x.s, { follow: following.has(x.s.id) }) }));
+    for (const w of sending.get(id) || []) want.push({ key: w.id, html: `<article class="cv-job st-running sending" data-id="${w.id}"><div class="cv-req">${`<span class="cv-kind k-task">${icon('send')}You</span>`}<div class="cv-prompt">${esc(w.prompt)}</div></div><div class="cv-res">${avatarHtml(m, { size: 26, dot: false, state: 'live' })}<div class="cv-say"><p class="cv-live"><span class="q-live running">Starting up</span></p></div></div></article>` });
+    for (const w of m.queue || []) want.push({ key: `w-${w.id}`, html: `<article class="cv-job queued" data-id="w-${w.id}"><div class="cv-req"><span class="cv-kind">${icon('queue')}Waiting for a free slot</span><div class="cv-prompt">${esc(w.prompt)}</div><button class="icon-btn" data-drop="${w.id}" title="Drop this job" aria-label="Drop this job">${icon('x')}</button></div></article>` });
+    if (!want.length) want.push({ key: 'empty', html: `<div class="cv-empty">${avatarHtml(m, { size: 56, dot: false })}<p><b>${esc(m.name)}</b> hasn’t done anything yet.</p><p>Give them a job below${m.cron ? `, or wait for their first check-in (${esc(cadenceLabel(m.cron).toLowerCase())})` : ''}. In any other task, <code>@${esc(m.name)}</code> brings them in.</p></div>` });
+    // Keyed: an unchanged entry stays put (its spirit keeps moving, an answer being typed stays).
+    want.forEach((w, i) => {
+      let n = [...thread.children].find((c) => c.dataset.key === w.key);
+      const busy = n && n.contains(document.activeElement) && document.activeElement.value;
+      if (n && n.dataset.h !== w.html && !busy) {
+        const next = el(w.html);
+        next.dataset.key = w.key;
+        next.dataset.h = w.html;
+        n.replaceWith(next);
+        n = next;
+      }
+      if (!n) {
+        n = el(w.html);
+        n.dataset.key = w.key;
+        n.dataset.h = w.html;
+        if (thread.children.length) n.classList.add('new');
+      }
+      if (thread.children[i] !== n) thread.insertBefore(n, thread.children[i] || null);
+    });
+    while (thread.children.length > want.length) thread.lastElementChild.remove();
+    if (end) scroller.scrollTop = scroller.scrollHeight;
+
+    // What it is and how it works: beside the thread on a wide pane, folded above it otherwise.
+    // (#splitStage is hidden while the thread shows, so measure the pane itself.)
+    const wide = split && $('#splitMain').clientWidth >= 860;
+    node.classList.toggle('wide', wide);
+    if (wide) about.open = true;
+    $('summary', about).innerHTML = `${icon('info')}About ${esc(m.name)}<span>${esc([cadenceLabel(m.cron), m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · '))}</span>${icon('chevron', 'chev')}`;
+    paintSide(m, st, $('.cv-side', node));
+
+    // Seen here: its reports are read.
+    if (!node.hidden && node.isConnected)
+      for (const s of st.jobs)
+        if (s.unread && s.state === 'review' && !readSent.has(s.id)) {
+          readSent.add(s.id);
+          s.unread = false;
+          api(`/sessions/${s.id}`, { method: 'PATCH', body: { unread: false } }).catch(() => readSent.delete(s.id));
+        }
+  };
+
+  // Bring a job into view (a notification, Esc from the job) and flash it; else the latest.
+  const reveal = (entry) => {
+    paint();
+    const n = entry && [...thread.children].find((c) => c.dataset.key === entry || c.dataset.id === entry);
+    if (n) {
+      n.scrollIntoView({ block: 'center' });
+      n.classList.remove('flash');
+      void n.offsetWidth;
+      n.classList.add('flash');
+    } else scroller.scrollTop = scroller.scrollHeight;
   };
 
   node.addEventListener('click', (e) => {
-    const a = e.target.closest('[data-a]')?.dataset.a;
     const m = memberById(id);
     if (!m) return;
-    if (a === 'checkin') checkIn(id);
-    if (a === 'edit') crewEditor({ member: m });
-    if (a === 'more') memberMenu(id, { anchor: e.target.closest('[data-a]') });
-    const sid = e.target.closest('[data-session]')?.dataset.session;
-    if (sid) {
-      close();
-      reveal(sid);
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'close') return closeMember();
+    if (a === 'checkin') return checkIn(id);
+    if (a === 'pause') return togglePause(id);
+    if (a === 'edit') return crewEditor({ member: m });
+    if (a === 'remove') return removeMember(id, e.target.closest('[data-a]'));
+    if (a === 'more') return memberMenu(id, { anchor: e.target.closest('[data-a]') });
+    if (e.target.closest('.cv-earlier')) {
+      show += SHOW;
+      return paint();
     }
+    const open = e.target.closest('[data-open]')?.dataset.open;
+    if (open) return reveal_(open);
+    const sid = e.target.closest('[data-session]')?.dataset.session;
+    if (sid) return reveal_(sid);
     const drop = e.target.closest('[data-drop]')?.dataset.drop;
-    if (drop) patchMember(m, { queue: m.queue.filter((w) => w.id !== drop).map((w) => w.id) }).then(() => paint());
+    if (drop) return patchMember(m, { queue: m.queue.filter((w) => w.id !== drop).map((w) => w.id) });
+    const job = e.target.closest('.cv-job')?.dataset.id;
+    if (e.target.closest('[data-follow]') && job) {
+      following.add(job);
+      paint();
+      return $(`.cv-job[data-id="${job}"] [data-follow-form] input`, node)?.focus();
+    }
+    const answer = e.target.closest('[data-answer]')?.dataset.answer;
+    if (answer && job) return answerJob(job, answer);
   });
-  $('.cp-ask', node).onsubmit = (e) => {
+  node.addEventListener('submit', (e) => {
     e.preventDefault();
-    const text = ta.value.trim();
     const m = memberById(id);
-    if (!text || !m) return;
-    ta.value = '';
-    autosize(ta);
-    sendJob(m, text, {
+    const f = e.target;
+    if (!m) return;
+    if (f.classList.contains('cv-dock')) {
+      const text = ta.value.trim();
+      if (!text) return;
+      ta.value = '';
+      autosize();
+      return sendJob(m, text, {
+        restore: () => {
+          if (!ta.value) (ta.value = text), autosize();
+        },
+      });
+    }
+    const job = f.closest('.cv-job')?.dataset.id;
+    const input = $('input', f);
+    const text = input?.value.trim();
+    if (!job || !text) return input?.focus();
+    input.value = '';
+    if (f.hasAttribute('data-answer-form')) return answerJob(job, text, { restore: () => (input.value = text) });
+    following.delete(job);
+    followJob(job, text, {
       restore: () => {
-        ta.value = text;
-        autosize(ta);
+        following.add(job);
+        paint();
       },
     });
-  };
+  });
   ta.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !e.defaultPrevented) {
       e.preventDefault();
-      $('.cp-ask', node).requestSubmit();
+      $('.cv-dock', node).requestSubmit();
     }
   });
-  // The notebook saves itself a moment after you stop typing (and when you leave it).
+  about.addEventListener('toggle', () => {
+    if (!node.classList.contains('wide')) about.dataset.user = about.open ? '1' : '';
+  });
+  return { node, paint, reveal, focus: () => !MOBILE && ta.focus({ preventScroll: true }) };
+}
+
+// A job opened in full: the task, under its member in the list (and in the main pane in split view).
+function reveal_(id) {
+  if (!S.sessions.has(id)) return toast('That task is no longer in wisp.', { tone: 'bad' });
+  reveal(id);
+}
+
+// The details: one fact a row like a task's, the actions, then the notebook, brief and tasks.
+function paintSide(m, st, side) {
+  const project = S.config.projects?.find((p) => pathAt(p, m.machine || '') === m.cwd);
+  const facts = [
+    ['clock', m.paused ? 'Paused' : `${cadenceLabel(m.cron)}${m.nextAt && !m.paused ? ` · next ${whenLabel(m.nextAt)}` : ''}`],
+    ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
+    ['folder', project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')],
+    [m.machine ? 'server' : 'laptop', m.machine ? placeName(m.machine) : 'This computer'],
+    ['agent', `${agentName(m.agent)}${m.model ? ` · ${m.model}` : ''}`],
+    ['spark', MODES.find((x) => x.id === m.mode)?.label || 'Full auto'],
+  ];
+  const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');
+  const html = `
+    <div class="cv-facts">${facts.map(([ic, t]) => `<div class="m">${icon(ic)}<span>${esc(t)}</span></div>`).join('')}
+      <div class="m">${icon('agent')}<span>${team ? `<span class="cv-team">${team}</span>` : 'No delegates'}</span></div></div>
+    <div class="cv-actions">
+      <button class="ghost" data-a="checkin">${icon('clock')}<span>Check in now</span></button>
+      <button class="ghost" data-a="edit">${icon('pen')}<span>Edit…</span></button>
+      <button class="ghost danger" data-a="remove">${icon('trash')}<span>Remove from crew</span></button>
+    </div>
+    <div class="cv-sec"><h5>Notebook <small class="cv-count"></small></h5><textarea class="textarea mono cv-notebook" spellcheck="false" placeholder="Empty so far. They add to it as they work; you can edit it too."></textarea><small class="cv-saved"></small></div>
+    <div class="cv-sec"><h5>Brief <button class="link xs" data-a="edit">Edit</button></h5><div class="cv-brief">${m.brief ? `<div class="prose">${md(m.brief)}</div>` : '<p class="cv-none">No brief: they do what each job asks.</p>'}</div></div>
+    ${m.links?.length ? `<div class="cv-sec"><h5>Part of</h5>${m.links.slice(0, 6).map((l) => `<button class="cv-link" data-session="${esc(l.id)}" ${S.sessions.has(l.id) ? '' : 'disabled'}>${icon('read')}<span>${esc(l.title || 'A task')}</span></button>`).join('')}</div>` : ''}`;
+  const key = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
+  if (side.dataset.h !== key) {
+    const nb = $('.cv-notebook', side);
+    const typing = nb && document.activeElement === nb;
+    if (typing) {
+      // Keep the notebook being edited; repaint the rest around it.
+      const keep = nb.closest('.cv-sec');
+      const fresh = el(`<div>${html}</div>`);
+      $('.cv-notebook', fresh).closest('.cv-sec').replaceWith(keep);
+      side.replaceChildren(...fresh.childNodes);
+    } else side.innerHTML = html;
+    side.dataset.h = key;
+    wireNotebook(m.id, side);
+  }
+  const nb = $('.cv-notebook', side);
+  if (document.activeElement !== nb && nb.value !== (m.notebook || '')) nb.value = m.notebook || '';
+  $('.cv-count', side).textContent = `${nb.value.length.toLocaleString()} / 6,000`;
+  $('.cv-count', side).classList.toggle('over', nb.value.length > 6000);
+}
+
+// The notebook saves itself a moment after you stop typing (and when you leave it).
+function wireNotebook(id, side) {
+  const nb = $('.cv-notebook', side);
+  if (nb.dataset.wired) return;
+  nb.dataset.wired = '1';
   let typing;
-  const saveNotebook = async () => {
+  const save_ = async () => {
     clearTimeout(typing);
     const m = memberById(id);
     if (!m || nb.value === (m.notebook || '')) return;
-    $('.cp-saved', node).textContent = 'Saving…';
+    $('.cv-saved', side).textContent = 'Saving…';
     const ok = await patchMember(m, { notebook: nb.value });
-    $('.cp-saved', node).textContent = ok ? 'Saved' : '';
+    $('.cv-saved', side).textContent = ok ? 'Saved' : '';
   };
   nb.addEventListener('input', () => {
-    $('.cp-count', node).textContent = `${nb.value.length.toLocaleString()} / 6,000`;
-    $('.cp-saved', node).textContent = '';
+    $('.cv-count', side).textContent = `${nb.value.length.toLocaleString()} / 6,000`;
+    $('.cv-saved', side).textContent = '';
     clearTimeout(typing);
-    typing = setTimeout(saveNotebook, 900);
+    typing = setTimeout(save_, 900);
   });
-  nb.addEventListener('blur', saveNotebook);
+  nb.addEventListener('blur', save_);
+}
 
-  page = { id, node, paint, close };
-  paint();
-  requestAnimationFrame(() => ta.focus());
+// Answer a job's question (or Allow / Deny it) from the thread. The job carries on at once here,
+// and goes back to asking (with your text back) if the server refuses.
+async function answerJob(id, text, { restore } = {}) {
+  const s = S.sessions.get(id);
+  if (!s) return;
+  const before = { ...s };
+  Object.assign(s, { state: 'running', live: 'Carrying on', question: '', options: undefined, approval: false });
+  renderFeed();
+  try {
+    await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } });
+  } catch (err) {
+    if (S.sessions.get(id)?.state === 'running') S.sessions.set(id, before);
+    renderFeed();
+    restore?.();
+    toastError(err);
+  }
+}
+
+// Follow up on a finished job from the thread: that job carries on, with what it already knows.
+async function followJob(id, text, { restore } = {}) {
+  const s = S.sessions.get(id);
+  if (!s) return;
+  const before = { ...s };
+  Object.assign(s, { state: 'running', live: 'Starting up', updatedAt: Date.now() });
+  renderFeed();
+  try {
+    await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, queue: true } });
+  } catch (err) {
+    S.sessions.set(id, before);
+    renderFeed();
+    restore?.();
+    toastError(err);
+  }
 }
 
 // --- the editor: add, edit, or make a task a member ---------------------------------------------------
@@ -427,7 +808,9 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     brief: member?.brief ?? '',
     cron: member?.cron ?? '',
     parallel: member?.parallel || 2,
+    team: member?.team || [], // its delegates: any harness, other crew members
     cwd: member?.cwd ?? (task ? '' : S.config.projects?.find((p) => p.id === launch.project)?.path || ''),
+    machine: member?.machine || '', // '' = this computer
     agent: member?.agent || S.config.defaults?.agent || 'auto',
     model: member?.model || '',
     effort: member?.effort || '',
@@ -456,8 +839,10 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
           <input class="input sm mono ce-cron" name="cron" placeholder="*/15 9-18 * * 1-5" spellcheck="false" hidden>
         </div>
         <div class="ce-bar">
-          ${task ? '' : `<button type="button" class="tog-btn ce-proj" title="The project their jobs run in">${icon('folder')}<span></span>${icon('chevron', 'chev')}</button>
+          ${task ? '' : `<button type="button" class="tog-btn where-btn ce-place" title="The computer their jobs run on" aria-haspopup="menu"></button>
+          <button type="button" class="tog-btn ce-proj" title="The project their jobs run in">${icon('folder')}<span></span>${icon('chevron', 'chev')}</button>
           <button type="button" class="runner-btn ce-runner" title="Harness, model and thinking level" aria-haspopup="dialog"></button>`}
+          <button type="button" class="tog-btn team-btn ce-team" aria-haspopup="dialog"></button>
           <select class="ce-mode" name="mode" title="What they may do without asking">${MODES.map((x) => `<option value="${x.id}">${x.label}</option>`).join('')}</select>
           <span class="ce-par" title="Jobs they run at the same time; more wait their turn">
             <button type="button" data-par="-1" aria-label="One fewer at once">${icon('minus')}</button><b></b><button type="button" data-par="1" aria-label="One more at once">${icon('plus')}</button>
@@ -510,10 +895,18 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     $('.ce-par b', node).textContent = `${d.parallel} at once`;
     $('[data-par="-1"]', node).disabled = d.parallel <= 1;
     $('[data-par="1"]', node).disabled = d.parallel >= 5;
+    // Its delegates: the button the launcher has, with the member as the lead.
+    paintTeamBtn($('.ce-team', node), d.team, '', d.agent || task?.agent);
+    $('.ce-team', node).title = d.team.length ? `${$('.ce-team', node).title}\n\nEvery job of theirs can hand work to these.` : 'Delegates: agents (or other crew members) every job of theirs can hand work to';
     if (task) return;
-    const p = S.config.projects?.find((x) => x.path === d.cwd);
+    const p = S.config.projects?.find((x) => pathAt(x, d.machine) === d.cwd);
     $('.ce-proj span', node).textContent = p?.name || (d.cwd ? d.cwd.split(/[\\/]/).pop() : 'No project');
     paintRunnerBtn($('.ce-runner', node), d.agent, d.model, d.effort);
+    // Where they live: this computer, or one of your machines (memory and schedule stay here).
+    const pb = $('.ce-place', node);
+    pb.classList.toggle('on', !!d.machine);
+    pb.innerHTML = `${icon(d.machine ? 'server' : 'laptop')}<span>${esc(placeName(d.machine))}</span>${icon('chevron', 'chev')}`;
+    pb.hidden = !S.machines.length && !d.machine;
   };
 
   // The spirit maker: a big preview, the dice, and a row of choices per part.
@@ -584,21 +977,43 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       paintBar();
       return;
     }
+    if (e.target.closest('.ce-place')) {
+      placeMenu(e.target.closest('.ce-place'), { title: 'Their jobs run on', current: d.machine, note: 'Their memory and schedule stay on this computer' }, (k) => {
+        if (k === d.machine) return;
+        d.machine = k;
+        if (k && machineById(k)?.state === 'off') connectMachine(k);
+        // The project, where it has a checkout there; the harness, if it's installed there.
+        const p = S.config.projects?.find((x) => x.path === d.cwd || Object.values(x.copies || {}).includes(d.cwd));
+        d.cwd = (p && pathAt(p, k)) || '';
+        const pool = harnessesAt([k], { auto: true });
+        if (!pool.some((a) => a.id === d.agent && a.available)) Object.assign(d, { agent: 'auto', model: '', effort: '' });
+        paintBar();
+      });
+      return;
+    }
     if (e.target.closest('.ce-proj')) {
       projectList(e.target.closest('.ce-proj'), {
-        projects: S.config.projects || [],
-        current: S.config.projects?.find((p) => p.path === d.cwd)?.id,
+        projects: (S.config.projects || []).filter((p) => placesOf(p).includes(d.machine)),
+        current: S.config.projects?.find((p) => pathAt(p, d.machine) === d.cwd)?.id,
         extras: [{ id: '', icon: 'x', label: 'No project' }],
         label: 'Works in',
         onPick: (pid) => {
-          d.cwd = S.config.projects?.find((x) => x.id === pid)?.path || '';
+          const p = S.config.projects?.find((x) => x.id === pid);
+          d.cwd = (p && pathAt(p, d.machine)) || '';
           paintBar();
         },
       });
       return;
     }
+    if (e.target.closest('.ce-team')) {
+      teamEditor(e.target.closest('.ce-team'), { lead: d.agent || task?.agent || 'auto', leadModel: d.model, leadEffort: d.effort, team: d.team, places: [d.machine || ''], exclude: member?.id || '' }, (team) => {
+        d.team = team;
+        paintBar();
+      });
+      return;
+    }
     if (e.target.closest('.ce-runner')) {
-      runnerPicker(e.target.closest('.ce-runner'), { agent: d.agent, model: d.model, effort: d.effort, savedModel, savedEffort, auto: true }, (a, mo, ef) => {
+      runnerPicker(e.target.closest('.ce-runner'), { agent: d.agent, model: d.model, effort: d.effort, savedModel, savedEffort, places: [d.machine], auto: true }, (a, mo, ef) => {
         Object.assign(d, { agent: a, model: mo, effort: ef });
         paintBar();
       });
@@ -613,7 +1028,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
 
   f.onsubmit = async (e) => {
     e.preventDefault();
-    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, parallel: d.parallel, mode: $f('mode').value, ...(task ? {} : { cwd: d.cwd, agent: d.agent, model: d.model, effort: d.effort }) };
+    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, parallel: d.parallel, mode: $f('mode').value, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
     if (!body.name) return $f('name').focus();
     const again = () => crewEditor({ member, task, draft: { ...d, ...body, checkin: $f('checkin')?.checked } });
     close();

@@ -401,26 +401,35 @@ Your crew are named agents that stay on hand and keep working: *Scout · CI watc
 - **A name and a role.** `@Name` reaches them from any prompt or follow-up.
 - **A brief:** their standing job, how you like it done, what they should never do.
 - **A schedule** (every 30 min, hourly, weekday mornings, a cron, or only when asked), a project, a harness and model, a mode, and how many jobs they run at once (1–5; the rest wait in their queue).
+- **Delegates of their own:** any harness, or other crew members, that every job of theirs can hand work to (a job delegated to them hands nothing on to the crew, so members never loop).
 
-**Their work runs as tasks.** Every job (a check-in, a job you send, a delegation, a trigger, an `@mention`) is a task of its own, with their face on the card, so several run side by side and each starts with a fresh context. What carries over is their memory:
+**A member opens like a task.** Click one and its thread fills the main pane (in the feed, it unfolds under its row): every job as a conversation, oldest first, what was asked and where from, then the member's answer. A job that needs you shows its question, its choices and a box to answer in place; a finished one has **Open job** (the whole task: transcript, diffs, Ship it, with a crumb back to the member) and **Follow up**. Quiet check-ins fold into one line. The box at the bottom hands them a job (`@` brings another member into it), and beside the thread are their schedule and next check-in, where and how they run, their delegates, their notebook and brief, and the tasks they're part of. Esc goes from a job back to the thread, then home.
+
+**Their own flow.** Crew jobs don't show in *Needs you*, *Working* or *Done*. Only the live ones (working, asking you, an unread report) sit under the member in the list; the row says *Asking you: …* or *Reported: …*, with an amber or blue dot on their face. Notifications name them and open their thread at that job.
+
+**Their work runs as tasks.** Every job (a check-in, a job you send, a delegation, a trigger, an `@mention`) is a task of its own, so several run side by side and each starts with a fresh context. What carries over is their memory:
 
 | | Who keeps it | What's in it |
 |---|---|---|
 | **Brief** | you | the job, in every job's prompt |
-| **Notebook** | them, and you | lasting facts and last-seen state ("build 41 was green", "the user wants short reviews"). Each job ends with a hidden `crew` block that adds lines (`remember`) or rewrites it (`notebook`); past 6,000 characters they're asked to tidy it, past 12,000 the oldest lines go. Edit it on their page. |
+| **Notebook** | them, and you | lasting facts and last-seen state ("build 41 was green", "the user wants short reviews"). Each job ends with a hidden `crew` block that adds lines (`remember`) or rewrites it (`notebook`); past 6,000 characters they're asked to tidy it, past 12,000 the oldest lines go. Edit it beside their thread. |
 | **Log** | wisp | one line per finished job; the newest 12 go in every prompt |
 
 A check-in that found nothing marks itself `quiet`: it's logged and archived (its worktree goes) instead of landing in *Needs you*. The same block can ask for an earlier check-in (`wakeIn`, in minutes). An answer that went somewhere else (to the task that `@`-mentioned them, or to the lead that delegated) is filed under *Done*.
 
 **Giving them work.**
 
-- Their page: the box at the top, or **Check in** now.
+- Their thread: the box at the bottom, or **Check in now**.
 - `@Ada check the deploy` as a new task: it's Ada's job, in Ada's folder.
-- `@Ada does this look right?` as a follow-up: Ada answers on that task, under your message, and its agent isn't interrupted.
+- `@Ada does this look right?` as a follow-up: Ada answers on that task, under your message, and its agent isn't interrupted. **Reply to Ada** carries the thread on there; it's the same job, so Ada remembers it.
 - `fix the bug, then have @Ada review it`: Ada joins the task's delegates, and its agent hands Ada the review. The Delegate popover lists your crew under **Add delegate** too.
 - A trigger's **Send to** (Automations): a schedule, failed CI or a labelled issue goes to them.
 
-API: `GET`/`POST /crew`, `GET`/`PATCH`/`DELETE /crew/:id` (id or name), `POST /crew/:id/jobs`, `POST /crew/:id/checkin`, `POST /sessions/:id/crew` (a task joins), `crew` on a trigger, `{ crew: id }` in `subagents`. A follow-up starting with `@Name` returns `{ crew: [entry] }`. Crew members run on this computer.
+**They follow up by themselves.** A member tagged in a task, or delegated to by one, can send that task's agent a follow-up of its own when it finds something that agent should act on (`followUp` in its block). It shows in the task as *@Ada (your crew’s CI watcher): …*, Ada's thread there moves along with it, and Ada's job says where it followed up.
+
+**On another machine.** **Runs on** in a member's editor puts them on one of your [machines](#machines): their jobs run there as its tasks (in a checkout of the project there, with a harness installed there), and show here with their face like any task there. Their memory, schedule and queue stay on this computer: each job carries their brief, notebook and recent log, and when it ends, wisp fetches what it learned, its log line and any answer it owes (an `@mention`, a delegation) back here. A machine that's offline when a check-in is due logs *Couldn’t start*; finished jobs it missed are filed when it's back.
+
+API: `GET`/`POST /crew`, `GET`/`PATCH`/`DELETE /crew/:id` (id or name), `POST /crew/:id/jobs`, `POST /crew/:id/checkin`, `POST /sessions/:id/crew` (a task joins), `POST /sessions/:id/crew-reply` (reply in a thread), `crew` on a trigger, `{ crew: id }` in `subagents`. A follow-up starting with `@Name` returns `{ crew: [entry] }`. `machine` on a member puts them on a machine, `team` gives them delegates.
 
 ## Checkpoints and rollback
 

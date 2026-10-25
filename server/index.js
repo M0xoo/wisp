@@ -137,6 +137,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       if ((event === 'finished' || event === 'summary') && data?.session) app.auto.signals(data.session);
       else if (event === 'summary' && data?.id) app.auto.signals(data);
       if (event === 'summary' && data?.relays) app.relay.notice(data); // a lead there delegating to another place
+      const job = event === 'finished' ? data?.session : event === 'summary' ? data : null;
+      if (job?.crew) app.crew?.remoteSeen(job); // a crew member's job there ended: file what it learned
       if (event === 'finished' && app.remote.on) notifyFromMachine(data.session).catch((err) => console.warn(`wisp: phone: ${err.message}`));
     },
   });
@@ -210,7 +212,29 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   });
   app.sendFeedback = createFeedback(app);
   // The crew: long-lived agents with a schedule and memory, whose jobs are tasks (server/crew.js).
-  app.crew = new Crew({ store, runner, launch: (body, origin, opts) => app.launcher.launch(body, origin, opts), onChange: () => app.broadcast('config', {}), exists: (dir) => fs.existsSync(dir) && fs.statSync(dir).isDirectory() });
+  app.crew = new Crew({
+    store,
+    runner,
+    launch: (body, origin, opts) => app.launcher.launch(body, origin, opts),
+    // Members on machines: their jobs run there (as summaries and sessions with qualified ids).
+    remote: {
+      ok: (mid) => store.config.machines.some((m) => m.id === mid),
+      launch: (body, origin) => app.launcher.launchAny(body, origin),
+      jobs: (m) => [...(app.machines.cache.get(m.machine)?.values() || [])].filter((s) => s.crew?.id === m.id).map((s) => app.machines.summary(m.machine, s)),
+      fetch: async (id) => {
+        const { id: rid, machine } = splitId(id) || {};
+        return app.machines.session(machine, await app.machines.json(machine, 'GET', `/sessions/${rid}`));
+      },
+      reply: (id, text) => {
+        const { id: rid, machine } = splitId(id) || {};
+        return app.machines.json(machine, 'POST', `/sessions/${rid}/reply`, { text, queue: true });
+      },
+    },
+    // A member's follow-up on a task it's part of, or yours on its job: sent like any follow-up.
+    followUp: (s, text, { queue = false } = {}) => app.launcher.replyTo(s, text, [], queue),
+    onChange: () => app.broadcast('config', {}),
+    exists: (dir) => fs.existsSync(dir) && fs.statSync(dir).isDirectory(),
+  });
   // A quiet check-in is archived as it ends: its worktree goes like any archived task's.
   runner.on('ended', ({ session: s }) => {
     if (s.crew && s.archived) for (const x of [s, ...(s.also || [])]) if (x.worktree) removeWorktree(x.worktree, { branch: true }).catch(() => {});
@@ -223,7 +247,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       const m = app.crew.get(crewId);
       if (!m) throw new Error('That crew member left your crew.');
       const out = await app.crew.assign(m, work);
-      return out.session ? summarize(out.session, store) : { queued: out.queued, crew: m.id };
+      return out.session ? (out.session.turns ? summarize(out.session, store) : out.session) : { queued: out.queued, crew: m.id };
     },
     onChange: () => app.broadcast('config', {}),
   });

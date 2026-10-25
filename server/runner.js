@@ -181,7 +181,9 @@ export function summarize(s, store) {
       }),
     ),
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
-    ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }) } }), // a crew member's job (server/crew.js)
+    // A crew member's job (server/crew.js): what it was asked (for the member's thread) and the
+    // tasks it followed up in.
+    ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }), prompt: plainMentions(s.turns[0]?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 280), ...(s.crew.sent?.length && { sent: s.crew.sent }) } }),
     ...(s.delegated && { delegated: true }), // a delegate's run for a lead on another wisp (services/relay.js), not a task
     ...relaysOf(s, store),
     followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
@@ -225,6 +227,7 @@ export class Runner extends EventEmitter {
     this.crewNote = () => '';
     this.crewTurn = () => ({});
     this.crewDelegate = null;
+    this.crewChild = () => null; // a member's job on another machine, as last fetched (id → session)
     this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
 
     // Anything that was mid-flight when wisp last died is now orphaned.
@@ -668,7 +671,7 @@ export class Runner extends EventEmitter {
   delegations(lead, ids = []) {
     const all = lead.turns.flatMap((t) => t.delegations || []);
     const list = ids.length ? all.filter((d) => ids.includes(d.id)) : lead.turns.at(-1)?.delegations || [];
-    return list.map((d) => ({ d, child: this.store.get(d.sessionId) }));
+    return list.map((d) => ({ d, child: this.store.get(d.sessionId) || this.crewChild(d.sessionId) }));
   }
 
   // A delegate's run ended. A lead still running collects the report itself (subagent_results, or
@@ -699,6 +702,18 @@ export class Runner extends EventEmitter {
     if (!ending && this.live.has(lead.id)) this.live.get(lead.id).release();
     this.#touch(lead);
     return true;
+  }
+
+  // A session's own fields changed outside a run (a crew job's follow-ups): save it and send its summary.
+  refresh(session) {
+    this.#touch(session);
+  }
+
+  // A crew job on another machine ended (server/crew.js): the lead that delegated it re-renders.
+  touchLead(leadId, childId) {
+    const lead = this.store.get(leadId);
+    const turn = lead?.turns.findLast((t) => t.delegations?.some((d) => d.sessionId === childId));
+    if (turn) this.#touch(lead, { turn: turn.id });
   }
 
   // A child's state changed: the lead's card shows it, so the lead's turn re-renders too.
@@ -817,7 +832,9 @@ export class Runner extends EventEmitter {
     if (reports) turn.reports = true; // ...with the reports of delegates that finished after the lead's turn
     // Side questions still being answered move to the new turn: the old one folds away on the card.
     const prev = session.turns.at(-1);
-    const open = prev?.btw?.filter((b) => b.status === 'running') || [];
+    // A crew member's follow-up brings its thread along, so its answer stays above what it asked for.
+    const byCrew = /^@\[[^\]\n]{1,200}\]\(crew:[a-z0-9]{6,40}\)/.test(prompt);
+    const open = prev?.btw?.filter((b) => b.status === 'running' || (byCrew && b.crew)) || [];
     if (open.length) {
       prev.btw = prev.btw.filter((b) => !open.includes(b));
       if (!prev.btw.length) delete prev.btw;
