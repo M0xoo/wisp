@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **A crew member's finished jobs stay under them in the sidebar.** Reading a report no longer makes the job vanish: under each member are their three most recent jobs, live ones first (asking you, working, an unread report), then what they finished, until you archive it. *N more · open …* leads to the rest in their thread. Quiet check-ins still only show in the thread.
+
 ## [0.41.0] - 2026-10-25
 
 ### Added
