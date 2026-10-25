@@ -13,6 +13,7 @@ import { isBtw } from '../slash-text.js';
 import { toastError } from '../ui/toast.js';
 import { scheduleRefetch } from './feed.js';
 import { agentName } from './runners.js';
+import { avatarHtml, memberById } from './crew.js';
 
 const waiting = new Map(); // session id -> side questions sent, not yet confirmed by the server
 const gone = new Set(); // ids dismissed here, until the server has dropped them too
@@ -41,6 +42,36 @@ export async function askBtw(id, question, { attachments = [], files = [], resto
     paintBtw(id);
   } catch (err) {
     unwait();
+    paintBtw(id);
+    restore?.();
+    toastError(err);
+  }
+}
+
+// "@Ada what do you make of this?" in a follow-up: the message goes to Ada (server/crew.js), and
+// her answer lands on the card like a side answer. Optimistic, like askBtw: on the card at once,
+// off again (with the text back) if the server refuses.
+export async function askCrew(id, text, members, rest, { attachments = [], restore } = {}) {
+  const s = S.full.get(id);
+  const turn = s?.turns.at(-1);
+  if (!turn) return;
+  const pend = members.map((m) => ({ id: `pending-${++seq}`, question: rest, status: 'running', askedAt: Date.now(), crew: { id: m.id, name: m.name, avatar: m.avatar, color: m.color } }));
+  (turn.btw ||= []).push(...pend);
+  paintBtw(id);
+  try {
+    const r = await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments } });
+    const cur = S.full.get(id)?.turns.find((t) => t.id === turn.id) || turn;
+    cur.btw = (cur.btw || []).filter((b) => !pend.includes(b));
+    (r.crew || []).forEach((e, i) => {
+      // Its node takes the real id, so it stays put instead of animating in a second time.
+      const node = pend[i] && $(`.btw[data-id="${pend[i].id}"]`, S.nodes.get(id)?.card);
+      if (node) node.dataset.id = e.id;
+      S.nodes.get(id)?.btwSeen?.add(e.id);
+      if (!cur.btw.some((b) => b.id === e.id)) cur.btw.push(e);
+    });
+    paintBtw(id);
+  } catch (err) {
+    turn.btw = (turn.btw || []).filter((b) => !pend.includes(b));
     paintBtw(id);
     restore?.();
     toastError(err);
@@ -106,7 +137,7 @@ export function paintBtw(id) {
     const ids = new Set(items.map((b) => b.id));
     for (const c of [...list.children]) if (!ids.has(c.dataset.id)) c.remove();
     items.forEach((b, i) => {
-      const key = `${b.status}|${b.answer || b.error || ''}`;
+      const key = `${b.status}|${b.job || ''}|${b.queued ? 1 : 0}|${b.answer || b.error || ''}`;
       let node = [...list.children].find((c) => c.dataset.id === b.id);
       if (!node || node.dataset.key !== key) {
         const next = item(s, b);
@@ -125,7 +156,27 @@ export function paintBtw(id) {
   }
 }
 
+// A crew member's answer to an @mention (server/crew.js): its face and name instead of "btw",
+// and a link to the job it ran as.
+function crewItem(b) {
+  const m = memberById(b.crew.id) || { ...b.crew, log: [] };
+  const job = b.job && S.sessions.has(b.job) ? `<a class="link xs btw-job" href="#/s/${esc(b.job)}">Open ${esc(m.name)}’s job</a>` : '';
+  const body =
+    b.status === 'running'
+      ? `<div class="btw-wait"><span class="btw-dots"><i></i><i></i><i></i></span>${esc(m.name)} ${b.queued ? 'will start on it when a job finishes' : 'is on it · this task carries on'}<span class="elapsed" data-start="${b.askedAt}">${fmtDuration(Date.now() - b.askedAt)}</span>${job}</div>`
+      : b.status === 'error'
+        ? `<div class="btw-err">${icon('warn')}<span>${esc(b.error || 'No answer.')}</span>${job}</div>`
+        : `<div class="btw-a prose">${md(b.answer || '')}</div>${job ? `<div class="btw-foot">${job}</div>` : ''}`;
+  return el(`
+    <div class="btw crew st-${b.status}" data-id="${esc(b.id)}">
+      <div class="btw-q"><span class="btw-tag crew" title="${esc(`You asked ${m.name}, ${fmtDate(b.askedAt, SHORT_TIME)}`)}">${avatarHtml(m, { size: 18, dot: false, state: b.status === 'running' ? 'live' : 'idle' })}${esc(m.name)}</span><span class="btw-text">${mentionHtml(esc(b.question), { link: false })}</span></div>
+      ${body}
+      <button class="icon-btn btw-x" title="Dismiss">${icon('x')}</button>
+    </div>`);
+}
+
 function item(s, b) {
+  if (b.crew) return crewItem(b);
   const who = agentName(b.agent || s.agent);
   const at = fmtDate(b.askedAt, SHORT_TIME);
   const how = b.status !== 'done' ? '' : b.forked ? 'on a copy of the conversation' : 'from wisp’s record of the task';

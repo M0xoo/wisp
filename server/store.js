@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
   recipes: [], // saved prompts with {params}: server/recipes.js
   triggers: [], // schedules and GitHub watchers: server/triggers.js
   teams: [], // saved subagent presets: server/subagents.js
+  crew: [], // long-lived agents with a schedule and memory: server/crew.js
   remote: {}, // phone channels (ntfy, Telegram): server/remote.js
   machines: [], // other computers reached over SSH: server/machines.js
 };
@@ -63,6 +64,7 @@ export class Store {
       cfg.recipes ||= [];
       cfg.triggers ||= [];
       cfg.teams ||= [];
+      cfg.crew ||= [];
       cfg.remote ||= {};
       cfg.machines ||= [];
       // Auto became the default harness: switch once, after that the user's pick sticks.

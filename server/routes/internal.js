@@ -58,7 +58,7 @@ export function register(r, app) {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
       const body = await c.body();
-      const delegations = runner.delegate(s, body.tasks);
+      const delegations = await runner.delegate(s, body.tasks);
       telemetry.track('delegate', { agent: s.agent, tasks: delegations.length, harnesses: [...new Set(delegations.filter((d) => d.agent).map((d) => d.agent))] });
       c.send(200, { delegations });
     }),

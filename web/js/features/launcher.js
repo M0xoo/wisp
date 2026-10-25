@@ -33,6 +33,7 @@ import { cast } from './spell-ui.js';
 import { SPELL_HINT, spellAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { goHome, isSplit } from './split.js';
+import { addressedTo, openCrew } from './crew.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -330,6 +331,9 @@ export function renderLauncher() {
     // checkout of it yet gets one first (the server clones it there).
     const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(), clone: cloneById(pickId()), also: ownPick() ? alsoIds().map(projectById).filter(Boolean) : [] }));
     if (!targets[0].project && !targets[0].clone) return openProjects({ focusAdd: true });
+    // "@Ada …" is a job for Ada, in her own folder: sent once, wherever else the box points.
+    const toCrew = addressedTo(prompt).members;
+    if (toCrew.length) targets.length = 1;
     const off = targets.find((t) => t.m && !usable(t.m));
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
@@ -391,7 +395,11 @@ export function renderLauncher() {
       });
       const started = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
       for (const id of pending) S.sessions.delete(id);
-      for (const x of started.flatMap((y) => y.group || [y])) S.sessions.set(x.id, x);
+      for (const x of started.flatMap((y) => y.group || [y])) {
+        if (x.id) S.sessions.set(x.id, x);
+        // A crew member already at their limit: the job waits its turn with them.
+        else if (x.queued) toast(`${esc(x.crew?.name || 'Your crew member')} is busy: the job starts when one finishes (${x.queued} waiting)`, { action: x.crew && { label: 'Open', run: () => openCrew(x.crew.id) } });
+      }
       keepInPlace(feedAnchor(), renderFeed);
       if (!started.length) {
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));

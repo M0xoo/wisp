@@ -9,13 +9,16 @@ import { truncate } from './util.js';
 export const MENTION = /@\[([^\]\n]{1,200})\]\(wisp:([a-z0-9]{6,40})\)/g;
 const INLINE_MAX = 8_000; // characters of a mentioned task's report, when it goes in the prompt
 
+// A crew member mentioned in a prompt (server/crew.js): `@[Ada](crew:<id>)`, read as `@Ada`.
+const CREW = /@\[([^\]\n]{1,200})\]\(crew:[a-z0-9]{6,40}\)/g;
+
 export const mentionsIn = (text = '') => [...new Map([...String(text).matchAll(MENTION)].map((m) => [m[2], { id: m[2], title: m[1] }])).values()];
 
 // What a person reads: titles, no ids (session titles, notifications).
-export const plainMentions = (text = '') => String(text).replace(MENTION, '@$1');
+export const plainMentions = (text = '') => String(text).replace(MENTION, '@$1').replace(CREW, '@$1');
 
 // What an agent reads in place of each mention.
-export const textMentions = (text = '') => String(text).replace(MENTION, '@$1 (wisp task $2)');
+export const textMentions = (text = '') => String(text).replace(MENTION, '@$1 (wisp task $2)').replace(CREW, '@$1');
 
 // The prompt for an agent run. tool: how this harness names the wisp_session tool, or null when
 // it has none (then each mentioned task's latest report goes in the prompt).

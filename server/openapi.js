@@ -212,6 +212,28 @@ export function openapi({ version, port }) {
         delete: { summary: 'Delete a trigger', responses: { 200: ok } },
       },
       '/triggers/{tid}/run': { parameters: [{ name: 'tid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Fire a schedule now, or poll a watcher now (firing for anything new)', responses: { 200: json({ type: 'object', properties: { started: { type: 'array', items: ref('Summary') }, trigger: ref('Trigger') } }) } } },
+      '/crew': {
+        get: { summary: 'Your crew: long-lived agents with a name, role, avatar, brief, schedule and memory (notebook, log). Their work runs as tasks (jobs, `crew` on a session summary); running counts jobs now, nextAt is the next check-in', responses: { 200: json({ type: 'array', items: ref('CrewMember') }) } },
+        post: { summary: 'Add a crew member. checkin: true starts its first check-in at once', requestBody: body(ref('CrewMember')), responses: { 201: json(ref('CrewMember')), 400: err[400] } },
+      },
+      '/crew/{cid}': {
+        parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' }, description: 'Crew member id or name' }],
+        get: { summary: 'A crew member, with its latest jobs (jobList)', responses: { 200: json(ref('CrewMember')), 404: err[404] } },
+        patch: { summary: 'Edit a crew member: who it is, its brief, schedule, limits, notebook, paused. queue: the ids of waiting jobs to keep', requestBody: body(ref('CrewMember')), responses: { 200: json(ref('CrewMember')), 400: err[400] } },
+        delete: { summary: 'Remove a crew member. Its jobs stay as tasks; triggers sending it work are turned off', responses: { 200: ok } },
+      },
+      '/crew/{cid}/jobs': {
+        parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
+        post: { summary: 'Hand a crew member a job. Past its parallel limit it waits in the member’s queue ({ queued })', requestBody: body({ type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } } } }), responses: { 201: json({ type: 'object', properties: { session: ref('Summary'), queued: { type: 'integer' }, member: ref('CrewMember') } }), 400: err[400] } },
+      },
+      '/crew/{cid}/checkin': {
+        parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' } }],
+        post: { summary: 'Start a check-in now (409 while one runs)', responses: { 201: json({ type: 'object', properties: { session: ref('Summary'), queued: { type: 'integer' }, member: ref('CrewMember') } }), 409: json(ref('Error'), 'Already checking in') } },
+      },
+      '/sessions/{id}/crew': {
+        parameters: [id],
+        post: { summary: 'Turn a task into a crew member: its folder, harness and model become the member’s, its first prompt the brief (unless given), and the task its first job', requestBody: body(ref('CrewMember')), responses: { 201: json(ref('CrewMember')), 400: err[400], 409: json(ref('Error'), 'Already a crew member’s') } },
+      },
       '/remote': {
         get: { summary: 'Phone channels (ntfy, Telegram) with secrets masked, and their status', responses: { 200: json({ type: 'object' }) } },
         put: {
@@ -317,7 +339,7 @@ export function openapi({ version, port }) {
       '/sessions/{id}/reply': {
         parameters: [id],
         post: {
-          summary: 'Follow up (answers a pending ask_user question if there is one). Text starting with /btw is a side question instead (see /btw)',
+          summary: 'Follow up (answers a pending ask_user question if there is one). Text starting with /btw is a side question instead (see /btw). Text starting with @Name (a crew member) goes to that member, whose answer lands on the latest turn’s btw list ({ crew: [entry] }); a member named later in the text joins the task’s delegates',
           requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, queue: { type: 'boolean', description: 'Wait for the current run instead of interrupting it' }, mode: { enum: ['plan', 'edits', 'auto'], description: 'Switch the session to this mode from this follow-up on' }, agent: { type: 'string', description: 'Switch to this harness from this follow-up on; it is handed the turns it has not seen' }, model: { type: 'string', description: 'Switch model (empty: the harness default)' }, effort: { type: 'string', description: 'Switch thinking level (empty: the default)' }, subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'] }, description: 'Give the lead this team from this follow-up on (same shape as a launch’s `subagents`; [] removes it). Members it already used keep their conversation' }, preset: { type: 'string', description: 'Id of a saved team (`/teams`), used when `subagents` is absent' } } }),
           responses: { 200: json({ type: 'object', properties: { answered: { type: 'boolean' }, queued: { type: 'boolean' }, interrupted: { type: 'boolean' }, ahead: { type: 'integer' }, btw: ref('Btw') } }), 400: err[400] },
         },
@@ -481,11 +503,39 @@ export function openapi({ version, port }) {
             mode: { enum: ['', 'plan', 'edits', 'auto'] },
           },
         },
+        CrewMember: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            id: { type: 'string', readOnly: true },
+            name: { type: 'string', description: 'Up to 24 characters; @Name in a prompt reaches them' },
+            role: { type: 'string' },
+            avatar: { type: 'string', description: 'An emoji; empty shows the initial' },
+            color: { enum: ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'] },
+            brief: { type: 'string', description: 'Their standing job, in every job’s prompt' },
+            cwd: { type: 'string', description: 'The folder their jobs run in; empty = no project' },
+            agent: { type: 'string', description: 'Harness id, or auto' },
+            model: { type: 'string' },
+            effort: { type: 'string' },
+            mode: { enum: ['plan', 'edits', 'auto'] },
+            cron: { type: 'string', description: 'When they check in (5-field cron, local time); empty = only when asked' },
+            parallel: { type: 'integer', minimum: 1, maximum: 5, description: 'Jobs at once; more wait in the queue' },
+            paused: { type: 'boolean', description: 'No check-ins, triggers or delegations start; your own jobs still do' },
+            notebook: { type: 'string', description: 'Their memory, kept by them (a hidden crew block ends each job) and editable by you' },
+            log: { type: 'array', readOnly: true, items: { type: 'object' }, description: 'One line per finished job, newest first' },
+            queue: { type: 'array', items: { type: 'object' }, description: 'Jobs waiting for room' },
+            wakeAt: { type: ['integer', 'null'], description: 'A check-in they asked for; null clears it' },
+            running: { type: 'integer', readOnly: true },
+            nextAt: { type: ['integer', 'null'], readOnly: true },
+            checkin: { type: 'boolean', writeOnly: true, description: 'POST /crew: start a first check-in' },
+          },
+        },
         Trigger: {
           type: 'object',
           required: ['kind', 'cwd'],
           properties: {
             id: { type: 'string' },
+            crew: { type: 'string', description: 'A crew member id: the work goes to them as a job (cwd may then be empty for a schedule)' },
             name: { type: 'string' },
             kind: { enum: ['schedule', 'ci', 'issues'] },
             enabled: { type: 'boolean' },

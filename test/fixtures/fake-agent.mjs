@@ -31,6 +31,8 @@
 // A prompt with ALSO (a task across several folders) makes claude fix math.js in each --add-dir too.
 // A prompt with NARRATE makes claude say a long message and run a command that prints something
 // (what the transcript shows).
+// A crew member's job: CREWQUIET in its brief makes a check-in quiet; CREWNOTE in the prompt
+// remembers a fact and asks for a wake-up (a `crew` block).
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
 // (twice each with DELEGATE TWICE, which a member with copies spreads over two of them).
 // With DELEGATE SLOW each subagent works 3s first, long enough to interrupt the lead meanwhile.
@@ -290,6 +292,11 @@ const final = (answer) => {
   if (stdin.includes('DEPLOYBLOCK')) blocks.push({ type: 'deploy', env: 'staging', url: 'https://staging.example.com', status: 'ok', checks: [{ label: 'health', ok: true }] });
   // CAST: a Cast a spell task hands its spell back.
   if (stdin.includes('CAST')) blocks.push({ type: 'spell', spell: FAKE_SPELL });
+  // A crew member's job (its brief is in the system prompt): CREWQUIET makes a check-in say it
+  // found nothing; CREWNOTE remembers a fact and asks to be woken in 30 minutes.
+  const crewBrief = argv.join(' ').includes("on the user's crew");
+  if (crewBrief && argv.join(' ').includes('CREWQUIET') && stdin.startsWith('Check-in')) blocks.push({ type: 'crew', quiet: true, remember: ['saw build 41'] });
+  if (crewBrief && stdin.includes('CREWNOTE')) blocks.push({ type: 'crew', remember: ['deploy is v2'], wakeIn: 30 });
   return 'All done.\n```wisp\n' + JSON.stringify({ blocks }) + '\n```';
 };
 

@@ -27,6 +27,7 @@ import { collapse, expand, groups, headPills, qDot, renderFeed, setFocus } from 
 import { barCover, scrollByPx, stage, topInset } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
+import { crewDot } from './crew.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const big = matchMedia(`(min-width: ${SPLIT_DEFAULT_WIDTH}px)`);
@@ -376,7 +377,7 @@ function paintHome() {
     ? `<h4>Needs you<span class="n">${all.length > needs.length ? `${needs.length} of ${all.length}` : all.length}</span></h4>${needs
         .map(
           (s) => `<button class="sh-task c-${s.color}" data-id="${s.id}">
-            ${qDot(s, { ring: false })}
+            ${(s.crew && crewDot(s)) || qDot(s, { ring: false })}
             <span class="sh-t" title="${esc(s.title)}">${esc(s.title)}</span>
             <span class="sh-s ${s.state === 'waiting' ? 'asking' : ''}">${s.state === 'waiting' ? 'Asking' : esc(STATUS_LABEL[s.status] || STATUS_LABEL.done)}</span>
             <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>

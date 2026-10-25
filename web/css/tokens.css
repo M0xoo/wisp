@@ -38,6 +38,13 @@
   --tk-c: #8c8c8c;
   --tk-n: #0550ae;
   --tk-t: #8250df;
+  /* the crew's spirits (web/js/spirit.js): their faces and trims, whatever their glow */
+  --spirit-eye: #1d1a26;
+  --spirit-trim: #2a2633;
+  --spirit-shine: #ffffff;
+  --spirit-gold: #f2c14e;
+  --spirit-leaf: #6cc070;
+  --spirit-blush: #ff8fa3;
   color-scheme: light;
 }
 
@@ -75,6 +82,12 @@
     --tk-c: #6e7681;
     --tk-n: #79c0ff;
     --tk-t: #d2a8ff;
+    --spirit-eye: #15131c;
+    --spirit-trim: #d8d4e4;
+    --spirit-shine: #ffffff;
+    --spirit-gold: #f5c95c;
+    --spirit-leaf: #7fd183;
+    --spirit-blush: #ff9fb1;
     color-scheme: dark;
   }
 }
@@ -111,6 +124,12 @@
   --tk-c: #6e7681;
   --tk-n: #79c0ff;
   --tk-t: #d2a8ff;
+  --spirit-eye: #15131c;
+  --spirit-trim: #d8d4e4;
+  --spirit-shine: #ffffff;
+  --spirit-gold: #f5c95c;
+  --spirit-leaf: #7fd183;
+  --spirit-blush: #ff9fb1;
   color-scheme: dark;
 }
 

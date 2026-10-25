@@ -13,6 +13,7 @@ export const MAX_INSTANCES = 12; // copies across the whole team
 const EFFORT = /^[\w-]{1,20}$/;
 const MAX_USE = 300;
 const PLACE = /^[\w-]{1,40}$/; // 'here' (this computer) or a machine id
+const CREW_ID = /^[a-z0-9]{6,40}$/;
 const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 
 // [{ name?, agent, model?, effort?, use?, count? }] → a clean roster with unique names (codex, codex-2, …).
@@ -25,6 +26,16 @@ export function normalizeTeam(list, adapters) {
   if (!Array.isArray(list)) return [];
   const taken = new Set();
   const team = list.slice(0, MAX_SUBAGENTS).map((m) => {
+    // A member of the user's crew (server/crew.js): it runs as its own job, in its own folder, on
+    // the harness it's set up with. label/role: how the lead hears of it.
+    if (CREW_ID.test(m?.crew || '')) {
+      let name = slug(m.name) || 'crew';
+      for (let i = 2; taken.has(name); i++) name = `${slug(m.name) || 'crew'}-${i}`;
+      taken.add(name);
+      const agent = adapters[m.agent] && m.agent !== 'wisp' ? m.agent : 'auto';
+      const text = (k, n) => String(m[k] || '').replace(/\s+/g, ' ').trim().slice(0, n);
+      return { name, crew: m.crew, label: text('label', 24) || name, role: text('role', 60), agent, model: '', effort: '', use: text('use', MAX_USE), count: 1 };
+    }
     const agent = String(m?.agent || '');
     // auto: wisp picks the harness and model when this member gets its first task.
     if ((!adapters[agent] && agent !== 'auto') || agent === 'wisp') throw bad(`unknown subagent harness: ${agent}`);
@@ -56,7 +67,9 @@ export function normalizePreset(body, adapters, prev = {}) {
 }
 
 const who = (m, adapters) =>
-  (m.agent === 'auto'
+  m.crew
+    ? `${m.label || m.name}${m.role ? `, ${m.role}` : ''}, a member of the user's crew: a long-lived agent with its own folder, harness and memory. It works in its own folder, not yours (its edits stay there), and remembers past jobs`
+    : (m.agent === 'auto'
     ? 'Auto (wisp picks the harness and model for the first task you give it)'
     : [adapters[m.agent]?.name || m.agent, m.model || 'default model', m.effort && `${m.effort} thinking`].filter(Boolean).join(' · ')) + (m.machine ? ` · on ${m.place || 'another machine'}` : '');
 

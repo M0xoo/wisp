@@ -15,6 +15,7 @@ that matches your change:
 | [mobile.md](mobile.md) | Phones: narrow browsers vs the Android app (`MOBILE`), touch targets, Back, what to hide |
 | [copy.md](copy.md) | Words: the names wisp uses, labels, toasts, CHANGELOG lines |
 | [site.md](site.md) | trywisp.dev (`docs/`): generated pages, cache busting, install text |
+| [crew.md](crew.md) | The crew: naming, where it sits, spirits (avatars), memory and context |
 | [checklist.md](checklist.md) | What to check before handing a UI change back |
 
 ## The rules that matter most
