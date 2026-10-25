@@ -23,7 +23,7 @@ import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { inGrid, load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_DEFAULT_WIDTH, SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { toast, tryApi } from '../ui/toast.js';
-import { collapse, expand, groups, headPills, qDot, renderFeed, setFocus } from './feed.js';
+import { collapse, expand, groups, headPills, qDot, renderFeed, reveal, setFocus } from './feed.js';
 import { barCover, scrollByPx, stage, topInset } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
@@ -379,8 +379,10 @@ function paintDetails(s, pill) {
 
 function paintHome() {
   $('.sh-hello', home).textContent = spellProp('split.home', 'greeting') || 'What should wisp do next?';
-  // The tasks waiting on you, one click each: home doubles as the inbox.
-  const all = groups().needs; // the sidebar's Needs you, in its order
+  // The tasks waiting on you, one click each: home doubles as the inbox. The sidebar's Needs you,
+  // plus what the crew wants from you (a question, a report you haven't read), with their faces.
+  const crew = [...S.sessions.values()].filter((s) => s.crew && memberById(s.crew.id) && !s.pending && !s.archived && (s.state === 'waiting' || (s.state === 'review' && s.unread)));
+  const all = [...groups().needs, ...crew].sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   const needs = all.slice(0, 5);
   const html = needs.length
     ? `<h4>Needs you<span class="n">${all.length > needs.length ? `${needs.length} of ${all.length}` : all.length}</span></h4>${needs
@@ -473,6 +475,7 @@ $('#splitHead').addEventListener('dblclick', (e) => {
 home.addEventListener('click', (e) => {
   const id = e.target.closest('.sh-task')?.dataset.id;
   if (!id) return;
+  if (S.sessions.get(id)?.crew) return reveal(id); // under its member, Crew unfolded
   setFocus(id, { scroll: false });
   expand(id);
 });

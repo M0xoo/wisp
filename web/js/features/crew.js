@@ -109,7 +109,8 @@ export function crewDot(s) {
 //
 // One block per member: its row, then (in the feed) its thread when it's open, then its live jobs
 // as ordinary cards, nested under it. Live: running, asking you, a report you haven't read, or open.
-// The rest of its work is in its thread. Nothing of the crew's shows in Needs you, Working or Done.
+// The rest of its work is in its thread. Nothing of the crew's shows in Needs you, Working or Done
+// (split view's home lists their questions and unread reports with yours, split.js paintHome).
 
 const sec = $('#secCrew');
 const box = $('.cr-list', sec);
