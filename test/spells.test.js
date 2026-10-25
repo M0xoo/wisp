@@ -170,7 +170,7 @@ test('the crew: its section, rows, faces, page and editor are parts; the page ta
   assert.ok(problems({ ...base0, buttons: [{ slot: 'crew.page', panel: 'x' }] }).length);
   assert.ok(problems({ ...base0, parts: { 'crew.nope': { hide: true } } }).some((x) => /crew\.nope/.test(x)));
   // Skills and instructions: the section and its editor.
-  assert.deepEqual(problems({ ...base0, parts: { 'crew.kit': { hide: true }, 'crew.kitEditor': { style: { width: '900px' } }, 'crew.kitGenerate': { hide: true }, 'crew.offer': { style: { padding: '4px' } } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'crew.kit': { hide: true }, 'crew.kitEditor': { style: { width: '900px' } }, 'crew.notebookEditor': { style: { width: '900px' } }, 'crew.kitGenerate': { hide: true }, 'crew.offer': { style: { padding: '4px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'crew.kits': { hide: true } } }).some((x) => /crew\.kits/.test(x)));
 });
 

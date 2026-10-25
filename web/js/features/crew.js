@@ -467,7 +467,6 @@ const SHOW = 30; // jobs shown; Show earlier adds more
 const views = new Map(); // member id -> view
 const sending = new Map(); // member id -> [{ id, prompt }]: jobs sent, not started yet
 const readSent = new Set(); // reports marked read from here
-const noting = new Set(); // members whose notebook is open for writing
 
 function viewFor(id) {
   let v = views.get(id);
@@ -669,12 +668,7 @@ function buildView(id) {
     if (a === 'checkin') return checkIn(id);
     if (a === 'pause') return togglePause(id);
     if (a === 'edit') return crewEditor({ member: m });
-    if (a === 'note-edit' || a === 'note-done') {
-      noting[a === 'note-edit' ? 'add' : 'delete'](id);
-      paint();
-      const nb = $('.cv-notebook', node);
-      return nb?.focus({ preventScroll: true });
-    }
+    if (a === 'note-edit') return notebookEditor(m);
     const clip = e.target.closest('[data-clip]')?.dataset.clip;
     if (clip) {
       const k = `${clip}:${id}`;
@@ -793,31 +787,18 @@ function paintSide(m, st, side) {
       <button class="ghost danger" data-a="remove">${icon('trash')}<span>Remove from crew</span></button>
     </div>
     <div class="cv-sec cv-nb">
-      <h5>Notebook <small class="cv-saved"></small><small class="cv-count"></small>${noting.has(m.id) ? '<button class="link xs" data-a="note-done">Done</button>' : '<button class="link xs" data-a="note-edit">Edit</button>'}</h5>
-      ${noting.has(m.id) ? '<textarea class="textarea cv-notebook" spellcheck="false" placeholder="What they should keep in mind between jobs. They add to it as they work."></textarea>' : clipped(m.notebook, 'note', m.id, 'Empty so far. They add to it as they work; you can write in it too.')}
+      <h5>Notebook <small class="cv-count"></small><button class="link xs" data-a="note-edit">Edit</button></h5>
+      ${clipped(m.notebook, 'note', m.id, 'Empty so far. They add to it as they work; you can write in it too.')}
     </div>
     <div class="cv-sec"><h5>Brief <button class="link xs" data-a="edit">Edit</button></h5>${clipped(m.brief, 'brief', m.id, 'No brief: they do what each job asks.')}</div>
     ${kitHtml(m)}
     ${m.links?.length ? `<div class="cv-sec"><h5>Part of</h5><div class="cv-links">${m.links.slice(0, 6).map((l) => `<button class="cv-link" data-session="${esc(l.id)}" ${S.sessions.has(l.id) ? '' : 'disabled'}><span>${esc(l.title || 'A task')}</span>${icon('chevron')}</button>`).join('')}</div></div>` : ''}`;
   const key = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
   if (side.dataset.h !== key) {
-    const nb = $('.cv-notebook', side);
-    const typing = nb && document.activeElement === nb;
-    if (typing) {
-      // Keep the notebook being edited; repaint the rest around it.
-      const keep = nb.closest('.cv-sec');
-      const fresh = el(`<div>${html}</div>`);
-      $('.cv-nb', fresh).replaceWith(keep);
-      side.replaceChildren(...fresh.childNodes);
-    } else side.innerHTML = html;
+    side.innerHTML = html;
     side.dataset.h = key;
   }
-  const nb = $('.cv-notebook', side);
-  if (nb) {
-    if (document.activeElement !== nb && nb.value !== (m.notebook || '')) nb.value = m.notebook || '';
-    wireNotebook(m.id, side);
-  }
-  countNotebook(side, nb ? nb.value : m.notebook || '', !!nb);
+  countNotebook($('.cv-count', side), m.notebook || '');
 }
 
 // A notebook or brief, read as prose; a long one shows its start, Show all opens the rest.
@@ -831,42 +812,57 @@ function clipped(text, kind, id, empty) {
 }
 
 // The size only matters while you write, or when it's nearly full (they're asked to tidy at 6,000).
-function countNotebook(side, text, editing) {
-  const c = $('.cv-count', side);
+const NOTEBOOK_MAX = 6000;
+function countNotebook(c, text, editing = false) {
   const n = text.length;
-  c.textContent = editing || n > 4800 ? `${n.toLocaleString()} / 6,000` : '';
-  c.classList.toggle('over', n > 6000);
+  c.textContent = editing || n > 4800 ? `${n.toLocaleString()} / ${NOTEBOOK_MAX.toLocaleString()}` : '';
+  c.classList.toggle('over', n > NOTEBOOK_MAX);
 }
 
-// Grows with what's written, up to a point; a folded panel (no height yet) keeps its rows.
-const fitNotebook = (ta) => {
-  ta.style.height = 'auto';
-  if (ta.scrollHeight) ta.style.height = `${Math.min(ta.scrollHeight + 2, 420)}px`;
-};
-
-// The notebook saves itself a moment after you stop typing (and when you leave it).
-function wireNotebook(id, side) {
-  const nb = $('.cv-notebook', side);
-  if (nb.dataset.wired) return;
-  nb.dataset.wired = '1';
-  let typing;
-  const save_ = async () => {
-    clearTimeout(typing);
-    const m = memberById(id);
-    if (!m || nb.value === (m.notebook || '')) return;
-    $('.cv-saved', side).textContent = 'Saving…';
-    const ok = await patchMember(m, { notebook: nb.value });
-    $('.cv-saved', side).textContent = ok ? 'Saved' : '';
+// The notebook in a dialog, like a kit file: room to read and write, Save to keep it. Saving is
+// optimistic (patchMember); refused, the dialog comes back with what you wrote.
+function notebookEditor(m, { draft = null } = {}) {
+  const start = m.notebook || '';
+  const node = el(`<div class="modal nb-edit" role="dialog" aria-label="Notebook">
+      <header><h2>${esc(m.name)}’s notebook</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
+      <form class="ce-form">
+        <p class="hint">What they keep in mind between jobs: facts, decisions, where they left off. Every job starts with it, and they add to it as they work.</p>
+        <textarea class="textarea mono nb-body" name="body" rows="16" spellcheck="false" placeholder="- The release branch is cut on Thursdays.\n- Last checked CI at 14:30: green."></textarea>
+        <footer class="ce-foot">
+          <span class="grow"></span><small class="nb-count"></small>
+          <button type="button" class="ghost sm" data-a="cancel">Cancel</button>
+          <button class="primary sm">Save</button>
+        </footer>
+      </form>
+    </div>`);
+  const close = overlay(node);
+  const f = $('form', node);
+  const body = $('.nb-body', f);
+  body.value = draft ?? start;
+  const count = () => countNotebook($('.nb-count', node), body.value, true);
+  count();
+  body.addEventListener('input', count);
+  $('.close', node).onclick = () => {
+    close();
   };
-  fitNotebook(nb);
-  nb.addEventListener('input', () => fitNotebook(nb));
-  nb.addEventListener('input', () => {
-    countNotebook(side, nb.value, true);
-    $('.cv-saved', side).textContent = '';
-    clearTimeout(typing);
-    typing = setTimeout(save_, 900);
+  $('[data-a="cancel"]', node).onclick = () => {
+    close();
+  };
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const notebook = body.value;
+    const now = memberById(m.id) || m;
+    if (notebook === (now.notebook || '')) return close();
+    // They wrote in it while it was open here: saving replaces what they added.
+    if ((now.notebook || '') !== start && !(await ask(`${now.name} wrote in their notebook while you had it open.\n\nSaving replaces what they added.`, { ok: 'Save anyway', anchor: $('.primary', f) }))) return;
+    close();
+    if (!(await patchMember(now, { notebook }))) notebookEditor(now, { draft: notebook });
   });
-  nb.addEventListener('blur', save_);
+  setTimeout(() => {
+    body.focus();
+    body.setSelectionRange(0, 0);
+    body.scrollTop = 0;
+  });
 }
 
 // Answer a job's question (or Allow / Deny it) from the thread. The job carries on at once here,
