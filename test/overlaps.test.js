@@ -146,3 +146,10 @@ test('only active tasks count: done, stopped and archived ones never warn, and l
     ov.stop();
   }
 });
+
+test('overlaps saved by an earlier wisp are dropped when it starts: they are worked out again', () => {
+  const sessions = [{ id: 'old', state: 'done', worktree: { path: '/nowhere', root: '/r', base: 'main' }, overlaps: [{ id: 'x', title: 'X', files: ['a'], more: 0, conflicts: ['a'] }] }];
+  const ov = createOverlaps(app(sessions));
+  ov.stop();
+  assert.equal(sessions[0].overlaps, undefined);
+});
