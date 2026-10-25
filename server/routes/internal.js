@@ -70,10 +70,18 @@ export function register(r, app) {
     guarded((c) => {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
+      // The helper of a run that's being stopped or interrupted (its MCP server can outlive the
+      // agent, and holds it up until it exits) is told to stop waiting: the delegations move on
+      // to the lead's next turn, which collects them.
+      const turn = c.query.get('turn');
+      const cur = s.turns.at(-1);
+      const over = runner.stopping.has(s.id) || (turn && (cur?.id !== turn || cur.status !== 'running'));
+      if (over) return c.send(200, { done: true, text: 'This turn is over.' });
       const ids = (c.query.get('ids') || '').split(',').filter(Boolean);
       const list = runner.delegations(s, ids);
       if (!list.length) return c.send(200, { done: true, text: 'No delegated tasks to report on.' });
       const running = ({ d, child }) => child?.turns.find((t) => t.id === d.turnId)?.status === 'running';
+      for (const x of list) if (!running(x)) delete x.d.owed; // the lead has this report now
       c.send(200, { done: !list.some(running), text: list.map(({ d, child }) => delegationReport(d, child, adapters)).join('\n\n---\n\n') });
     }),
     opts,

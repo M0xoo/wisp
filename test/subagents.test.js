@@ -193,3 +193,47 @@ test('a follow-up gives a task launched without subagents a team, and another fo
   assert.match(after.turns[2].presentation.blocks[0].summary, /no delegate tool/);
   assert.equal(Object.keys(after.children).length, 1, 'the child session it used stays linked');
 });
+
+test('a follow-up that interrupts the lead leaves its delegates working, and their reports come back to it', async () => {
+  const s = await api('/sessions', { prompt: 'DELEGATE SLOW the review', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: [{ agent: 'codex' }] });
+  await until(async () => (await api(`/sessions/${s.id}`)).turns[0].delegations?.length);
+  await api(`/sessions/${s.id}/reply`, { text: 'Meanwhile, rename the helper', queue: false });
+
+  // The lead's next turn starts at once, waits on the delegate it was interrupted with, and is told about it.
+  const second = await until(async () => {
+    const x = await api(`/sessions/${s.id}`);
+    return x.turns.length >= 2 && x;
+  });
+  assert.equal(second.turns[0].status, 'stopped');
+  assert.equal(second.turns[0].delegations, undefined, 'moved to the new turn');
+  assert.equal(second.turns[1].delegations?.[0]?.name, 'codex');
+  const child = Object.values(second.childSessions)[0];
+  assert.equal(child.turns[0].status, 'running', 'the delegate kept working');
+  const told = await until(() => records(RECORD, 'claude').find((r) => r.stdin.includes('Meanwhile, rename the helper')));
+  assert.match(told.stdin, /still on it, or done and not yet read: codex \(id \w+\)/);
+
+  // That turn ends before the delegate does, so its report arrives as a follow-up from wisp.
+  const done = await until(async () => {
+    const x = await api(`/sessions/${s.id}`);
+    return x.turns.length === 3 && x.state === 'review' && x;
+  });
+  const back = done.turns[2];
+  assert.equal(back.by, 'wisp');
+  assert.equal(back.reports, true);
+  assert.match(back.prompt, /^Subagents you delegated to earlier have finished/);
+  assert.match(back.prompt, /### codex \(Codex · default model\) — done/);
+  assert.equal(Object.values(done.childSessions)[0].turns[0].status, 'done');
+  assert.ok(!done.turns.flatMap((t) => t.delegations || []).some((d) => d.owed), 'nothing left owed');
+});
+
+test('stopping a lead stops its delegates and sends nothing back', async () => {
+  const s = await api('/sessions', { prompt: 'DELEGATE SLOW then stop', cwd: makeRepo(), agent: 'claude', worktree: false, subagents: [{ agent: 'codex' }] });
+  await until(async () => (await api(`/sessions/${s.id}`)).turns[0].delegations?.length);
+  await api(`/sessions/${s.id}/stop`, {});
+  const done = await settled(s.id);
+  await new Promise((r) => setTimeout(r, 3500)); // past the delegate's 3s of work
+  const after = await api(`/sessions/${s.id}`);
+  assert.equal(after.turns.length, 1);
+  assert.equal(Object.values(done.childSessions)[0].turns[0].status, 'stopped');
+  assert.ok(!after.turns[0].delegations.some((d) => d.owed));
+});

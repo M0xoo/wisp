@@ -88,6 +88,13 @@ export const SUBAGENT_ASK = `- You are a subagent: a lead agent delegated this t
   You cannot ask the user anything. Make the call yourself, note the assumption in a "callout"
   block, and finish. Don't commit unless the task says to.`;
 
+// Told to a lead whose follow-up arrived while delegates were still on its earlier tasks.
+export const stillWorkingNote = (list) =>
+  `Subagents you delegated to before this message are still on it, or done and not yet read: ${list.map((d) => `${d.name} (id ${d.id})`).join(', ')}. Their edits land in your folder. Collect their reports with \`subagent_results\` (no ids needed) when you need them; don't delegate that work again.`;
+
+// Heads the follow-up wisp sends a lead whose turn ended before its delegates finished.
+export const REPORTS_BACK = 'Subagents you delegated to earlier have finished. Review their work below and carry on with the task.';
+
 // What the lead gets back for one delegation.
 export function delegationReport(d, child, adapters) {
   const turn = child?.turns.find((t) => t.id === d.turnId);

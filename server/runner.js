@@ -10,7 +10,7 @@ import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { spellGuide } from './spell-guide.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
-import { teamNote, copies, SUBAGENT_ASK } from './subagents.js';
+import { teamNote, copies, SUBAGENT_ASK, delegationReport, stillWorkingNote, REPORTS_BACK } from './subagents.js';
 import { handoffNote } from './handoff.js';
 import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
@@ -590,7 +590,7 @@ export class Runner extends EventEmitter {
         child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot, relay });
         (lead.children ||= {})[slot] = child.id;
       }
-      const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, ...(relay && { place: relay.place }), sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now() };
+      const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, ...(relay && { place: relay.place }), sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now(), owed: true }; // owed until the lead has its report
       (turn.delegations ||= []).push(d);
       out.push(d);
     }
@@ -636,6 +636,7 @@ export class Runner extends EventEmitter {
     this.store.save(child, { now: true });
     this.#touch(child, { turn: turn.id });
     this.#touchLead(child);
+    this.#delegateDone(child, turn);
   }
 
   // Delegations by id (any turn), or the current turn's when ids is empty, with their child sessions.
@@ -643,6 +644,36 @@ export class Runner extends EventEmitter {
     const all = lead.turns.flatMap((t) => t.delegations || []);
     const list = ids.length ? all.filter((d) => ids.includes(d.id)) : lead.turns.at(-1)?.delegations || [];
     return list.map((d) => ({ d, child: this.store.get(d.sessionId) }));
+  }
+
+  // A delegate's run ended. A lead still running collects the report itself (subagent_results, or
+  // #reportBack when its turn ends); one whose turn already ended gets it as a follow-up now.
+  // A stopped run owes nothing: the user stopped it, or the lead with it.
+  #delegateDone(child, turn) {
+    const lead = this.store.get(child.parentId);
+    const d = lead?.turns.at(-1)?.delegations?.find((x) => x.owed && x.turnId === turn.id);
+    if (!d) return;
+    if (turn.status === 'stopped') delete d.owed;
+    else if (lead.turns.at(-1).status !== 'running') this.#reportBack(lead);
+  }
+
+  // Sends the lead the reports of its finished delegations that it hasn't read, as one follow-up
+  // from wisp (merged into one still waiting in its queue). Returns whether it sent any.
+  // ending: called from the lead's own #finishTurn, whose run lets go and starts the queue itself.
+  #reportBack(lead, { ending = false } = {}) {
+    if (this.deleting.has(lead.id)) return false;
+    const done = (lead.turns.at(-1)?.delegations || []).filter((d) => d.owed && this.store.get(d.sessionId)?.turns.find((t) => t.id === d.turnId)?.status !== 'running');
+    if (!done.length) return false;
+    for (const d of done) delete d.owed;
+    const reports = done.map((d) => delegationReport(d, this.store.get(d.sessionId), adapters)).join('\n\n---\n\n');
+    const waiting = lead.queue.find((q) => q.reports);
+    if (waiting) waiting.text += `\n\n---\n\n${reports}`;
+    else if (ending || this.live.has(lead.id)) lead.queue.push({ id: newId(), text: `${REPORTS_BACK}\n\n${reports}`, attachments: [], by: 'wisp', reports: true });
+    else this.#startTurn(lead, `${REPORTS_BACK}\n\n${reports}`, [], { by: 'wisp', reports: true });
+    // A CLI only lingering after its result: let it go so the follow-up starts now.
+    if (!ending && this.live.has(lead.id)) this.live.get(lead.id).release();
+    this.#touch(lead);
+    return true;
   }
 
   // A child's state changed: the lead's card shows it, so the lead's turn re-renders too.
@@ -741,6 +772,7 @@ export class Runner extends EventEmitter {
           WISP_URL: this.bridge.url,
           WISP_TOKEN: this.bridge.token,
           WISP_SESSION: session.id,
+          WISP_TURN: session.turns.at(-1)?.id || '', // so a run's leftover helper can tell its turn is over
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
           ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: adapters[m.agent]?.name || m.agent, model: m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
@@ -751,11 +783,12 @@ export class Runner extends EventEmitter {
 
   // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
   // this turn only (an approved retry the harness can't scope runs in Full auto).
-  #startTurn(session, prompt, attachments = [], { grants = [], once, by } = {}) {
+  #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports } = {}) {
     const mode = MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
+    if (reports) turn.reports = true; // ...with the reports of delegates that finished after the lead's turn
     // Side questions still being answered move to the new turn: the old one folds away on the card.
     const prev = session.turns.at(-1);
     const open = prev?.btw?.filter((b) => b.status === 'running') || [];
@@ -763,6 +796,14 @@ export class Runner extends EventEmitter {
       prev.btw = prev.btw.filter((b) => !open.includes(b));
       if (!prev.btw.length) delete prev.btw;
       turn.btw = open;
+    }
+    // Delegations whose report the lead hasn't had (a follow-up interrupted it) move too: the new
+    // turn waits on them, subagent_results finds them, and their edits count on it.
+    const owed = (!session.parentId && prev?.delegations?.filter((d) => d.owed)) || [];
+    if (owed.length) {
+      prev.delegations = prev.delegations.filter((d) => !d.owed);
+      if (!prev.delegations.length) delete prev.delegations;
+      turn.delegations = owed;
     }
     session.turns.push(turn);
     session.state = 'running';
@@ -787,8 +828,9 @@ export class Runner extends EventEmitter {
     // Mentioned tasks: a lead reads them with wisp_session; a run without wisp's tools gets their reports.
     const tools = !session.parentId && !session.delegated && adapter.askTool !== null && this.bridge;
     const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id });
+    const still = owed.length && team.length && this.bridge ? stillWorkingNote(owed) : '';
     const handle = adapter.run({
-      prompt: handoff ? `${handoff}\n\n${text}` : text,
+      prompt: [handoff, still, text].filter(Boolean).join('\n\n'),
       attachments,
       cwd: workdir(session),
       dirs: alsoDirs((session.parentId && this.store.get(session.parentId)) || session), // the task's other folders (a subagent's are its lead's)
@@ -977,6 +1019,8 @@ export class Runner extends EventEmitter {
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
     }
     if (!ev.stopped) blockedCard(turn);
+    // A lead that ends its turn without reading what its delegates finished gets it as a follow-up.
+    if (!ev.stopped && !session.parentId) this.#reportBack(session, { ending: true });
     // Auto checks the work before it reaches you: the session stays in Working meanwhile.
     // A follow-up starts as soon as this run lets go: stay in Working rather than flash through Needs you.
     const handing = this.live.has(session.id) && (interrupted || session.queue.length > 0);
@@ -988,6 +1032,7 @@ export class Runner extends EventEmitter {
     this.#touch(session, { turn: turn.id });
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
     this.#touchLead(session);
+    if (session.parentId) this.#delegateDone(session, turn);
     if (holding) setImmediate(() => this.pipeline.run(session, turn));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.

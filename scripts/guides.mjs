@@ -543,6 +543,7 @@ git worktree remove ../app-auth`)}
         </tbody>
       </table></div>
       <p>Claude Code, Codex, opencode, Grok Build and Copilot CLI can lead; Cursor CLI and Antigravity CLI can be members too. <b>Save as preset</b> keeps a team for later.</p>
+      <p>You can follow up while the lead waits on its members. A follow-up that interrupts the lead leaves them working: the lead’s next turn is told who is still on it and collects their reports, and a member that finishes after the lead is done sends its report back as a follow-up from wisp. <b>Stop</b> stops the lead and every member.</p>
       <p>The top of the popover shows the lead and where it runs; click the place to move it. <b>Add delegate</b> asks where the new member goes, and its harness picker lists what’s installed there, so each machine can run its own model.</p>
     </section>
 

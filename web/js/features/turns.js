@@ -281,7 +281,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const cpLabel = cp?.head ? `${cpBranch ? `${cpBranch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const ask = el(`
     <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
-      ${t.by === 'wisp' ? `<div class="ask-by">${icon('spark')}Sent by wisp after its test run</div>` : ''}
+      ${t.by === 'wisp' ? `<div class="ask-by">${icon('spark')}${t.reports ? 'Sent by wisp when your subagents finished' : 'Sent by wisp after its test run'}</div>` : ''}
       <div class="ask-text ${long ? 'clamped' : ''}">${mentionHtml(esc(t.prompt))}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}

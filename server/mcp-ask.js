@@ -14,7 +14,7 @@
 
 import readline from 'node:readline';
 
-const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_APPROVE, WISP_SPELLS } = process.env;
+const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS } = process.env;
 let TEAM = [];
 try {
   TEAM = JSON.parse(process.env.WISP_TEAM || '[]');
@@ -192,7 +192,7 @@ async function results(ids, wait = true) {
   for (;;) {
     let r;
     try {
-      r = await call(`/api/internal/delegate/${WISP_SESSION}?ids=${encodeURIComponent((ids || []).join(','))}`);
+      r = await call(`/api/internal/delegate/${WISP_SESSION}?ids=${encodeURIComponent((ids || []).join(','))}&turn=${WISP_TURN || ''}`);
     } catch (err) {
       if (!wait) throw err;
       await sleep(1500);

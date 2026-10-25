@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Delegates survive an interrupting follow-up:** a follow-up sent (not queued) while the lead waits on its delegates used to cut the lead off from them. They kept working, but their reports were lost. Now the lead's new turn takes them over: it's told who is still working, `subagent_results` collects them, and their edits count on it. If the lead finishes before a delegate does, wisp sends the delegate's report to the lead as a follow-up of its own (*Sent by wisp when your subagents finished*). **Stop** still stops the delegates too.
 - **wisp Grid's landing page answers link checkers:** a `HEAD` request to the sign-in page (or the account page) got a 404 while a normal visit worked, so ad review and link previews could take the page for dead. Both now answer `HEAD` like `GET`.
 
 ## [0.39.0] - 2026-10-25
