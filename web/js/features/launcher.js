@@ -810,7 +810,8 @@ export async function launchBehind({ prompt, cwd, runner, machine }, request) {
 // The real session showed up (live events can beat the launch response): drop its placeholder.
 export function dropPending(s) {
   if (s.pending || s.parentId) return;
-  for (const x of S.sessions.values()) if (x.pending && x.projectId === s.projectId) return S.sessions.delete(x.id);
+  // A job you gave a crew member replaces that member's placeholder (crew.js sendJob), nothing else.
+  for (const x of S.sessions.values()) if (x.pending && (s.crew ? x.crew?.id === s.crew.id && s.crew.job === 'task' : !x.crew && x.projectId === s.projectId)) return S.sessions.delete(x.id);
 }
 
 // A new card lands in Working, below everything in "Needs you", so it's often off-screen. Scroll
