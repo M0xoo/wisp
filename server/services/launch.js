@@ -192,6 +192,7 @@ export function createLaunch(app) {
     if (s.state === 'running' || s.state === 'waiting') return false;
     const was = s.state;
     s.state = 'done';
+    app.later?.done(s); // the agent's own wake-ups go; yours stay
     if (was !== 'done') app.triggers?.taskEvent('done', s); // crew members and triggers that watch for it
     s.unread = false;
     app.retro.schedule(s, 0);

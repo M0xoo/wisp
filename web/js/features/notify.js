@@ -39,6 +39,16 @@ export function askNotify() {
 // The app's WebView can keep focus while the app sits in the background: ask the app.
 const focused = () => (app ? app.foreground() : document.hasFocus());
 
+// A reminder came due (server/later.js): it's in Needs you; this says so wherever you are.
+export function notifyReminder(s) {
+  const text = s.reminder?.text || s.title;
+  toast(`${icon('bell')} <b>Reminder</b>: ${esc(text)}`, { action: { label: 'Open', run: () => reveal(s.id) }, timeout: 9000 });
+  if (!notifyOn() || focused()) return;
+  if (app) return app.notify(s.id, 'Reminder', text);
+  const note = new Notification('Reminder', { body: text, icon: '/apple-touch-icon.png', tag: `r-${s.id}` });
+  note.onclick = () => (window.focus(), reveal(s.id));
+}
+
 export function notifyFinished(s) {
   const viewing = S.open.has(s.id) && watching(s.id) && focused();
   if (viewing) return;

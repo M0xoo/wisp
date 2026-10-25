@@ -23,6 +23,7 @@ import { setSpellBlocks } from './render.js';
 import { createSpellHooks } from './services/spell-hooks.js';
 import { Triggers } from './triggers.js';
 import { Crew } from './crew.js';
+import { Later } from './later.js';
 import { syncSpellCrew } from './crew-share.js';
 import { removeWorktree } from './git.js';
 import { Remote } from './remote.js';
@@ -253,6 +254,20 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
     onChange: () => app.broadcast('config', {}),
   });
+  // Later: follow-ups, reminders and tasks at a time you or an agent set (server/later.js).
+  app.later = new Later({
+    store,
+    runner,
+    launch: (body, origin) => app.launcher.launchAny(body, origin),
+    changed: (s) => app.sessionChanged(s),
+    configChanged: () => app.configChanged(),
+    // A reminder came due: the page notifies, and so does the phone.
+    notify: (s) => {
+      app.broadcast('reminder', { session: summarize(s, store) });
+      app.remote.notify(s, summarize(s, store)).catch((err) => console.warn(`wisp: phone: ${err.message}`));
+    },
+  });
+  app.later.onRemoved = (s) => app.broadcast('removed', { id: s.id });
   // A spell's crew members join and leave the crew with it (server/crew-share.js).
   app.spells.onChange = () => {
     syncSpellCrew(app);
@@ -318,6 +333,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.retro.stop();
     app.triggers.stop();
     app.crew.stop();
+    app.later.stop();
     app.remote.stop();
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
@@ -345,6 +361,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.updater.start();
   app.triggers.start();
   app.crew.start();
+  app.later.start();
   app.remote.start();
   app.machines.start();
   app.computer.start();
@@ -358,5 +375,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, token, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
 }

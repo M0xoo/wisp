@@ -169,6 +169,7 @@ export function register(r, app) {
       if (typeof body.title === 'string' && body.title.trim()) Object.assign(s, { title: body.title.trim(), titleAuto: false });
       const was = s.state;
       if (body.state === 'done' && s.state !== 'running') s.state = 'done';
+      if (body.state === 'done' && s.state === 'done') app.later.done(s); // the agent's own wake-ups go; yours stay
       if (s.state === 'done' && was !== 'done') app.triggers?.taskEvent('done', s);
       if (body.state === 'review' && s.state === 'done') s.state = 'review';
       if (typeof body.unread === 'boolean') s.unread = body.unread;
@@ -274,6 +275,7 @@ export function register(r, app) {
       const { text, attachments, queue, mode, agent, model, effort, machine, subagents, preset } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
+      if (s.kind === 'reminder') return c.send(409, { error: 'A reminder has no agent to follow up with. Start a new task instead.' });
       // Two agents on one conversation would trample each other.
       if (app.terms.get(s.id)?.code === null && btwQuestion(text) === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
@@ -339,6 +341,32 @@ export function register(r, app) {
     'DELETE',
     '/sessions/:id/btw',
     one((c, s) => (runner.dropBtw(s, c.query.get('item') || '') ? c.send(200, { ok: true }) : c.send(404, { error: 'No such side question.' }))),
+  );
+
+  // Later (server/later.js): follow-ups and reminders scheduled on the task.
+  // POST { at | in, text, remind? }; PATCH { item, at | in, text } or { item, now: true } (Send now),
+  // item 'reminder' snoozes one that came due; DELETE ?item=.
+  r.route(
+    'POST',
+    '/sessions/:id/later',
+    one(async (c, s) => {
+      const body = await c.body();
+      notTour(s, 'schedule a follow-up');
+      c.send(201, app.later.add(s, { ...body, remind: body.remind === true, by: 'user' }));
+    }),
+  );
+  r.route(
+    'PATCH',
+    '/sessions/:id/later',
+    one(async (c, s) => {
+      const body = await c.body();
+      c.send(200, (await app.later.edit(s, String(body.item || ''), body)) || { ok: true });
+    }),
+  );
+  r.route(
+    'DELETE',
+    '/sessions/:id/later',
+    one((c, s) => (app.later.cancel(s, c.query.get('item') || '') ? c.send(200, { ok: true }) : c.send(404, { error: 'Already sent, or cancelled.' }))),
   );
 
   r.route(

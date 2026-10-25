@@ -162,7 +162,7 @@ export function normalizeSpell(raw) {
     else if (allowed && !allowed.includes(slot)) p.at_(where, `this goes in ${allowed.join(', ')}`);
   };
 
-  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu', 'sidebar.top', 'split.head', 'split.details', 'term.head', 'crew.page'];
+  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu', 'sidebar.top', 'split.head', 'split.details', 'term.head', 'crew.page', 'split.upcoming'];
   const buttons = arr(j.buttons).slice(0, MAX_ITEMS).map((b, i) => {
     const where = `buttons[${i}]`;
     const x = obj(b) || {};

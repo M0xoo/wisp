@@ -232,7 +232,13 @@ body.split .task-runs { padding: 0 4px 4px; }
 .tips[hidden] { display: none; }
 .tips { display: flex; flex-direction: column; gap: 1px; }
 .sh-tips { margin-top: 30px; }
-.sh-next:not([hidden]) + .sh-tips { margin-top: 22px; }
+.sh-next:not([hidden]) + .sh-tips, .sh-next:not([hidden]) + .sh-coming:not([hidden]) { margin-top: 22px; }
+.sh-coming:not([hidden]) + .sh-tips { margin-top: 22px; }
+/* Coming up: a glyph (clock, bell, bolt, a face) where Needs you has its dot; the time ahead in the last column */
+.sh-up { grid-template-columns: 18px minmax(0, 1fr) minmax(0, auto) auto; }
+.sh-up > .q-dot.auto, .sh-up > .cr-av { justify-self: center; }
+.sh-up .sh-s { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-up .q-time { font-variant-numeric: tabular-nums; }
 .tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
 .sh-tips h4 { padding: 0 8px; }
 .tip-more { margin-left: auto; padding: 2px 6px; border-radius: 6px; font-size: 12px; color: var(--faint); }

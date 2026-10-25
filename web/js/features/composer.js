@@ -30,6 +30,8 @@ import { spellSlash } from './launcher.js';
 import { cast } from './spell-ui.js';
 import { ask } from '../ui/confirm.js';
 import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
+import { parseWhen } from '../when.js';
+import { aheadLabel, followUpRows, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 
 export function draftInto(id, text) {
   const ta = $('.reply', S.nodes.get(id)?.card);
@@ -76,6 +78,7 @@ export function renderDock(id) {
         <button class="ghost sm c-ship" data-a="ship" aria-label="Ship it" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
         <button class="ghost sm c-done" data-a="done" aria-label="Mark done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
         <button class="ghost xs c-queue" aria-pressed="false" hidden>${icon('queue')}<span>Queue</span><i class="c-switch"></i></button>
+        <button class="icon-btn c-later" aria-label="Send later" title="Send later" aria-haspopup="menu">${icon('clock')}</button>
         <button class="send" title="Send (Enter · Shift+Enter for newline)">${icon('enter')}</button>
       </div>
     </div>`);
@@ -112,12 +115,23 @@ export function renderDock(id) {
   ta.value = S.drafts.get(id) || '';
   ta.addEventListener('input', () => {
     S.drafts.set(id, ta.value);
+    if (!ta.value.trim()) notTime.delete(id);
     paintSide(id);
+    readWhen(id);
   });
+  const laterBtn = $('.c-later', comp);
+  laterBtn.onclick = () => {
+    const text = ta.value.trim();
+    if (!text) return;
+    timeMenu(laterBtn, { verb: 'Sends', back: ta, pick: (at) => scheduleReply(id, at, text) });
+  };
   ta.addEventListener('focus', () => setFocus(id, { scroll: false }));
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
+      // A time wisp read (the chip shows it): scheduled. Alt+Enter sends it now, as typed.
+      const w = !e.altKey && whenShown.get(id);
+      if (w) return scheduleReply(id, w.at, w.rest, { remind: w.reminder, typed: ta.value });
       sendReply(id, ta.value);
     }
     if (e.key === 'Tab' && e.shiftKey) {
@@ -125,8 +139,66 @@ export function renderDock(id) {
       setReplyMode(id, MODES[(MODES.findIndex((m) => m.id === replyMode(id)) + 1) % MODES.length].id);
     }
   });
-  $('.send', comp).onclick = () => sendReply(id, ta.value);
+  $('.send', comp).onclick = () => {
+    const w = whenShown.get(id);
+    if (w) return scheduleReply(id, w.at, w.rest, { remind: w.reminder, typed: ta.value });
+    sendReply(id, ta.value);
+  };
+  comp.addEventListener('click', (e) => {
+    if (e.target.closest('.c-when-now')) {
+      whenShown.delete(id);
+      sendReply(id, ta.value);
+    }
+    if (e.target.closest('.c-when-x')) {
+      notTime.add(id);
+      whenShown.delete(id);
+      paintSide(id);
+      ta.focus();
+    }
+  });
   paintCard(id); // what spells add to the box and the card
+}
+
+// "in 10 min check again", "remind me to … in 1 h": the time wisp read in a follow-up, shown in
+// the hint row once you stop typing for a moment (so "at 2" doesn't flash 02:00 before "pm").
+// Only a shown time schedules; × (Not a time) holds for that draft.
+const whenShown = new Map(); // id -> { at, rest, reminder }
+const notTime = new Set(); // ids whose draft isn't a time, as the user said
+const whenTimers = new Map();
+function readWhen(id) {
+  clearTimeout(whenTimers.get(id));
+  const s = S.full.get(id);
+  const ta = $('.reply', S.nodes.get(id)?.card);
+  const text = ta?.value || '';
+  // Typing on: the chip that's up stays until the new reading is in, so the row doesn't flicker.
+  const ok = S.config.defaults?.readTimes !== 'off' && s && !s.ask && s.agent !== 'wisp' && s.kind !== 'reminder' && !s.parentId && !isBtw(text) && !addressedTo(text).members.length && !notTime.has(id);
+  const now = ok ? parseWhen(text) : null;
+  if (!now) {
+    if (whenShown.delete(id)) paintSide(id);
+    return;
+  }
+  whenTimers.set(
+    id,
+    setTimeout(() => {
+      const again = parseWhen($('.reply', S.nodes.get(id)?.card)?.value || '');
+      if (again) whenShown.set(id, again);
+      else whenShown.delete(id);
+      paintSide(id);
+    }, 250),
+  );
+}
+
+// Scheduled from the box: it empties at once and the row above it appears; back if refused.
+async function scheduleReply(id, at, text, { remind = false, typed } = {}) {
+  const n = S.nodes.get(id);
+  const ta = n && $('.reply', n.card);
+  if (n?.tray?.take && (await n.tray.ids()).length) return toast('A scheduled follow-up can’t carry files yet. Send it now, or remove them.', { tone: 'bad' });
+  const was = typed ?? ta?.value ?? text;
+  whenShown.delete(id);
+  if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+  S.drafts.delete(id);
+  const ok = await scheduleFollowUp(id, { at, text, remind });
+  if (!ok && ta?.isConnected && !ta.value) ((ta.value = was), ta.dispatchEvent(new Event('input')));
 }
 
 // The mode the next follow-up runs in: the session's own until the user picks another here.
@@ -358,17 +430,30 @@ function paintSide(id) {
   const side = isBtw($('.reply', comp).value);
   const live = s.state === 'running' || s.state === 'waiting';
   comp.classList.toggle('is-btw', side);
-  $('.send', comp).title = side ? 'Ask on the side (Enter): nothing is interrupted' : 'Send (Enter · Shift+Enter for newline)';
-  $('.c-hint', comp).innerHTML = side
+  const w = !side && whenShown.get(id);
+  const send = $('.send', comp);
+  const touch = matchMedia('(pointer: coarse)').matches;
+  send.title = side ? 'Ask on the side (Enter): nothing is interrupted' : w ? `${w.reminder ? 'Remind you' : 'Send'} at ${aheadLabel(w.at)}${touch ? '' : ' (Enter) · Alt+Enter sends now'}` : 'Send (Enter · Shift+Enter for newline)';
+  const later = $('.c-later', comp);
+  later.disabled = !$('.reply', comp).value.trim();
+  later.title = later.disabled ? 'Type a follow-up first' : 'Send later';
+  later.classList.toggle('on', !!w);
+  later.hidden = s.agent === 'wisp' || s.kind === 'reminder' || !!s.parentId || side;
+  const html = side
     ? `<span class="c-side">Side question</span> · ${live ? `${esc(agentName(s.agent))} keeps working` : 'no new turn'}`
-    : s.queue?.length
-      ? `${s.queue.length} queued`
-      : '';
+    : w
+      ? `<span class="when-chip" title="${esc(whenTip(w.at))}">${icon(w.reminder ? 'bell' : 'clock')}<span>${w.reminder ? `Reminds you at ${esc(aheadLabel(w.at))}` : `Sends at ${esc(aheadLabel(w.at))}`}</span>${w.reminder ? '' : '<button type="button" class="link c-when-now">Send now</button>'}<button type="button" class="att-x c-when-x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
+      : s.queue?.length
+        ? `${s.queue.length} queued`
+        : '';
+  const hint = $('.c-hint', comp);
+  if (hint.dataset.h !== html) (hint.innerHTML = html), (hint.dataset.h = html);
 }
 
 // Follow-ups waiting their turn, shown above the composer so it's clear what goes out next.
 function renderQueued(s, list, name) {
-  const key = (s.queue || []).map((q) => `${q.id}${q.run ? `:${q.run.agent}/${q.run.model}` : ''}`).join();
+  const sum = S.sessions.get(s.id) || {};
+  const key = (s.queue || []).map((q) => `${q.id}${q.run ? `:${q.run.agent}/${q.run.model}` : ''}`).join() + '|' + JSON.stringify(sum.later || []);
   if (list.dataset.key === key) return;
   list.dataset.key = key;
   list.innerHTML = '';
@@ -394,6 +479,7 @@ function renderQueued(s, list, name) {
     });
     list.append(li);
   });
+  followUpRows(sum, list); // then the ones scheduled for later, by time (later.js)
 }
 
 // Right-click on a queued follow-up.

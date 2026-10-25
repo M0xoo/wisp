@@ -22,6 +22,7 @@ import { slotHtml } from './spells.js';
 import { onBack } from '../ui/back.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
+import { aheadLabel, isScheduled, laterPill, laterTip, planRows } from './later.js';
 import { crewDot, memberById, paintCrew, pinJob } from './crew.js';
 import { backToPlace, isSplit, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
@@ -71,9 +72,11 @@ export function groups() {
     .sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   // Working items keep launch order so the feed doesn't reshuffle on every tool call.
   const working = all.filter((s) => s.state === 'running').sort((a, b) => b.createdAt - a.createdAt);
-  const done = all.filter((s) => s.state === 'done').sort((a, b) => b.updatedAt - a.updatedAt);
+  // Done, with follow-ups still to come: Scheduled, soonest first (later.js).
+  const scheduled = all.filter((s) => isScheduled(s)).sort((a, b) => a.later[0].at - b.later[0].at);
+  const done = all.filter((s) => s.state === 'done' && !isScheduled(s)).sort((a, b) => b.updatedAt - a.updatedAt);
   const archived = every.filter((s) => s.archived).sort((a, b) => b.updatedAt - a.updatedAt);
-  return { needs, working, done, archived };
+  return { needs, working, scheduled, done, archived };
 }
 
 // Done and Archived can hold hundreds of tasks: they show a page of cards and add the next
@@ -133,13 +136,14 @@ export function placeCards(box, list) {
 }
 
 export function renderFeed() {
-  const { needs, working, done, archived } = groups();
-  const place = (sec, list) => {
+  const { needs, working, scheduled, done, archived } = groups();
+  // extra: rows that aren't tasks (Scheduled's plans), placed among them by their time.
+  const place = (sec, list, extra = []) => {
     const box = $('.f-list', sec);
     const show = sectionOpen(sec.id);
-    sec.hidden = !list.length;
+    sec.hidden = !list.length && !extra.length;
     paintFold(sec);
-    $('h4 .n', sec).textContent = list.length || '';
+    $('h4 .n', sec).textContent = list.length + extra.length || '';
     const cap = page[sec.id] ?? list.length;
     // A folded section in split view keeps the task open beside it: its body hangs off that row.
     const want = show ? list.slice(0, cap) : isSplit() ? list.filter((t) => (t.runs || [t]).some((r) => S.open.has(r.id))) : [];
@@ -149,16 +153,25 @@ export function renderFeed() {
       more.hidden = left <= 0;
       more.textContent = `Show ${Math.min(left, PAGE)} more · ${left} left`;
     }
-    want.forEach((s, i) => {
-      const { card } = s.runs ? taskItem(s) : item(s);
+    const nodes = want.map((s) => (s.runs ? taskItem(s) : item(s)).card);
+    if (show && extra.length) {
+      const at = (n) => Number(n.dataset.at) || S.sessions.get(n.dataset.id)?.later?.[0]?.at || 0;
+      nodes.push(...extra);
+      nodes.sort((a, b) => at(a) - at(b));
+    }
+    nodes.forEach((card, i) => {
       // Only touch the DOM when the order actually changed: moving a node
       // would blur a composer the user is typing in.
       if (box.children[i] !== card) box.insertBefore(card, box.children[i] || null);
     });
-    while (box.children.length > want.length) box.lastElementChild.remove();
+    while (box.children.length > nodes.length) box.lastElementChild.remove();
   };
   place($('#secNeeds'), needs);
   place($('#secWorking'), working);
+  // Scheduled: tasks and reminders that haven't started (rows of their own) and done tasks with
+  // follow-ups to come, soonest first.
+  const plansShown = planRows();
+  place($('#secScheduled'), scheduled, plansShown);
   place($('#secDone'), done);
   place($('#secArchived'), archived);
   paintFold($('#secCrew'));
@@ -166,13 +179,13 @@ export function renderFeed() {
   // The crew's live jobs, nested under their members.
   const crewShown = paintCrew();
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
-  const tasks = [...needs, ...working, ...done, ...archived, ...crewShown];
+  const tasks = [...needs, ...working, ...scheduled, ...done, ...archived, ...crewShown];
   const shown = new Set(tasks.flatMap((s) => (s.runs || [s]).map((r) => r.id)));
   for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id), kept.delete(id));
   const keys = new Set(tasks.map((t) => t.key));
   for (const [key, g] of S.tasks) if (!keys.has(key)) (g.card.remove(), S.tasks.delete(key));
 
-  const empty = !needs.length && !working.length && !done.length && !archived.length;
+  const empty = !needs.length && !working.length && !scheduled.length && !plansShown.length && !done.length && !archived.length;
   $('#feedEmpty').hidden = !empty;
   if (empty)
     $('#feedEmpty').innerHTML = `<div class="orb big"><i></i><i></i><i></i></div><p>${S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.'}</p>`;
@@ -286,21 +299,25 @@ function renderHead(n, s) {
   const pill =
     s.state === 'waiting'
       ? `<span class="pill st-waiting"><i></i>Asking</span>`
-      : s.state === 'review'
-        ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>`
-        : '';
+      : s.reminder && s.state === 'review'
+        ? `<span class="pill st-reminder" title="${esc(s.reminder.text)}">${icon('bell')}Reminder</span>`
+        : s.state === 'review'
+          ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>`
+          : '';
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
+  // In Scheduled, the time column is when its follow-up goes (and there's no pill for it).
+  const sched = isScheduled(s);
   n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
   paintHtml(n.head, `
-    ${(s.crew && crewDot(s)) || qDot(s)}
+    ${(s.crew && crewDot(s)) || (s.kind === 'reminder' ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s))}
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : sched ? `<span class="it-sub" title="${esc(laterTip(s))}">${icon(s.later[0].remind ? 'bell' : 'clock')}${esc(s.later[0].text)}</span>` : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
       ${rowChoices(s, open)}
     </span>
     <span class="it-side">
       ${headPills(s, pill)}
-      <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>
+      ${sched ? `<span class="q-time" title="${esc(laterTip(s))}">${esc(aheadLabel(s.later[0].at))}</span>` : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>`}
       ${s.pending ? '' : slotHtml('card.hover', s)}
       ${quickDone(s, open)}
       ${icon('chevron', 'chev')}
@@ -360,10 +377,11 @@ function quickDone(s, open) {
 export function headPills(s, pill) {
   return `
       ${termPill(s)}${pill}
+      ${laterPill(s)}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}${overlapPill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
-      ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
+      ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}
       ${projectLabel(s)}
       ${s.pending ? '' : slotHtml('card.head', s)}`;
@@ -629,7 +647,7 @@ function retryLater(id) {
 
 export const sectionOf = (s) => {
   const t = taskOf(s);
-  return t.archived ? 'archived' : t.state === 'running' ? 'working' : t.state === 'done' ? 'done' : 'needs';
+  return t.archived ? 'archived' : t.state === 'running' ? 'working' : isScheduled(t) ? 'scheduled' : t.state === 'done' ? 'done' : 'needs';
 };
 
 // Bring an item into view, expanded — used by notifications and links.
@@ -639,7 +657,7 @@ export function reveal(id) {
   // A crew member's job opens under the member (Crew unfolded), wherever it is in its life.
   const crew = s.crew && memberById(s.crew.id);
   if (crew) pinJob(id);
-  const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
+  const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', scheduled: 'secScheduled', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
   if (!sectionOpen(sec)) toggleSection(sec, true);
   if (S.filter !== 'all' && !inProject(s, S.filter)) {
     S.filter = 'all';
@@ -663,7 +681,7 @@ export function reveal(id) {
   if (!isSplit()) S.nodes.get(id)?.card.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-export const feedIds = () => $$('#feed .item:not(.pending)').map((x) => x.dataset.id);
+export const feedIds = () => $$('#feed .item[data-id]:not(.pending)').map((x) => x.dataset.id);
 
 // The user takes a card out of its list (done, archive, delete). The next card — the one below,
 // or the one above at the end of the list — gets focus and lands where the old one sat, so

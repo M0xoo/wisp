@@ -28,6 +28,7 @@ import { barCover, scrollByPx, stage, topInset } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView } from './crew.js';
+import { openUpcoming, upcoming, upcomingRow } from './later.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const big = matchMedia(`(min-width: ${SPLIT_DEFAULT_WIDTH}px)`);
@@ -388,9 +389,9 @@ function paintHome() {
     ? `<h4>Needs you<span class="n">${all.length > needs.length ? `${needs.length} of ${all.length}` : all.length}</span></h4>${needs
         .map(
           (s) => `<button class="sh-task c-${s.color}" data-id="${s.id}">
-            ${(s.crew && crewDot(s)) || qDot(s, { ring: false })}
+            ${(s.crew && crewDot(s)) || (s.reminder ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s, { ring: false }))}
             <span class="sh-t" title="${esc(s.title)}">${esc(s.title)}</span>
-            <span class="sh-s ${s.state === 'waiting' ? 'asking' : ''}">${s.state === 'waiting' ? 'Asking' : esc(STATUS_LABEL[s.status] || STATUS_LABEL.done)}</span>
+            <span class="sh-s ${s.state === 'waiting' ? 'asking' : s.reminder ? 'reminder' : ''}">${s.state === 'waiting' ? 'Asking' : s.reminder ? 'Reminder' : esc(STATUS_LABEL[s.status] || STATUS_LABEL.done)}</span>
             <span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>
           </button>`,
         )
@@ -399,6 +400,15 @@ function paintHome() {
   const next = $('.sh-next', home);
   if (next.dataset.h !== html) (next.innerHTML = html), (next.dataset.h = html);
   next.hidden = !html;
+  // What's coming up: scheduled tasks, reminders, follow-ups, crew check-ins and schedules (later.js).
+  const ahead = upcoming();
+  shown = ahead.slice(0, spellProp('split.upcoming', 'count') || 5);
+  const up = shown.length
+    ? `<h4>Coming up<span class="n">${ahead.length > shown.length ? `${shown.length} of ${ahead.length}` : ahead.length}</span>${slotHtml('split.upcoming')}</h4>${shown.map(upcomingRow).join('')}`
+    : '';
+  const coming = $('.sh-coming', home);
+  if (coming.dataset.h !== up) (coming.innerHTML = up), (coming.dataset.h = up);
+  coming.hidden = !up;
   $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list · <kbd>\\</kbd> feed view';
 }
 
@@ -472,7 +482,10 @@ $('#splitHead').addEventListener('dblclick', (e) => {
   const id = $('#splitHead').dataset.id;
   if (e.target.closest('.sh-title') && id) import('./actions.js').then((m) => m.rename(id));
 });
+let shown = []; // Coming up's rows, as painted
 home.addEventListener('click', (e) => {
+  const up = e.target.closest('.sh-up');
+  if (up) return openUpcoming(shown[up.dataset.up], up, e);
   const id = e.target.closest('.sh-task')?.dataset.id;
   if (!id) return;
   if (S.sessions.get(id)?.crew) return reveal(id); // under its member, Crew unfolded

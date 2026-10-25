@@ -6,6 +6,7 @@
 // subagents the user picked, which wisp runs as child sessions while this call waits.
 // With WISP_APPROVE, it offers `approve`: the harness's permission prompt (Claude's
 // --permission-prompt-tool), answered by the user in wisp.
+// `resume_later` schedules a follow-up to this same task (server/later.js).
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
 // reports, e.g. a task the user mentioned in the prompt.
@@ -37,6 +38,25 @@ const TOOL = {
       options: { type: 'array', items: { type: 'string' }, description: 'Optional suggested answers (2–4). The user can always type their own.' },
     },
     required: ['question'],
+  },
+};
+
+// resume_later: a follow-up into this same task at a later time (server/later.js).
+const LATER = {
+  name: 'resume_later',
+  description:
+    'Schedule a follow-up to this same task: at that time wisp sends your message back to you in this conversation, with your full context, ' +
+    'as if the user had typed it. Use it when you must wait before you can go on (a deploy rolling out, CI running, a rate limit, ' +
+    '"check again in 10 minutes"), or when the user asks you to do something later ("in 5 minutes do X"). After scheduling, end your turn ' +
+    'with your report saying what you will check then; do not sleep or poll. Pass cancel with an id to drop one you scheduled.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      minutes: { type: 'number', description: 'Minutes from now (1 to 10080).' },
+      at: { type: 'string', description: 'Or an ISO time with its offset, e.g. 2026-10-25T14:30+02:00.' },
+      message: { type: 'string', description: 'What to do then, written to yourself: the check to run and what to do with the result.' },
+      cancel: { type: 'string', description: 'The id of a follow-up you scheduled, to cancel it instead.' },
+    },
   },
 };
 
@@ -278,11 +298,14 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
       send({ id, result: { content: [{ type: 'text', text }] } });
+    } else if (method === 'tools/call' && params?.name === 'resume_later') {
+      const a = params.arguments || {};
+      send({ id, result: { content: [{ type: 'text', text: (await call(`/api/internal/later`, { session: WISP_SESSION, ...a })).text }] } });
     } else if (method === 'tools/call' && WISP_APPROVE && params?.name === 'approve') {
       send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_stats') {

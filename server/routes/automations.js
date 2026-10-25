@@ -2,6 +2,7 @@
 
 import { normalizeRecipe, findRecipe, recipeView } from '../recipes.js';
 import { normalizeTrigger, triggerView } from '../triggers.js';
+import { summarize } from '../runner.js';
 
 export function register(r, app) {
   const { store } = app;
@@ -92,4 +93,19 @@ export function register(r, app) {
       c.send(200, { started, trigger: triggerView(t) });
     }),
   );
+
+  // Later (server/later.js): tasks and reminders set for a time ("in 5 min run the e2e suite",
+  // "remind me to review the PR in 1 h"). POST { kind: 'task', at | in, prompt, cwd, agent, … } or
+  // { kind: 'reminder', at | in, text, from? }. PATCH { at | in, text | prompt } or { now: true }.
+  r.route('GET', '/later', (c) => c.send(200, app.later.plans));
+  r.route('POST', '/later', async (c) => {
+    const { kind, at, in: inMin, text, from, ...body } = await c.body();
+    c.send(201, app.later.plan(kind === 'reminder' ? { kind, at, in: inMin, text, from } : { kind: 'task', at, in: inMin, body }));
+  });
+  r.route('PATCH', '/later/:id', async (c) => {
+    const out = await app.later.editPlan(c.params.id, await c.body());
+    const s = out?.session;
+    c.send(200, s ? { session: s.turns ? summarize(s, store) : s } : out);
+  });
+  r.route('DELETE', '/later/:id', (c) => (app.later.cancelPlan(c.params.id) ? c.send(200, { ok: true }) : c.send(404, { error: 'Already started, or cancelled.' })));
 }

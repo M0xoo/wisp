@@ -27,6 +27,7 @@ export const SLOTS = {
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
+  'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
 };
 
 export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head']);
@@ -58,6 +59,8 @@ export const PARTS = {
   // The task list's sections; every heading folds its section.
   'section.needs': '#secNeeds',
   'section.working': '#secWorking',
+  'section.scheduled': '#secScheduled', // tasks and reminders set for later, and done tasks with follow-ups to come
+  'scheduled.row': '#secScheduled .plan-row',
   'section.done': '#secDone',
   'section.heading': '#feed .f-group > h4',
   // The crew: named agents pinned above Working (both layouts), each row a member with its spirit;
@@ -102,6 +105,8 @@ export const PARTS = {
   'delegate.place': '.team-pop .tp-row .tp-place',
   'launcher.worktree': '#wtBtn',
   'launcher.send': '#launch',
+  'launcher.later': '#launchLater',
+  'launcher.when': '#launcher .l-when',
   'launcher.recipes': '#launcher .l-recipes',
   'launcher.fab': '#promptFab',
   composer: '.composer',
@@ -115,6 +120,10 @@ export const PARTS = {
   'composer.ship': '.composer .c-ship',
   'composer.done': '.composer .c-done',
   'composer.queue': '.composer .c-queue',
+  // Later: the follow-ups scheduled on a task (rows above the box), Send later, the time read from the box.
+  'composer.later': '.composer .cq.later',
+  'composer.sendLater': '.composer .c-later',
+  'composer.when': '.composer .when-chip',
   'composer.send': '.composer .send',
   'composer.btwTip': '.w-tip',
   card: '#feed .item',
@@ -132,6 +141,7 @@ export const PARTS = {
   'card.machine': '#feed .it-side .q-machine',
   'card.project': '#feed .it-side .q-proj',
   'card.time': '#feed .it-side .q-time',
+  'card.later': '#feed .it-side .later-pill', // the next scheduled follow-up's time
   'card.quickDone': '#feed .it-quick',
   'card.choices': '#feed .it-choices',
   'card.body': '#feed .it-body',
@@ -147,7 +157,8 @@ export const PARTS = {
   'split.main': '#splitMain',
   'split.home': '#splitHome',
   'split.greeting': '#splitHome .sh-hello',
-  'split.next': '#splitHome .sh-next',
+  'split.next': '#splitHome .sh-next:not(.sh-coming)',
+  'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',
   'split.head': '#splitHead',
@@ -233,6 +244,7 @@ export const PART_PROPS = {
   'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
   tips: { count: 'int' },
+  'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
 };
 
@@ -323,6 +335,8 @@ export const SETTINGS = {
   notify: ['on', 'off'],
   // Interactive answers: agents may answer with an `app` block (a small sandboxed page).
   apps: ['on', 'off'],
+  // "in 5 min …" / "remind me … in 1 h" in a prompt schedules it (web/js/when.js).
+  readTimes: ['on', 'off'],
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).

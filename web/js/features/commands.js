@@ -1,6 +1,7 @@
 // The ⌘K palette's contents: actions on the focused session, every session, app actions, recipes
 // and project filters. palette.js draws it.
 
+import { laterActions, runLaterAction } from './later.js';
 import { palette } from '../palette.js';
 import { $ } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
@@ -62,6 +63,7 @@ function paletteItems() {
     if (cur.pr?.state === 'OPEN') items.push({ group: g, label: `Merge PR #${cur.pr.number}…`, sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
+    for (const x of laterActions(cur)) items.push({ group: g, label: x.label, sub, icon: x.icon, keywords: 'scheduled later follow-up reminder snooze time', run: () => runLaterAction(x.a, cur, null, { x: innerWidth / 2 - 120, y: innerHeight / 3 }) });
     const member = cur.crew && memberById(cur.crew.id);
     if (member) items.push({ group: g, label: `Open ${member.name}`, sub, icon: 'crew', keywords: 'crew agent member', run: () => openCrew(member.id) });
     else if (!cur.parentId && cur.agent !== 'wisp') items.push({ group: g, label: 'Add to crew…', sub, icon: 'crew', keywords: 'crew agent assistant persistent schedule avatar', run: () => addToCrew(id) });

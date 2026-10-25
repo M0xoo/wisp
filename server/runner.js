@@ -16,6 +16,7 @@ import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
 import { bad, clip, MODES, newId } from './util.js';
+import { laterNote, laterView } from './later.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -144,6 +145,8 @@ export function summarize(s, store) {
     updatedAt: s.updatedAt,
     turnCount: s.turns.length,
     queued: s.queue?.length || 0,
+    later: laterView(s), // follow-ups and reminders scheduled on it (server/later.js)
+    reminder: s.reminder ? { text: s.reminder.text, at: s.reminder.at, setAt: s.reminder.setAt, by: s.reminder.by, ...(s.reminder.from && { from: s.reminder.from }), ...(s.reminder.missed && { missed: true }) } : undefined,
     status: last?.status === 'running' || s.auto?.busy ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
     preview: hero?.summary || '',
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : '',
@@ -298,12 +301,13 @@ export class Runner extends EventEmitter {
   // by: 'wisp' for a follow-up wisp sends itself (Auto's repair round). Anything else is the
   // user's, and cancels whatever Auto was about to do next.
   // team: a new roster of subagents (normalized; [] drops them) for this follow-up and the ones after it.
-  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by } = {}) {
+  // by: 'later' for a follow-up scheduled earlier (server/later.js), with later: { by, setAt, at, late? }.
+  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later } = {}) {
     if (!MODES.has(mode) || mode === session.mode) mode = undefined;
     run = changedRun(session, run);
     if (session.parentId || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
-    if (by !== 'wisp') this.pipeline?.cancel(session);
-    const extra = { ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...(by === 'wisp' && { by }) };
+    if (by !== 'wisp' && by !== 'later') this.pipeline?.cancel(session);
+    const extra = { ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later') && { by }), ...(by === 'later' && later && { later }) };
     if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
       return { answered: true };
@@ -825,11 +829,17 @@ export class Runner extends EventEmitter {
 
   // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
   // this turn only (an approved retry the harness can't scope runs in Full auto).
-  #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports } = {}) {
+  #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later } = {}) {
     const mode = MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
+    // A follow-up scheduled earlier (server/later.js): who set it and when. An agent's own wake-ups
+    // count up until you say something, so it can't keep itself going for ever.
+    if (by === 'later' && later) turn.later = later;
+    if (turn.later?.by && turn.later.by !== 'user') session.laterChain = (session.laterChain || 0) + 1;
+    else if (by !== 'wisp') delete session.laterChain;
+    delete session.reminder; // a reminder on it is answered by carrying on
     if (reports) turn.reports = true; // ...with the reports of delegates that finished after the lead's turn
     // Side questions still being answered move to the new turn: the old one folds away on the card.
     const prev = session.turns.at(-1);
@@ -874,7 +884,7 @@ export class Runner extends EventEmitter {
     const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id });
     const still = owed.length && team.length && this.bridge ? stillWorkingNote(owed) : '';
     const handle = adapter.run({
-      prompt: [handoff, still, text].filter(Boolean).join('\n\n'),
+      prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', text].filter(Boolean).join('\n\n'),
       attachments,
       cwd: workdir(session),
       dirs: [...alsoDirs((session.parentId && this.store.get(session.parentId)) || session), ...(session.crew ? this.crewDirs(session) : [])], // the task's other folders (a subagent's are its lead's), a crew job's skills
