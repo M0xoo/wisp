@@ -5,7 +5,7 @@
 #
 # It checks for Node.js 20+ and npm, installs wisp-agents globally from npm, and confirms that
 # the `wisp` command is on PATH. Set WISP_VERSION to pin a release (default: latest); it goes on
-# the bash side of the pipe: curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.39.0 bash
+# the bash side of the pipe: curl -fsSL https://trywisp.dev/install.sh | WISP_VERSION=0.40.0 bash
 # WISP_VERSION=next takes the beta and WISP_VERSION=nightly last night's build of main (npm's dist-tags).
 #
 # With --app (macOS) it installs the desktop app instead, no Node needed:
