@@ -106,6 +106,7 @@ before(async () => {
 });
 after(() => {
   srv?.shutdown();
+  srv?.server.closeAllConnections?.(); // a failed take over leaves its event stream open
   srv?.server.close();
 });
 
@@ -123,8 +124,16 @@ test('take over in wisp: the agent on a terminal the page streams, types into an
   assert.match(r.headers.get('content-type'), /text\/event-stream/);
   const reader = r.body.getReader();
   let text = '';
+  // Fails rather than waits forever: a stream that ends or goes quiet is the test's failure.
   const until = async (re) => {
-    while (!re.test(text)) text += new TextDecoder().decode((await reader.read()).value);
+    const end = Date.now() + 15_000;
+    while (!re.test(text)) {
+      let timer;
+      const quiet = new Promise((_, reject) => (timer = setTimeout(() => reject(new Error(`no ${re} in: ${JSON.stringify(text)}`)), end - Date.now())));
+      const { value, done } = await Promise.race([reader.read(), quiet]).finally(() => clearTimeout(timer));
+      if (done) throw new Error(`the stream ended without ${re}: ${JSON.stringify(text)}`);
+      text += new TextDecoder().decode(value);
+    }
   };
   await until(/fake claude.*interactive · session claude-session-1 · 100x20/);
   await api(`/sessions/${s.id}/term`, { body: { data: 'hi there\r' } });

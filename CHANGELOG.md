@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Ship it no longer fails now and then with `index.lock: File exists`.** wisp's own `git status` checks on a task's worktree took git's index lock while Ship it was committing there; they now read without locking.
+
 ## [0.40.0] - 2026-10-25
 
 ### Added
