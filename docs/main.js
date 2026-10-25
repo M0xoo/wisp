@@ -736,3 +736,93 @@ fetch('https://api.github.com/repos/M0xoo/wisp')
     stars.hidden = false;
   })
   .catch(() => {});
+
+// ---------- in-app browsers ----------
+// X, Instagram and friends open links in their own web view, where Google won't sign anyone in
+// and nobody is signed in to GitHub. Offer the phone's real browser, the link to copy, or the link
+// by email (the grid's waitlist, source in-app). Same list as grid/in-app.js: keep them in step.
+{
+  const ua = navigator.userAgent;
+  const os = /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : '';
+  const APPS = [['X', /Twitter for i(Phone|Pad)|TwitterAndroid/], ['Instagram', /Instagram/], ['Facebook', /FBAN|FBAV|FB_IAB|FBIOS/], ['LinkedIn', /LinkedInApp/], ['Threads', /Barcelona/], ['TikTok', /BytedanceWebview|musical_ly|TikTok/], ['Snapchat', /Snapchat/]];
+  const app = APPS.find(([, re]) => re.test(ua))?.[0] || (os === 'android' && /; wv\)/.test(ua) ? 'this app' : '');
+  const cta = $('[data-cloud-cta="hero"]');
+  if (app && cta) {
+    const url = location.href.split('#')[0];
+    const where = os === 'android' ? 'Chrome' : os === 'ios' ? 'Safari' : 'your browser';
+    const u = new URL(url);
+    const out = os === 'android' ? `intent://${u.host}${u.pathname}${u.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end` : os === 'ios' ? `x-safari-${url}` : url;
+    const ph = (e, p = {}) => window.posthog?.capture?.(e, { app, page: 'site', ...p }, { transport: 'sendBeacon' });
+    const box = document.createElement('div');
+    box.className = 'inapp';
+    box.innerHTML = `<p><b>You’re in ${app === 'this app' ? 'this app’s' : `${app}’s`} browser.</b> Signing in to wisp Cloud doesn’t work here. It does in ${where}.</p>
+      <div class="ia-row"><a class="ia-btn pri" href="${out}" data-ia="open">Open in ${where}</a><button class="ia-btn" type="button" data-ia="copy">Copy link</button></div>
+      <input class="ia-link" readonly value="${url}" aria-label="Link to this page" hidden>
+      <p class="ia-tip">Nothing happens? Tap <b>⋯</b> at the top right, then <b>Open in browser</b>.</p>
+      <form class="ia-mail" novalidate><label for="iaEmail">Or get the link by email for your computer:</label>
+        <div><input id="iaEmail" type="email" name="email" placeholder="you@example.com" autocomplete="email" autocapitalize="off" enterkeyhint="send" required><button class="ia-btn" type="submit">Email me</button></div>
+        <p class="ia-sent" role="status" hidden></p><p class="ia-err" role="alert" hidden></p></form>`;
+    cta.before(box);
+    ph('inapp_seen');
+    // Older web views refuse the clipboard API: execCommand, then the link shown selected.
+    const copy = async () => {
+      try {
+        await navigator.clipboard.writeText(url);
+        return true;
+      } catch {
+        const t = document.createElement('textarea');
+        t.value = url;
+        t.setAttribute('readonly', '');
+        t.style.cssText = 'position:fixed;opacity:0';
+        document.body.append(t);
+        t.select();
+        let ok = false;
+        try { ok = document.execCommand('copy'); } catch {}
+        t.remove();
+        return ok;
+      }
+    };
+    box.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-ia]');
+      if (!b) return;
+      if (b.dataset.ia === 'open') return ph('inapp_open_clicked');
+      ph('inapp_copy_clicked');
+      if (await copy()) {
+        b.textContent = 'Copied';
+        setTimeout(() => { b.textContent = 'Copy link'; }, 1500);
+      } else {
+        const l = $('.ia-link', box);
+        l.hidden = false;
+        l.focus();
+        l.select();
+      }
+    });
+    // Says saved at once, and takes it back if the grid refuses.
+    const f = $('.ia-mail', box);
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('.ia-err', f), ok = $('.ia-sent', f), row = $('div', f), label = $('label', f), email = f.email.value.trim();
+      err.hidden = true;
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        err.textContent = 'An email address, please.';
+        err.hidden = false;
+        f.email.focus();
+        return;
+      }
+      ok.textContent = `✓ Saved. We’ll send the link to ${email}.`;
+      row.hidden = label.hidden = true;
+      ok.hidden = false;
+      try {
+        const r = await fetch('https://grid.trywisp.dev/api/waitlist', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, source: 'in-app' }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'That didn’t go through. Try again.');
+        ph('inapp_email_sent');
+      } catch (x) {
+        ok.hidden = true;
+        row.hidden = label.hidden = false;
+        err.textContent = x instanceof TypeError ? 'No connection. Try again.' : x.message;
+        err.hidden = false;
+      }
+    });
+  }
+}

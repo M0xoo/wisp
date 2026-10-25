@@ -4,6 +4,7 @@
 // build; every form posts with a CSRF token. Images come from grid/assets (/_grid/a/…).
 
 import { posthogKey } from '../server/telemetry.js';
+import { browserName, inAppBrowser, openOutside } from './in-app.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -73,6 +74,20 @@ h1.big{font-size:clamp(40px,5.4vw,64px);line-height:1.02;font-weight:700}h1.big 
 @media (max-width:480px){.join .ways .cw{display:none}}
 .join .fine{margin-top:12px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 14px}.join .fine span{display:inline-flex;align-items:center;gap:5px}.join .fine svg{width:14px;height:14px;color:var(--good)}
 .join .full{margin:0 0 14px;font-size:14.5px;color:var(--ink-2)}.join .full b{color:var(--ink)}.final .join .full{text-align:center}
+.inapp{margin-top:28px;max-width:440px;padding:16px;border-radius:14px;border:1px solid var(--line-2);background:var(--surface)}
+.inapp p{font-size:14.5px;color:var(--ink-2)}.inapp p b{color:var(--ink)}
+.inapp .ways{display:grid;grid-template-columns:1.4fr 1fr;gap:10px;margin-top:14px}
+.inapp .btn{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);font:550 15px var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap;transition:transform .15s,border-color .15s}
+.inapp .btn:active{transform:scale(.97)}.inapp .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.inapp .btn.first{background:var(--ink);color:var(--bg);border-color:var(--ink)}.inapp .btn svg{width:17px;height:17px;flex:none}
+.inapp .tip{margin-top:10px;font-size:13px;color:var(--muted)}.inapp .tip b{white-space:nowrap}
+.inapp .link{display:block;width:100%;margin-top:10px;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);font:16px var(--mono)}
+.inapp .mail{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}.inapp .mail label{display:block;font-size:13.5px;color:var(--ink-2);margin-bottom:8px}
+.inapp .mail div{display:flex;gap:8px}.inapp .mail input{flex:1;min-width:0;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);font:16px var(--sans)}
+.inapp .mail input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}.inapp .mail .btn{height:44px;padding:0 16px}
+.inapp .sent{display:flex;align-items:flex-start;gap:8px;color:var(--ink);font-size:14.5px}.inapp .sent svg{width:17px;height:17px;flex:none;margin-top:2px;color:var(--good)}.inapp .err{margin:10px 0 0}
+.inapp+.join{margin-top:14px}
+.inapp [hidden]{display:none!important}
 .err{margin:0 0 14px;padding:11px 14px;border-radius:10px;border:1px solid color-mix(in srgb,var(--bad) 35%,var(--line));color:var(--bad);font-size:14px;background:color-mix(in srgb,var(--bad) 6%,transparent)}
 .stage{position:relative}
 .win{border-radius:14px;overflow:hidden;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
@@ -159,15 +174,16 @@ const signInWith = (providers) => [...providers.values()].filter((p) => p.id !==
 
 // No seat count: with seats that open as the grid grows, "3 left" says little and reads as a
 // countdown. Just whether there's room, and the waitlist when there isn't.
-function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = false, waitlisted = false }) {
+function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = false, waitlisted = false, inApp = null }) {
   const q = ret ? `?return=${encodeURIComponent(ret)}` : '';
   const full = !linking && seats.left === 0;
   const wl = full && !waitlisted && waitlist(cfg);
-  const list = [...providers.values()].sort((a, b) => (a.id === 'github' ? -1 : b.id === 'github' ? 1 : a.id === 'dev' ? 1 : 0));
+  // In an app's own browser Google sign-in can only fail (it refuses web views): leave it out there.
+  const list = [...providers.values()].filter((p) => !(inApp && p.id === 'google')).sort((a, b) => (a.id === 'github' ? -1 : b.id === 'github' ? 1 : a.id === 'dev' ? 1 : 0));
   // Full: new people get the waitlist first; the few with an account still sign in below it.
   // Two ways in share one row, so adding Google doesn't push the page down; "Continue with" drops on phones.
   const pair = list.length === 2;
-  let buttons = list.map((p, i) => `<a class="btn${i === 0 && !wl ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}${pair ? `<span><span class="cw">Continue with </span>${esc(p.label)}</span>` : `Continue with ${esc(p.label)}`}</a>`).join('');
+  let buttons = list.map((p, i) => `<a class="btn${i === 0 && !wl && !inApp ? ' first' : ''}" href="/auth/${encodeURIComponent(p.id)}/start${q}">${logo(p.id)}${pair ? `<span><span class="cw">Continue with </span>${esc(p.label)}</span>` : `Continue with ${esc(p.label)}`}</a>`).join('');
   if (pair) buttons = `<div class="ways">${buttons}</div>`;
   const invite = seats.invite || seats.open === false;
   const fullNote = waitlisted
@@ -182,8 +198,33 @@ function joinBox({ cfg, providers, seats = {}, ret = '', error = '', linking = f
     <div class="fine">${linking ? '<span>Sign in with it once; after that either one opens your account.</span>' : `<span>${I.check}Nothing to install</span><span>${I.check}Your own agent accounts</span><span>${I.check}${invite ? 'Invite only' : 'Free during the preview'}</span>`}</div></div>`;
 }
 
-export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', linking = false, waitlisted = false, analytics = false }) {
-  const join = joinBox({ cfg, providers, seats, ret, error, linking, waitlisted });
+// In X's (or another app's) own browser: the way out to Safari or Chrome, the link to copy, and
+// "email me the link" for finishing on a computer (it joins the waitlist as source in-app).
+function inAppBox(inApp, url) {
+  const where = browserName(inApp.os);
+  return `<div class="inapp" id="inapp" data-app="${esc(inApp.app)}" data-url="${esc(url)}">
+    <p><b>You’re in ${esc(inApp.app === 'this app' ? 'this app’s' : `${inApp.app}’s`)} browser.</b> Signing in doesn’t work here: Google blocks it and GitHub would ask for your password.</p>
+    <div class="ways"><a class="btn first" href="${esc(openOutside(url, inApp.os))}" data-inapp="open">${I.arrow}Open in ${where}</a><button class="btn" type="button" data-inapp="copy">${I.copy}<span>Copy link</span></button></div>
+    <input class="link" readonly value="${esc(url)}" aria-label="Link to this page" hidden>
+    <p class="tip">Nothing happens? Tap <b>⋯</b> at the top right, then <b>Open in browser</b>.</p>
+    <form class="mail" id="inappMail" novalidate><label for="inappEmail">Or get the link by email for your computer:</label>
+      <div><input id="inappEmail" type="email" name="email" placeholder="you@example.com" autocomplete="email" autocapitalize="off" enterkeyhint="send" required><button class="btn" type="submit">Email me</button></div>
+      <p class="sent" role="status" hidden>${I.check}<span></span></p><p class="err" role="alert" hidden></p></form>
+  </div>`;
+}
+// Copy falls back to execCommand (older web views refuse the clipboard API), then to the link
+// shown selected. Email: says saved at once, and takes it back if the grid refuses.
+const INAPP_JS = `<script>(()=>{const box=document.getElementById('inapp');if(!box)return;const app=box.dataset.app,url=box.dataset.url,ph=(e,p)=>window.posthog&&posthog.capture(e,Object.assign({app,page:'grid'},p||{}),{transport:'sendBeacon'});ph('inapp_seen');
+const copy=async()=>{try{await navigator.clipboard.writeText(url);return true}catch{const t=document.createElement('textarea');t.value=url;t.setAttribute('readonly','');t.style.cssText='position:fixed;opacity:0';document.body.append(t);t.select();let ok=false;try{ok=document.execCommand('copy')}catch{}t.remove();return ok}};
+box.addEventListener('click',async(e)=>{const a=e.target.closest('[data-inapp]');if(!a)return;if(a.dataset.inapp==='open')return ph('inapp_open_clicked');ph('inapp_copy_clicked');const s=a.querySelector('span');if(await copy()){s.textContent='Copied';setTimeout(()=>{s.textContent='Copy link'},1500)}else{const l=box.querySelector('.link');l.hidden=false;l.focus();l.select()}});
+const f=document.getElementById('inappMail');f.addEventListener('submit',async(e)=>{e.preventDefault();const row=f.querySelector('div'),label=f.querySelector('label'),err=f.querySelector('.err'),ok=f.querySelector('.sent'),email=f.email.value.trim();err.hidden=true;if(!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)){err.textContent='An email address, please.';err.hidden=false;f.email.focus();return}
+ok.querySelector('span').textContent='Saved. We’ll send the link to '+email+'.';row.hidden=true;label.hidden=true;ok.hidden=false;
+try{const r=await fetch('/api/waitlist',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,source:'in-app'})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'That didn’t go through. Try again.');ph('inapp_email_sent')}catch(x){ok.hidden=true;row.hidden=false;label.hidden=false;err.textContent=x instanceof TypeError?'No connection. Try again.':x.message;err.hidden=false}})})()</script>`;
+
+export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', linking = false, waitlisted = false, analytics = false, ua = '' }) {
+  const inApp = inAppBrowser(ua);
+  const here = `${cfg.publicUrl}/${ret ? `signin?return=${encodeURIComponent(ret)}` : ''}`;
+  const join = (inApp ? inAppBox(inApp, here) : '') + joinBox({ cfg, providers, seats, ret, error, linking, waitlisted, inApp });
   const ways = signInWith(providers);
   return `${siteHead(`${cfg.name} · your agents keep working when your laptop closes`, cfg, analytics)}
 <main>
@@ -249,7 +290,7 @@ export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', l
 
 <section class="final"><div class="wrap">
   <h2>Leave the agents working.<br><span style="color:var(--faint)">Go have dinner.</span></h2>
-  ${joinBox({ cfg, providers, seats, ret, waitlisted })}
+  ${joinBox({ cfg, providers, seats, ret, waitlisted, inApp })}
 </div></section>
 </main>
 <script>
@@ -274,7 +315,7 @@ export function signInPage({ cfg, providers, seats = {}, ret = '', error = '', l
   };
 })();
 </script>
-${siteFoot(cfg)}`;
+${inApp ? INAPP_JS : ''}${siteFoot(cfg)}`;
 }
 
 export function devSignInPage({ cfg, ret = '', csrf }) {
