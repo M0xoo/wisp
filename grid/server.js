@@ -250,11 +250,13 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const send = (status, body) => json(res, status, body, cors);
       // Public: how many accounts are left, for the site that links here (trywisp.dev/cloud.html).
       if (req.method === 'GET' && p === '/api/seats') return send(200, accounts.seats());
-      // Public too: the site's "get the next seat" form.
+      // Public too: the site's "get the next seat" form, and "email me the link" from an in-app browser.
       if (req.method === 'POST' && p === '/api/waitlist') {
         try {
           limit(`wait|${clientIp(req)}`, 10);
-          return send(200, { ok: true, ...accounts.waitFor((await readBody(req)).email, 'site') });
+          const body = await readBody(req);
+          // in-app: "email me the link" from a phone stuck in X's (or another app's) browser.
+          return send(200, { ok: true, ...accounts.waitFor(body.email, body.source === 'in-app' ? 'in-app' : 'site') });
         } catch (err) {
           return send(err.status || 400, { error: err.message }); // with CORS, so the site can read it
         }
@@ -310,7 +312,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if (p === '/healthz') return json(res, 200, { ok: true });
     // HEAD too: link checkers (ad review, unfurlers) probe with it, and a 404 there reads as a dead page
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
-      if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages }));
+      if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages, ua: req.headers['user-agent'] }));
       const u = s.user;
       return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
@@ -330,7 +332,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
     if (req.method === 'GET' && p === '/signin') {
       if (s && !url.searchParams.get('link')) return redirect(res, safePath(url.searchParams.get('return')));
-      return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: safePath(url.searchParams.get('return'), ''), analytics: stats.pages }));
+      return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: safePath(url.searchParams.get('return'), ''), analytics: stats.pages, ua: req.headers['user-agent'] }));
     }
 
     // Sign in with a provider: out to it with state + PKCE (+ nonce), back with a code.
@@ -394,7 +396,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       } catch (err) {
         log(`grid: sign-in with ${id} failed: ${err.message}`);
         if (!linkTo) stats.funnel('grid_auth_failed', visitor, { provider: id, reason: err.full ? 'full' : err.status === 403 ? 'refused' : 'error' });
-        return page(signInPage({ cfg, providers, seats: accounts.seats(), error: err.full ? '' : err.message, waitlisted: !!err.waitlisted, linking: !!linkTo, analytics: stats.pages }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
+        return page(signInPage({ cfg, providers, seats: accounts.seats(), error: err.full ? '' : err.message, waitlisted: !!err.waitlisted, linking: !!linkTo, analytics: stats.pages, ua: req.headers['user-agent'] }), err.status && err.status < 500 ? err.status : 400, { 'set-cookie': clear });
       }
     }
 

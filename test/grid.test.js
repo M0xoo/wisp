@@ -566,6 +566,51 @@ test('POST /api/waitlist: from another site, answers with CORS, refuses a bad em
   assert.match(no.json.error, /email/);
 });
 
+const X_IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_0_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/24A446 Twitter for iPhone/12.36';
+const X_ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0 Mobile Safari/537.36 TwitterAndroid';
+
+test('in-app browsers: X, Instagram, Facebook… are spotted; Safari, Chrome and desktop are not', async () => {
+  const { inAppBrowser, openOutside } = await import('../grid/in-app.js');
+  assert.deepEqual(inAppBrowser(X_IPHONE), { app: 'X', os: 'ios' });
+  assert.deepEqual(inAppBrowser(X_ANDROID), { app: 'X', os: 'android' });
+  assert.deepEqual(inAppBrowser('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/22A3354 Instagram 350.0'), { app: 'Instagram', os: 'ios' });
+  assert.deepEqual(inAppBrowser('Mozilla/5.0 (iPhone) Mobile/15E148 [FBAN/FBIOS;FBAV/480.0]'), { app: 'Facebook', os: 'ios' });
+  assert.deepEqual(inAppBrowser('Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36'), { app: 'this app', os: 'android' });
+  for (const real of ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1', 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0 Safari/537.36', '']) assert.equal(inAppBrowser(real), null, real);
+  assert.equal(openOutside('https://grid.example.com/signin?return=%2F', 'ios'), 'x-safari-https://grid.example.com/signin?return=%2F');
+  assert.equal(openOutside('https://grid.example.com/', 'android'), 'intent://grid.example.com/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Fgrid.example.com%2F;end');
+});
+
+test('the sign-in page in X’s browser: the way out to Safari or Chrome, no Google, and the link by email', async () => {
+  const { signInPage } = await import('../grid/pages.js');
+  const both = new Map([['github', { id: 'github', label: 'GitHub' }], ['google', { id: 'google', label: 'Google' }]]);
+  const site = { name: 'wisp Cloud', domain: 'grid.example.com', publicUrl: 'https://grid.example.com' };
+  const x = signInPage({ cfg: site, providers: both, seats: { open: true, max: 5, left: 3 }, ua: X_IPHONE });
+  assert.match(x, /You’re in X’s browser/);
+  assert.match(x, /href="x-safari-https:\/\/grid\.example\.com\/" data-inapp="open">.*Open in Safari/);
+  assert.match(x, /Copy link/);
+  assert.match(x, /id="inappMail"/);
+  assert.doesNotMatch(x, /\/auth\/google\/start/, 'Google sign-in fails in a web view: not offered there');
+  assert.match(x, /\/auth\/github\/start/);
+  assert.match(signInPage({ cfg: site, providers: both, seats: {}, ua: X_ANDROID }), /href="intent:\/\/grid\.example\.com\/#Intent;scheme=https;package=com\.android\.chrome;[^"]*"[^>]*>.*Open in Chrome/);
+  // A real browser: the page as it was.
+  const plain = signInPage({ cfg: site, providers: both, seats: { open: true, max: 5, left: 3 }, ua: 'Mozilla/5.0 (iPhone) Version/18.0 Mobile/15E148 Safari/604.1' });
+  assert.doesNotMatch(plain, /id="inapp"/);
+  assert.match(plain, /\/auth\/google\/start/);
+});
+
+test('the grid serves the in-app banner by user-agent, and "email me the link" joins the waitlist as in-app', async () => {
+  const page = await browser().go(`${base}/`, { headers: { 'user-agent': X_IPHONE } });
+  assert.match(page.text, /You’re in X’s browser/);
+  assert.doesNotMatch((await browser().go(`${base}/`)).text, /id="inapp"/);
+  const r = await browser().go(`${base}/api/waitlist`, { method: 'POST', body: { email: 'phone@x.test', source: 'in-app' } });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(grid.accounts.waitlist().find((w) => w.email === 'phone@x.test')?.source, 'in-app');
+  // Anything else is still the site's form.
+  await browser().go(`${base}/api/waitlist`, { method: 'POST', body: { email: 'odd@x.test', source: 'whatever' } });
+  assert.equal(grid.accounts.waitlist().find((w) => w.email === 'odd@x.test')?.source, 'site');
+});
+
 test('Add a cloud machine: the account page offers the waitlist for more, bigger and GPU machines', async () => {
   const b = browser();
   await devSignIn(b, 'mia@example.com');

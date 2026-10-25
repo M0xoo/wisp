@@ -1265,3 +1265,27 @@ button.sw-tb { cursor: pointer; }
 [data-tab-note] a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 [data-tab-note] a:hover { color: var(--ink); }
 .cmd[hidden], .dl-link[hidden], .tabpanel code[hidden], .copy-ico[hidden] { display: none; }
+
+/* In X's (or another app's) own browser: the way out to Safari or Chrome (main.js). Left-aligned
+   like a form even in the centred hero; it sits first in .h-ctas, above the cloud button. */
+.inapp { width: 100%; max-width: 460px; padding: 16px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--surface); text-align: left; }
+.inapp p { margin: 0; font-size: 15px; color: var(--ink-2); }
+.inapp p b { color: var(--ink); }
+.ia-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin-top: 14px; }
+.ia-btn { display: flex; align-items: center; justify-content: center; height: 46px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: 600 15px var(--sans); text-decoration: none; cursor: pointer; white-space: nowrap; transition: transform 0.15s; }
+.ia-btn:active { transform: scale(0.97); }
+.ia-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.ia-btn.pri { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.ia-link { display: block; width: 100%; height: 44px; margin-top: 10px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); font: 16px var(--mono); }
+.inapp .ia-tip { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.inapp .ia-tip b { white-space: nowrap; }
+.ia-mail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ia-mail label { display: block; margin-bottom: 8px; font-size: 14px; color: var(--ink-2); }
+.ia-mail div { display: flex; gap: 8px; }
+/* 16px: iOS zooms the page into any smaller input on focus */
+.ia-mail input { flex: 1; min-width: 0; height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg); color: var(--ink); font: 16px var(--sans); }
+.ia-mail input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ia-mail .ia-btn { height: 44px; }
+.inapp .ia-sent { display: flex; align-items: center; min-height: 44px; color: var(--ink); }
+.inapp .ia-err { margin-top: 8px; color: var(--warn); font-size: 14px; }
+.inapp[hidden], .inapp [hidden] { display: none; }
