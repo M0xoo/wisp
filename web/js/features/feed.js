@@ -102,14 +102,36 @@ for (const id of Object.keys(page)) {
   moreObserver.observe(more);
 }
 
+// Every section folds from its heading. Done and Archived start folded (and Done remembers),
+// the rest start open and remember being folded.
+const FOLDS = { secDone: 'showDone', secArchived: 'showArchived' };
+export const sectionOpen = (id) => (FOLDS[id] ? !!S[FOLDS[id]] : !S.folded.has(id));
+export function toggleSection(id, open = !sectionOpen(id)) {
+  if (FOLDS[id]) S[FOLDS[id]] = open;
+  else if (open) S.folded.delete(id);
+  else S.folded.add(id);
+  if (id === 'secDone') save('wisp.showDone', open);
+  if (!FOLDS[id]) save('wisp.folded', [...S.folded]);
+  renderFeed();
+}
+function paintFold(sec) {
+  const open = sectionOpen(sec.id);
+  sec.classList.toggle('collapsed', !open);
+  const h = $('h4.sec-toggle', sec);
+  if (h.getAttribute('aria-expanded') !== String(open)) h.setAttribute('aria-expanded', String(open));
+}
+
 export function renderFeed() {
   const { needs, working, done, archived } = groups();
-  const place = (sec, list, show = true) => {
+  const place = (sec, list) => {
     const box = $('.f-list', sec);
+    const show = sectionOpen(sec.id);
     sec.hidden = !list.length;
+    paintFold(sec);
     $('h4 .n', sec).textContent = list.length || '';
     const cap = page[sec.id] ?? list.length;
-    const want = show ? list.slice(0, cap) : [];
+    // A folded section in split view keeps the task open beside it: its body hangs off that row.
+    const want = show ? list.slice(0, cap) : isSplit() ? list.filter((t) => (t.runs || [t]).some((r) => S.open.has(r.id))) : [];
     const more = $('.f-more', sec);
     if (more) {
       const left = show ? list.length - want.length : 0;
@@ -126,10 +148,9 @@ export function renderFeed() {
   };
   place($('#secNeeds'), needs);
   place($('#secWorking'), working);
-  place($('#secDone'), done, S.showDone);
-  $('#secDone').classList.toggle('collapsed', !S.showDone);
-  place($('#secArchived'), archived, S.showArchived);
-  $('#secArchived').classList.toggle('collapsed', !S.showArchived);
+  place($('#secDone'), done);
+  place($('#secArchived'), archived);
+  paintFold($('#secCrew'));
 
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
   const tasks = [...needs, ...working, ...done, ...archived];
@@ -540,6 +561,8 @@ export function collapse(id) {
   placeCollapseAll();
   paintSplit();
   syncUrl();
+  // A folded section only kept its row while it was open.
+  if (n?.card.closest('.f-group.collapsed')) renderFeed();
 }
 
 // The address names the open task (#/s/<id>; in the feed, the one opened last), so a reload or a
@@ -601,19 +624,15 @@ export const sectionOf = (s) => {
 export function reveal(id) {
   const s = S.sessions.get(id);
   if (!s) return;
-  if (s.archived) S.showArchived = true;
-  else if (s.state === 'done' && !S.showDone) {
-    S.showDone = true;
-    save('wisp.showDone', true);
-  }
+  const sec = { needs: 'secNeeds', working: 'secWorking', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
+  if (!sectionOpen(sec)) toggleSection(sec, true);
   if (S.filter !== 'all' && !inProject(s, S.filter)) {
     S.filter = 'all';
     save('wisp.filter', S.filter);
     renderLaunchChips();
   }
   // A card further down than the pages shown so far: show pages up to it.
-  const sec = { done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
-  if (sec) {
+  if (sec in page) {
     const { done, archived } = groups();
     const at = (sec === 'secDone' ? done : archived).findIndex((t) => (t.runs || [t]).some((r) => r.id === id));
     if (at >= page[sec]) page[sec] = Math.ceil((at + 1) / PAGE) * PAGE;

@@ -7,11 +7,11 @@ import { api } from './core/api.js';
 import * as bus from './core/bus.js';
 import { $, $$ } from './core/dom.js';
 import { ago, agoLong } from './core/format.js';
-import { MOBILE, S, save, setAgents } from './core/state.js';
+import { MOBILE, S, setAgents } from './core/state.js';
 import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
-import { renderFeed, reveal, scheduleRefetch, syncUrl } from './features/feed.js';
+import { renderFeed, reveal, scheduleRefetch, syncUrl, toggleSection } from './features/feed.js';
 import { focusLauncher, renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
@@ -47,15 +47,17 @@ $('#topbar .brand').onclick = (e) => {
 };
 $('#searchBtn').title = `Search (${combo('K')})`;
 $('#searchBtn .mod-k').textContent = combo('K');
-$('#secDone .toggle-done').onclick = () => {
-  S.showDone = !S.showDone;
-  save('wisp.showDone', S.showDone);
-  renderFeed();
-};
-$('#secArchived .toggle-done').onclick = () => {
-  S.showArchived = !S.showArchived;
-  renderFeed();
-};
+// Section headings fold their section (a button inside one, like Crew's +, does its own thing).
+$('#feed').addEventListener('click', (e) => {
+  const h = e.target.closest('h4.sec-toggle');
+  if (h && !e.target.closest('button')) toggleSection(h.parentElement.id);
+});
+$('#feed').addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('h4.sec-toggle')) {
+    e.preventDefault();
+    toggleSection(e.target.parentElement.id);
+  }
+});
 
 // elapsed timers + "ago" stamps
 setInterval(() => {

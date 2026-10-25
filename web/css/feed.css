@@ -17,16 +17,20 @@
 .collapse-all.on { opacity: 1; visibility: visible; translate: 0 0; }
 .collapse-all:hover { color: var(--ink); }
 .collapse-all kbd { margin-left: 8px; }
-.toggle-done { cursor: pointer; user-select: none; }
-.toggle-done:hover { color: var(--ink-2); }
-.toggle-done .chev { width: 12px; height: 12px; transition: transform 0.2s; }
+.f-group h4.sec-toggle { min-height: 26px; margin-left: -4px; padding: 0 6px; border-radius: 6px; cursor: pointer; user-select: none; transition: color 0.15s, background 0.15s; }
+.f-group h4.sec-toggle:hover { color: var(--ink-2); }
+.f-group h4.sec-toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-soft); }
+.f-group h4.sec-toggle:hover .chev { color: var(--ink-2); }
 /* Only the group's own heading: the cards inside have chevrons of their own. */
-.f-group.done:not(.collapsed) > .toggle-done .chev { transform: rotate(90deg); }
+.f-group h4.sec-toggle > .chev { flex: none; width: 12px; height: 12px; margin-right: -1px; color: var(--faint); transform: rotate(90deg); transition: transform 0.2s var(--ease), color 0.15s; }
+.f-group.collapsed > h4.sec-toggle > .chev { transform: rotate(0deg); }
+.f-group h4 .n:not(:empty) { font-variant-numeric: tabular-nums; }
+/* Needs you folded away still says how much is waiting, so it can't be missed. */
+.f-group.needs.collapsed h4 .n:not(:empty) { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; font-size: 11px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); }
 /* Folded groups are just a row of headings: stack them tight instead of leaving a section gap each. */
 .f-group.collapsed { margin-bottom: 2px; }
-.f-group.collapsed h4 { margin: 0; }
-.f-group h4.toggle-done { width: fit-content; min-height: 24px; margin-left: -4px; padding: 0 8px; border-radius: 6px; transition: background 0.15s, color 0.15s; }
-.f-group h4.toggle-done:hover { background: var(--bg-2); }
+.f-group.collapsed h4 { margin-top: 0; margin-bottom: 0; }
+.f-group.collapsed > .cr-list { display: none; }
 .f-list { display: flex; flex-direction: column; gap: 6px; }
 /* The end of a paged Done / Archived list: scrolling near it adds the next page, clicking does too. */
 .f-more { display: block; margin: 10px auto 0; color: var(--faint); font-weight: 400; }

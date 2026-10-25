@@ -192,3 +192,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** in the *Crew* section click **+**, pick the *CI watcher* template, open the spirit maker (click the face), change the eyes, roll once, **Add to crew**. Open the member, send a job from the box, click **Check in**. In a task's follow-up type `@`, pick the member, ask something. Launch `fix it, then have @Name review it` with `DELEGATE`. Add a schedule trigger with **Send to** the member and run it.
 - **Expected:** the row appears at once, above *Working*, with its spirit; it floats while a job runs. Jobs show the member's face on their cards. The `@` answer lands on the task under the message, without a new turn. The delegation runs as the member's job in its own folder and its report reaches the lead. A quiet check-in is archived and logged; the notebook gains the lines the job remembered. Light and dark, split view, feed and 390px.
 - **Manual** (UI), **Suite** (`test/crew.test.js`, `test/web-pure.test.js`, `test/spells.test.js`)
+
+### WEB-33 · Fold the task list's sections
+- **Steps:** with tasks in *Needs you* and *Working*, click each heading (*Needs you*, *Crew*, *Working*, *Done*, *Archived*), then Tab to one and press Enter. Reload. In split view open a Working task, fold *Working*, then press Esc.
+- **Expected:** each section folds and unfolds at once, the chevron turns, the headings stay in line; Crew's **+** adds instead of folding. Folded *Needs you* shows its count as a pill. Folds survive the reload. The open task keeps its row in the folded section until it's closed. Light and dark, split view, feed and 390px.
+- **Manual** (UI), **Suite** (`test/spells.test.js`)
