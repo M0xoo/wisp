@@ -27,6 +27,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **A livelier "is working":** the spinner ring is now a small dot grid with a ripple running out from its centre, and the working panel's *… is working* has a soft light passing over it, in the feed, split view, the crew and the site's demo.
+
 - **Search puts recent things first:** in ⌘K and the project picker, a task you touched recently or a project you used recently now ranks above older ones that match the query about as well. Only a clearly better text match still wins over a newer one.
 
 ### Fixed

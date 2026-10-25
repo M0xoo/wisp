@@ -86,8 +86,10 @@ Use what's in `web/css/tokens.css` and `web/css/base.css`; don't style a control
   animations). See [ux.md](ux.md#stable-layouts).
 - `prefers-reduced-motion` is handled page-wide in `responsive.css`; a looping animation of your own
   (spinners, shimmer) also needs a reduced-motion rule if it's more than a small spinner.
-- Live work is a thin spinner ring (`.orb.live`); waiting on you is the amber pulse. Don't invent
-  another "busy" signal.
+- Live work is a 3×3 dot grid with a ripple running out from its centre (`.orb.live`), and the
+  working panel's "… is working" has a soft light passing over it; waiting on you is the amber
+  pulse. Don't invent another "busy" signal. (Small spinners inside buttons, like Send or Recheck,
+  stay rings.)
 
 ## Dark mode
 
