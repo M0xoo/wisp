@@ -772,19 +772,18 @@ function paintSide(m, st, side) {
     ['clock', m.paused ? 'Paused' : `${cadenceLabel(m.cron)}${m.nextAt && !m.paused ? ` · next ${whenLabel(m.nextAt)}` : ''}`],
     ...(eventsLabel(m) ? [['bolt', eventsLabel(m)]] : []),
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
-    ['folder', project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')],
-    [m.machine ? 'server' : 'laptop', m.machine ? placeName(m.machine) : 'This computer'],
-    [`logo:${m.agent}`, `${agentName(m.agent)}${m.agent === 'auto' ? '' : ` · ${m.model || 'Default model'}`}`],
-    ['spark', MODES.find((x) => x.id === m.mode)?.label || 'Full auto'],
+    // Paired on one line each so the column fits a window without scrolling.
+    ['folder', `${project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')} · ${m.machine ? placeName(m.machine) : 'This computer'}`],
+    [`logo:${m.agent}`, `${agentName(m.agent)}${m.agent === 'auto' ? '' : ` · ${m.model || 'Default model'}`} · ${MODES.find((x) => x.id === m.mode)?.label || 'Full auto'}`],
   ];
   const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');
   const html = `
-    <div class="cv-facts">${facts.map(([ic, t]) => `<div class="m">${ic.startsWith('logo:') ? `<span class="cv-logo">${harnessLogo(ic.slice(5))}</span>` : icon(ic)}<span>${esc(t)}</span></div>`).join('')}
+    <div class="cv-facts">${facts.map(([ic, t]) => `<div class="m">${ic.startsWith('logo:') ? `<span class="cv-logo">${harnessLogo(ic.slice(5))}</span>` : icon(ic)}<span title="${esc(t)}">${esc(t)}</span></div>`).join('')}
       <div class="m">${icon('agent')}<span>${team ? `<span class="cv-team">${team}</span>` : 'No delegates'}</span></div></div>
     <div class="cv-actions">
-      <button class="ghost" data-a="checkin">${icon('clock')}<span>Check in now</span></button>
-      <button class="ghost" data-a="edit">${icon('pen')}<span>Edit…</span></button>
-      <button class="ghost danger" data-a="remove">${icon('trash')}<span>Remove from crew</span></button>
+      <button class="ghost sm" data-a="checkin">${icon('clock')}<span>Check in now</span></button>
+      <button class="ghost sm" data-a="edit">${icon('pen')}<span>Edit…</span></button>
+      <button class="ghost sm danger" data-a="remove" title="Remove from crew" aria-label="Remove from crew">${icon('trash')}</button>
     </div>
     <div class="cv-sec cv-nb">
       <h5>Notebook <small class="cv-count"></small><button class="link xs" data-a="note-edit">Edit</button></h5>
@@ -802,11 +801,11 @@ function paintSide(m, st, side) {
 }
 
 // A notebook or brief, read as prose; a long one shows its start, Show all opens the rest.
-const CLIP = 420; // characters
+const CLIP = 240; // characters
 const unclipped = new Set(); // `${kind}:${member id}` opened in full
 function clipped(text, kind, id, empty) {
   if (!text?.trim()) return kind === 'note' ? `<button class="cv-none cv-nb-empty" data-a="note-edit">${esc(empty)}</button>` : `<p class="cv-none">${esc(empty)}</p>`;
-  const long = text.length > CLIP || text.split('\n').length > 8;
+  const long = text.length > CLIP || text.split('\n').length > 4;
   const open = unclipped.has(`${kind}:${id}`);
   return `<div class="cv-text${long && !open ? ' clip' : ''}"><div class="prose">${md(text)}</div></div>${long ? `<button class="link xs cv-all" data-clip="${kind}">${open ? 'Show less' : 'Show all'}</button>` : ''}`;
 }

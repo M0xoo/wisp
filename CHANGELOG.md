@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **A crew member's details fit the window without scrolling.** One line per fact, Check in now / Edit… / Remove in a row, shorter notebook and brief previews (Show all opens the rest), and one line per skill.
+
 ### Fixed
 
 - **Ship it no longer fails now and then with `index.lock: File exists`.** wisp's own `git status` checks on a task's worktree took git's index lock while Ship it was committing there; they now read without locking.
