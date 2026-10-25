@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - **A crew member's details fit the window without scrolling.** One line per fact, Check in now / Edit… / Remove in a row, shorter notebook and brief previews (Show all opens the rest), and one line per skill.
+- **Split view's home shows what your crew needs from you.** A crew member's question or a report you haven't read now sits in *Needs you* above the tips, with the member's face, among your other tasks; clicking it opens the job under its member.
 
 ### Fixed
 
