@@ -1,4 +1,4 @@
-// Automations: recipes (saved prompts) and triggers (schedules, GitHub watchers).
+// Automations: recipes (saved prompts) and triggers (schedules, GitHub watchers, task watchers).
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
@@ -38,7 +38,10 @@ const TRIGGER_KINDS = [
   { kind: 'schedule', label: 'Schedule', icon: 'clock', hint: 'On a cron schedule, local time' },
   { kind: 'ci', label: 'CI failed', icon: 'warn', hint: 'A GitHub Actions run fails (polled with gh)' },
   { kind: 'issues', label: 'Issue labelled', icon: 'ask', hint: 'An open issue gets a label (polled with gh)' },
+  { kind: 'finished', label: 'Task finished', icon: 'bolt', hint: 'One of your tasks finishes' },
+  { kind: 'done', label: 'Task marked done', icon: 'done', hint: 'You mark a task done, or ship it' },
 ];
+const TASK_KINDS = new Set(['finished', 'done']);
 const CRON_PRESETS = [
   ['Weekdays 9:00', '0 9 * * 1-5'],
   ['Every hour', '0 * * * *'],
@@ -97,6 +100,10 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
 
   const describe = (t) => {
     const member = t.crew && crewList().find((m) => m.id === t.crew);
+    if (TASK_KINDS.has(t.kind)) {
+      const where = t.cwd ? S.config.projects.find((p) => p.path === t.cwd)?.name || t.cwd.split(/[\\/]/).pop() : member?.cwd ? `${member.name}’s project` : 'any project';
+      return `When a task in ${esc(where)} ${t.kind === 'done' ? 'is marked done' : 'finishes'}${member ? ` → ${esc(member.name)}` : ', a new task in its folder'}`;
+    }
     const proj = (member && !t.cwd ? `${member.name}’s folder` : S.config.projects.find((p) => p.path === t.cwd)?.name || t.cwd.split(/[\\/]/).pop()) + (member ? ` → ${member.name}` : '');
     if (t.kind === 'schedule') return `<code>${esc(t.cron)}</code> in ${esc(proj)}${t.nextAt ? ` · next ${esc(whenLabel(t.nextAt))}` : ''}`;
     const what = t.kind === 'ci' ? `failed CI${t.branch ? ` on <code>${esc(t.branch)}</code>` : ''}` : `issues labelled <code>${esc(t.label)}</code>`;
@@ -111,7 +118,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
           return `<div class="au-item ${t.enabled ? '' : 'off'}" data-id="${t.id}">
             <span class="mem-ico">${icon(k.icon)}</span>
             <div class="au-main"><b>${esc(t.name)}</b><p>${describe(t)}</p><span class="au-tags"><i>${esc(MODES.find((m) => m.id === t.mode)?.label || t.mode)}</i>${t.agent ? `<i>${esc(agentName(t.agent))}</i>` : ''}<i>${last}</i></span>${t.lastError ? `<p class="au-err">${icon('warn')}${esc(t.lastError)}</p>` : ''}</div>
-            <span class="au-acts"><button class="ghost xs" data-act="fire" title="${t.kind === 'schedule' ? 'Run it now' : 'Check GitHub now'}">${icon('replay')}${t.kind === 'schedule' ? 'Run now' : 'Check now'}</button><button class="switch" data-act="toggle" role="switch" aria-checked="${t.enabled}" title="On / off"></button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
+            <span class="au-acts">${TASK_KINDS.has(t.kind) ? '' : `<button class="ghost xs" data-act="fire" title="${t.kind === 'schedule' ? 'Run it now' : 'Check GitHub now'}">${icon('replay')}${t.kind === 'schedule' ? 'Run now' : 'Check now'}</button>`}<button class="switch" data-act="toggle" role="switch" aria-checked="${t.enabled}" title="On / off"></button><button class="icon-btn" data-act="edit" title="Edit">${icon('pen')}</button><button class="icon-btn" data-act="delete" title="Delete">${icon('trash')}</button></span>
           </div>`;
         })
         .join('') || '<p class="mem-empty">No triggers yet. Run a recipe every weekday morning, or send an agent after every red CI run.</p>'
@@ -174,7 +181,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         <div class="au-kinds">${TRIGGER_KINDS.map((k) => `<button type="button" data-kind="${k.kind}" class="${k.kind === d.kind ? 'on' : ''}">${icon(k.icon)}<b>${k.label}</b><small>${k.hint}</small></button>`).join('')}</div>
         <label><span>Name</span><input class="input" name="name" maxlength="60" spellcheck="false"></label>
         ${crewList().length ? `<label class="k-to"><span>Send to</span><select name="crew"><option value="">A new task</option>${crewList().map((m) => `<option value="${m.id}" ${m.id === d.crew ? 'selected' : ''}>${esc(m.name)}${m.role ? ` · ${esc(m.role)}` : ''} (crew)</option>`).join('')}</select></label>` : ''}
-        <label class="k-cwd"><span>Project</span><select name="cwd">${projectOptions(d.cwd || projectById(launch.project)?.path, { any: d.crew || crewList().length ? 'Their own folder (crew only)' : undefined })}</select></label>
+        <label class="k-cwd"><span>Project</span><select name="cwd">${projectOptions(d.id ? d.cwd : d.cwd || projectById(launch.project)?.path, { any: 'Their own folder (crew only)' })}</select></label>
         <div class="k-schedule"><label><span>When</span><input class="input mono" name="cron" spellcheck="false" placeholder="0 9 * * 1-5"></label>
           <p class="au-presets">${CRON_PRESETS.map(([l, c]) => `<button type="button" class="lp-chip" data-cron="${c}">${l}</button>`).join('')}<span class="muted xs">minute hour day month weekday</span></p></div>
         <div class="k-ci"><label><span>Branch</span><input class="input mono" name="branch" spellcheck="false" placeholder="Any branch (e.g. main)"></label></div>
@@ -193,12 +200,17 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
     $('.au-row', f).append(runnerField(d));
     const sync = () => {
       for (const k of ['schedule', 'ci', 'issues']) $(`.k-${k}`, f).hidden = d.kind !== k;
-      $('.k-gh', f).hidden = d.kind === 'schedule';
+      $('.k-gh', f).hidden = d.kind === 'schedule' || TASK_KINDS.has(d.kind);
       $('.k-prompt', f).hidden = !!$('[name="recipeId"]', f).value;
-      $('.k-vars', f).innerHTML = d.kind === 'ci' ? '· <code>{name} {branch} {url} {id} {sha}</code> · empty = built-in CI prompt' : d.kind === 'issues' ? '· <code>{number} {title} {body} {url} {author}</code> · empty = built-in issue prompt' : '';
+      $('.k-vars', f).innerHTML = d.kind === 'ci' ? '· <code>{name} {branch} {url} {id} {sha}</code> · empty = built-in CI prompt' : d.kind === 'issues' ? '· <code>{number} {title} {body} {url} {author}</code> · empty = built-in issue prompt' : TASK_KINDS.has(d.kind) ? '· <code>{id} {title} {summary} {branch}</code> · empty = built-in prompt' : '';
       $('.au-warn', f).hidden = !(d.kind === 'issues' && $('[name="mode"]', f).value !== 'plan');
       // Sent to a crew member: they run it their way, so mode and harness are theirs.
       const crew = $('[name="crew"]', f)?.value || '';
+      // The empty project: a task watcher watches every project (or the member's); otherwise it's the member's folder.
+      const any = $('[name="cwd"] option[value=""]', f);
+      any.textContent = TASK_KINDS.has(d.kind) ? (crew ? 'Their project (any, if they have none)' : 'Any project') : 'Their own folder (crew only)';
+      any.hidden = !TASK_KINDS.has(d.kind) && !crewList().length;
+      if (any.hidden && any.selected && any.nextElementSibling) any.nextElementSibling.selected = true;
       $$('.k-run', f).forEach((x) => (x.hidden = !!crew));
       $('.au-crew', f).hidden = !crew;
       $$('.au-kinds button', f).forEach((b) => b.classList.toggle('on', b.dataset.kind === d.kind));

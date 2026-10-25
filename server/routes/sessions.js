@@ -167,7 +167,9 @@ export function register(r, app) {
     one(async (c, s) => {
       const body = await c.body();
       if (typeof body.title === 'string' && body.title.trim()) Object.assign(s, { title: body.title.trim(), titleAuto: false });
+      const was = s.state;
       if (body.state === 'done' && s.state !== 'running') s.state = 'done';
+      if (s.state === 'done' && was !== 'done') app.triggers?.taskEvent('done', s);
       if (body.state === 'review' && s.state === 'done') s.state = 'review';
       if (typeof body.unread === 'boolean') s.unread = body.unread;
       // Moved to another place by the wisp that shows it (services/move.js): where it went.

@@ -9,6 +9,8 @@ import net from 'node:net';
 import { installFakeBins, makeRepo, records, tmp, until } from './helpers.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { normalizeTrigger, triggerView, Triggers } from '../server/triggers.js';
+import { newId } from '../server/util.js';
 import { applyMemory, crewJobOf, crewMentions, crewNote, dueNow, localKit, nextCheckin, normalizeKit, offerFiles, normalizeMember, NOTEBOOK_MAX, takeCrewBlock } from '../server/crew.js';
 import { parseSkillMd } from '../web/js/skill-md.js';
 
@@ -181,6 +183,32 @@ test('the crew note carries the brief, the notebook, the log and where the job c
   assert.match(note, /Delegated to you by the agent working on "Fix login" \(wisp task abc123abc123\)/);
   assert.match(note, /quiet: only for check-ins/);
   assert.match(crewNote(m, { job: 'checkin' }), /quiet: true when this check-in found nothing/);
+});
+
+test('task watchers: their project only, at most 3 times a task, never helpers or what a watcher started', async () => {
+  const dir = makeRepo();
+  const launched = [];
+  const store = { config: { triggers: [], crew: [], recipes: [], projects: [{ id: 'p', path: dir }] }, saveConfig() {}, projectFor: (cwd) => (cwd.startsWith(dir) ? { path: dir } : null) };
+  const triggers = new Triggers({ store, launch: async (body, origin) => (launched.push({ body, origin }), { id: `s${launched.length}` }) });
+  const t = normalizeTrigger({ kind: 'finished', cwd: dir }, null, store.config);
+  assert.equal(t.name, 'Task finished');
+  assert.match(t.prompt, /"\{title\}" \(wisp task \{id\}\)/);
+  store.config.triggers.push(t);
+  const task = (x = {}) => ({ id: 'a1', title: 'Fix it', cwd: dir, turns: [{ presentation: { blocks: [{ type: 'hero', title: 'Fixed', summary: 'Add works now.' }] } }], ...x });
+  await Promise.all(triggers.taskEvent('finished', task()));
+  assert.equal(launched[0].body.cwd, dir);
+  assert.match(launched[0].body.prompt, /"Fix it" \(wisp task a1\) just finished: Add works now\./);
+  assert.deepEqual(launched[0].origin, { kind: 'trigger', id: t.id, name: t.name });
+  for (let i = 0; i < 4; i++) await Promise.all(triggers.taskEvent('finished', task()));
+  assert.equal(launched.length, 3, 'at most 3 times for one task');
+  for (const x of [{ cwd: makeRepo() }, { parentId: 'p1' }, { delegated: true }, { origin: { kind: 'trigger', id: t.id } }, { crew: { id: 'm', job: 'event' } }]) await Promise.all(triggers.taskEvent('finished', task({ id: newId(), ...x })));
+  assert.equal(launched.length, 3, 'another project, helpers and watchers’ own work start nothing');
+  assert.equal(triggers.taskEvent('done', task({ id: 'b2' })).length, 0, 'a finished watcher ignores done');
+  await assert.rejects(triggers.runNow(t), /nothing to run now/);
+  assert.equal(triggerView(t).nextAt, null);
+  // Without a project it watches them all; GitHub watchers still need one.
+  assert.equal(normalizeTrigger({ kind: 'done' }, null, store.config).cwd, '');
+  assert.throws(() => normalizeTrigger({ kind: 'ci' }, null, store.config), /Pick the project/);
 });
 
 // --- through the server ------------------------------------------------------------------------------
@@ -502,4 +530,53 @@ test('an agent adds, changes and removes crew members when the user asks; a memb
   assert.match(await said('CREWFIRE: remove Quill from my crew'), /Removed Quill from the user's crew/);
   assert.ok(!(await api('/crew')).some((m) => m.name === 'Quill'));
   await api(`/crew/${bo.id}`, undefined, 'DELETE');
+});
+
+test('a member starts when a task finishes or is marked done, in its project, about that task', async () => {
+  const cwd = makeRepo();
+  const vee = await api('/crew', { name: 'Vee', role: 'Verifier', brief: 'Check finished work.', cwd, agent: 'claude', parallel: 3, on: ['finished', 'done'] });
+  assert.deepEqual(vee.on.sort(), ['done', 'finished']);
+  const mine = (await api('/triggers')).filter((t) => t.crew === vee.id);
+  assert.deepEqual(mine.map((t) => [t.kind, t.cwd]).sort(), [['done', ''], ['finished', '']], 'their project, worked out as tasks end');
+  const jobs = async () => (await api('/sessions')).filter((x) => x.crew?.id === vee.id);
+
+  // A task elsewhere: nothing. One in their project: a job about it, which it may follow up on.
+  await ended((await api('/sessions', { prompt: 'Tidy the other repo', cwd: makeRepo(), agent: 'claude', worktree: false })).id);
+  const task = await api('/sessions', { prompt: 'Fix the add function', cwd, agent: 'claude', worktree: false });
+  await ended(task.id);
+  const [job] = await until(async () => {
+    const x = await jobs();
+    return x.length && x;
+  });
+  assert.deepEqual(jobOf(job), { id: vee.id, job: 'event', from: { id: task.id, title: job.crew.from.title } });
+  assert.equal(job.crew.event, 'finished');
+  assert.equal(job.origin.kind, 'trigger');
+  const full = await ended(job.id);
+  assert.match(full.turns[0].prompt, new RegExp(`wisp task ${task.id}`));
+  const run = records(RECORD, 'claude').find((r) => r.stdin.includes(`wisp task ${task.id}`));
+  assert.match(run.argv.join(' '), /just finished, and you watch for that/);
+  assert.ok((await api(`/crew/${vee.id}`)).links.some((l) => l.id === task.id), 'it may follow up on the task');
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal((await jobs()).length, 1, 'its own job finishing starts nothing');
+
+  // Marked done: a second job, about the same task.
+  await api(`/sessions/${task.id}`, { state: 'done' }, 'PATCH');
+  const done = await until(async () => (await jobs()).find((x) => x.crew.event === 'done'));
+  assert.equal(done.crew.from.id, task.id);
+  await ended(done.id);
+  await api(`/sessions/${task.id}`, { state: 'done' }, 'PATCH');
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal((await jobs()).filter((x) => x.crew.event === 'done').length, 1, 'only when it becomes done');
+
+  // The editor's chips: a kind left out goes; CI needs a project here, and a refusal undoes the edit.
+  const edited = await api(`/crew/${vee.id}`, { on: ['finished'] }, 'PATCH');
+  assert.deepEqual(edited.on, ['finished']);
+  assert.equal((await api('/triggers')).filter((t) => t.crew === vee.id).length, 1);
+  const flo = await api('/crew', { name: 'Flo', agent: 'claude' });
+  await assert.rejects(api(`/crew/${flo.id}`, { role: 'CI fixer', on: ['ci'] }, 'PATCH'), /Pick the project/);
+  assert.equal((await api(`/crew/${flo.id}`)).role, '');
+  await assert.rejects(api('/crew', { name: 'Gus', agent: 'claude', on: ['ci'] }), /Pick the project/);
+  assert.ok(!(await api('/crew')).some((m) => m.name === 'Gus'), 'a refused new member doesn’t stay');
+  await api(`/crew/${vee.id}`, { on: [] }, 'PATCH');
+  assert.equal((await api('/triggers')).filter((t) => t.crew === vee.id).length, 0);
 });

@@ -17,6 +17,17 @@ export function register(r, app) {
   // A job just started is a session; one waiting for room is its place in the queue.
   // A job on the member's machine is already a summary.
   const sumOf = (x) => (x.turns ? summarize(x, store) : x);
+  // "Also starts when" (body.on: ['finished', 'done', 'ci']): the triggers that send the member
+  // work. When that's refused (CI with no project), a new member goes and an edit is undone.
+  const syncOn = (m, body, { prevCwd, undo }) => {
+    if (!Array.isArray(body.on)) return;
+    try {
+      app.triggers.syncMember(m, body.on, { prevCwd });
+    } catch (err) {
+      undo();
+      throw err;
+    }
+  };
   const started = (m, out) => (out.session ? { session: sumOf(out.session), member: crew.view(m) } : { queued: out.queued, member: crew.view(m) });
 
   // Skills and instructions files on this computer, to add to a member's kit (cwd: its project's too).
@@ -26,6 +37,7 @@ export function register(r, app) {
   r.route('POST', '/crew', async (c) => {
     const body = await c.body();
     const m = crew.create(body);
+    syncOn(m, body, { undo: () => crew.remove(m) });
     const out = body.checkin === true ? await crew.checkin(m).catch(() => ({})) : {};
     c.send(201, { ...crew.view(m), ...(out.session && { session: sumOf(out.session) }) });
   });
@@ -36,9 +48,11 @@ export function register(r, app) {
     member(async (c, m) => {
       const body = await c.body();
       if (Array.isArray(body.queue)) m.queue = m.queue.filter((w) => body.queue.includes(w.id)); // drop waiting jobs
+      const before = { ...m };
       crew.update(m, body);
       // Offers you added or dismissed (after the kit they added to was accepted).
       for (const o of Array.isArray(body.offers) ? body.offers : []) if (o && typeof o === 'object') crew.settleOffer(m, String(o.id || ''), { state: o.state, names: Array.isArray(o.names) ? o.names : [] });
+      syncOn(m, body, { prevCwd: before.cwd, undo: () => (Object.assign(m, before), store.saveConfig()) });
       c.send(200, crew.view(m));
     }),
   );
@@ -92,12 +106,15 @@ export function register(r, app) {
       if (!sum) return c.send(404, { error: 'no such session' });
       const body = await c.body();
       const m = crew.create({ machine: away.machine, cwd: sum.scratch ? '' : sum.cwd, agent: sum.agent, model: sum.model, effort: sum.effort, mode: sum.mode, brief: sum.title, ...body });
+      syncOn(m, body, { undo: () => crew.remove(m) });
       return c.send(201, crew.view(m));
     }
     if (!s) return c.send(404, { error: 'no such session' });
     if (s.crew && crew.get(s.crew.id)) throw bad(`This task is already ${crew.get(s.crew.id).name}’s.`, 409);
     if (s.parentId || s.agent === 'wisp') throw bad('Only a task of your own can join the crew.');
-    const m = crew.adopt(s, await c.body());
+    const body = await c.body();
+    const m = crew.adopt(s, body);
+    syncOn(m, body, { undo: () => (crew.remove(m), delete s.crew, store.save(s)) });
     app.sessionChanged(s);
     c.send(201, crew.view(m));
   });
