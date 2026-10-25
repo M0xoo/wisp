@@ -49,6 +49,7 @@ export function createShip(app) {
   // repos adds theirs up, and `repos` counts the ones with something to ship.
   const check = async (s) => {
     if (!hasTrees(s) || s.parentId) return;
+    app.overlaps?.touch(s); // other open tasks changing the same files
     const repos = reposOf(s, store);
     const all = await Promise.all(repos.map((r) => worktreeStatus(r.wt)));
     const sum = (k) => all.reduce((n, st) => n + st[k], 0);
@@ -216,6 +217,7 @@ export function createShip(app) {
         throw open.length > 1 ? Object.assign(new Error(`${r.name}: ${err.message}`), { status: err.status }) : err;
       }
     }
+    app.overlaps?.touch(s); // merged: it no longer overlaps the others
     const sync = { ok: synced.every((x) => x.ok), text: synced.map((x) => x.text).join(' ') };
     return { pr: s.pr || open[0].at.pr, sync, ...(reposOf(s, store).length > 1 && { prs: prsOf(s) }) };
   };

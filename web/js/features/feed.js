@@ -15,6 +15,7 @@ import { renderProjects } from './projects.js';
 import { agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
 import { scrollByPx, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
+import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
@@ -325,7 +326,7 @@ export function headPills(s, pill) {
   return `
       ${termPill(s)}${pill}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
-      ${autoPill(s)}
+      ${autoPill(s)}${overlapPill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
       ${s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
       ${s.machine ? machinePill(s.machine) : ''}

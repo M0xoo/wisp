@@ -161,6 +161,8 @@ export function summarize(s, store) {
       }),
     }),
     toShip: s.toShip || null, // { dirty, ahead, unpushed } of the worktree, null until checked
+    // Other open tasks in the same repo changing the same files (services/overlaps.js)
+    ...(s.overlaps?.length && { overlaps: s.overlaps }),
     shipping: s.shipping || null, // { step: 'start' | 'commit' | 'push' | 'pr', update } while Ship it runs
     pr: s.pr ? { number: s.pr.number, url: s.pr.url, state: s.pr.state, draft: s.pr.draft, review: s.pr.review, checks: s.pr.checks, conflict: !!s.pr.conflict } : null,
     // wisp fixing the PR's merge conflicts on its own: { step: 'fixing' | 'pushing' | 'done' | 'failed', why }

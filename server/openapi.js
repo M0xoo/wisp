@@ -535,6 +535,7 @@ export function openapi({ version, port }) {
             pr: { type: ['object', 'null'], description: 'Its pull request, once shipped' },
             shipping: { type: ['object', 'null'], description: "{ step: start | commit | push | pr, update } while Ship it runs" },
             conflictFix: { type: ['object', 'null'], description: "{ step: fixing | pushing | done | failed, why } while wisp fixes the PR's merge conflicts: after Fix conflicts, or on its own with defaults.fixConflicts: 'on'" },
+            overlaps: { type: 'array', description: 'Other open tasks in the same repo that change the same files: [{ id, title, files, more, conflicts }]. conflicts lists the files merging both would leave conflicted ([] if they merge cleanly, null if git is older than 2.38). Absent when there are none.' },
             groupId: { type: ['string', 'null'], description: 'Shared by sessions launched together with compare' },
             origin: { type: ['object', 'null'], description: '{ kind: recipe | trigger, id, name } when not launched by hand' },
           },

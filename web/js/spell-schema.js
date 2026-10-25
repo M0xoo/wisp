@@ -95,6 +95,9 @@ export const PARTS = {
   'card.live': '#feed .q-live',
   'card.side': '#feed .it-side',
   'card.pr': '#feed .it-side .pill.pr',
+  // Another open task changes the same files: the pill, and the warning above the follow-up box.
+  'card.overlap': '#feed .it-side .pill.overlap',
+  'card.overlapNote': '#feed .overlap-strip',
   'card.model': '#feed .it-side .model-logo',
   'card.machine': '#feed .it-side .q-machine',
   'card.project': '#feed .it-side .q-proj',

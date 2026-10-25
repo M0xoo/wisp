@@ -167,6 +167,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** commit, push and PR opened; card follows checks; Merge squash-merges and syncs
   local main.
 - **Suite** (`test/ship.test.js`, fake `gh`) · **Manual** against a real repo
+- **Two tasks, same files:** two open tasks in one repo edit the same lines → both cards show an
+  amber *Clash* pill (icon only on a phone), the open card's warning names the other task and the
+  file with **Open**, and Ship it / Merge repeat it. The same file at different lines says *Overlap*
+  and "merge cleanly". Merging or archiving one clears the other's warning.
+  **Suite** (`test/overlaps.test.js`) · **Manual** in the page
 
 ### WEB-29 · Take over in a terminal
 - **Steps:** *Take over* (`T`) on a finished Claude task.
