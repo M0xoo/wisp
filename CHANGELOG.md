@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Search puts recent things first:** in ⌘K and the project picker, a task you touched recently or a project you used recently now ranks above older ones that match the query about as well. Only a clearly better text match still wins over a newer one.
+
 ### Fixed
 
 - **wisp Grid's landing page answers link checkers:** a `HEAD` request to the sign-in page (or the account page) got a 404 while a normal visit worked, so ad review and link previews could take the page for dead. Both now answer `HEAD` like `GET`.

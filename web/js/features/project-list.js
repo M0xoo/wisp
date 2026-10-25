@@ -12,7 +12,7 @@
 
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
-import { fuzzy, highlight } from '../fuzzy.js';
+import { byScore, fuzzy, highlight, recency } from '../fuzzy.js';
 import { popover } from '../ui/popover.js';
 import { projectTitle } from './places.js';
 
@@ -39,9 +39,10 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
     const q = input.value.trim();
     const hits = q
       ? projects
-          .map((p) => ({ p, m: fuzzy(q, [p.name, p.path]) }))
+          .map((p) => ({ p, m: fuzzy(q, [p.name, p.path]), at: p.lastUsedAt || p.addedAt }))
           .filter((x) => x.m)
-          .sort((a, b) => b.m.score - a.m.score)
+          .map((x) => ({ ...x, score: x.m.score + recency(x.at) }))
+          .sort(byScore)
       : projects.map((p) => ({ p, m: null }));
     list.innerHTML = hits.length
       ? hits

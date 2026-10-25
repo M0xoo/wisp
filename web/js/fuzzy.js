@@ -80,6 +80,20 @@ export function fuzzy(query, fields) {
   return { score: total, idx: [...idx].sort((a, b) => a - b) };
 }
 
+// A bonus for something touched recently, added to a match's score so that between
+// matches the more recent one wins: +20 just now, +10 a day ago, +2.5 after a week,
+// under +1 after a month. That outweighs a prefix or word-start bonus (~10), and it
+// never reaches 0, so older always ranks below newer for the same text; only a far
+// better match (a scattered subsequence against a clean word) beats recency.
+export function recency(at, now = Date.now()) {
+  if (!at) return 0;
+  const hours = Math.max(0, now - at) / 3.6e6;
+  return 20 / (1 + hours / 24);
+}
+
+// Best score first; on a tie, the more recent item.
+export const byScore = (a, b) => b.score - a.score || (b.at || 0) - (a.at || 0);
+
 // Wrap matched positions in <mark>, escaping everything else.
 export function highlight(text, idx, esc) {
   if (!idx?.length) return esc(text);

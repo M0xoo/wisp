@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchOne, fuzzy, highlight } from '../web/js/fuzzy.js';
+import { matchOne, fuzzy, highlight, recency, byScore } from '../web/js/fuzzy.js';
 
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const rank = (q, titles) =>
@@ -49,4 +49,43 @@ test('an empty query matches everything with no highlight', () => {
 test('highlight wraps runs and escapes the text', () => {
   assert.equal(highlight('a<b>c', [0, 1, 4], esc), '<mark>a&lt;</mark>b&gt;<mark>c</mark>');
   assert.equal(highlight('plain', [], esc), 'plain');
+});
+
+test('recent items score higher, and the bonus keeps falling with age', () => {
+  const now = Date.parse('2026-10-25T12:00:00Z');
+  const h = 3.6e6;
+  const ages = [0, 1, 12, 24, 72, 24 * 7, 24 * 30, 24 * 365].map((x) => recency(now - x * h, now));
+  for (let i = 1; i < ages.length; i++) assert.ok(ages[i] < ages[i - 1], `bonus at step ${i} should drop`);
+  assert.ok(ages.at(-1) > 0);
+  assert.equal(recency(undefined, now), 0);
+  assert.equal(recency(now + h, now), recency(now, now));
+});
+
+test('between similar matches the more recent one ranks first', () => {
+  const now = Date.parse('2026-10-25T12:00:00Z');
+  const day = 864e5;
+  const items = [
+    { t: 'Fix auth token refresh', at: now - 30 * day },
+    { t: 'Auth: rotate keys', at: now - 2 * day },
+    { t: 'Add auth to the API', at: now - 3600e3 },
+  ];
+  const ranked = (list) => list
+    .map((x) => ({ ...x, m: fuzzy('auth', [x.t]) }))
+    .map((x) => ({ ...x, score: x.m.score + recency(x.at, now) }))
+    .sort(byScore)
+    .map((x) => x.t);
+  assert.deepEqual(ranked(items), ['Add auth to the API', 'Auth: rotate keys', 'Fix auth token refresh']);
+  // Same titles: the newest wins outright, whatever order they came in.
+  const same = [{ t: 'Deploy', at: now - 5 * day }, { t: 'Deploy', at: now - day }, { t: 'Deploy', at: now - 9 * day }];
+  const order = same.map((x) => ({ ...x, score: fuzzy('dep', [x.t]).score + recency(x.at, now) })).sort(byScore).map((x) => x.at);
+  assert.deepEqual(order, [now - day, now - 5 * day, now - 9 * day]);
+  // Equal scores and no bonus fall back to the timestamp.
+  assert.deepEqual([{ score: 1, at: 1 }, { score: 1, at: 2 }].sort(byScore).map((x) => x.at), [2, 1]);
+});
+
+test('a much better text match still beats a recent weak one', () => {
+  const now = Date.now();
+  const strong = fuzzy('settings', ['Settings']).score + recency(now - 864e5 * 60, now);
+  const weak = fuzzy('settings', ['Session timeout in tracing logs']);
+  assert.ok(!weak || strong > weak.score + recency(now, now));
 });
