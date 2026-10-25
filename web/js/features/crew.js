@@ -280,18 +280,22 @@ export function leaveCrew() {
 // Split view: the thread fills the main pane while nothing else is open there. Another task
 // opening closes the member, unless it's one of its own jobs (then the thread is one Esc away).
 export function paintCrewView() {
-  const pane = $('#crewView');
-  if (!isSplit()) return pane && (pane.hidden = true);
   const open = splitOpen();
-  if (S.crewOpen && open && S.sessions.get(open)?.crew?.id !== S.crewOpen) setOpen(null);
-  const showing = !!S.crewOpen && !open;
-  if (showing) {
-    const v = viewFor(S.crewOpen);
+  if (isSplit() && S.crewOpen && open && S.sessions.get(open)?.crew?.id !== S.crewOpen) setOpen(null);
+  const v = isSplit() && S.crewOpen && !open ? viewFor(S.crewOpen) : null;
+  // Every member opened here leaves its view in the pane: only the open one shows (two showing
+  // at once stacked them, one under the other, and under home).
+  for (const n of $$(':scope > .crew-view', $('#splitMain'))) {
+    if (n === v?.node) continue;
+    n.hidden = true;
+    n.removeAttribute('id');
+  }
+  if (v) {
     if (v.node.parentNode !== $('#splitMain')) $('#splitMain').append(v.node);
     v.node.id = 'crewView';
     v.node.hidden = false;
     v.paint();
-  } else if (pane) pane.hidden = true;
+  }
   for (const r of $$('.cr-row.open', box)) r.classList.toggle('open', !!S.crewOpen && r.closest('.cr-member').dataset.crew === S.crewOpen);
 }
 export const crewViewShown = () => isSplit() && !!S.crewOpen && !splitOpen();
