@@ -97,6 +97,13 @@ test('theme: the theme setting takes system, light or dark, and its icons exist'
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'topbar', icon: 'moon', do: { copy: 'x' } }, { slot: 'topbar', icon: 'sun', do: { copy: 'x' } }] }), []);
 });
 
+test('the overlap pill and warning (another open task changes the same files) are parts spells can restyle or hide', () => {
+  assert.deepEqual(problems({ ...base0, parts: { 'card.overlap': { hide: true }, 'card.overlapNote': { style: { borderRadius: '4px' } } } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.overlap', 'card.overlapNote'] } }), []);
+  const p = problems({ ...base0, parts: { 'card.overlaps': { hide: true } } });
+  assert.ok(p.some((x) => /card\.overlaps/.test(x)), p.join('\n'));
+});
+
 test('the follow-up box’s Delegate button and the Delegate popover are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'composer.team': { hide: true } } }), []);
   // The Delegate popover: its lead strip and the delegates' place chips can be restyled or hidden.

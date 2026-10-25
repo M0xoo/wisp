@@ -17,6 +17,7 @@ import { renderProjects } from './projects.js';
 import { feedAnchor, keepFollowing, keepInPlace, watching } from './scroll.js';
 import { openSettings } from './settings.js';
 import { renderPrStrip } from './ship.js';
+import { renderOverlapStrip } from './overlaps.js';
 import { onChildSummary } from './team.js';
 import { onActivity } from './turns.js';
 import { applySpells, spellEvent } from './spells.js';
@@ -58,6 +59,7 @@ export function connect() {
     if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
     if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal
     if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
+    if (JSON.stringify(prev?.overlaps || null) !== JSON.stringify(s.overlaps || null)) renderOverlapStrip(s.id);
     if (prev?.state !== s.state || prev?.pr?.state !== s.pr?.state) spellEvent('summary');
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));

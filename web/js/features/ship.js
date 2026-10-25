@@ -7,6 +7,7 @@ import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
 import { ask } from '../ui/confirm.js';
+import { overlapWarning } from './overlaps.js';
 
 // fix: the session's conflictFix ({ step, why }) while wisp resolves the PR's merge conflicts itself.
 const fixing = (fix) => fix?.step === 'fixing' || fix?.step === 'pushing';
@@ -217,6 +218,7 @@ export async function shipDialog(id) {
       ${info.dirty ? `<label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><input class="input" name="title" spellcheck="false" maxlength="100"></label>` : ''}
       ${open ? '' : `<label class="ship-field"><span>Pull request description</span><textarea class="textarea mono" name="body" rows="9" spellcheck="false"></textarea></label>
       <label class="check ship-check"><input type="checkbox" name="draft"> Open as a draft</label>`}
+      ${overlapWarning(S.sessions.get(id)) ? `<p class="hint warn ship-overlap">${esc(overlapWarning(S.sessions.get(id))).replace(/\n/g, '<br>')}</p>` : ''}
       ${noRemote ? `<p class="hint bad">${info.repos ? 'These repos have' : 'This repo has'} no <code>origin</code> remote, so there is nowhere to push.</p>` : nothing ? '<p class="hint">Nothing to ship yet: the branch has no changes.</p>' : ''}
       <div class="ship-foot"><span class="muted xs">Runs <code>git commit</code>, <code>git push</code>${open ? '' : ' and <code>gh pr create</code>'} in ${info.repos ? 'each worktree with changes, one PR per repo' : 'the worktree'}.</span><button class="primary sm" data-a="go" ${nothing || noRemote ? 'disabled' : ''}>${icon('send')}${open ? 'Commit & push' : info.repos ? 'Commit, push & open PRs' : 'Commit, push & open PR'}</button></div>`;
   $('.close', node).onclick = close;
@@ -275,6 +277,7 @@ export async function mergePr(id) {
       return c.fail ? `⚠ ${c.fail} check${c.fail > 1 ? 's are' : ' is'} failing${where}.` : c.pending ? `⚠ ${c.pending} check${c.pending > 1 ? 's are' : ' is'} still running${where}.` : '';
     })
     .filter(Boolean)
+    .concat(overlapWarning(s) || [])
     .join('\n');
   const what = several ? `these ${open.length} PRs (${open.map((x) => `${x.repo} #${x.pr.number}`).join(', ')})` : `PR #${open[0].pr.number}${open[0].pr.draft ? ' (marks it ready first)' : ''}`;
   if (!(await ask(`Squash-merge ${what}, then fast-forward your local base branch${several ? 'es' : ''} and remove the worktree${several ? 's' : ''}?${warn ? `\n\n${warn}` : ''}`, { ok: several ? 'Merge PRs' : 'Merge PR', danger: !!warn }))) return;

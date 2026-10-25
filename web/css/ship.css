@@ -168,3 +168,25 @@
 @keyframes ship-land { from { box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 30%, transparent); transform: scale(1.015); } }
 @media (max-width: 640px) { .ship-track span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .ship-run, .ship-run *, .pr-strip.landed { animation: none !important; } }
+
+/* Another open task changes the same files (overlaps.js): amber when merging both would conflict */
+.pill.overlap { --tone: var(--faint); gap: 4px; color: var(--ink-2); }
+.pill.overlap .i { width: 11px; height: 11px; }
+.pill.overlap.clash { --tone: var(--warn); color: var(--warn); }
+.overlap-strip {
+  --tone: var(--faint); display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; padding: 5px 6px 5px 10px; border-radius: 9px;
+  font-size: 12.5px; background: color-mix(in srgb, var(--tone) 7%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
+}
+.overlap-strip.clash { --tone: var(--warn); }
+.overlap-strip[hidden] { display: none; }
+.ov-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ov-row > .i { width: 13px; height: 13px; flex: none; color: var(--tone); }
+.ov-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.ov-text b { font-weight: 600; color: var(--ink); }
+.hint.warn { color: var(--warn); }
+/* Split view's wide details column: a row of its own, like the model and branch under it */
+body.split.pane-wide .it-bar > .it-props > .pill.overlap { order: 2; flex: 1 0 100%; gap: 9px; color: var(--ink-2); }
+body.split.pane-wide .it-bar > .it-props > .pill.overlap.clash { color: var(--warn); }
+body.split.pane-wide .it-bar > .it-props > .pill.overlap .i { width: 13px; height: 13px; margin-left: 1px; color: var(--tone); }
+/* Phones: the icon alone keeps the title its room; the open card spells it out */
+@media (max-width: 520px) { .pill.overlap .ov-l { display: none; } .pill.overlap { padding: 0 6px; } }

@@ -19,6 +19,7 @@ import { projectById } from './places.js';
 import { agentName, DEFAULT_MODE, effortLabel, modelBadge, MODES } from './runners.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
+import { renderOverlapStrip } from './overlaps.js';
 import { paintSplit } from './split.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
@@ -92,7 +93,7 @@ export function renderBody(id, { fresh }) {
         </div>
         <button class="link xs earlier" hidden></button>
         <div class="turns"></div>
-        <div class="it-dock"><div class="pr-strip" hidden></div></div>
+        <div class="it-dock"><div class="overlap-strip" hidden></div><div class="pr-strip" hidden></div></div>
       </div>`);
     n.body ? n.body.replaceWith(body) : n.card.append(body);
     n.body = body;
@@ -133,6 +134,7 @@ export function renderBody(id, { fresh }) {
   // card and after reading the result. The PR row sits in the composer's dock for the same reason;
   // in split view it's in the details column with them (placePr).
   renderPrStrip(id);
+  renderOverlapStrip(id);
   $$('[data-a="done"]', body).forEach((b) => {
     b.classList.toggle('on', s.state === 'done');
     b.hidden = s.state === 'running' || s.state === 'waiting';

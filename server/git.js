@@ -214,6 +214,38 @@ export async function conflictsWithBase(wt) {
   });
 }
 
+// What a task has changed so far: files changed on its branch since it left the base, plus
+// uncommitted edits and new files. head is a commit of the work as it stands (`git stash create`
+// when there are uncommitted edits, so a merge-tree sees them; HEAD otherwise). null when it can't tell.
+export async function touchedFiles(wt) {
+  if (!wt || !fs.existsSync(wt.path)) return null;
+  const dir = wt.path;
+  // Read-only, and without refreshing the index, so an agent's own git in that worktree never
+  // finds it locked. One after another for the same reason.
+  const read = (...args) => quiet(git(dir, ['--no-optional-locks', ...args]));
+  const base = await read('merge-base', 'HEAD', wt.remote ? `refs/remotes/${wt.remote}/${wt.base}` : wt.base);
+  if (!base) return null;
+  const lines = (out) => (out ? out.split('\n').filter(Boolean) : []);
+  const committed = lines(await read('diff', '--name-only', base, 'HEAD'));
+  const edited = lines(await read('diff', '--name-only', 'HEAD'));
+  const added = lines(await read('ls-files', '--others', '--exclude-standard'));
+  const head = (await read('stash', 'create')) || (await read('rev-parse', 'HEAD'));
+  return { files: [...new Set([...committed, ...edited, ...added])].sort(), head, base };
+}
+
+// Would merging two tasks' work conflict? Their heads (from touchedFiles) share the repo's objects,
+// so this runs in either worktree without touching it. The conflicted files ([] when it merges
+// cleanly), or null when this git can't tell (< 2.38).
+export function clashFiles(dir, a, b) {
+  return new Promise((resolve) => {
+    execFile(GIT(), ['merge-tree', '--write-tree', '--name-only', '--no-messages', a, b], { cwd: dir, timeout: 30_000, env: { ...process.env, ...QUIET_ENV } }, (err, stdout) => {
+      if (!err) return resolve([]);
+      // Exit 1: the merged tree's id, then one conflicted path per line.
+      resolve(err.code === 1 ? [...new Set(String(stdout).trim().split('\n').slice(1).filter(Boolean))] : null);
+    });
+  });
+}
+
 // After an agent was asked to merge the base into its branch: is it in, with nothing left half
 // done? A merge it resolved but left uncommitted is committed here. { ok } or { ok: false, why }.
 export async function baseMerged(wt) {

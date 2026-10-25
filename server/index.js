@@ -44,6 +44,7 @@ import { createMove } from './services/move.js';
 import { createPlaces } from './services/places.js';
 import { phoneActions } from './services/phone.js';
 import { createShip } from './services/ship.js';
+import { createOverlaps } from './services/overlaps.js';
 import { trackTurns } from './services/telemetry.js';
 import { Uploads } from './services/uploads.js';
 import { notifyWebhooks } from './services/webhooks.js';
@@ -207,6 +208,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.triggers = new Triggers({ store, launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0], onChange: () => app.broadcast('config', {}) });
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
+  app.overlaps = createOverlaps(app);
   app.ship = createShip(app);
   createSpellHooks(app);
 
@@ -263,6 +265,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.remote.stop();
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
+    app.overlaps.stop();
     app.cloud.stop();
     app.computer.stop();
     app.agentLogin.stop();
