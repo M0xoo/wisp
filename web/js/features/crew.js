@@ -8,6 +8,7 @@
 // Spells reach it through spell-schema.js: the sidebar.crew / crew.* parts and the crew.page slot.
 
 import { esc, md } from '../md.js';
+import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
@@ -41,6 +42,8 @@ export const crewList = () => S.config.crew || [];
 export const memberById = (id) => crewList().find((m) => m.id === id) || null;
 const handleOf = (name) => String(name || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
 const jobsOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m.id && !s.pending);
+// Jobs sent that the server hasn't started yet (sendJob): a Starting up card under the member.
+const pendingOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m.id && s.pending);
 
 // When it checks in, in words. A cron that isn't one of these shows as itself.
 export const CADENCES = [
@@ -74,9 +77,10 @@ export const cadenceText = (m) => [m.cron ? cadenceLabel(m.cron) : '', eventsLab
 export function memberState(m) {
   const jobs = jobsOf(m);
   const asks = jobs.some((s) => s.state === 'waiting');
-  const live = jobs.filter((s) => s.state === 'running');
+  const sent = pendingOf(m);
+  const live = [...jobs.filter((s) => s.state === 'running'), ...sent];
   const unread = jobs.filter((s) => s.state === 'review' && s.unread && !s.archived).length;
-  return { jobs, asks, live, unread, mood: asks ? 'asks' : live.length ? 'live' : m.paused ? 'sleep' : 'idle' };
+  return { jobs, sent, asks, live, unread, mood: asks ? 'asks' : live.length ? 'live' : m.paused ? 'sleep' : 'idle' };
 }
 
 // A member's face: its spirit (or the emoji it was given) on a disc of its colour.
@@ -124,7 +128,7 @@ export function pinJob(id) {
 // A member's live jobs, most urgent first: asking you, working, an unread report.
 function liveJobs(m, st) {
   const rank = (s) => (s.state === 'waiting' ? 0 : s.state === 'running' ? 1 : 2);
-  const live = st.jobs.filter((s) => s.state === 'running' || s.state === 'waiting' || (s.state === 'review' && s.unread && !s.archived) || S.open.has(s.id) || pinned.has(s.id));
+  const live = [...st.sent, ...st.jobs.filter((s) => s.state === 'running' || s.state === 'waiting' || (s.state === 'review' && s.unread && !s.archived) || S.open.has(s.id) || pinned.has(s.id))];
   live.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   if (S.crewOpen === m.id || live.length <= LIVE_MAX) return { list: live, more: 0 };
   const keep = live.filter((s, i) => i < LIVE_MAX || S.open.has(s.id) || pinned.has(s.id));
@@ -395,19 +399,54 @@ export async function removeMember(id, anchor) {
 export async function sendJob(m, prompt, { restore, kit = false } = {}) {
   const pend = { id: `sending-${Date.now()}`, prompt };
   sending.set(m.id, [...(sending.get(m.id) || []), pend]);
+  // Under the member in the list too, unless it will wait for a free slot.
+  const st = memberState(m);
+  const card = st.live.length + st.jobs.filter((s) => s.state === 'waiting').length < (m.parallel || 1) && addPendingJob(m, prompt);
   renderFeed();
   try {
     const out = await api(`/crew/${m.id}/jobs`, { method: 'POST', body: { prompt, ...(kit && { kit: true }) } });
+    if (card) S.sessions.delete(card);
     if (out.member) Object.assign(m, out.member);
     if (out.session && !S.sessions.has(out.session.id)) S.sessions.set(out.session.id, out.session);
     if (!inView(m.id)) toast(out.session ? `Sent to ${esc(m.name)}` : `${esc(m.name)} is busy: it starts when a job finishes`, { action: { label: 'Open', run: () => openMember(m.id, { entry: out.session?.id }) } });
   } catch (err) {
+    if (card) S.sessions.delete(card);
     restore?.();
     toastError(err);
   } finally {
     sending.set(m.id, (sending.get(m.id) || []).filter((x) => x !== pend));
     renderFeed();
   }
+}
+
+// A job the server hasn't started: a placeholder like the launcher's (it can't be opened), shown
+// under its member. The real job replaces it (here, or live.js dropPending if its event wins).
+let pendingSeq = 0;
+function addPendingJob(m, prompt) {
+  const id = `pending-crew-${++pendingSeq}`;
+  const p = m.cwd && S.config.projects.find((x) => placesOf(x).some((k) => pathAt(x, k) === m.cwd));
+  const line = plain(prompt).split('\n')[0].replace(/\s+/g, ' ');
+  const now = Date.now();
+  S.sessions.set(id, {
+    id,
+    pending: true,
+    crew: { id: m.id, job: 'task' },
+    title: line.length > 64 ? `${line.slice(0, 63)}…` : line,
+    agent: m.agent,
+    model: m.model,
+    effort: m.effort,
+    cwd: m.cwd || '',
+    scratch: !m.cwd,
+    project: p?.name || '',
+    projectId: p?.id || null,
+    color: p?.color || 'slate',
+    state: 'running',
+    live: 'Starting up',
+    createdAt: now,
+    updatedAt: now,
+    machine: m.machine ? { id: m.machine, name: placeName(m.machine) } : null,
+  });
+  return id;
 }
 
 function memberMenu(id, { x, y, anchor } = {}) {
