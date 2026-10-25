@@ -104,14 +104,15 @@ export function crewDot(s) {
 
 // --- the Crew section ----------------------------------------------------------------------------
 //
-// One block per member: its row, then (in the feed) its thread when it's open, then its live jobs
-// as ordinary cards, nested under it. Live: running, asking you, a report you haven't read, or open.
-// The rest of its work is in its thread. Nothing of the crew's shows in Needs you, Working or Done
-// (split view's home lists their questions and unread reports with yours, split.js paintHome).
+// One block per member: its row, then (in the feed) its thread when it's open, then its recent
+// jobs as ordinary cards, nested under it: what's live first (asking you, working, an unread
+// report), then what it finished, newest first, until you archive it. The rest is in its thread.
+// Nothing of the crew's shows in Needs you, Working or Done (split view's home lists their
+// questions and unread reports with yours, split.js paintHome).
 
 const sec = $('#secCrew');
 const box = $('.cr-list', sec);
-const LIVE_MAX = 3; // nested under a closed member; an open one shows all its live jobs
+const JOBS_MAX = 3; // nested under a member; an open one also keeps every live job
 const pinned = new Set(); // jobs opened from a link or a toast: shown under their member until closed
 
 // The member open in the main pane (split view) or expanded in place (the feed). Yours alone.
@@ -125,14 +126,15 @@ export function pinJob(id) {
   pinned.add(id);
 }
 
-// A member's live jobs, most urgent first: asking you, working, an unread report.
-function liveJobs(m, st) {
-  const rank = (s) => (s.state === 'waiting' ? 0 : s.state === 'running' ? 1 : 2);
-  const live = [...st.sent, ...st.jobs.filter((s) => s.state === 'running' || s.state === 'waiting' || (s.state === 'review' && s.unread && !s.archived) || S.open.has(s.id) || pinned.has(s.id))];
-  live.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
-  if (S.crewOpen === m.id || live.length <= LIVE_MAX) return { list: live, more: 0 };
-  const keep = live.filter((s, i) => i < LIVE_MAX || S.open.has(s.id) || pinned.has(s.id));
-  return { list: keep, more: live.length - keep.length };
+// A member's jobs under it, most urgent first: asking you, working, an unread report, then the
+// finished ones, newest first. Archived ones (quiet check-ins too) are only in its thread.
+function memberJobs(m, st) {
+  const rank = (s) => (s.pending || s.state === 'running' ? 1 : s.state === 'waiting' ? 0 : s.state === 'review' && s.unread ? 2 : 3);
+  const list = [...st.sent, ...st.jobs.filter((s) => !s.archived || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id))];
+  list.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
+  const open = S.crewOpen === m.id;
+  const keep = list.filter((s, i) => i < JOBS_MAX || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));
+  return { list: keep, more: list.length - keep.length };
 }
 
 // What a busy member is doing, in its own words: the job card under it already shows the live
@@ -220,12 +222,12 @@ export function paintCrew() {
       view.paint();
     }
     if (!inline) for (const v of $$(':scope > .crew-view', block)) v.remove();
-    const { list: jobs, more } = liveJobs(m, st);
+    const { list: jobs, more } = memberJobs(m, st);
     placeCards($('.cr-jobs', block), jobs);
     shown.push(...jobs);
     const mb = $('.cr-more', block);
     mb.hidden = !more;
-    mb.textContent = `${more} more live · open ${m.name}`;
+    mb.textContent = `${more} more · open ${m.name}`;
   });
   while (box.children.length > want.length) box.lastElementChild.remove();
   for (const id of pinned) if (!S.sessions.has(id)) pinned.delete(id);
