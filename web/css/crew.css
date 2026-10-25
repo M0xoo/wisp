@@ -54,20 +54,24 @@
 .cr-list { display: flex; flex-direction: column; gap: 2px; }
 .cr-row {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px;
-  width: 100%; padding: 6px 10px 6px 8px; border-radius: var(--radius); text-align: left; cursor: pointer;
+  width: 100%; padding: 6px 12px 6px 8px; border-radius: var(--radius); text-align: left; cursor: pointer;
   border: 1px solid transparent; transition: background 0.15s, border-color 0.15s;
 }
 .cr-row:hover { background: var(--bg-2); }
 .cr-row:focus-visible { border-color: var(--line-2); }
 .cr-main { display: flex; flex-direction: column; min-width: 0; }
 .cr-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
-.cr-name { flex: none; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.cr-name { flex: none; font-size: 14px; font-weight: 600; color: var(--ink); }
 .cr-role { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
 .cr-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--faint); }
 .cr-sub.live { color: var(--accent-ink); }
 .cr-sub.asks { color: var(--warn); font-weight: 500; }
 .cr-row.paused .cr-name { color: var(--ink-2); }
 .cr-side { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+/* the feed: a row unfolds in place, like a card, and says so with the cards' chevron */
+.cr-side .chev { width: 14px; height: 14px; margin-left: 4px; color: var(--faint); transition: transform 0.2s; }
+.cr-row.open .cr-side .chev { transform: rotate(90deg); }
+body.split .cr-side .chev, .cr-empty .chev { display: none; }
 .cr-n { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; font-size: 11px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); }
 .cr-empty { color: var(--muted); border: 1px dashed var(--line-2); }
 .cr-empty > .i { width: 30px; height: 16px; color: var(--faint); }
@@ -76,6 +80,8 @@
 /* In the feed the rows sit on cards' surface, as a card of their own. */
 body:not(.split) .f-group.crew .cr-list { padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 body.split .f-group.crew { margin-bottom: 14px; }
+/* split view: the time on the name's line, in the column the cards keep theirs */
+body.split .cr-side { align-self: start; height: 21px; }
 
 /* ---------- the editor and the spirit maker ---------- */
 .crew-edit { width: min(640px, 100%); }
@@ -103,6 +109,7 @@ body.split .f-group.crew { margin-bottom: 14px; }
 .ce-cadence .lp-chip.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
 .ce-cron { max-width: 260px; }
 .ce-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ce-bar .tog-btn .chev { display: none; }
 .ce-proj span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ce-mode { height: 30px; }
 .ce-par { display: inline-flex; align-items: center; gap: 2px; height: 30px; padding: 0 3px; border-radius: 8px; border: 1px solid var(--line-2); font-size: 12.5px; color: var(--ink-2); }
@@ -111,7 +118,8 @@ body.split .f-group.crew { margin-bottom: 14px; }
 .ce-par button:hover:not(:disabled) { background: var(--bg-2); color: var(--ink); }
 .ce-par button:disabled { opacity: 0.4; cursor: not-allowed; }
 .ce-par .i { width: 12px; height: 12px; }
-.ce-foot { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+.ce-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
+.ce-foot > :is(.check, button) { flex: none; white-space: nowrap; }
 .ce-foot .grow { flex: 1; }
 .ce-maker { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); animation: rise 0.2s var(--ease); }
 .cm-row { display: grid; grid-template-columns: 50px minmax(0, 1fr); align-items: center; gap: 8px; }
@@ -127,6 +135,7 @@ body.split .f-group.crew { margin-bottom: 14px; }
   .ce-names { grid-template-columns: 1fr; }
   .cm-row { grid-template-columns: 1fr; gap: 4px; }
   .cm-opt { width: 34px; height: 34px; }
+  .ce-foot .check { flex: 1 0 100%; }
 }
 
 /* ---------- @ picker, answers on a card, delegates ---------- */
@@ -199,6 +208,8 @@ body.split #crewView { flex: 1; }
 .cv-facts .m { display: flex; align-items: flex-start; gap: 9px; min-width: 0; line-height: 1.45; }
 .cv-facts .m > .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--faint); }
 .cv-facts .m > span { min-width: 0; overflow-wrap: anywhere; }
+.cv-facts .cv-logo { flex: none; display: grid; place-items: center; width: 13px; height: 13px; margin-top: 2px; }
+.cv-facts .cv-logo > * { width: 13px; height: 13px; }
 .cv-team { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
 .cv-mate { display: inline-grid; place-items: center; }
 .cv-mate.logo { width: 20px; height: 20px; border-radius: 50%; background: var(--bg-2); }
@@ -272,9 +283,13 @@ body.split #crewView { flex: 1; }
 .cv-live { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; font-size: 13px; }
 .cv-live .elapsed { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
 /* asking you: the question, its choices, a box to answer, in the thread */
-.cv-asks { margin-top: 6px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line)); background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
-.cv-q { margin: 0 0 8px; font-size: 13.5px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.cv-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.cv-asks { margin-top: 6px; padding: 12px 14px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--warn) 60%, var(--line)); background: var(--surface); }
+.cv-q { margin: 0 0 10px; font-size: 13.5px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cv-asks .q-opts { margin-bottom: 10px; }
+.cv-asks .opt { padding-left: 12px; }
+.cv-asks .opt .i { width: 14px; height: 14px; margin-left: -2px; }
+.cv-asks .opt.go { border-color: color-mix(in srgb, var(--good) 55%, var(--line-2)); }
+.cv-asks .opt.no { color: var(--ink-2); }
 .cv-inline { display: flex; gap: 6px; }
 .cv-inline .input { flex: 1; min-width: 0; }
 .cv-say > .cv-inline { margin-top: 8px; }
@@ -342,3 +357,12 @@ body:not(.split) .crew-view .cv-top > .cr-av, body:not(.split) .crew-view .cv-wh
 body:not(.split) .crew-view .cv-top { justify-content: flex-end; padding: 6px 10px; border-bottom: 0; }
 /* the Delegate popover over the crew editor */
 .overlay:not([hidden]) ~ .team-pop { z-index: 56; }
+
+/* the phone app: 44px targets, a row shows it's pressed */
+body.wisp-mobile .cr-row:active { background: var(--bg-2); }
+body.wisp-mobile .cv-top :is(.ghost.sm, .icon-btn) { min-width: 44px; height: 44px; justify-content: center; }
+body.wisp-mobile :is(.cv-acts, .cv-bar) .ghost.xs { height: 44px; }
+body.wisp-mobile .cv-bar .send { min-width: 44px; height: 44px; }
+body.wisp-mobile .cv-asks .opt { min-height: 44px; }
+body.wisp-mobile .cv-inline :is(.input, button) { height: 44px; }
+body.wisp-mobile .cv-sent { height: 36px; }
