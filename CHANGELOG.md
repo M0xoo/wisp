@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-25
+
 ### Added
 
 - **Agents can point at another wisp task, and you open it with a click.** When an agent finds or names one of your tasks (*find the session where…*), its reply shows a card with the task's title, project, harness, state and when it last moved; click it to open the task. A task that's been deleted keeps its title and says so. Agents are told to use it whenever they name a task, and spells can restyle it (`task`, `task.open`).
@@ -14,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **A livelier "is working":** the spinner ring is now a small dot grid with a ripple running out from its centre, and the working panel's *… is working* has a soft light passing over it, in the feed, split view, the crew and the site's demo.
 - **A crew member's details fit the window without scrolling.** One line per fact, Check in now / Edit… / Remove in a row, shorter notebook and brief previews (Show all opens the rest), and one line per skill.
 - **Split view's home shows what your crew needs from you.** A crew member's question or a report you haven't read now sits in *Needs you* above the tips, with the member's face, among your other tasks; clicking it opens the job under its member.
 
@@ -43,8 +46,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Full screen goes through a reply's pictures and videos:** open a picture full screen, or a video with its new **Full screen** button, and the viewer gets previous / next arrows and a *2 / 3* count. ← / → and a sideways swipe also step through every picture and video in the reply, or through a message's attached pictures. A video plays there with its own controls. In the reply itself, pictures and videos still sit one under another. Spells reach the arrows as `viewer.nav`.
 
 ### Changed
-
-- **A livelier "is working":** the spinner ring is now a small dot grid with a ripple running out from its centre, and the working panel's *… is working* has a soft light passing over it, in the feed, split view, the crew and the site's demo.
 
 - **Search puts recent things first:** in ⌘K and the project picker, a task you touched recently or a project you used recently now ranks above older ones that match the query about as well. Only a clearly better text match still wins over a newer one.
 
