@@ -178,6 +178,13 @@
 .w-body { flex: 1; min-width: 0; position: relative; }
 .w-status { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
 .w-status b { font-weight: 600; }
+/* "… is working" has a soft light passing over it, in step with the orb's ripple. */
+.w-panel:not(.waiting) .w-status b {
+  color: transparent; -webkit-background-clip: text; background-clip: text;
+  background-image: linear-gradient(100deg, var(--ink) 40%, color-mix(in srgb, var(--ink) 30%, transparent) 50%, var(--ink) 60%);
+  background-size: 250% 100%; animation: w-shine 2.8s linear infinite;
+}
+@keyframes w-shine { from { background-position: 100% 0; } to { background-position: 0% 0; } }
 .w-status span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ticker, .log { list-style: none; margin: 0; padding: 0; }
 .act { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: 13px; color: var(--ink-2); min-width: 0; }

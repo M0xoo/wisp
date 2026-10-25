@@ -224,7 +224,16 @@ h1 { font-size: clamp(40px, 6.4vw, 84px); line-height: 1; font-weight: 700; lett
 .h-main small.swap { animation: sub-in 0.35s ease both; }
 .h-row[data-s='asks'] small { color: var(--warn); }
 .h-dot { width: 9px; height: 9px; border-radius: 50%; justify-self: center; background: #18794e; transition: background 0.3s; }
-.h-row[data-s='live'] .h-dot { width: 13px; height: 13px; background: none; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+/* Live: the app's dot grid with a ripple running through it (web/css/base.css .orb.live). */
+@property --orb-r { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+.h-row[data-s='live'] .h-dot {
+  width: 13px; height: 13px; border-radius: 0;
+  background: radial-gradient(circle closest-side, transparent calc(var(--orb-r) - 36%), var(--accent) calc(var(--orb-r) - 12%), transparent var(--orb-r)), color-mix(in srgb, var(--ink) 22%, transparent);
+  -webkit-mask: radial-gradient(circle closest-side, #000 52%, transparent 60%) 0 0 / 33.34% 33.34%;
+  mask: radial-gradient(circle closest-side, #000 52%, transparent 60%) 0 0 / 33.34% 33.34%;
+  animation: orb-ripple 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes orb-ripple { from { --orb-r: 0%; } to { --orb-r: 190%; } }
 .h-row[data-s='asks'] .h-dot { background: var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 18%, transparent); }
 .h-row.pop .h-dot { animation: dot-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1.4); }
 @keyframes dot-pop { from { scale: 0.2; } }
