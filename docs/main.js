@@ -1,4 +1,4 @@
-// wisp site: the hero launcher, the transcript/report switch, the terminal, and small things.
+// wisp site: the hero's night shift, the transcript/report switch, the terminal, and small things.
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -239,295 +239,129 @@ const io = new IntersectionObserver(
   },
   { rootMargin: '0px 0px -10% 0px' },
 );
-$$('.hero-top > *, .desk, .strip, .r-head, .c-head, .cmp-shot, .cli-text, .term-win, .more, .install h2, .install .sub, .steps li, .faq, .final h2, .final .cta').forEach((el, i) => {
+$$('.h-head > *, .h-stage, .strip, .r-head, .c-head, .cmp-shot, .cli-text, .term-win, .more, .install h2, .install .sub, .steps li, .faq, .final h2, .final .cta').forEach((el, i) => {
   el.classList.add('rise');
   if (el.closest('.hero')) el.style.transitionDelay = `${i * 80}ms`;
   if (el.matches('.steps li')) el.style.transitionDelay = `${[...el.parentElement.children].indexOf(el) * 90}ms`;
   io.observe(el);
 });
 
-// ---------- hero: a working copy of the launcher ----------
-// It shows what wisp does, one row at a time: a crew member checks in on its own, a task moves to
-// another machine and leads helpers there, two harnesses race and you keep one, a spell restyles
-// the queue, and the reports come back. The rail under the lede lights the feature on show. Type
-// your own task and you get the command that runs it for real.
-const desk = $('#desk');
-if (desk) {
-  const form = $('#launch');
-  const input = $('#task');
-  const hint = $('#hint');
-  const send = $('.l-send', form);
-  const queue = $('#queue');
-  const lists = { needs: $('[data-g="needs"] .q-list', desk), working: $('[data-g="working"] .q-list', desk) };
-  const cta = $('#deskCta');
-  const rail = new Map($$('[data-rail] a').map((a) => [a.dataset.f, a]));
-  const LOGO = { claude: 'assets/logos/claudecode-color.svg', codex: 'assets/logos/codex-color.svg' };
-  const PROJ = { 'api-server': 'c-violet', 'web-app': 'c-teal', 'your-repo': 'c-sky' };
-  const SCOUT = { name: 'Scout', avatar: 'ghost.sky.visor.flat.antenna' }; // the crew section's Scout
-  const MACHINE = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3" width="11" height="7.5" rx="1.4"/><path d="M1.5 13h13"/></svg>';
-  const SPARK = '<svg class="q-logo auto" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z" fill="currentColor"/></svg>';
-  // The faces are the app's spirits (spirit.js, copied in by scripts/site.mjs). Until it loads a
+// ---------- hero: the second line, and the night shift ----------
+// The headline's second line cycles through what the agents get up to. Under it, one night with
+// wisp plays back once it's on screen: the clock runs from midnight to 07:30, the six tasks finish
+// at their times (one stops to ask), the flaky-test report fills in, and morning says hello. The
+// markup is the morning, so without JS (or with reduced motion) that's what shows.
+const rot = $('.h-rot');
+if (rot && !calm) {
+  const lines = rot.dataset.rot.split('|');
+  let i = 0;
+  setInterval(() => {
+    if (document.hidden) return;
+    rot.classList.remove('in');
+    rot.classList.add('out');
+    setTimeout(() => {
+      i = (i + 1) % lines.length;
+      rot.textContent = lines[i];
+      rot.classList.remove('out');
+      void rot.offsetWidth;
+      rot.classList.add('in');
+    }, 340);
+  }, 3000);
+}
+
+const night = $('#night');
+if (night) {
+  const rows = $$('.h-row', night);
+  const clock = $('[data-hclock]', night);
+  const count = $('[data-count]', night);
+  const report = $('.h-report', night);
+  const replay = $('[data-replay]', night);
+  const MOOD = { live: 'live', asks: 'asks', done: 'idle' };
+  // The faces are the app's spirits (spirit.js, copied in by scripts/site.mjs); until it loads a
   // face is its tinted circle, the same size, so the row doesn't change shape when it arrives.
-  const spirits = import('./spirit.js').catch(() => null);
-  const wait = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
-  let demo = true; // false once the visitor starts typing
-  const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  let spirits = null;
+  const face = (row) => {
+    const f = $('[data-face]', row);
+    if (f && spirits) f.innerHTML = spirits.spiritSvg(f.dataset.face, { state: MOOD[row.dataset.s], small: true });
+  };
+  import('./spirit.js')
+    .then((m) => {
+      spirits = m;
+      rows.forEach(face);
+    })
+    .catch(() => {});
 
-  // Light the rail link for the feature on show: only while the demo plays and is on screen (on a
-  // phone the queue sits under the install box, and a lit link with nothing to see is just noise).
-  let shown = null;
-  let inView = false;
-  const paint = () => {
-    for (const [k, a] of rail) a.classList.toggle('on', demo && !calm && inView && k === shown);
+  const mins = (t) => t.split(':').reduce((h, m) => h * 60 + Number(m));
+  const fmt = (m) => {
+    m = Math.floor((m + 1440) % 1440);
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   };
-  const feature = (f) => {
-    shown = f;
-    paint();
-  };
-  new IntersectionObserver(([e]) => {
-    inView = e.isIntersecting;
-    paint();
-  }, { threshold: 0.35 }).observe(queue);
+  const START = -12;
+  const END = mins('07:30');
+  const RUN = 9000;
+  for (const r of rows) r.dataset.final = r.dataset.s;
 
-  const counts = () => {
-    for (const [g, list] of Object.entries(lists)) $(`[data-g="${g}"] .n`, desk).textContent = list.children.length;
+  const tally = () => {
+    const n = (s) => rows.filter((r) => r.dataset.s === s).length;
+    count.textContent = [[n('live'), 'working'], [n('done'), 'done'], [n('asks'), 'needs you']]
+      .filter(([k]) => k)
+      .map(([k, w]) => `${k} ${w}`)
+      .join(' · ');
   };
-  // Move a row between groups without a jump: measure, move, play the difference (FLIP).
-  const move = (row, group, first = true) => {
-    const rows = $$('.q-row', desk);
-    const before = new Map(rows.map((r) => [r, r.getBoundingClientRect().top]));
-    const list = lists[group];
-    first ? list.prepend(row) : list.append(row);
-    counts();
-    if (calm) return;
-    for (const r of rows) {
-      const dy = before.get(r) - r.getBoundingClientRect().top;
-      if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 450, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  const set = (row, s, swap) => {
+    row.dataset.s = s;
+    const sub = $('small', row);
+    sub.textContent = s === 'live' ? sub.dataset.live : sub.dataset.done;
+    if (swap) {
+      for (const el of [sub, row]) el.classList.remove(el === sub ? 'swap' : 'pop');
+      void row.offsetWidth;
+      sub.classList.add('swap');
+      row.classList.add('pop');
     }
+    face(row);
   };
-
-  const trim = () => {
-    const rows = $$('.q-row', desk);
-    if (rows.length <= 4) return;
-    const old = $$('.q-row[data-s="done"]', desk).at(-1);
-    if (!old) return;
-    old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: calm ? 0 : 250 }).finished.then(() => (old.remove(), counts()));
+  const reset = () => {
+    for (const r of rows) set(r, 'live');
+    report.dataset.show = '0';
+    night.classList.remove('morning');
+    clock.textContent = fmt(START);
+    replay.hidden = true;
+    tally();
   };
-
-  // agent: 'claude' | 'codex' | 'auto', or ['claude', 'codex'] for a compare; crew: a member whose
-  // face stands in for the logo; where: the machine it runs on.
-  function row({ title, agent, project, mine, crew, where, sub = 'Starting up' }) {
-    const el = document.createElement('div');
-    el.className = `q-row new${mine ? ' mine' : ''}`;
-    el.dataset.s = 'working';
-    const logo = (a) => (a === 'auto' ? SPARK : `<span class="q-logo" style="background-image: url(${LOGO[a]})"></span>`);
-    const who = crew
-      ? `<span class="cw-av q-face c-sky" title="${crew.name}"></span>`
-      : Array.isArray(agent) ? `<span class="q-pair">${agent.map(logo).join('')}</span>` : logo(agent);
-    el.innerHTML = `<span class="q-dot"></span><span class="q-main"><span class="q-title">${esc(title)}</span><span class="q-sub">${esc(sub)}</span></span>
-      <span class="q-side"><span class="pill working"></span>${who}${where ? `<span class="q-where">${MACHINE}<span>${where}</span></span>` : ''}${project ? `<span class="q-proj"><i class="${PROJ[project]}"></i>${project}</span>` : ''}<span class="q-time">now</span></span>`;
-    if (crew) spirits.then((m) => m && ($('.q-face', el).innerHTML = m.spiritSvg(crew.avatar, { state: MOOD[el.dataset.s], small: true })));
-    let min = 0;
-    el._clock = setInterval(() => ($('.q-time', el).textContent = `${++min}m`), 1100);
-    return el;
-  }
-  const status = (el, text) => {
-    const sub = $('.q-sub', el);
-    sub.textContent = text;
-    sub.classList.remove('swap');
-    void sub.offsetWidth;
-    sub.classList.add('swap');
-  };
-  const MOOD = { working: 'live', asking: 'asks', done: 'idle' };
-  const state = (el, s, pill) => {
-    el.dataset.s = s;
-    const p = $('.pill', el);
-    p.className = `pill ${s}`;
-    p.textContent = pill || '';
-    const face = $('.q-face .spirit', el); // a crew face floats while working, hops when it asks
-    if (face) face.setAttribute('class', face.getAttribute('class').replace(/st-\w+/, `st-${MOOD[s]}`));
-  };
-  // The task moves to another machine: only the chip's name changes.
-  const hop = (el, to) => {
-    const name = $('.q-where span', el);
-    if (!name) return;
-    name.textContent = to;
-    name.classList.remove('swap');
-    void name.offsetWidth;
-    name.classList.add('swap');
-  };
-
-  // Type into the launcher, press send, and fly the words down into a new row.
-  async function launch(text, opts) {
-    if (!demo && !opts.mine) return null;
-    if (!opts.mine) {
-      form.classList.add('typing');
-      for (const ch of text) {
-        if (!demo) return (form.classList.remove('typing'), null);
-        input.value += ch;
-        await wait(28 + Math.random() * 45);
+  let raf = 0;
+  const play = () => {
+    cancelAnimationFrame(raf);
+    reset();
+    const t0 = performance.now();
+    const tick = (now) => {
+      const p = Math.min(1, (now - t0) / RUN);
+      const m = START + (END - START) * p;
+      clock.textContent = fmt(m);
+      for (const r of rows) {
+        if (r.dataset.s !== 'live' || mins(r.dataset.at) > m) continue;
+        set(r, r.dataset.final, true);
+        if (r.hasAttribute('data-report')) report.dataset.show = '1';
+        tally();
       }
-      await wait(380);
-      form.classList.remove('typing');
-    }
-    send.classList.add('press');
-    setTimeout(() => send.classList.remove('press'), 140);
-    trim();
-    const el = row({ title: text, ...opts });
-    const from = input.getBoundingClientRect();
-    move(el, 'working');
-    if (!calm) {
-      const to = $('.q-title', el).getBoundingClientRect();
-      const fly = document.createElement('span');
-      fly.className = 'flyer';
-      fly.textContent = text;
-      const pad = parseFloat(getComputedStyle(input).paddingLeft);
-      Object.assign(fly.style, { left: `${from.left + pad}px`, top: `${from.top + parseFloat(getComputedStyle(input).paddingTop)}px` });
-      document.body.append(fly);
-      const scale = 14.5 / parseFloat(getComputedStyle(fly).fontSize);
-      $('.q-title', el).style.opacity = 0;
-      fly.animate(
-        [{ transform: 'none', opacity: 1 }, { transform: `translate(${to.left - from.left - pad}px, ${to.top - from.top - 16}px) scale(${scale})`, opacity: 1, fontWeight: 600 }],
-        { duration: 620, easing: 'cubic-bezier(.5,0,.2,1)' },
-      ).finished.then(() => {
-        fly.remove();
-        $('.q-title', el).style.opacity = '';
-      });
-    }
-    input.value = '';
-    return el;
-  }
-
-  // A crew member checks in on its own schedule: nobody types it, the row just arrives.
-  function checkIn(member, title, sub) {
-    if (!demo) return null;
-    trim();
-    const el = row({ title, crew: member, project: 'api-server', sub });
-    move(el, 'working');
-    return el;
-  }
-
-  const COMPARE = {
-    q: 'Both pass. Keep which?',
-    choices: ['Claude Code’s', 'Codex’s'],
-    then: (el, i) => setTimeout(() => done(el, `Kept ${i ? 'Codex' : 'Claude Code'}’s · other worktree removed`), 1400),
-  };
-
-  async function script() {
-    await wait(900);
-    const a = checkIn(SCOUT, 'Scout: check CI on main', 'Check-in · every 30 min · gh run list');
-    if (!a) return;
-    feature('crew');
-    await wait(1400);
-    status(a, 'Run 42 failed in auth.test.js · reading it');
-    const b = await launch('Upgrade to Node 22 and fix whatever breaks', { agent: 'codex', project: 'web-app', where: 'laptop' });
-    if (!b) return;
-    status(b, 'Reading package.json');
-    await wait(600);
-    status(a, 'A timer races the expiry · fixing on a branch');
-    const c = await launch('Migrate billing webhooks to the new Stripe API', { agent: ['claude', 'codex'], project: 'api-server', sub: 'Claude Code and Codex, same prompt' });
-    if (!c) return;
-    feature('compare');
-    await wait(1000);
-    hop(b, 'dev-box');
-    status(b, 'Moved to dev-box · the laptop can sleep');
-    feature('machines');
-    await wait(1900);
-    status(b, 'Leading 2 helpers on ci-box · e2e tests, lint');
-    feature('delegate');
-    await wait(1700);
-    status(c, 'Both done · Claude Code 41 lines, Codex 58');
-    await wait(1100);
-    ask(c, COMPARE);
-    feature('compare');
-    await wait(1500);
-    done(a, 'Fixed the flaky session test · 214 passed');
-    feature('report');
-    await wait(2600);
-    done(b, 'Node 22: tests pass, one dependency pinned');
-    await wait(900);
-    const d = await launch('Make my task cards compact', { agent: 'claude', sub: 'Writing a spell for wisp itself' });
-    if (!d) return;
-    feature('spells');
-    await wait(1700);
-    done(d, 'Spell on: compact cards · undo it in Settings');
-    queue.classList.add('compact'); // the spell, on this very queue
-    await wait(2600);
-    feature(null);
-    if (demo) hint.classList.add('on');
-  }
-
-  // A question jumps the row to Needs you with its options; the demo answers it itself after a
-  // while, as if from your phone.
-  function ask(el, { q, choices, then }) {
-    state(el, 'asking', 'Asking');
-    status(el, `Asks: ${q}`);
-    const opts = document.createElement('div');
-    opts.className = 'q-opts';
-    opts.innerHTML = choices.map((c, i) => `<button type="button"><kbd>${i + 1}</kbd>${esc(c)}</button>`).join('');
-    $('.q-main', el).append(opts);
-    move(el, 'needs');
-    let answered = false;
-    const answer = (i, phone) => {
-      if (answered) return;
-      answered = true;
-      opts.remove();
-      $('.q-pair', el)?.setAttribute('data-keep', i);
-      state(el, 'working');
-      status(el, `↳ Keep ${choices[i]}${phone ? ' · answered from your phone' : ''}`);
-      move(el, 'working');
-      then(el, i);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else {
+        night.classList.add('morning');
+        replay.hidden = false;
+      }
     };
-    $$('button', opts).forEach((btn, i) => btn.addEventListener('click', () => answer(i, false)));
-    setTimeout(() => answer(0, demo), demo ? 6500 : 60000);
-  }
-
-  function done(el, text) {
-    clearInterval(el._clock);
-    state(el, 'done', 'Done');
-    status(el, text);
-    move(el, 'needs', false);
-  }
-
-  // The visitor's turn.
-  input.addEventListener('focus', () => {
-    if (!demo) return;
-    demo = false;
-    feature(null);
-    input.value = '';
-    form.classList.remove('typing');
-    hint.classList.add('on');
+    raf = requestAnimationFrame(tick);
+  };
+  replay.addEventListener('click', () => {
+    play();
   });
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return input.focus();
-    hint.classList.remove('on');
-    const el = await launch(text, { agent: 'auto', project: 'your-repo', mine: true });
-    const steps = ['Auto is picking a harness and model', 'Auto picked Claude Code · Balanced', 'Reading the codebase'];
-    steps.forEach((t, i) => setTimeout(() => status(el, t), 900 + i * 1300));
-    setTimeout(() => status(el, 'A web page can’t reach your code. Copy the command to run it for real.'), 900 + steps.length * 1300 + 600);
-    // Hand back the real command, with their task in it.
-    cta.dataset.task = text.replace(/["\\$`]/g, '\\$&');
-    tabBoxes.find((t) => t.box === cta)?.refresh();
-    cta.classList.add('mine');
-    $('#deskFine').innerHTML = '<b>Run it in your project folder.</b> It opens wisp and starts this task.';
-    window.posthog?.capture?.('hero_task_typed');
-  });
-
-  counts();
-  if (calm) {
-    // No motion: show the demo's middle, where every feature is on screen at once.
-    const a = row({ title: 'Scout: check CI on main', crew: SCOUT, project: 'api-server' });
-    const c = row({ title: 'Migrate billing webhooks to the new Stripe API', agent: ['claude', 'codex'], project: 'api-server' });
-    const b = row({ title: 'Upgrade to Node 22 and fix whatever breaks', agent: 'codex', project: 'web-app', where: 'dev-box' });
-    move(b, 'working');
-    status(b, 'Moved to dev-box · leading 2 helpers on ci-box');
-    ask(c, COMPARE);
-    done(a, 'Fixed the flaky session test · 214 passed');
-    hint.classList.add('on');
-  } else {
-    script();
+  if (!calm) {
+    reset();
+    const seen = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return;
+      seen.disconnect();
+      setTimeout(play, 500);
+    }, { threshold: 0.35 });
+    seen.observe(night);
   }
 }
 
