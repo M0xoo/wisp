@@ -1,11 +1,12 @@
 import { icon, el } from './blocks.js';
 import { esc } from './md.js';
-import { fuzzy, highlight } from './fuzzy.js';
+import { byScore, fuzzy, highlight, recency } from './fuzzy.js';
 
 // ⌘K command palette: one input over a grouped list of sessions, projects and
 // actions. Generic over its items; app.js decides what's in it and what runs.
 //
-// item: { id, group, label, sub?, icon?, dot?, kbd?, keywords?, run, rank? }
+// item: { id, group, label, sub?, icon?, dot?, kbd?, keywords?, run, rank?, at? }
+// `at` (ms) is when the item was last touched: recent items score higher (fuzzy.js recency).
 // With an empty query each group shows its first `limit` items in the given order.
 
 const GROUP_LIMIT = 6;
@@ -32,12 +33,13 @@ export function palette({ items, overlay, placeholder = 'Search tasks, projects 
       }).map((it) => ({ it, idx: [] }));
     }
     const hits = [];
+    const now = Date.now();
     for (const it of items) {
       const m = fuzzy(q, [it.label, it.sub || '', it.keywords || '', it.group]);
-      if (m) hits.push({ it, idx: m.idx, score: m.score + (it.rank || 0) });
+      if (m) hits.push({ it, idx: m.idx, at: it.at, score: m.score + (it.rank || 0) + recency(it.at, now) });
     }
     // Best match first, but keep groups together, ordered by their best hit.
-    hits.sort((a, b) => b.score - a.score);
+    hits.sort(byScore);
     const order = [...new Set(hits.map((h) => h.it.group))];
     return order.flatMap((g) => hits.filter((h) => h.it.group === g).slice(0, 12));
   };

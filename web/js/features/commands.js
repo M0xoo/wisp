@@ -76,6 +76,7 @@ function paletteItems() {
       keywords: [s.preview, s.live, s.question, agentName(s.agent)].filter(Boolean).join(' '),
       // Live and unread work floats up; archived sinks.
       rank: (s.state === 'waiting' ? 3 : 0) + (s.unread ? 2 : 0) + (s.state === 'running' ? 1 : 0) - (s.archived ? 4 : 0),
+      at: s.updatedAt,
       run: () => reveal(s.id),
     });
   }
@@ -140,7 +141,7 @@ function paletteItems() {
   };
   items.push({ group: 'Projects', label: 'All projects', sub: S.filter === 'all' ? 'Current filter' : '', dot: 'slate', keywords: 'filter clear', run: filter('all') });
   for (const p of S.config.projects.slice().sort((x, y) => (y.lastUsedAt || y.addedAt) - (x.lastUsedAt || x.addedAt))) {
-    items.push({ group: 'Projects', label: p.name, sub: S.filter === p.id ? 'Current filter' : p.path, dot: p.color, keywords: `filter ${p.path}`, run: filter(p.id) });
+    items.push({ group: 'Projects', label: p.name, sub: S.filter === p.id ? 'Current filter' : p.path, dot: p.color, keywords: `filter ${p.path}`, at: p.lastUsedAt || p.addedAt, run: filter(p.id) });
   }
   return items;
 }
