@@ -183,7 +183,7 @@ export function summarize(s, store) {
     ...(s.parentId && { parentId: s.parentId, member: s.member }),
     // A crew member's job (server/crew.js): what it was asked (for the member's thread) and the
     // tasks it followed up in.
-    ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }), prompt: plainMentions(s.turns[0]?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 280), ...(s.crew.sent?.length && { sent: s.crew.sent }), ...(s.crew.kit && { kit: true }) } }),
+    ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }), ...(s.crew.event && { event: s.crew.event }), prompt: plainMentions(s.turns[0]?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 280), ...(s.crew.sent?.length && { sent: s.crew.sent }), ...(s.crew.kit && { kit: true }) } }),
     ...(s.delegated && { delegated: true }), // a delegate's run for a lead on another wisp (services/relay.js), not a task
     ...relaysOf(s, store),
     followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds

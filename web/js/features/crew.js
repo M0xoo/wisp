@@ -51,8 +51,22 @@ export const CADENCES = [
 ];
 export const cadenceLabel = (cron) => CADENCES.find(([c]) => c === (cron || ''))?.[1] || cron;
 
+// What else starts their jobs (triggers that send them work, server/triggers.js MEMBER_KINDS).
+export const EVENTS = [
+  ['finished', 'A task finishes', 'a task finishes'],
+  ['done', 'I mark a task done', 'a task is marked done'],
+  ['ci', 'CI fails', 'CI fails'],
+];
+const eventsLabel = (m) => {
+  const on = EVENTS.filter(([k]) => m.on?.includes(k)).map(([, , w]) => w);
+  return on.length ? `When ${on.join(' or ').replace(' or a task ', ' or ')}` : ''; // "a task finishes or is marked done"
+};
+// Their schedule and what else wakes them, in words.
+const cadenceText = (m) => [m.cron ? cadenceLabel(m.cron) : '', eventsLabel(m)].filter(Boolean).join(' · ') || 'On call';
+
 // Ready-made members: a name, a spirit, a schedule and a brief that already work.
 const TEMPLATES = [
+  { key: 'verify', name: 'Vera', role: 'Verifier', avatar: 'bean.teal.visor.smile.halo', cron: '', on: ['finished'], brief: 'When a task finishes, check its work: read it with wisp_session, run the tests, try the change and look for what it missed. When something is wrong, send that task a follow-up saying exactly what to fix. When it holds up, stay quiet.' },
   { key: 'ci', name: 'Scout', role: 'CI watcher', avatar: 'ghost.sky.visor.flat.antenna', cron: '*/30 * * * *', brief: 'Watch CI on the default branch (`gh run list`). When a run fails, find the cause in its logs (`gh run view <id> --log-failed`) and fix it on a branch, or say why it is flaky. When everything is green, stay quiet.' },
   { key: 'review', name: 'Quill', role: 'PR reviewer', avatar: 'blob.violet.wide.flat.headphones', cron: '0 * * * *', brief: 'Review pull requests that are new or changed since your last check-in (`gh pr list`, `gh pr diff`). Look for bugs, missing tests and risky changes, worst first, one short review per PR. Never push, approve or merge.' },
   { key: 'triage', name: 'Sorter', role: 'Issue triager', avatar: 'bean.amber.happy.smile.leaf', cron: '0 9 * * 1-5', brief: 'Read new GitHub issues. Spot duplicates, note missing repro steps, and list the ones worth doing first with a one-line plan each. Never close an issue.' },
@@ -86,7 +100,7 @@ export function avatarHtml(m, { size = 30, state, dot = true, small = size < 22 
 export function crewDot(s) {
   const m = memberById(s.crew?.id);
   if (!m) return '';
-  const what = { checkin: 'check-in', task: 'job', delegated: `job for “${s.crew.from?.title || 'another task'}”`, trigger: `job from ${s.crew.from?.title || 'a trigger'}`, mention: `answer in “${s.crew.from?.title || 'a task'}”` }[s.crew.job] || 'job';
+  const what = { checkin: 'check-in', task: 'job', delegated: `job for “${s.crew.from?.title || 'another task'}”`, trigger: `job from ${s.crew.from?.title || 'a trigger'}`, mention: `answer in “${s.crew.from?.title || 'a task'}”`, event: `check on “${s.crew.from?.title || 'a task'}”` }[s.crew.job] || 'job';
   const mood = s.state === 'waiting' ? 'asks' : s.state === 'running' ? 'live' : 'idle';
   return `<span class="q-dot crew-dot" title="${esc(`${m.name}’s ${what}`)}">${avatarHtml(m, { size: 18, state: mood, dot: false })}</span>`;
 }
@@ -149,7 +163,7 @@ function statusLine(m, st) {
   if (m.queue?.length) return { cls: '', text: `${m.queue.length} waiting` };
   if (m.paused) return { cls: '', text: 'Paused' };
   if (m.wakeAt && m.wakeAt > Date.now()) return { cls: '', text: `Looks again ${whenLabel(m.wakeAt)}` };
-  return { cls: '', text: `${m.cron ? cadenceLabel(m.cron) : 'On call'}${m.machine ? ` · on ${placeName(m.machine)}` : ''}` };
+  return { cls: '', text: `${cadenceText(m)}${m.machine ? ` · on ${placeName(m.machine)}` : ''}` };
 }
 
 function rowHtml(m, st) {
@@ -448,7 +462,7 @@ document.addEventListener('click', (e) => {
 // check-ins fold into one faint line. At the bottom, a box to hand the member a job; beside the
 // thread (under it on a narrow pane), what it is and how it works, its notebook, brief and tasks.
 
-const JOB_ICON = { checkin: 'clock', task: 'send', delegated: 'agent', trigger: 'bolt', mention: 'ask' };
+const JOB_ICON = { checkin: 'clock', task: 'send', delegated: 'agent', trigger: 'bolt', mention: 'ask', event: 'bolt' };
 const SHOW = 30; // jobs shown; Show earlier adds more
 const views = new Map(); // member id -> view
 const sending = new Map(); // member id -> [{ id, prompt }]: jobs sent, not started yet
@@ -472,11 +486,12 @@ function origin(s) {
     mention: from ? `Tagged in <button class="cv-from" ${link}>“${from}”</button>` : 'Tagged in a task',
     delegated: from ? `Delegated by <button class="cv-from" ${link}>“${from}”</button>` : 'Delegated',
     trigger: from ? `Trigger <b>${from}</b>` : 'Trigger',
+    event: `${c.event === 'done' ? 'Marked done' : 'Finished'}${from ? ` <button class="cv-from" ${link}>“${from}”</button>` : ''}`,
   }[c.job] || 'Job';
   return `<span class="cv-kind k-${c.job}">${icon(JOB_ICON[c.job] || 'send')}${label}</span>`;
 }
 
-const quietJob = (s) => s.crew.job === 'checkin' && s.archived && s.state === 'done';
+const quietJob = (s) => (s.crew.job === 'checkin' || s.crew.job === 'event') && s.archived && s.state === 'done';
 
 function jobHtml(m, s, { follow = false } = {}) {
   const live = s.state === 'running';
@@ -514,7 +529,7 @@ function jobHtml(m, s, { follow = false } = {}) {
 
 function quietHtml(list) {
   const last = list.at(-1);
-  return `<div class="cv-quiet" data-id="q-${esc(list[0].id)}">${icon('clock')}<span>${list.length > 1 ? `${list.length} check-ins` : 'Check-in'} · nothing new</span><time ${timeAttrs(last.updatedAt)}>${ago(last.updatedAt)}</time></div>`;
+  return `<div class="cv-quiet" data-id="q-${esc(list[0].id)}">${icon('clock')}<span>${list.every((s) => s.crew.job === 'checkin') ? (list.length > 1 ? `${list.length} check-ins` : 'Check-in') : list.length > 1 ? `${list.length} jobs` : 'Job'} · nothing new</span><time ${timeAttrs(last.updatedAt)}>${ago(last.updatedAt)}</time></div>`;
 }
 
 function buildView(id) {
@@ -619,7 +634,7 @@ function buildView(id) {
     const wide = split && $('#splitMain').clientWidth >= 860;
     node.classList.toggle('wide', wide);
     if (wide) about.open = true;
-    $('summary', about).innerHTML = `${icon('info')}About ${esc(m.name)}<span>${esc([cadenceLabel(m.cron), m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · '))}</span>${icon('chevron', 'chev')}`;
+    $('summary', about).innerHTML = `${icon('info')}About ${esc(m.name)}<span>${esc([cadenceText(m), m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · '))}</span>${icon('chevron', 'chev')}`;
     paintSide(m, st, $('.cv-side', node));
 
     // Seen here: its reports are read.
@@ -761,6 +776,7 @@ function paintSide(m, st, side) {
   const project = S.config.projects?.find((p) => pathAt(p, m.machine || '') === m.cwd);
   const facts = [
     ['clock', m.paused ? 'Paused' : `${cadenceLabel(m.cron)}${m.nextAt && !m.paused ? ` · next ${whenLabel(m.nextAt)}` : ''}`],
+    ...(eventsLabel(m) ? [['bolt', eventsLabel(m)]] : []),
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
     ['folder', project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')],
     [m.machine ? 'server' : 'laptop', m.machine ? placeName(m.machine) : 'This computer'],
@@ -899,6 +915,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     avatar: member?.avatar || '',
     brief: member?.brief ?? '',
     cron: member?.cron ?? '',
+    on: (member?.on || []).filter((k) => EVENTS.some(([e]) => e === k)), // what else starts their jobs
     parallel: member?.parallel || 2,
     team: member?.team || [], // its delegates: any harness, other crew members
     cwd: member?.cwd ?? (task ? '' : S.config.projects?.find((p) => p.id === launch.project)?.path || ''),
@@ -929,6 +946,9 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
         <div class="ce-stack"><span>Checks in <small>on their own, between the jobs you give them</small></span>
           <div class="ce-cadence">${CADENCES.map(([c, l]) => `<button type="button" class="lp-chip" data-cron="${c}">${l}</button>`).join('')}<button type="button" class="lp-chip" data-cron="custom">Custom…</button></div>
           <input class="input sm mono ce-cron" name="cron" placeholder="*/15 9-18 * * 1-5" spellcheck="false" hidden>
+        </div>
+        <div class="ce-stack ce-events"><span>Also starts when <small>with a job about that task, in their project (any, if they have none)</small></span>
+          <div class="ce-cadence ce-on">${EVENTS.map(([k, l]) => `<button type="button" class="lp-chip" data-on="${k}" aria-pressed="false">${icon(k === 'ci' ? 'warn' : k === 'done' ? 'done' : 'bolt')}${l}</button>`).join('')}</div>
         </div>
         <div class="ce-bar">
           ${task ? '' : `<button type="button" class="tog-btn where-btn ce-place" title="The computer their jobs run on" aria-haspopup="menu"></button>
@@ -981,6 +1001,11 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
   const paintCadence = () => {
     $$('.ce-cadence [data-cron]', node).forEach((b) => b.classList.toggle('on', b.dataset.cron === 'custom' ? custom() : b.dataset.cron === d.cron));
     $('.ce-cron', node).hidden = !custom();
+    $$('.ce-on [data-on]', node).forEach((b) => {
+      const on = d.on.includes(b.dataset.on);
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on);
+    });
   };
   const paintBar = () => {
     $('.ce-par b', node).textContent = `${d.parallel} at once`;
@@ -1054,9 +1079,17 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       $f('role').value = tpl.role;
       $f('brief').value = tpl.brief;
       d.cron = tpl.cron;
+      d.on = tpl.on || [];
+      if ($f('checkin')) $f('checkin').checked = !!tpl.cron; // one that waits for tasks has nothing to check yet
       $f('cron').value = tpl.cron;
       setFace(tpl.avatar);
       paintHandle();
+      paintCadence();
+      return;
+    }
+    const ev = e.target.closest('[data-on]')?.dataset.on;
+    if (ev) {
+      d.on = d.on.includes(ev) ? d.on.filter((k) => k !== ev) : [...d.on, ev];
       paintCadence();
       return;
     }
@@ -1133,7 +1166,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
 
   f.onsubmit = async (e) => {
     e.preventDefault();
-    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
+    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, on: d.on, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
     if (!body.name) return $f('name').focus();
     const again = () => crewEditor({ member, task, draft: { ...d, ...body, checkin: $f('checkin')?.checked } });
     close();

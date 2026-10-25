@@ -190,7 +190,9 @@ export function createLaunch(app) {
 
   function markDone(s) {
     if (s.state === 'running' || s.state === 'waiting') return false;
+    const was = s.state;
     s.state = 'done';
+    if (was !== 'done') app.triggers?.taskEvent('done', s); // crew members and triggers that watch for it
     s.unread = false;
     app.retro.schedule(s, 0);
     app.sessionChanged(s);

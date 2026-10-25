@@ -8,9 +8,11 @@
 //             block that ends each job (remember: lines to add, notebook: a full rewrite)
 //   log       wisp's: one line per finished job, the newest few go in every job's prompt
 // Work reaches a member from its schedule (a check-in: cron, or a wake-up it asked for), the user
-// (its page, or @Name in any prompt or follow-up), a lead's `delegate` call, or a trigger. Jobs past
-// the member's `parallel` limit wait in its queue. A check-in that found nothing says `quiet`: it's
-// logged and archived instead of landing in Needs you.
+// (its page, or @Name in any prompt or follow-up), a lead's `delegate` call, or a trigger: one of
+// the GitHub watchers, or a task finishing or marked done (an `event` job, about that task, which
+// it may follow up on). The editor's "Also starts when" sets those (`on`, Triggers.syncMember).
+// Jobs past the member's `parallel` limit wait in its queue. A check-in (or event job) that found
+// nothing says `quiet`: it's logged and archived instead of landing in Needs you.
 //
 // A member can live on another machine (machine: its id). Its memory, schedule and queue stay
 // here; its jobs run there as that wisp's tasks, sent with the member's note (crewJob), and that
@@ -32,7 +34,8 @@ export const BRIEF_MAX = 4000;
 export const NOTEBOOK_SOFT = 6000; // what the member is asked to stay under
 export const NOTEBOOK_MAX = 12000; // past this the oldest lines go
 export const CREW_COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
-export const JOBS = new Set(['checkin', 'task', 'delegated', 'trigger', 'mention']);
+export const JOBS = new Set(['checkin', 'task', 'delegated', 'trigger', 'mention', 'event']);
+const QUIET_JOBS = new Set(['checkin', 'event']); // jobs nobody waits on: one that found nothing is filed
 const LOG_MAX = 40;
 const LOG_IN_PROMPT = 12;
 const LINKS_MAX = 20;
@@ -262,7 +265,8 @@ export function dueNow(m, now = Date.now()) {
 // --- what a job hears --------------------------------------------------------------------------
 
 const when = (t) => new Date(t).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const JOB_LABEL = { checkin: 'check-in', task: 'from the user', delegated: 'delegated', trigger: 'trigger', mention: 'tagged' };
+const JOB_LABEL = { checkin: 'check-in', task: 'from the user', delegated: 'delegated', trigger: 'trigger', mention: 'tagged', event: 'on a task' };
+const EVENT_WHAT = { finished: 'just finished', done: 'was marked done by the user' };
 
 // Appended to a job's system prompt: who it is, its memory, where this job came from and how to
 // hand memory back.
@@ -275,12 +279,13 @@ export function crewNote(m, job = {}, files = null) {
     delegated: `Delegated to you by the agent working on ${from}. That agent reads your report; it can't see your notebook, so say everything it needs.`,
     trigger: `Started by the trigger "${job.from?.title || 'a trigger'}".`,
     mention: `The user tagged you in ${from}. Your answer shows there, under their message. Read that task with wisp_session if you need its context.`,
+    event: `The task ${from} ${EVENT_WHAT[job.event] || 'changed'}, and you watch for that. Do your standing job from the brief on it: read it with wisp_session. To have its agent fix what you found, send it a followUp.`,
   }[job.job || 'task'] + (job.kit ? `\n\nThe user asked you to build your own kit: the skills and instructions files that make you excellent at the goal in their message. First learn what that takes here: your brief and notebook, your current kit, and (if you have a project) its README, AGENTS.md / CLAUDE.md, design and contributing docs, and how its code is actually written. Then propose files with \`kit\` in your crew block (see below): one instructions file (\`rules\`, e.g. AGENTS.md: how you always work, your standards, what you never do) and a few focused skills (each one kind of work, a description that says exactly when to use it, then concrete steps, checklists, commands and file paths from this project, not generic advice). 2 to 6 files. To improve one you have, propose it under the same name. Don't write them to disk: wisp shows them to the user, who picks what to add. In your report, list each file and why.` : '');
   return `
 
 ## You are ${m.name}, on the user's crew
 
-${m.role ? `Your role: ${m.role}. ` : ''}You are one of the user's long-lived agents. wisp hands you work as separate jobs: on your schedule (check-ins), from the user, from other tasks' agents and from triggers. Several can run at once, each in its own context. What carries over from job to job is your brief, your notebook and the log below, so keep the notebook current.
+${m.role ? `Your role: ${m.role}. ` : ''}You are one of the user's long-lived agents. wisp hands you work as separate jobs: on your schedule (check-ins), from the user, from other tasks' agents, from triggers and when tasks you watch finish or are marked done. Several can run at once, each in its own context. What carries over from job to job is your brief, your notebook and the log below, so keep the notebook current.
 
 ### Your brief (from the user)
 
@@ -305,7 +310,7 @@ Put one \`crew\` block last in your final message's blocks. wisp reads it and do
 - remember: lasting facts to add to your notebook: ids, versions and states you'll compare against next time, the user's preferences for this job, open threads. Other jobs of yours may write at the same time, so add lines with remember rather than rewriting.
 - notebook: the whole notebook rewritten, only to tidy it (it has ${m.notebook.length} characters; keep it under ${NOTEBOOK_SOFT}). Drop what's stale.
 - wakeIn: minutes until wisp should start a check-in (at least ${WAKE_MIN}), when you want to look again sooner than your schedule (a deploy to check on, a run to wait for).
-- quiet: ${job.job === 'checkin' ? 'true when this check-in found nothing the user needs to see: wisp logs it and doesn’t notify them. Leave it out when there is something to report.' : 'only for check-ins; this job is waited on, so always report.'}
+- quiet: ${QUIET_JOBS.has(job.job) ? `true when this ${job.job === 'event' ? 'job' : 'check-in'} found nothing the user needs to see: wisp logs it and doesn’t notify them. Leave it out when there is something to report.` : 'only for check-ins and jobs about a task you watch; this job is waited on, so always report.'}
 - kit: skills or instructions files you propose for your own kit, when a job asked for that or you found a lasting how-to worth keeping (rarely otherwise): [{"kind":"skill","name":"lowercase-with-dashes","description":"when to use it","body":"markdown steps"},{"kind":"rules","name":"AGENTS.md","body":"markdown"}]. The user reviews them before they're added; the same name replaces yours.
 - followUp: a message wisp sends to the agent working on one of your tasks above, as a follow-up from you (the user sees it in that task, from you). Use it when that agent should act on what you found (fix this, rerun that) or was waiting on you. Its task is one of the ids above (${job.job === 'delegated' ? 'not the one that delegated this job: its agent reads your report' : job.from?.id && (m.links || []).some((l) => l.id === job.from.id) ? `\`${job.from.id}\` is this job's` : 'none for this job'}). wisp adds you to that task's delegates, so its agent can hand the work back to you. At most 3 (a list); only when it helps: your answer already reaches the user.
 Leave out the fields you don't need, and keep secrets out of the notebook.`;
@@ -316,7 +321,7 @@ Leave out the fields you don't need, and keep secrets out of the notebook.`;
 export function crewJobOf(x) {
   if (!x || typeof x !== 'object' || !ID.test(x.id || '') || typeof x.note !== 'string') return null;
   const from = x.from && typeof x.from === 'object' ? { id: String(x.from.id || '').slice(0, 60), title: String(x.from.title || '').slice(0, 200) } : null;
-  return { id: x.id, job: JOBS.has(x.job) ? x.job : 'task', ...(from && { from }), note: x.note.slice(0, NOTE_MAX), ...(x.wake === true && { wake: true }) };
+  return { id: x.id, job: JOBS.has(x.job) ? x.job : 'task', ...(from && { from }), note: x.note.slice(0, NOTE_MAX), ...(x.wake === true && { wake: true }), ...(EVENT_WHAT[x.event] && { event: x.event }) };
 }
 
 // The prompt a check-in starts with.
@@ -472,7 +477,12 @@ export class Crew {
   // A member as the page and the API see it: its jobs running and what's next.
   view(m) {
     const jobs = this.jobs(m);
-    return { ...m, running: jobs.filter((s) => s.state === 'running' || s.state === 'waiting').length + (this.starting.get(m.id) || 0), jobs: jobs.length, nextAt: nextCheckin(m, this.now()), handle: handleOf(m.name) };
+    return { ...m, running: jobs.filter((s) => s.state === 'running' || s.state === 'waiting').length + (this.starting.get(m.id) || 0), jobs: jobs.length, nextAt: nextCheckin(m, this.now()), handle: handleOf(m.name), on: this.on(m) };
+  }
+
+  // What else starts its jobs: the kinds of the triggers that are on and send it work.
+  on(m) {
+    return [...new Set((this.store.config.triggers || []).filter((t) => t.crew === m.id && t.enabled).map((t) => t.kind))];
   }
 
   // Its jobs: tasks here, or (a member on a machine) the summaries of its tasks there.
@@ -553,13 +563,14 @@ export class Crew {
   // tasks) it waits in the member's queue. Resolves with { session } or { queued }.
   // tagged: crew members named in the prompt (@Quill), who join this job's delegates.
   // kit: the job builds the member's kit (it proposes files; you pick).
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false } = {}) {
+  // event: what a task watcher saw happen to `from` (finished, done).
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '' } = {}) {
     if (!JOBS.has(job)) job = 'task';
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
     const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
-    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), at: this.now() };
-    if (from?.id && (job === 'mention' || job === 'delegated')) this.#link(m, from);
+    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), at: this.now() };
+    if (from?.id && (job === 'mention' || job === 'delegated' || job === 'event')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
       if (m.queue.length >= QUEUE_MAX) throw bad(`${m.name} already has ${QUEUE_MAX} jobs waiting.`, 429);
       m.queue.push(w);
@@ -573,7 +584,7 @@ export class Crew {
     this.starting.set(m.id, (this.starting.get(m.id) || 0) + 1);
     try {
       if (w.job === 'checkin') Object.assign(m, { checkins: (m.checkins || 0) + 1, lastCheckinAt: this.now() });
-      const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.kit && { kit: true }) };
+      const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.event && { event: w.event }), ...(w.kit && { kit: true }) };
       const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
       if (m.machine) return await this.#startAway(m, body, crew, w.origin);
       const [s] = await this.launch(body, w.origin || null, { crew });
@@ -806,7 +817,7 @@ export class Crew {
     if (m) applyMemory(m, data, this.now());
     if (m && data?.kit) this.#offer(m, s, data.kit);
     if (data) turn.crewOut = data;
-    const quiet = !!data?.quiet && s.crew.job === 'checkin' && s.turns.length === 1;
+    const quiet = !!data?.quiet && QUIET_JOBS.has(s.crew.job) && s.turns.length === 1;
     // An answer to an @mention lands on the task that asked, a delegation's on its lead: the job
     // itself is filed under Done instead of waiting in Needs you too.
     const filed = s.crew.job === 'mention' || s.crew.job === 'delegated'; // every turn: a reply in the thread too
@@ -832,7 +843,7 @@ export class Crew {
       this.fetched.set(s.id, s);
       if (turn.status === 'done') applyMemory(m, turn.crewOut, this.now());
       if (turn.status === 'done' && turn.crewOut?.kit) this.#offer(m, s, turn.crewOut.kit);
-      const quiet = turn.status === 'done' && !!s.archived && s.crew?.job === 'checkin';
+      const quiet = turn.status === 'done' && !!s.archived && QUIET_JOBS.has(s.crew?.job);
       m.log.unshift(logEntry(s, turn, { quiet }));
       m.log.length = Math.min(m.log.length, LOG_MAX);
       const reply = m.away[s.id]?.reply;
@@ -852,7 +863,7 @@ export class Crew {
   #ended({ session: s, turn, interrupted }) {
     const m = this.get(s.crew?.id);
     if (!m || interrupted) return;
-    const quiet = turn.status === 'done' && !!s.archived && s.crew.job === 'checkin';
+    const quiet = turn.status === 'done' && !!s.archived && QUIET_JOBS.has(s.crew.job);
     m.log.unshift(logEntry(s, turn, { quiet }));
     m.log.length = Math.min(m.log.length, LOG_MAX);
     if (s.crew.reply && s.turns.at(-1) === turn) {

@@ -149,6 +149,9 @@ body.split .cr-side { align-self: start; height: 21px; }
 .ce-stack > span small { font-weight: 400; color: var(--faint); margin-left: 4px; }
 .ce-stack textarea { resize: vertical; }
 .ce-cadence { display: flex; flex-wrap: wrap; gap: 6px; }
+.ce-on .lp-chip { gap: 5px; }
+.ce-on .lp-chip .i { width: 13px; height: 13px; color: var(--muted); }
+.ce-on .lp-chip.on .i { color: currentColor; }
 .ce-cadence .lp-chip.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
 .ce-cron { max-width: 260px; }
 .ce-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

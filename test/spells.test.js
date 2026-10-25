@@ -160,7 +160,7 @@ test('every task-list section and its folding heading are parts', () => {
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,
-    parts: { 'section.crew': { style: { fontSize: '12px' } }, 'crew.row': { style: { padding: '2px' } }, 'crew.avatar': { style: { borderRadius: '8px' } }, 'crew.page': { style: { width: '900px' } }, 'crew.editor': { hide: false } },
+    parts: { 'section.crew': { style: { fontSize: '12px' } }, 'crew.row': { style: { padding: '2px' } }, 'crew.avatar': { style: { borderRadius: '8px' } }, 'crew.page': { style: { width: '900px' } }, 'crew.editor': { hide: false }, 'crew.editor.events': { hide: true } },
     buttons: [{ slot: 'crew.page', icon: 'crew', label: 'Standup', do: { open: 'https://example.com' } }],
   };
   assert.deepEqual(problems(ok), []);

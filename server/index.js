@@ -252,6 +252,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
     onChange: () => app.broadcast('config', {}),
   });
+  // Triggers (and crew members) that watch for a task finishing. After the turn's own handlers.
+  runner.on('finished', ({ session }) => setImmediate(() => app.triggers.taskEvent('finished', store.get(session.id))));
   // Phone: answers and follow-ups coming back from ntfy / Telegram.
   app.remote = new Remote({ store, onChange: () => app.broadcast('remote', {}), ...phoneActions(app) });
   app.overlaps = createOverlaps(app);

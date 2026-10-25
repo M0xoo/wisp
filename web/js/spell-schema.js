@@ -77,6 +77,7 @@ export const PARTS = {
   // Generate: the dialog that has a member build its kit, and the files it proposed, under that job.
   'crew.kitGenerate': '.kit-gen',
   'crew.offer': '.crew-view .cv-offer',
+  'crew.editor.events': '.crew-edit .ce-events', // its "Also starts when" chips
   'section.archived': '#secArchived',
   toTop: '#toTop',
   launcher: '#launcher',
