@@ -29,7 +29,7 @@ import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, s
 import { connectMachine } from './machines.js';
 import { placeMenu } from './place-menu.js';
 import { machineById, pathAt, placeName, placesOf } from './places.js';
-import { slotHtml } from './spells.js';
+import { slotHtml, spellProp } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
 import { importCrew, reviewChange, shareMember } from './crew-share.js';
@@ -113,6 +113,8 @@ export function crewDot(s) {
 const sec = $('#secCrew');
 const box = $('.cr-list', sec);
 const JOBS_MAX = 3; // nested under a member; an open one also keeps every live job
+const ROWS_MIN = 2; // full rows even when nobody's busy (spell prop section.crew rows)
+const FACES_MAX = 4; // faces on the folded row
 const pinned = new Set(); // jobs opened from a link or a toast: shown under their member until closed
 
 // The member open in the main pane (split view) or expanded in place (the feed). Yours alone.
@@ -129,12 +131,12 @@ export function pinJob(id) {
 // A member's jobs under it, most urgent first: asking you, working, an unread report, then the
 // finished ones, newest first. Ones you marked done or archived (quiet check-ins too) are only in
 // its thread.
-function memberJobs(m, st) {
+function memberJobs(m, st, max = JOBS_MAX) {
   const rank = (s) => (s.pending || s.state === 'running' ? 1 : s.state === 'waiting' ? 0 : s.state === 'review' && s.unread ? 2 : 3);
   const list = [...st.sent, ...st.jobs.filter((s) => (!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id))];
   list.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   const open = S.crewOpen === m.id;
-  const keep = list.filter((s, i) => i < JOBS_MAX || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));
+  const keep = list.filter((s, i) => i < max || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));
   return { list: keep, more: list.length - keep.length };
 }
 
@@ -179,6 +181,42 @@ function rowHtml(m, st) {
     <span class="cr-side">${st.live.length ? `<span class="cr-n" title="${st.live.length} working">${st.live.length}</span>` : last ? `<span class="q-time" ${timeAttrs(last)}>${ago(last)}</span>` : ''}${icon('chevron', 'chev')}</span>`;
 }
 
+// Who gets a full row. Busy members always do: asking you, on a job (not just making their rounds,
+// or scheduled members would pop in and out all day), an unread report, a job open or pinned (its
+// card must stay in the list), a spell's change to review. Then idle ones in join order up to the
+// minimum; the rest fold into one row of faces. While the pointer or focus is in the section a row
+// that was shown stays (promoted at once, folded later), so nothing moves under the cursor.
+S.crewAll = false; // Show all: this visit only, a reload is compact again
+let holding = false;
+let wasFull = new Set();
+const busy = (m, st) =>
+  st.asks || st.unread || st.live.some((s) => s.crew?.job !== 'checkin') || (m.changed && m.paused) || st.jobs.some((s) => S.open.has(s.id) || pinned.has(s.id));
+
+function crewRows(list, states) {
+  if (S.crewAll) return { full: new Set(list.map((m) => m.id)), busyIds: new Set() };
+  const busyIds = new Set(list.filter((m) => busy(m, states.get(m.id))).map((m) => m.id));
+  const full = new Set(busyIds);
+  const min = spellProp('section.crew', 'rows') || ROWS_MIN;
+  for (const m of list) if (full.size < min) full.add(m.id);
+  if (holding) for (const id of wasFull) if (states.has(id)) full.add(id);
+  // Folding one alone saves nothing: show it.
+  if (list.length - full.size === 1) for (const m of list) full.add(m.id);
+  return { full, busyIds };
+}
+
+// The folded row, in the rows' columns: their faces (each opens its thread; a fine pointer only),
+// how many and what they're doing, a chevron that shows them all.
+function stripHtml(folded) {
+  const faces = folded.slice(0, FACES_MAX);
+  const open = folded.find((m) => m.id === S.crewOpen);
+  if (open && !faces.includes(open)) faces[faces.length - 1] = open;
+  const paused = folded.filter((m) => m.paused).length;
+  const words = [folded.length - paused && `${folded.length - paused} on call`, paused && `${paused} paused`].filter(Boolean).join(' · ');
+  const face = (m) =>
+    `<button class="cr-face${m.id === S.crewOpen ? ' on' : ''}" type="button" data-face="${m.id}" title="${esc(`${m.name} · ${statusLine(m, memberState(m)).text}`)}" aria-label="${esc(`Open ${m.name}`)}">${avatarHtml(m, { size: 20, dot: false })}</button>`;
+  return `<span class="cr-faces">${faces.map(face).join('')}</span><button class="cr-fold" type="button" aria-expanded="false"><span class="cr-sub">${esc(words)}</span>${icon('chevron', 'chev')}</button>`;
+}
+
 // Blocks keyed by member, rows rewritten only when what they say changed and never re-appended (a
 // spirit would restart its animation). Returns the job cards it placed, so the feed keeps them.
 export function paintCrew() {
@@ -186,23 +224,40 @@ export function paintCrew() {
   sec.hidden = !('crew' in S.config); // until the config lands
   $('h4 .n', sec).textContent = list.length || '';
   if (S.crewOpen && !memberById(S.crewOpen)) setOpen(null);
+  const states = new Map(list.map((m) => [m.id, memberState(m)]));
+  const { full, busyIds } = crewRows(list, states);
+  wasFull = full;
+  const folded = list.filter((m) => !full.has(m.id));
   const shown = [];
-  const want = list.length ? list : [null];
+  const want = list.length ? list.filter((m) => full.has(m.id)) : [null];
+  if (folded.length) want.push('strip');
+  else if (S.crewAll && list.length > (spellProp('section.crew', 'rows') || ROWS_MIN) + 1) want.push('fewer');
   want.forEach((m, i) => {
-    const key = m ? m.id : 'empty';
+    const key = m === 'strip' || m === 'fewer' ? m : m ? m.id : 'empty';
     let block = box.children[i];
     if (block?.dataset.crew !== key) {
       block =
         $$(':scope > [data-crew]', box).find((x) => x.dataset.crew === key) ||
         el(
-          m
-            ? `<div class="cr-member" data-crew="${key}"><div class="cr-row" role="button" tabindex="0"></div><div class="cr-jobs f-list"></div><button class="cr-more link xs" hidden></button></div>`
-            : `<button class="cr-row cr-empty" data-crew="empty">${icon('plus')}<span class="cr-main"><b>Add someone to your crew</b><span class="cr-sub">A named agent that checks in, reports, and answers to @name</span></span></button>`,
+          key === 'strip'
+            ? `<div class="cr-strip" data-crew="strip"></div>`
+            : key === 'fewer'
+              ? `<button class="cr-fewer link xs" type="button" data-crew="fewer">Show fewer</button>`
+              : m
+                ? `<div class="cr-member" data-crew="${key}"><div class="cr-row" role="button" tabindex="0"></div><div class="cr-jobs f-list"></div><button class="cr-more link xs" hidden></button></div>`
+                : `<button class="cr-row cr-empty" data-crew="empty">${icon('plus')}<span class="cr-main"><b>Add someone to your crew</b><span class="cr-sub">A named agent that checks in, reports, and answers to @name</span></span></button>`,
         );
       box.insertBefore(block, box.children[i] || null);
     }
-    if (!m) return;
-    const st = memberState(m);
+    if (key === 'strip') {
+      const html = stripHtml(folded);
+      const h = html.replace(/<svg[\s\S]*?<\/svg>/g, (svg) => svg.match(/st-\w+/)?.[0] || '');
+      if (block.dataset.h !== h) (block.innerHTML = html), (block.dataset.h = h);
+      $('.cr-fold', block).title = `Show all ${list.length}`;
+      return;
+    }
+    if (!m || key === 'fewer') return;
+    const st = states.get(m.id);
     const row = $('.cr-row', block);
     const html = rowHtml(m, st);
     // The spirit stays (its animation keeps going); only the words around it change.
@@ -223,7 +278,8 @@ export function paintCrew() {
       view.paint();
     }
     if (!inline) for (const v of $$(':scope > .crew-view', block)) v.remove();
-    const { list: jobs, more } = memberJobs(m, st);
+    // An idle member filling the minimum keeps one finished job under it; the rest are in its thread.
+    const { list: jobs, more } = memberJobs(m, st, busyIds.has(m.id) || S.crewAll ? JOBS_MAX : 1);
     placeCards($('.cr-jobs', block), jobs);
     shown.push(...jobs);
     const mb = $('.cr-more', block);
@@ -236,11 +292,41 @@ export function paintCrew() {
   return shown;
 }
 
+// Leaving the section lets a row that went quiet fold again.
+const release = () => {
+  if (!holding || sec.matches(':hover') || sec.contains(document.activeElement)) return;
+  holding = false;
+  if (S.sessions.size) renderFeed();
+  else paintCrew();
+};
+sec.addEventListener('pointerenter', () => {
+  holding = true;
+});
+sec.addEventListener('focusin', () => {
+  holding = true;
+});
+sec.addEventListener('pointerleave', () => {
+  requestAnimationFrame(release);
+});
+sec.addEventListener('focusout', () => {
+  requestAnimationFrame(release);
+});
+const showAll = (on) => {
+  S.crewAll = on;
+  if (S.sessions.size) renderFeed();
+  else paintCrew();
+};
+bus.on('spells', () => (S.sessions.size ? renderFeed() : paintCrew())); // section.crew rows
+
 sec.addEventListener('click', (e) => {
   if (e.target.closest('.cr-add, .cr-empty')) {
     crewEditor();
     return;
   }
+  const face = e.target.closest('.cr-face');
+  if (face) return openMember(face.dataset.face);
+  if (e.target.closest('.cr-strip')) return showAll(true);
+  if (e.target.closest('.cr-fewer')) return showAll(false);
   const block = e.target.closest('.cr-member');
   if (!block) return;
   if (e.target.closest('.cr-more')) return openMember(block.dataset.crew);

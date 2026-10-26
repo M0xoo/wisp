@@ -26,6 +26,15 @@ its thread; its work never mixes with your tasks.
   member sit its recent jobs as ordinary cards: live first (asking you, working, an unread report),
   then the ones it finished, newest first, until you mark them done or archive them; three at most (plus the one open),
   and an open member keeps every live one. Quiet check-ins are archived, so only the thread has them. Crew jobs never show in *Needs you*, *Working* or *Done*.
+- **Compact.** A busy member always has its row: asking you, on a job, an unread report, a job open
+  in the main pane, a spell's change to review. A member only making its rounds (a check-in) isn't
+  busy, or scheduled members would pop in and out all day; its face moves instead, and a check-in
+  that reports gets the row. Idle members fill up to two rows (join order, one finished job card
+  each; spell prop `section.crew` `rows`), and the rest fold into one last row: up to four faces and
+  *4 on call* / *3 on call · 1 paused*, with the chevron. A face opens that member (a ring marks the
+  one open; touch unfolds the row instead), the row shows everyone until a reload or **Show fewer**.
+  A row that went quiet folds only once the pointer and focus leave the section, so nothing moves
+  under the cursor; a single quiet member never folds alone.
 - **Opening a member** is opening a task: its thread takes the main pane (any open task closes), or
   stacked, a page with Back. The row looks selected.
 - **The thread**: a task's header (face, name, role, state, Pause, ⋯, close), then its jobs oldest

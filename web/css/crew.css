@@ -82,6 +82,27 @@ body:not(.split) .f-group.crew .cr-list { padding: 4px; border: 1px solid var(--
 body.split .f-group.crew { margin-bottom: 14px; }
 /* split view: the time on the name's line, in the column the cards keep theirs */
 body.split .cr-side { align-self: start; height: 21px; }
+/* The quiet ones folded into one row: their faces, how many, a chevron that shows them all. Same
+   padding as a row, so the section's edges and the chevron's column hold. */
+.cr-strip { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 0 12px 0 8px; border-radius: var(--radius); cursor: pointer; transition: background 0.15s; }
+.cr-strip:hover { background: var(--bg-2); }
+.cr-faces { display: flex; align-items: center; gap: 4px; }
+.cr-face { display: grid; place-items: center; padding: 0; border-radius: 50%; transition: transform 0.15s var(--ease); }
+.cr-face:hover { transform: translateY(-1px); }
+.cr-face:focus-visible { outline: 2px solid var(--line-2); outline-offset: 1px; }
+.cr-face.on .cr-av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--accent); }
+.cr-fold { flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0; text-align: left; color: var(--faint); }
+.cr-fold:focus-visible { outline: none; }
+.cr-strip:has(.cr-fold:focus-visible) { background: var(--bg-2); }
+.cr-fold .cr-sub { font-size: 12px; }
+.cr-fold .chev { flex: none; width: 14px; height: 14px; color: var(--faint); }
+.cr-strip:hover .cr-fold .cr-sub { color: var(--muted); }
+.cr-fewer { align-self: flex-start; margin: 2px 0 0 8px; }
+/* Touch: a face is too small to aim at, so the whole row only unfolds. */
+@media (pointer: coarse) {
+  .cr-strip { min-height: 44px; }
+  .cr-face { pointer-events: none; }
+}
 
 /* ---------- the editor and the spirit maker ---------- */
 .crew-edit { width: min(640px, 100%); }

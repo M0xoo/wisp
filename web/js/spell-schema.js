@@ -69,6 +69,7 @@ export const PARTS = {
   'section.crew': '#secCrew',
   'crew.row': '#secCrew .cr-row',
   'crew.avatar': '.cr-av',
+  'crew.strip': '#secCrew .cr-strip', // the quiet members folded into one row of faces
   // A member's thread: the main pane in split view, in place in the feed.
   'crew.page': '.crew-view',
   'crew.thread': '.crew-view .cv-thread',
@@ -254,6 +255,7 @@ export const PART_PROPS = {
   'split.main': { readWidth: 'px' },
   'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
+  'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
