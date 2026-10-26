@@ -41,6 +41,74 @@
     pick();
   }
 
+  // ---------- ways to get wisp (the landing page's tabs, docs/main.js) ----------
+  // Picking a tab updates the command, its Copy and the note, and every other box on the page
+  // follows. Download shows this OS's app; on a Mac, the curl --app install (no "can't verify").
+  const DL = 'https://github.com/M0xoo/wisp/releases/latest/download/';
+  const MAC_APP = 'curl -fsSL https://trywisp.dev/install.sh | bash -s -- --app';
+  const BUILDS = { mac: ['macOS', 'wisp-mac-arm64.dmg'], 'mac-x64': ['macOS', 'wisp-mac-x64.dmg'], win: ['Windows', 'wisp-windows-x64-setup.exe'], 'win-arm64': ['Windows', 'wisp-windows-arm64-setup.exe'], linux: ['Linux', 'wisp-linux-x64.deb'], 'linux-arm64': ['Linux', 'wisp-linux-arm64.deb'] };
+  const plat = `${navigator.userAgentData?.platform || ''} ${navigator.platform || ''} ${navigator.userAgent}`;
+  const os = /Win/i.test(plat) ? 'win' : /Linux|X11|CrOS/i.test(plat) && !/Android/i.test(plat) ? 'linux' : 'mac';
+  let build = os;
+  const file = (k = build) => DL + BUILDS[k][1];
+  const link = (href, text) => `<a href="${href}">${text}</a>`;
+  const others = () => ['mac', 'win', 'linux'].filter((k) => k !== os).map((k) => link(file(k), BUILDS[k][0])).join(', ');
+  const appNote = () => ({
+    mac: `No Node needed · or the ${link(file(), '.dmg')}: allow it in Privacy &amp; Security → Open Anyway · Also for ${others()}`,
+    win: `No Node needed · if Windows says it protected your PC: More info → Run anyway · Also for ${others()}`,
+    linux: `No Node needed · Debian and Ubuntu, or the ${link(file().replace('.deb', '.AppImage'), 'AppImage')} · Also for ${others()}`,
+  })[os];
+  const boxes = [...document.querySelectorAll('.g-install[data-tabs]')].map((box) => {
+    const tabs = [...box.querySelectorAll('[role="tab"]')];
+    const code = box.querySelector('[data-tab-code]');
+    const copy = box.querySelector('[data-tab-copy]');
+    const dl = box.querySelector('[data-tab-dl]');
+    const note = box.querySelector('[data-tab-note]');
+    const panel = box.querySelector('[role="tabpanel"]');
+    let current = tabs[0];
+    const pick = (tab, focus) => {
+      current = tab;
+      const app = tab.dataset.tab === 'app' && os !== 'mac';
+      for (const t of tabs) {
+        t.setAttribute('aria-selected', t === tab);
+        t.tabIndex = t === tab ? 0 : -1;
+      }
+      dl.hidden = !app;
+      copy.hidden = app;
+      if (app) {
+        dl.href = file();
+        dl.querySelector('[data-dl-label]').textContent = `Download for ${BUILDS[build][0]}`;
+        dl.querySelector('[data-dl-kind]').textContent = file().slice(file().lastIndexOf('.'));
+      } else code.textContent = copy.dataset.copy = tab.dataset.tab === 'app' ? MAC_APP : tab.dataset.cmd;
+      if (tab.dataset.tab === 'app') note.innerHTML = appNote(); else note.textContent = tab.dataset.note;
+      panel.setAttribute('aria-labelledby', tab.id);
+      if (focus) tab.focus();
+    };
+    const choose = (tab, focus) => {
+      pick(tab, focus);
+      for (const b of boxes) if (b.box !== box) b.show(tab.dataset.tab);
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => { choose(tab); });
+      tab.addEventListener('keydown', (e) => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        if (!step && e.key !== 'Home' && e.key !== 'End') return;
+        e.preventDefault();
+        choose(tabs[e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + step + tabs.length) % tabs.length], true);
+      });
+    });
+    return { box, show: (k) => { pick(tabs.find((t) => t.dataset.tab === k) || tabs[0]); }, refresh: () => { pick(current); } };
+  });
+  navigator.userAgentData?.getHighEntropyValues?.(['architecture']).then(({ architecture }) => {
+    if (architecture === 'arm' && os !== 'mac') build = `${os}-arm64`;
+    if (architecture === 'x86' && os === 'mac') build = 'mac-x64';
+    for (const b of boxes) b.refresh();
+  }).catch(() => {});
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest(`a[href^="${DL}"]`);
+    if (a) window.posthog?.capture?.('download_clicked', { file: a.href.slice(DL.length) }, { transport: 'sendBeacon' });
+  });
+
   // ---------- copy a link to the guide ----------
   for (const b of document.querySelectorAll('[data-link]')) b.addEventListener('click', async () => {
     const l = b.querySelector('span');

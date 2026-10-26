@@ -4,7 +4,7 @@
 // Each guide answers its question in the lede (search engines and AI answers quote the opening),
 // shows the manual way too, then how wisp does it. Keep the facts in step with the README.
 //
-// h: helpers from site.mjs ({ esc, sh, shot, installButton, agents }) and fig, the motion figures
+// h: helpers from site.mjs ({ esc, sh, shot, install, agents }) and fig, the motion figures
 // (scripts/figures.mjs). Gotchas go in <aside class="g-note">; the contents are built from the h2s.
 //
 // The spells guide's reference tables and examples come from wisp's own spell schema and the
@@ -49,7 +49,7 @@ const FIELDS = [
 ];
 
 export function guides(h) {
-  const { esc, sh, shot, installButton, fig } = h;
+  const { esc, sh, shot, install, fig } = h;
   // Lists of plain values stay on one line, so a spell reads like the file people write.
   const json = (obj) => `<pre data-lang="json"><code>${esc(JSON.stringify(obj, null, 2).replace(/\[\s*\n((?:\s*(?:"(?:[^"\\]|\\.)*"|-?\d[\d.]*|true|false|null),?\n)+)\s*\]/g, (m, items) => `[${items.split('\n').map((x) => x.trim()).filter(Boolean).join(' ')}]`))}</code></pre>`;
   const claude = h.agents.find((a) => a.id === 'claude');
@@ -103,7 +103,7 @@ git diff --stat origin/main...try/codex`)}
       <p>The same idea, with the gaps filled: one prompt, a worktree per agent, and one screen to compare them on.</p>
       ${fig.parallel}
       <ol class="doc-steps">
-        <li><b>Start wisp.</b> ${installButton()}</li>
+        <li><b>Start wisp.</b> ${install()}</li>
         <li><b>Pick Claude Code in the launcher, click vs and pick Codex</b> (and a model for each, if you like). Describe the task and press Enter.</li>
         <li><b>Go do something else.</b> Each run gets its own worktree and branch from <code>origin/main</code>. Both show up as one task with a row per agent. If either needs a decision, it asks you, and you get a notification.</li>
         <li><b>Compare.</b> The task’s <b>Compare</b> view lines the runs up: time, cost where the CLI reports it, files changed, tests, and each agent’s one-screen report with the real diff.</li>
@@ -414,7 +414,7 @@ git worktree remove ../app-auth`)}
     <section>
       <h2 id="with-wisp">With wisp</h2>
       <ol class="doc-steps">
-        <li><b>Start wisp</b> in your repo. ${installButton()}</li>
+        <li><b>Start wisp</b> in your repo. ${install()}</li>
         <li><b>Launch tasks back to back.</b> Press <kbd>N</kbd>, describe the task, press Enter, and the next one. Each runs in its own worktree under <code>~/.wisp/worktrees/</code> on a branch named <code>wisp/&lt;task&gt;-&lt;id&gt;</code>.</li>
         <li><b>Watch one queue, not five terminals.</b> Cards sort into <em>Needs you</em>, <em>Working</em> with a live one-line status, and <em>Done</em>. When Claude Code needs a decision it asks through an MCP tool, the card moves to Needs you, and your answer goes straight back into the running session. In Edits mode its permission prompts come to you as <b>Allow</b>, <b>Always allow in this task</b> and <b>Deny</b>.</li>
         <li><b>Read the report, ship it.</b> Each finished run hands back a headline, the real diff, the test run and next steps. <b>Ship it</b> commits, pushes and opens the PR; <b>Merge</b> squash-merges and syncs your local main.</li>
@@ -1146,14 +1146,14 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
       description: 'Add a button that opens all your PRs, a panel with your agent tool stats, a block agents can use in reports, or a new look, by asking wisp. Try each change live, keep it, share it.',
       lede: 'In wisp you change the app itself by asking: “a floating button that opens all my PRs”, “a panel with my tool stats”, “a deploy block for agents”, “compact cards”. An agent writes the change as a <b>spell</b>, a small JSON file wisp layers over itself. You try it in the window, keep it, and share it as a file.',
       demo: 'spells',
+      caption: 'A working copy. Pick an ask and the little wisp window changes the way the app does; switch a spell off and it changes back. <code>{ }</code> shows the spell file.',
       body: `
-    <p class="muted">Above: a working copy. Pick an ask and the little wisp window changes the way the app does; switch a spell off and it changes back. <code>{ }</code> shows the spell file.</p>
 
 
     <section>
       <h2 id="cast">Cast one</h2>
       <ol class="doc-steps">
-        <li><b>Start wisp.</b> ${installButton()}</li>
+        <li><b>Start wisp.</b> ${install()}</li>
         <li><b>Say what to change.</b> ⌘K → <i>Cast a spell…</i>, Settings → Spells, or type <code>/spell</code> in the prompt box: <code>/spell a floating button that opens all my open PRs, with how many there are</code>. Be as specific as you like about where it goes and what it shows.</li>
         <li><b>Look at the preview.</b> The agent works in an empty folder of its own: it reads wisp’s spell reference, samples your real data, checks the spell with wisp until it passes, and hands it back as a card. The card shows its buttons as they will look, its panels drawn with your data, and a plain-words list of what it adds.</li>
         <li><b>Try it, then keep it.</b> <b>Try it</b> applies the spell to this window only; <b>Undo</b> takes it back. <b>Turn on</b> keeps it. A follow-up on the card changes it (“make it a top bar button”, “only for api-server”), and “remove the … spell” drops it.</li>
@@ -1324,7 +1324,7 @@ CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
     <section>
       <h2 id="with-wisp">With wisp</h2>
       <ol class="doc-steps">
-        <li><b>Start wisp.</b> ${installButton()}</li>
+        <li><b>Start wisp.</b> ${install()}</li>
         <li><b>Add the account.</b> Settings → Agents → <b>Add another Claude account</b> (or Codex). Name it, say whether it’s personal or work, and sign in with the CLI’s own sign-in: a link and a code, no terminal. wisp never sees your password.</li>
         <li><b>Everything but the login is shared.</b> The new account’s folder (<code>~/.wisp/accounts/claude/&lt;id&gt;</code>) links to your usual one for settings, skills, MCP servers and transcripts. The login stays separate.</li>
         <li><b>Pick the account per task.</b> The runner picker has an <i>Account</i> row under Thinking, and the reply box can switch a task to the other account from its next follow-up. wisp remembers your pick per harness, and the task’s details say which account ran it.</li>
