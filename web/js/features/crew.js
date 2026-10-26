@@ -14,7 +14,7 @@ import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { fmtDuration } from '../blocks.js';
-import { isForLater, launch, load, MOBILE, S, save } from '../core/state.js';
+import { HERE, isForLater, launch, load, MOBILE, S, save } from '../core/state.js';
 import { canSaveForLater, setForLater } from './actions.js';
 import { overlay } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
@@ -820,7 +820,9 @@ function buildView(id) {
     const wide = split && $('#splitMain').clientWidth >= 860;
     node.classList.toggle('wide', wide);
     if (wide) about.open = true;
-    $('summary', about).innerHTML = `${icon('info')}About ${esc(m.name)}<span>${esc([cadenceText(m), m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · '))}</span>${icon('chevron', 'chev')}`;
+    // Its cadence, unless the head already says the same (an idle member's status is its cadence).
+    const how = [cadenceText(m), m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · ');
+    $('summary', about).innerHTML = `${icon('info')}About ${esc(m.name)}<span>${how === statusLine(m, st).text ? '' : esc(how)}</span>${icon('chevron', 'chev')}`;
     paintSide(m, st, $('.cv-side', node));
 
     // Seen here: its reports are read.
@@ -963,7 +965,7 @@ function paintSide(m, st, side) {
     ...(eventsLabel(m) ? [['bolt', eventsLabel(m)]] : []),
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
     // Paired on one line each so the column fits a window without scrolling.
-    ['folder', `${project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')} · ${m.machine ? placeName(m.machine) : 'This computer'}`],
+    ['folder', `${project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')} · ${m.machine ? placeName(m.machine) : HERE}`],
     [`logo:${m.agent}`, `${agentName(m.agent)}${m.agent === 'auto' ? '' : ` · ${m.model || 'Default model'}`} · ${MODES.find((x) => x.id === m.mode)?.label || 'Full auto'}`],
   ];
   const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');

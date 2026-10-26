@@ -29,12 +29,25 @@
   .cols { flex-direction: column; gap: 30px; align-items: stretch; }
   .col { max-width: none; flex-direction: row; justify-content: center; }
   .col .node { flex: 1; max-width: 260px; }
+  /* The working panel: the orb sits beside the status line only, so a question and its own-words
+     box get the panel's whole width instead of a column beside it. */
+  .w-panel { display: block; padding: 14px 16px; }
+  .w-orb { float: left; margin-right: 12px; }
+  .w-status { flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
+  /* Search drops from the top as a sheet, out of the keyboard's way, its list as tall as there's room. */
+  .overlay:has(.palette) { padding: max(8px, env(safe-area-inset-top)) 8px 8px; }
+  .palette { max-height: calc(100dvh - 16px - env(safe-area-inset-top)); }
 }
 
-/* The avatar and its menu's rows take a thumb on any touch screen, not only in the app. */
+/* The avatar, menus (More, the project list) and search's rows take a thumb on any touch screen,
+   not only in the app. */
 @media (pointer: coarse) {
   .topbar .me-btn { min-width: 44px; height: 44px; }
   .me-menu :is(.sf-me, .me-nav .auto-btn) { min-height: 44px; }
+  .menu button { min-height: 44px; }
+  .menu .pm-search, .menu .pm-search:is(:hover, :focus-within) { height: 48px; font-size: 16px; }
+  .pal-row { height: 44px; }
+  .sx-top .icon-btn { width: 44px; height: 44px; }
 }
 
 /* Touch screens have no keys to press: drop the shortcut hints on floating buttons. */
@@ -135,12 +148,17 @@ body.wisp-mobile .it-quick-gap { width: 32px; }
 body.wisp-mobile.split .f-group h4.sec-toggle { min-height: 44px; }
 body.wisp-mobile #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44px; }
 body.wisp-mobile .ov-row .ghost.xs { height: 44px; }
+body.wisp-mobile .tests-cmd .run-tests { min-height: 44px; }
 body.wisp-mobile .trail-bar :is(.tb-acts, .tb-btn, .link.xs, .rate-btn) { min-height: 44px; min-width: 44px; justify-content: center; }
 body.wisp-mobile :is(.ask-card, .b-question) .opt { min-height: 44px; }
 body.wisp-mobile .q-own :is(.input, button) { height: 44px; }
 body.wisp-mobile :is(.peek, .stop) { min-height: 44px; display: inline-flex; align-items: center; }
 /* The keys 1, 2… pick an answer on a keyboard; a phone has none. */
 body.wisp-mobile .opt .k { display: none; }
+/* The working panel, as on a narrow window (≤720px above): the orb beside the status line only. */
+body.wisp-mobile .w-panel { display: block; padding: 14px 16px; }
+body.wisp-mobile .w-orb { float: left; margin-right: 12px; }
+body.wisp-mobile .w-status { flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
 
 /* A row gives its title the whole width: status, harness, time, done and the chevron go under it. */
 body.wisp-mobile .it-head { grid-template-columns: 10px 1fr; row-gap: 6px; }
@@ -173,6 +191,8 @@ body.wisp-mobile .prompt-fab .i { width: 20px; height: 20px; }
 /* Only on the list: a page (a task, home) has its own box at hand. */
 body.wisp-mobile.stack-page .prompt-fab { display: none; }
 body.wisp-mobile .split-top .st-row:has(> .sp-side:empty) { display: none; }
+/* …and with nothing in that row, no empty band between the top bar and the first group. */
+body.wisp-mobile .split-top:not(:has(> .st-row > .sp-side:not(:empty))) { display: none; }
 body.wisp-mobile .split-new { display: none; }
 /* An empty Recipes row is an ad for a feature: not worth a phone's screen. */
 body.wisp-mobile .launcher .l-recipes:has(.lr-empty) { display: none; }
@@ -180,7 +200,7 @@ body.wisp-mobile .launcher .l-recipes:has(.lr-empty) { display: none; }
 body.wisp-mobile .launcher .l-bar { overflow-x: auto; scrollbar-width: none; gap: 4px; }
 body.wisp-mobile .launcher .l-bar::-webkit-scrollbar { display: none; }
 body.wisp-mobile .launcher .l-bar :is(.where-btn span, .mode-btn span, #wtBtn span, .team-btn .tb-label) { display: inline; }
-body.wisp-mobile .launcher .l-bar > .send { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface); }
+body.wisp-mobile .launcher .l-bar > .send { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
 
 /* One task open at a time (feed.js), closed with Back or its head: no Collapse button over it.
    Back to top sits in the corner above New task, not over a card's head. */

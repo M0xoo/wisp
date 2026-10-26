@@ -127,6 +127,8 @@ export async function askCrew(id, text, members, rest, { attachments = [], resto
 // The tip in a working panel, so /btw gets found: until it's been used once, or hidden with its ×.
 // Clicking it starts a /btw in the box below.
 const TIP = 'wisp.btwTipDone';
+// While the tip shows, the reply box's placeholder leaves /btw out: the same hint once on screen.
+export const btwTipShown = () => !load(TIP, false);
 export function btwTip(id) {
   const s = S.full.get(id);
   if (load(TIP, false) || !s || s.agent === 'wisp' || s.ask) return null;

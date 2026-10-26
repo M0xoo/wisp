@@ -480,6 +480,9 @@ body.wisp-mobile .cv-bar .send { min-width: 44px; height: 44px; }
 body.wisp-mobile .cv-asks .opt { min-height: 44px; }
 body.wisp-mobile .cv-inline :is(.input, button) { height: 44px; }
 body.wisp-mobile .cv-sent { height: 36px; }
+body.wisp-mobile .cv-about > summary { min-height: 44px; }
+body.wisp-mobile .cv-side .ghost.sm { min-width: 44px; min-height: 44px; justify-content: center; }
+body.wisp-mobile .cv-side .link.xs { display: inline-flex; align-items: center; min-height: 44px; margin-block: -12px; }
 
 /* ---------- sharing (crew-share.js): Share, Import and its review, a spell member's review ---------- */
 .crew-share { width: min(520px, 100%); }
