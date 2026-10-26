@@ -9,7 +9,7 @@ import { toast } from '../ui/toast.js';
 import { keepSignIns } from './agent-login.js';
 import { paintAutoBtn } from './automations.js';
 import { updateDock } from './composer.js';
-import { paintCrew } from './crew.js';
+import { paintCrew, paintOffers } from './crew.js';
 import { renderFeed, scheduleRefetch, sectionOf } from './feed.js';
 import { dropPending, renderLaunchChips } from './launcher.js';
 import { loadMachines, openComputers, paintMachinesBtn, setMachines } from './machines.js';
@@ -155,6 +155,7 @@ export function setConfig(config) {
   // The crew lives in the config: its section, and the faces on its jobs' cards.
   if (S.sessions.size) renderFeed();
   else paintCrew();
+  paintOffers(); // kit files proposed under an open task's answer
 }
 
 // The phone app opens a computer's page from its cache before the tunnel is up (mobile/www/app.js)

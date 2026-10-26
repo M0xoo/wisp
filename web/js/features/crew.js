@@ -428,17 +428,44 @@ export const crewViewShown = () => isSplit() && !!S.crewOpen && !splitOpen();
 // Optimistic: the member changes here at once, and goes back if the server refuses.
 async function patchMember(m, body, { quiet = false } = {}) {
   const before = { ...m };
+  const paint = () => (renderFeed(), paintOffers());
   Object.assign(m, body);
-  renderFeed();
+  paint();
   try {
     Object.assign(m, await api(`/crew/${m.id}`, { method: 'PATCH', body }));
-    renderFeed();
+    paint();
     return true;
   } catch (err) {
     Object.assign(m, before);
-    renderFeed();
+    paint();
     if (!quiet) toastError(err);
     return false;
+  }
+}
+
+// Kit files proposed for a member from a task (wisp_crew_kit), or by a member's own job (its crew
+// block): the same offer as in its thread, under the turn that made it (a job's: its latest), so you
+// pick from where you read the answer. id: one task's open card; none: every open one. Each slot
+// changes only when its offers did.
+export function paintOffers(id) {
+  for (const [sid, n] of id ? [[id, S.nodes.get(id)]] : S.nodes) {
+    const s = S.full.get(sid);
+    if (!s || !n?.turnNodes?.size) continue;
+    const mine = crewList().flatMap((m) => (m.offers || []).filter((o) => o.job === s.id).map((o) => [m, o]));
+    for (const t of s.turns) {
+      const slot = n.turnNodes.get(t.id)?.node.querySelector(':scope > .t-offers');
+      if (!slot) continue;
+      const here = mine.filter(([, o]) => (o.turn || s.turns.at(-1)?.id) === t.id);
+      const html = here.map(([m, o]) => offerHtml(m, o)).join('');
+      if (slot.dataset.html === html) continue;
+      slot.dataset.html = html;
+      slot.innerHTML = html;
+      slot.onclick = (e) => {
+        const oid = e.target.closest('[data-offer]')?.dataset.offer;
+        const m = crewList().find((x) => (x.offers || []).some((o) => o.id === oid));
+        if (m) offerClick(e, m, patchMember, () => paintOffers(sid));
+      };
+    }
   }
 }
 

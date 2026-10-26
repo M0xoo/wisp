@@ -12,6 +12,8 @@
 // reports, e.g. a task the user mentioned in the prompt.
 // `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove` read and change the user's crew
 // (server/crew.js) when the user asks; wisp refuses changes from subagents and crew members' jobs.
+// `wisp_crew_kit` proposes skills and instructions files for a member: the task shows them for the
+// user to pick from, so a member's job may call it too.
 // `wisp_connectors`, `wisp_connector_add` and `wisp_connector_signin` read and add the user's
 // connectors (MCP servers every task gets, server/connectors.js); secret values never pass through
 // the agent: the sign-in card takes them.
@@ -126,7 +128,12 @@ const SESSION = {
 
 async function crewTool(name, args = {}) {
   const path = `/api/internal/crew/${WISP_SESSION}`;
-  const r = name === 'wisp_crew' ? await call(path) : await call(path, args, { wisp_crew_add: 'POST', wisp_crew_edit: 'PATCH', wisp_crew_remove: 'DELETE' }[name]);
+  const r =
+    name === 'wisp_crew'
+      ? await call(args.member ? `${path}?member=${encodeURIComponent(args.member)}` : path)
+      : name === 'wisp_crew_kit'
+        ? await call(`${path}/kit`, args)
+        : await call(path, args, { wisp_crew_add: 'POST', wisp_crew_edit: 'PATCH', wisp_crew_remove: 'DELETE' }[name]);
   if (r.error) throw new Error(r.error);
   return r.text;
 }

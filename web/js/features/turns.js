@@ -28,6 +28,7 @@ import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript
 import { paintCard } from './spells.js';
 import { paintGoal, wireGoalSlot } from './goal.js';
 import { signIn } from './connectors.js';
+import { paintOffers } from './crew.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -185,6 +186,7 @@ export function renderBody(id, { fresh }) {
   });
   for (const [tid, v] of n.turnNodes) if (!keep.has(tid)) (v.node.remove(), n.turnNodes.delete(tid));
   paintBtw(id); // side questions update in place, so they don't re-render their turn
+  paintOffers(id); // so do kit files proposed for a crew member, which live on the member
 
   updateDock(id);
   if (fresh) paintSplit(); // split view: the header and details column fill in from the summary
@@ -502,6 +504,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
     node.append(out);
     const subs = renderSubs(s, t);
     if (subs) node.append(subs);
+    node.append(el('<div class="t-offers"></div>')); // kit files proposed for a crew member (crew.js paintOffers)
     node.append(renderTrail(s, t, tx));
     if (isLatest && s.goal?.status === 'checking') node.append(renderGoalCheck(s));
   }

@@ -9,7 +9,7 @@ import { summarize } from '../runner.js';
 import { delegationReport } from '../subagents.js';
 import { toolStats, toolStatsText } from '../usage.js';
 import { clip } from '../util.js';
-import { CREW_FIELDS, memberLine } from '../crew-tools.js';
+import { EDIT_FIELDS, memberDetail, memberLine } from '../crew-tools.js';
 import { applyImport, parseCrewFile, planImport } from '../crew-share.js';
 import { fetchShared } from './spells.js';
 import { describeSpell, normalizeSpell } from '../spells.js';
@@ -230,6 +230,12 @@ export function register(r, app) {
     guarded((c) => {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
+      // ?member=: that one in full (brief, notebook, kit), read before changing them.
+      const key = c.query.get('member');
+      if (key) {
+        const m = app.crew.find(key.trim().replace(/^@/, ''));
+        return c.send(200, m ? { text: memberDetail(app.crew.view(m)) } : { error: `No one called “${key}” on the user's crew. List it with wisp_crew.` });
+      }
       const list = app.crew.list.map((m) => app.crew.view(m));
       c.send(200, { text: list.length ? `${list.length} on the user's crew:\n\n${list.map(memberLine).join('\n')}` : 'The user has no crew yet. Add a member with wisp_crew_add.' });
     }),
@@ -247,7 +253,7 @@ export function register(r, app) {
         c.send(200, { error: err.message });
       }
     });
-  const pick = (body) => Object.fromEntries(CREW_FIELDS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
+  const pick = (body) => Object.fromEntries(EDIT_FIELDS.filter((k) => body[k] !== undefined).map((k) => [k, body[k]]));
   const named = (key) => {
     const m = app.crew.find(String(key || '').trim().replace(/^@/, ''));
     if (!m) throw new Error(`No one called “${key}” on the user's crew. List it with wisp_crew.`);
@@ -283,9 +289,40 @@ export function register(r, app) {
     '/internal/crew/:id',
     crewChange(async (s, body) => {
       const m = named(body.member);
-      app.crew.update(m, pick(body));
+      // remember: lines added to the end of their notebook (after a rewrite given with them).
+      const lines = (Array.isArray(body.remember) ? body.remember : []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 12);
+      const fields = pick(body);
+      if (lines.length) fields.notebook = [fields.notebook ?? m.notebook, ...lines.map((x) => `- ${x.replace(/\s+/g, ' ').trim().slice(0, 300)}`)].filter(Boolean).join('\n');
+      app.crew.update(m, fields);
       telemetry.track('crew_tool', { agent: s.agent, op: 'edit' });
-      return { text: `Updated ${m.name}.\n\n${memberLine(app.crew.view(m))}` };
+      const nb = fields.notebook !== undefined ? `\n\nTheir notebook now has ${m.notebook.length} characters.` : '';
+      return { text: `Updated ${m.name}.\n\n${memberLine(app.crew.view(m))}${nb}` };
+    }),
+    opts,
+  );
+  // wisp_crew_kit: files proposed for a member's kit, shown under this task's turn for the user to
+  // pick from. Nothing changes until they do, so a member's job may propose too (its own kit, or a
+  // teammate's); a subagent's answer isn't where the user reads, so it can't.
+  r.route(
+    'POST',
+    '/internal/crew/:id/kit',
+    guarded(async (c) => {
+      const s = lead(c);
+      if (!s) return c.send(404, { error: 'no such session' });
+      if (s.parentId) return c.send(200, { error: 'A subagent can’t propose kit files: put them in your report, and the lead task can propose them.' });
+      const body = (await c.body()) || {};
+      try {
+        const m = named(body.member);
+        if (m.spell) throw new Error(`${m.name} comes from the “${m.spell.name}” spell, which sets their kit. The user makes them theirs first (Make it mine), then you can propose files.`);
+        const { offer, refused } = app.crew.propose(m, s, body.files);
+        telemetry.track('crew_tool', { agent: s.agent, op: 'kit' });
+        const list = offer.files.map((f) => `- ${f.kind === 'skill' ? 'skill' : 'instructions'} **${f.name}**${(m.kit || []).some((k) => k.kind === f.kind && k.name.toLowerCase() === f.name.toLowerCase()) ? ' (replaces theirs)' : ''}`).join('\n');
+        c.send(200, {
+          text: `Proposed for ${m.name}’s kit; nothing is added until the user picks. wisp shows these under your answer with Add to their kit:\n\n${list}${refused.length ? `\n\nLeft out:\n${refused.map((x) => `- ${x}`).join('\n')}` : ''}\n\nIn your answer, say what each file is for; don't repeat the files.`,
+        });
+      } catch (err) {
+        c.send(200, { error: err.message });
+      }
     }),
     opts,
   );
