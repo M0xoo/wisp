@@ -29,7 +29,9 @@ test('a member needs a unique, plain name, a known harness and a valid schedule'
   assert.throws(() => normalizeMember({ name: '<b>x' }), /up to 24 letters/);
   assert.throws(() => normalizeMember({ name: 'ada' }, null, { taken: [{ id: 'x', name: 'Ada' }] }), /already on your crew/);
   assert.throws(() => normalizeMember({ name: 'Ada', agent: 'nope' }), /Unknown harness/);
-  assert.throws(() => normalizeMember({ name: 'Ada', cron: 'every day' }), /5 fields/);
+  assert.throws(() => normalizeMember({ name: 'Ada', cron: 'every blue moon' }), /Couldn’t read “every blue moon” as a schedule/);
+  assert.throws(() => normalizeMember({ name: 'Ada', cron: '0 25 * * *' }), /Bad hour field/);
+  assert.equal(normalizeMember({ name: 'Ada', cron: '8am every weekday' }).cron, '0 8 * * 1-5', 'words are stored as cron');
   assert.throws(() => normalizeMember({ name: 'Ada', cwd: '/nope' }, null, { exists: () => false }), /Not a folder/);
   const m = normalizeMember({ name: '  Ada  ', role: 'CI watcher', avatar: '🦊', cron: '@hourly', parallel: 9, brief: 'Watch CI' });
   assert.equal(m.name, 'Ada');

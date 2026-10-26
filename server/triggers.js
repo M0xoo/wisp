@@ -1,5 +1,5 @@
 // Triggers: launch sessions without you. Five kinds:
-//   schedule  a cron expression ("0 9 * * 1-5" = weekdays at 9:00), local time
+//   schedule  when, in words ("8am every weekday") or cron ("0 9 * * 1-5"), local time; stored as cron
 //   ci        a GitHub Actions run failed (polled with `gh run list`)
 //   issues    an open issue carries a label (polled with `gh issue list`)
 //   finished  one of your tasks finished a turn (runner 'finished': not subagents, not quiet jobs)
@@ -15,6 +15,7 @@ import path from 'node:path';
 import { bad, MODES, newId } from './util.js';
 import { gh as ghCli } from './git.js';
 import { fill, findRecipe } from './recipes.js';
+import { toCron } from '../web/js/schedule.js';
 
 const KINDS = new Set(['schedule', 'ci', 'issues', 'finished', 'done']);
 export const TASK_KINDS = new Set(['finished', 'done']);
@@ -79,6 +80,16 @@ function dayMatches(c, d) {
 
 export const cronMatches = (c, d) => c.minute.has(d.getMinutes()) && c.hour.has(d.getHours()) && c.month.has(d.getMonth() + 1) && dayMatches(c, d);
 
+// A schedule as the user (or an agent) wrote it → a checked cron. '' stays '' (no schedule).
+export function readSchedule(text) {
+  const said = String(text || '').trim();
+  if (!said) return '';
+  const cron = toCron(said);
+  if (!cron) throw bad(`Couldn’t read “${said.slice(0, 60)}” as a schedule. Try “every monday”, “8am every weekday” or “every 30 min”.`);
+  parseCron(cron);
+  return cron;
+}
+
 // The next matching minute after `from`, within a year (null if it never matches).
 export function nextRun(c, from = Date.now()) {
   const d = new Date(from);
@@ -116,8 +127,8 @@ export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } 
   if (recipeId && !findRecipe(recipes, recipeId)) throw bad('That recipe no longer exists.');
   const prompt = String(v('prompt') || (recipeId ? '' : DEFAULT_PROMPTS[kind])).trim();
   if (!prompt && !recipeId) throw bad('A trigger needs a prompt or a recipe.');
-  const cron = kind === 'schedule' ? String(v('cron')).trim() : '';
-  if (kind === 'schedule') parseCron(cron);
+  const cron = kind === 'schedule' ? readSchedule(v('cron')) : '';
+  if (kind === 'schedule' && !cron) throw bad('Say when it runs, e.g. “every monday” or “8am every weekday”.');
   const label = kind === 'issues' ? String(v('label', 'wisp')).trim() : '';
   if (kind === 'issues' && !label) throw bad('Pick the issue label to watch.');
   const mode = String(v('mode', kind === 'issues' ? 'plan' : 'auto'));

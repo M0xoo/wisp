@@ -28,6 +28,8 @@
 .au-params code, .k-vars code { font-size: 11.5px; }
 .au-runner { display: flex; align-items: center; gap: 10px; }
 .au-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 4px 106px; }
+.au-read { font-size: 12.5px; color: var(--muted); }
+.au-read.bad { color: var(--bad); }
 .au-kinds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px; }
 .au-kinds button { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; text-align: left; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); }
 .au-kinds button .i { grid-row: span 2; margin-top: 2px; color: var(--muted); }

@@ -67,7 +67,8 @@ test('a blueprint: who a member is, checked; never a folder or a machine', () =>
   assert.deepEqual(b.kit, [{ kind: 'skill', name: 'read-ci', description: 'when CI fails', body: 'steps' }], 'no path or id travels');
   assert.throws(() => normalizeBlueprint({ name: 'Scout', cwd: '/Users/me/repo' }), /cwd: a shared member has no folder/);
   assert.throws(() => normalizeBlueprint({ name: 'Scout', machine: 'abc' }), /machine: a shared member has no machine/);
-  assert.throws(() => normalizeBlueprint({ name: 'Scout', cron: 'daily' }), /cron: A schedule needs 5 fields/);
+  assert.throws(() => normalizeBlueprint({ name: 'Scout', cron: 'now and then' }), /cron: Couldn’t read/);
+  assert.equal(normalizeBlueprint({ name: 'Scout', cron: 'daily' }).cron, '0 9 * * *');
   assert.throws(() => normalizeBlueprint({ name: 'Scout', on: ['issues'] }), /on: issues isn't one of/);
   assert.throws(() => normalizeBlueprint({ name: 'Scout', mode: 'yolo' }), /mode: plan, edits or auto/);
   assert.throws(() => normalizeBlueprint({ name: 'Scout', kit: [{ kind: 'skill', name: 'x', body: 'y' }] }), /kit: Say when x should be used/);

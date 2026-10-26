@@ -15,6 +15,7 @@ import { runnerPicker } from './runner-picker.js';
 import { agentName, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { ask } from '../ui/confirm.js';
 import { crewList } from './crew.js';
+import { cronWords, toCron } from '../schedule.js';
 
 // Top bar: always one click to recipes and triggers. The badge counts triggers that are on;
 // the tooltip says what fires next.
@@ -35,19 +36,15 @@ export async function paintAutoBtn() {
 }
 
 const TRIGGER_KINDS = [
-  { kind: 'schedule', label: 'Schedule', icon: 'clock', hint: 'On a cron schedule, local time' },
+  { kind: 'schedule', label: 'Schedule', icon: 'clock', hint: 'At times you pick, like every monday' },
   { kind: 'ci', label: 'CI failed', icon: 'warn', hint: 'A GitHub Actions run fails (polled with gh)' },
   { kind: 'issues', label: 'Issue labelled', icon: 'ask', hint: 'An open issue gets a label (polled with gh)' },
   { kind: 'finished', label: 'Task finished', icon: 'bolt', hint: 'One of your tasks finishes' },
   { kind: 'done', label: 'Task marked done', icon: 'done', hint: 'You mark a task done, or ship it' },
 ];
 const TASK_KINDS = new Set(['finished', 'done']);
-const CRON_PRESETS = [
-  ['Weekdays 9:00', '0 9 * * 1-5'],
-  ['Every hour', '0 * * * *'],
-  ['Daily 18:00', '0 18 * * *'],
-  ['Mondays 8:00', '0 8 * * 1'],
-];
+// Chips that fill the When box with words, the way a person would type them.
+const SCHEDULE_PRESETS = ['every weekday at 9am', 'every hour', 'every day at 6pm', 'every monday at 8am'];
 export const recipeParams = (prompt) => [...new Set([...String(prompt || '').matchAll(/\{([a-zA-Z][\w-]{0,30})\}/g)].map((m) => m[1]))];
 
 const projectOptions = (selected, { any } = {}) =>
@@ -105,7 +102,7 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
       return `When a task in ${esc(where)} ${t.kind === 'done' ? 'is marked done' : 'finishes'}${member ? ` → ${esc(member.name)}` : ', a new task in its folder'}`;
     }
     const proj = (member && !t.cwd ? `${member.name}’s folder` : S.config.projects.find((p) => p.path === t.cwd)?.name || t.cwd.split(/[\\/]/).pop()) + (member ? ` → ${member.name}` : '');
-    if (t.kind === 'schedule') return `<code>${esc(t.cron)}</code> in ${esc(proj)}${t.nextAt ? ` · next ${esc(whenLabel(t.nextAt))}` : ''}`;
+    if (t.kind === 'schedule') return `${cronWords(t.cron) ? esc(cronWords(t.cron)) : `<code>${esc(t.cron)}</code>`} in ${esc(proj)}${t.nextAt ? ` · next ${esc(whenLabel(t.nextAt))}` : ''}`;
     const what = t.kind === 'ci' ? `failed CI${t.branch ? ` on <code>${esc(t.branch)}</code>` : ''}` : `issues labelled <code>${esc(t.label)}</code>`;
     return `Watches ${what} in ${esc(proj)} every ${t.every} min${t.seeded ? '' : ' · first check records what is already there'}`;
   };
@@ -182,8 +179,8 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         <label><span>Name</span><input class="input" name="name" maxlength="60" spellcheck="false"></label>
         ${crewList().length ? `<label class="k-to"><span>Send to</span><select name="crew"><option value="">A new task</option>${crewList().map((m) => `<option value="${m.id}" ${m.id === d.crew ? 'selected' : ''}>${esc(m.name)}${m.role ? ` · ${esc(m.role)}` : ''} (crew)</option>`).join('')}</select></label>` : ''}
         <label class="k-cwd"><span>Project</span><select name="cwd">${projectOptions(d.id ? d.cwd : d.cwd || projectById(launch.project)?.path, { any: 'Their own folder (crew only)' })}</select></label>
-        <div class="k-schedule"><label><span>When</span><input class="input mono" name="cron" spellcheck="false" placeholder="0 9 * * 1-5"></label>
-          <p class="au-presets">${CRON_PRESETS.map(([l, c]) => `<button type="button" class="lp-chip" data-cron="${c}">${l}</button>`).join('')}<span class="muted xs">minute hour day month weekday</span></p></div>
+        <div class="k-schedule"><label><span>When</span><input class="input" name="cron" spellcheck="false" autocomplete="off" placeholder="every monday, 8am every weekday…"></label>
+          <p class="au-presets">${SCHEDULE_PRESETS.map((w) => `<button type="button" class="lp-chip" data-when="${w}">${w[0].toUpperCase()}${w.slice(1)}</button>`).join('')}<span class="au-read" aria-live="polite"></span></p></div>
         <div class="k-ci"><label><span>Branch</span><input class="input mono" name="branch" spellcheck="false" placeholder="Any branch (e.g. main)"></label></div>
         <div class="k-issues"><label><span>Label</span><input class="input" name="label" spellcheck="false" placeholder="wisp"></label></div>
         <div class="k-gh"><label><span>Check every</span><select name="every">${[2, 5, 15, 60].map((m) => `<option value="${m}" ${Number(d.every || 5) === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label></div>
@@ -195,7 +192,21 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         <p class="au-warn" hidden>${icon('warn')}<span>Issue text comes from GitHub: anyone who can open and label issues can steer this agent. Plan mode only reads; Full auto runs shell commands without asking.</span></p>
         <div class="au-foot"><button type="button" class="ghost sm" data-act="cancel">Cancel</button><button class="primary sm">${d.id ? 'Save' : 'Create trigger'}</button></div>
       </form>`);
-    for (const k of ['name', 'cron', 'branch', 'label']) $(`[name="${k}"]`, f).value = d[k] || '';
+    for (const k of ['name', 'branch', 'label']) $(`[name="${k}"]`, f).value = d[k] || '';
+    $('[name="cron"]', f).value = d.cron ? cronWords(d.cron) || d.cron : '';
+    // What the When box will do, read back in words (web/js/schedule.js), or how to say it.
+    const paintRead = () => {
+      const said = $('[name="cron"]', f).value.trim();
+      const cron = toCron(said);
+      const words = cron && (cronWords(cron) || cron);
+      const r = $('.au-read', f);
+      r.classList.toggle('bad', !!said && !cron);
+      r.textContent = !said ? '' : !cron ? 'Try “every monday” or “every 2 hours”' : words.toLowerCase() === said.toLowerCase() ? 'Understood' : `= ${words}`;
+    };
+    $('[name="cron"]', f).addEventListener('input', () => {
+      paintRead();
+    });
+    paintRead();
     $('[name="prompt"]', f).value = d.prompt || '';
     $('.au-row', f).append(runnerField(d));
     const sync = () => {
@@ -222,14 +233,18 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         d.kind = k;
         sync();
       }
-      const c = e.target.closest('[data-cron]')?.dataset.cron;
-      if (c) $('[name="cron"]', f).value = c;
+      const w = e.target.closest('[data-when]')?.dataset.when;
+      if (w) {
+        $('[name="cron"]', f).value = w;
+        paintRead();
+      }
     });
     f.addEventListener('change', sync);
     sync();
     f.onsubmit = async (e) => {
       e.preventDefault();
       const v = (k) => $(`[name="${k}"]`, f).value;
+      if (d.kind === 'schedule' && !toCron(v('cron').trim())) return $('[name="cron"]', f).focus();
       const body = { kind: d.kind, name: v('name'), crew: $('[name="crew"]', f)?.value || '', cwd: v('cwd'), cron: v('cron'), branch: v('branch'), label: v('label') || 'wisp', every: Number(v('every')), recipeId: v('recipeId'), prompt: v('recipeId') ? '' : v('prompt'), mode: v('mode'), agent: d.agent || '', model: d.model || '', effort: d.effort || '' };
       try {
         await api(d.id ? `/triggers/${d.id}` : '/triggers', { method: d.id ? 'PATCH' : 'POST', body });

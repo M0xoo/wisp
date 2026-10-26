@@ -10,7 +10,7 @@ export const MEMBER_PROPS = {
   model: { type: 'string', description: 'Model id for that harness; "" for its default.' },
   effort: { type: 'string', description: 'Thinking level, e.g. low | medium | high; "" for the default.' },
   mode: { type: 'string', enum: ['plan', 'edits', 'auto'], description: 'plan = read-only, edits = auto-accept edits, auto = no permission prompts. Default auto.' },
-  cron: { type: 'string', description: 'When they check in on their own, a 5-field cron in local time ("0 9 * * 1-5" = weekdays at 9). "" = only when given work.' },
+  cron: { type: 'string', description: 'When they check in on their own, in words ("every monday", "8am every weekday", "every 30 min") or a 5-field cron, local time. "" = only when given work.' },
   parallel: { type: 'integer', minimum: 1, maximum: 5, description: 'Jobs at once; more wait in their queue. Default 2.' },
   paused: { type: 'boolean', description: 'Paused members skip check-ins; work for them waits.' },
   avatar: { type: 'string', description: 'An emoji. Default: one rolled from the name.' },

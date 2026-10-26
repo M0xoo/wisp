@@ -449,7 +449,11 @@ test('triggers: a schedule fires once per matching minute; CI and issue watchers
   const t = srv.triggers;
   const sched = await api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: '30 9 * * *', prompt: 'Morning triage', agent: 'claude' } });
   assert.ok(sched.nextAt > Date.now());
-  await assert.rejects(api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: 'nope', prompt: 'x' } }), /5 fields/);
+  await assert.rejects(api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: 'nope', prompt: 'x' } }), /Couldn’t read “nope” as a schedule/);
+  await assert.rejects(api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: '', prompt: 'x' } }), /Say when it runs/);
+  const worded = await api('/triggers', { body: { kind: 'schedule', cwd: repo, cron: 'every monday at 8am', prompt: 'Weekly', agent: 'claude' } });
+  assert.equal(worded.cron, '0 8 * * 1', 'words are stored as cron');
+  await api(`/triggers/${worded.id}`, { method: 'DELETE' });
   const realNow = t.now;
   t.now = () => new Date('2026-10-19T09:30:10').getTime();
   await t.tick();

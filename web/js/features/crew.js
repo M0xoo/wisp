@@ -35,6 +35,7 @@ import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
 import { importCrew, reviewChange, shareMember } from './crew-share.js';
 import { TEMPLATES } from '../crew-templates.js';
+import { cronWords, toCron } from '../schedule.js';
 
 // The spirits' glows, defined once for the whole page.
 document.body.insertAdjacentHTML('beforeend', spiritDefs());
@@ -46,7 +47,7 @@ const jobsOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m.id
 // Jobs sent that the server hasn't started yet (sendJob): a Starting up card under the member.
 const pendingOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m.id && s.pending);
 
-// When it checks in, in words. A cron that isn't one of these shows as itself.
+// When it checks in, in words. Any other cron is read out (web/js/schedule.js), or shows as itself.
 export const CADENCES = [
   ['', 'Only when asked'],
   ['*/30 * * * *', 'Every 30 min'],
@@ -55,7 +56,7 @@ export const CADENCES = [
   ['0 9 * * *', 'Every morning'],
   ['0 9 * * 1', 'Mondays'],
 ];
-export const cadenceLabel = (cron) => CADENCES.find(([c]) => c === (cron || ''))?.[1] || cron;
+export const cadenceLabel = (cron) => CADENCES.find(([c]) => c === (cron || ''))?.[1] || cronWords(cron) || cron;
 
 // What else starts their jobs (triggers that send them work, server/triggers.js MEMBER_KINDS).
 export const EVENTS = [
@@ -1111,7 +1112,9 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     checkin: !editing && !task,
   };
   if (!d.avatar) d.avatar = rollSpirit(Math.random());
-  const custom = () => !CADENCES.some(([c]) => c === d.cron);
+  // Custom: a schedule typed in words ("8am every weekday"), kept open once picked.
+  let typing = !CADENCES.some(([c]) => c === d.cron);
+  const custom = () => typing;
   const node = el(`<div class="modal crew-edit" role="dialog">
       <header><h2>${editing ? `Edit ${esc(member.name)}` : task ? 'Add this task to your crew' : 'Add to your crew'}</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       ${editing || task ? '' : `<div class="ce-templates"><span class="ce-lbl">Start from</span>${TEMPLATES.map((t) => `<button type="button" class="lp-chip" data-tpl="${t.key}"><span class="ce-tav">${spiritSvg(t.avatar, { small: true })}</span>${esc(t.role)}</button>`).join('')}<button type="button" class="lp-chip ce-import" data-a="import" title="A member someone shared: a .crew.json file, its JSON or a link">${icon('download')}Import…</button></div>`}
@@ -1130,7 +1133,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
           <textarea class="textarea" name="brief" rows="4" maxlength="4000" placeholder="What they look after, how you like it done, and what they should never do. E.g. Watch CI on main; fix failures on a branch; stay quiet when it’s green."></textarea></label>
         <div class="ce-stack"><span>Checks in <small>on their own, between the jobs you give them</small></span>
           <div class="ce-cadence">${CADENCES.map(([c, l]) => `<button type="button" class="lp-chip" data-cron="${c}">${l}</button>`).join('')}<button type="button" class="lp-chip" data-cron="custom">Custom…</button></div>
-          <input class="input sm mono ce-cron" name="cron" placeholder="*/15 9-18 * * 1-5" spellcheck="false" hidden>
+          <div class="ce-cron" hidden><input class="input sm" name="cron" placeholder="every monday, 8am every weekday…" spellcheck="false" autocomplete="off"><span class="ce-cron-read" aria-live="polite"></span></div>
         </div>
         <div class="ce-stack ce-events"><span>Also starts when <small>with a job about that task, in their project (any, if they have none)</small></span>
           <div class="ce-cadence ce-on">${EVENTS.map(([k, l]) => `<button type="button" class="lp-chip" data-on="${k}" aria-pressed="false">${icon(k === 'ci' ? 'warn' : k === 'done' ? 'done' : 'bolt')}${l}</button>`).join('')}</div>
@@ -1166,7 +1169,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
   $f('role').value = d.role;
   if (locked) for (const x of $$('[name="name"], [name="role"], [name="brief"], [name="cron"], [data-cron], [data-on], .ce-face, .ce-mode, .ce-team', node)) x.disabled = true;
   $f('brief').value = d.brief;
-  $f('cron').value = d.cron;
+  $f('cron').value = cronWords(d.cron) || d.cron;
   if ($f('checkin')) $f('checkin').checked = !!d.checkin;
   if (task && !d.brief) {
     // The task's first prompt is a good start for the brief.
@@ -1184,9 +1187,20 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     const n = $f('name').value.trim();
     $('.ce-handle', node).innerHTML = n ? `Reach them with <code>@${esc(n)}</code> in any prompt or follow-up` : 'Pick a name you can type: you’ll reach them with @name';
   };
+  // What the typed schedule will do, read back in words, or how to say it.
+  const paintRead = () => {
+    const said = $f('cron').value.trim();
+    const cron = toCron(said);
+    const r = $('.ce-cron-read', node);
+    r.classList.toggle('bad', !!said && !cron);
+    const words = cron && (cronWords(cron) || cron);
+    // Read back only when it says something new: the box already shows "Mondays at 9:00".
+    r.textContent = !said ? 'Say it like you would to a person' : !cron ? 'Try “every monday” or “every 2 hours”' : words.toLowerCase() === said.toLowerCase() ? 'Understood' : `= ${words}`;
+  };
   const paintCadence = () => {
-    $$('.ce-cadence [data-cron]', node).forEach((b) => b.classList.toggle('on', b.dataset.cron === 'custom' ? custom() : b.dataset.cron === d.cron));
+    $$('.ce-cadence [data-cron]', node).forEach((b) => b.classList.toggle('on', custom() ? b.dataset.cron === 'custom' : b.dataset.cron === d.cron));
     $('.ce-cron', node).hidden = !custom();
+    paintRead();
     $$('.ce-on [data-on]', node).forEach((b) => {
       const on = d.on.includes(b.dataset.on);
       b.classList.toggle('on', on);
@@ -1276,7 +1290,8 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       d.cron = tpl.cron;
       d.on = tpl.on || [];
       if ($f('checkin')) $f('checkin').checked = !!tpl.cron; // one that waits for tasks has nothing to check yet
-      $f('cron').value = tpl.cron;
+      $f('cron').value = cronWords(tpl.cron) || tpl.cron;
+      typing = !CADENCES.some(([c]) => c === d.cron);
       setFace(tpl.avatar);
       paintHandle();
       paintCadence();
@@ -1290,10 +1305,11 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     }
     const c = e.target.closest('[data-cron]')?.dataset.cron;
     if (c !== undefined) {
-      d.cron = c === 'custom' ? (custom() ? d.cron : '*/15 * * * *') : c;
-      $f('cron').value = d.cron;
+      typing = c === 'custom';
+      if (!typing) d.cron = c;
+      $f('cron').value = d.cron ? cronWords(d.cron) || d.cron : '';
       paintCadence();
-      if (c === 'custom') $f('cron').focus();
+      if (typing) $f('cron').select();
       return;
     }
     const par = Number(e.target.closest('[data-par]')?.dataset.par);
@@ -1356,13 +1372,16 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     paintHandle();
   });
   $f('cron').addEventListener('input', () => {
-    d.cron = $f('cron').value.trim();
+    const said = $f('cron').value.trim();
+    d.cron = toCron(said) || said; // words it can't read go as typed: the server says what's wrong
+    paintRead();
   });
 
   f.onsubmit = async (e) => {
     e.preventDefault();
     const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, on: d.on, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
     if (!body.name) return $f('name').focus();
+    if (!locked && body.cron && !toCron(body.cron)) return $f('cron').focus();
     // A spell's member: only where and how they run is yours to change.
     if (locked) for (const k of ['name', 'role', 'avatar', 'color', 'brief', 'cron', 'on', 'mode', 'team']) delete body[k];
     const again = () => crewEditor({ member, task, draft: { ...d, ...body, checkin: $f('checkin')?.checked } });

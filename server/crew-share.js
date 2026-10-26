@@ -13,7 +13,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { adapters } from './adapters/index.js';
 import { BRIEF_MAX, CREW_COLORS, DEFINITION, MAX_CREW, MAX_PARALLEL, NAME, REVIEWED, avatarOf, clampNotebook, handleOf, normalizeKit } from './crew.js';
-import { MEMBER_KINDS, parseCron } from './triggers.js';
+import { MEMBER_KINDS, readSchedule } from './triggers.js';
 import { MAX_SUBAGENTS, normalizeTeam } from './subagents.js';
 import { scanAll } from './secret-scan.js';
 import { gh } from './git.js';
@@ -50,8 +50,7 @@ export function normalizeBlueprint(raw) {
   if (!KEY.test(key)) throw bad('key: lowercase letters, digits and dashes (at most 41)');
   const brief = String(raw.brief || '').replace(/\r\n/g, '\n').trim();
   if (brief.length > BRIEF_MAX) throw bad(`brief: at most ${BRIEF_MAX.toLocaleString('en')} characters`);
-  const cron = String(raw.cron || '').trim();
-  if (cron) at('cron', () => parseCron(cron));
+  const cron = at('cron', () => readSchedule(raw.cron)); // words ("every monday") or cron
   const on = [...new Set(arr(raw.on).map(String))].sort();
   for (const k of on) if (!MEMBER_KINDS.has(k)) throw bad(`on: ${k} isn't one of ${[...MEMBER_KINDS].join(', ')}`);
   const mode = String(raw.mode || 'auto');
