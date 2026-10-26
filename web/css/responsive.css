@@ -71,6 +71,8 @@ body.wisp-mobile kbd, body.wisp-mobile .key-hint, body.wisp-mobile .pal-foot { d
    spills off the bar. */
 body.wisp-mobile .topbar { gap: 2px; padding: 0 8px 0 12px; }
 body.wisp-mobile .topbar .projects { min-width: 0; flex: 0 1 auto; margin-right: 0; }
+/* split.css drops the filter onto its own row with a top margin; on the phone it shares the row. */
+body.wisp-mobile.split .topbar .projects { margin: 0 0 0 8px; }
 body.wisp-mobile .topbar .p-chip { position: relative; height: 32px; padding: 0 10px 0 12px; font-size: 13px; }
 body.wisp-mobile .topbar .p-chip.more.solo { border-color: var(--line-2); background: var(--surface); }
 /* Down to the one chip naming the filter (projects.js "solo"): that chip stays whole. */
@@ -106,6 +108,13 @@ body.wisp-mobile .me-menu :is(.sf-me, .me-nav .auto-btn) { min-height: 44px; }
 body.wisp-mobile .lp-chip { height: 44px; }
 /* The logo is only a mark here: its #/ link would add a history entry Back has to step over. */
 body.wisp-mobile .topbar .brand { pointer-events: none; margin-right: 6px; }
+/* Search, the avatar and the project pill read as one row: each 32px to the eye (30px and its 1px ring), 44px to a thumb. */
+body.wisp-mobile .topbar .me-btn .sf-av { width: 30px; height: 30px; font-size: 13px; }
+body.wisp-mobile .topbar .me-btn .sf-av.out { background: var(--surface); }
+body.wisp-mobile .topbar .me-btn .sf-av .i { width: 16px; height: 16px; }
+body.wisp-mobile .topbar .search-btn { position: relative; color: var(--ink-2); }
+body.wisp-mobile .topbar .search-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); z-index: -1; }
+body.wisp-mobile .topbar .search-btn .i { width: 16px; height: 16px; }
 body.wisp-mobile .launcher :is(.icon-btn, .tog-btn, .mode-btn, .send) { min-width: 44px; height: 44px; }
 body.wisp-mobile .launcher .runners { height: 46px; }
 body.wisp-mobile .launcher .runners .runner-btn { height: 44px; }
@@ -120,11 +129,11 @@ body.wisp-mobile .composer:focus-within .c-bar > .send { box-shadow: -10px 0 8px
 body.wisp-mobile .it-bar .ghost.xs { min-width: 44px; height: 44px; }
 body.wisp-mobile .it-quick { width: 44px; height: 44px; margin: -10px -12px -10px 0; }
 body.wisp-mobile .it-quick-gap { width: 32px; }
-/* The rest of what a thumb taps: section folds, Crew's +, the project chips, the overlap's Open and
-   the result's trail (activity, files, restore, fork) get the same 44px. */
+/* The rest of what a thumb taps: section folds, Crew's +, the overlap's Open and
+   the result's trail (activity, files, restore, fork) get the same 44px. The top bar's project chips
+   keep their 32px pill (its ::before is the touch area) so they match the avatar beside them. */
 body.wisp-mobile.split .f-group h4.sec-toggle { min-height: 44px; }
 body.wisp-mobile #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44px; }
-body.wisp-mobile .topbar .p-chip { height: 44px; }
 body.wisp-mobile .ov-row .ghost.xs { height: 44px; }
 body.wisp-mobile .trail-bar :is(.tb-acts, .tb-btn, .link.xs, .rate-btn) { min-height: 44px; min-width: 44px; justify-content: center; }
 body.wisp-mobile :is(.ask-card, .b-question) .opt { min-height: 44px; }
