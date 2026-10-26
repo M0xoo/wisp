@@ -11,6 +11,7 @@ const TEAM = 'multi-agent-coding';
 const BG = 'run-coding-agents-in-the-background';
 const VS = 'claude-code-vs-codex';
 const SPELLS = 'customize-wisp-with-spells';
+const ACCOUNTS = 'use-work-and-personal-claude-code-accounts';
 
 // [what to try, where it's explained]. Short enough for one line at the home's reading width.
 export const TIPS = [
@@ -49,4 +50,6 @@ export const TIPS = [
   ['wisp looks odd? Settings → Spells → <i>Turn every spell off</i>, or start with <code>WISP_SAFE=1</code>', G(SPELLS, 'trouble')],
   ['wisp runs Claude Code, Codex, Cursor, opencode, Antigravity, Grok and Copilot CLIs you already have', `${SITE}/agents/`],
   ['Run your own wisp Grid for your team: sign-in, a sandbox each, on one server', G('self-host-wisp-grid')],
+  ['Have a work and a personal Claude plan? Add the other in Settings → Agents and pick one per task', G(ACCOUNTS, 'with-wisp')],
+  ['At an account’s limit the task asks what to do; wisp never switches accounts for you', G(ACCOUNTS, 'limits')],
 ];

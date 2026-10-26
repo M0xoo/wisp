@@ -146,6 +146,14 @@
           },
           {
             "@type": "Question",
+            "name": "Can I use my work and personal Claude Code accounts?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, for Claude Code and Codex. Add the second account in Settings → Agents and pick which one each task runs on; settings, skills and MCP servers are shared, the login isn't. Each account keeps its own limits: when one runs out, the task asks you what to do, and wisp never switches accounts on its own. Only add accounts that are yours."
+            }
+          },
+          {
+            "@type": "Question",
             "name": "How do I install wisp?",
             "acceptedAnswer": {
               "@type": "Answer",
@@ -519,6 +527,7 @@
         <details><summary>Can wisp run agents on several machines?</summary><p>Yes. Add each computer to <a href="https://grid.trywisp.dev">wisp Cloud</a> from its <b>Machines</b>: it holds a tunnel open to the grid, so your other computers and your phone reach it from anywhere with no SSH or open port (<a href="guides/reach-your-computer-from-your-phone.html">guide →</a>). One prompt can run on several machines in parallel, every run lands in one queue, and the agents keep working when your laptop sleeps. For servers and VMs, Machines also connects over SSH and starts wisp there, on your network or over Tailscale: <a href="guides/connect-machines-with-tailscale.html">Tailscale guide →</a> <a href="guides/run-coding-agents-on-multiple-machines.html">Machines guide →</a></p></details>
         <details><summary>Can my agents keep working when my laptop is closed?</summary><p>Yes, if they run on a computer that stays on. Connect a desktop or VM through <b>Machines</b>, or use <a href="cloud.html">wisp Cloud</a>: your own wisp on a server, free during the preview. Sign in with GitHub or Google, sign in to Claude Code or Codex with a code, give it a task and close the laptop; the report waits on your phone. <a href="guides/run-claude-code-24-7-without-a-vps.html">Run Claude Code 24/7 without a VPS →</a></p></details>
         <details><summary>Can I move a task to another computer or agent mid-way?</summary><p>Yes. Pick another computer with the <b>Runs on</b> button next to the follow-up box, and your next follow-up moves the task there: the branch and uncommitted changes travel as a git bundle into a worktree on the same branch, and the agent gets the earlier turns. The harness button next to it switches agents, say from Claude Code to Codex, in the same follow-up. <a href="guides/move-a-task-to-another-machine-or-agent.html">Guide →</a></p></details>
+        <details><summary>Can I use my work and personal Claude Code accounts?</summary><p>Yes, for Claude Code and Codex. Add the second account in Settings → Agents and pick which one each task runs on; settings, skills and MCP servers are shared, the login isn't. Each account keeps its own limits: when one runs out, the task asks you what to do, and wisp never switches accounts on its own. Only add accounts that are yours. <a href="guides/use-work-and-personal-claude-code-accounts.html">Guide →</a></p></details>
         <details><summary>Is wisp free?</summary><p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity, Grok or GitHub Copilot account, and those providers bill as usual.</p></details>
         <details><summary>Does my code leave my machine?</summary><p>wisp itself is a local server. Sessions and state are plain JSON in <code>~/.wisp</code>. Your code only goes to the agent provider you choose, same as running that CLI directly. wisp sends anonymous usage stats with no prompts, paths or agent output. Turn them off with <code>WISP_TELEMETRY=0</code> or <code>DO_NOT_TRACK=1</code>.</p></details>
         <details><summary>Can I take over a session in my terminal?</summary><p>Yes. Press <kbd>T</kbd> and wisp opens your terminal in the project with the agent's resume command, for example <code>claude --resume &lt;id&gt;</code>. It works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, Windows Terminal and more.</p></details>
