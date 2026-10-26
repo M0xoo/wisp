@@ -351,7 +351,7 @@ test('crew: members a spell brings, each a blueprint; risk by what starts them; 
   assert.equal(on({ mode: 'auto' }).kind, 'runs', 'and Full auto runs commands');
   assert.match(on({ cron: '0 * * * *', on: ['ci'] }).lines.join('\n'), /A crew member, Quill · PR reviewer: works hourly, when CI fails, in Plan mode\. Joins paused/);
   assert.ok(problems({ ...base0, crew: [{ ...member, cwd: '/Users/me/repo' }] }).some((x) => /crew\[0\] \(Quill\): cwd: a shared member has no folder/.test(x)));
-  assert.ok(problems({ ...base0, crew: [{ ...member, cron: 'hourly' }] }).some((x) => /cron: A schedule needs 5 fields/.test(x)));
+  assert.ok(problems({ ...base0, crew: [{ ...member, cron: 'now and then' }] }).some((x) => /cron: Couldn’t read/.test(x)));
   assert.ok(problems({ ...base0, crew: [{ ...member, kit: [{ kind: 'skill', name: 'x', body: 'y' }] }] }).some((x) => /kit: Say when x should be used/.test(x)));
   assert.ok(problems({ ...base0, crew: [{ ...member, on: ['issues'] }] }).some((x) => /on: issues isn't one of/.test(x)));
   assert.ok(problems({ ...base0, crew: Array.from({ length: 11 }, (_, i) => ({ name: `M${i}` })) }).some((x) => /crew: at most 10 members/.test(x)));

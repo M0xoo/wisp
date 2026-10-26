@@ -1,7 +1,8 @@
 // The page's DOM-free modules: markdown and highlighting (web/js/md.js), line diffs
 // (web/js/diff.js), display formatters (web/js/core/format.js), the event bus (web/js/core/bus.js),
 // what the transcript shows (web/js/features/transcript.js), the launcher's ↑ history
-// (web/js/prompt-history.js) and the drafts kept across reloads (web/js/core/state.js).
+// (web/js/prompt-history.js), the drafts kept across reloads (web/js/core/state.js) and schedules
+// in words (web/js/schedule.js).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,6 +15,7 @@ import { finalAnswer, layout, messageText, sameStep } from '../web/js/features/t
 import { historyStep, MAX_SENT, remember } from '../web/js/prompt-history.js';
 import { isSpirit, parseSpirit, rollSpirit, SPIRIT, spiritCode, spiritDefs, spiritSvg } from '../web/js/spirit.js';
 import { decode, encode, mentionHtml, plain } from '../web/js/mention-text.js';
+import { clock24, cronWords, toCron } from '../web/js/schedule.js';
 
 test('esc escapes HTML and treats null as empty', () => {
   assert.equal(esc(`<a href="x">'&'</a>`), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
@@ -300,4 +302,33 @@ test('crew mentions: stored as @[Name](crew:id), shown as @Name, chips open the 
   assert.equal(plain(stored), 'ask @Ada and @Fix login');
   assert.match(mentionHtml(esc(stored)), /<button type="button" class="mn crew" data-crew="abc123def4"/);
   assert.match(mentionHtml(esc(stored)), /<a class="mn" href="#\/s\/aaaaaaaaaaaa"/);
+});
+
+test('toCron reads a schedule in words, and cronWords reads it back', () => {
+  const cases = {
+    'every monday': ['0 9 * * 1', 'Mondays at 9:00'],
+    '8am every weekday': ['0 8 * * 1-5', 'Weekdays at 8:00'],
+    'Every weekday at 8 AM': ['0 8 * * 1-5', 'Weekdays at 8:00'],
+    'every 15 minutes': ['*/15 * * * *', 'Every 15 min'],
+    'every 15 min between 9 and 6 on weekdays': ['*/15 9-17 * * 1-5', 'Every 15 min, 9:00 to 18:00, weekdays'],
+    hourly: ['0 * * * *', 'Hourly'],
+    'every 2 hours': ['0 */2 * * *', 'Every 2 hours'],
+    'every half hour': ['*/30 * * * *', 'Every 30 min'],
+    'every day at 6pm': ['0 18 * * *', 'Every day at 18:00'],
+    'weekdays at 9:30': ['30 9 * * 1-5', 'Weekdays at 9:30'],
+    'mondays and fridays at 10am': ['0 10 * * 1,5', 'Mondays and Fridays at 10:00'],
+    'tue-thu at 9': ['0 9 * * 2-4', 'Tuesday to Thursday at 9:00'],
+    'sat and sun at 10am': ['0 10 * * 0,6', 'Weekends at 10:00'],
+    'at 9am and 5pm': ['0 9,17 * * *', 'Every day at 9:00 and 17:00'],
+    'on the 15th of each month at noon': ['0 12 15 * *', 'On the 15th of each month at 12:00'],
+    'every friday at 5pm': ['0 17 * * 5', 'Fridays at 17:00'],
+    '*/15 9-18 * * 1-5': ['*/15 9-18 * * 1-5', 'Every 15 min, 9:00 to 19:00, weekdays'],
+  };
+  for (const [words, [cron, back]] of Object.entries(cases)) {
+    assert.equal(toCron(words), cron, words);
+    assert.equal(cronWords(cron, clock24), back, cron);
+  }
+  // Nothing is guessed: a word it doesn't know, or what one cron line can't say, is refused.
+  for (const t of ['', 'banana', 'monday standup', 'every 2 weeks', 'last day of the month', 'every 90 minutes', 'at 25', 'at 9am and 5:30pm', 'every 15 min at 9am']) assert.equal(toCron(t), null, t);
+  assert.equal(cronWords('0 9 1 6 *'), null, 'months stay as cron');
 });

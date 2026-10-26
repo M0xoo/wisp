@@ -15,6 +15,7 @@ import {
   ghProblem, kebab, scriptBody, scriptExports, styleProblem, wispPathProblem,
 } from '../web/js/spell-schema.js';
 import { normalizeRecipe } from './recipes.js';
+import { clock24, cronWords, midSentence } from '../web/js/schedule.js';
 import { normalizeBlueprints, SPELL_CREW_MAX } from './crew-share.js';
 import { bad, clip, truncate, writeJsonAtomic } from './util.js';
 
@@ -413,7 +414,6 @@ export function scopeMatches(scope, { project, agent, mode, cwd } = {}) {
   return true;
 }
 
-const CRON_WORDS = { '*/30 * * * *': 'every 30 min', '0 * * * *': 'hourly', '0 9 * * 1-5': 'weekday mornings', '0 9 * * *': 'every morning', '0 9 * * 1': 'on Mondays' };
 const ON_WORDS = { finished: 'when a task finishes', done: 'when a task is marked done', ci: 'when CI fails' };
 const MODE_WORDS = { plan: 'Plan', edits: 'Edits', auto: 'Full auto' };
 
@@ -472,7 +472,7 @@ export function describeSpell(s) {
   // A member that starts jobs on its own (a schedule, events) or works in Full auto can run commands.
   for (const b of s.crew || []) {
     bump(b.cron || b.on.length || b.mode === 'auto' ? 'runs' : 'acts');
-    const when = [b.cron ? CRON_WORDS[b.cron] || `on \`${b.cron}\`` : '', ...b.on.map((k) => ON_WORDS[k])].filter(Boolean).join(', ') || 'only when asked';
+    const when = [b.cron ? midSentence(cronWords(b.cron, clock24)) || `on \`${b.cron}\`` : '', ...b.on.map((k) => ON_WORDS[k])].filter(Boolean).join(', ') || 'only when asked';
     lines.push(`A crew member, ${b.name}${b.role ? ` · ${b.role}` : ''}: works ${when}, in ${MODE_WORDS[b.mode]} mode${b.kit.length ? `, with ${b.kit.length} skill${b.kit.length > 1 ? 's and instructions files' : ' or instructions file'}` : ''}. Joins paused`);
   }
   for (const [k, d] of Object.entries(s.data || {})) {

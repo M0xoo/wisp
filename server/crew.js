@@ -20,7 +20,7 @@
 // this wisp fetches it and files the memory, the log line and any @mention answer (remoteSeen).
 
 import { blocksToMarkdown } from './render.js';
-import { cronMatches, nextRun, parseCron } from './triggers.js';
+import { cronMatches, nextRun, parseCron, readSchedule } from './triggers.js';
 import { adapters } from './adapters/index.js';
 import { MAX_SUBAGENTS, normalizeTeam } from './subagents.js';
 import { bad, MODES, newId, truncate } from './util.js';
@@ -85,8 +85,7 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
   if (agent !== 'auto' && (!adapters[agent] || agent === 'wisp')) throw bad(`Unknown harness: ${agent}`);
   const mode = String(v('mode', 'auto'));
   if (!MODES.has(mode)) throw bad('mode must be plan, edits or auto.');
-  const cron = String(v('cron')).trim();
-  if (cron) parseCron(cron);
+  const cron = readSchedule(v('cron')); // words ("every monday") or cron
   const color = CREW_COLORS.includes(v('color')) ? v('color') : prev?.color || CREW_COLORS[taken.length % CREW_COLORS.length];
   const notebook = typeof body.notebook === 'string' ? clampNotebook(body.notebook) : prev?.notebook || '';
   return {

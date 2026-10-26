@@ -187,7 +187,10 @@ body.split .cr-side { align-self: start; height: 21px; }
 .ce-on .lp-chip .i { width: 13px; height: 13px; color: var(--muted); }
 .ce-on .lp-chip.on .i { color: currentColor; }
 .ce-cadence .lp-chip.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
-.ce-cron { max-width: 260px; }
+.ce-cron { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.ce-cron .input { flex: 0 1 260px; min-width: 0; }
+.ce-cron-read { font-size: 12.5px; color: var(--muted); }
+.ce-cron-read.bad { color: var(--bad); }
 .ce-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ce-bar .tog-btn .chev { display: none; }
 .ce-proj span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
