@@ -8,20 +8,8 @@ import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
 const { goalCommand, normalizeGoal, goalNote } = await import('../server/goal.js');
 
-test('goalCommand and normalizeGoal read what the user typed', () => {
-  assert.equal(goalCommand('/goal all tests pass'), 'all tests pass');
-  assert.equal(goalCommand('/goal'), '');
-  assert.equal(goalCommand('/goals are nice'), null);
-  assert.equal(goalCommand('fix it'), null);
-  assert.deepEqual(normalizeGoal('tests pass'), { text: 'tests pass', max: 10 });
-  assert.deepEqual(normalizeGoal({ text: ' x ', max: 3 }), { text: 'x', max: 3 });
-  assert.equal(normalizeGoal({ text: '  ' }), null);
-  assert.throws(() => normalizeGoal({ text: 'x', max: 0 }), /1 to 20/);
-  assert.throws(() => normalizeGoal('x'.repeat(1001)), /at most 1000/);
-  assert.match(goalNote({ goal: { text: 'it builds', round: 2, max: 5, status: 'working' } }), /## Goal[\s\S]*it builds[\s\S]*round 2 of 5/);
-  assert.equal(goalNote({ goal: { text: 'x', status: 'met' } }), '');
-});
-
+// The server is set up before the first test: a top-level await after a test lets Node run the
+// root's after hook before this before hook, and the open server keeps the run from ending.
 process.env.FAKE_RECORD = tmp('goal-record');
 process.env.WISP_HOME = tmp('goal-home');
 process.env.WISP_UPDATE_CHECK = '0';
@@ -57,6 +45,20 @@ after(() => {
   srv.shutdown();
   srv.server.closeAllConnections?.();
   srv.server.close();
+});
+
+test('goalCommand and normalizeGoal read what the user typed', () => {
+  assert.equal(goalCommand('/goal all tests pass'), 'all tests pass');
+  assert.equal(goalCommand('/goal'), '');
+  assert.equal(goalCommand('/goals are nice'), null);
+  assert.equal(goalCommand('fix it'), null);
+  assert.deepEqual(normalizeGoal('tests pass'), { text: 'tests pass', max: 10 });
+  assert.deepEqual(normalizeGoal({ text: ' x ', max: 3 }), { text: 'x', max: 3 });
+  assert.equal(normalizeGoal({ text: '  ' }), null);
+  assert.throws(() => normalizeGoal({ text: 'x', max: 0 }), /1 to 20/);
+  assert.throws(() => normalizeGoal('x'.repeat(1001)), /at most 1000/);
+  assert.match(goalNote({ goal: { text: 'it builds', round: 2, max: 5, status: 'working' } }), /## Goal[\s\S]*it builds[\s\S]*round 2 of 5/);
+  assert.equal(goalNote({ goal: { text: 'x', status: 'met' } }), '');
 });
 
 test('not met yet: wisp sends it back with what is missing, until the check says it holds', async () => {

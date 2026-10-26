@@ -161,6 +161,7 @@ try {
     await page.locator('#promptFab').tap();
     ok(await page.evaluate(() => document.body.classList.contains('stack-page') && document.activeElement?.id === 'prompt'), 'home did not open with the prompt focused');
     await page.locator('#prompt').fill('add a subtract function');
+    await page.waitForTimeout(400); // the page slides in (stack-in): shoot it settled
     await shot(page, 'home');
     ok((await overflow(page)) <= 0, 'home scrolls sideways');
     await page.locator('#launch').tap();
