@@ -162,13 +162,16 @@ body.split #feed .item.open { background: var(--bg-2); border-color: transparent
 body.split #feed .it-head { grid-template-columns: 10px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 1px; padding: 9px 12px; align-items: center; }
 body.split #feed .it-main { display: contents; }
 body.split #feed .it-head .q-dot { grid-row: 1; }
-body.split #feed .it-title { grid-row: 1; grid-column: 2; font-size: 13.5px; }
+/* The title runs the row's full width up to the time (pinned in the corner), so the state and PR
+   pills under it no longer squeeze it to half the sidebar. */
+body.split #feed .it-title { grid-row: 1; grid-column: 2 / -1; padding-right: 36px; font-size: 13.5px; } /* "365d" is the widest */
+body.split #feed .f-group.scheduled .it-title { padding-right: 88px; } /* "Thu 09:00", "26 Oct 09:00" */
 body.split #feed :is(.it-sub, .q-live) { grid-row: 2; grid-column: 2; }
 body.split #feed .it-sub { color: var(--faint); }
 body.split #feed .item.open .it-head { border-bottom: 0; border-radius: var(--radius); }
 body.split #feed .item.open .it-title { white-space: nowrap; }
-body.split #feed .it-side { grid-row: 1 / 3; grid-column: 3; flex-wrap: wrap; justify-content: flex-end; align-content: space-between; gap: 2px 6px; align-self: stretch; }
-body.split #feed .it-side .q-time { order: -1; flex: 0 0 100%; min-width: 0; text-align: right; }
+body.split #feed .it-side { grid-row: 2; grid-column: 3; flex-wrap: wrap; justify-content: flex-end; gap: 2px 6px; min-height: 19px; }
+body.split #feed .it-side .q-time { position: absolute; top: 9px; right: 12px; line-height: 21px; }
 body.split #feed .it-side .pill { height: 19px; padding: 0; background: none; font-size: 11.5px; }
 body.split #feed .it-side .pill i { width: 5px; height: 5px; }
 /* The done button shows beside the time, over the end of the title, so the time stays put and readable
@@ -300,6 +303,10 @@ body.split .it-bar > .pr-strip { order: 9; flex: 1 0 100%; margin: 0; }
 body.split .it-bar > .it-slot:not(:empty) { display: flex; align-items: center; gap: 2px; }
 body.split .it-bar:has(> .pr-strip:not([hidden])) .it-props :is(.pill.pr, .ship-pill) { display: none; }
 
+/* The task's bar (sticky, or the details column) keeps Ship it and Mark done in reach at any scroll:
+   the reply box doesn't say them a second time. */
+body.split #feed .item.open .composer :is(.c-ship, .c-done) { display: none; }
+
 /* A wide pane: the reading column, and beside it the details column, which stays put while the task
    scrolls, so the controls are in reach at any point of a long report. It's a sticky bar of no
    height at the body's right edge, beside the column the rest keeps to, so the wheel over it still
@@ -397,6 +404,9 @@ body.split.stack .split-top { margin: 0 -8px; padding: 8px 8px 10px; }
 /* The list's rows get the room a sidebar doesn't have: titles on two lines. */
 body.split.stack #feed .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
 body.split.stack #feed .item.open .it-title { white-space: normal; }
+/* The task's facts on a narrow page: a branch with too little room left moves to its own line
+   instead of shrinking to "wi…". */
+body.split.stack .it-bar > .it-meta:not(:empty) { min-width: min(100%, 180px); }
 
 /* The page's head: Back, the title (two lines at most, so a long one never pushes the rest off), the
    split.head slot. A fixed minimum height, so a title that wraps or changes doesn't move the task. */
@@ -442,6 +452,9 @@ body.wisp-mobile.split.stack .feed-wrap { padding-bottom: calc(96px + env(safe-a
 @media (hover: none) {
   body.split.stack #feed .it-head { grid-template-columns: 10px minmax(0, 1fr) auto 36px; }
   body.split.stack #feed .it-quick { top: 50%; right: 8px; width: 36px; height: 36px; margin: -18px 0 0; background: none; }
+  body.split.stack #feed .it-side .q-time { right: 48px; }
+  body.split.stack #feed .it-title { padding-right: 84px; }
+  body.split.stack #feed .f-group.scheduled .it-title { padding-right: 136px; }
 }
 /* The Mac window buttons sit over the page's top-left corner: Back starts to their right. */
 body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top) { padding-left: 88px; }

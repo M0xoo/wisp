@@ -95,16 +95,18 @@ R.hero = (b, ctx) => {
   const status = ['done', 'partial', 'blocked', 'info'].includes(b.status) ? b.status : 'done';
   const label = { done: 'Finished', partial: 'Partly done', blocked: 'Blocked', info: 'Report' }[status];
   const st = ctx.turn?.stats || {};
-  const meta = [
+  const meta = ctx.trail ? [] : [
     ctx.turn?.endedAt && ctx.turn?.startedAt ? fmtDuration(ctx.turn.endedAt - ctx.turn.startedAt) : '',
     st.costUsd ? `$${st.costUsd.toFixed(2)}` : '',
     ctx.turn?.changes?.length ? `${ctx.turn.changes.length} file${ctx.turn.changes.length > 1 ? 's' : ''} touched` : '',
   ].filter(Boolean);
+  // In a task, the head above already shows this title: don't say it twice.
+  const echo = ctx.trail && b.title && b.title === ctx.session?.title;
   return el(`
-    <div class="b-hero st-${status}">
+    <div class="b-hero st-${status}${echo ? ' echo' : ''}">
       <div class="aura"></div>
       <div class="hero-top"><span class="pill st-${status}"><i></i>${label}</span>${meta.map((m) => `<span class="meta">${esc(m)}</span>`).join('')}</div>
-      <h2>${esc(b.title || 'Finished')}</h2>
+      ${echo ? '' : `<h2>${esc(b.title || 'Finished')}</h2>`}
       ${b.summary ? `<p>${inlineMd(b.summary)}</p>` : ''}
     </div>`);
 };

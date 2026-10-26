@@ -132,7 +132,8 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .runners.many .runner-btn .chev { margin-left: 0; }
 .l-bar:has(.runners.many) :is(.mode-btn span, .team-btn .tb-label) { display: none; }
 /* a narrower bar: the place goes to its icon first, so the harness keeps its name */
-@container launcher (max-width: 720px) { .l-bar .where-btn span, .runners .rb-a { display: none; } }
+@container launcher (max-width: 800px) { .l-bar .where-btn span { display: none; } }
+@container launcher (max-width: 720px) { .runners .rb-a { display: none; } }
 /* two harnesses on a narrow bar: drop the model names, then the harness names (logos stay) */
 @container launcher (max-width: 640px) { .runners.cmp .rb-m { display: none; } }
 @container launcher (max-width: 520px) {

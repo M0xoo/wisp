@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Small polish in the task list, the prompt box and a finished task.** Titles in the sidebar run to the time instead of stopping halfway beside the state and PR pills. The prompt box folds the place to its icon a little sooner, so the harness keeps its name (no more *Au…*). A finished task's result no longer repeats the time, cost and file count shown right under it. On a phone, a task's branch gets its own line instead of shrinking to *wi…*. A result whose heading is the task's title doesn't repeat it under the head, and in split view the reply box no longer repeats *Ship it* and *Mark done*, which the task's bar keeps in reach.
+
 ### Added
 
 - **Open a crew member's job from the task that delegated it.** While the lead waits, a crew member's row in its team panel (*@gucci · This computer · Polish review…*) now opens that member's job, and its report card has *Open @gucci’s job*. The job itself starts with where it came from, *Delegated from “…”* (or *Tagged in*, *Checking on*), a link back to that task. Spells: `delegate.live`, `delegate.open`, `task.from`.
