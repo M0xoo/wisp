@@ -55,6 +55,9 @@ export function createOverlaps(app) {
       for (const b of ids.slice(i + 1)) {
         // Runs of one compare are the same task on purpose: they always overlap.
         if (store.get(a).groupId && store.get(a).groupId === store.get(b).groupId) continue;
+        // A fork starts from its original's work: they share its files by design.
+        const fa = store.get(a).forkedFrom?.id, fb = store.get(b).forkedFrom?.id;
+        if (fa === b || fb === a || (fa && fa === fb)) continue; // so do forks of the same task
         const A = work.get(a), B = work.get(b);
         const theirs = new Set(B.files);
         const shared = A.files.filter((f) => theirs.has(f));

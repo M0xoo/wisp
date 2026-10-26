@@ -179,6 +179,8 @@ export function summarize(s, store) {
     ...(s.kind && { kind: s.kind }), // 'spell': a Cast a spell task
     moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
     movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
+    ...(s.forkedFrom && { forkedFrom: s.forkedFrom }), // { id, title, turn, of }: a fork of that task (services/fork.js)
+    ...(s.forks?.length && { forks: store ? s.forks.filter((x) => store.get(x)) : s.forks }), // its forks' ids
     // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.
     team: (s.subagents || []).flatMap((m) =>
       copies(m).map((name) => {
@@ -264,7 +266,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -287,6 +289,7 @@ export class Runner extends EventEmitter {
       queue: [],
       turns: [...history],
       ...(moved && { moved }),
+      ...(forkedFrom && { forkedFrom }), // { id, title, turn, of }: forked from that task's turn (services/fork.js)
       ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js)
       ...(worktree && { worktree }),
       ...(also.length && { also }),

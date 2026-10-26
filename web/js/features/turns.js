@@ -10,7 +10,8 @@ import { S } from '../core/state.js';
 import { DAY_TIME, fmtDate } from '../core/format.js';
 import { toastError } from '../ui/toast.js';
 import { viewImage } from '../ui/viewer.js';
-import { execAction, moreMenu, openInEditor, rerun, revealFile, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
+import { popover } from '../ui/popover.js';
+import { execAction, forkable, forkTask, moreMenu, openInEditor, rerun, revealFile, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
 import { expand, fetchFull, renderFeed, reveal as revealTask, scheduleRefetch, setFocus } from './feed.js';
@@ -111,6 +112,8 @@ export function renderBody(id, { fresh }) {
       if (a === 'done') toggleDone(id);
       if (a === 'more') moreMenu(id, e.target.closest('button'));
       if (a === 'moved') openMoved(S.full.get(id)?.movedTo?.id);
+      if (a === 'fork-src') revealTask(S.full.get(id)?.forkedFrom?.id);
+      if (a === 'forks') forksMenu(id, e.target.closest('button'));
     });
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
     wireGoalSlot($('.goal-slot', body), id);
@@ -121,21 +124,7 @@ export function renderBody(id, { fresh }) {
   const body = n.body;
   paintCard(id); // spell panels and buttons in the card
   paintGoal(id); // the goal it keeps going for (goal.js)
-  const proj = projectById(summary.projectId);
-  // The head already shows the harness, model and project, and the task head has Compare. This bar
-  // says how the run was set up: a mode worth noticing (Plan or Edits, as on the launcher), the
-  // branch, the other folders it works in, and what launched it.
-  const mode = MODES.find((m) => m.id === s.mode);
-  const where = (proj?.path || s.cwd).replace(S.config.home || '', '~');
-  $('.it-meta', body).title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where].filter(Boolean).join(' · ');
-  $('.it-meta', body).innerHTML = `
-    ${mode && mode !== DEFAULT_MODE ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
-    ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
-    ${(s.also || []).map((a, i) => `<span class="m also c-${summary.also?.[i]?.color || 'slate'}" title="${esc(`Also works in ${a.cwd}${a.worktree ? `\nWorktree: ${a.worktree.path}\nBranch ${a.worktree.branch}, from ${a.worktree.baseRef}` : ''}`)}"><i class="p-dot"></i>${esc(summary.also?.[i]?.project || a.cwd.split(/[\\/]/).pop())}</span>`).join('')}
-    ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} delegate${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
-    ${s.moved?.from ? `<span class="m" title="${esc(`This task ran on ${s.moved.from} before it moved here, with its work and history`)}">${icon('server')}From ${esc(s.moved.from)}</span>` : ''}
-    ${s.movedTo?.id ? `<button class="m moved-to" data-a="moved" title="This task carries on as a new session on ${esc(s.movedTo.place)}">${icon('server')}Continues on ${esc(s.movedTo.place)}</button>` : ''}
-    ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ recipe: 'bolt', trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
+  paintMeta(id);
   const live = s.state === 'running' || s.state === 'waiting';
   // Ship and Done sit in the top bar and again next to the composer, so they're there on opening the
   // card and after reading the result. The PR row sits in the composer's dock for the same reason;
@@ -174,6 +163,7 @@ export function renderBody(id, { fresh }) {
   const dockTop = dock?.getBoundingClientRect().top;
   const keep = new Set();
   let firstNew = null;
+  const forkStart = s.forkedFrom && s.turns.find((t) => !t.forked)?.id;
   turns.forEach((t, i) => {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
@@ -184,6 +174,9 @@ export function renderBody(id, { fresh }) {
     if (!prev || prev.key !== key) {
       const toggle = () => (n.unfolded.has(t.id) ? n.unfolded.delete(t.id) : n.unfolded.add(t.id), renderBody(id, { fresh: false }));
       node = folded ? renderFoldedTurn(t, toggle) : renderTurn(s, t, isLatest, isLatest ? null : toggle, tx);
+      // A fork's own turns start under a line: the ones above came with it from the original.
+      // On a narrow pane the bar has no room for Forked from: the line names the original instead.
+      if (t.id === forkStart) node.prepend(forkLine(s.forkedFrom));
       if (prev) prev.node.replaceWith(node);
       if (!prev && !fresh && !folded) firstNew ??= node;
       if (prev && prev.status === 'running' && t.status !== 'running') firstNew ??= node;
@@ -204,6 +197,67 @@ export function renderBody(id, { fresh }) {
   const landing = firstNew && tx ? $('.tx-end', firstNew) || firstNew : firstNew;
   if (landing && watched) requestAnimationFrame(() => landing.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
+
+// The bar's meta: how the run was set up, and where it came from (moved, forked, launched by).
+// Repainted on its own when only the summary moved (a fork counted on the original).
+export function paintMeta(id) {
+  const s = S.full.get(id);
+  const n = S.nodes.get(id);
+  if (!s || !n?.body?.querySelector('.it-meta')) return;
+  const summary = S.sessions.get(id) || {};
+  const forks = (summary.id ? summary.forks : s.forks) || [];
+  const proj = projectById(summary.projectId);
+  // The head already shows the harness, model and project, and the task head has Compare. This bar
+  // says how the run was set up: a mode worth noticing (Plan or Edits, as on the launcher), the
+  // branch, the other folders it works in, and what launched it.
+  const mode = MODES.find((m) => m.id === s.mode);
+  const where = (proj?.path || s.cwd).replace(S.config.home || '', '~');
+  const box = $('.it-meta', n.body);
+  box.title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where].filter(Boolean).join(' · ');
+  box.innerHTML = `
+    ${mode && mode !== DEFAULT_MODE ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
+    ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
+    ${(s.also || []).map((a, i) => `<span class="m also c-${summary.also?.[i]?.color || 'slate'}" title="${esc(`Also works in ${a.cwd}${a.worktree ? `\nWorktree: ${a.worktree.path}\nBranch ${a.worktree.branch}, from ${a.worktree.baseRef}` : ''}`)}"><i class="p-dot"></i>${esc(summary.also?.[i]?.project || a.cwd.split(/[\\/]/).pop())}</span>`).join('')}
+    ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} delegate${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
+    ${s.moved?.from ? `<span class="m" title="${esc(`This task ran on ${s.moved.from} before it moved here, with its work and history`)}">${icon('server')}From ${esc(s.moved.from)}</span>` : ''}
+    ${s.movedTo?.id ? `<button class="m moved-to" data-a="moved" title="This task carries on as a new session on ${esc(s.movedTo.place)}">${icon('server')}Continues on ${esc(s.movedTo.place)}</button>` : ''}
+    ${s.forkedFrom ? (S.sessions.has(s.forkedFrom.id) ? `<button class="m fork-from" data-a="fork-src" title="${esc(`Open “${forkTitle(s.forkedFrom)}”, the task this one was forked from`)}">` : `<span class="m fork-from" title="The task this one was forked from was deleted">`) + `${icon('fork')}<span>Forked from <b>${esc(forkTitle(s.forkedFrom))}</b></span>${S.sessions.has(s.forkedFrom.id) ? '</button>' : '</span>'}` : ''}
+    ${forks.length ? `<button class="m forks" data-a="forks" title="${forks.length > 1 ? 'Tasks forked from this one' : 'Open the task forked from this one'}"${forks.length > 1 ? ' aria-haspopup="menu"' : ''}>${icon('fork')}${forks.length} fork${forks.length > 1 ? 's' : ''}</button>` : ''}
+    ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ recipe: 'bolt', trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
+}
+
+function forkLine(f) {
+  const there = S.sessions.has(f.id);
+  const line = el(`<div class="fork-line"><span>${icon('fork')}<i class="fl-wide">This fork starts here</i><i class="fl-narrow">Forked from ${there ? `<button class="link" title="Open the task this one was forked from">${esc(forkTitle(f))}</button>` : `<b>${esc(forkTitle(f))}</b>`}</i></span></div>`);
+  const b = $('button', line);
+  if (b) b.onclick = () => revealTask(f.id);
+  return line;
+}
+
+// The task a fork came from, by its name now (renamed since, say), else as it was then.
+const forkTitle = (f) => S.sessions.get(f.id)?.title || f.title;
+
+// The original's forks: one opens, several are listed with their state.
+function forksMenu(id, btn) {
+  const ids = (S.sessions.get(id)?.forks || S.full.get(id)?.forks || []).filter((x) => S.sessions.has(x));
+  if (ids.length === 1) return revealTask(ids[0]);
+  if (!ids.length) return;
+  const r = btn.getBoundingClientRect();
+  const menu = el(`<div class="menu forks-menu" style="top:${r.bottom + 6}px;left:${r.left}px">
+      ${ids.map((x) => { const f = S.sessions.get(x); return `<button data-id="${esc(x)}">${icon('fork')}<span class="fm-title">${esc(f.title)}</span><span class="fm-state st-${esc(f.state)}">${esc(STATE_WORD[f.state] || f.state)}</span></button>`; }).join('')}
+    </div>`);
+  menu.onclick = (e) => {
+    const b = e.target.closest('button[data-id]');
+    if (!b) return;
+    close();
+    revealTask(b.dataset.id);
+  };
+  const close = popover(menu);
+  // In the details column the chip sits near the right edge: keep the whole menu on screen.
+  menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 8 - menu.offsetWidth))}px`;
+  if (r.bottom + 6 + menu.offsetHeight > innerHeight - 8) menu.style.top = `${Math.max(8, r.top - 6 - menu.offsetHeight)}px`;
+}
+const STATE_WORD = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
 // The PR row: in the feed it rides on top of the follow-up box; in split view it sits in the open
 // task's details column, above its actions, so it's in reach wherever the task is scrolled to.
@@ -637,6 +691,10 @@ function renderTrail(s, t, tx) {
   const canRollback = s.agent !== 'wisp' && s.state !== 'running' && (t.changes?.length || t.checkpoint?.commit);
   const rolledBack = !!t.rolledBackAt;
   const rated = t.feedback?.rating;
+  // Forking from here needs the work as it was after this turn: the folder now for the latest
+  // one, else the snapshot the next turn took when it started.
+  const after = s.turns[s.turns.indexOf(t) + 1];
+  const canFork = forkable(s) && t.status !== 'running' && (!after || !!after.checkpoint?.head);
   const node = el(`
     <div class="trail">
       <div class="trail-bar">
@@ -650,6 +708,7 @@ function renderTrail(s, t, tx) {
           ${canRollback ? (rolledBack
             ? `<button class="link xs cp-rollback rolled-back" data-a="rollback" title="Re-apply changes from this turn">${icon('rerun')}Re-apply</button>`
             : `<button class="tb-btn cp-rollback" data-a="rollback" title="Restore working tree to before this turn${t.checkpoint?.head ? ` (${t.checkpoint.head.slice(0, 7)})` : ''}" aria-label="Restore to before this turn">${icon('replay')}</button>`) : ''}
+          ${canFork ? `<button class="tb-btn tb-fork" data-a="fork" title="Fork from this turn: a new task that carries on from here" aria-label="Fork from this turn">${icon('fork')}</button>` : ''}
           ${feedbackOn() ? `<span class="rate ${rated ? 'rated' : ''}">${['up', 'down'].map((r) => `<button class="rate-btn ${rated === r ? 'on' : ''}" data-rate="${r}" title="${r === 'up' ? 'Good result' : 'Bad result'}: tell the wisp team" aria-pressed="${rated === r}">${icon(`thumb-${r}`)}</button>`).join('')}</span>` : ''}
         </span>
       </div>
@@ -660,6 +719,9 @@ function renderTrail(s, t, tx) {
   node.addEventListener('click', (e) => {
     if (e.target.closest('[data-a="rollback"]')) {
       return rollbackTurn(s.id, t.id, rolledBack);
+    }
+    if (e.target.closest('[data-a="fork"]')) {
+      return forkTask(s.id, t.id);
     }
     const rb = e.target.closest('[data-rate]');
     if (rb) {

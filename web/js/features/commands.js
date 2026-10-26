@@ -9,7 +9,7 @@ import { ago, STATUS_LABEL } from '../core/format.js';
 import { MOBILE, S, save } from '../core/state.js';
 import { shortcuts } from '../ui/kbd.js';
 import { closeOverlay, overlay } from '../ui/overlay.js';
-import { deleteSession, rename, rerun, rollbackTurn, setArchived, takeOver, toggleDone } from './actions.js';
+import { deleteSession, forkable, forkTask, rename, rerun, rollbackTurn, setArchived, takeOver, toggleDone } from './actions.js';
 import { openAutomations, recipeParams, runRecipe, saveAsRecipe } from './automations.js';
 import { compareView } from './compare.js';
 import { collapseAll, expand, feedToTop, renderFeed, reveal } from './feed.js';
@@ -60,6 +60,7 @@ function paletteItems() {
     if (cur.archived || !live) items.push({ group: g, label: cur.archived ? 'Unarchive' : 'Archive', sub, icon: 'archive', kbd: 'A', run: () => setArchived(id, !cur.archived) });
     items.push({ group: g, label: 'Take over in a terminal', sub, icon: 'terminal', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
+    if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (cur.pr?.state === 'OPEN') items.push({ group: g, label: `Merge PR #${cur.pr.number}…`, sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });

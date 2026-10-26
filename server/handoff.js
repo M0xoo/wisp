@@ -16,13 +16,14 @@ const KEEP = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tests', 'c
 // ran, or all of them when it has no conversation of its own to resume (resumeId). Only a gap
 // that another harness filled counts: on its own, a harness has nothing to catch up on.
 // Turns that ran on another place before the task moved here (t.moved) count as unseen by every
-// harness: their conversations stayed there.
+// harness: their conversations stayed there. So do a fork's first turns (t.forked, services/fork.js):
+// they ran in the task it was forked from.
 // mine(turn): whether the conversation being resumed ran that turn (by default: the same harness;
 // a harness whose conversations stay with the login also needs the same account).
 export function missedTurns(session, agent, resumeId, mine = (t) => (t.agent || agent) === agent) {
   const prior = session.turns.slice(0, -1);
-  const missed = resumeId ? prior.slice(prior.findLastIndex((t) => !t.moved && mine(t)) + 1) : prior;
-  return missed.some((t) => t.moved || !mine(t)) ? missed : [];
+  const missed = resumeId ? prior.slice(prior.findLastIndex((t) => !t.moved && !t.forked && mine(t)) + 1) : prior;
+  return missed.some((t) => t.moved || t.forked || !mine(t)) ? missed : [];
 }
 
 // One earlier turn as markdown: the request, its report and the files it edited. /btw uses it too.
@@ -62,7 +63,10 @@ export function handoffNote(session, agent, resumeId, name, mine) {
   // The same harness on another account (server/accounts.js) has no other name to give.
   const others = [...new Set(missed.filter((t) => t.agent !== agent).map(name))].join(', ') || `${name(missed.at(-1))}, signed in to another account`;
   const places = [...new Set(missed.map((t) => t.moved).filter(Boolean))].join(', ');
-  const intro = places
+  const f = session.forkedFrom;
+  const intro = f && missed.some((t) => t.forked)
+    ? `This task is a fork of another one (“${f.title}”), made from its turn ${f.turn} of ${f.of} to try another way. You carry on from there in a copy of its work, on a branch of its own: what you change here doesn’t touch the original, which carries on separately. Below is what happened up to the fork, oldest first; read the files and \`git diff\` for the details, then do what the follow-up asks.`
+    : places
     ? `You are taking over a task that ran on another computer (${places})${others ? `, on ${others}` : ''}, and was moved here. Its work so far is already in this folder: committed work as commits, the rest as uncommitted changes. Below is what happened so far, oldest first; read the files and \`git diff\` for the details, then carry on with the follow-up.`
     : fresh
       ? `You are taking over a task that another coding agent (${others}) has been working on. Its work is already in this folder. Below is what happened so far, oldest first; read the files and \`git diff\` for the details, then carry on with the follow-up.`

@@ -49,6 +49,7 @@ import { createInstaller } from './services/install.js';
 import { createLaunch } from './services/launch.js';
 import { createRelay } from './services/relay.js';
 import { createMove } from './services/move.js';
+import { createFork } from './services/fork.js';
 import { createPlaces } from './services/places.js';
 import { phoneActions } from './services/phone.js';
 import { createShip } from './services/ship.js';
@@ -217,6 +218,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
 
   app.places = createPlaces(app);
   app.mover = createMove(app);
+  app.forker = createFork(app);
   app.relay = createRelay(app);
   app.cloud = createCloud(app);
   app.computer = createComputer(app);

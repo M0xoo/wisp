@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Fork a task.** **Fork…** starts a new task that carries on from where a task got to, to try another way while the original is kept as it is. It's in the right-click menu, More, ⌘K and ⇧F, and **Fork from this turn** on each turn forks from an earlier point. The fork gets the conversation up to that turn and a copy of the files as they were then, uncommitted changes and new files included, in a worktree on a branch of its own, so it ships on its own. It can run on another harness, model or mode; whichever agent takes it first reads what happened before the fork. The fork links back with *Forked from “…”*, a line shows where its own turns start, and the original counts its forks (*2 forks*, which lists them). Works for tasks in a git repo and for tasks without a folder. API: `POST /sessions/:id/fork`, `forkedFrom` and `forks` on a task. Spells: the `fork` action, and the parts `card.forkedFrom`, `card.forks`, `turn.fork` and `turn.forkStart`.
+
 ### Changed
 
 - **A crew member you `@`-mention stays in the sidebar.** The job you started with `@Ada …` in a follow-up now waits in *Needs you* until you mark it done, instead of filing itself away once it answers. Jobs that another task's agent delegates to a crew member still file themselves under *Done*.

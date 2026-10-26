@@ -446,6 +446,59 @@ export async function unpackWork({ cwd, home, id, title, pack, file }) {
   };
 }
 
+// Fork a task's work (services/fork.js): a new worktree of the repo at `dir` on a fresh branch,
+// with the work as it stood: at `at` (a later turn's checkpoint: { commit, head, dirty }), else as
+// the folder is now, uncommitted and untracked files included. They come back uncommitted. wt: the
+// task's worktree, whose base the fork keeps so it ships the same way. null outside a repo with commits.
+export async function forkWork({ dir, wt, at, home, id, title }) {
+  const root = await repoRoot(dir);
+  const now = root && (await quiet(git(root, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'])));
+  if (!now) return null;
+  let head = now;
+  let snap = null;
+  if (at?.head) {
+    head = at.head;
+    snap = at.dirty && at.commit !== at.head ? at.commit : null;
+    for (const c of [head, snap].filter(Boolean)) if (!(await quiet(git(root, ['rev-parse', '--verify', '--quiet', `${c}^{commit}`])))) throw bad('The work at that turn is gone from git, so it can’t be forked from there.');
+  } else {
+    // The folder now, as a commit on top of HEAD that no branch points at (like packWork's).
+    const index = path.join(os.tmpdir(), `wisp-fork-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+    const env = { ...MOVER, GIT_INDEX_FILE: index };
+    try {
+      await git(root, ['read-tree', 'HEAD'], { env });
+      await git(root, ['add', '-A'], { env, timeout: 120_000 });
+      const tree = await git(root, ['write-tree'], { env });
+      if (tree !== (await git(root, ['rev-parse', 'HEAD^{tree}']))) snap = await git(root, ['commit-tree', tree, '-p', head, '-m', 'wisp: work in progress, forked'], { env });
+    } finally {
+      fs.rmSync(index, { force: true });
+    }
+  }
+  let branch = `wisp/${slug(title) || 'task'}-${id.slice(0, 6)}`;
+  if (await quiet(git(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]))) branch = `wisp/${slug(title) || 'task'}-${id}`;
+  const repo = wt?.root || root; // the main checkout: a task's worktree may go before its fork's
+  const wtDir = path.join(home, 'worktrees', `${path.basename(repo)}-${id}`);
+  fs.mkdirSync(path.dirname(wtDir), { recursive: true });
+  await addWorktree(repo, ['--no-track', '-b', branch, wtDir, head]);
+  if (snap) {
+    await git(wtDir, ['read-tree', '-u', '--reset', snap]);
+    await git(wtDir, ['reset', '--quiet']);
+  }
+  // A task that ran in the folder itself (no worktree) ships against what the folder branches from.
+  const base = wt?.baseRef ? null : await baseRef(root);
+  const sub = path.relative(realpath(root), realpath(dir));
+  return {
+    path: wtDir,
+    cwd: sub && !sub.startsWith('..') ? path.join(wtDir, sub) : wtDir,
+    branch,
+    base: wt?.base || base?.branch || '',
+    baseRef: wt?.baseRef || base?.ref || '',
+    head: wt?.head || head,
+    remote: wt?.baseRef ? (wt.remote ?? null) : base?.remote || null,
+    root: repo,
+    createdAt: Date.now(),
+  };
+}
+
 // A delegate on another machine (services/relay.js): what it changed since `base` (the snapshot it
 // started from) as a binary patch, from the repo root, untracked files included. '' if nothing.
 export async function workPatch(dir, base) {

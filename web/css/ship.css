@@ -50,6 +50,21 @@
 .it-meta .m .i { width: 12px; height: 12px; flex: none; color: var(--faint); }
 .it-meta .m.moved-to { color: var(--accent-ink); cursor: pointer; }
 .it-meta .m.moved-to:hover { text-decoration: underline; }
+/* A fork names the task it came from (a link); the original counts its forks */
+.it-meta .m.fork-from, .it-meta .m.forks { color: var(--ink-2); }
+.it-meta button.m.fork-from, .it-meta button.m.forks { cursor: pointer; }
+.it-meta button.m.fork-from:hover, .it-meta button.m.forks:hover { color: var(--accent-ink); }
+.it-meta .m.fork-from { flex: 0 1 auto; max-width: 100%; }
+.it-meta .m.fork-from > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.it-meta .m.fork-from b { font-weight: 500; color: var(--ink); }
+.it-meta .m.forks { font-variant-numeric: tabular-nums; }
+/* A narrow pane's bar is one row that runs out of room: the fork's line names its original, and the forks count goes first */
+body.split:not(.pane-wide) .it-meta .m.fork-from { display: none; }
+body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
+.forks-menu { max-width: min(340px, calc(100vw - 16px)); }
+.forks-menu .fm-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.forks-menu .fm-state { flex: none; width: 56px; text-align: right; font-size: 11.5px; color: var(--muted); }
+.forks-menu .fm-state.st-running, .forks-menu .fm-state.st-waiting { color: var(--accent-ink); }
 .it-meta .m.m-plan, .it-meta .m.m-plan .i { color: var(--accent-ink); }
 .it-meta .m.m-auto, .it-meta .m.m-auto .i { color: var(--warn); }
 

@@ -21,6 +21,7 @@ export function shortcuts() {
     ['T', 'Take over in terminal'],
     ['V', 'Full transcript / presentation'],
     ['⇧R', 'Rerun with another harness, model or thinking level'],
+    ['⇧F', 'Fork: a new task that carries on from here, on its own branch'],
     ['S', 'Ship it: commit, push and open a PR (worktree tasks)'],
     ['1–9', 'Pick an answer when asked'],
     ['↵', 'Launch / send'],
