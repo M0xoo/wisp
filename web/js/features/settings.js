@@ -29,6 +29,7 @@ import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
 import { connectorsPane } from './connectors.js';
+import { budgetHtml } from './budget.js';
 import { spellsPane } from './spell-ui.js';
 import { setTheme, themePref } from './theme.js';
 import { loadUpdate, updateState } from './update.js';
@@ -190,6 +191,11 @@ export function openSettings(opts) {
         <section class="sx-pane" data-pane="usage">
           <div class="us-tiles sx-usage"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
           <div class="sx-group">${row('Charts and breakdowns', 'Per day, per project and per harness · model', '<button class="ghost sm" id="openUsage">Open usage</button>')}</div>
+          <div class="sx-head"><div><b>Plan budget</b><small>Your plans’ usage windows, as Claude Code and Codex report them on each run</small></div></div>
+          <div class="sx-group sx-budget">
+            <div class="bg-list"></div>
+            ${row('Wait for the reset', 'At a usage limit, the task waits under Scheduled and carries on in the same conversation when the window resets. Off: it stops and asks you', '<button class="switch" id="limitWait" role="switch"></button>')}
+          </div>
         </section>
         <section class="sx-pane" data-pane="privacy">
           <div class="sx-group">
@@ -431,6 +437,27 @@ export function openSettings(opts) {
     }
   };
   paintFc();
+  // Plan budget: the windows repaint with the harness list; the switch is instant, rolled back on a refusal.
+  const paintBudget = () => {
+    const list = $('.bg-list', node);
+    list.innerHTML = budgetHtml(S.agents);
+    list.hidden = !list.innerHTML;
+  };
+  paintBudget();
+  bus.on('agents', paintBudget, { node });
+  const lw = $('#limitWait', node);
+  const paintLw = () => lw.setAttribute('aria-checked', S.config.defaults.limitWait === 'on');
+  lw.onclick = async () => {
+    const was = S.config.defaults.limitWait;
+    S.config.defaults.limitWait = was === 'on' ? 'off' : 'on';
+    paintLw();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { limitWait: S.config.defaults.limitWait } } }));
+    if (!saved) {
+      S.config.defaults.limitWait = was;
+      paintLw();
+    }
+  };
+  paintLw();
   const rt = $('#readTimes', node);
   const paintRt = () => rt.setAttribute('aria-checked', S.config.defaults.readTimes !== 'off');
   rt.onclick = async () => {
@@ -579,7 +606,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

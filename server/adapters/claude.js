@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
+import { claudeLimits } from '../budget.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 let BIN = DEFAULT_BIN;
@@ -174,6 +175,10 @@ export default {
             onEvent({ type: 'tool_error', name, text: flatten(part.content).slice(0, 400) });
           } else onEvent({ type: 'tool_output', id: part.tool_use_id, text: flatten(part.content) });
         }
+      } else if (msg.type === 'rate_limit_event') {
+        // How much of the account's 5-hour and weekly windows is gone (Settings → Usage, the limit card).
+        const limits = claudeLimits(msg.rate_limit_info);
+        if (limits) onEvent({ type: 'limits', ...limits });
       } else if (msg.type === 'system') {
         // background_tasks_changed carries the full list; task_started/task_notification are the
         // per-task edges, kept as a fallback in case a CLI version only sends those.

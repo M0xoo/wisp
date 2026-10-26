@@ -289,6 +289,7 @@ function accountSwitch(s, t) {
 // A run that hit its account's usage limit (turn.limit): the hero says so, and this card under it
 // offers what next. wisp never picks one by itself (the providers' terms, design/accounts.md).
 // Every button disables the card at once; a refusal turns it back on with a red toast.
+// The same words as the server's LIMIT_CARRY_ON (server/later.js): wisp's own wait uses them too.
 const CARRY_ON = 'Carry on from where the last run stopped at the usage limit.';
 const KIND_PLAN = { personal: 'a personal plan', work: 'a work plan' };
 

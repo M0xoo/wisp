@@ -231,6 +231,24 @@ body.wisp-mobile .lb-open { display: none; }
 #recheck.busy { cursor: progress; }
 #recheck.busy .i { animation: spin 0.8s linear infinite reverse; }
 .sx-usage .it-loading { grid-column: 1 / -1; }
+/* Settings → Usage → Plan budget: one block per account, a bar per usage window */
+.bg-list[hidden] { display: none; }
+.bg-list:not([hidden]) + .sx-row { border-top: 1px solid var(--line); }
+.bg-acct { display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; column-gap: 10px; row-gap: 2px; padding: 11px 14px 12px; }
+.bg-acct + .bg-acct { border-top: 1px solid var(--line); }
+.bg-name { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: 500; font-size: 13.5px; }
+.bg-acc { padding: 0 7px; border-radius: 999px; border: 1px solid var(--line-2); font-size: 11.5px; font-weight: 400; color: var(--ink-2); }
+.bg-win { display: contents; }
+.bg-l { align-self: center; font-size: 12px; color: var(--muted); }
+.bg-bar { align-self: center; height: 6px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 9%, transparent); overflow: hidden; }
+.bg-bar i { display: block; width: var(--p); height: 100%; border-radius: inherit; background: var(--accent); }
+.bg-win.warn .bg-bar i { background: var(--warn); }
+.bg-win.full .bg-bar i { background: var(--bad); }
+.bg-p { align-self: center; text-align: right; font-weight: 500; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.bg-t { grid-column: 2 / -1; margin-bottom: 6px; font-size: 11.5px; color: var(--faint); }
+.bg-win.warn .bg-t { color: var(--warn); }
+.bg-win:last-child .bg-t { margin-bottom: 0; }
+.bg-empty { margin: 0; padding: 12px 14px; font-size: 12px; color: var(--muted); }
 /* a titled group inside a pane (Machines → This computer) */
 .sx-head { display: flex; align-items: flex-end; gap: 12px; margin: 22px 2px 8px; }
 .sx-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
