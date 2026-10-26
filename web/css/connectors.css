@@ -1,0 +1,54 @@
+/* Settings → Connectors: the list, the add / edit form and the import review (connectors.js). */
+
+.cx-ico { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 8px; background: var(--bg-2); color: var(--ink-2); }
+.cx-ico .i { width: 14px; height: 14px; }
+.cx-row .sx-text small code { font-size: 11px; color: var(--ink-2); background: none; padding: 0; white-space: nowrap; }
+.cx-row .sx-text > small:first-of-type { white-space: nowrap; }
+.cx-own { color: var(--faint) !important; }
+.cx-row.off :is(.sx-text, .cx-ico, .cx-status) { opacity: 0.55; }
+/* A fixed column, so a row's switch and pen stay put whatever the status says. */
+.cx-status { display: inline-flex; align-items: center; gap: 6px; width: 140px; justify-content: flex-end; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.cx-status.bad { color: var(--bad); }
+.cx-status > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.cx-status .orb.tiny { flex: none; }
+.cx-row.ph .cx-ico { background: var(--bg-2); }
+.cx-row.ph b, .cx-row.ph small { display: block; height: 10px; margin: 3px 0; border-radius: 4px; background: var(--bg-2); }
+.cx-row.ph b { width: 22%; }
+.cx-row.ph small { width: 55%; }
+.cx-empty .sx-ctl { flex-wrap: wrap; justify-content: flex-end; }
+.cx-found .sx-text small { white-space: nowrap; }
+.cx-box > .hint { margin: 10px 2px 0; }
+
+/* Inside Settings, whose labels are rows of their own: these are stacked fields and pick rows. */
+.settings-modal :is(.cx-edit label.ce-stack, .cx-import label.ki-row) { justify-content: flex-start; padding: 0; border: 0; }
+.settings-modal .cx-edit label.ce-stack { align-items: stretch; gap: 6px; }
+.settings-modal .cx-edit label.ce-stack > span { font-weight: 600; }
+.settings-modal .cx-edit label.ce-stack > .input { flex: none; max-width: none; } /* flex: 1 in a column squashes its height */
+.settings-modal .cx-import label.ki-row { align-items: flex-start; gap: 9px; padding: 7px 8px; margin: 0 -8px; }
+.cx-kind { align-self: flex-start; }
+.cx-kind button { padding: 5px 14px; }
+.cx-pairs { display: flex; flex-direction: column; gap: 6px; }
+.cx-pairs:empty { display: none; }
+.cx-pair { display: flex; align-items: center; gap: 6px; }
+.cx-pair .input { flex: 1 1 0; min-width: 0; }
+.cx-pair [data-f='key'] { flex-basis: 38%; }
+.ce-stack > .mem-add { align-self: flex-start; margin: 0; }
+.ce-form [hidden] { display: none !important; }
+/* Its own line, the same height whatever it says, so the footer doesn't move. */
+.cx-result { display: flex; align-items: flex-start; gap: 6px; min-height: 18px; margin: 0; font-size: 12px; color: var(--muted); }
+.cx-result > span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cx-result .i { flex: none; width: 13px; height: 13px; margin-top: 1px; }
+.cx-result.ok .i { color: var(--good); }
+.cx-result.bad { color: var(--bad); }
+.cx-pick { display: flex; flex-direction: column; gap: 2px; margin: 12px 0 14px; }
+
+@media (max-width: 640px) {
+  .cx-row .sx-text { flex: 1 1 calc(100% - 42px); }
+  .cx-row .sx-ctl { flex: 1 0 100%; padding-left: 42px; }
+  .cx-row .cx-status { width: auto; flex: 1; justify-content: flex-start; min-width: 0; }
+  .cx-row .sx-text > small:first-of-type { white-space: normal; word-break: break-all; }
+  .cx-found .sx-ctl { flex: 1 0 100%; justify-content: flex-end; }
+}
+@media (pointer: coarse) {
+  .cx-kind button { min-height: 44px; }
+}

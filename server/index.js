@@ -29,6 +29,7 @@ import { removeWorktree } from './git.js';
 import { Remote } from './remote.js';
 import { Machines, splitId } from './machines.js';
 import { Secrets } from './secrets.js';
+import { turnServers } from './connectors.js';
 import { createCloud } from './services/cloud.js';
 import { createComputer } from './services/computer.js';
 import { createAgentLogin } from './agent-login.js';
@@ -68,11 +69,12 @@ import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
 import * as spellRoutes from './routes/spells.js';
 import * as crewRoutes from './routes/crew.js';
+import * as connectorRoutes from './routes/connectors.js';
 
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes, crewRoutes];
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes, crewRoutes, connectorRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -90,6 +92,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   useAccounts(accounts);
   runner.accounts = accounts;
   runner.accountPref = (agent) => store.config.defaults.accounts?.[agent] || '';
+  // Your MCP servers (Settings → Connectors), for every turn of a harness that takes them.
+  runner.connectors = ({ agent, mode, cwd }) => turnServers(store.config.connectors, { agent, mode, cwd, home: store.home });
   const events = eventStream();
   const app = {
     port,

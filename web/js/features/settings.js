@@ -28,6 +28,7 @@ import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupComma
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
+import { connectorsPane } from './connectors.js';
 import { spellsPane } from './spell-ui.js';
 import { setTheme, themePref } from './theme.js';
 import { loadUpdate, updateState } from './update.js';
@@ -43,6 +44,7 @@ const settingsPanes = (grid = inGrid()) => [
   { id: 'general', label: 'General', icon: 'settings', lede: 'Where files open, where you take over, and how tasks start.' },
   { id: 'notifications', label: 'Notifications', icon: 'bell', lede: 'Hear about questions and finished tasks, here or on your phone.' },
   { id: 'agents', label: 'Agents', icon: 'agent', lede: 'The harnesses wisp found on this machine. Pick one next to the model in the launcher.' },
+  { id: 'connectors', label: 'Connectors', icon: 'plug', lede: "MCP servers every task's agent can use, whatever the harness." },
   { id: 'auto', label: 'Auto', icon: 'spark', lede: 'wisp picks the harness and model for each task, and learns from how it went.' },
   MOBILE
     ? { id: 'machines', label: 'Computers', icon: 'server', lede: 'The computers this phone opens wisp on.' }
@@ -137,6 +139,7 @@ export function openSettings(opts) {
             ${row('Installed something new?', '<span class="recheck-hint"></span>', `<button class="ghost sm" id="recheck">${icon('replay')}Re-check</button>`)}
           </div>
         </section>
+        <section class="sx-pane" data-pane="connectors"><div class="cx-box"></div></section>
         <section class="sx-pane" data-pane="auto">
           <div class="sx-group">
             ${row('Goal', 'What Auto optimises for. Also in the launcher, next to Auto', `<span class="pk-seg ro-goal">${AUTO_GOALS.map((g) => `<button data-goal="${g.id}" title="${esc(g.hint)}">${g.label}</button>`).join('')}</span>`)}
@@ -571,6 +574,7 @@ export function openSettings(opts) {
   };
   paintHints();
   if (!MOBILE && !grid) bus.on('machines', () => ($('.machines-hint', node).textContent = machinesSummary()), { node });
+  connectorsPane($('.cx-box', node), host('connectors'));
   $('#openRouter', node).onclick = () => openRouter({ host: host('auto') });
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));

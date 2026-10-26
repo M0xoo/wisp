@@ -17,6 +17,7 @@ const DEFAULT_CONFIG = {
   crew: [], // long-lived agents with a schedule and memory: server/crew.js
   remote: {}, // phone channels (ntfy, Telegram): server/remote.js
   machines: [], // other computers reached over SSH: server/machines.js
+  connectors: [], // MCP servers every task's agent gets: server/connectors.js
 };
 
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -67,6 +68,7 @@ export class Store {
       cfg.crew ||= [];
       cfg.remote ||= {};
       cfg.machines ||= [];
+      cfg.connectors ||= [];
       // Auto became the default harness: switch once, after that the user's pick sticks.
       if (!cfg.autoIntroduced) {
         if (cfg.defaults.agent !== 'auto') cfg.defaults.agentBeforeAuto = cfg.defaults.agent;

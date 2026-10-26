@@ -863,10 +863,14 @@ export class Runner extends EventEmitter {
     return base + spell + crew + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
   }
 
-  // wisp's own MCP server (ask_user, delegate), for harnesses that take one. Subagents get none.
-  #mcpServers(session, adapter, team) {
-    if (!this.bridge || adapter.askTool === null || session.parentId || session.delegated) return {};
+  // wisp's own MCP server (ask_user, delegate), for harnesses that take one, and your connectors
+  // (server/connectors.js). Subagents get only the connectors: they have nobody to ask.
+  #mcpServers(session, adapter, team, mode) {
+    if (adapter.askTool === null) return {};
+    const yours = this.connectors?.({ agent: session.agent, mode, cwd: workdir(session) }) || {};
+    if (!this.bridge || session.parentId || session.delegated) return yours;
     return {
+      ...yours,
       wisp: {
         command: process.execPath,
         args: [ASK_SERVER],
@@ -960,7 +964,7 @@ export class Runner extends EventEmitter {
       systemPrompt: this.#systemPrompt(session, adapter, team),
       // A lead with a team delegates through wisp, so the harness's own subagent tool is switched off.
       delegating: team.length > 0 && !!this.bridge,
-      mcpServers: this.#mcpServers(session, adapter, team),
+      mcpServers: this.#mcpServers(session, adapter, team, mode),
       accountEnv: this.#accountEnv(session),
       onEvent: (ev) => {
         if (released) return; // a lingering process we already let go of

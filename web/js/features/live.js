@@ -83,6 +83,7 @@ export function connect() {
   });
   es.addEventListener('config', () => (loadConfig(), bus.emit('config')));
   es.addEventListener('remote', () => bus.emit('remote'));
+  es.addEventListener('connectors', () => bus.emit('connectors'));
   es.addEventListener('machines', (e) => setMachines(JSON.parse(e.data)));
   es.addEventListener('cloud', (e) => bus.emit('cloud', JSON.parse(e.data)));
   es.addEventListener('computer', (e) => bus.emit('computer', JSON.parse(e.data)));
