@@ -134,7 +134,7 @@ test('a local connector that can’t start says why', async () => {
   const c = saveAt(home, { name: 'nope', command: 'wisp-no-such-command-xyz' });
   const r = await probe(c, home);
   assert.equal(r.ok, false);
-  assert.match(r.error, /not found|ENOENT|exit/);
+  assert.match(r.error, /not found|not recognized|ENOENT|exit/); // Windows: cmd says it isn't recognized
 });
 
 // Streamable HTTP: JSON for initialize, an event stream for tools/list, a session id, a bearer header.
