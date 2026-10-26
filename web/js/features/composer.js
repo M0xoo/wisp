@@ -3,7 +3,8 @@
 
 import { esc } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
-import { btwQuestion, isBtw, SPELL_HINT, spellAsk } from '../slash-text.js';
+import { btwQuestion, goalAsk, isBtw, isGoalDrop, SPELL_HINT, spellAsk } from '../slash-text.js';
+import { editGoal, goalAction, setGoal } from './goal.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { here, S, saveOpen } from '../core/state.js';
@@ -564,6 +565,16 @@ export async function sendReply(id, text) {
       toastError(err);
       if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
     });
+  }
+  // /goal <condition>: the task keeps going until it holds (server/goal.js). Bare, it opens the
+  // goal's popover; /goal drop drops it.
+  const goal = goalAsk(text);
+  if (goal !== null) {
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    if (!goal) return editGoal(id, ta);
+    if (isGoalDrop(goal)) return S.sessions.get(id)?.goal ? goalAction(id, 'drop') : toast('This task has no goal to drop.');
+    return setGoal(id, goal, S.sessions.get(id)?.goal?.max || undefined);
   }
   if (isFeedback(text)) {
     if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));

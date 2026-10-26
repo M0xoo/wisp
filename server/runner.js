@@ -19,6 +19,7 @@ import { bad, clip, MODES, newId } from './util.js';
 import { laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
+import { goalNote, goalView } from './goal.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -150,9 +151,9 @@ export function summarize(s, store) {
     queued: s.queue?.length || 0,
     later: laterView(s), // follow-ups and reminders scheduled on it (server/later.js)
     reminder: s.reminder ? { text: s.reminder.text, at: s.reminder.at, setAt: s.reminder.setAt, by: s.reminder.by, ...(s.reminder.from && { from: s.reminder.from }), ...(s.reminder.missed && { missed: true }) } : undefined,
-    status: last?.status === 'running' || s.auto?.busy ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
+    status: last?.status === 'running' || s.auto?.busy || s.goal?.status === 'checking' ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
     preview: hero?.summary || '',
-    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : '',
+    live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
@@ -192,6 +193,8 @@ export function summarize(s, store) {
     ...(s.crew && { crew: { id: s.crew.id, job: s.crew.job, ...(s.crew.from && { from: s.crew.from }), ...(s.crew.event && { event: s.crew.event }), prompt: plainMentions(s.turns[0]?.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 280), ...(s.crew.sent?.length && { sent: s.crew.sent }), ...(s.crew.kit && { kit: true }) } }),
     ...(s.delegated && { delegated: true }), // a delegate's run for a lead on another wisp (services/relay.js), not a task
     ...relaysOf(s, store),
+    // The condition it keeps going for (server/goal.js): its state, round and checks.
+    ...(s.goal && { goal: goalView(s.goal) }),
     followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
     // Auto's steps after the run: the last test check, repairs, a hand-over, the best-of-2 pick.
     auto: s.auto
@@ -238,12 +241,15 @@ export class Runner extends EventEmitter {
     this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
     this.accounts = null; // a harness's several accounts (server/accounts.js); null: only the CLI's own
     this.accountPref = () => ''; // (agent) => the account you last picked for it
+    this.goals = null; // goals: keep going until a condition holds (server/goal.js)
 
     // Anything that was mid-flight when wisp last died is now orphaned.
     for (const s of store.all()) {
       const t = s.turns.at(-1);
       delete s.ask;
       if (s.auto?.busy) Object.assign(s.auto, { busy: false, stage: 'cancelled', label: '' }); // Auto's step died with wisp
+      // A goal whose round or check died with wisp waits for you (Resume picks it up).
+      if (['working', 'checking'].includes(s.goal?.status) && (s.goal.status === 'checking' || s.state === 'running' || t?.status === 'running')) Object.assign(s.goal, { status: 'paused', why: 'wisp was restarted' });
       if (s.state === 'running' || s.state === 'waiting' || t?.status === 'running') {
         if (t?.status === 'running') this.#finishTurn(s, t, { isError: true, stopped: true, text: '' }, 'wisp was restarted while this was running.');
         s.state = 'review';
@@ -258,7 +264,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -295,6 +301,7 @@ export class Runner extends EventEmitter {
       ...(crew && { crew }), // a crew member's job: { id, job, from?, reply? } (server/crew.js)
       ...(route && { route }), // how Auto picked agent, model and level (server/router.js)
     };
+    if (goal && !parentId && !delegated) this.goals?.attach(session, goal);
     this.store.put(session);
     if (!parentId && !delegated) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
     this.#startTurn(session, prompt, attachments);
@@ -309,12 +316,14 @@ export class Runner extends EventEmitter {
   // user's, and cancels whatever Auto was about to do next.
   // team: a new roster of subagents (normalized; [] drops them) for this follow-up and the ones after it.
   // by: 'later' for a follow-up scheduled earlier (server/later.js), with later: { by, setAt, at, late? }.
-  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later } = {}) {
+  // goal: the round a follow-up from wisp starts toward the task's goal (server/goal.js).
+  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later, goal } = {}) {
     if (!MODES.has(mode) || mode === session.mode) mode = undefined;
     run = changedRun(session, run);
     if (session.parentId || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
     if (by !== 'wisp' && by !== 'later') this.pipeline?.cancel(session);
-    const extra = { ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later') && { by }), ...(by === 'later' && later && { later }) };
+    if (by !== 'wisp') this.goals?.cancel(session);
+    const extra = { ...(by === 'wisp' && goal && { goal }), ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later') && { by }), ...(by === 'later' && later && { later }) };
     if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
       return { answered: true };
@@ -778,6 +787,8 @@ export class Runner extends EventEmitter {
 
   stop(session) {
     this.pipeline?.cancel(session);
+    // A Stop during the goal's check: no run to stop, so the task lands here.
+    if (!session.parentId && this.goals?.cancel(session, { stop: true }) && !this.live.has(session.id)) this.settle(session);
     session.queue = [];
     delete session.ask;
     for (const cid of Object.values(session.children || {})) {
@@ -849,7 +860,7 @@ export class Runner extends EventEmitter {
       : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
     const crew = session.crew ? this.crewNote(session) : '';
-    return base + spell + crew + workspaceNote(session) + this.promptExtra(session);
+    return base + spell + crew + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
   }
 
   // wisp's own MCP server (ask_user, delegate), for harnesses that take one. Subagents get none.
@@ -877,11 +888,12 @@ export class Runner extends EventEmitter {
 
   // grants: harness rules allowing what the user approved, for this turn only. once: a mode for
   // this turn only (an approved retry the harness can't scope runs in Full auto).
-  #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later } = {}) {
+  #startTurn(session, prompt, attachments = [], { grants = [], once, by, reports, later, goal } = {}) {
     const mode = MODES.has(once) ? once : session.mode;
     const turn = this.#newTurn(session, prompt, attachments, mode);
     if (session.relay) turn.relay = { state: 'pending' }; // until the relay picks it up
     if (by === 'wisp') turn.by = 'wisp'; // sent by wisp (Auto's repair round), not by you
+    if (by === 'wisp' && goal) turn.goal = goal; // ...going back to work on the goal: its round
     // A follow-up scheduled earlier (server/later.js): who set it and when. An agent's own wake-ups
     // count up until you say something, so it can't keep itself going for ever.
     if (by === 'later' && later) turn.later = later;
@@ -908,6 +920,7 @@ export class Runner extends EventEmitter {
       turn.delegations = owed;
     }
     session.turns.push(turn);
+    if (session.goal && !session.goal.from) session.goal.from = turn.id; // its changes are measured from here
     session.state = 'running';
     session.unread = false;
     delete session.archived;
@@ -1137,7 +1150,10 @@ export class Runner extends EventEmitter {
     // A follow-up starts as soon as this run lets go: stay in Working rather than flash through Needs you.
     const handing = this.live.has(session.id) && (interrupted || session.queue.length > 0);
     if (handing) this.handing.add(session.id);
-    const holding = !handing && !!this.pipeline?.wants(session, turn, ev);
+    const checks = !handing && !!this.pipeline?.wants(session, turn, ev);
+    // No Auto step: the goal (if any) is checked now. With one, Auto's settle() hands over to it.
+    const goal = !handing && !checks && !!this.goals?.wants(session, turn, ev);
+    const holding = checks || goal;
     session.state = holding || handing ? 'running' : 'review';
     session.unread = !holding && !handing;
     // A crew check-in that found nothing (archived too), or a job whose answer went elsewhere:
@@ -1149,7 +1165,7 @@ export class Runner extends EventEmitter {
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
     this.#touchLead(session);
     if (session.parentId) this.#delegateDone(session, turn);
-    if (holding) setImmediate(() => this.pipeline.run(session, turn));
+    if (holding) setImmediate(() => (checks ? this.pipeline.run(session, turn) : this.goals.run(session, turn)));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
     else if (!handing && !quiet && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
@@ -1185,8 +1201,14 @@ export class Runner extends EventEmitter {
 
   // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,
   // which will be the one to notify).
+  // A goal still being worked on takes over first: it's checked before the task lands.
   settle(session, { quiet = false } = {}) {
     if (session.state !== 'running' || (this.live.has(session.id) && session.turns.at(-1)?.status === 'running')) return this.#touch(session);
+    const last = session.turns.at(-1);
+    if (!quiet && last && this.goals?.wants(session, last, { stopped: last.status === 'stopped', isError: last.status === 'error' })) {
+      this.#touch(session);
+      return void setImmediate(() => this.goals.run(session, last));
+    }
     session.state = 'review';
     session.unread = !quiet;
     this.store.save(session, { now: true });

@@ -35,6 +35,7 @@ import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, timeMenu, whenTip } from './later.js';
+import { launcherGoal, launcherGoalHtml } from './goal.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -118,6 +119,7 @@ export function renderLauncher() {
     <div class="l-projects"></div>
     <div class="l-setup" hidden></div>
     <textarea id="prompt" rows="2" spellcheck="false"></textarea>
+    ${launcherGoalHtml()}
     <div class="l-bar">
       <button class="icon-btn" id="attach" title="Attach files">${icon('clip')}</button>
       <button class="tog-btn where-btn" id="whereBtn" aria-haspopup="menu"></button>
@@ -128,6 +130,7 @@ export function renderLauncher() {
       </div>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
       <span class="grow"></span>
+      <button class="tog-btn goal-btn" id="goalBtn" aria-pressed="false"></button>
       <button class="tog-btn" id="wtBtn"></button>
       <button class="icon-btn" id="launchLater" aria-label="Start later" title="Start later" aria-haspopup="menu">${icon('clock')}</button>
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
@@ -192,6 +195,8 @@ export function renderLauncher() {
     paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort, curAccount);
     runnerBtn.title = compare.length ? runnerTip(agent?.id, curModel, curEffort, curAccount) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
   };
+
+  launcherGoal(box, ta);
 
   // Worktree: each launch gets a fresh branch from the remote's default branch (git repos only).
   const wtBtn = $('#wtBtn', box);
@@ -424,6 +429,8 @@ export function renderLauncher() {
     const cmp = compare;
     const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
     const launchMode = over?.mode || curMode;
+    const goal = box.goal?.() || undefined; // Done when: the task keeps going until it holds
+    const goalBack = box.goalTaken?.(goal) || (() => {});
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet
     const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : undefined));
@@ -456,7 +463,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal },
           }),
         ),
       );
@@ -472,6 +479,7 @@ export function renderLauncher() {
       }
       keepInPlace(feedAnchor(), renderFeed);
       if (!started.length) {
+        goalBack();
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
         tray.restore(files);
         if (cmp.length && !compare.length) (compare = cmp), paintCompare();
@@ -481,8 +489,9 @@ export function renderLauncher() {
     } catch (err) {
       for (const id of pending) S.sessions.delete(id);
       renderFeed();
-      if (!err.shown) return toastError(err);
+      if (!err.shown) return goalBack(), toastError(err);
       // The clone failed (its toast says why): the task goes back in the box.
+      goalBack();
       if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
       tray.restore(files);
     }

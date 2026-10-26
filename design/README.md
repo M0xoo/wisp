@@ -16,6 +16,7 @@ that matches your change:
 | [copy.md](copy.md) | Words: the names wisp uses, labels, toasts, CHANGELOG lines |
 | [site.md](site.md) | trywisp.dev (`docs/`): generated pages, cache busting, install text |
 | [crew.md](crew.md) | The crew: naming, where it sits, spirits (avatars), memory and context |
+| [goals.md](goals.md) | Goals: a task that keeps going until a condition holds; the band, the checks, the words |
 | [checklist.md](checklist.md) | What to check before handing a UI change back |
 
 ## The rules that matter most

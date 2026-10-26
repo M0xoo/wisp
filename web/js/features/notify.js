@@ -60,16 +60,19 @@ export function notifyFinished(s) {
     const places = new Set(runs.map((x) => x.machine?.id || '')).size;
     verb = places > 1 ? `is ready on ${places} machines` : `is ready (${runs.length} runs)`;
   }
+  // A task with a goal: it pings once, when the goal ends, and says how (server/goal.js).
+  const goal = s.state !== 'waiting' && ['met', 'impossible', 'out', 'paused'].includes(s.goal?.status) ? s.goal : null;
+  if (goal) verb = { met: `reached its goal${goal.round > 1 ? ` in ${goal.round} rounds` : ''}`, impossible: 'can’t reach its goal', out: `stopped: ${goal.max} rounds and the goal isn’t met`, paused: 'paused its goal' }[goal.status];
   // A crew member's job: their face and name say who's reporting. Not while their thread is on
   // screen: it shows there.
   const member = s.crew && memberById(s.crew.id);
   if (member && crewInView(member.id) && focused()) return;
-  const head = member ? `<b>${esc(member.name)}</b>${s.state === 'waiting' ? ' has a question' : ' reported'}: ${esc(s.title)}` : `${icon(s.state === 'waiting' ? 'ask' : 'spark')} <b>${esc(s.title)}</b> ${verb}`;
+  const head = member ? `<b>${esc(member.name)}</b>${s.state === 'waiting' ? ' has a question' : ' reported'}: ${esc(s.title)}` : `${icon(s.state === 'waiting' ? 'ask' : goal ? 'target' : 'spark')} <b>${esc(s.title)}</b> ${verb}`;
   // A member's job opens in its thread, at that job: the question to answer, or the report.
   const open = () => (member ? openMember(member.id, { entry: s.id }) : reveal(s.id));
   toast(head, { action: { label: 'Open', run: open }, timeout: 7000, glyph: member && avatarHtml(member, { size: 26, dot: false }) });
   if (!notifyOn() || focused()) return;
-  const body = s.state === 'waiting' ? s.question : s.preview || 'Ready for review';
+  const body = s.state === 'waiting' ? s.question : goal ? `${verb[0].toUpperCase()}${verb.slice(1)}${goal.last?.why ? `: ${goal.last.why}` : ''}` : s.preview || 'Ready for review';
   const title = member ? `${member.name}: ${s.title}` : `${s.project}: ${s.title}`;
   if (app) return app.notify(s.id, title, body || '');
   const note = new Notification(title, { body, icon: '/apple-touch-icon.png', tag: s.id });

@@ -25,6 +25,7 @@ import { paintSplit } from './split.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 import { paintCard } from './spells.js';
+import { paintGoal, wireGoalSlot } from './goal.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -93,6 +94,7 @@ export function renderBody(id, { fresh }) {
           </div>
           <div class="it-slot"></div>
         </div>
+        <div class="goal-slot" hidden></div>
         <button class="link xs earlier" hidden></button>
         <div class="turns"></div>
         <div class="it-dock"><div class="overlap-strip" hidden></div><div class="pr-strip" hidden></div></div>
@@ -110,12 +112,14 @@ export function renderBody(id, { fresh }) {
       if (a === 'moved') openMoved(S.full.get(id)?.movedTo?.id);
     });
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
+    wireGoalSlot($('.goal-slot', body), id);
     renderDock(id);
     placePr(body);
   }
 
   const body = n.body;
   paintCard(id); // spell panels and buttons in the card
+  paintGoal(id); // the goal it keeps going for (goal.js)
   const proj = projectById(summary.projectId);
   // The head already shows the harness, model and project, and the task head has Compare. This bar
   // says how the run was set up: a mode worth noticing (Plan or Edits, as on the launcher), the
@@ -173,7 +177,7 @@ export function renderBody(id, { fresh }) {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
-    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}|${tx}`;
+    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
@@ -252,7 +256,7 @@ function renderFoldedTurn(t, unfold) {
     <article class="turn folded" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
-        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${mentionHtml(esc(t.prompt.replace(/\s+/g, ' ')), { link: false })}</span>
+        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? 'What’s still missing' : mentionHtml(esc(t.prompt.replace(/\s+/g, ' ')), { link: false })}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
@@ -341,7 +345,11 @@ function limitCard(s, t) {
 // shows the full transcript.
 function renderTurn(s, t, isLatest, fold, tx) {
   const node = el(`<article class="turn ${t.rolledBackAt ? 'is-rolled-back' : ''}" data-turn="${t.id}"></article>`);
-  const long = t.prompt.length > 360 || t.prompt.split('\n').length > 5;
+  // Sent back for the goal: the band has the goal and the round, so it shows what's missing and
+  // what's next; the whole message (what the agent read) is behind Show all.
+  const missing = t.goal && /^What's missing: (.*)$/m.exec(t.prompt)?.[1];
+  const next = t.goal && /^Next: (.*)$/m.exec(t.prompt)?.[1];
+  const long = !!missing || t.prompt.length > 360 || t.prompt.split('\n').length > 5;
   const cp = t.checkpoint;
   // The task's worktree branch shows once, with the task: a turn names its branch only when it ran
   // on another one (a task in the project folder, where the branch can change between turns).
@@ -349,8 +357,9 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const cpLabel = cp?.head ? `${cpBranch ? `${cpBranch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
   const ask = el(`
     <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
-      ${t.by === 'wisp' ? `<div class="ask-by">${icon('spark')}${t.reports ? 'Sent by wisp when your subagents finished' : 'Sent by wisp after its test run'}</div>` : ''}
-      <div class="ask-text ${long ? 'clamped' : ''}">${mentionHtml(esc(t.prompt))}</div>
+      ${t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : 'Sent by wisp after its test run'}</div>` : ''}
+      ${missing ? `<div class="ask-goal"><b>Still missing</b> ${esc(missing)}${next ? `<span>Next: ${esc(next)}</span>` : ''}</div>` : ''}
+      <div class="ask-text ${long ? 'clamped' : ''}" ${missing ? 'hidden' : ''}>${mentionHtml(esc(t.prompt))}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
       <div class="ask-foot">
@@ -366,6 +375,14 @@ function renderTurn(s, t, isLatest, fold, tx) {
     </div>`);
   if (fold) ask.querySelector('.t-unfold').onclick = fold;
   ask.querySelector('.more-btn')?.addEventListener('click', (e) => {
+    if (missing) {
+      const full = ask.querySelector('.ask-text');
+      full.hidden = !full.hidden;
+      full.classList.remove('clamped');
+      ask.querySelector('.ask-goal').hidden = !full.hidden;
+      e.target.textContent = full.hidden ? 'Show all' : 'Show less';
+      return;
+    }
     ask.querySelector('.ask-text').classList.toggle('clamped');
     e.target.textContent = ask.querySelector('.ask-text').classList.contains('clamped') ? 'Show all' : 'Show less';
   });
@@ -390,8 +407,34 @@ function renderTurn(s, t, isLatest, fold, tx) {
     const subs = renderSubs(s, t);
     if (subs) node.append(subs);
     node.append(renderTrail(s, t, tx));
+    if (isLatest && s.goal?.status === 'checking') node.append(renderGoalCheck(s));
   }
   node.append(el('<div class="btw-list"></div>')); // side questions asked during this turn (btw.js)
+  return node;
+}
+
+// The goal's check after a round (server/goal.js): the task is still in Working, so the latest turn
+// keeps a live panel, with Stop, while wisp reads the changes and runs the tests.
+function renderGoalCheck(s) {
+  const node = el(`
+    <div class="w-panel goal-check">
+      <div class="w-orb"><div class="orb live"><i></i><i></i><i></i></div></div>
+      <div class="w-body">
+        <div class="w-status"><b>Checking the goal…</b><span class="elapsed" data-start="${s.turns.at(-1)?.endedAt || Date.now()}">0s</span></div>
+        <p class="gc-what">Reading the changes and running the tests: wisp’s own look, not the agent’s word.</p>
+        <div class="w-actions"><span class="grow"></span><button class="ghost sm danger stop">${icon('stop')}Stop</button></div>
+      </div>
+    </div>`);
+  $('.stop', node).onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.lastChild.textContent = 'Stopping…';
+    await api(`/sessions/${s.id}/stop`, { method: 'POST', body: {} }).catch((err) => {
+      btn.disabled = false;
+      btn.lastChild.textContent = 'Stop';
+      toastError(err);
+    });
+  };
   return node;
 }
 

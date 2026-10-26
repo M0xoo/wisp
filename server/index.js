@@ -40,6 +40,7 @@ import { send, eventStream } from './http/respond.js';
 import { serveStatic } from './http/static.js';
 import { trustedProxy } from './http/trust.js';
 import { createAuto } from './services/auto.js';
+import { Goals } from './goal.js';
 import { scoutNote } from './scout.js';
 import { createFeedback } from './services/feedback.js';
 import { createInstaller } from './services/install.js';
@@ -182,6 +183,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Auto: the router, and what feeds it outcomes.
   app.router = new Router(store.home);
   app.auto = createAuto(app);
+  // Goals: the task keeps going until its condition holds (server/goal.js).
+  app.goals = runner.goals = new Goals({ store, runner, agents: () => app.auto.here(), defaults: () => store.config.defaults, projectOf: (s) => store.projectFor(s.cwd), track: (e, p) => app.telemetry.track(e, p) });
   app.installer = createInstaller(app);
   runner.on('started', ({ session }) => {
     if (session.route && !app.router.route(session.id)) app.router.record(session.id, session.route);

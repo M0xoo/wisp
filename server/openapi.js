@@ -411,6 +411,12 @@ export function openapi({ version, port }) {
         },
         delete: { summary: 'Dismiss a side question (stops its run if it is still answering)', parameters: [{ name: 'item', in: 'query', required: true, schema: { type: 'string' } }], responses: { 200: ok, 404: err[404] } },
       },
+      '/sessions/{id}/goal': {
+        parameters: [id],
+        put: { summary: 'Set or replace the task’s goal: it keeps going until wisp’s check finds the condition holds, can’t hold, or it runs out of rounds. An idle task is checked at once and goes after it', requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string', description: 'What has to be true, like “all tests pass”' }, max: { type: 'integer', minimum: 1, maximum: 20, description: 'Rounds before it stops (default: the goalRounds setting)' } } }), responses: { 200: json({ type: 'object' }), 400: err[400], 409: err[400] } },
+        patch: { summary: 'Pause the goal (the task lands after its round) or resume it (a paused goal, or one out of rounds, with a fresh budget)', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['pause', 'resume'] } } }), responses: { 200: json({ type: 'object' }), 400: err[400], 404: err[404] } },
+        delete: { summary: 'Drop the goal', responses: { 200: ok, 404: err[404] } },
+      },
       '/sessions/{id}/answer': { parameters: [id], post: { summary: 'Answer the pending ask_user question (or approval: Allow, Always allow in this task, Deny, or what to do instead)', requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' } } }), responses: { 200: ok } } },
       '/sessions/{id}/approve': { parameters: [id], post: { summary: 'Allow and retry (or deny) what a finished turn’s permissions blocked', requestBody: body({ type: 'object', properties: { turnId: { type: 'string' }, allow: { type: 'boolean', description: 'Default true' } } }), responses: { 200: ok } } },
       '/sessions/{id}/revert': {
@@ -526,6 +532,7 @@ export function openapi({ version, port }) {
             worktree: { type: 'boolean', description: 'Run in a fresh git worktree + branch. Default: on in git repos (Settings), off in plan mode' },
             subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'], properties: { name: { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' }, use: { type: 'string', description: 'When the lead should pick this one' }, count: { type: 'integer', minimum: 1, maximum: 5, description: 'Identical copies that take tasks in parallel (name#1, name#2, …); 12 in all' }, machine: { type: 'string', description: 'Where it runs: empty (with the lead), `here` (this computer) or a machine id. One on another place works on a copy of the lead’s work there; its changes come back as a patch' } } }, description: 'A team the lead can delegate to through the injected `delegate` tool. Each runs as a child session in the lead’s folder' },
             preset: { type: 'string', description: 'Id of a saved team (`/teams`), used when `subagents` is absent' },
+            goal: { type: 'object', required: ['text'], properties: { text: { type: 'string' }, max: { type: 'integer', minimum: 1, maximum: 20 } }, description: 'Keep going until this holds: after each turn wisp checks it and sends the task back with what is missing. A prompt that is just `/goal <condition>` does the same' },
             compare: { type: 'array', maxItems: 3, items: { type: 'object', properties: { agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' } } }, description: 'Also run the same task on these, each in its own worktree' },
           },
         },

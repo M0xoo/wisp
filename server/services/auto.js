@@ -155,6 +155,7 @@ export function createAuto(app) {
       route: { ...pick.route, escalated: reason !== 'limit', ...(reason === 'limit' && { moved: true }) },
       auto: { strategy: reason === 'limit' ? s.auto?.strategy || 'single' : 'escalated', escalatedFrom: s.id, reason, tried: [...new Set([...tried, ...(s.auto?.tried || []), s.route?.key].filter(Boolean))] },
       scout: s.scout || null,
+      goal: app.goals?.handOff(s), // the goal goes with it, with the rounds it has left
     });
     // Now one task with two runs: it's named after the prompt, like a compare task.
     if (s.titleAuto) s.title = sib.title;
@@ -191,5 +192,5 @@ export function createAuto(app) {
   // What the Auto view shows: goals, settings, and what the router learned.
   const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { explore: opts().explore, allowed: opts().allowed, ...autoSettings(store.config.defaults) }, projects: projects(), ...router.report(await agents()) });
 
-  return { detect, agents, listed, opts, goalOf, signals, resolve, view };
+  return { detect, agents, listed, here: () => agentsHere, opts, goalOf, signals, resolve, view };
 }

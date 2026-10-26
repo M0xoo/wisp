@@ -28,9 +28,10 @@ export const SLOTS = {
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
+  'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
 };
 
-export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head']);
+export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head', 'goal.band']);
 
 // Light or dark: system follows the OS (the page's `prefers-color-scheme`).
 export const THEMES = ['system', 'light', 'dark'];
@@ -110,6 +111,15 @@ export const PARTS = {
   'delegate.lead': '.team-pop .tp-lead',
   'delegate.place': '.team-pop .tp-row .tp-place',
   'launcher.worktree': '#wtBtn',
+  // Goal (Done when): the launcher's toggle and its line under the prompt.
+  'launcher.goal': '#goalBtn',
+  'launcher.goalLine': '#launcher .l-goal',
+  // The open task's goal band: the condition, the progress track, the last check; the row's pill.
+  'goal.band': '#feed .item.open .goal-band',
+  'goal.text': '#feed .item.open .goal-band .gb-text',
+  'goal.track': '#feed .item.open .goal-band .gb-track',
+  'goal.check': '#feed .item.open .goal-band .gb-check',
+  'card.goal': '#feed .goal-pill',
   'launcher.send': '#launch',
   'launcher.later': '#launchLater',
   'launcher.when': '#launcher .l-when',
@@ -301,7 +311,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -359,6 +369,8 @@ export const SETTINGS = {
   apps: ['on', 'off'],
   // "in 5 min …" / "remind me … in 1 h" in a prompt schedules it (web/js/when.js).
   readTimes: ['on', 'off'],
+  // Goals: how many rounds a new goal gets before it stops (server/goal.js).
+  goalRounds: ['3', '5', '10', '20'],
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).

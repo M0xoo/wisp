@@ -21,6 +21,7 @@ import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
+import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterPill, laterTip, planRows } from './later.js';
 import { crewDot, memberById, paintCrew, pinJob } from './crew.js';
 import { backToPlace, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
@@ -379,7 +380,7 @@ export function headPills(s, pill) {
       ${termPill(s)}${pill}
       ${laterPill(s)}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
-      ${autoPill(s)}${overlapPill(s)}
+      ${goalPill(s)}${autoPill(s)}${overlapPill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
       ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route, s.account)}
       ${s.machine ? machinePill(s.machine) : ''}
