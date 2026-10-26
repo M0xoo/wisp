@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **A crew member you `@`-mention stays in the sidebar.** The job you started with `@Ada …` in a follow-up now waits in *Needs you* until you mark it done, instead of filing itself away once it answers. Jobs that another task's agent delegates to a crew member still file themselves under *Done*.
+
 ## [0.42.0] - 2026-10-26
 
 ### Added

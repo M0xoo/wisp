@@ -439,7 +439,7 @@ Your crew are named agents that stay on hand and keep working: *Scout · CI watc
 
 **Let them write their own.** **Add → Generate with Ada…** takes a goal (*make yourself the best UI engineer for this project*) and starts a job where Ada studies its brief, notebook, kit and the project (README, AGENTS.md, design docs, the code), then proposes an AGENTS.md and a few project-specific skills (`kit` in its hidden `crew` block). They land under that job in the thread: read or edit any of them, untick the ones you don't want, then **Add to their kit** or **Dismiss**. Nothing is added without you. Any job can propose a file the same way when the member learns a how-to worth keeping.
 
-A check-in that found nothing marks itself `quiet`: it's logged and archived (its worktree goes) instead of landing in *Needs you*. The same block can ask for an earlier check-in (`wakeIn`, in minutes). An answer that went somewhere else (to the task that `@`-mentioned them, or to the lead that delegated) is filed under *Done*.
+A check-in that found nothing marks itself `quiet`: it's logged and archived (its worktree goes) instead of landing in *Needs you*. The same block can ask for an earlier check-in (`wakeIn`, in minutes). A job you asked for with an `@`-mention stays in the sidebar until you mark it done, even though its answer also shows on the task that mentioned them. One an agent delegated is filed under *Done*: its answer went to that agent.
 
 **Giving them work.**
 

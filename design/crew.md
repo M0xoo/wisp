@@ -58,8 +58,9 @@ its thread; its work never mixes with your tasks.
 - **In another task**: `@Ada …` starting a follow-up is answered under the message (the task's agent
   isn't interrupted); **Reply to Ada** continues the same job, so Ada remembers the thread. A member
   tagged in or delegated by a task can follow up there by itself (`followUp`), shown as *@Ada (your
-  crew’s …): …*; its thread moves along with that follow-up so the answer stays above it. Those jobs
-  are filed under Done: their answers already reached where they were asked.
+  crew’s …): …*; its thread moves along with that follow-up so the answer stays above it. A job the user
+  asked for by `@Ada` stays in Needs you until they mark it done; a delegated one is filed under
+  Done, since its answer went to the lead that asked.
 - **Delegates**: a member has a team like a task's (any harness, other crew members, never itself);
   every job of its gets it. A job that was itself delegated hands nothing on to the crew, so members
   can't loop; one on another machine can't reach the crew here.
