@@ -197,6 +197,12 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.ok(problems({ ...base0, settings: { readTimes: 'sometimes' } }).some((x) => /readTimes/.test(x) && /on \| off/.test(x)));
 });
 
+test('plan budget: its group in Settings → Usage is a part; Wait for the reset (limitWait) is a setting', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.budget'] }, parts: { 'settings.budget': { style: { fontSize: '12px' } } } }), []);
+  assert.deepEqual(problems({ ...base0, settings: { limitWait: 'on' } }), []);
+  assert.ok(problems({ ...base0, settings: { limitWait: 'always' } }).some((x) => /limitWait/.test(x) && /on \| off/.test(x)));
+});
+
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,

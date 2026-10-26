@@ -23,7 +23,7 @@ import { setSpellBlocks } from './render.js';
 import { createSpellHooks } from './services/spell-hooks.js';
 import { Triggers } from './triggers.js';
 import { Crew } from './crew.js';
-import { Later } from './later.js';
+import { LIMIT_CARRY_ON, Later } from './later.js';
 import { syncSpellCrew } from './crew-share.js';
 import { removeWorktree } from './git.js';
 import { Remote } from './remote.js';
@@ -35,6 +35,7 @@ import { createComputer } from './services/computer.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
+import { Budget } from './budget.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
@@ -94,6 +95,19 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   runner.accountPref = (agent) => store.config.defaults.accounts?.[agent] || '';
   // Your MCP servers (Settings → Connectors), for every turn of a harness that takes them.
   runner.connectors = ({ agent, mode, cwd }) => turnServers(store.config.connectors, { agent, mode, cwd, home: store.home });
+  // How much of each account's usage windows is gone (server/budget.js): Settings → Usage and the
+  // limit card's reset time. The page hears of a change with the harness list, at most every 2 s.
+  let budgetTimer = null;
+  const budget = new Budget(store.home, {
+    onChange: () => {
+      budgetTimer ||= setTimeout(() => {
+        budgetTimer = null;
+        app.broadcast('agents', {});
+      }, 2000);
+      budgetTimer.unref?.();
+    },
+  });
+  runner.budget = budget;
   const events = eventStream();
   const app = {
     port,
@@ -209,6 +223,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // Signing in to a harness from the page; once in, its models are looked up again.
   const loginStates = new Map();
   app.accounts = accounts;
+  app.budget = budget;
   app.agentLogin = createAgentLogin({
     accounts,
     onChange: (v) => {
@@ -291,6 +306,16 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
   });
   app.later.onRemoved = (s) => app.broadcast('removed', { id: s.id });
+  // At a usage limit with Settings → Wait for the reset on: the task carries on in the same
+  // conversation once the window resets. null: it asks you (the limit card) as before.
+  runner.waitAtLimit = (s, at) => {
+    if (store.config.defaults.limitWait !== 'on') return null;
+    try {
+      return app.later.add(s, { text: LIMIT_CARRY_ON, by: 'wisp', at: Math.max(at, Date.now() + 61_000) });
+    } catch {
+      return null; // a subagent, five already waiting, ten in a row: the card asks instead
+    }
+  };
   // A spell's crew members join and leave the crew with it (server/crew-share.js).
   app.spells.onChange = () => {
     syncSpellCrew(app);

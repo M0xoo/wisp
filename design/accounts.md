@@ -208,7 +208,8 @@ Settings → Agents's account rows wrap the email and the limit onto their own l
 
 ## Spells
 
-- No new `SETTINGS`: there is nothing to switch on or off about limits *(legal)*.
+- No new `SETTINGS` for switching accounts at a limit *(legal)*. Waiting for the reset is one
+  (`limitWait`, design/budget.md): it stays within the limit.
 - `PARTS`: `picker.accounts`, `runner.account` (the chip's `.rb-a`), `details.account` (the
   account on the details harness row) *(review)*, `settings.accounts`. Not the limit card: it asks you something, and spells never hide those.
 - No `PART_PROPS` needed in v1.
@@ -234,8 +235,8 @@ added, so older pages keep working.
   opencode follow once Claude and Codex are in *(review)*.
 - The *By account* usage table, drag to reorder, account colours. (*Spread the work* is out for
   good *(legal)*.)
-- Reading remaining quota ahead of time. Claude and Codex don't expose it to the CLI reliably;
-  wisp learns limits from the errors, as Auto does today.
+- ~~Reading remaining quota ahead of time.~~ Done in design/budget.md: Claude prints a
+  `rate_limit_event` on every run and Codex writes `rate_limits` into its session file.
 - Sharing an account between people (Grid): each person's accounts stay in their own home.
 
 ## Risks

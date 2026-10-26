@@ -1074,6 +1074,10 @@ export class Runner extends EventEmitter {
         this.store.save(session);
         return;
       }
+      case 'limits':
+        // How much of this account's usage windows is gone (server/budget.js).
+        this.budget?.record?.(session.agent, session.account || 'default', ev);
+        return;
       case 'background': {
         turn.background = ev.tasks;
         if (turn.interim) this.#waitItem(session, turn);
@@ -1146,7 +1150,7 @@ export class Runner extends EventEmitter {
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
     }
     if (!ev.stopped) blockedCard(turn);
-    // A usage limit on one of several accounts: the turn asks you what next.
+    // A usage limit: the turn asks you what next (or waits for the reset, below).
     if (ev.isError && !ev.stopped) this.#atLimit(session, turn, ev);
     // A lead that ends its turn without reading what its delegates finished gets it as a follow-up.
     if (!ev.stopped && !session.parentId) this.#reportBack(session, { ending: true });
@@ -1160,9 +1164,13 @@ export class Runner extends EventEmitter {
     const holding = checks || goal;
     session.state = holding || handing ? 'running' : 'review';
     session.unread = !holding && !handing;
+    // At a usage limit with Wait for the reset on (and Auto not moving it elsewhere): the task waits
+    // under Scheduled and carries on in the same conversation after the reset. Nobody is pinged.
+    const waits = !!turn.limit && !holding && !handing && !!this.waitAtLimit?.(session, turn.limit.until);
+    if (waits) this.#waitsForReset(session, turn);
     // A crew check-in that found nothing (archived too), or a job whose answer went elsewhere:
     // filed under Done, nobody is pinged.
-    const quiet = (crewOut.quiet || crewOut.filed) && !holding && !handing;
+    const quiet = ((crewOut.quiet || crewOut.filed) && !holding && !handing) || waits;
     if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) });
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
@@ -1179,28 +1187,39 @@ export class Runner extends EventEmitter {
   // asks you what next (turn.limit: wait for the reset, continue on another of your accounts, hand
   // it to another harness, or the provider's extra usage). wisp never moves to another account by
   // itself: the providers' terms forbid getting around their limits (design/accounts.md).
+  // The reset time comes from what the CLI last said about the account's windows (server/budget.js)
+  // when it knows, else from the error's text.
   #atLimit(session, turn, ev) {
-    const accounts = this.accounts;
-    if (!session.account || !accounts?.multi?.(session.agent)) return;
     const limit = infraError(ev.text);
-    if (limit?.scope !== 'agent') return;
-    accounts.cool(session.agent, session.account, { ms: limit.ms, why: clip(String(ev.text || '').split('\n').find((l) => l.trim()) || '', 160) });
-    const from = accounts.get(session.agent, session.account);
-    const until = from?.until || Date.now() + limit.ms;
+    if (limit?.scope !== 'agent' || session.parentId || session.delegated) return;
+    const accounts = this.accounts;
+    const multi = !!session.account && !!accounts?.multi?.(session.agent);
+    const reset = this.budget?.resetAt?.(session.agent, session.account || 'default');
+    const ms = reset ? reset - Date.now() : limit.ms;
+    if (multi) accounts.cool(session.agent, session.account, { ms, why: clip(String(ev.text || '').split('\n').find((l) => l.trim()) || '', 160) });
+    const from = multi ? accounts.get(session.agent, session.account) : null;
+    const others = multi ? accounts.list(session.agent).filter((a) => a.id !== session.account && a.state === 'ready').map(({ id, label, kind }) => ({ id, label, kind })) : [];
     turn.limit = {
-      account: session.account,
-      until,
-      others: accounts.list(session.agent).filter((a) => a.id !== session.account && a.state === 'ready').map(({ id, label, kind }) => ({ id, label, kind })),
+      account: session.account || '',
+      until: reset || from?.until || Date.now() + limit.ms,
+      others,
       kind: from?.kind || 'personal',
       extra: ACCOUNT_HOMES[session.agent]?.extra || '',
     };
     turn.presentation = {
       blocks: [
         // No time here: the card under it says when, in the page's own time format.
-        { type: 'hero', title: `${from?.label || 'This account'} is at its usage limit`, summary: 'Wait for the reset, continue on another of your accounts, or hand the task to another agent.', status: 'blocked' },
+        { type: 'hero', title: `${from?.label || adapters[session.agent]?.name || 'This harness'} is at its usage limit`, summary: others.length ? 'Wait for the reset, continue on another of your accounts, or hand the task to another agent.' : 'Wait for the reset, or hand the task to another agent.', status: 'blocked' },
         { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
       ],
     };
+  }
+
+  // Wait for the reset is on and wisp scheduled the carry-on: the hero says so instead of asking.
+  #waitsForReset(session, turn) {
+    const hero = turn.presentation?.blocks?.find((b) => b.type === 'hero');
+    if (hero) Object.assign(hero, { summary: 'It carries on by itself after the reset, in this same conversation.', status: 'partial' });
+    turn.limit.waiting = true;
   }
 
   // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,

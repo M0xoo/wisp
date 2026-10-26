@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ASK_TIMEOUT_MS, attachmentNote, clip, crewToolLabel, detectFirst, exitText, fileTracker, flatten, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
+import { codexLimits, codexRollout } from '../budget.js';
 
 const DEFAULT_BIN = process.env.WISP_CODEX_BIN || 'codex';
 let BIN = DEFAULT_BIN;
@@ -121,6 +122,7 @@ export default {
     let lastError = '';
     let usage = null;
     let completed = false;
+    let thread = resumeId && !fork ? resumeId : '';
     const started = Date.now();
 
     const onItem = (item, phase) => {
@@ -190,7 +192,7 @@ export default {
       onJson(msg) {
         switch (msg.type) {
           case 'thread.started':
-            if (msg.thread_id) onEvent({ type: 'session', id: msg.thread_id });
+            if (msg.thread_id) onEvent({ type: 'session', id: (thread = msg.thread_id) });
             break;
           case 'item.started':
           case 'item.updated':
@@ -212,6 +214,9 @@ export default {
       },
       onClose({ code, signal, stderr, stopped }) {
         const ok = completed && !failure && code === 0;
+        // codex exec doesn't print its usage windows; its session file has them (server/budget.js).
+        const limits = thread && codexLimits(codexRollout(thread, { home: accountEnv.CODEX_HOME || process.env.CODEX_HOME || undefined }));
+        if (limits) onEvent({ type: 'limits', ...limits });
         onEvent({
           type: 'result',
           isError: !ok,

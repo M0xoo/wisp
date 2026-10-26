@@ -8,6 +8,7 @@
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_LIMIT_ONCE=<file>  the first run hits a usage limit (stderr, exit 1); later runs work
+//   FAKE_LIMITS  claude: a rate_limit_info (JSON) it reports as a rate_limit_event before anything else
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
@@ -158,6 +159,9 @@ if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
   fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME }) + '\n');
 }
+
+// FAKE_LIMITS: claude reports this rate_limit_info first (its usage windows, server/budget.js).
+if (process.env.FAKE_LIMITS && name === 'claude' && !retro && !btw) out({ type: 'rate_limit_event', rate_limit_info: JSON.parse(process.env.FAKE_LIMITS) });
 
 if (retro) {
   out({ type: 'system', subtype: 'init', session_id: 'retro-session' });

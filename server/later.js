@@ -21,6 +21,9 @@ const MISSED_MS = 24 * 3600_000; // later than this: you decide, it doesn't just
 const PER_TICK = 3; // a restart with a backlog doesn't start a dozen runs at once
 const TICK_MS = 20_000;
 const TEXT_MAX = 4000;
+// The follow-up that carries a task on after a usage limit: the limit card's Wait until, and wisp's
+// own with Settings → Wait for the reset on. The page knows the card was answered by this text.
+export const LIMIT_CARRY_ON = 'Carry on from where the last run stopped at the usage limit.';
 
 // { at } or { in: minutes } → a time from now, checked against the limits.
 export function whenOf(body, { now = Date.now(), max = MAX_MS } = {}) {

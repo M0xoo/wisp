@@ -46,8 +46,13 @@ export function register(r, app) {
 
   r.route('GET', '/openapi.json', (c) => c.send(200, openapi({ version: VERSION, port })), { doc: false });
 
-  // Each harness that can have several accounts lists them (server/accounts.js), in your order.
-  const withAccounts = (list) => list.map((a) => (app.accounts?.supports(a.id) ? { ...a, accounts: app.accounts.view(a.id) } : a));
+  // Each harness that can have several accounts lists them (server/accounts.js), in your order, and
+  // one whose CLI reports its usage windows says how much of them is gone (server/budget.js).
+  const withAccounts = (list) =>
+    list.map((a) => {
+      const budget = app.budget?.view(a.id) || [];
+      return { ...a, ...(app.accounts?.supports(a.id) && { accounts: app.accounts.view(a.id) }), ...(budget.length && { budget }) };
+    });
   // ?fresh=1 detects every harness again; ?fresh=<id> just that one (after signing in to it).
   r.route('GET', '/agents', async (c) => c.send(200, withAccounts(await (c.query.has('fresh') ? app.auto.detect({ fresh: Object.hasOwn(adapters, c.query.get('fresh')) ? c.query.get('fresh') : true }) : app.auto.listed()))));
   // Re-check: detect harnesses and models again, here and on every online machine.

@@ -227,6 +227,8 @@ export const PARTS = {
   'settings.connectors': '.cx-box',
   'connectors.row': '.cx-row',
   'connectors.import': '.cx-found',
+  // Settings → Usage: Plan budget, each account's 5-hour and weekly windows, and Wait for the reset.
+  'settings.budget': '.sx-budget',
   // The image viewer: a picture from a reply or an attachment, full screen to zoom into, and its zoom buttons.
   viewer: '.lb',
   'viewer.bar': '.lb-bar',
@@ -375,6 +377,8 @@ export const SETTINGS = {
   readTimes: ['on', 'off'],
   // Goals: how many rounds a new goal gets before it stops (server/goal.js).
   goalRounds: ['3', '5', '10', '20'],
+  // At a usage limit: wait for the window's reset and carry on in the same conversation, or ask.
+  limitWait: ['on', 'off'],
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).
