@@ -61,7 +61,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
       <div class="pk-main">
         <label class="field pk-search">${icon('search')}<input spellcheck="false" autocomplete="off"></label>
         <div class="pk-list" role="listbox" aria-label="Model"></div>
-        <div class="pk-effort" role="radiogroup" aria-label="Thinking level"></div>
+        <div class="pk-effort pk-think"></div>
         <div class="pk-effort pk-acct" role="radiogroup" aria-label="Account" hidden></div>
       </div>
     </div>`);
@@ -102,13 +102,74 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
       .join('')}</span>${notes.length ? `<p class="pk-anote">${esc(notes.join(' '))}</p>` : ''}`;
   };
 
+  // Thinking is a slider, not a row of words: Default on the left, then the harness's levels. The
+  // fill is a quiet accent tint the knob reveals, the knob the logo's orb, and wisps (small motes
+  // spread along the whole track) show only where it's filled, brighter and quicker the harder it thinks.
+  // Dragging previews, letting go commits; arrows step it like the old segments did.
+  const HINT = { '': 'as the harness is set', none: 'no thinking', minimal: 'barely pauses', low: 'quick and light', medium: 'balanced', high: 'thinks it through', xhigh: 'digs deep', max: 'everything it has' };
+  const MOTES = 14;
+  let stops = [];
+  const show = (f) => {
+    // f: 0…1 along the track; the label follows the nearest stop.
+    const k = Math.round(f * (stops.length - 1));
+    const e = stops[k];
+    const bar = $('.pk-slider', seg);
+    seg.style.setProperty('--f', f);
+    seg.style.setProperty('--heat', k / Math.max(1, stops.length - 1));
+    seg.classList.toggle('dflt', !e);
+    $('.pk-tval', seg).textContent = e ? effortLabel(e) : 'Default';
+    $('.pk-thint', seg).textContent = HINT[e] || '';
+    $$('.pk-stop', seg).forEach((s, i) => s.classList.toggle('past', i <= k));
+    bar.setAttribute('aria-valuenow', k);
+    bar.setAttribute('aria-valuetext', e ? `${effortLabel(e)} thinking` : 'Default thinking');
+    bar.title = e ? `${effortLabel(e)} reasoning effort` : 'Whatever the harness is set to';
+    return e;
+  };
   const paintEffort = () => {
     const levels = effortsFor(focusAgent, modelOf(focusAgent));
-    const current = effortOf(focusAgent);
     seg.hidden = !levels.length;
-    seg.innerHTML = `<span class="pk-ehead">Thinking</span><span class="pk-seg">${['', ...levels]
-      .map((e) => `<button role="radio" aria-checked="${e === current}" class="${e === current ? 'on' : ''}" data-e="${esc(e)}" title="${e ? `${esc(effortLabel(e))} reasoning effort` : 'Whatever the harness is set to'}">${esc(e ? effortLabel(e) : 'Default')}</button>`)
-      .join('')}</span>`;
+    const next = ['', ...levels];
+    // Same levels: move the knob in place, so it glides instead of being rebuilt.
+    if (next.join() !== stops.join() || !$('.pk-slider', seg)) {
+      stops = next;
+      const n = stops.length - 1;
+      seg.innerHTML = `<span class="pk-thead"><span class="pk-ehead">Thinking</span><b class="pk-tval"></b><small class="pk-thint"></small></span>
+        <span class="pk-slider" role="slider" tabindex="0" aria-label="Thinking level" aria-valuemin="0" aria-valuemax="${n}">
+          <span class="pk-fill">${Array.from({ length: MOTES }, (_, i) => `<i class="pk-mote" style="--x:${((i + 0.5) / MOTES).toFixed(3)};--d:${((i * 7) % 5) * 0.37}s;--y:${(i * 5) % 3}"></i>`).join('')}</span>
+          ${stops.map((_, i) => `<span class="pk-stop" style="--at:${n ? i / n : 0}"></span>`).join('')}
+          <span class="pk-knob"></span>
+        </span>`;
+    }
+    const k = Math.max(0, stops.indexOf(effortOf(focusAgent)));
+    show(stops.length > 1 ? k / (stops.length - 1) : 0);
+  };
+  const stepEffort = (d) => {
+    const k = stops.indexOf(effortOf(focusAgent)) + d;
+    if (k >= 0 && k < stops.length) chooseEffort(stops[k]);
+  };
+  // Drag (or tap) anywhere on the track: the knob follows the finger, the label snaps, release picks.
+  seg.onpointerdown = (e) => {
+    const bar = e.target.closest('.pk-slider');
+    if (!bar || e.button > 0) return;
+    e.preventDefault();
+    bar.focus();
+    bar.setPointerCapture(e.pointerId);
+    const at = (x) => {
+      const r = bar.getBoundingClientRect();
+      const pad = r.height / 2;
+      return Math.min(1, Math.max(0, (x - r.left - pad) / (r.width - pad * 2)));
+    };
+    seg.classList.add('drag');
+    let picked = show(at(e.clientX));
+    bar.onpointermove = (ev) => {
+      picked = show(at(ev.clientX));
+    };
+    bar.onpointerup = bar.onpointercancel = () => {
+      bar.onpointermove = bar.onpointerup = bar.onpointercancel = null;
+      seg.classList.remove('drag');
+      chooseEffort(picked);
+      paintEffort(); // snap to the stop (also when nothing changed)
+    };
   };
   const markInUse = (id) => {
     $$('.pk-dot', node).forEach((d) => d.remove());
@@ -123,7 +184,6 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     effort = e;
     pick(agent, model, effort, account);
     paintEffort();
-    $(`button[data-e="${CSS.escape(e)}"]`, seg)?.focus();
   };
   // Like a thinking level: commits in place, the picker stays open.
   const chooseAccount = (id) => {
@@ -298,7 +358,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     if (document.activeElement?.closest?.('.sx-login')) return; // pasting a sign-in code
     const inSide = sideRows.includes(document.activeElement);
     // The rows under the models (thinking levels, accounts), top to bottom.
-    const groups = [seg, acctSeg].filter((g) => !g.hidden).map((g) => $$('.pk-seg button', g));
+    const groups = [seg, acctSeg].filter((g) => !g.hidden).map((g) => $$('.pk-slider, .pk-seg button', g));
     const gi = groups.findIndex((g) => g.includes(document.activeElement));
     const inSeg = gi >= 0;
     const segBtns = groups[gi] || [];
@@ -313,13 +373,19 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     if (inSeg && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
       e.preventDefault();
       e.stopPropagation();
+      if (document.activeElement.matches('.pk-slider')) return stepEffort(e.key === 'ArrowRight' ? 1 : -1);
       return step(segBtns, e.key === 'ArrowRight' ? 1 : -1);
+    }
+    if (inSeg && (e.key === 'Home' || e.key === 'End') && document.activeElement.matches('.pk-slider')) {
+      e.preventDefault();
+      return chooseEffort(stops[e.key === 'Home' ? 0 : stops.length - 1]);
     }
     if (inSeg && e.key === 'ArrowUp') return e.preventDefault(), up();
     if (inSeg && e.key === 'ArrowDown') return e.preventDefault(), gi < groups.length - 1 && enter(groups[gi + 1]);
     if (inSeg && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
       const b = document.activeElement;
+      if (b.matches('.pk-slider')) return close(), (back || anchor).focus();
       return b.dataset.acc !== undefined ? chooseAccount(b.dataset.acc) : chooseEffort(b.dataset.e);
     }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -376,10 +442,6 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     { node },
   );
   input.oninput = filter;
-  seg.onclick = (e) => {
-    const b = e.target.closest('button[data-e]');
-    if (b) chooseEffort(b.dataset.e);
-  };
   acctSeg.onclick = (e) => {
     const b = e.target.closest('button[data-acc]');
     if (b) chooseAccount(b.dataset.acc);

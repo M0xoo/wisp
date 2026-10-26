@@ -269,6 +269,64 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .pk-seg button:hover { color: var(--ink); }
 .pk-seg button:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 .pk-seg button.on { background: var(--surface); color: var(--accent-ink); font-weight: 500; box-shadow: var(--shadow-1); }
+/* thinking: a slider. The fill is a quiet accent tint fixed along the track (the knob reveals more
+   of it as the level rises) and the knob is the logo's orb: a plain dot at Default, an accent dot
+   that grows with --heat. Wisps (motes clipped to the fill) brighten and quicken with the level.
+   --f is the knob's place (0…1), --heat the picked level's. Moves with clip-path and translate. */
+.pk-think { --pad: 13px; gap: 8px; }
+.pk-thead { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 0 2px; }
+.pk-thead .pk-ehead { order: -2; padding: 0; }
+.pk-thint { order: -1; flex: 0 1 auto; min-width: 0; font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-tval { margin-left: auto; font-weight: 500; font-size: 13px; color: var(--accent-ink); white-space: nowrap; }
+.pk-think.dflt .pk-tval { color: var(--ink-2); }
+.pk-slider { position: relative; display: block; height: 26px; border-radius: 99px; background: var(--bg-2); border: 1px solid var(--line); cursor: pointer; touch-action: none; container-type: inline-size; transition: border-color 0.12s var(--ease); }
+.pk-slider:hover { border-color: var(--line-2); }
+/* the ring goes on the knob, as strong as the global one, instead of around the whole pill */
+.pk-slider:focus-visible { outline: 0; }
+.pk-slider:focus-visible .pk-knob { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pk-fill {
+  position: absolute; inset: 0; overflow: hidden; border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 3%, transparent), color-mix(in srgb, var(--accent) 20%, transparent));
+  clip-path: inset(0 calc((100% - var(--pad) * 2) * (1 - var(--f))) 0 0 round 99px);
+  transition: clip-path 0.28s var(--ease), opacity 0.2s var(--ease);
+}
+.pk-think.dflt .pk-fill { opacity: 0; }
+.pk-mote {
+  --mo: calc(0.35 + 0.55 * var(--heat));
+  position: absolute; left: calc(var(--pad) + (100% - var(--pad) * 2) * var(--x)); top: calc(30% + var(--y) * 18%);
+  width: 2.5px; height: 2.5px; border-radius: 50%; background: var(--accent); opacity: 0;
+  animation: pk-wisp calc(2.6s - 1.5s * var(--heat)) var(--ease) var(--d) infinite;
+}
+@keyframes pk-wisp {
+  0% { opacity: 0; transform: translate(0, 3px) scale(0.6); }
+  35% { opacity: var(--mo); }
+  100% { opacity: 0; transform: translate(2px, -7px) scale(1); }
+}
+.pk-stop { position: absolute; top: 50%; left: calc(var(--pad) + (100% - var(--pad) * 2) * var(--at)); width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 18%, transparent); pointer-events: none; transition: background 0.2s var(--ease); }
+.pk-stop.past { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.pk-knob {
+  position: absolute; top: 50%; left: var(--pad); width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  translate: calc((100cqw - var(--pad) * 2) * var(--f)) 0;
+  border-radius: 50%; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-1); pointer-events: none;
+  transition: translate 0.28s var(--ease), scale 0.15s var(--ease);
+}
+/* the orb: a plain dot at Default, then the accent, growing with the level */
+.pk-knob::after {
+  content: ''; position: absolute; inset: 0; margin: auto; border-radius: 50%;
+  width: calc(6px + 6px * var(--heat)); height: calc(6px + 6px * var(--heat)); background: var(--accent);
+  transition: width 0.28s var(--ease), height 0.28s var(--ease), background 0.2s var(--ease);
+}
+.pk-think.dflt .pk-knob::after { width: 5px; height: 5px; background: var(--faint); }
+.pk-think.drag .pk-knob { scale: 1.1; }
+.pk-think.drag .pk-knob, .pk-think.drag .pk-fill { transition-property: scale, opacity; }
+/* fingers: a taller track and a bigger knob to grab */
+@media (pointer: coarse) {
+  .pk-think { --pad: 17px; }
+  .pk-slider { height: 34px; }
+  .pk-knob { width: 28px; height: 28px; margin: -14px 0 0 -14px; }
+  .pk-knob::after { width: calc(8px + 6px * var(--heat)); height: calc(8px + 6px * var(--heat)); }
+}
+@media (prefers-reduced-motion: reduce) { .pk-mote { animation: none; opacity: var(--mo); } }
 /* accounts: under Thinking, a segment per account (initial, label, a clock when at its limit) */
 .pk-effort + .pk-acct { border-top: 0; padding-top: 0; }
 .pk-acct .pk-seg { flex-wrap: wrap; }

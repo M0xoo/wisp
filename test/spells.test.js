@@ -168,7 +168,7 @@ test('toasts, their glyph, action, timer ring and Clear all are parts', () => {
 test('accounts: the picker row, the button part, the details initial and the Settings list are parts', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['picker.accounts', 'runner.account', 'details.account', 'settings.accounts'] } }), []);
   assert.deepEqual(problems({ ...base0, parts: { 'runner.account': { style: { color: 'red' } }, 'settings.accounts': { style: { borderRadius: '6px' } } } }), []);
-  for (const part of ['picker.accounts', 'runner.account', 'details.account', 'settings.accounts']) assert.ok(schema.PARTS[part], part);
+  for (const part of ['picker.accounts', 'picker.thinking', 'runner.account', 'details.account', 'settings.accounts']) assert.ok(schema.PARTS[part], part);
   // Connectors: restyle or hide the pane, its rows and the import offer; never add one (they run commands).
   assert.deepEqual(problems({ ...base0, ui: { hide: ['connectors.import'] }, parts: { 'connectors.row': { style: { borderRadius: '6px' } }, 'settings.connectors': { style: { color: 'red' } } } }), []);
   assert.ok(schema.ICONS.includes('plug'));
