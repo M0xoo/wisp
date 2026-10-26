@@ -24,6 +24,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **A crew member's notebook and brief lose their Show all.** The preview stays short; **Edit** opens the whole thing. A brief a spell sets has no Edit, so it keeps Show all.
 - **A crew member's finished jobs stay under them in the sidebar.** Reading a report no longer makes the job vanish: under each member are their three most recent jobs, live ones first (asking you, working, an unread report), then what they finished, until you mark it done or archive it. *N more · open …* leads to the rest in their thread. Quiet check-ins still only show in the thread.
 
+### Fixed
+
+- **One click when you leave the follow-up box.** With the reply box open, clicking a follow-up suggestion, a pull request clash or any other button above it needed two clicks: the box folded on the press and moved the button away before the click landed. It now folds once the click has gone through.
+
 ## [0.41.0] - 2026-10-25
 
 ### Added
