@@ -107,7 +107,7 @@ test('the overlap pill and warning (another open task changes the same files) ar
 test('the follow-up box’s Delegate button and the Delegate popover are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'composer.team': { hide: true } } }), []);
   // The Delegate popover: its lead strip and the delegates' place chips can be restyled or hidden.
-  assert.deepEqual(problems({ ...base0, parts: { 'delegate.lead': { hide: true }, 'delegate.place': { style: { color: 'red' } }, 'delegate.panel': { style: { color: 'red' } } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'delegate.lead': { hide: true }, 'delegate.place': { style: { color: 'red' } }, 'delegate.panel': { style: { color: 'red' } }, 'delegate.live': { style: { color: 'red' } }, 'delegate.open': { hide: true }, 'task.from': { hide: true } } }), []);
   assert.deepEqual(normalizeSpell({ ...base0, parts: { 'composer.team': { style: { color: 'red' } } } }).spell.parts['composer.team'].style, { color: 'red' });
 });
 

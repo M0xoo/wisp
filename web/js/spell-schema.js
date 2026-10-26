@@ -110,6 +110,11 @@ export const PARTS = {
   'delegate.panel': '.team-pop',
   'delegate.lead': '.team-pop .tp-lead',
   'delegate.place': '.team-pop .tp-row .tp-place',
+  // A task's delegates at work (one row each, a crew member's opens its job), their reports' link to
+  // that job, and the line on a crew job saying which task it came from (a link back to it).
+  'delegate.live': '.team-live .tl-row',
+  'delegate.open': '.sub-task .sub-open',
+  'task.from': '.ask .ask-from',
   'launcher.worktree': '#wtBtn',
   // Goal (Done when): the launcher's toggle and its line under the prompt.
   'launcher.goal': '#goalBtn',

@@ -12,7 +12,7 @@ import { S } from '../core/state.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { draftInto } from './composer.js';
-import { scheduleRefetch } from './feed.js';
+import { reveal, scheduleRefetch } from './feed.js';
 import { connectMachine, openMachines } from './machines.js';
 import { placeMenu } from './place-menu.js';
 import { MACHINE_STATE, machineById, placeName } from './places.js';
@@ -487,7 +487,9 @@ export function teamLiveHtml(s, t) {
       const hero = ct?.presentation?.blocks?.find((b) => b.type === 'hero');
       const last = ct?.activity?.findLast((a) => a.kind !== 'text')?.label;
       const st = subStatus(ct);
-      return `<div class="tl-row ${running ? 'live' : `st-${st.cls}`}" data-sub="${esc(d.sessionId)}">
+      // A crew member's job is a task of its own: the row opens it.
+      const open = d.crew ? ` data-open="${esc(d.sessionId)}" role="link" tabindex="0" title="${esc(`Open @${d.name}’s task`)}"` : '';
+      return `<div class="tl-row ${running ? 'live' : `st-${st.cls}`}${open ? ' opens' : ''}" data-sub="${esc(d.sessionId)}"${open}>
         <span class="tl-logo${d.crew ? ' crew' : ''}">${faceOf(d, 22, { state: running ? 'live' : 'idle' })}</span>
         <b class="tl-name">@${esc(d.name)}</b>
         ${ranOn(s, d)}
@@ -497,6 +499,19 @@ export function teamLiveHtml(s, t) {
     })
     .join('')}</div>`;
 }
+
+// A crew delegation's live row and its report's link open the member's job.
+const openJob = (e) => {
+  const at = e.target.closest('.tl-row[data-open], .sub-open[data-open]');
+  if (!at || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  if (S.sessions.has(at.dataset.open)) reveal(at.dataset.open);
+  else toast('That job isn’t here anymore.', { tone: 'bad' });
+};
+document.addEventListener('click', openJob);
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches?.('.tl-row[data-open]')) openJob(e);
+});
 
 // After the run: the team's reports, one card each, opening into the subagent's own presentation.
 const subOpen = new Set(); // delegation ids the user unfolded
@@ -537,7 +552,7 @@ export function renderSubs(s, t) {
       </article>`);
     const body = $('.sub-body', card);
     const fill = () => {
-      body.innerHTML = `<div class="sub-task"><span>Task from ${esc(agentName(s.agent))}</span><p>${esc(d.prompt)}</p></div>`;
+      body.innerHTML = `<div class="sub-task"><span>Task from ${esc(agentName(s.agent))}${d.crew ? `<button class="link xs sub-open" data-open="${esc(d.sessionId)}">Open @${esc(d.name)}’s job${icon('arrow')}</button>` : ''}</span><p>${esc(d.prompt)}</p></div>`;
       if (ct?.presentation && child) {
         // Its "next" and question blocks draft into the lead's composer: the lead stays in charge.
         const ctx = { ...ctxFor(child, ct, false), reply: (text) => draftInto(s.id, `Ask @${d.name} to: ${text}`), draft: (text) => draftInto(s.id, `Ask @${d.name} to: ${text}`) };
