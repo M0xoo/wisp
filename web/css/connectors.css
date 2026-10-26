@@ -61,3 +61,16 @@
   /* Delete on a line of its own, so Check, Cancel and Save stay together. */
   .cx-edit .ce-foot [data-act='drop'] { flex: 1 0 100%; justify-content: flex-start; }
 }
+
+/* The card in a task when the agent added a connector that needs you (turns.js). */
+.cx-ask-keys { display: flex; flex-direction: column; gap: 8px; }
+.cx-ask-keys label { display: flex; align-items: center; gap: 10px; }
+.cx-ask-keys label > span { flex: none; min-width: 120px; font: 500 12px var(--mono); color: var(--ink-2); }
+.cx-ask-keys .input { flex: 1; min-width: 0; }
+.cx-ask .opt .i { width: 13px; height: 13px; }
+.cx-ask .cx-result:empty { display: none; }
+@media (max-width: 520px) {
+  .cx-ask-keys label { flex-direction: column; align-items: stretch; gap: 4px; }
+  .cx-ask-keys .input { flex: none; } /* flex: 1 in a column squashes its height */
+}
+.cx-ask .opt.go { border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); }

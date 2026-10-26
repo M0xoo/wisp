@@ -26,6 +26,7 @@ import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } fro
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
 import { paintCard } from './spells.js';
 import { paintGoal, wireGoalSlot } from './goal.js';
+import { signIn } from './connectors.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -503,8 +504,78 @@ function actItem(a) {
   return el(`<li class="act k-${a.kind}">${icon(KIND_ICON[a.kind] || 'tool')}<span>${esc(label)}</span></li>`);
 }
 
+// wisp_connector_signin: the agent added a connector that needs the user's sign-in or keys. The
+// values go from here straight to wisp, never through the agent; the card closes on its own once
+// the connector works (the server answers it), or with Skip.
+function renderConnectorCard(s) {
+  const a = s.ask;
+  const c = a.connector;
+  const keys = c.kind === 'keys' ? c.keys : [];
+  const node = el(`
+    <div class="ask-card cx-ask">
+      <div class="q-head">${icon('plug')}<span>${c.kind === 'signin' ? 'Sign-in needed' : 'A key is needed'}</span></div>
+      <p class="q-text">${esc(a.question)}</p>
+      ${a.context ? `<div class="prose q-context">${md(a.context)}</div>` : ''}
+      ${keys.length ? `<form class="cx-ask-keys">${keys.map((k, i) => `<label><span>${esc(k.key)}</span><input class="input mono" type="password" data-i="${i}" autocomplete="new-password" spellcheck="false" placeholder="${k.set ? 'Saved · type to replace' : 'Paste it here'}"></label>`).join('')}<button hidden></button></form>` : ''}
+      <div class="q-opts"><button class="opt go" data-a="go">${icon(c.kind === 'signin' ? 'lock' : 'check')}${c.kind === 'signin' ? 'Sign in' : 'Save'}</button><button class="opt" data-a="skip">Skip</button></div>
+      <p class="cx-result" aria-live="polite">${c.kind === 'keys' ? 'Kept as secrets on this computer; the agent never sees them.' : ''}</p>
+    </div>`);
+  const result = $('.cx-result', node);
+  const save = async () => {
+    const vals = $$('input[data-i]', node).map((x) => x.value);
+    if (!vals.some(Boolean)) return $('input[data-i]', node)?.focus();
+    // Every key of a field goes back (one left out is deleted); an empty one keeps what's saved.
+    const body = {};
+    keys.forEach((k, i) => ((body[k.field] ||= {})[k.key] = vals[i]));
+    const btn = $('[data-a="go"]', node);
+    btn.disabled = true;
+    result.className = 'cx-result muted';
+    result.innerHTML = '<span class="orb tiny"></span>Checking it…';
+    try {
+      await api(`/connectors/${c.id}`, { method: 'PATCH', body });
+      $$('input[data-i]', node).forEach((x) => (x.value = ''));
+      const v = await api(`/connectors/${c.id}/test`, { method: 'POST', body: {} });
+      const t = v.connectors.find((x) => x.id === c.id)?.test;
+      // Working: wisp answers the card and the agent carries on.
+      result.className = `cx-result ${t?.ok ? 'ok' : 'bad'}`;
+      result.innerHTML = t?.ok ? `${icon('check')}<span>${t.count} tool${t.count === 1 ? '' : 's'}</span>` : `${icon('warn')}<span>${esc(t?.error || 'It didn’t answer')}</span>`;
+    } catch (err) {
+      result.className = 'cx-result bad';
+      result.innerHTML = `${icon('warn')}<span>${esc(err.message)}</span>`;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  node.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-a]');
+    if (!b) return;
+    if (b.dataset.a === 'go') {
+      if (c.kind === 'signin') signIn({ id: c.id, name: c.name });
+      else save();
+      return;
+    }
+    node.classList.add('sent');
+    try {
+      await api(`/sessions/${s.id}/answer`, { method: 'POST', body: { text: 'Skip' } });
+      scheduleRefetch(s.id);
+    } catch (err) {
+      node.classList.remove('sent');
+      toastError(err);
+    }
+  });
+  const f = $('form', node);
+  if (f) {
+    f.onsubmit = (e) => {
+      e.preventDefault();
+      save();
+    };
+  }
+  return node;
+}
+
 function renderAskCard(s) {
   const a = s.ask;
+  if (a.connector) return renderConnectorCard(s);
   const p = a.permission;
   // A live approval: the agent is paused on a tool call its permissions don't allow by themselves.
   const node = p

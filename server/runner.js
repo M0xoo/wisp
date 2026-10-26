@@ -544,7 +544,8 @@ export class Runner extends EventEmitter {
 
   // ask_user: the agent is blocked inside a tool call until answer() is called.
   // permission: set for a live approval ({ tool, action, detail }), see requestApproval().
-  ask(session, { question, context, options, permission }) {
+  // connector: a connector waiting for the user's sign-in or keys ({ id, name, kind, keys }).
+  ask(session, { question, context, options, permission, connector }) {
     const turn = session.turns.at(-1);
     session.ask = {
       id: newId(),
@@ -553,6 +554,7 @@ export class Runner extends EventEmitter {
       options: Array.isArray(options) ? options.map(String).slice(0, 6) : [],
       askedAt: Date.now(),
       ...(permission && { permission }),
+      ...(connector && { connector }),
     };
     session.state = 'waiting';
     session.unread = true;
