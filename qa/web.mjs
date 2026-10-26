@@ -197,6 +197,7 @@ try {
     await p.waitForTimeout(300);
     await press(p, 'e');
     await until(async () => (await session(first.id)).state === 'done', { timeout: 3000, what: 'done' });
+    ok((await p.locator('.it-body:visible').count()) === 0 && (await p.locator('#prompt').isVisible()) && !(await p.locator('#prompt').inputValue()), 'done should go to New task (empty prompt), not open another task');
     const a = await api(w.url, `/api/sessions/${first.id}`, { archived: true }, 'PATCH');
     ok(a.status === 200 && a.json.archived, `archive ${a.status}`);
     await until(async () => !(await p.locator(`.item[data-id="${first.id}"]`).isVisible()), { timeout: 3000, what: 'archived card to leave the list' });

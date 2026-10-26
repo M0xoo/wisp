@@ -74,8 +74,9 @@ The rules are written up in `docs/feed.md`; the code is `web/js/features/scroll.
 - A background re-render holds the card under the top bar in place (`keepInPlace(feedAnchor(id),
   renderFeed)`). A card you're watching that moves section is followed; one that only peeks in at
   the edge is not.
-- Leaving the list (Mark done, Archive, Delete) hands focus to the next card, which lands where the
-  old one sat (`handOff`).
+- Leaving the list (Mark done, Archive, Delete) from the open task goes to New task, never to
+  another task. From a row in the list, focus moves to the next card, which lands where the old
+  one sat (`handOff`).
 - In split view, opening a task doesn't scroll the sidebar (#135), and only scrolls it when the
   row is out of view (#190). Clicking a task focuses its reply box (#214).
 - Scrolled-to cards land below the top bar and the docked launcher (`scroll-padding-top`), not under
