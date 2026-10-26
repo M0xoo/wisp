@@ -268,9 +268,13 @@ export function openAutomations({ tab = 'recipes', edit = null, host } = {}) {
         t.disabled = true;
         try {
           const r = await api(`/triggers/${tr.id}/run`, { method: 'POST', body: {} });
-          for (const x of r.started) S.sessions.set(x.id, x);
+          for (const { followUp, ...x } of r.started) S.sessions.set(x.id, x);
           renderFeed();
-          toast(r.started.length ? `Started ${r.started.length} session${r.started.length > 1 ? 's' : ''}` : 'Nothing new to act on.');
+          // A CI failure on a branch that already has a task goes to it as a follow-up.
+          const sent = r.started.filter((x) => x.followUp).length;
+          const fresh = r.started.length - sent;
+          const parts = [fresh && `Started ${fresh} session${fresh > 1 ? 's' : ''}`, sent && `Sent ${sent} follow-up${sent > 1 ? 's' : ''} to tasks already on it`].filter(Boolean);
+          toast(parts.length ? parts.join(' · ') : 'Nothing new to act on.');
         } catch (err) {
           toastError(err);
         }

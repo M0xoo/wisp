@@ -468,18 +468,30 @@ test('triggers: a schedule fires once per matching minute; CI and issue watchers
   const ci = await api('/triggers', { body: { kind: 'ci', cwd: repo, branch: 'main', agent: 'claude' } });
   let r = await api(`/triggers/${ci.id}/run`, { body: {} });
   assert.equal(r.started.length, 1, 'Check now acts on what it finds'); // forced
+  const first = r.started[0].id;
+  await settled(first);
+  // Another failure on that branch: a follow-up on the task already on it, not a new task.
   setGh({ runs: [{ databaseId: 12, name: 'lint', headBranch: 'main', headSha: 'bbbbbbb2', url: 'https://x/runs/12' }, ...ghState().runs] });
   const tr = srv.store.config.triggers.find((x) => x.id === ci.id);
   tr.lastPolledAt = 0;
   await t.tick();
   list = await api('/triggers');
   assert.equal(list.find((x) => x.id === ci.id).runs, 2);
-  const ciRun = await session(list.find((x) => x.id === ci.id).lastSessionId);
-  assert.match(ciRun.turns[0].prompt, /"lint" failed on main \(https:\/\/x\/runs\/12\)[\s\S]*gh run view 12 --log-failed/);
-  await settled(ciRun.id);
+  assert.equal(list.find((x) => x.id === ci.id).lastSessionId, first, 'sent to the same task');
+  const ciRun = await until(async () => ((x) => x.turns.length === 2 && x)(await session(first)));
+  assert.match(ciRun.turns[1].prompt, /"lint" failed on main \(https:\/\/x\/runs\/12\)[\s\S]*gh run view 12 --log-failed/);
+  await settled(first);
   tr.lastPolledAt = 0;
   await t.tick();
   assert.equal((await api('/triggers')).find((x) => x.id === ci.id).runs, 2, 'nothing new, nothing started');
+  // Archived, that task is over: the next failure starts a new one.
+  await api(`/sessions/${first}`, { method: 'PATCH', body: { archived: true } });
+  setGh({ runs: [{ databaseId: 13, name: 'test', headBranch: 'main', headSha: 'ccccccc3', url: 'https://x/runs/13' }, ...ghState().runs] });
+  tr.lastPolledAt = 0;
+  await t.tick();
+  assert.notEqual(tr.lastSessionId, first);
+  assert.equal(tr.tasks.main, tr.lastSessionId);
+  await settled(tr.lastSessionId);
   const runList = records(RECORD, 'gh').filter((x) => x.argv[0] === 'run').at(-1).argv;
   assert.deepEqual(runList.slice(runList.indexOf('--branch')), ['--branch', 'main']);
 

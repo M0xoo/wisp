@@ -265,6 +265,12 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       const out = await app.crew.assign(m, work);
       return out.session ? (out.session.turns ? summarize(out.session, store) : out.session) : { queued: out.queued, crew: m.id };
     },
+    // Another CI failure on a branch that has a task: queued on it, after the turn it's in.
+    followUp: async (s, text) => {
+      await app.launcher.replyTo(s, text, [], true);
+      app.sessionChanged(s);
+      return summarize(s, store);
+    },
     onChange: () => app.broadcast('config', {}),
   });
   // Later: follow-ups, reminders and tasks at a time you or an agent set (server/later.js).

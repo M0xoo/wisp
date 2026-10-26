@@ -7,6 +7,8 @@
 // GitHub is polled rather than pushed to: wisp listens on localhost, which GitHub can't reach.
 // The first poll only records what is already there, so old failures don't fire. The task kinds
 // watch one project (cwd; empty: a crew member's project, or any) and fire from taskEvent().
+// A CI failure on a branch that already has a task (one this trigger started, or the task whose
+// worktree is that branch) is sent to it as a follow-up instead of starting another.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,6 +24,7 @@ const MAX_PER_TASK = 3; // a verifier and the task's agent mustn't bounce one ta
 const TICK_MS = 20_000;
 const MAX_SEEN = 200;
 const MAX_PER_POLL = 3; // a burst of failures shouldn't start a dozen agents
+const MAX_BRANCHES = 50; // the CI watcher's branch → task links it keeps
 
 export const DEFAULT_PROMPTS = {
   schedule: '',
@@ -140,6 +143,7 @@ export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } 
     every: Math.min(Math.max(Number(v('every', 5)) || 5, 1), 1440), // minutes between GitHub polls
     // Bookkeeping, reset when what it watches changes.
     seen: changedSource ? [] : prev?.seen || [],
+    tasks: changedSource ? {} : prev?.tasks || {}, // ci: branch → the task working on its failures
     seeded: changedSource ? false : !!prev?.seeded,
     createdAt: prev?.createdAt || Date.now(),
     lastRunAt: prev?.lastRunAt || null,
@@ -151,7 +155,7 @@ export function normalizeTrigger(body, prev = null, { recipes = [], crew = [] } 
 }
 
 export function triggerView(t) {
-  const { seen, ...rest } = t;
+  const { seen, tasks, ...rest } = t;
   let next = null;
   if (t.kind === 'schedule' && t.enabled) {
     try {
@@ -165,9 +169,9 @@ export function triggerView(t) {
 
 export class Triggers {
   // launch(body, origin) starts a session like POST /api/sessions; assign(crewId, work) hands it
-  // to a crew member instead; onChange() after state changes.
-  constructor({ store, launch, assign = null, onChange = () => {}, gh = ghCli, now = () => Date.now() }) {
-    Object.assign(this, { store, launch, assign, onChange, gh, now });
+  // to a crew member instead; followUp(s, text) queues a follow-up on a task; onChange() after state changes.
+  constructor({ store, launch, assign = null, followUp = null, onChange = () => {}, gh = ghCli, now = () => Date.now() }) {
+    Object.assign(this, { store, launch, assign, followUp, onChange, gh, now });
     this.busy = new Set();
   }
 
@@ -295,15 +299,18 @@ export class Triggers {
     const template = recipe ? recipe.prompt : t.prompt;
     const prompt = fill(template, { ...t.params, ...vars }, { strict: false }).trim();
     if (!prompt) throw new Error('The prompt came out empty.');
+    const branch = t.kind === 'ci' ? String(vars.branch || '') : '';
+    const open = branch && this.#taskFor(t, branch);
+    if (open) {
+      const out = (await this.followUp(open, prompt)) || { id: open.id };
+      return this.#ran(t, branch, open.id, { ...out, followUp: true });
+    }
     if (t.crew) {
       if (!this.assign) throw new Error('The crew is not available.');
       // A task watcher's job is about that task: the member may follow up on it.
       const about = task ? { job: 'event', event: t.kind, from: { id: task.id, title: task.title || 'Untitled' } } : { job: 'trigger', from: { id: t.id, title: t.name } };
       const out = await this.assign(t.crew, { prompt, ...about, origin: { kind: 'trigger', id: t.id, name: t.name } });
-      t.lastRunAt = this.now();
-      t.lastSessionId = out.id || t.lastSessionId;
-      t.runs = (t.runs || 0) + 1;
-      return out;
+      return this.#ran(t, branch, out.id, out);
     }
     const s = await this.launch(
       {
@@ -316,10 +323,33 @@ export class Triggers {
       },
       { kind: 'trigger', id: t.id, name: t.name },
     );
+    return this.#ran(t, branch, s.id, s);
+  }
+
+  #ran(t, branch, id, out) {
     t.lastRunAt = this.now();
-    t.lastSessionId = s.id;
+    t.lastSessionId = id || t.lastSessionId;
     t.runs = (t.runs || 0) + 1;
-    return s;
+    if (branch && id) t.tasks = Object.fromEntries([[branch, id], ...Object.entries(t.tasks || {}).filter(([b]) => b !== branch)].slice(0, MAX_BRANCHES));
+    return out;
+  }
+
+  // The task already on this branch's failures: the one this trigger last sent them to, else the
+  // newest task working in that branch's worktree. Not one you archived or marked done: that work is over.
+  #taskFor(t, branch) {
+    if (!this.followUp) return null;
+    const open = (s) => s && !s.archived && s.state !== 'done' && !s.parentId;
+    const linked = this.store.get?.(t.tasks?.[branch]);
+    if (open(linked)) return linked;
+    const dir = t.cwd || this.#memberProject(t.crew);
+    let best = null;
+    for (const s of this.store.sessions?.values?.() || []) {
+      if (!open(s) || ![s, ...(s.also || [])].some((x) => x.worktree?.branch === branch)) continue;
+      const p = this.store.projectFor?.(s.cwd);
+      if (dir && (p ? p.path : s.cwd) !== dir) continue;
+      if (!best || (s.createdAt || 0) > (best.createdAt || 0)) best = s;
+    }
+    return best;
   }
 
   async poll(t, { force = false } = {}) {
