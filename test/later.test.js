@@ -46,10 +46,12 @@ async function api(p, body, method = body ? 'POST' : 'GET', headers = {}) {
   if (!r.ok) throw Object.assign(new Error(`${p}: ${j.error}`), { status: r.status });
   return j;
 }
+// The turn ends on the agent's result; the runner lets go when the process exits. Until then
+// tick() sees the task as busy and holds its follow-ups, so wait for both.
 const ended = (id, turns = 1) =>
   until(async () => {
     const x = await api(`/sessions/${id}`);
-    return x.turns.length >= turns && x.state !== 'running' && x.turns.at(-1)?.status !== 'running' && x;
+    return x.turns.length >= turns && x.state !== 'running' && x.turns.at(-1)?.status !== 'running' && !srv.runner.live.has(id) && x;
   });
 const task = async (prompt = 'look at math.js') => {
   const s = await api('/sessions', { prompt, cwd: makeRepo(), agent: 'claude', worktree: false });
