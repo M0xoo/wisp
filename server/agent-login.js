@@ -6,6 +6,9 @@
 // They run without a terminal (plain pipes): both claude and codex print their link and code that
 // way, and read a pasted code from stdin. One login per harness at a time; it gives up after 15
 // minutes.
+//
+// A harness with several accounts (server/accounts.js) signs each one in on its own: the same login
+// with that account's folder in the env, kept apart by `account` (none or 'default': the CLI's own).
 
 import { spawn } from './proc.js'; // runs npm's .cmd shims on Windows
 import fs from 'node:fs';
@@ -179,11 +182,46 @@ function run(argv, { timeout = 15_000, env = {} } = {}) {
   });
 }
 
-export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}) {
-  const flows = new Map(); // harness id -> flow
+// Who a login is, from what the CLI says or keeps: { email, plan }. Claude's status is JSON; Codex
+// keeps its ChatGPT id token (a JWT with the email and plan) in auth.json.
+export function whoIs(id, out, env = process.env) {
+  if (id === 'claude') {
+    try {
+      const j = JSON.parse(String(out).slice(String(out).indexOf('{')));
+      return { email: j.email || '', plan: j.subscriptionType ? j.subscriptionType[0].toUpperCase() + j.subscriptionType.slice(1) : '' };
+    } catch {
+      return {};
+    }
+  }
+  if (id === 'codex') {
+    try {
+      const home = env.CODEX_HOME || path.join(os.homedir(), '.codex');
+      const token = JSON.parse(fs.readFileSync(path.join(home, 'auth.json'), 'utf8'))?.tokens?.id_token || '';
+      const claims = JSON.parse(Buffer.from(token.split('.')[1] || '', 'base64url').toString('utf8'));
+      const plan = claims['https://api.openai.com/auth']?.chatgpt_plan_type || '';
+      return { email: claims.email || '', plan: plan ? plan[0].toUpperCase() + plan.slice(1) : '' };
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
 
-  const view = (id, f) => (f ? { agent: id, state: f.state, url: f.url, code: f.code, needsInput: f.needsInput, checking: (f.state === 'running' || f.state === 'waiting') && f.after != null && !f.needsInput, error: f.error || '', output: clean(f.out).split('\n').filter((l) => l.trim()).slice(-6).join('\n'), startedAt: f.startedAt } : { agent: id, state: 'idle' });
-  const changed = (id) => onChange(view(id, flows.get(id)));
+// accounts: server/accounts.js, for harnesses with more than one (null: only the CLI's own).
+export function createAgentLogin({ onChange = () => {}, onDone = () => {}, accounts = null } = {}) {
+  const flows = new Map(); // harness id, or id/account -> flow
+  const keyOf = (id, acc) => (acc && acc !== 'default' ? `${id}/${acc}` : id);
+  // The account's folder in the env (made ready first); {} for the CLI's own.
+  const envOf = (id, acc) => {
+    if (!acc || acc === 'default' || !accounts?.supports(id)) return {};
+    if (!accounts.get(id, acc)) throw bad('No such account.', 404);
+    accounts.prepare(id, acc);
+    return accounts.envFor(id, acc);
+  };
+  const acct = (acc) => (acc && acc !== 'default' ? acc : '');
+
+  const view = (id, f, acc = '') => (f ? { agent: id, account: acct(acc), state: f.state, url: f.url, code: f.code, needsInput: f.needsInput, checking: (f.state === 'running' || f.state === 'waiting') && f.after != null && !f.needsInput, error: f.error || '', output: clean(f.out).split('\n').filter((l) => l.trim()).slice(-6).join('\n'), startedAt: f.startedAt } : { agent: id, account: acct(acc), state: 'idle' });
+  const changed = (id, acc) => onChange(view(id, flows.get(keyOf(id, acc)), acc));
 
   function spec(id) {
     const s = LOGINS[id];
@@ -194,33 +232,41 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
 
   function finish(id, f, state, error = '') {
     if (f.state !== 'running' && f.state !== 'waiting') return;
+    const acc = f.account || '';
     clearTimeout(f.timer);
     Object.assign(f, { state, error });
     if (f.child && f.child.exitCode === null) f.child.kill();
-    changed(id);
+    changed(id, acc);
     if (state === 'done') Promise.resolve(LOGINS[id].after?.()).catch(() => {}).finally(() => onDone(id));
-    setTimeout(() => flows.get(id) === f && flows.delete(id), KEEP_MS).unref?.();
+    setTimeout(() => flows.get(keyOf(id, acc)) === f && flows.delete(keyOf(id, acc)), KEEP_MS).unref?.();
   }
 
   return {
     LOGINS,
-    view: (id) => (spec(id), view(id, flows.get(id))),
+    view: (id, acc = '') => (spec(id), view(id, flows.get(keyOf(id, acc)), acc)),
 
-    async status(id) {
+    // Signed in or not, and as whom (kept on the account for the page).
+    async status(id, acc = '') {
       const s = spec(id);
-      if (!s.status) return { agent: id, signedIn: null };
-      const r = await run([bin(s), ...s.status]);
-      return { agent: id, signedIn: s.signedIn(r.out, r.code) };
+      if (!s.status) return { agent: id, account: acct(acc), signedIn: null };
+      const env = envOf(id, acc);
+      const r = await run([bin(s), ...s.status], { env });
+      const signedIn = s.signedIn(r.out, r.code);
+      const who = signedIn ? whoIs(id, r.out, { ...process.env, ...env }) : {};
+      if (accounts?.multi?.(id) && signedIn !== null) accounts.identify(id, acc || 'default', { ...who, signedIn });
+      return { agent: id, account: acct(acc), signedIn, ...who };
     },
 
-    start(id) {
+    start(id, acc = '') {
       const s = spec(id);
-      const prev = flows.get(id);
-      if (prev && (prev.state === 'running' || prev.state === 'waiting')) return view(id, prev);
-      const f = { state: 'running', out: '', url: '', code: '', needsInput: false, startedAt: Date.now() };
-      flows.set(id, f);
+      const env = envOf(id, acc);
+      const key = keyOf(id, acc);
+      const prev = flows.get(key);
+      if (prev && (prev.state === 'running' || prev.state === 'waiting')) return view(id, prev, acc);
+      const f = { state: 'running', out: '', url: '', code: '', needsInput: false, startedAt: Date.now(), account: acct(acc) };
+      flows.set(key, f);
       const [cmd, ...argv] = loginArgv(s);
-      const child = spawn(cmd, argv, { env: { ...process.env, ...(s.extraEnv || {}), BROWSER: 'false', TERM: 'dumb', COLUMNS: '400' }, stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn(cmd, argv, { env: { ...process.env, ...env, ...(s.extraEnv || {}), BROWSER: 'false', TERM: 'dumb', COLUMNS: '400' }, stdio: ['pipe', 'pipe', 'pipe'] });
       f.child = child;
       child.stdin.on('error', () => {});
       const take = (d) => {
@@ -231,7 +277,7 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
         const was = `${f.url}|${f.code}|${f.needsInput}`;
         Object.assign(f, { url: p.url || f.url, code: p.code || f.code, needsInput: f.after != null ? parse(f.after).needsInput : p.needsInput });
         if (f.url && f.state === 'running') f.state = 'waiting';
-        if (`${f.url}|${f.code}|${f.needsInput}` !== was) changed(id);
+        if (`${f.url}|${f.code}|${f.needsInput}` !== was) changed(id, acc);
       };
       child.stdout.on('data', take);
       child.stderr.on('data', take);
@@ -239,38 +285,39 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
       child.on('close', async (code) => {
         if (f.state !== 'running' && f.state !== 'waiting') return;
         // Trust the CLI's own status over its exit code when it has one.
-        const ok = s.status ? (await this.status(id)).signedIn : code === 0;
+        const ok = s.status ? (await this.status(id, acc)).signedIn : code === 0;
         finish(id, f, ok ? 'done' : 'failed', ok ? '' : clean(f.out).split('\n').filter((l) => l.trim()).at(-1) || `${s.bin} exited (${code}).`);
       });
       f.timer = setTimeout(() => finish(id, f, 'failed', 'Sign-in timed out. Start again.'), TIMEOUT_MS);
       f.timer.unref?.();
-      changed(id);
-      return view(id, f);
+      changed(id, acc);
+      return view(id, f, acc);
     },
 
     // The code the sign-in page showed, pasted back into the CLI.
-    input(id, text) {
+    input(id, text, acc = '') {
       spec(id);
-      const f = flows.get(id);
+      const f = flows.get(keyOf(id, acc));
       if (!f || (f.state !== 'running' && f.state !== 'waiting')) throw bad('No sign-in is waiting for a code.', 409);
       const v = String(text || '').trim();
       if (!v || v.length > 4000 || /[\r\n]/.test(v)) throw bad('Paste the code the sign-in page showed.', 400);
       f.child.stdin.write(`${v}\n`);
       f.needsInput = false;
       f.after = ''; // checking the code until the CLI finishes or asks again
-      changed(id);
-      return view(id, f);
+      changed(id, acc);
+      return view(id, f, acc);
     },
 
-    cancel(id) {
+    cancel(id, acc = '') {
       spec(id);
-      const f = flows.get(id);
+      const f = flows.get(keyOf(id, acc));
       if (f) finish(id, f, 'cancelled');
-      return view(id, flows.get(id));
+      return view(id, flows.get(keyOf(id, acc)), acc);
     },
 
-    async logout(id) {
+    async logout(id, acc = '') {
       const s = spec(id);
+      const env = envOf(id, acc);
       const key = s.keys.find((k) => process.env[k]);
       if (key) throw bad(`${s.bin} is signed in with ${key}: remove it from wisp's environment to sign out.`, 400);
       if (typeof s.logout === 'function') {
@@ -278,14 +325,15 @@ export function createAgentLogin({ onChange = () => {}, onDone = () => {} } = {}
         // Gone from where we know to look; if the CLI still says signed in, it kept it elsewhere.
         if ((await this.status(id)).signedIn) throw bad(`${s.bin} is still signed in: run ${s.bin} in a terminal and type /logout.`, 502);
       } else {
-        const r = await run([bin(s), ...s.logout]);
+        const r = await run([bin(s), ...s.logout], { env });
         if (r.code !== 0) throw bad(r.out.trim().split('\n').at(-1) || `${s.bin} exited (${r.code}).`, 502);
       }
       // A finished sign-in no longer says signed in (it's kept a few minutes for the page).
-      const f = flows.get(id);
-      if (f && f.state !== 'running' && f.state !== 'waiting') flows.delete(id);
+      const f = flows.get(keyOf(id, acc));
+      if (f && f.state !== 'running' && f.state !== 'waiting') flows.delete(keyOf(id, acc));
+      if (accounts?.multi?.(id)) accounts.identify(id, acc || 'default', { signedIn: false });
       onDone(id);
-      return { agent: id, signedIn: false };
+      return { agent: id, account: acct(acc), signedIn: false };
     },
 
     // Key sign-ins (opencode): its models are looked up again once a key is added or removed.

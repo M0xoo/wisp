@@ -218,7 +218,7 @@ body.wisp-mobile .lb-open { display: none; }
 .sx-group { --field-bg: var(--surface); border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
 .sx-group + .sx-group, .sx-pane > * + .sx-group { margin-top: 14px; }
 .sx-row { display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 9px 14px; }
-.sx-row + .sx-row, .sx-login + .sx-row { border-top: 1px solid var(--line); }
+.sx-row + .sx-row, .sx-login + .sx-row, .sx-accts + .sx-row { border-top: 1px solid var(--line); }
 .sx-row[hidden] { display: none; }
 .sx-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .sx-text b { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13.5px; }
@@ -260,6 +260,14 @@ body.wisp-mobile .lb-open { display: none; }
   /* a harness that isn't found: its setup tip gets the full width, its buttons go underneath */
   .sx-agents .sx-row:has(.sx-state.bad) .sx-text { flex-basis: 100%; }
   .sx-login { margin-left: 14px; }
+  /* accounts: the email and the limit get their own lines */
+  .sx-accts { margin-left: 14px; }
+  .sx-acct[data-acc-row] { flex-wrap: wrap; align-items: flex-start; }
+  .sx-acct > .acc-i { margin-top: 2px; }
+  .sx-acct-text { flex-direction: column; gap: 1px; }
+  .sx-acct-text small { white-space: normal; }
+  .sx-acct > .sx-state { order: 5; flex: 1 0 100%; padding-left: 32px; margin-top: -4px; }
+  .sx-accts .sx-login { padding-left: 14px; }
   .sx-head { flex-wrap: wrap; }
 }
 /* a phone: full screen. The sections are a list first; picking one opens its pane with a way
@@ -364,6 +372,50 @@ body.wisp-mobile .lb-open { display: none; }
 .sx-login-ctl { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; }
 .sx-signed { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--good); }
 .sx-signed .i { width: 13px; height: 13px; }
+/* Settings → Agents: a harness's accounts, under its row */
+.sx-accts { margin: 0 14px 12px 50px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.sx-acct { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 6px 8px 6px 12px; font-size: 13px; text-align: left; }
+.sx-accts > * + * { border-top: 1px solid var(--line); }
+.sx-acct-text { flex: 1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; min-width: 0; }
+.sx-acct-text b { font-weight: 500; color: var(--ink); }
+.sx-acct-text small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.sx-acct .sx-state .i { width: 13px; height: 13px; }
+.sx-acct .sx-login-ctl { margin-right: 0; }
+.sx-acct .sx-login-ctl:empty { display: none; }
+.sx-acct-form { flex: 1; min-width: 0; }
+.sx-acct-form .input { width: 100%; max-width: 280px; height: 30px; }
+.sx-acct-add { color: var(--muted); transition: background 0.12s, color 0.12s; }
+.sx-acct-add:hover { background: var(--bg-2); color: var(--ink); }
+.sx-acct-add .i { width: 14px; height: 14px; margin: 0 4px 0 3px; }
+.sx-acct-add:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent); }
+.sx-accts .sx-login { margin: 0; border: 0; border-radius: 0; background: var(--surface-2); padding-left: 44px; }
+.acc-menu .mv-up { transform: rotate(-90deg); }
+.acc-menu .mv-down { transform: rotate(90deg); }
+.menu button[disabled] { opacity: 0.45; cursor: default; }
+.menu button[disabled]:hover { background: none; color: var(--ink-2); }
+/* On wisp Grid, once above the harnesses: a login is one person's */
+.sx-acct-grid { display: flex; gap: 8px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.sx-acct-grid .i { width: 14px; height: 14px; flex: none; margin-top: 2px; }
+/* Add another account: ask()'s small box with a name, Personal / Work and the notice */
+.menu.acc-add { width: min(380px, calc(100vw - 16px)); }
+.acc-add form { display: flex; flex-direction: column; gap: 10px; }
+.aa-f { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+.aa-f > span { flex: none; width: 44px; }
+.aa-f .input { flex: 1; min-width: 0; height: 32px; }
+.menu.acc-add .aa-kind { flex: 1; }
+.menu.acc-add .aa-kind button { flex: 1; justify-content: center; width: auto; padding: 4px 7px; font-size: 12px; color: var(--muted); }
+.menu.acc-add .aa-kind button:hover { background: none; color: var(--ink); }
+.menu.acc-add .aa-kind button.on { background: var(--surface); color: var(--accent-ink); }
+.aa-notice { padding: 10px 12px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.aa-notice p { margin: 0; white-space: normal; }
+.aa-notice p + p { margin-top: 6px; color: var(--muted); }
+.aa-notice b { font-weight: 600; color: var(--ink); }
+.acc-add .ap-acts { margin-top: 2px; }
+.menu.acc-add .ap-acts .i { width: 13px; height: 13px; }
+@media (pointer: coarse) {
+  .aa-f .input { height: 44px; font-size: 16px; } /* iOS zooms into anything smaller */
+  .menu.acc-add .aa-kind button, .menu.acc-add .ap-acts button { min-height: 44px; }
+}
 .sx-login { margin: 0 14px 12px 50px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .sx-login[hidden] { display: none; }
 .sx-login p { margin: 0; }

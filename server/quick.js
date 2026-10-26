@@ -1,6 +1,7 @@
 // One quick question to a cheap model, through whichever harness is installed: the scout and the
 // judge use it. Read-only (plan mode), no wisp protocol, a hard time limit, and the reply's JSON.
 
+import { sideEnv } from './accounts.js';
 import { adapters } from './adapters/index.js';
 
 // Cheapest first: what the scout and judge run on when it's installed.
@@ -36,6 +37,7 @@ export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheape
         model: pick.model,
         effort: '',
         systemPrompt: 'You are a helper inside wisp. Answer with one JSON object and nothing else.',
+        accountEnv: sideEnv(pick.agent),
         attachments: [],
         onEvent: (e) => {
           if (e.type === 'result') text = e.isError ? '' : e.text || '';

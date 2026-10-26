@@ -55,13 +55,23 @@ export function openapi({ version, port }) {
       },
       '/router/reset': { post: { summary: 'Forget what Auto learned here (the shipped starting point stays)', responses: { 200: json({ type: 'object' }) } } },
       '/agents/{aid}/login': {
-        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string', enum: ['claude', 'codex', 'cursor', 'grok', 'gh'] } }],
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string', enum: ['claude', 'codex', 'cursor', 'grok', 'gh'] } }, { name: 'account', in: 'query', schema: { type: 'string' }, description: 'One of the harness’s extra accounts; none: the CLI’s own' }],
         get: { summary: 'Whether this harness is signed in, and the sign-in in progress: state (idle | running | waiting | done | failed | cancelled), url to open, code to enter there, needsInput when it waits for a code pasted back', responses: { 200: json({ type: 'object' }) } },
         post: { summary: 'Start the harness’s own login (claude auth login, codex login --device-auth, …). Its login stays where the CLI keeps it', responses: { 200: json({ type: 'object' }), 400: err[400] } },
         delete: { summary: 'Cancel the sign-in in progress', responses: { 200: json({ type: 'object' }) } },
       },
       '/agents/{aid}/login/input': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Paste back the code the sign-in page showed', requestBody: body({ type: 'object', required: ['code'], properties: { code: { type: 'string' } } }), responses: { 200: json({ type: 'object' }), 409: json(ref('Error')) } } },
       '/agents/{aid}/logout': { parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Sign the harness out (its own logout)', responses: { 200: json({ type: 'object' }) } } },
+      '/agents/{aid}/accounts': {
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string', enum: ['claude', 'codex'] } }],
+        get: { summary: 'The harness’s accounts (several subscriptions), in your order: id, label, email, plan, kind (personal | work), default, state (ready | limit | signedOut), until. wisp never switches accounts at a limit; the turn asks (turn.limit)', responses: { 200: json({ type: 'object' }) } },
+        post: { summary: 'Add an account: a login folder of its own, linked to the CLI’s for everything but the login. Its sign-in starts at once (login)', requestBody: body({ type: 'object', properties: { label: { type: 'string' }, kind: { type: 'string', enum: ['personal', 'work'], description: 'None: guessed from its plan once signed in' } } }), responses: { 200: json({ type: 'object' }), 400: err[400] } },
+      },
+      '/agents/{aid}/accounts/{acc}': {
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'acc', in: 'path', required: true, schema: { type: 'string' } }],
+        patch: { summary: 'Rename an account, set its kind, or move it up or down your order', requestBody: body({ type: 'object', properties: { label: { type: 'string' }, kind: { type: 'string', enum: ['personal', 'work'] }, move: { type: 'string', enum: ['up', 'down'] } } }), responses: { 200: json({ type: 'object' }), 404: err[404] } },
+        delete: { summary: 'Sign an extra account out and remove it (not the CLI’s own)', responses: { 200: json({ type: 'object' }), 400: err[400] } },
+      },
       '/agents/{aid}/keys': {
         parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string', enum: ['opencode'] } }],
         get: { summary: 'Which providers of a harness that signs in with an API key have one (opencode: Zen, Go). Never the key', responses: { 200: json({ type: 'object' }), 400: err[400] } },
@@ -310,6 +320,16 @@ export function openapi({ version, port }) {
       },
       '/machines/{mid}/agents/{aid}/login/input': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Paste back the code, on the machine', requestBody: body({ type: 'object', required: ['code'], properties: { code: { type: 'string' } } }), responses: { 200: json({ type: 'object' }) } } },
       '/machines/{mid}/agents/{aid}/logout': { parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Sign the harness out on the machine', responses: { 200: json({ type: 'object' }) } } },
+      '/machines/{mid}/agents/{aid}/accounts': {
+        parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }],
+        get: { summary: 'The harness’s accounts on the machine (as GET /agents/{aid}/accounts there)', responses: { 200: json({ type: 'object' }) } },
+        post: { summary: 'Add an account on the machine; its sign-in starts there', requestBody: body({ type: 'object', properties: { label: { type: 'string' } } }), responses: { 200: json({ type: 'object' }) } },
+      },
+      '/machines/{mid}/agents/{aid}/accounts/{acc}': {
+        parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'acc', in: 'path', required: true, schema: { type: 'string' } }],
+        patch: { summary: 'Rename or reorder an account on the machine', requestBody: body({ type: 'object', properties: { label: { type: 'string' }, move: { type: 'string', enum: ['up', 'down'] } } }), responses: { 200: json({ type: 'object' }) } },
+        delete: { summary: 'Sign out and remove an account on the machine', responses: { 200: json({ type: 'object' }) } },
+      },
       '/machines/{mid}/agents/{aid}/keys': {
         parameters: [{ name: 'mid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'aid', in: 'path', required: true, schema: { type: 'string' } }],
         get: { summary: 'Which providers have an API key on the machine (as GET /agents/{aid}/keys there)', responses: { 200: json({ type: 'object' }) } },
@@ -378,7 +398,7 @@ export function openapi({ version, port }) {
         parameters: [id],
         post: {
           summary: 'Follow up (answers a pending ask_user question if there is one). Text starting with /btw is a side question instead (see /btw). Text starting with @Name (a crew member) goes to that member, whose answer lands on the latest turn’s btw list ({ crew: [entry] }); a member named later in the text joins the task’s delegates',
-          requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, queue: { type: 'boolean', description: 'Wait for the current run instead of interrupting it' }, mode: { enum: ['plan', 'edits', 'auto'], description: 'Switch the session to this mode from this follow-up on' }, agent: { type: 'string', description: 'Switch to this harness from this follow-up on; it is handed the turns it has not seen' }, model: { type: 'string', description: 'Switch model (empty: the harness default)' }, effort: { type: 'string', description: 'Switch thinking level (empty: the default)' }, subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'] }, description: 'Give the lead this team from this follow-up on (same shape as a launch’s `subagents`; [] removes it). Members it already used keep their conversation' }, preset: { type: 'string', description: 'Id of a saved team (`/teams`), used when `subagents` is absent' } } }),
+          requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, queue: { type: 'boolean', description: 'Wait for the current run instead of interrupting it' }, mode: { enum: ['plan', 'edits', 'auto'], description: 'Switch the session to this mode from this follow-up on' }, agent: { type: 'string', description: 'Switch to this harness from this follow-up on; it is handed the turns it has not seen' }, model: { type: 'string', description: 'Switch model (empty: the harness default)' }, effort: { type: 'string', description: 'Switch thinking level (empty: the default)' }, account: { type: 'string', description: 'Switch to another of the harness’s accounts (`/agents/{aid}/accounts`) from this follow-up on' }, subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'] }, description: 'Give the lead this team from this follow-up on (same shape as a launch’s `subagents`; [] removes it). Members it already used keep their conversation' }, preset: { type: 'string', description: 'Id of a saved team (`/teams`), used when `subagents` is absent' } } }),
           responses: { 200: json({ type: 'object', properties: { answered: { type: 'boolean' }, queued: { type: 'boolean' }, interrupted: { type: 'boolean' }, ahead: { type: 'integer' }, btw: ref('Btw') } }), 400: err[400] },
         },
       },
@@ -501,6 +521,7 @@ export function openapi({ version, port }) {
             mode: { enum: ['plan', 'edits', 'auto'], default: 'auto' },
             model: { type: 'string' },
             effort: { type: 'string', description: 'Thinking level: low, medium, high, xhigh, max (per harness)' },
+            account: { type: 'string', description: 'Which of the harness’s accounts to run on (`/agents/{aid}/accounts`); none: your last pick (skipping one already at its usage limit)' },
             attachments: { type: 'array', items: { type: 'string' }, description: 'Upload ids' },
             worktree: { type: 'boolean', description: 'Run in a fresh git worktree + branch. Default: on in git repos (Settings), off in plan mode' },
             subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'], properties: { name: { type: 'string' }, agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' }, use: { type: 'string', description: 'When the lead should pick this one' }, count: { type: 'integer', minimum: 1, maximum: 5, description: 'Identical copies that take tasks in parallel (name#1, name#2, …); 12 in all' }, machine: { type: 'string', description: 'Where it runs: empty (with the lead), `here` (this computer) or a machine id. One on another place works on a copy of the lead’s work there; its changes come back as a patch' } } }, description: 'A team the lead can delegate to through the injected `delegate` tool. Each runs as a child session in the lead’s folder' },

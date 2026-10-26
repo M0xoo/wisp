@@ -57,6 +57,7 @@
 .tx-step:is(.k-ask, .k-wait) .tx-ic, .tx-step.k-ask .tx-label { color: var(--warn); }
 .tx-step.k-answer .tx-ic { color: var(--good); }
 .tx-step.by-wisp .tx-ic { color: var(--accent); }
+.tx-step.k-account .tx-ic { color: var(--warn); } /* an account note from before limits asked first (older tasks) */
 .tx-step.by-wisp .tx-label { color: var(--muted); }
 /* What you were asked and answered, and plan lines, read in full. */
 .tx-step:is(.k-ask, .k-answer, .k-plan, .k-check, .k-background, .by-wisp) .tx-label { white-space: normal; }

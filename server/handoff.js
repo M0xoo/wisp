@@ -17,10 +17,12 @@ const KEEP = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tests', 'c
 // that another harness filled counts: on its own, a harness has nothing to catch up on.
 // Turns that ran on another place before the task moved here (t.moved) count as unseen by every
 // harness: their conversations stayed there.
-export function missedTurns(session, agent, resumeId) {
+// mine(turn): whether the conversation being resumed ran that turn (by default: the same harness;
+// a harness whose conversations stay with the login also needs the same account).
+export function missedTurns(session, agent, resumeId, mine = (t) => (t.agent || agent) === agent) {
   const prior = session.turns.slice(0, -1);
-  const missed = resumeId ? prior.slice(prior.findLastIndex((t) => !t.moved && (t.agent || agent) === agent) + 1) : prior;
-  return missed.some((t) => t.moved || (t.agent || agent) !== agent) ? missed : [];
+  const missed = resumeId ? prior.slice(prior.findLastIndex((t) => !t.moved && mine(t)) + 1) : prior;
+  return missed.some((t) => t.moved || !mine(t)) ? missed : [];
 }
 
 // One earlier turn as markdown: the request, its report and the files it edited. /btw uses it too.
@@ -43,8 +45,8 @@ export function turnText(t, n, name) {
 
 // The note for `agent` taking the next turn, or '' when it has seen everything.
 // name(turn) → the harness's display name for that turn.
-export function handoffNote(session, agent, resumeId, name) {
-  const missed = missedTurns(session, agent, resumeId);
+export function handoffNote(session, agent, resumeId, name, mine) {
+  const missed = missedTurns(session, agent, resumeId, mine);
   if (!missed.length) return '';
   const all = session.turns.slice(0, -1);
   const parts = [];
@@ -57,7 +59,8 @@ export function handoffNote(session, agent, resumeId, name) {
   }
   const dropped = missed.length - parts.length;
   const fresh = !resumeId;
-  const others = [...new Set(missed.filter((t) => t.agent !== agent).map(name))].join(', ');
+  // The same harness on another account (server/accounts.js) has no other name to give.
+  const others = [...new Set(missed.filter((t) => t.agent !== agent).map(name))].join(', ') || `${name(missed.at(-1))}, signed in to another account`;
   const places = [...new Set(missed.map((t) => t.moved).filter(Boolean))].join(', ');
   const intro = places
     ? `You are taking over a task that ran on another computer (${places})${others ? `, on ${others}` : ''}, and was moved here. Its work so far is already in this folder: committed work as commits, the rest as uncommitted changes. Below is what happened so far, oldest first; read the files and \`git diff\` for the details, then carry on with the follow-up.`

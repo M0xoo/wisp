@@ -328,6 +328,9 @@ body.split.pane-wide .it-props .model-logo { flex: 1 0 100%; order: 2; width: au
 body.split.pane-wide .it-props .model-logo > * { width: 13px; height: 13px; flex: none; margin-top: 2px; }
 body.split.pane-wide .it-props .model-logo::after { content: attr(data-tip); position: static; opacity: 1; transform: none; transition: none; padding: 0; background: none; color: var(--ink-2); font-size: 12.5px; white-space: normal; }
 body.split.pane-wide .it-props .model-logo.routed::before { right: auto; bottom: auto; left: 9px; top: 11px; }
+/* the account's initial, bottom-right of the logo; Auto's dot moves to its top-right */
+body.split.pane-wide .it-props .model-logo > .acc-i { right: auto; bottom: auto; left: 6px; top: 8px; width: 12px; height: 12px; margin: 0; }
+body.split.pane-wide .it-props .model-logo.routed:has(> .acc-i)::before { top: -1px; }
 body.split.pane-wide .it-props > :is(.q-proj, .q-machine) {
   flex: 1 0 100%; order: 3; position: relative; max-width: none; padding: 0 0 0 22px; background: none; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
 }

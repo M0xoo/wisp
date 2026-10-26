@@ -20,7 +20,7 @@ import { connectMachine } from './machines.js';
 import { placeMenu } from './place-menu.js';
 import { machineById, placeName } from './places.js';
 import { runnerPicker } from './runner-picker.js';
-import { agentById, agentName, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedEffort, savedModel } from './runners.js';
+import { accountMark, accountOf, agentById, agentName, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepFollowing, keepInPlace, watching } from './scroll.js';
 import { shipDialog } from './ship.js';
 import { slashMenu } from './slash.js';
@@ -227,14 +227,15 @@ function paintReplyMode(id, btn) {
 
 // The harness, model and thinking level the next follow-up runs on: the session's own until the
 // user picks another here. Like the mode, the pick goes out with that follow-up and stays.
+// The account too ('' when the harness has one, or wisp picks): follow-ups stay on the task's.
 const replyRunner = (id) => {
   const s = S.full.get(id);
-  return S.replyRunners.get(id) || { agent: s?.agent, model: s?.model || '', effort: s?.effort || '' };
+  return S.replyRunners.get(id) || { agent: s?.agent, model: s?.model || '', effort: s?.effort || '', account: s?.account || '' };
 };
 
 function setReplyRunner(id, run) {
   const s = S.full.get(id);
-  if (s && run.agent === s.agent && run.model === (s.model || '') && run.effort === (s.effort || '')) S.replyRunners.delete(id);
+  if (s && run.agent === s.agent && run.model === (s.model || '') && run.effort === (s.effort || '') && (run.account || '') === (s.account || '')) S.replyRunners.delete(id);
   else S.replyRunners.set(id, run);
   updateDock(id);
 }
@@ -246,9 +247,10 @@ function pickReplyRunner(id, btn) {
   // The session's own harness offers its own model first; other harnesses their remembered one.
   const model = (a) => (a === s.agent && (agentById(a)?.models || []).some((m) => m.id === s.model) ? s.model : savedModel(a));
   const effort = (a, m) => (a === s.agent && m === s.model && effortsFor(a, m).includes(s.effort) ? s.effort : savedEffort(a, m));
+  const account = (a) => (a === s.agent && s.account ? s.account : savedAccount(a));
   const back = $('.reply', S.nodes.get(id)?.card); // back to typing the follow-up
-  runnerPicker(btn, { agent: cur.agent, model: cur.model, effort: cur.effort, savedModel: model, savedEffort: effort, places: [replyPlace(id)], back }, (agent, m, e) => {
-    setReplyRunner(id, { agent, model: m, effort: e });
+  runnerPicker(btn, { agent: cur.agent, model: cur.model, effort: cur.effort, account: cur.account || '', savedModel: model, savedEffort: effort, savedAccount: account, places: [replyPlace(id)], back }, (agent, m, e, acc) => {
+    setReplyRunner(id, { agent, model: m, effort: e, account: acc || '' });
   });
 }
 
@@ -261,14 +263,15 @@ function paintReplyRunner(id, btn) {
   // One quiet logo until it changes; then it says where the next follow-up goes.
   const model = (run.model && agentById(run.agent)?.models?.find((m) => m.id === run.model)?.label) || run.model || 'Default';
   const label = run.agent === s?.agent ? model : `${harness} · ${model}`;
-  btn.innerHTML = `<span class="rb-logo">${harnessLogo(run.agent)}</span>${changed ? `<span class="cr-label">${esc(label)}</span>${run.effort ? `<span class="rb-e">${esc(effortLabel(run.effort))}</span>` : ''}` : ''}`;
-  const now = runnerTip(s?.agent, s?.model, s?.effort);
+  const acc = accountOf(run.agent, run.account);
+  btn.innerHTML = `<span class="rb-logo">${harnessLogo(run.agent)}${acc ? accountMark(acc) : ''}</span>${changed ? `<span class="cr-label">${esc(label)}</span>${run.effort ? `<span class="rb-e">${esc(effortLabel(run.effort))}</span>` : ''}${acc ? `<span class="rb-a">${esc(acc.label)}</span>` : ''}` : ''}`;
+  const now = runnerTip(s?.agent, s?.model, s?.effort, s?.account);
   const where = s?.machine || S.replyPlaces.has(id) ? ` (on ${placeName(replyPlace(id))})` : '';
   btn.title = !changed
     ? `${now}\nPick another harness or model for your next follow-up${where}`
     : run.agent !== s.agent
-      ? `${runnerTip(run.agent, run.model, run.effort)}\nYour next follow-up moves this task from ${agentName(s.agent)} to ${harness}, with the conversation so far. Click to change`
-      : `${runnerTip(run.agent, run.model, run.effort)}\nYour next follow-up switches from ${now}. Same conversation. Click to change`;
+      ? `${runnerTip(run.agent, run.model, run.effort, run.account)}\nYour next follow-up moves this task from ${agentName(s.agent)} to ${harness}, with the conversation so far. Click to change`
+      : `${runnerTip(run.agent, run.model, run.effort, run.account)}\nYour next follow-up switches from ${now}. Same conversation. Click to change`;
   btn.hidden = !s || s.agent === 'wisp' || !!s.parentId || !harnessesAt([replyPlace(id)]).some((a) => a.available);
 }
 
@@ -334,7 +337,7 @@ function setReplyPlace(id, k) {
   if (there.length && !there.some((a) => a.id === run.agent)) {
     const a = there[0].id;
     const m = savedModel(a);
-    setReplyRunner(id, { agent: a, model: m, effort: savedEffort(a, m) });
+    setReplyRunner(id, { agent: a, model: m, effort: savedEffort(a, m), account: savedAccount(a) });
   }
   updateDock(id);
 }

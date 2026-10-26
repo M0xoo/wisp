@@ -80,7 +80,7 @@ export function register(r, app) {
     if (s.agent === 'wisp') throw bad(`This is the tour — launch a real wisp to ${what}.`);
   };
   // A follow-up's harness switch, checked: a harness that's installed here, on a lead (not a subagent).
-  const followUpRun = async (s, { agent, model, effort }) => {
+  const followUpRun = async (s, { agent, model, effort, account }) => {
     agent = agent ? String(agent) : s.agent;
     if (agent !== s.agent) {
       if (s.parentId) throw bad('A subagent runs on the harness its lead picked for it.');
@@ -88,7 +88,7 @@ export function register(r, app) {
       const found = (await listAgents()).find((a) => a.id === agent);
       if (!found?.available) throw bad(`${adapters[agent].name} isn't installed on this computer.`);
     }
-    return { agent, ...(model !== undefined && { model: String(model || '') }), ...(effort !== undefined && { effort: String(effort || '') }) };
+    return { agent, ...(model !== undefined && { model: String(model || '') }), ...(effort !== undefined && { effort: String(effort || '') }), ...(account !== undefined && { account: String(account || '') }) };
   };
   // A follow-up's new team, checked like a launch's: only a lead has one.
   const followUpTeam = (s, { subagents, preset }) => {
@@ -272,7 +272,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/reply',
     one(async (c, s) => {
-      const { text, attachments, queue, mode, agent, model, effort, machine, subagents, preset } = await c.body();
+      const { text, attachments, queue, mode, agent, model, effort, account, machine, subagents, preset } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
       if (s.kind === 'reminder') return c.send(409, { error: 'A reminder has no agent to follow up with. Start a new task instead.' });
@@ -298,8 +298,8 @@ export function register(r, app) {
       // machine: carry the task on on a machine instead (services/move.js). '' is here, where it is.
       // A /btw side question never moves it.
       if (typeof machine === 'string' && machine && btwQuestion(text) === null) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));
-      // agent / model / effort: run this follow-up (and the ones after it) on another harness or model.
-      const run = agent !== undefined || model !== undefined || effort !== undefined ? await followUpRun(s, { agent, model, effort }) : undefined;
+      // agent / model / effort / account: run this follow-up (and the ones after it) on another harness, model or account.
+      const run = agent !== undefined || model !== undefined || effort !== undefined || account !== undefined ? await followUpRun(s, { agent, model, effort, account }) : undefined;
       c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team));
     }),
   );

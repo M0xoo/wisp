@@ -33,6 +33,7 @@ import { createCloud } from './services/cloud.js';
 import { createComputer } from './services/computer.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
+import { Accounts, useAccounts } from './accounts.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
@@ -83,6 +84,11 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   const store = new Store();
   const token = randomBytes(16).toString('hex');
   const runner = new Runner(store, { url: `http://127.0.0.1:${port}`, token });
+  // Several accounts per harness (server/accounts.js): runs, sign-ins and wisp's own small runs.
+  const accounts = new Accounts(store.home);
+  useAccounts(accounts);
+  runner.accounts = accounts;
+  runner.accountPref = (agent) => store.config.defaults.accounts?.[agent] || '';
   const events = eventStream();
   const app = {
     port,
@@ -182,7 +188,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   });
   runner.on('ended', ({ session, turn, interrupted }) => {
     if (!session.route || interrupted) return;
-    if (session.turns.indexOf(turn) === 0) app.router.signal(session.id, { error: turn.status === 'error' || undefined, costUsd: turn.stats?.costUsd, ms: turn.endedAt - turn.startedAt });
+    // A run that stopped at its account's usage limit isn't the model's fault.
+    if (session.turns.indexOf(turn) === 0 && !turn.limit) app.router.signal(session.id, { error: turn.status === 'error' || undefined, costUsd: turn.stats?.costUsd, ms: turn.endedAt - turn.startedAt });
     app.auto.signals(summarize(session, store));
   });
   trackTurns(app);
@@ -194,11 +201,14 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.computer = createComputer(app);
   // Signing in to a harness from the page; once in, its models are looked up again.
   const loginStates = new Map();
+  app.accounts = accounts;
   app.agentLogin = createAgentLogin({
+    accounts,
     onChange: (v) => {
       app.broadcast('agent-login', v);
-      if (loginStates.get(v.agent) === v.state) return;
-      loginStates.set(v.agent, v.state);
+      const k = `${v.agent}/${v.account || ''}`;
+      if (loginStates.get(k) === v.state) return;
+      loginStates.set(k, v.state);
       const step = { running: 'started', done: 'done', failed: 'failed', cancelled: 'cancelled' }[v.state];
       if (step) app.telemetry.track('agent_login', { agent: v.agent, step });
     },

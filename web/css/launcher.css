@@ -124,7 +124,7 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .runners .rb-logo { flex: none; }
 .runners .rb-h { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .runners .rb-m { flex: 0 10000 auto; min-width: 0; } /* the model gives way well before the harness name */
-.runners.cmp .rb-e, .l-bar:has(.runners.cmp) #wtBtn span { display: none; }
+.runners.cmp :is(.rb-e, .rb-a), .l-bar:has(.runners.cmp) #wtBtn span { display: none; }
 /* three or four harnesses: logos only (each button's tooltip names it), the bar's other labels fold too */
 .runners.many .runner-btn { flex: none; padding-inline: 6px; }
 .runners.many :is(.rb-h, .rb-m) { display: none; }
@@ -132,7 +132,7 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .runners.many .runner-btn .chev { margin-left: 0; }
 .l-bar:has(.runners.many) :is(.mode-btn span, .team-btn .tb-label) { display: none; }
 /* a narrower bar: the place goes to its icon first, so the harness keeps its name */
-@container launcher (max-width: 720px) { .l-bar .where-btn span { display: none; } }
+@container launcher (max-width: 720px) { .l-bar .where-btn span, .runners .rb-a { display: none; } }
 /* two harnesses on a narrow bar: drop the model names, then the harness names (logos stay) */
 @container launcher (max-width: 640px) { .runners.cmp .rb-m { display: none; } }
 @container launcher (max-width: 520px) {
@@ -217,6 +217,15 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .rb-m { position: relative; margin-left: 13px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .rb-m::before { content: ''; position: absolute; left: -7px; top: 50%; width: 1px; height: 12px; margin-top: -6px; background: var(--line-2); }
 .rb-e { flex: none; margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: 11.5px; background: var(--accent-soft); color: var(--accent-ink); }
+/* the account, when the harness has more than one: its own part (the model gives way, it doesn't) */
+.rb-a { position: relative; flex: none; margin-left: 13px; color: var(--ink-2); white-space: nowrap; }
+.rb-a::before { content: ''; position: absolute; left: -7px; top: 50%; width: 1px; height: 12px; margin-top: -6px; background: var(--line-2); }
+/* an account's initial: neutral (no project colours), never the state; on a logo it sits bottom-right */
+.acc-i { display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--bg-2); color: var(--ink-2); font: 600 10px/1 var(--sans); font-style: normal; }
+.acc-i.lg { width: 22px; height: 22px; font-size: 11.5px; }
+.rb-logo { position: relative; }
+:is(.rb-logo, .model-logo) > .acc-i { display: grid; place-items: center; line-height: 1; position: absolute; right: -4px; bottom: -4px; width: 12px; height: 12px; border-color: var(--line-2); background: var(--surface); font-size: 7.5px; }
+.model-logo.routed:has(> .acc-i)::before { top: -3px; bottom: auto; }
 .runner-btn .chev { width: 12px; height: 12px; margin-left: 6px; color: var(--faint); transform: rotate(90deg); transition: transform 0.2s var(--ease); }
 .runner-btn.open .chev { transform: rotate(-90deg); }
 
@@ -257,6 +266,16 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .pk-seg button:hover { color: var(--ink); }
 .pk-seg button:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 .pk-seg button.on { background: var(--surface); color: var(--accent-ink); font-weight: 500; box-shadow: var(--shadow-1); }
+/* accounts: under Thinking, a segment per account (initial, label, a clock when at its limit) */
+.pk-effort + .pk-acct { border-top: 0; padding-top: 0; }
+.pk-acct .pk-seg { flex-wrap: wrap; }
+.pk-seg button.acc { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.pk-seg button.acc .acc-i { width: 16px; height: 16px; font-size: 9px; }
+.pk-seg button.on .acc-i { border-color: var(--accent-soft); }
+.pk-seg .acc-clock { width: 12px; height: 12px; color: var(--warn); }
+.pk-seg button.off { opacity: 0.5; cursor: not-allowed; }
+.pk-seg button.off:hover { color: var(--muted); }
+.pk-anote { margin: 0; padding: 0 2px; font-size: 12px; color: var(--muted); }
 .pk-empty { padding: 30px 10px; text-align: center; font-size: 13px; color: var(--muted); }
 /* a harness that isn't installed: its setup steps instead of models */
 .pk-setup { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 8px; }

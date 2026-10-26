@@ -18,6 +18,9 @@
 .c-bar .mode-btn.changed { background: var(--bg-2); }
 .t-mode { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; font: 500 11px var(--sans); color: var(--muted); border: 1px solid var(--line); }
 .t-mode .i { width: 12px; height: 12px; }
+/* a follow-up that ran on another account than the turn before */
+.t-acct { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
+.t-acct .acc-i { width: 14px; height: 14px; font-size: 8px; }
 .t-mode.m-plan { color: var(--accent-ink); }
 .t-mode.m-auto { color: var(--warn); }
 .send { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--ink); color: var(--bg); transition: opacity 0.15s; }
@@ -96,6 +99,8 @@
 .c-team.changed { background: var(--bg-2); color: var(--accent); padding-right: 9px; }
 .c-team:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 .cr-label { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.c-runner .rb-a { font-weight: 500; }
+@media (max-width: 720px) { .c-runner .rb-a { display: none; } }
 
 /* ---------- task mentions (features/mentions.js) ---------- */
 /* In a prompt box: the textarea's own text sits over a mirror that paints a chip under each @Title. */

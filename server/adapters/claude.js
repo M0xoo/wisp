@@ -108,7 +108,8 @@ export default {
   // grants: --allowedTools rules (Bash(npm publish)) for what the user allowed after a denial.
   // dirs: the task's other folders, which it may read and edit like cwd.
   // fork: resume a throwaway copy of resumeId's conversation, leaving the original as it is.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
+  // accountEnv: the account it runs on (CLAUDE_CONFIG_DIR, server/accounts.js), {} for the default.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, onEvent }) {
     const args = [
       '-p',
       '--output-format', 'stream-json',
@@ -117,7 +118,7 @@ export default {
     ];
     if (model) args.push('--model', model);
     if (effort) args.push('--effort', effort);
-    if (chromeEnabled()) args.push('--chrome');
+    if (chromeEnabled({ ...process.env, ...accountEnv })) args.push('--chrome');
     if (resumeId) args.push('--resume', resumeId);
     if (resumeId && fork) args.push('--fork-session', '--no-session-persistence');
     if (Object.keys(mcpServers).length) args.push('--mcp-config', JSON.stringify({ mcpServers }));
@@ -132,7 +133,7 @@ export default {
     args.push('--verbose'); // terminates the variadic flags above
     prompt += attachmentNote(attachments, 'Read images and PDFs with the Read tool');
 
-    const env = { ...process.env };
+    const env = { ...process.env, ...accountEnv };
     delete env.CLAUDECODE; // don't let a parent Claude Code session leak into the child
     delete env.CLAUDE_CODE_ENTRYPOINT;
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);

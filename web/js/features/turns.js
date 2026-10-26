@@ -16,7 +16,8 @@ import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from '.
 import { expand, fetchFull, renderFeed, reveal as revealTask, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
-import { agentName, DEFAULT_MODE, effortLabel, modelBadge, MODES } from './runners.js';
+import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUntil, modelBadge, MODES } from './runners.js';
+import { scheduleFollowUp } from './later.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
@@ -270,6 +271,72 @@ function modeSwitch(s, t) {
   return m ? `<span class="t-mode m-${m.id}" title="Switched from ${esc(MODES.find((x) => x.id === prev)?.label || prev)} to ${m.label} for this follow-up">${icon(m.icon)}${m.label}</span>` : '';
 }
 
+// A follow-up that ran on another account than the turn before says so, unless wisp's own note
+// in that turn (from older tasks, written before a limit asked you first) already names it.
+function accountSwitch(s, t) {
+  const i = s.turns.indexOf(t);
+  const prev = s.turns.slice(0, i).findLast((x) => x.account)?.account;
+  const acc = t.account && prev && t.account !== prev && accountOf(t.agent || s.agent, t.account);
+  if (!acc || (t.activity || []).some((a) => a.kind === 'account')) return '';
+  const was = accountOf(t.agent || s.agent, prev);
+  return `<span class="t-acct" title="${esc(`Ran on ${acc.label}${was ? `, not ${was.label}` : ''}`)}">${accountMark(acc)}${esc(acc.label)}</span>`;
+}
+
+// A run that hit its account's usage limit (turn.limit): the hero says so, and this card under it
+// offers what next. wisp never picks one by itself (the providers' terms, design/accounts.md).
+// Every button disables the card at once; a refusal turns it back on with a red toast.
+const CARRY_ON = 'Carry on from where the last run stopped at the usage limit.';
+const KIND_PLAN = { personal: 'a personal plan', work: 'a work plan' };
+
+function limitCard(s, t) {
+  const l = t.limit;
+  const at = limitUntil({ until: l.until });
+  const others = (l.others || []).filter((x) => x && x.id);
+  const to = S.agents.find((a) => a.id !== s.agent && a.id !== 'wisp' && a.available);
+  // Moving the conversation to an account of the other kind (work ↔ personal) says so, once.
+  const across = others.filter((x) => x.kind && l.kind && x.kind !== l.kind);
+  const note = across.length
+    ? `${across.map((x) => x.label).join(' and ')} ${across.length > 1 ? `are ${KIND_PLAN[across[0].kind].replace(/^a /, '')}s` : `is ${KIND_PLAN[across[0].kind]}`}. This conversation, with its code, will go to ${across.length > 1 ? 'the one you pick' : 'it'}.`
+    : '';
+  // Waiting: the follow-up sits above the reply box (Later); the card says it's been picked.
+  const waiting = (S.sessions.get(s.id)?.later || []).some((x) => x.text === CARRY_ON);
+  const node = el(`<div class="b-limit${waiting ? ' resolved' : ''}">
+      <div class="lm-acts">
+        ${l.until ? `<button class="primary sm" data-lm="wait" title="Schedules a follow-up for ${esc(at)}">${icon('clock')}Wait until ${esc(at)}</button>` : ''}
+        ${others.map((x) => `<button class="ghost sm" data-lm="account" data-acc="${esc(x.id)}">${accountMark(x)}Continue on ${esc(x.label)}</button>`).join('')}
+        ${to ? `<button class="ghost sm" data-lm="agent" data-agent="${esc(to.id)}">${icon('agent')}Hand to ${esc(to.name || agentName(to.id))}</button>` : ''}
+        ${l.extra ? `<a class="ghost sm" href="${esc(l.extra)}" target="_blank" rel="noopener">${icon('external')}Get extra usage</a>` : ''}
+      </div>
+      ${note ? `<p class="lm-note">${esc(note)}</p>` : ''}
+    </div>`);
+  const lock = (on) => {
+    node.classList.toggle('resolved', on);
+    for (const b of $$('button', node)) b.disabled = on;
+  };
+  if (waiting) lock(true);
+  node.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-lm]');
+    if (!b || b.disabled) return;
+    lock(true);
+    if (b.dataset.lm === 'wait') {
+      if (!(await scheduleFollowUp(s.id, { at: l.until, text: CARRY_ON }))) lock(false);
+      return;
+    }
+    const run = b.dataset.lm === 'agent' ? { agent: b.dataset.agent } : { account: b.dataset.acc };
+    const acc = others.find((x) => x.id === run.account);
+    const undo = startOptimistic(s.id, CARRY_ON, null, { run, live: acc ? `Continuing on ${acc.label}` : undefined });
+    try {
+      await api(`/sessions/${s.id}/reply`, { method: 'POST', body: { text: CARRY_ON, ...run } });
+      if (undo) scheduleRefetch(s.id);
+    } catch (err) {
+      undo?.();
+      lock(false);
+      toastError(err);
+    }
+  });
+  return node;
+}
+
 // `fold` is set for older turns the user unfolded, so they can tuck them away again. `tx`: the card
 // shows the full transcript.
 function renderTurn(s, t, isLatest, fold, tx) {
@@ -289,6 +356,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
       <div class="ask-foot">
         ${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}
         ${modeSwitch(s, t)}
+        ${accountSwitch(s, t)}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}, before the task moved`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         <time>${fmtDate(t.startedAt, DAY_TIME)}</time>
         ${cpLabel ? `<span class="cp-sha" title="Git checkpoint before this turn${cp.branch ? ` on ${esc(cp.branch)}` : ''} (${esc(cp.head)}${cp.dirty ? ' + uncommitted changes' : ''})">${icon('branch')}${esc(cpLabel)}</span>` : ''}
@@ -310,7 +378,15 @@ function renderTurn(s, t, isLatest, fold, tx) {
     node.append(renderWorking(s, t, tx));
   } else {
     const ctx = ctxFor(s, t, isLatest);
-    node.append(tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, ctx));
+    const out = tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, ctx);
+    if (isLatest && t.limit && s.state !== 'running') {
+      const card = el('<div class="blk blk-limit"></div>');
+      card.style.setProperty('--d', '110ms'); // right after the hero
+      card.append(limitCard(s, t));
+      const hero = $('.blk-hero', out);
+      hero ? hero.after(card) : out.prepend(card);
+    }
+    node.append(out);
     const subs = renderSubs(s, t);
     if (subs) node.append(subs);
     node.append(renderTrail(s, t, tx));

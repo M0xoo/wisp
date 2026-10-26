@@ -9,6 +9,7 @@ this covers how the code is laid out and the rules a change has to follow.
   `runner.js` runs sessions, `adapters/` has one file per harness, `spells.js` validates and stores
   spells, `spell-guide.js` is the reference the *Cast a spell* agent reads, `crew.js` runs the crew
   (named long-lived agents: their schedule, queue, memory and `@Name` mentions; their jobs are tasks).
+  `accounts.js` keeps a harness's several accounts (a login folder each, linked to the CLI's own).
 - `web/`: the page, vanilla JS as native ES modules, no build step. `index.html` holds the markup
   and the icon sprite, `css/` has one stylesheet per area (linked in order in `index.html`),
   `js/core/` (state, api, bus, DOM helpers), `js/ui/` (toasts, dialogs, popovers, keys) and

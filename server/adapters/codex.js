@@ -83,7 +83,8 @@ export default {
 
   // dirs: the task's other folders, writable like cwd.
   // fork: `exec fork` a copy of resumeId's conversation instead of resuming it (/btw).
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, onEvent }) {
+  // accountEnv: the account it runs on (CODEX_HOME, server/accounts.js), {} for the default.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
     // `resume` doesn't take --sandbox, so set it through config for both paths.
     if (mode === 'auto') args.push('--dangerously-bypass-approvals-and-sandbox');
@@ -183,7 +184,7 @@ export default {
       bin: BIN,
       args,
       cwd,
-      env: process.env,
+      env: { ...process.env, ...accountEnv },
       input,
       onEvent,
       onJson(msg) {
