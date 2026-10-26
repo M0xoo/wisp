@@ -7,7 +7,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { MOBILE, S } from '../core/state.js';
 import { ask } from '../ui/confirm.js';
 import { present } from '../ui/overlay.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
@@ -18,6 +18,7 @@ const list = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', '
 
 // Starting points for the empty list: the form filled in, the secret left for you.
 const EXAMPLES = [
+  { label: 'PostHog', name: 'posthog', transport: 'remote', url: 'https://mcp.posthog.com/mcp' },
   { label: 'GitHub', name: 'github', transport: 'remote', url: 'https://api.githubcopilot.com/mcp/', headers: [{ key: 'Authorization', placeholder: 'Bearer ghp_…' }] },
   { label: 'Filesystem', name: 'filesystem', transport: 'local', command: 'npx -y @modelcontextprotocol/server-filesystem ~/Documents' },
   { label: 'Postgres', name: 'postgres', transport: 'local', command: 'npx -y @modelcontextprotocol/server-postgres postgresql://localhost/mydb' },
@@ -27,7 +28,12 @@ let last = null; // the last list seen, painted at once next time while a fresh 
 let repaint = () => {}; // the open pane's, for answers that arrive from a form
 // What the server answered (every write returns the whole list): shown at once.
 const took = (v) => {
-  if (v?.connectors) (last = v), repaint();
+  if (v?.connectors) {
+    // Back from the browser: signed in, the wait is over.
+    for (const c of v.connectors) if (c.signedIn && signing.has(c.id) && c.signedIn.at >= signing.get(c.id) - 5000) signing.delete(c.id);
+    last = v;
+    repaint();
+  }
   return v;
 };
 
@@ -42,7 +48,26 @@ const host = (url) => {
   }
 };
 
+// Sign-ins open in the browser and come back to wisp; until then the row says it's waiting.
+const signing = new Map(); // connector id → when it started
+const SIGNING_MS = 10 * 60_000;
+
+export async function signIn(c) {
+  if (MOBILE) return toast(`Sign in to ${esc(c.name)} from wisp on your computer. It works here as soon as you have`);
+  const r = await tryApi(() => api(`/connectors/${c.id}/signin`, { method: 'POST', body: { origin: location.origin } }));
+  if (!r?.url) return;
+  signing.set(c.id, Date.now());
+  repaint();
+  const w = window.open(r.url, '_blank');
+  if (w) w.opener = null;
+  // In case the browser held the tab back (or it got closed): the same page again.
+  toast(`Approve wisp on ${esc(host(r.url))} to finish`, { timeout: 12_000, action: { label: 'Open again', run: () => window.open(r.url, '_blank') } });
+}
+
 function statusHtml(c) {
+  if (signing.has(c.id) && Date.now() - signing.get(c.id) > SIGNING_MS) signing.delete(c.id);
+  if (signing.has(c.id)) return '<span class="cx-status muted"><span class="orb tiny"></span>Signing in…</span>';
+  if (c.test?.auth && !c.testing) return `<span class="cx-status"><button class="primary sm" data-act="signin">${icon('lock')}Sign in</button></span>`;
   if (c.testing) return '<span class="cx-status muted"><span class="orb tiny"></span>Checking…</span>';
   if (!c.test) return '<span class="cx-status muted">Not checked</span>';
   if (c.test.ok) return `<span class="cx-status ok"><i class="dot ok"></i>${c.test.count} tool${c.test.count === 1 ? '' : 's'}</span>`;
@@ -50,7 +75,7 @@ function statusHtml(c) {
 }
 
 function rowHtml(c) {
-  const what = c.transport === 'local' ? `Local · <code>${esc(c.line || commandLine(c))}</code>` : `Remote · <code>${esc(host(c.url))}</code>`;
+  const what = c.transport === 'local' ? `Local · <code>${esc(c.line || commandLine(c))}</code>` : `Remote · <code>${esc(host(c.url))}</code>${c.signedIn ? ' · signed in' : ''}`;
   const own = c.own?.length ? `<small class="cx-own">${esc(list(c.own.map(agentName)))} ${c.own.length === 1 ? 'uses its' : 'use their'} own ${esc(c.name)}</small>` : '';
   return `<div class="sx-row cx-row${c.enabled ? '' : ' off'}" data-id="${esc(c.id)}">
     <span class="cx-ico">${icon('plug')}</span>
@@ -113,6 +138,7 @@ export function connectorsPane(box, host) {
     const c = find(b.closest('[data-id]')?.dataset.id);
     if (!c) return;
     if (act === 'edit') return openEditor(host, { item: c });
+    if (act === 'signin') return signIn(c);
     if (act === 'toggle') {
       c.enabled = !c.enabled;
       paint();
@@ -179,6 +205,11 @@ export function openEditor(host, { item, example, draft } = {}) {
         <label class="ce-stack" data-for="remote"><span>URL <small>its Streamable HTTP address, or an older one ending in /sse. Pasting JSON works here too</small></span>
           <input class="input mono" name="url" spellcheck="false" autocomplete="off" placeholder="https://mcp.example.com/mcp"></label>
         <div class="ce-stack" data-for="local"><span>Env vars <small>kept as secrets on this computer</small></span><div class="cx-pairs" data-kind="env"></div><button type="button" class="mem-add" data-act="pair" data-kind="env">${icon('plus')}Add env var</button></div>
+        <div class="ce-stack" data-for="remote"><span>Account <small>for a server you sign in to, like PostHog or Linear</small></span><div class="cx-acct">${
+          item?.signedIn
+            ? `<span class="cx-acct-text">${icon('check')}Signed in at <b>${esc(item.signedIn.host)}</b></span><button type="button" class="ghost sm" data-act="signout">Sign out</button>`
+            : `<button type="button" class="ghost sm" data-act="${item ? 'signin' : 'addsignin'}">${icon('lock')}${item ? 'Sign in with the browser' : 'Add and sign in'}</button><small>or give it an API key as a header</small>`
+        }</div></div>
         <div class="ce-stack" data-for="remote"><span>Headers <small>kept as secrets on this computer</small></span><div class="cx-pairs" data-kind="headers"></div><button type="button" class="mem-add" data-act="pair" data-kind="headers">${icon('plus')}Add header</button></div>
         <p class="cx-result" aria-live="polite"></p>
         <footer class="ce-foot">
@@ -265,6 +296,18 @@ export function openEditor(host, { item, example, draft } = {}) {
       return $(`.cx-pairs[data-kind="${kind}"] .cx-pair:last-child [data-f="key"]`, f).focus();
     }
     if (act === 'unpair') return b.closest('.cx-pair').remove();
+    if (act === 'signin' || act === 'addsignin') {
+      // An edit is saved first: the sign-in is for the URL you see.
+      const c = act === 'signin' && collect().url === item.url ? (close(), item) : await save();
+      if (c) signIn(c);
+      return;
+    }
+    if (act === 'signout') {
+      close();
+      const ok = took(await tryApi(() => api(`/connectors/${item.id}/signin`, { method: 'DELETE' })));
+      if (ok) toast(`Signed out of ${esc(item.name)}`);
+      return;
+    }
     if (act === 'drop') {
       if (!(await ask(`Delete ${item.name}?\n\nIts saved secrets go with it. Tasks already running keep it until they finish.`, { ok: 'Delete connector', danger: true, anchor: b }))) return;
       close();
@@ -300,16 +343,17 @@ export function openEditor(host, { item, example, draft } = {}) {
       }
     }
   });
-  f.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  // Checked, then back to the list with the row in place at once; refused: the form comes back
+  // with what you typed, and why. Resolves to the saved connector.
+  const save = async () => {
     const x = collect();
     const missing = !x.name ? 'name' : x.transport === 'local' ? (!x.command && 'command') : !x.url && 'url';
     if (missing) {
       $f(missing).setAttribute('aria-invalid', 'true');
-      return $f(missing).focus();
+      $f(missing).focus();
+      return null;
     }
     close();
-    // At once in the list, checking; refused: the form comes back with what you typed, and why.
     const was = last;
     if (last) {
       const row = { ...item, id: item?.id || 'new', name: x.name, transport: x.transport, line: x.command, url: x.url, enabled: item ? item.enabled : true, own: item?.own || [], test: null, testing: true };
@@ -319,7 +363,13 @@ export function openEditor(host, { item, example, draft } = {}) {
     if (!ok) {
       if (was) took(was);
       openEditor(host, { item, draft: asDraft(x) });
+      return null;
     }
+    return ok.connectors.find((c) => c.name === x.name) || null;
+  };
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    save();
   });
   for (const x of $$('input', f)) x.addEventListener('input', () => x.removeAttribute('aria-invalid'));
   setTimeout(() => {

@@ -52,6 +52,14 @@ export const slug = (s) =>
     .replace(/^_+|_+$/g, '')
     .slice(0, 40);
 
+const hostOf = (u) => {
+  try {
+    return new URL(u).host;
+  } catch {
+    return '';
+  }
+};
+
 // What the page sees: never a secret's value, only which keys are set.
 export function connectorView(c, secrets) {
   const has = (k) => secrets.get(ns(c.id), k) != null;
@@ -66,6 +74,8 @@ export function connectorView(c, secrets) {
     headers: (c.headers || []).map((key) => ({ key, set: has(`header:${key}`) })),
     enabled: c.enabled !== false,
     test: c.test || null,
+    // Signed in with OAuth (server/connector-auth.js): where, and since when.
+    signedIn: c.oauth && has('oauth:access') ? { host: hostOf(c.oauth.issuer), at: c.oauth.signedInAt || null } : null,
     addedAt: c.addedAt,
   };
 }
@@ -107,8 +117,11 @@ export function normalizeConnector(body, list, was = null) {
     }
     if (!c.command) throw bad('What command starts the server? For example npx -y @modelcontextprotocol/server-filesystem ~/notes');
     delete c.url;
+    delete c.oauth;
   } else {
     if (b.url !== undefined) c.url = String(b.url || '').trim();
+    // A sign-in belongs to the server it was for.
+    if (c.oauth && c.url !== was?.url) delete c.oauth;
     let u;
     try {
       u = new URL(c.url);
@@ -138,7 +151,7 @@ export function normalizeConnector(body, list, was = null) {
 // Write a connector's secrets, and drop the ones it no longer has.
 export function storeSecrets(secrets, c, sets) {
   for (const [k, v] of sets) secrets.set(ns(c.id), k, v);
-  const keep = new Set([...(c.env || []).map((k) => `env:${k}`), ...(c.headers || []).map((k) => `header:${k}`)]);
+  const keep = new Set([...(c.env || []).map((k) => `env:${k}`), ...(c.headers || []).map((k) => `header:${k}`), ...(c.oauth ? ['oauth:access', 'oauth:refresh', 'oauth:secret'] : [])]);
   for (const k of Object.keys(secrets.data[ns(c.id)] || {})) if (!keep.has(k)) secrets.delete(ns(c.id), k);
 }
 
@@ -275,7 +288,10 @@ export function foundServers(list, { values = false } = {}) {
 // The connectors one turn gets, as mcpServers entries: each starts the proxy by id. Plan mode gets
 // none (their tools would run outside a read-only sandbox, already approved); a harness that has a
 // server by that name in its own config keeps its own.
-export function turnServers(list, { agent, mode, cwd, home }) {
+// bridge: wisp's own URL and token, for the proxy to ask for a signed-in connector's fresh token.
+const proxyEnv = (home, bridge) => ({ ELECTRON_RUN_AS_NODE: '1', WISP_HOME: home, ...(bridge && { WISP_URL: bridge.url, WISP_TOKEN: bridge.token }) });
+
+export function turnServers(list, { agent, mode, cwd, home, bridge }) {
   if (mode === 'plan' || !REACH.includes(agent)) return {};
   const on = (list || []).filter((c) => c.enabled !== false);
   if (!on.length) return {};
@@ -289,7 +305,7 @@ export function turnServers(list, { agent, mode, cwd, home }) {
           command: process.execPath,
           args: [PROXY, c.id],
           // Inside the desktop app execPath is Electron; this makes it run the proxy as Node.
-          env: { ELECTRON_RUN_AS_NODE: '1', WISP_HOME: home },
+          env: proxyEnv(home, bridge),
         },
       ]),
   );
@@ -297,9 +313,9 @@ export function turnServers(list, { agent, mode, cwd, home }) {
 
 // --- Test: start it through the proxy, the way an agent would, and list its tools ---
 
-export function probe(c, home) {
+export function probe(c, home, bridge) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [PROXY, c.id], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', WISP_HOME: home }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [PROXY, c.id], { env: { ...process.env, ...proxyEnv(home, bridge) }, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
     let err = '';
     const tools = [];
@@ -315,7 +331,9 @@ export function probe(c, home) {
     const tidy = (t) => t.replace(/^wisp: /, '').replace(`${c.name}: `, '').replace(/^./, (x) => x.toUpperCase());
     const failed = (fallback) => {
       const tail = err.trim().split(/\r?\n/).filter(Boolean).slice(-3).join(' · ');
-      finish({ ok: false, error: clip(tidy(tail || fallback), 300) });
+      const error = clip(tidy(tail || fallback), 300);
+      // Refused for want of a sign-in: the row offers Sign in.
+      finish({ ok: false, error, ...(/needs sign-in|HTTP 40[13]/i.test(error) && { auth: true }) });
     };
     const timer = setTimeout(() => failed('It didn’t answer within a minute'), PROBE_MS);
     const send = (msg) => child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', ...msg })}\n`);

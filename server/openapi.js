@@ -194,6 +194,11 @@ export function openapi({ version, port }) {
         delete: { summary: 'Remove a connector and its secrets', responses: { 200: json({ type: 'object' }), 404: err[404] } },
       },
       '/connectors/{id}/test': { parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Start it the way an agent would and list its tools; the outcome is kept as test', responses: { 200: json({ type: 'object' }), 404: err[404] } } },
+      '/connectors/{id}/signin': {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        post: { summary: 'Sign in to a remote connector with OAuth (MCP authorization: discovery, dynamic client registration, PKCE). Returns { url } to open in a browser; it comes back to origin + /api/connectors/oauth/callback, and the tokens stay in secrets.json, refreshed by wisp', requestBody: body({ type: 'object', required: ['origin'], properties: { origin: { type: 'string', description: 'This wisp’s address as the browser sees it' } } }), responses: { 200: json({ type: 'object', properties: { url: { type: 'string' } } }), 400: err[400], 404: err[404] } },
+        delete: { summary: 'Sign out: forget its tokens', responses: { 200: json({ type: 'object' }), 404: err[404] } },
+      },
       '/connectors/import': { post: { summary: 'Add servers found in the harnesses’ own configs (names from found); their secrets are read on the server. dismiss hides names from found. skipped lists the ones refused, with why', requestBody: body({ type: 'object', properties: { names: { type: 'array', items: { type: 'string' } }, dismiss: { type: 'array', items: { type: 'string' } } } }), responses: { 200: json({ type: 'object' }) } } },
       '/teams': {
         get: { summary: 'Saved subagent presets: a team the lead can delegate to', responses: { 200: json({ type: 'array', items: ref('Team') }) } },

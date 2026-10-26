@@ -1,10 +1,13 @@
 // Connectors: MCP servers every task's agent gets (server/connectors.js). Secrets go in and never
 // come back out: the page sees which keys are set, not their values.
 
+import { createConnectorAuth } from '../connector-auth.js';
 import { connectorView, foundServers, normalizeConnector, ownNames, probe, REACH, storeSecrets } from '../connectors.js';
 
+const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`);
+
 export function register(r, app) {
-  const { store, secrets } = app;
+  const { store, secrets, runner } = app;
   const list = () => (store.config.connectors ||= []);
   // Harnesses that keep their own copy of a connector (a server by that name in their config).
   const view = () => {
@@ -27,7 +30,7 @@ export function register(r, app) {
     probing.add(x.id);
     app.broadcast('connectors', {});
     try {
-      x.test = await probe(x, store.home);
+      x.test = await probe(x, store.home, runner.bridge);
     } finally {
       probing.delete(x.id);
     }
@@ -35,6 +38,11 @@ export function register(r, app) {
     app.broadcast('connectors', {});
     return x.test;
   };
+
+  // Signing in with OAuth: the page opens the URL start() gives, the browser comes back to the
+  // callback, and the connector is checked again with its new token.
+  const auth = createConnectorAuth({ store, secrets, onSignedIn: (x) => test(x).catch(() => {}) });
+  app.connectorAuth = auth;
 
   r.route('GET', '/connectors', (c) => c.send(200, view()));
   r.route('POST', '/connectors', async (c) => {
@@ -96,4 +104,60 @@ export function register(r, app) {
     // Test them in the background: the rows fill in their tool counts as each answers.
     for (const x of added) test(x).catch(() => {});
   });
+
+  r.route('POST', '/connectors/:id/signin', async (c) => {
+    const x = find(c);
+    if (!x) return c.send(404, { error: 'no such connector' });
+    const { origin } = await c.body();
+    let redirect;
+    try {
+      redirect = new URL('/api/connectors/oauth/callback', String(origin || '')).href;
+    } catch {
+      return c.send(400, { error: 'origin: the page’s own address, where the browser comes back to' });
+    }
+    c.send(200, { url: await auth.start(x, redirect) });
+  });
+  r.route('DELETE', '/connectors/:id/signin', (c) => {
+    const x = find(c);
+    if (!x) return c.send(404, { error: 'no such connector' });
+    auth.signOut(x);
+    delete x.test;
+    changed(c);
+  });
+  // Where the sign-in page sends the browser back: a page that says how it went and closes.
+  r.route(
+    'GET',
+    '/connectors/oauth/callback',
+    async (c) => {
+      let title;
+      let text;
+      try {
+        const x = await auth.finish(Object.fromEntries(c.query));
+        app.broadcast('connectors', {});
+        title = `Signed in to ${x.name}`;
+        text = 'Back in wisp, its tools are ready for your tasks. You can close this tab.';
+      } catch (err) {
+        title = 'Couldn’t sign in';
+        text = err.message;
+      }
+      c.res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      c.res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(title)} · wisp</title>
+<style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;background:Canvas;color:CanvasText}main{max-width:380px;padding:24px;text-align:center}h1{font-size:18px;font-weight:600;margin:0 0 6px}p{margin:0;opacity:.7}</style>
+<main><h1>${esc(title)}</h1><p>${esc(text)}</p></main><script>setTimeout(() => window.close(), 1500)</script>`);
+    },
+    { doc: false },
+  );
+  // The proxy (server/mcp-connector.js) asks for a token that works; wisp refreshes it if needed.
+  r.route(
+    'POST',
+    '/internal/connectors/:id/token',
+    async (c) => {
+      if (c.req.headers['x-wisp-token'] !== app.token) return c.send(403, { error: 'bad token' });
+      const x = find(c);
+      if (!x) return c.send(404, { error: 'no such connector' });
+      const { force } = await c.body();
+      c.send(200, { token: await auth.token(x, { force: !!force }) });
+    },
+    { doc: false },
+  );
 }
