@@ -141,7 +141,8 @@ export function normalizeConnector(body, list, was = null) {
     }
     const fields = secretFields(b[field], label);
     c[field] = fields.map((f) => f.key);
-    for (const f of fields) if (f.value !== null || !was?.[field]?.includes(f.key)) sets.push([`${prefix}:${f.key}`, f.value ?? '']);
+    // A key with no value stays unset (an agent names the keys; the user fills them in).
+    for (const f of fields) if (f.value !== null) sets.push([`${prefix}:${f.key}`, f.value]);
   }
   if (c.transport === 'local') c.headers = [];
   else c.env = [];

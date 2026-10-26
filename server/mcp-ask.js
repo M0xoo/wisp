@@ -12,6 +12,9 @@
 // reports, e.g. a task the user mentioned in the prompt.
 // `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove` read and change the user's crew
 // (server/crew.js) when the user asks; wisp refuses changes from subagents and crew members' jobs.
+// `wisp_connectors`, `wisp_connector_add` and `wisp_connector_signin` read and add the user's
+// connectors (MCP servers every task gets, server/connectors.js); secret values never pass through
+// the agent: the sign-in card takes them.
 // With WISP_SPELLS (a Cast a spell task): `wisp_spells`, `wisp_spell_schema`, `wisp_spell_data` and
 // `wisp_spell_check`, to write a spell for the user to keep.
 
@@ -126,6 +129,70 @@ async function crewTool(name, args = {}) {
   const r = name === 'wisp_crew' ? await call(path) : await call(path, args, { wisp_crew_add: 'POST', wisp_crew_edit: 'PATCH', wisp_crew_remove: 'DELETE' }[name]);
   if (r.error) throw new Error(r.error);
   return r.text;
+}
+
+const CONNECTOR_TOOLS = [
+  {
+    name: 'wisp_connectors',
+    description:
+      "List the user's connectors in wisp: MCP servers that every task's agent gets (in Edits and Full auto), whatever the harness. " +
+      'Each with its URL or command and whether it works, how many tools it has, or what it needs (a sign-in, a key). Read-only.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'wisp_connector_add',
+    description:
+      'Add an MCP server to the user\'s connectors in wisp, when the user asks ("add PostHog", "connect Linear"). Remote: give its URL ' +
+      '(for well-known services look up their official MCP URL, e.g. https://mcp.posthog.com/mcp). Local: give the command that starts it. ' +
+      'Never pass secret values: list the names of the env vars (local) or headers (remote) it needs, and then call wisp_connector_signin, ' +
+      'where the user signs in or types them. A local one asks the user first, since it runs a command on their computer. ' +
+      'wisp checks it at once and says whether it works or what it needs. Tasks get it from their next turn.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Lowercase letters, digits and _, e.g. posthog. Not "wisp".' },
+        url: { type: 'string', description: 'Remote: its https URL (Streamable HTTP, or an older one ending in /sse).' },
+        command: { type: 'string', description: 'Local: the command line that starts it, e.g. "npx -y @modelcontextprotocol/server-filesystem ~/notes".' },
+        env: { type: 'array', items: { type: 'string' }, description: 'Local: names of the env vars it needs a value for, e.g. ["GITHUB_TOKEN"]. Names only.' },
+        headers: { type: 'array', items: { type: 'string' }, description: 'Remote, for servers that take an API key instead of a sign-in: header names, e.g. ["Authorization"]. Names only.' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'wisp_connector_signin',
+    description:
+      'Show the user a card in this task to sign in to a connector (a Sign in button for servers with an account, like PostHog or Linear) ' +
+      'or to type the keys it needs, and wait like ask_user. It ends on its own once the connector works, or when the user skips. ' +
+      'Call it after wisp_connector_add or wisp_connectors says one needs a sign-in or keys.',
+    inputSchema: {
+      type: 'object',
+      properties: { name: { type: 'string', description: 'The connector.' }, why: { type: 'string', description: 'One line for the card: what it is for, or where to find the key.' } },
+      required: ['name'],
+    },
+  },
+];
+
+async function connectorTool(name, args = {}) {
+  const path = `/api/internal/connectors/${WISP_SESSION}`;
+  if (name === 'wisp_connectors') return (await call(path)).text;
+  if (name === 'wisp_connector_add') {
+    // A command that every later task would start: the user says so first.
+    if (args.command && !args.url) {
+      const ok = await askUser({ question: `Add ${args.name || 'this'} as a connector? Every task will start it with: ${args.command}`, options: ['Add it', 'Don’t'] });
+      if (ok !== 'Add it') return ok === null ? 'The user did not answer, so nothing was added.' : `The user didn’t want it added${ok && ok !== 'Don’t' ? ` and said: ${ok}` : ''}. Nothing was added.`;
+    }
+    const r = await call(path, { ...args, transport: args.url ? 'remote' : 'local' });
+    if (r.error) throw new Error(r.error);
+    return r.text;
+  }
+  const r = await call(`${path}/signin`, args);
+  if (r.error) throw new Error(r.error);
+  if (r.text) return r.text;
+  const a = await waitFor(r.id);
+  if (!a) return 'The card was cancelled; nothing changed. Carry on without it.';
+  if (/^Done: /.test(a.answer)) return `${a.answer.slice(6)}. Tasks get its tools from their next turn: harnesses load MCP servers when a turn starts, so this turn can't call them yet.`;
+  return a.answer === 'Skip' ? 'The user skipped it for now; it stays in Settings → Connectors, where they can sign in later. Carry on without it.' : `The user answered instead: ${a.answer}`;
 }
 
 // Cast a spell tasks (WISP_SPELLS) get the tools to write one: what's installed, the reference,
@@ -298,7 +365,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -316,6 +383,8 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, result: { content: [{ type: 'text', text: await session(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && CREW_TOOLS.some((t) => t.name === params?.name)) {
       send({ id, result: { content: [{ type: 'text', text: await crewTool(params.name, params.arguments || {}) }] } });
+    } else if (method === 'tools/call' && CONNECTOR_TOOLS.some((t) => t.name === params?.name)) {
+      send({ id, result: { content: [{ type: 'text', text: await connectorTool(params.name, params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'delegate') {
       send({ id, result: { content: [{ type: 'text', text: await delegate(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && TEAM.length && params?.name === 'subagent_results') {

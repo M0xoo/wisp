@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
-import { installFakeBins, tmp, until } from './helpers.js';
+import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
 // A home of our own, so the import list reads these fake configs and not yours.
 const HOME = tmp('conn-user');
@@ -323,4 +323,36 @@ test('a remote connector signs in with OAuth, and its token is refreshed when it
   } finally {
     server.close();
   }
+});
+
+test('an agent lists and adds connectors, and the user fills in its key on a card, never through the agent', async () => {
+  const s = (await api('/sessions', { prompt: 'look at math.js', cwd: makeRepo(), agent: 'claude', worktree: false })).body;
+  await until(async () => (await api(`/sessions/${s.id}`)).body.state !== 'running', { what: 'task ends' });
+  const tok = { 'content-type': 'application/json', 'x-wisp-token': srv.token };
+  const internal = async (p, body, method = body ? 'POST' : 'GET') => (await fetch(`${base}/internal/connectors/${s.id}${p}`, { method, headers: tok, body: body && JSON.stringify(body) })).json();
+  assert.equal((await fetch(`${base}/internal/connectors/${s.id}`)).status, 403, 'only with wisp’s token');
+  // Values are refused: they would sit in the transcript.
+  assert.match((await internal('', { name: 'fake2', command: `${process.execPath} ${FAKE}`, env: { TOKEN: 'x' } })).error, /names only/);
+  const add = await internal('', { name: 'fake2', transport: 'local', command: `${JSON.stringify(process.execPath)} ${JSON.stringify(FAKE)}`, env: ['TOKEN'] });
+  assert.match(add.text, /Added fake2/);
+  assert.match(add.text, /needs TOKEN/);
+  assert.match((await internal('')).text, /\*\*fake2\*\*.*needs TOKEN/);
+  const card = await internal('/signin', { name: 'fake2', why: 'From the team vault' });
+  assert.ok(card.id);
+  const ask = srv.store.get(s.id).ask;
+  assert.equal(ask.connector.kind, 'keys');
+  assert.deepEqual(ask.connector.keys, [{ key: 'TOKEN', field: 'env', set: false }]);
+  // The card saves the key straight to wisp; once it works, the agent's call is answered.
+  const id = (await api('/connectors')).body.connectors.find((c) => c.name === 'fake2').id;
+  await api(`/connectors/${id}`, { env: { TOKEN: 'from-card' } }, 'PATCH');
+  let answer;
+  await until(async () => (answer = await (await fetch(`${base}/internal/ask/${card.id}`, { headers: tok })).json()).answer, { what: 'card answered' });
+  assert.match(answer.answer, /^Done: fake2 works \(2 tools\)/);
+  assert.equal(srv.store.get(s.id).ask, undefined);
+  assert.match((await internal('/signin', { name: 'fake2' })).text, /already works/);
+  // A crew member's job or a subagent can't add any.
+  srv.store.get(s.id).crew = 'm1';
+  assert.match((await internal('', { name: 'other', url: 'https://h.example/mcp' })).error, /Only a task the user started/);
+  delete srv.store.get(s.id).crew;
+  await api(`/connectors/${id}`, null, 'DELETE');
 });
