@@ -596,3 +596,10 @@ test("the phone's New task button is a part spells can restyle or hide", () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.fab'] }, parts: { 'launcher.fab': { style: { borderRadius: '12px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'launcher.fab': { props: { size: 2 } } } }).some((x) => /launcher\.fab/.test(x)));
 });
+
+test('goals: the band, its parts, the row pill and the launcher line are parts; the band takes buttons; goalRounds is a setting', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.goal', 'launcher.goal', 'goal.track'] }, parts: { 'goal.band': { style: { opacity: '0.9' } }, 'goal.text': { style: { fontSize: '14px' } }, 'goal.check': { style: { color: 'var(--muted)' } }, 'launcher.goalLine': { style: { opacity: '0.8' } } } }), []);
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'goal.band', label: 'Tests', icon: 'target', do: { open: 'https://example.com' } }] }), []);
+  for (const goalRounds of ['3', '5', '10', '20']) assert.deepEqual(problems({ ...base0, settings: { goalRounds } }), []);
+  assert.ok(problems({ ...base0, settings: { goalRounds: '7' } }).some((x) => /goalRounds/.test(x) && /3, 5, 10, 20|3/.test(x)));
+});

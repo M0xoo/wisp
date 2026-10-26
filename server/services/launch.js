@@ -11,6 +11,7 @@ import { fill, positional } from '../recipes.js';
 import { summarize } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
 import { crewJobOf } from '../crew.js';
+import { goalCommand, normalizeGoal } from '../goal.js';
 import { bad, expand, MODES, newId } from '../util.js';
 
 export const MAX_COMPARE = 4;
@@ -45,7 +46,12 @@ export function createLaunch(app) {
   async function launch(body, origin = null, { crew = null } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
     crew ||= crewJobOf(body.crewJob);
+    // "/goal all tests pass" as the whole prompt: that's the goal, and the task is to reach it.
+    const asGoal = !body.goal && goalCommand(body.prompt);
+    if (asGoal) body = { ...body, goal: asGoal, prompt: asGoal };
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
+    // goal: { text, max }: the task keeps going until it holds (server/goal.js).
+    const goal = !crew && !body.delegated && body.kind !== 'spell' ? normalizeGoal(body.goal, app.goals?.rounds()) : null;
     // kind 'spell': Cast a spell. The agent changes wisp, not a project: an empty scratch folder of
     // its own, one run. Edits mode, not Plan: Claude's Plan mode refuses MCP tools (the spell tools),
     // and there is nothing in the folder to edit; wisp installs the spell only when you keep it.
@@ -122,7 +128,7 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
   // Where a launch runs: body.machine ('' = here), else a project folder that only exists on a
@@ -175,6 +181,13 @@ export function createLaunch(app) {
   async function replyTo(s, text, attachments = [], queue, mode, run, team) {
     const question = btwQuestion(text);
     if (question !== null) return { btw: await askBtw(s, question, attachments) };
+    // /goal <condition> sets the task's goal (and goes after it); /goal drop drops it.
+    const goal = goalCommand(text);
+    if (goal !== null) {
+      if (/^(drop|clear|off|none)$/i.test(goal)) return { goal: app.goals.drop(s) ? null : undefined, dropped: true };
+      for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+      return { goal: app.goals.set(s, goal) };
+    }
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
     return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run, team });
   }

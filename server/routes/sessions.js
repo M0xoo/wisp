@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
+import { goalView } from '../goal.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
 import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree } from '../git.js';
@@ -326,6 +327,34 @@ export function register(r, app) {
     '/sessions/:id/patch',
     one(async (c, s) => c.send(200, { patch: await app.relay.patchOf(s) })),
     { doc: false },
+  );
+
+  // The task's goal (server/goal.js): PUT { text, max } sets or replaces it (an idle task goes after
+  // it at once), PATCH { action: 'pause' | 'resume' }, DELETE drops it.
+  r.route(
+    'PUT',
+    '/sessions/:id/goal',
+    one(async (c, s) => {
+      const { text, max } = await c.body();
+      notTour(s, 'set a goal');
+      for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+      c.send(200, { goal: goalView(app.goals.set(s, { text, max })) });
+    }),
+  );
+  r.route(
+    'PATCH',
+    '/sessions/:id/goal',
+    one(async (c, s) => {
+      const { action } = await c.body();
+      if (action === 'pause') return c.send(200, { goal: goalView(app.goals.pause(s)) });
+      if (action === 'resume') return c.send(200, { goal: goalView(app.goals.resume(s)) });
+      c.send(400, { error: 'action must be pause or resume.' });
+    }),
+  );
+  r.route(
+    'DELETE',
+    '/sessions/:id/goal',
+    one((c, s) => (app.goals.drop(s) ? c.send(200, { ok: true }) : c.send(404, { error: 'This task has no goal.' }))),
   );
 
   // A side question (/btw): answered next to the run, which carries on. text may keep its /btw.

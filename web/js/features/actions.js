@@ -28,6 +28,7 @@ import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
 import { ask } from '../ui/confirm.js';
+import { goalMenuHtml, runGoalAction } from './goal.js';
 
 export async function toggleDone(id) {
   const s = S.sessions.get(id);
@@ -187,6 +188,7 @@ export function moreMenu(id, anchor) {
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(sum)}
       ${laterMenuHtml(sum)}
+      ${goalMenuHtml(sum)}
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
@@ -203,6 +205,7 @@ export function moreMenu(id, anchor) {
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
     if (a?.startsWith('later-')) runLaterAction(a, sum, anchor);
+    if (a?.startsWith('goal-')) runGoalAction(a, id, anchor);
     if (a === 'copy') {
       await tryApi(async () => {
         const { command } = await api(`/sessions/${id}/takeover`);
@@ -238,6 +241,7 @@ export function taskMenu(id, e) {
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(s)}
       ${laterMenuHtml(s)}
+      ${goalMenuHtml(s)}
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       ${slotHtml('card.menu', s).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${s.id}" `)}
@@ -258,6 +262,7 @@ export function taskMenu(id, e) {
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
     if (a?.startsWith('later-')) runLaterAction(a, s, null, { x: e.clientX, y: e.clientY });
+    if (a?.startsWith('goal-')) runGoalAction(a, id, null);
     if (a === 'done') toggleDone(id);
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);

@@ -12,6 +12,7 @@
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
+//   FAKE_GOAL_DELAY  ms a goal check takes (screenshots of a check)
 //   FAKE_LINGER  ms to stay alive after the result, as a real CLI flushing on its way out does
 //   FAKE_MCP_POLICY=1  copilot: warn that an organization policy blocked wisp's MCP server
 //   FAKE_SESSION_ERROR  copilot: report this session.error (a quota) and end with exit code 1
@@ -187,6 +188,21 @@ if (btw) {
     out({ type: 'system', subtype: 'init', session_id: id });
     out({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: id, duration_ms: 4, num_turns: 1, total_cost_usd: 0.002 });
   }
+  process.exit(0);
+}
+
+// wisp checking a goal (server/goal.js): the goal's text says how it goes. "[met after N]" is met
+// on the Nth check, "[impossible]" can't be met, anything else is never met.
+if (stdin.includes('You check whether a coding agent reached its goal')) {
+  if (process.env.FAKE_GOAL_DELAY) await new Promise((r) => setTimeout(r, Number(process.env.FAKE_GOAL_DELAY))); // screenshots of a check
+  if (process.env.FAKE_RECORD) fs.appendFileSync(path.join(process.env.FAKE_RECORD, 'goal.jsonl'), JSON.stringify({ name, cwd: process.cwd(), argv }) + '\n');
+  const goal = stdin.split('<goal>')[1]?.split('</goal>')[0] || '';
+  const n = (stdin.split('Earlier checks:')[1] || '').split('\n').filter((l) => l.startsWith('- round')).length + 1;
+  const after = Number(/\[met after (\d+)\]/.exec(goal)?.[1] || 0);
+  const verdict = /\[impossible\]/.test(goal) ? 'impossible' : after && n >= after ? 'met' : 'not_yet';
+  const text = JSON.stringify({ verdict, why: `check ${n}: ${verdict}`, next: verdict === 'not_yet' ? `do part ${n + 1}` : '', progress: Math.min(100, n * 30), evidence: verdict === 'met' ? ['math.js: add is fixed'] : [] });
+  out({ type: 'system', subtype: 'init', session_id: 'goal-check' });
+  out({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: 'goal-check' });
   process.exit(0);
 }
 

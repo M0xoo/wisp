@@ -2,6 +2,7 @@
 // and project filters. palette.js draws it.
 
 import { laterActions, runLaterAction } from './later.js';
+import { goalActions, runGoalAction } from './goal.js';
 import { palette } from '../palette.js';
 import { $ } from '../core/dom.js';
 import { ago, STATUS_LABEL } from '../core/format.js';
@@ -63,6 +64,8 @@ function paletteItems() {
     if (cur.pr?.state === 'OPEN') items.push({ group: g, label: `Merge PR #${cur.pr.number}…`, sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
+    // The goal's items, as the task's menus have them (Set goal… / Edit goal…, Pause, Resume, Drop).
+    for (const x of goalActions(cur)) items.push({ group: g, label: x.label, sub, icon: x.icon, keywords: 'goal done when until keep going condition', run: () => runGoalAction(x.a, id, null) });
     for (const x of laterActions(cur)) items.push({ group: g, label: x.label, sub, icon: x.icon, keywords: 'scheduled later follow-up reminder snooze time', run: () => runLaterAction(x.a, cur, null, { x: innerWidth / 2 - 120, y: innerHeight / 3 }) });
     const member = cur.crew && memberById(cur.crew.id);
     if (member) items.push({ group: g, label: `Open ${member.name}`, sub, icon: 'crew', keywords: 'crew agent member', run: () => openCrew(member.id) });

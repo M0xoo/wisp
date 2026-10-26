@@ -30,6 +30,7 @@ import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView } from './crew.js';
 import { openUpcoming, upcoming, upcomingRow } from './later.js';
+import { paintGoal } from './goal.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const SIDE_W = 340;
@@ -377,6 +378,7 @@ export function paintHead(s) {
     </div>`;
   if (h.dataset.h !== html) (h.innerHTML = html), (h.dataset.h = html);
   paintDetails(s, pill);
+  paintGoal(s.id); // the band follows the summary: a check landing, a round starting
 }
 
 function backBtn(s) {
