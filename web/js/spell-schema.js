@@ -161,6 +161,12 @@ export const PARTS = {
   'card.quickDone': '#feed .it-quick',
   'card.choices': '#feed .it-choices',
   'card.body': '#feed .it-body',
+  // Forks (Fork…): the fork's link to the task it came from, the original's count of its forks,
+  // a turn's Fork from this turn button and the line where a fork's own turns start.
+  'card.forkedFrom': '#feed .it-meta .m.fork-from',
+  'card.forks': '#feed .it-meta .m.forks',
+  'turn.fork': '#feed .tb-fork',
+  'turn.forkStart': '#feed .fork-line',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
   // The top bar is the sidebar's head. The foot is gone: what it held (you on the grid, Get the app,
@@ -317,7 +323,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -335,6 +341,7 @@ export const ACTIONS = {
   launchWith: { kind: 'acts', doc: '{ "launchWith": { "agent": "codex", "mode": "plan", "effort": "high", "text": "optional prefix" } } launch what is in the prompt box with these settings' },
   launch: { kind: 'acts', doc: '{ "launch": { "prompt": "…", "agent": "", "mode": "plan", "cwd": "" } } start a new task (cwd empty = the current project)' },
   rerun: { kind: 'acts', doc: '{ "rerun": { "agent": "codex", "model": "", "effort": "", "mode": "plan", "prompt": "optional, defaults to the task\'s first request" } } run the card\'s task again as a new task on another harness' },
+  fork: { kind: 'acts', doc: '{ "fork": { "prompt": "Try it with a lookup table instead", "agent": "", "model": "", "effort": "", "mode": "" } } fork the card\'s task from its latest turn: a new task with its conversation and a copy of its work, on its own branch, that does what prompt says (agent, model, effort, mode: optional, the task\'s own by default)' },
   recipe: { kind: 'acts', doc: '{ "recipe": "name" } run a recipe' },
   ship: { kind: 'acts', doc: '{ "ship": true } open Ship it for the card\'s task' },
   done: { kind: 'acts', doc: '{ "done": true } mark the card\'s task done' },

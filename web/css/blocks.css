@@ -638,6 +638,11 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .tb-btn .i { width: 13px; height: 13px; }
 .tb-btn:hover, .tb-btn.on { color: var(--ink); background: var(--bg-2); }
 .turn:hover .tb-btn, .tb-btn:focus-visible, .tb-btn.on { opacity: 1; }
+/* Touch has no hover: the turn's tools show at once, with a finger-sized hit area */
+@media (pointer: coarse) {
+  .tb-btn { opacity: 1; position: relative; }
+  .tb-btn::after { content: ''; position: absolute; inset: -11px -4px; }
+}
 .trail-body { padding: 8px 0 0; animation: rise 0.4s var(--ease); }
 .trail-body .presentation { gap: 10px; }
 /* Thumbs: faint until the trail is hovered or the turn is rated, so a finished turn reads the same. */

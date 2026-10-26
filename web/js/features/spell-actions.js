@@ -35,6 +35,12 @@ export async function rerunOn(s, v) {
   toast(`Started <b>${esc(out.title)}</b> on ${esc(out.agent)}`);
 }
 
+// Fork the task from its latest turn, straight away: the spell says what the fork should try.
+export async function forkOn(s, v) {
+  const out = await api(`/sessions/${s.id}/fork`, { method: 'POST', body: { prompt: v.prompt, agent: v.agent || undefined, model: v.model || undefined, effort: v.effort || undefined, mode: v.mode || undefined } });
+  toast(`Forked into <b>${esc(out.title)}</b>`);
+}
+
 export function recipe(name) {
   const loose = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '');
   const r = (S.config.recipes || []).find((x) => x.id === name || loose(x.name) === loose(name));

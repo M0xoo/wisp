@@ -29,6 +29,8 @@ import { slotHtml } from './spells.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
 import { ask } from '../ui/confirm.js';
 import { goalMenuHtml, runGoalAction } from './goal.js';
+import { DAY_TIME, fmtDate } from '../core/format.js';
+import { paintMeta } from './turns.js';
 
 export async function toggleDone(id) {
   const s = S.sessions.get(id);
@@ -183,6 +185,7 @@ export function moreMenu(id, anchor) {
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
+      ${forkable(sum) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
       ${sum.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${sum.pr.number}…</button>` : ''}
       ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
@@ -200,6 +203,7 @@ export function moreMenu(id, anchor) {
     close();
     if (a === 'rename') rename(id);
     if (a === 'copy-id') copyTaskId(id);
+    if (a === 'fork') forkTask(id);
     if (a === 'merge') mergePr(id);
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
@@ -235,6 +239,7 @@ export function taskMenu(id, e) {
       <button data-a="rename">${icon('pen')}Rename${keyHint('M')}</button>
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
+      ${forkable(s) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
       ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
       ${s.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${s.pr.number}…</button>` : ''}
       ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
@@ -256,6 +261,7 @@ export function taskMenu(id, e) {
     if (a === 'rename') rename(id);
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'rerun') rerun(id);
+    if (a === 'fork') forkTask(id);
     if (a === 'ship') shipDialog(id);
     if (a === 'merge') mergePr(id);
     if (a === 'compare') compareView(id);
@@ -385,6 +391,113 @@ export async function rerun(id) {
   });
   requestAnimationFrame(() => (ta.focus(), ta.setSelectionRange(ta.value.length, ta.value.length)));
 }
+
+// Fork: a new task that carries on from one of this one's turns (the latest by default), with
+// the conversation up to there and its files as they were then, on a branch of its own. This one
+// is kept as it is. The fork can run on another harness or mode. draft: what a fork that failed
+// was sent with, so Edit again brings it all back.
+export const forkable = (s) => !!s && s.agent !== 'wisp' && !s.parentId && !s.kind && !s.pending && !s.delegated;
+export async function forkTask(id, turnId = '', draft = null) {
+  const s = S.full.get(id) || (await api(`/sessions/${id}`).catch(toastError));
+  if (!s) return;
+  const finished = (s.turns || []).filter((t) => t.status !== 'running');
+  const turn = (turnId && s.turns.find((t) => t.id === turnId)) || finished.at(-1);
+  if (!turn || turn.status === 'running') return toast('Nothing to fork yet: wait for the first turn to finish.', { tone: 'bad' });
+  const place = s.machine?.id || '';
+  const here = () => harnessesAt([place]).filter((x) => x.available);
+  const has = (a) => here().some((x) => x.id === a);
+  let agent = draft?.agent || (has(s.agent) ? s.agent : here()[0]?.id || s.agent);
+  const models = agentById(agent)?.models || [];
+  let model = draft ? draft.model : agent === s.agent && models.some((m) => m.id === s.model) ? s.model : savedModel(agent);
+  let effort = draft ? draft.effort : agent === s.agent && effortsFor(agent, model).includes(s.effort) ? s.effort : savedEffort(agent, model);
+  let mode = draft?.mode || (MODES.some((m) => m.id === s.mode) ? s.mode : S.config.defaults.mode || DEFAULT_MODE.id);
+  // Named by the time it was asked, as the turn shows it: wisp never numbers turns.
+  const whole = turn === s.turns.at(-1);
+  const upTo = whole ? 'the whole conversation and a copy of its files' : `the conversation up to ${esc(fmtDate(turn.startedAt, DAY_TIME))} and its files as they were then`;
+
+  const node = el(`
+    <div class="modal rerun-modal fork-modal">
+      <header><h2>Fork task</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <div class="rr-box">
+        <textarea class="rr-prompt" rows="3" spellcheck="false" placeholder="What should the fork try?"></textarea>
+        <div class="l-bar">
+          <button class="mode-btn" data-a="mode" aria-haspopup="menu"></button>
+          <button class="runner-btn" data-a="runner" title="Harness, model and thinking level" aria-haspopup="dialog"></button>
+          <span class="grow"></span>
+          <button class="primary sm" data-a="go" disabled>${icon('fork')}Fork</button>
+        </div>
+      </div>
+      <p class="hint rr-hint">A new task with ${upTo}, on its own branch. “${esc(s.title)}” is kept as it is.</p>
+    </div>`);
+  const close = overlay(node);
+  $('.close', node).onclick = close;
+  const ta = mentionBox($('.rr-prompt', node));
+  const goBtn = $('[data-a="go"]', node);
+  ta.value = draft?.prompt || '';
+  autosize(ta);
+  // The fork is named after what it's asked, so there's nothing to fork without it.
+  const paintGo = () => {
+    goBtn.disabled = !ta.value.trim();
+  };
+  ta.addEventListener('input', paintGo);
+  paintGo();
+  const modeBtn = $('[data-a="mode"]', node);
+  const paintMode = () => {
+    const m = MODES.find((x) => x.id === mode) || DEFAULT_MODE;
+    modeBtn.className = `mode-btn m-${m.id}`;
+    modeBtn.innerHTML = `${icon(m.icon)}<span>${m.label}</span>`;
+    modeBtn.title = m.hint;
+  };
+  const runnerBtn = $('[data-a="runner"]', node);
+  const paintRunner = () => paintRunnerBtn(runnerBtn, agent, model, effort);
+  paintMode();
+  paintRunner();
+  modeBtn.onclick = () => modeMenu(modeBtn, mode, (m) => ((mode = m), paintMode()), ta);
+  // Picks here only apply to this fork; the launcher's remembered defaults are left alone.
+  runnerBtn.onclick = () =>
+    runnerPicker(runnerBtn, { agent, model, effort, savedModel, savedEffort, places: [place], auto: false, back: ta }, (a, m, e) => {
+      [agent, model, effort] = [a, m, e];
+      paintRunner();
+    });
+
+  const go = async () => {
+    const prompt = ta.value.trim();
+    if (!prompt) return ta.focus();
+    close();
+    const sent = { prompt, agent, model, effort, mode };
+    // The original counts its fork at once; a refused fork takes it back.
+    const sum = S.sessions.get(id);
+    const ghost = `pending-${Date.now()}`;
+    if (sum) S.sessions.set(id, { ...sum, forks: [...(sum.forks || []), ghost] });
+    repaintForks(id);
+    const unghost = (real) => {
+      const cur = S.sessions.get(id);
+      if (cur) S.sessions.set(id, { ...cur, forks: (cur.forks || []).filter((x) => x !== ghost && x !== real).concat(real ? [real] : []) });
+      repaintForks(id);
+    };
+    try {
+      const next = await launchBehind({ prompt, cwd: s.cwd, runner: { agent, model, effort }, machine: place }, () => api(`/sessions/${id}/fork`, { method: 'POST', body: { ...sent, turnId: turn.id } }));
+      unghost(next.id);
+      setFocus(next.id);
+    } catch (err) {
+      unghost(null);
+      toast(`Fork failed: ${esc(err.message)}`, { tone: 'bad', action: { label: 'Edit again', run: () => forkTask(id, turn.id, sent) } });
+    }
+  };
+  goBtn.onclick = go;
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) (e.preventDefault(), go());
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      mode = MODES[(MODES.findIndex((m) => m.id === mode) + 1) % MODES.length].id;
+      paintMode();
+    }
+  });
+  requestAnimationFrame(() => (ta.focus(), ta.setSelectionRange(ta.value.length, ta.value.length)));
+}
+
+// The original's "N forks" chip, after a fork was counted or taken back.
+const repaintForks = (id) => paintMeta(id);
 
 export async function setArchived(id, archived) {
   const prev = S.sessions.get(id);

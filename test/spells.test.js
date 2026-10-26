@@ -175,6 +175,14 @@ test('accounts: the picker row, the button part, the details initial and the Set
   assert.ok(problems({ ...base0, ui: { hide: ['picker.account'] } }).some((x) => /picker\.account/.test(x)));
 });
 
+test('forks: a fork button acts on the card\'s task, its chips, turn button and start line are parts', () => {
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'fork', label: 'Try with Codex', do: { fork: { prompt: 'Try it another way', agent: 'codex', mode: 'plan' } } }] }), []);
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { fork: { agent: 'codex' } } }] }).some((x) => /fork needs a prompt: what the fork should try/.test(x)));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { fork: { prompt: 'p', mode: 'yolo' } } }] }).some((x) => /mode must be plan, edits or auto/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['turn.fork', 'turn.forkStart'] }, parts: { 'card.forkedFrom': { style: { color: 'red' } }, 'card.forks': { style: { fontWeight: '700' } } } }), []);
+  assert.ok(schema.ICONS.includes('fork'));
+});
+
 test('the usage-limit card under a turn\'s hero is not a part: it asks you something', () => {
   assert.equal(schema.PARTS['turn.limit'], undefined, 'a limit asks you what next: never a part a spell could hide');
 });

@@ -129,6 +129,15 @@
 .turns { padding: 6px 18px 8px; }
 .turn { padding-top: 12px; }
 .turn + .turn { margin-top: 28px; border-top: 1px solid var(--line); padding-top: 28px; }
+/* Where a fork's own turns start: the line between turns says so */
+.turn + .turn:has(> .fork-line) { border-top-color: transparent; padding-top: 0; }
+.fork-line { display: flex; align-items: center; gap: 10px; margin: 0 0 22px; font-size: 11.5px; color: var(--muted); }
+.fork-line::before, .fork-line::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.fork-line > span { display: inline-flex; align-items: center; gap: 6px; }
+.fork-line .i { width: 12px; height: 12px; color: var(--faint); }
+.fork-line i { font-style: normal; }
+.fork-line .link { font-size: inherit; }
+body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-line .fl-wide { display: none; }
 /* older exchanges fold to a single row; the latest stays open */
 .turn.folded { padding-top: 0; }
 .turn.folded + .turn.folded { margin-top: 2px; border-top: 0; padding-top: 0; }

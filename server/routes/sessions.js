@@ -305,6 +305,17 @@ export function register(r, app) {
     }),
   );
 
+  // Fork: a new task that carries on from one of this one's turns (services/fork.js); this one stays.
+  r.route(
+    'POST',
+    '/sessions/:id/fork',
+    one(async (c, s) => {
+      const { prompt, turnId, agent, model, effort, mode, attachments } = await c.body();
+      if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
+      c.send(201, await app.forker.fork(s, { prompt, turnId, agent, model, effort, mode, attachments }));
+    }),
+  );
+
   // Pack the task's work to move it to another place (services/move.js): bundles, as uploads.
   r.route(
     'POST',

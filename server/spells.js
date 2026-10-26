@@ -85,12 +85,13 @@ function checkAction(a, where, p, { hook = false, panels = new Set(), data = new
     case 'setLaunch':
     case 'launchWith':
     case 'rerun':
+    case 'fork':
     case 'launch': {
       const x = obj(v) || {};
       const out = {};
       for (const f of ['agent', 'model', 'effort', 'mode', 'text', 'prompt', 'cwd']) if (x[f] !== undefined) out[f] = f === 'prompt' || f === 'text' ? truncate(String(x[f]), 4000) : str(x[f], 200);
       if (out.mode && !['plan', 'edits', 'auto'].includes(out.mode)) p.at_(where, 'mode must be plan, edits or auto');
-      if (k === 'launch' && !out.prompt) p.at_(where, 'launch needs a prompt');
+      if ((k === 'launch' || k === 'fork') && !out.prompt) p.at_(where, `${k} needs a prompt: what the ${k === 'fork' ? 'fork should try' : 'task should do'}`);
       return { [k]: out };
     }
   }
@@ -436,6 +437,7 @@ export function describeSpell(s) {
       reply: () => `replies “${clip(v, 50)}” to the task`,
       launchWith: () => `launches with ${Object.entries(v).filter(([k2, x]) => x && k2 !== 'text').map(([, x]) => x).join(' · ')}`,
       launch: () => `starts a task: “${clip(v.prompt, 50)}”`,
+      fork: () => `forks the task to “${clip(v.prompt, 50)}”${v.agent ? ` on ${v.agent}` : ''}`,
       rerun: () => `reruns the task on ${[v.agent, v.model, v.mode].filter(Boolean).join(' · ') || 'another harness'}`,
       recipe: () => `runs the recipe ${v}`,
       ship: () => 'opens Ship it',

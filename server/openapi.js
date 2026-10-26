@@ -443,6 +443,14 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, turnId: { type: 'string' }, file: { type: 'string' }, reverted: { type: 'boolean' } } }), 400: err[400], 404: err[404] },
         },
       },
+      '/sessions/{id}/fork': {
+        parameters: [id],
+        post: {
+          summary: 'Fork the task from one of its turns: a new task with the conversation up to there and a copy of the work, on its own branch',
+          requestBody: body({ type: 'object', required: ['prompt'], properties: { prompt: { type: 'string', description: 'The fork’s first request' }, turnId: { type: 'string', description: 'The turn to fork from (default: the latest finished one)' }, agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' }, mode: { type: 'string', enum: ['plan', 'edits', 'auto'] }, attachments: { type: 'array', items: { type: 'string' } } } }),
+          responses: { 201: json(ref('Summary')), 400: err[400], 404: err[404], 409: json(ref('Error'), 'Nothing to fork there yet') },
+        },
+      },
       '/sessions/{id}/rollback': {
         parameters: [id],
         post: {

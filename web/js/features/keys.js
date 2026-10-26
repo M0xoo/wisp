@@ -4,7 +4,7 @@ import { $, $$ } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { modKey, shortcuts } from '../ui/kbd.js';
 import { closeOverlay } from '../ui/overlay.js';
-import { deleteSession, rename, rerun, setArchived, takeOver, toggleDone } from './actions.js';
+import { deleteSession, forkable, forkTask, rename, rerun, setArchived, takeOver, toggleDone } from './actions.js';
 import { openPalette } from './commands.js';
 import { collapseAll, expand, feedIds, setFocus, toggle } from './feed.js';
 import { focusLauncher } from './launcher.js';
@@ -15,7 +15,7 @@ import { activeSpells, runAction } from './spells.js';
 import { goBack, splitOpen, stackPage, toggleSidebar } from './split.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
-const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
+const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -82,6 +82,7 @@ export function onKey(e) {
     deleteSession(id);
   } else if (k === 't' && id) takeOver(id);
   else if (k === 'r' && e.shiftKey && id) rerun(id);
+  else if (k === 'f' && e.shiftKey && id && forkable(S.sessions.get(id))) forkTask(id);
   else if (k === 's' && id && shippable(S.sessions.get(id))) shipDialog(id);
   else if (k === 'v' && id) toggleTranscript(id);
   else if (k === '/' && id) {

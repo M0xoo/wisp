@@ -710,6 +710,8 @@ export class Machines extends EventEmitter {
       id: q(s.id),
       groupId: s.groupId || null, // random, and shared across machines when one launch fans out
       ...(s.parentId && { parentId: q(s.parentId) }),
+      ...(s.forkedFrom && { forkedFrom: { ...s.forkedFrom, id: q(s.forkedFrom.id) } }),
+      ...(s.forks && { forks: s.forks.map(q) }),
       ...(s.group && { group: s.group.map((x) => this.summary(mid, x)) }),
       projectId: p?.id || null,
       project: p?.name || s.project,
@@ -726,6 +728,8 @@ export class Machines extends EventEmitter {
       id: q(s.id),
       groupId: s.groupId || null, // random, and shared across machines when one launch fans out
       ...(s.parentId && { parentId: q(s.parentId) }),
+      ...(s.forkedFrom && { forkedFrom: { ...s.forkedFrom, id: q(s.forkedFrom.id) } }),
+      ...(s.forks && { forks: s.forks.map(q) }),
       ...(s.children && { children: Object.fromEntries(Object.entries(s.children).map(([k, v]) => [k, q(v)])) }),
       ...(s.childSessions && { childSessions: Object.fromEntries(Object.entries(s.childSessions).map(([k, v]) => [q(k), this.session(mid, v)])) }),
       turns: (s.turns || []).map((t) => ({
