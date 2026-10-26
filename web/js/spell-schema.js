@@ -106,6 +106,8 @@ export const PARTS = {
   // (launcher, follow-up box), and the Account row under Thinking in the harness picker.
   'runner.account': '.rb-a',
   'picker.accounts': '.picker .pk-acct',
+  // The Thinking slider in the harness picker (its fill and wisps grow with the level).
+  'picker.thinking': '.picker .pk-think',
   'launcher.compare': '#compareBtn',
   'launcher.team': '#teamBtn',
   // The Delegate popover (launcher and follow-ups): the lead strip, and each delegate's place chip.
