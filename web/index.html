@@ -102,6 +102,7 @@
       <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A7.5 7.5 0 019.5 4.5a7.5 7.5 0 1010 10z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
       <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5.5v13l11-6.5-11-6.5z" fill="currentColor"/></symbol>
       <symbol id="i-pause" viewBox="0 0 24 24"><rect x="7" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/><rect x="13.6" y="5.5" width="3.4" height="13" rx="1" fill="currentColor"/></symbol>
+      <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 19.5c.8-3.4 3.4-5.3 6.5-5.3s5.7 1.9 6.5 5.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
       <symbol id="i-crew" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.5 19.5c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5.2 6.6a2.4 2.4 0 00.4 4.6M2.5 17.5c.3-1.8 1.2-3 2.6-3.6M18.8 6.6a2.4 2.4 0 01-.4 4.6M21.5 17.5c-.3-1.8-1.2-3-2.6-3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
     </defs>
   </svg>
@@ -115,15 +116,6 @@
       <button class="update-btn" id="updateBtn" hidden>
         <svg class="i"><use href="#i-update"/></svg><span>Update</span>
       </button>
-      <button class="auto-btn getapp-btn" id="getAppBtn" title="Get the wisp desktop app" hidden>
-        <svg class="i"><use href="#i-laptop"/></svg><span>Get the app</span>
-      </button>
-      <button class="auto-btn machines-btn" id="machinesBtn" title="Machines: run agents on another computer over SSH">
-        <svg class="i"><use href="#i-server"/></svg><span>Machines</span><b class="ab-n" hidden></b>
-      </button>
-      <button class="auto-btn" id="autoBtn" title="Automations: recipes and triggers">
-        <svg class="i"><use href="#i-bolt"/></svg><span>Automations</span><b class="ab-n" hidden></b>
-      </button>
       <div class="sp-top" id="spTop"></div>
       <button class="icon-btn view-btn" id="viewBtn" aria-pressed="false">
         <svg class="i"><use href="#i-split"/></svg>
@@ -131,19 +123,16 @@
       <button class="search-btn" id="searchBtn" title="Search">
         <svg class="i"><use href="#i-search"/></svg><span>Search</span><kbd class="mod-k"></kbd>
       </button>
-      <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
-        <svg class="i"><use href="#i-settings"/></svg>
-      </button>
+      <!-- You: your account on a grid, and behind it the menu with Machines, Automations and Settings (split.js). -->
+      <button class="me-btn" id="meBtn" title="You, Machines, Automations and Settings" aria-label="Account and settings" aria-haspopup="menu" aria-expanded="false"><span class="sf-av out"><svg class="i"><use href="#i-user"/></svg></span></button>
     </header>
     <div class="feed-wrap" id="feedWrap">
-      <!-- The top of the task list. New task, then what split.js moves here from
-           the top bar (Machines, Automations) as rows. -->
+      <!-- The top of the task list: New task, and the sidebar.top slot. -->
       <div class="split-top" id="splitTop" hidden>
         <div class="st-row">
           <button class="split-new" id="splitNew" title="New task: back to the prompt box (N)"><svg class="i"><use href="#i-plus"/></svg><span>New task</span><kbd>N</kbd></button>
           <span class="sp-side" id="spSide"></span>
         </div>
-        <nav class="split-nav" id="splitNav" aria-label="wisp"></nav>
       </div>
       <div class="launch-slot" id="launchSlot">
         <!-- First paint, before the scripts load: the launcher's shape with quiet placeholders where its
@@ -168,9 +157,6 @@
       </div>
       <div class="feed-empty" id="feedEmpty" hidden></div>
     </div>
-    <!-- The sidebar's foot. You on the grid, or that you're not connected (split.js), then
-         Update, Get the app and Settings, moved here from the top bar, which becomes the sidebar's head. -->
-    <footer class="split-foot" id="splitFoot" hidden><a class="sf-me" id="splitMe" target="_blank" rel="noopener" tabindex="0" hidden></a><span class="sf-grow"></span></footer>
     <!-- The main pane (features/split.js): home is the prompt box; an open task shows its header
          here and its body is laid over #splitStage. Stacked, it's a page over the list. -->
     <section class="split-main" id="splitMain" hidden>
@@ -195,6 +181,23 @@
   </button>
   <div class="drag-strip"></div>
   <div class="sp-float" id="spFloat" hidden></div>
+  <!-- The avatar's menu (split.js openMe): you on the grid, or that you're not connected, then
+       Machines, Automations, Get the app and Settings. Kept here while closed. -->
+  <div class="menu me-menu" id="meMenu" role="menu" hidden>
+    <a class="sf-me" id="splitMe" role="menuitem" target="_blank" rel="noopener" tabindex="0"></a>
+    <div class="me-nav" id="splitNav" role="none">
+      <button class="auto-btn machines-btn" id="machinesBtn" role="menuitem" title="Machines: run agents on another computer over SSH">
+        <svg class="i"><use href="#i-server"/></svg><span>Machines</span><b class="ab-n" hidden></b>
+      </button>
+      <button class="auto-btn" id="autoBtn" role="menuitem" title="Automations: recipes and triggers">
+        <svg class="i"><use href="#i-bolt"/></svg><span>Automations</span><b class="ab-n" hidden></b>
+      </button>
+      <button class="auto-btn getapp-btn" id="getAppBtn" role="menuitem" title="Get the wisp desktop app" hidden>
+        <svg class="i"><use href="#i-laptop"/></svg><span>Get the app</span>
+      </button>
+      <button class="auto-btn" id="settingsBtn" role="menuitem" title="Settings"><svg class="i"><use href="#i-settings"/></svg><span>Settings</span></button>
+    </div>
+  </div>
   <div class="overlay" id="overlay" hidden></div>
   <div class="toasts" id="toasts"></div>
 
@@ -209,15 +212,12 @@
     var w = get('wisp.sideW');
     if (w > 0) document.documentElement.style.setProperty('--side-w', w + 'px');
     q('#splitHome .sh-launch').append(q('#launchSlot'), q('#spFeedTop'));
-    q('#splitNav').append(q('#machinesBtn'), q('#autoBtn'));
-    q('#splitFoot').append(q('#updateBtn'), q('#getAppBtn'));
-    if (!hidden) q('#splitFoot').append(q('#settingsBtn'));
     var me = get('wisp.me');
-    if (me) { q('#splitMe').innerHTML = me.html; if (me.href) q('#splitMe').href = me.href; q('#splitMe').title = me.title; q('#splitMe').hidden = false; }
+    if (me && me.av) { q('#meBtn').innerHTML = me.av; q('#splitMe').innerHTML = me.html; if (me.href) q('#splitMe').href = me.href; q('#splitMe').title = me.title; }
     document.body.classList.add('split');
     if (stack) document.body.classList.add('stack');
     if (hidden) document.body.classList.add('side-hidden');
-    ['#splitMain', '#splitGrip', '#splitTop', '#splitFoot'].forEach(function (s) { q(s).hidden = false; });
+    ['#splitMain', '#splitGrip', '#splitTop'].forEach(function (s) { q(s).hidden = false; });
   })();</script>
   <script type="module" src="/js/app.js"></script>
 </body>

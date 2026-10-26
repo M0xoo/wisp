@@ -72,9 +72,16 @@ try {
   await check('WEB-02', 'first paint: split view home', async () => {
     await p.goto(w.url);
     await p.getByText('What should wisp do next?').waitFor();
-    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'This computer', 'Tips', 'Not connected', 'Machines', 'Automations'])
+    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'This computer', 'Tips'])
       ok(await p.getByText(t, { exact: false }).first().isVisible(), `"${t}" not visible`);
     await p.shot('home');
+    // You, Machines, Automations and Settings: behind the avatar.
+    await p.locator('#meBtn').click();
+    for (const t of ['Not connected', 'Machines', 'Automations', 'Settings'])
+      ok(await p.locator('#meMenu').getByText(t, { exact: false }).first().isVisible(), `"${t}" not in the avatar's menu`);
+    await p.shot('account-menu');
+    await press(p, 'Escape');
+    ok(await p.locator('#meMenu').isHidden(), 'Esc did not close the avatar menu');
     p.clean();
   });
 
@@ -236,6 +243,7 @@ try {
     await p.reload();
     await p.waitForTimeout(1500);
     ok(await split(), 'no split view after a reload');
+    await p.locator('#meBtn').click(); // Settings is in the avatar's menu
     await p.locator('#settingsBtn').click();
     await p.locator('section.sx-pane[data-pane="general"]').waitFor({ state: 'visible', timeout: 3000 });
     ok(!(await p.locator('.view-seg').count()), 'Settings still has a Layout switch');
@@ -267,6 +275,7 @@ try {
 
   await check('WEB-15', 'settings: every pane opens', async () => {
     await press(p, 'Escape');
+    await p.locator('#meBtn').click(); // Settings is in the avatar's menu
     await p.locator('#settingsBtn').click();
     const panes = ['general', 'notifications', 'agents', 'auto', 'machines', 'cloud', 'memory', 'automations', 'spells', 'usage', 'privacy'];
     for (const id of panes) {
@@ -393,12 +402,14 @@ try {
     ok((await session(fresh.id)).turns.length === turns, 'btw added a turn');
   });
 
-  await check('WEB-23', 'Machines, Automations, Get the app open and close', async () => {
+  await check('WEB-23', 'Machines, Automations, Get the app open from the avatar menu and close', async () => {
     for (const [label, sel] of [['Machines', '#machinesBtn'], ['Automations', '#autoBtn'], ['Get the app', '#getAppBtn']]) {
       await press(p, 'Escape');
+      await p.locator('#meBtn').click(); // they're rows in the avatar's menu
       await p.locator(sel).click();
       await p.waitForTimeout(500);
-      await p.screenshot({ path: path.join(OUT, `web-foot-${label.replace(/ /g, '-').toLowerCase()}.png`) });
+      ok(await p.locator('#meMenu').isHidden(), `the menu stayed open after ${label}`);
+      await p.screenshot({ path: path.join(OUT, `web-menu-${label.replace(/ /g, '-').toLowerCase()}.png`) });
       await press(p, 'Escape');
       await p.waitForTimeout(300);
     }
@@ -409,6 +420,7 @@ try {
     const u = await api(w.url, '/api/usage');
     ok(u.status === 200, `usage ${u.status}`);
     ok(!/NaN/.test(u.text), 'NaN in usage');
+    await p.locator('#meBtn').click(); // Settings is in the avatar's menu
     await p.locator('#settingsBtn').click();
     await p.locator('button[role="tab"][data-pane="usage"]').click();
     await p.waitForTimeout(800);

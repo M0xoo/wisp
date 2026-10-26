@@ -51,7 +51,8 @@ export function paintMachinesBtn() {
   const b = $('#machinesBtn');
   if (!b) return;
   if (MOBILE) {
-    $('span', b).textContent = COMPUTER || 'Computers'; // which one you're on; tap to switch
+    // Which one you're on, after what the row does; tap to switch.
+    $('span', b).innerHTML = `Computers${COMPUTER ? ` <small>${esc(COMPUTER)}</small>` : ''}`;
     $('.ab-n', b).hidden = true;
     b.title = 'Your computers: switch to another one, or add one';
     return;

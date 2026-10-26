@@ -1,11 +1,11 @@
 /* ---------- split view (features/split.js): tasks in a sidebar, the open one in the main pane ---------- */
 /* The page stops scrolling as a whole: the sidebar and the open task scroll on their own. The top
-   bar is the sidebar's head and its foot holds the rest, so the open task has the full height. */
+   bar is the sidebar's head (the rest behind its avatar), so the open task has the full height. */
 :root { --side-w: 340px; --read-w: 860px; --det-w: 232px; }
 .view-btn[aria-pressed='true'] { color: var(--ink); }
 
 body.split .stage {
-  display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden; scrollbar-gutter: auto;
 }
 body.split .feed-wrap {
@@ -14,7 +14,7 @@ body.split .feed-wrap {
 }
 body.split .split-main { grid-row: 1 / -1; grid-column: 2; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 body.split.side-right .stage { grid-template-columns: minmax(0, 1fr) var(--side-w); }
-body.split.side-right :is(.topbar, .feed-wrap, .split-foot) { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
+body.split.side-right :is(.topbar, .feed-wrap) { grid-column: 2; border-right: 0; border-left: 1px solid var(--line); }
 body.split.side-right .split-main { grid-column: 1; }
 
 /* The sidebar's head: the brand and the icon buttons on one line, the project filter under them. */
@@ -27,7 +27,7 @@ body.split .topbar .sp-top { order: 1; }
 body.split .topbar .search-btn { order: 2; width: 32px; padding: 0; justify-content: center; border-color: transparent; background: none; }
 body.split .topbar .search-btn:hover { background: var(--bg-2); }
 body.split .topbar .search-btn :is(span, kbd) { display: none; }
-body.split .topbar #settingsBtn { order: 3; } /* only while the list is hidden: it lives in the foot */
+body.split .topbar .me-btn { order: 3; }
 /* the sidebar button sits at the list's inner edge, and stays at that edge once the list is hidden */
 body.split .topbar .view-btn { order: 4; }
 body.split:is(.side-right:not(.side-hidden), .side-hidden:not(.side-right)) .topbar .view-btn { order: -1; }
@@ -43,7 +43,7 @@ body.split.side-hidden .feed-wrap {
 }
 body.split.side-hidden.side-right .feed-wrap { left: 100%; }
 body.split.side-hidden #feed .item.open > .it-body { visibility: visible; }
-body.split.side-hidden :is(.split-foot, .split-grip) { display: none; }
+body.split.side-hidden .split-grip { display: none; }
 body.split.side-hidden .topbar {
   position: absolute; z-index: 5; top: 0; left: 0; width: auto; flex-wrap: nowrap; padding: 14px 12px 0;
   border: 0; background: none;
@@ -59,24 +59,30 @@ body.split.side-hidden.side-right .split-head {
 }
 body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(calc(var(--bar-w, 120px) + 8px), calc(var(--pad) - 8px)); }
 
-/* The sidebar's foot: you on the grid (a lantern: the avatar's ring lights up while your grid is
-   reachable), then Update, Get the app and Settings. Signed out: the same row, greyed, not connected. */
-.split-foot[hidden] { display: none; }
-.split-foot {
-  grid-row: 3; grid-column: 1; container: foot / inline-size; display: flex; align-items: center; gap: 2px; min-width: 0;
-  padding: 8px 8px 10px; border-right: 1px solid var(--line); background: var(--rail);
-}
-.split-foot > * { flex: none; }
-.split-foot .sf-grow { flex: 1; }
-.split-foot .auto-btn { padding: 0 8px; border-color: transparent; background: none; }
-.split-foot .auto-btn:hover { background: var(--bg-2); border-color: transparent; }
-.split-foot #settingsBtn { order: 4; }
-.sf-me[hidden] { display: none; }
+/* You, in the top bar's corner: a round avatar (a lantern: its ring lights up while your grid is
+   reachable; signed out, greyed), and its menu: you on the grid, then Machines, Automations, Get
+   the app and Settings. */
+.me-btn { position: relative; flex: none; display: grid; place-items: center; width: 36px; height: 36px; margin-left: 2px; border-radius: 50%; }
+.me-btn:hover .sf-av, .me-btn[aria-expanded='true'] .sf-av { box-shadow: 0 0 0 1px var(--faint); }
+.me-btn:hover .sf-av.on, .me-btn[aria-expanded='true'] .sf-av.on { box-shadow: 0 0 0 1.5px var(--rail), 0 0 0 3px var(--accent); }
+.me-btn .sf-av { width: 26px; height: 26px; font-size: 11.5px; }
+.me-btn .sf-av .i { width: 14px; height: 14px; }
+.me-menu[hidden] { display: none; }
+.me-menu { width: 264px; max-width: calc(100vw - 16px); }
 .sf-me {
-  flex: 0 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0; height: 40px; padding: 0 10px 0 4px;
-  border-radius: 99px; color: var(--ink); text-decoration: none; cursor: pointer; user-select: none; transition: background 0.15s;
+  display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 10px 8px 8px; border-radius: 8px;
+  color: var(--ink); text-decoration: none; cursor: pointer; user-select: none; transition: background 0.15s;
 }
 .sf-me:hover { background: var(--bg-2); }
+.me-nav { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--line); }
+.me-nav { display: flex; flex-direction: column; }
+.me-menu .me-nav .auto-btn { height: auto; padding: 7px 10px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-weight: 400; }
+.me-menu .me-nav .auto-btn:hover { background: var(--bg-2); color: var(--ink); }
+.me-menu .me-nav .auto-btn > span { display: inline; flex: 1; text-align: left; }
+.me-menu .me-nav .auto-btn > span small { margin-left: 4px; font-size: 12px; color: var(--faint); }
+.me-menu .me-nav .auto-btn .i { width: 15px; height: 15px; color: var(--muted); }
+.me-menu .me-nav .getapp-btn .i { color: var(--accent); }
+.me-menu .me-nav [hidden] { display: none; }
 .sf-av {
   position: relative; flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
   background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); font-size: 12.5px; color: var(--ink-2);
@@ -100,10 +106,6 @@ body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(cal
 .sf-who :is(b, small) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .sf-who b { font-size: 13px; font-weight: 600; }
 .sf-who small { font-size: 11.5px; color: var(--faint); }
-/* less room: Get the app goes to its icon first, then Update; you keep your avatar */
-.split-foot .getapp-btn > span { display: none; }
-@container foot (max-width: 250px) { .split-foot .update-btn > span, .sf-who small { display: none; } }
-@container foot (max-width: 210px) { .sf-who { display: none; } .sf-me { padding-right: 4px; } }
 body.split :is(.collapse-all, .to-top) { display: none; }
 body.resizing, body.resizing * { cursor: col-resize !important; user-select: none; }
 
@@ -137,16 +139,6 @@ body.split.side-right .split-grip { left: auto; right: calc(var(--side-w) - 4px)
 /* home: the prompt box is open beside it */
 .split-new.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); color: var(--ink); }
 .sp-side { display: flex; gap: 4px; }
-.split-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.split-nav:empty { display: none; }
-.split-nav .auto-btn {
-  min-width: 0; height: 32px; gap: 8px; padding: 0 8px 0 10px; border-color: transparent; border-radius: 9px;
-  background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink-2);
-}
-.split-nav .auto-btn:hover { border-color: transparent; background: var(--bg-2); color: var(--ink); }
-.split-nav .auto-btn > span { display: block; flex: 1; min-width: 0; overflow: hidden; text-align: left; white-space: nowrap; text-overflow: ellipsis; }
-.split-nav .auto-btn .i { color: var(--muted); }
-@container stop (max-width: 250px) { .split-nav { grid-template-columns: 1fr; } }
 .sp-side:empty { display: none; }
 
 body.split .feed { margin-top: 8px; }
@@ -390,11 +382,11 @@ body.split #feed .item.open > .it-body > .it-dock { padding: 14px 0 16px; }
    opens over it as a page (body.stack-page) whose head starts with Back. The list stays laid out
    underneath, off-screen (the open card's body lives in it, and it keeps its scroll for Back). */
 body.split.stack .stage { grid-template-columns: minmax(0, 1fr); }
-body.split.stack :is(.topbar, .feed-wrap, .split-foot) { grid-column: 1; border-left: 0; border-right: 0; }
+body.split.stack :is(.topbar, .feed-wrap) { grid-column: 1; border-left: 0; border-right: 0; }
 body.split.stack .split-main { grid-column: 1; }
 body.split.stack :is(.split-grip, .view-btn) { display: none; }
 body.split.stack:not(.stack-page) .split-main { display: none; }
-body.split.stack.stack-page :is(.topbar, .split-foot) { display: none; }
+body.split.stack.stack-page .topbar { display: none; }
 body.split.stack.stack-page .feed-wrap { position: absolute; top: 0; bottom: 0; left: -100vw; width: 100vw; visibility: hidden; }
 body.split.stack.stack-page #feed .item.open > .it-body { visibility: visible; }
 body.split.stack .feed-wrap { padding: 0 8px 32px; }
@@ -436,10 +428,9 @@ body.split.stack #feed .item.open > .it-body > .it-dock { padding: 10px 0 calc(1
 body.split.stack #feed .item.open > .it-body { animation: none; }
 body.split.stack.stack-in :is(.split-main, #feed .item.open > .it-body) { animation: stack-in 0.22s var(--ease); }
 @keyframes stack-in { from { transform: translateX(32px); opacity: 0; } }
-/* The phone app: the floating New task sits over the list, above its foot (Settings is in the
-   foot's corner), with room under the last row to scroll it clear. */
-body.wisp-mobile.split.stack .feed-wrap { padding-bottom: 88px; }
-body.wisp-mobile.split.stack .prompt-fab { bottom: calc(76px + env(safe-area-inset-bottom)); }
+/* The phone app: the floating New task sits over the list, with room under the last row to scroll
+   it clear. */
+body.wisp-mobile.split.stack .feed-wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 /* On a touch screen the row's done button is always there (no hover): its own column after the
    time and state, not over them. The task bar's buttons take a thumb, as in the app. */
 @media (hover: none) and (pointer: coarse) {

@@ -31,6 +31,12 @@
   .col .node { flex: 1; max-width: 260px; }
 }
 
+/* The avatar and its menu's rows take a thumb on any touch screen, not only in the app. */
+@media (pointer: coarse) {
+  .topbar .me-btn { min-width: 44px; height: 44px; }
+  .me-menu :is(.sf-me, .me-nav .auto-btn) { min-height: 44px; }
+}
+
 /* Touch screens have no keys to press: drop the shortcut hints on floating buttons. */
 @media (hover: none) and (pointer: coarse) {
   :is(.collapse-all, .to-top, .split-new, .search-btn) kbd, .key-hint, .pal-foot { display: none; }
@@ -73,7 +79,7 @@ body.wisp-mobile .topbar .p-chip.more.solo { flex: none; }
 body.wisp-mobile .topbar .machines-btn.auto-btn { position: relative; flex: 0 8 auto; min-width: 44px; height: 32px; gap: 6px; margin-left: auto; padding: 0 12px 0 10px; border-radius: 99px; border-color: var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; }
 body.wisp-mobile .machines-btn span { display: inline; min-width: 0; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.wisp-mobile .machines-btn .i { color: var(--muted); }
-body.wisp-mobile :is(.topbar .p-chip, .machines-btn)::before { content: ''; position: absolute; inset: -6px -2px; }
+body.wisp-mobile .topbar :is(.p-chip, .machines-btn)::before { content: ''; position: absolute; inset: -6px -2px; }
 /* A follow-up's bar is narrow on a phone: its mode button is just the icon (coloured per mode; the menu names it). */
 body.wisp-mobile .c-bar .c-mode span { display: none; }
 body.wisp-mobile .c-bar .c-mode { padding: 0; justify-content: center; }
@@ -94,7 +100,9 @@ body.wisp-mobile.syncing .topbar::after { opacity: 1; animation: syncing 1.1s ea
 /* ---------- phone app: reach, size and type ---------- */
 /* Only in the app (body.wisp-mobile): a desktop or a narrow browser window keeps its own layout. */
 /* 44px under every control a thumb aims at. */
-body.wisp-mobile .topbar :is(.icon-btn, .auto-btn, .search-btn) { min-width: 44px; height: 44px; justify-content: center; }
+body.wisp-mobile .topbar :is(.icon-btn, .auto-btn, .search-btn, .me-btn) { min-width: 44px; height: 44px; justify-content: center; }
+/* The avatar menu's rows take a thumb. */
+body.wisp-mobile .me-menu :is(.sf-me, .me-nav .auto-btn) { min-height: 44px; }
 body.wisp-mobile .lp-chip { height: 44px; }
 /* The logo is only a mark here: its #/ link would add a history entry Back has to step over. */
 body.wisp-mobile .topbar .brand { pointer-events: none; margin-right: 6px; }

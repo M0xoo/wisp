@@ -21,8 +21,9 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** open `/`.
 - **Expected:** sidebar with *New task*, *Needs you* listing *Welcome to wisp*; the home shows
   *What should wisp do next?*, the launcher (prompt box, *This computer*, permission mode, harness)
-  and *Tips*; *Machines* and *Automations* side by side under *New task*; the foot says *wisp Grid · Not
-  connected · Sign in* (a click opens Machines' sign-in), then *Get the app* and *Settings* (icons). No console errors.
+  and *Tips*; the sidebar's head ends with a round avatar (a greyed cloud, signed out) whose menu
+  says *wisp Grid · Not connected · Sign in* (a click opens Machines' sign-in), then *Machines*,
+  *Automations*, *Get the app* and *Settings*. No foot under the list. No console errors.
 - **Automated**
 
 ### WEB-03 · Welcome tour renders every block
@@ -138,8 +139,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Automated** (API), **Suite** (`test/btw.test.js`)
 
 ### WEB-23 · Machines, Automations, Get the app dialogs
-- **Steps:** click *Machines* and *Automations* under *New task*, and *Get the app* in the foot.
-- **Expected:** each opens its panel/dialog and closes with Esc.
+- **Steps:** open the avatar's menu and click *Machines*; again for *Automations* and *Get the app*.
+- **Expected:** the menu closes and each opens its panel/dialog, which closes with Esc.
 - **Automated**
 
 ### WEB-24 · Usage

@@ -105,7 +105,7 @@ try {
           tips: /More tips/.test(document.body.innerText),
         };
       });
-      ok(ui.machines === COMPUTER, `Machines button reads "${ui.machines}", expected "${COMPUTER}"`);
+      ok(ui.machines === `Computers ${COMPUTER}`, `the computers row reads "${ui.machines}", expected "Computers ${COMPUTER}"`);
       ok(ui.fab, 'no floating New task button');
       ok(ui.stacked, 'not the stacked task list');
       ok(!ui.newRow, 'the list shows its New task row beside the floating button');
@@ -133,8 +133,8 @@ try {
     const more = page.locator('.item.open [data-a="more"], .item.open button[title*="More" i]').first();
     if (await more.count()) {
       await more.tap();
-      await page.waitForSelector('.menu', { timeout: 5000 });
-      const text = await page.locator('.menu').innerText();
+      await page.waitForSelector('.menu:not(#meMenu)', { timeout: 5000 });
+      const text = await page.locator('.menu:not(#meMenu)').innerText();
       ok(!/Open project in editor/.test(text), 'More menu offers “Open project in editor”');
       ok(/Delete task/.test(text), 'More menu is missing Delete task');
       await shot(page, 'more-menu');
@@ -145,6 +145,7 @@ try {
     await page.waitForFunction(() => !document.body.classList.contains('stack-page'), null, { timeout: 5000 });
     // The Computers button goes to https://localhost/ (the app's list); in Chrome that just fails to load.
     const nav = page.waitForRequest((r) => r.url().startsWith('https://localhost/'), { timeout: 5000 });
+    await page.locator('#meBtn').tap(); // the computer is a row in the avatar's menu
     await page.locator('#machinesBtn').tap();
     const req = await nav;
     ok(new URL(req.url()).searchParams.get('from') === COMPUTER, `went to ${req.url()}`);
