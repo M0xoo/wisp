@@ -555,3 +555,7 @@ body.wisp-mobile :is(.crew-share, .crew-import, .crew-review) .ce-foot button { 
   .ce-spell > span { flex-basis: calc(100% - 22px); }
 }
 .cs-bad[hidden] { display: none; }
+/* a crew delegate shows its avatar at full size where others show a harness logo */
+:is(.ts-m, .tl-logo, .sub-logo).crew { background: none; }
+:is(.ts-m, .tl-logo, .sub-logo).crew > .cr-av { width: var(--size); height: var(--size); }
+.tl-logo.crew { box-shadow: none; }
