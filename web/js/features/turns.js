@@ -126,9 +126,9 @@ export function renderBody(id, { fresh }) {
   paintGoal(id); // the goal it keeps going for (goal.js)
   paintMeta(id);
   const live = s.state === 'running' || s.state === 'waiting';
-  // Ship and Done sit in the top bar and again next to the composer, so they're there on opening the
-  // card and after reading the result. The PR row sits in the composer's dock for the same reason;
-  // in split view it's in the details column with them (placePr).
+  // Ship and Done sit in the top bar and again next to the composer (split view hides the composer's
+  // copies: its bar is sticky, so they're in reach after reading the result anyway). The PR row sits
+  // in the composer's dock; in split view it's in the details column with them (placePr).
   renderPrStrip(id);
   renderOverlapStrip(id);
   $$('[data-a="done"]', body).forEach((b) => {
@@ -467,7 +467,8 @@ function renderTurn(s, t, isLatest, fold, tx) {
     node.append(renderWorking(s, t, tx));
   } else {
     const ctx = ctxFor(s, t, isLatest);
-    const out = tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, ctx);
+    // The trail under it carries the time, cost and files, so the hero doesn't repeat them.
+    const out = tx ? renderTranscript(s, t, ctx) : renderPresentation(t.presentation, { ...ctx, trail: true });
     if (isLatest && t.limit && s.state !== 'running') {
       const card = el('<div class="blk blk-limit"></div>');
       card.style.setProperty('--d', '110ms'); // right after the hero
