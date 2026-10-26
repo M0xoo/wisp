@@ -64,10 +64,10 @@ export function notifyFinished(s) {
   // screen: it shows there.
   const member = s.crew && memberById(s.crew.id);
   if (member && crewInView(member.id) && focused()) return;
-  const head = member ? `${avatarHtml(member, { size: 18, dot: false })} <b>${esc(member.name)}</b>${s.state === 'waiting' ? ' has a question' : ' reported'}: ${esc(s.title)}` : `${icon(s.state === 'waiting' ? 'ask' : 'spark')} <b>${esc(s.title)}</b> ${verb}`;
+  const head = member ? `<b>${esc(member.name)}</b>${s.state === 'waiting' ? ' has a question' : ' reported'}: ${esc(s.title)}` : `${icon(s.state === 'waiting' ? 'ask' : 'spark')} <b>${esc(s.title)}</b> ${verb}`;
   // A member's job opens in its thread, at that job: the question to answer, or the report.
   const open = () => (member ? openMember(member.id, { entry: s.id }) : reveal(s.id));
-  toast(head, { action: { label: 'Open', run: open }, timeout: 7000 });
+  toast(head, { action: { label: 'Open', run: open }, timeout: 7000, glyph: member && avatarHtml(member, { size: 26, dot: false }) });
   if (!notifyOn() || focused()) return;
   const body = s.state === 'waiting' ? s.question : s.preview || 'Ready for review';
   const title = member ? `${member.name}: ${s.title}` : `${s.project}: ${s.title}`;

@@ -208,7 +208,7 @@ button.mn.crew { font: inherit; padding: 0; }
 .ts-m.crew { background: none; }
 .ts-m.crew .cr-av { --size: 18px; }
 .wm-row .cr-av { --size: 24px; }
-.toast .cr-av { display: inline-grid; vertical-align: -5px; margin-right: 2px; }
+.t-msg .cr-av { display: inline-grid; vertical-align: -5px; margin-right: 2px; }
 
 /* ---------- a member's thread (crew.js): the main pane in split view, in place in the feed ---------- */
 .cr-member { display: flex; flex-direction: column; }

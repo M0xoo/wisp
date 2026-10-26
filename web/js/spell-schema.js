@@ -231,6 +231,14 @@ export const PARTS = {
   // strip that asks before sending what the app offers: that one always shows.
   'block.app': '.b-app',
   'block.app.head': '.b-app .app-head',
+  // Toasts: the stack, each card, its glyph, its action button, the ring that runs down while it
+  // shows, and Clear all over the fanned-out stack.
+  toasts: '#toasts',
+  toast: '#toasts .toast',
+  'toast.glyph': '#toasts .t-glyph',
+  'toast.action': '#toasts .t-act',
+  'toast.timer': '#toasts .t-time',
+  'toast.clear': '#toasts .toasts-clear',
 };
 
 // The pieces of a card head, for `parts["card.head"].order`.
