@@ -272,8 +272,8 @@ export function openSettings(opts) {
     const before = new Map(S.agents.map((a) => [a.id, a]));
     try {
       setAgents(await api('/agents/recheck', { method: 'POST', body: {} }));
+      bus.emit('agents'); // this pane, the launcher's setup strip and home's setup tip
       if (!node.isConnected) return;
-      paintAgents();
       $('#launcher')?.placesChanged?.();
       toast(recheckSummary(before, S.agents));
     } catch (err) {
