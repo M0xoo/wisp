@@ -46,6 +46,13 @@ test('the / menu offers the commands a half-typed one could be', () => {
   assert.deepEqual(names('hi /b'), []);
 });
 
+test('the new-task box offers /goal but not /btw (no run to ask on the side yet)', () => {
+  const names = (t) => page.slashMatches(t, page.HOME_SLASH).map((c) => c.name);
+  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback']);
+  assert.deepEqual(names('/b'), []);
+  assert.match(page.HOME_SLASH.find((c) => c.name === 'goal').hint, /Start a task/);
+});
+
 const session = {
   agent: 'claude',
   turns: [

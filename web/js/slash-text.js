@@ -7,6 +7,8 @@ export const SLASH = [
   { name: 'spell', args: 'what to change', hint: 'Cast a spell: change wisp itself' },
   { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or breaks', bare: true }, // alone: opens the dialog
 ];
+// The new-task box: there's no run to ask on the side yet, and a goal starts a task.
+export const HOME_SLASH = SLASH.filter((c) => c.name !== 'btw').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c));
 
 const BTW_CMD = /^\/btw(?:\s+|$)/i;
 export const isBtw = (text) => BTW_CMD.test(String(text || '').trimStart());

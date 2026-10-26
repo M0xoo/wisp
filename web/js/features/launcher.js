@@ -16,6 +16,7 @@ import { openAutomations, recipeParams, runRecipe } from './automations.js';
 import { cloneById, clones } from './clones.js';
 import { renderFeed } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
+import { slashMenu } from './slash.js';
 import { connectMachine, offlineToast, openMachines } from './machines.js';
 import { mentionBox } from './mentions.js';
 import { askNotify } from './notify.js';
@@ -29,7 +30,7 @@ import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
-import { SPELL_HINT, spellAsk } from '../slash-text.js';
+import { goalAsk, HOME_SLASH, isGoalDrop, SPELL_HINT, spellAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
@@ -142,6 +143,7 @@ export function renderLauncher() {
   launcherParts(box); // what spells add to the prompt box
 
   const ta = mentionBox($('#prompt', box));
+  slashMenu(ta, ta.parentNode, HOME_SLASH); // before the Enter below: picking a command doesn't launch
   const tray = attachTray();
   ta.parentNode.before(tray.node); // before the mention box's wrapper
   acceptFiles(box, ta, tray);
@@ -398,6 +400,15 @@ export function renderLauncher() {
       ta.dispatchEvent(new Event('input'));
       return feedbackCommand(prompt, { restore: () => !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input'))) });
     }
+    // /goal <condition>: the condition is the task and its goal (the server reads it, launch.js).
+    // Bare, it opens Done when; there's no goal to drop before the task exists.
+    const typedGoal = goalAsk(prompt);
+    if (typedGoal === '') {
+      ta.value = '';
+      ta.dispatchEvent(new Event('input'));
+      return box.goalOpen?.();
+    }
+    if (typedGoal && isGoalDrop(typedGoal)) return toast('No goal to drop yet: <b>/goal drop</b> works in a task’s reply box.');
     // One run per place picked under "Run on", all in the picked project: a place that has no
     // checkout of it yet gets one first (the server clones it there).
     const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(), clone: cloneById(pickId()), also: ownPick() ? alsoIds().map(projectById).filter(Boolean) : [] }));
@@ -456,7 +467,7 @@ export function renderLauncher() {
     const cmp = compare;
     const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
     const launchMode = over?.mode || curMode;
-    const goal = box.goal?.() || undefined; // Done when: the task keeps going until it holds
+    const goal = (!typedGoal && box.goal?.()) || undefined; // Done when: the task keeps going until it holds
     const goalBack = box.goalTaken?.(goal) || (() => {});
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet

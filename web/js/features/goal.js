@@ -275,6 +275,11 @@ export function launcherGoal(box, ta) {
     paint();
     api('/config', { method: 'PATCH', body: { defaults: { goalRounds: r.dataset.r } } }).catch(toastError);
   });
+  // A bare /goal in the box: open Done when and type there.
+  box.goalOpen = () => {
+    if (on) return input.focus();
+    btn.click();
+  };
   // What the launch sends: { text, max }, or nothing. Taking it clears the line (back on failure).
   box.goal = () => {
     if (!on) return null;
