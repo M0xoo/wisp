@@ -7,7 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- **A setup card on top of Tips until an agent can run.** With no harness found (or only signed-out ones), home pins *Connect a coding agent* (or *Sign in to Claude Code*) above the tips, on phones and stacked windows too, and it opens Settings → Agents. It goes away by itself once one is ready. Spells reach it as the `tips.setup` part.
+- **A setup card on top of Tips until an agent can run.** With no harness found (or only signed-out ones), home pins *Connect a coding agent* (or *Sign in to Claude Code*) above the tips, on phones and stacked windows too, and it opens Settings → Agents. It goes away by itself once one is ready. Spells reach it as the `tips.setup` part. opencode on its free models alone (no provider signed in, no API key) doesn't count as ready: the card asks for an account or a key, and Settings → Agents says *free models only*.
 
 ### Changed
 

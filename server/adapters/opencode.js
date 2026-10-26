@@ -23,6 +23,16 @@ const RATE_LIMITED = /Rate limit exceeded|Too Many Requests|status(?:Code)?[=: ]
 const REJECTED = /permission requested: ([\w.-]+) \((.*?)\); auto-rejecting/g;
 const ANSI = /\x1b\[[0-9;]*m/g;
 
+// `opencode auth list`: a provider signed in to ("└  1 credentials") or a key in the environment
+// (an "Environment" section). Without either it only has its free models, so home's setup tip
+// doesn't count it. null when the output isn't one we know.
+export function hasKey(out) {
+  const text = out.replace(ANSI, '');
+  const n = /(\d+) credentials?/.exec(text);
+  if (!n) return null;
+  return Number(n[1]) > 0 || /[1-9]\d* environment variables?/.test(text);
+}
+
 export default {
   id: 'opencode',
   name: 'opencode',
@@ -61,7 +71,7 @@ export default {
         if (/^[\w.-]+\/\S+$/.test(l)) models.push({ id: l, label: l.split('/').slice(1).join('/'), hint: l.split('/')[0] });
       }
     }
-    return { ...found, models: [this.models[0], ...models] };
+    return { ...found, models: [this.models[0], ...models], hasKey: hasKey(await quietOutput(BIN, ['auth', 'list'])) };
   },
 
   // grants: { permission, patterns } the user allowed after `run` rejected them, for this turn.

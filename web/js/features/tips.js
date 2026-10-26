@@ -24,14 +24,17 @@ function start() {
   save(AT, at);
 }
 
-// Nothing here can run a task: none found, or found but signed out. Unknown until the first
-// detection is back (an empty list), so a slow start doesn't flash it.
+// Nothing here can run a task for real: none found, found but signed out, or only opencode on its
+// free models (no provider, no API key). Unknown until the first detection is back (an empty
+// list), so a slow start doesn't flash it.
 function setupHtml() {
-  if (!S.agents.length || S.agents.some((a) => a.available)) return '';
+  if (!S.agents.length || S.agents.some((a) => a.available && a.hasKey !== false)) return '';
   const out = S.agents.filter((a) => a.signedIn === false);
   const [title, line, cta] = out.length
     ? [`Sign in to ${esc(out[0].name)}`, `It’s installed but signed out, so tasks have nowhere to run yet`, 'Sign in']
-    : ['Connect a coding agent', 'wisp drives Claude Code, Codex, opencode and more: pick one to run your first task', 'Set up'];
+    : S.agents.some((a) => a.available)
+      ? ['Bring your own model', 'Only opencode’s free models run here: sign in to Claude Code or Codex, or add a key', 'Set up']
+      : ['Connect a coding agent', 'wisp drives Claude Code, Codex, opencode and more: pick one to run your first task', 'Set up'];
   return `<button type="button" class="tip tip-setup">
     <span class="ts-badge">${icon('agent')}</span>
     <span class="ts-text"><b>${title}</b><small>${line}</small></span>
