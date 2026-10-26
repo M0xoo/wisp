@@ -397,6 +397,17 @@ function limitCard(s, t) {
   return node;
 }
 
+// A crew member's job that came from another task (delegated, tagged, asked to check on it): its
+// first message says which, and opens that task while it's still around.
+const FROM_LABEL = { delegated: 'Delegated from', mention: 'Tagged in', event: 'Checking on' };
+function fromTask(s) {
+  const f = s.crew?.from;
+  const label = FROM_LABEL[s.crew?.job];
+  if (!label || !f?.id) return null;
+  const parent = S.sessions.get(f.id);
+  return { id: f.id, label, title: parent?.title || f.title || 'a task', open: !!parent };
+}
+
 // `fold` is set for older turns the user unfolded, so they can tuck them away again. `tx`: the card
 // shows the full transcript.
 function renderTurn(s, t, isLatest, fold, tx) {
@@ -411,8 +422,10 @@ function renderTurn(s, t, isLatest, fold, tx) {
   // on another one (a task in the project folder, where the branch can change between turns).
   const cpBranch = cp?.branch && cp.branch !== s.worktree?.branch ? cp.branch : '';
   const cpLabel = cp?.head ? `${cpBranch ? `${cpBranch}@` : ''}${cp.head.slice(0, 7)}${cp.dirty ? '*' : ''}` : '';
+  const from = t.id === s.turns[0]?.id && fromTask(s);
   const ask = el(`
     <div class="ask${t.by === 'wisp' ? ' by-wisp' : ''}">
+      ${from ? `<div class="ask-by ask-from">${icon('crew')}${from.label}${from.open ? `<button class="link" data-from="${esc(from.id)}">“${esc(from.title)}”</button>` : `<span>“${esc(from.title)}”</span>`}</div>` : ''}
       ${t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : 'Sent by wisp after its test run'}</div>` : ''}
       ${missing ? `<div class="ask-goal"><b>Still missing</b> ${esc(missing)}${next ? `<span>Next: ${esc(next)}</span>` : ''}</div>` : ''}
       <div class="ask-text ${long ? 'clamped' : ''}" ${missing ? 'hidden' : ''}>${mentionHtml(esc(t.prompt))}</div>
@@ -430,6 +443,9 @@ function renderTurn(s, t, isLatest, fold, tx) {
       ${fold ? `<button class="ghost xs t-unfold" title="Collapse this exchange">${icon('chevron', 'chev')}</button>` : ''}
     </div>`);
   if (fold) ask.querySelector('.t-unfold').onclick = fold;
+  ask.querySelector('[data-from]')?.addEventListener('click', () => {
+    revealTask(from.id);
+  });
   ask.querySelector('.more-btn')?.addEventListener('click', (e) => {
     if (missing) {
       const full = ask.querySelector('.ask-text');
