@@ -28,6 +28,13 @@ export class Secrets {
     this.#save();
   }
 
+  // Every key of one namespace (a connector that was deleted).
+  drop(ns) {
+    if (!this.data[ns]) return;
+    delete this.data[ns];
+    this.#save();
+  }
+
   #save() {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = `${this.file}.tmp`;

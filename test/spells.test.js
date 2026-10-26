@@ -168,6 +168,10 @@ test('accounts: the picker row, the button part, the details initial and the Set
   assert.deepEqual(problems({ ...base0, ui: { hide: ['picker.accounts', 'runner.account', 'details.account', 'settings.accounts'] } }), []);
   assert.deepEqual(problems({ ...base0, parts: { 'runner.account': { style: { color: 'red' } }, 'settings.accounts': { style: { borderRadius: '6px' } } } }), []);
   for (const part of ['picker.accounts', 'runner.account', 'details.account', 'settings.accounts']) assert.ok(schema.PARTS[part], part);
+  // Connectors: restyle or hide the pane, its rows and the import offer; never add one (they run commands).
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['connectors.import'] }, parts: { 'connectors.row': { style: { borderRadius: '6px' } }, 'settings.connectors': { style: { color: 'red' } } } }), []);
+  assert.ok(schema.ICONS.includes('plug'));
+  assert.ok(!Object.keys(schema.SETTINGS).some((k) => /connector/i.test(k)), 'connectors carry secrets: not a spell setting');
   assert.ok(problems({ ...base0, ui: { hide: ['picker.account'] } }).some((x) => /picker\.account/.test(x)));
 });
 
