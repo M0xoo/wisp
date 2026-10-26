@@ -1289,3 +1289,52 @@ button.sw-tb { cursor: pointer; }
 .inapp .ia-sent { display: flex; align-items: center; min-height: 44px; color: var(--ink); }
 .inapp .ia-err { margin-top: 8px; color: var(--warn); font-size: 14px; }
 .inapp[hidden], .inapp [hidden] { display: none; }
+
+/* ---------- goals: a task's goal band, three rounds playing out (index.html #goals) ---------- */
+.goal-win { --g: #18794e; max-width: 760px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 6px 22px 18px; }
+@media (prefers-color-scheme: dark) { .goal-win { --g: #3dd68c; } }
+.gw-head { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid var(--line); }
+.gw-mark svg { display: block; width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.gw-ck { stroke: var(--g); stroke-dasharray: 14; stroke-dashoffset: 14; }
+.gw-k { flex: none; font-size: 13px; color: var(--muted); }
+.gw-text { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; line-height: 1.4; }
+.gw-state { flex: none; position: relative; min-width: 76px; text-align: right; font-size: 13px; font-weight: 600; color: var(--muted); }
+.gw-s2 { position: absolute; right: 0; color: var(--g); opacity: 0; }
+.gw-sub { display: flex; align-items: center; gap: 14px; padding: 14px 0 6px; }
+.gw-track { flex: none; position: relative; width: 160px; height: 6px; border-radius: 3px; background: var(--tone-2); overflow: hidden; }
+.gw-track i { position: absolute; inset: 0 auto 0 0; width: 100%; border-radius: 3px; background: var(--accent); }
+.gw-round { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gw-rounds { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
+.gw-rounds li { display: grid; grid-template-columns: 76px 64px 1fr; gap: 12px; align-items: baseline; padding: 8px 0; font-size: 14.5px; border-top: 1px solid var(--line); }
+.gw-rounds li:first-child { border-top: 0; }
+.gw-rounds b { font-weight: 600; font-size: 13px; color: var(--muted); }
+.gw-v { font-weight: 650; font-size: 13px; color: var(--warn); }
+.gw-v.ok { color: var(--g); }
+.gw-why { color: var(--ink-2); }
+/* The rounds land one by one, the bar climbs, and on the third the mark draws into a check. */
+@media (prefers-reduced-motion: no-preference) {
+  .goal-win .gw-rounds li { animation: gw-row 10s ease infinite both; }
+  .goal-win .gw-rounds li:nth-child(2) { animation-name: gw-row2; }
+  .goal-win .gw-rounds li:nth-child(3) { animation-name: gw-row3; }
+  .goal-win .gw-track i { animation: gw-bar 10s ease infinite both; }
+  .goal-win .gw-o { animation: gw-ring 10s ease infinite both; }
+  .goal-win .gw-i { animation: gw-s1 10s ease infinite both; }
+  .goal-win .gw-ck { animation: gw-ck 10s ease infinite both; }
+  .goal-win .gw-s1 { animation: gw-s1 10s ease infinite both; }
+  .goal-win .gw-s2 { animation: gw-s2 10s ease infinite both; }
+}
+@media (prefers-reduced-motion: reduce) { .gw-s1, .gw-i { opacity: 0; } .gw-s2 { opacity: 1; } .gw-o { stroke: var(--g); } .gw-ck { stroke-dashoffset: 0; } .gw-track i { background: var(--g); } }
+@keyframes gw-row { 0%, 8% { opacity: 0; transform: translateY(4px); } 14%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes gw-row2 { 0%, 30% { opacity: 0; transform: translateY(4px); } 36%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes gw-row3 { 0%, 54% { opacity: 0; transform: translateY(4px); } 60%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes gw-bar { 0%, 8% { width: 4%; } 14%, 30% { width: 35%; } 36%, 54% { width: 70%; background: var(--accent); } 60%, 92% { width: 100%; background: var(--g); } 100% { width: 100%; background: var(--g); } }
+@keyframes gw-ring { 0%, 56% { stroke: var(--accent); opacity: 1; } 60%, 94% { stroke: var(--g); } 100% { stroke: var(--accent); } }
+@keyframes gw-ck { 0%, 58% { stroke-dashoffset: 14; } 64%, 94% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 14; } }
+@keyframes gw-s1 { 0%, 56% { opacity: 1; } 60%, 94% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes gw-s2 { 0%, 56% { opacity: 0; } 60%, 94% { opacity: 1; } 100% { opacity: 0; } }
+@media (max-width: 640px) {
+  .goal-win { padding: 4px 16px 14px; }
+  .gw-k { display: none; }
+  .gw-rounds li { grid-template-columns: 64px 1fr; gap: 2px 10px; }
+  .gw-why { grid-column: 1 / -1; }
+}

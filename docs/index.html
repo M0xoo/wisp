@@ -86,6 +86,7 @@
           "A git worktree per task, and one-click Ship it to a pull request",
           "Per-turn checkpoints with one-click rollback",
           "Compare: one task on Claude Code and Codex side by side, keep the better run",
+          "Goals: a task keeps going until wisp's own check (tests and the diff) finds its Done when condition holds",
           "Recipes and triggers",
           "MCP server, CLI, JS SDK, HTTP API and webhooks"
         ]
@@ -197,7 +198,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=50" />
+  <link rel="stylesheet" href="style.css?v=51" />
   <script>document.documentElement.classList.add('js')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -367,6 +368,36 @@
         <div><dt>@Name anywhere</dt><dd>Tag them in any prompt or follow-up, put them on a team as a delegate, send them a trigger, or run them on another machine.</dd></div>
       </dl>
       <p class="relay-links"><a href="https://github.com/M0xoo/wisp#crew">How the crew works →</a><a href="guides/run-coding-agents-in-the-background.html">Agents in the background →</a></p>
+    </section>
+
+    <!-- ───────── goals: keep going until it holds (server/goal.js) ───────── -->
+    <section class="control goals wrap" id="goals">
+      <div class="spells-head">
+        <h2>Say when it's done. wisp checks.</h2>
+        <p>Turn on <b>Goal</b> and write what has to be true: <i>Done when all tests pass and the login page works on a phone.</i> After every round, wisp runs the tests and has a model read the diff. Until the goal holds, the agent gets the task back with what's missing.</p>
+      </div>
+      <div class="spells-grid">
+        <div class="goal-win" data-ui role="img" aria-label="A task's goal band: three rounds, two sent back with what was missing, the third met">
+          <div class="gw-head">
+            <span class="gw-mark" aria-hidden="true"><svg viewBox="0 0 20 20"><circle class="gw-o" cx="10" cy="10" r="8"/><circle class="gw-i" cx="10" cy="10" r="4.2"/><path class="gw-ck" d="M6.2 10.4l2.6 2.6 5-5.4"/></svg></span>
+            <span class="gw-k">Done when</span>
+            <span class="gw-text">every auth test passes and the login form fits a 390px screen</span>
+            <span class="gw-state"><span class="gw-s1">Working</span><span class="gw-s2">Goal met</span></span>
+          </div>
+          <div class="gw-sub"><span class="gw-track"><i></i></span><span class="gw-round">3 rounds</span></div>
+          <ol class="gw-rounds">
+            <li><b>Round 1</b><span class="gw-v">Not yet</span><span class="gw-why">2 auth tests still fail: session expiry and token refresh</span></li>
+            <li><b>Round 2</b><span class="gw-v">Not yet</span><span class="gw-why">Tests pass; the form is 412px wide on a phone</span></li>
+            <li><b>Round 3</b><span class="gw-v ok">Met</span><span class="gw-why">All 48 auth tests pass and the form fits at 390px</span></li>
+          </ol>
+        </div>
+      </div>
+      <dl class="relay-facts spells-facts">
+        <div><dt>Evidence, not claims</dt><dd>The agent saying it's done counts as a claim. A met goal needs passing tests and a diff that shows it.</dd></div>
+        <div><dt>One ping</dt><dd>The task stays in Working until it's met, can't be met, runs out of rounds or goes in circles.</dd></div>
+        <div><dt>Any harness</dt><dd>Works with Claude Code, Codex, opencode and Cursor. A hand-over from Auto to a stronger model keeps the goal.</dd></div>
+      </dl>
+      <p class="relay-links"><a href="guides/make-claude-code-keep-going-until-tests-pass.html">Keep an agent going until the tests pass →</a><a href="https://github.com/M0xoo/wisp#goals">How goals work →</a></p>
     </section>
 
     <!-- ───────── compare ───────── -->

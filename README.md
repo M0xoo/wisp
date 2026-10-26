@@ -48,6 +48,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. To ask without interrupting, start with `/btw` (`/btw did you update the docs too?`): a separate read-only run answers on a copy of the conversation, and the agent keeps working. |
 | **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
 | **Crew** | Named agents with a face, a role, a schedule and a memory that keep working for you: they check in, report when something changed, take jobs in parallel and answer to `@Name` in any prompt. See [Crew](#crew). |
+| **Goals** | Say what *done* means and wisp checks it after every round, sending the task back until it holds. See [Goals](#goals). |
 | **Auto** | The default harness: wisp picks the harness, model and thinking level per task from what worked before, and learns from merges, 👍 / 👎 and follow-ups. See [Auto](#auto). |
 | **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, or GitHub Copilot CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
 | **Take over** | Resumes the harness's own session (`claude --resume <id>`, `codex resume <id>`, …) in the project folder, in a terminal inside wisp by default (macOS and Linux). Settings → General → **Take over in** can open it in a terminal app instead: Terminal, iTerm, Ghostty, Warp, cmux, kitty, WezTerm, GNOME Terminal, Konsole, Alacritty, Windows Terminal, PowerShell, or a custom command. |
@@ -367,6 +368,17 @@ A harness that says it's at its limit (session or usage limit, rate limit, no cr
 Each step's outcome feeds the router: a test pass counts more than the agent's "done", needing a repair counts less, and losing a best-of-2 a little less again. Your own follow-up stops whatever Auto was about to do next. A launch on a machine is checked on that machine, where the files are. Settings → Auto turns each step on or off and sets the test command per project.
 
 The benchmark behind the priors is in [`bench/`](bench/README.md).
+
+## Goals
+
+Give a task a *Done when* line and wisp checks the work after every round: it runs the project's tests, then a cheap read-only model reads the diff. Until the goal holds, the task goes back to the agent with what's missing and the next step. You hear about it once, when it's met, can't be met, runs out of rounds or stalls.
+
+- **Set one**: turn on **Goal** in the prompt box and write the condition (*all tests pass and the login page works on a phone*), with 3, 5, 10 or 20 rounds. On a running or finished task, type `/goal <condition>` in the reply box (`/goal` alone opens it, `/goal drop` drops it), or use **Set goal…** in More, the right-click menu or ⌘K.
+- **The check**: the agent's own report counts as a claim, not evidence. A *met* needs passing tests and evidence from the diff, and the checker can also rule the goal impossible (missing access, a contradiction, a decision only you can make). Two rounds in a row that change nothing, or get the same next step with no progress, pause it as stalled.
+- **What you see**: a band on top of the task with the goal, a progress bar and how much the last round moved it, the round (*Round 3 of 10*) and the last check in the checker's words. The row shows a ring and *3/10*. The task stays in Working through every round and notifies you once, at the end. **Pause goal**, **Resume goal** (with a fresh set of rounds) and **Drop goal** are in the band and the menus.
+- **Any harness**: the agent is told its goal every turn. A task Auto hands to a stronger model takes the goal, and the rounds it has left, along. Stop pauses it; a follow-up of yours keeps it and it's checked again after your turn.
+
+API: `goal: { text, max }` on `POST /sessions` (a prompt that is just `/goal …` works too), `PUT /sessions/:id/goal`, `PATCH /sessions/:id/goal` with `{ "action": "pause" | "resume" }`, `DELETE /sessions/:id/goal`. The default number of rounds is the `goalRounds` setting.
 
 ## Your agent accounts
 
