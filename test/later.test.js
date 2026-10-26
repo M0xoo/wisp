@@ -165,6 +165,24 @@ test('plans: a task starts when due; a reminder becomes a task with no agent', a
   assert.equal(srv.store.config.later.length, 0);
 });
 
+test('files go with a scheduled task and a scheduled follow-up', async () => {
+  const upload = async (name) => (await fetch(`${base}/api/uploads?name=${name}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: 'notes' }).then((r) => r.json())).id;
+  const cwd = makeRepo();
+  await api('/later', { kind: 'task', in: 5, prompt: 'read the notes', cwd, agent: 'claude', worktree: false, attachments: [await upload('plan.txt')] });
+  srv.store.config.later[0].at = Date.now() - 1000;
+  await srv.later.tick();
+  const started = await until(() => srv.store.all().find((x) => x.turns[0]?.prompt === 'read the notes'));
+  assert.deepEqual(started.turns[0].attachments.map((a) => a.name), ['plan.txt']);
+
+  const s = await task();
+  await api(`/sessions/${s.id}/later`, { in: 10, text: 'and these', attachments: [await upload('a.txt'), await upload('b.txt'), 42] });
+  assert.equal((await api('/sessions')).find((x) => x.id === s.id).later[0].files, 2); // only upload ids
+  past(s);
+  await srv.later.tick();
+  const done = await ended(s.id, 2);
+  assert.deepEqual(done.turns.at(-1).attachments.map((a) => a.name), ['a.txt', 'b.txt']);
+});
+
 test('a day late: a task becomes a missed reminder, a follow-up waits for you', async () => {
   await api('/later', { kind: 'task', in: 5, prompt: 'nightly audit', cwd: makeRepo(), agent: 'claude' });
   srv.store.config.later[0].at = Date.now() - 30 * 3600_000;

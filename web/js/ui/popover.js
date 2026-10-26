@@ -11,6 +11,7 @@ import { onBack } from './back.js';
 //   keep     selector for other floating parts (a picker it opened) whose clicks keep it open
 //   capture  watch for outside clicks in the capture phase
 //   onClose  runs once it's gone
+//   onEscape returns true when it took Escape itself (a step back inside it): it stays open
 //
 // Returns close, which is also set as node.close.
 
@@ -25,13 +26,14 @@ document.addEventListener(
     e.preventDefault();
     e.stopImmediatePropagation();
     const top = stack.at(-1);
+    if (top.onEscape?.()) return;
     top.close();
     (top.back || top.anchor)?.focus();
   },
   true,
 );
 
-export function popover(node, { anchor, keep, capture = false, back, onClose } = {}) {
+export function popover(node, { anchor, keep, capture = false, back, onClose, onEscape } = {}) {
   let open = true;
   const outside = (e) => {
     if (node.contains(e.target) || anchor?.contains(e.target) || (keep && e.target.closest?.(keep))) return;
@@ -40,7 +42,7 @@ export function popover(node, { anchor, keep, capture = false, back, onClose } =
     const box = back?.closest('.launcher, .composer');
     if (box?.contains(e.target) && !e.target.closest('button, a, input, textarea, select')) setTimeout(() => back.focus());
   };
-  const entry = { close, anchor, back };
+  const entry = { close, anchor, back, onEscape };
   const backDone = onBack(close); // the phone's Back closes it (ui/back.js)
   function close() {
     if (!open) return;

@@ -59,7 +59,12 @@ backend) and Gucci (the UI); the decisions they changed are marked *(review)*.
   *Reminds you at 15:30*, with **Start now** / **Send now** (not on reminders) and × (*Not a time*).
   The clock beside Send lights up, Send keeps its icon, and Alt+Enter ignores the time. The clock button beside Send (**Send later** / **Start
   later**) opens the time menu: *In 10 min · In 30 min · In 1 hour · In 3 hours · Tomorrow morning ·
-  Pick a time…*, each with the time it means.
+  Pick a time…*, each with the time it means. The clock works before you type: a choice *sets* the
+  time (the same chip, × is *Clear the time*, the clock says *Change start time*) and Enter schedules
+  once there's text. A set time beats one read from the text. Gone by when you press Enter: the chip
+  says *16:10 has passed* and the menu opens again; the draft stays. *Pick a time…* turns into a
+  field in its own row (the menu keeps its size and place), its time in the time column, Enter takes
+  it, Escape goes back to the row. Attached files go with a scheduled task or follow-up.
 - **Above the reply box:** each follow-up is a row like a queued one (*At 14:45 · set by the agent ·
   message*, ×). A click or right-click gives **Send now / Change time… / Cancel follow-up**. × acts at
   once with **Undo**, no confirm *(review)*.

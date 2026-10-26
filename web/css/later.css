@@ -21,10 +21,17 @@
 .menu.later-menu button[role=menuitem] { justify-content: space-between; }
 .menu.later-menu button[hidden] { display: none; }
 .lm-t { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.lm-pick { display: grid; gap: 8px; padding: 6px; }
+/* Pick a time…: a field in that row, as tall as the others, its time in their column */
+.lm-pick { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-radius: 8px; background: var(--bg-2); }
 .lm-pick[hidden] { display: none; }
-.lm-in { width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; }
-.lm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.lm-in { flex: 1; min-width: 0; height: 32px; padding: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 13px; color: var(--ink); }
+.lm-in::placeholder { color: var(--faint); }
+.menu .lm-go { flex: none; width: auto; gap: 6px; padding: 0; background: none; }
+.menu .lm-go:hover { background: none; }
+.menu .lm-go[disabled] { opacity: 1; }
+.lm-go .lm-t.no { color: var(--faint); }
+.lm-go kbd { font-size: 10.5px; }
+@media (pointer: coarse) { .lm-in { height: 44px; font-size: 16px; } }
 .menu.later-plan { width: 280px; }
 .lp-what { margin: 4px 10px 6px; font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 
@@ -37,12 +44,13 @@
 /* the button beside Send, and what wisp read in the box */
 .c-later, #launchLater { color: var(--muted); }
 .c-later.open, #launchLater.open { background: var(--bg-2); color: var(--ink); }
-.c-later:disabled, #launchLater:disabled { opacity: 0.4; }
 .when-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 11.5px; color: var(--ink-2); }
 .when-chip > .i { width: 12px; height: 12px; color: var(--accent-ink); flex: none; }
 .when-chip > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .when-chip .link { font-size: 11.5px; }
 .when-chip .att-x { position: static; translate: none; width: 18px; height: 18px; }
+.when-chip.passed, .when-chip.passed > .i { color: var(--warn); }
+.cq.later .cq-tag span .i { margin-left: 2px; }
 .it-props .later-pill { display: none; } /* the open task's rows above the box say it */
 .launcher.when-on .l-recipes { display: none; }
 .l-when[hidden] { display: none; }

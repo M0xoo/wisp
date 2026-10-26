@@ -299,6 +299,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     store,
     runner,
     launch: (body, origin) => app.launcher.launchAny(body, origin),
+    uploads: app.uploads,
     changed: (s) => app.sessionChanged(s),
     configChanged: () => app.configChanged(),
     // A reminder came due: the page notifies, and so does the phone.

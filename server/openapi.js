@@ -486,7 +486,7 @@ export function openapi({ version, port }) {
       },
       '/sessions/{id}/later': {
         parameters: [id],
-        post: { summary: 'Schedule a follow-up (or, with remind, a reminder) on the task: { at | in (minutes), text, remind? }', requestBody: body({ type: 'object', properties: { at: { type: ['integer', 'string'] }, in: { type: 'number' }, text: { type: 'string' }, remind: { type: 'boolean' } }, required: ['text'] }), responses: { 201: json({ type: 'object' }), 400: err[400] } },
+        post: { summary: 'Schedule a follow-up (or, with remind, a reminder) on the task: { at | in (minutes), text, remind?, attachments? }', requestBody: body({ type: 'object', properties: { at: { type: ['integer', 'string'] }, in: { type: 'number' }, text: { type: 'string' }, remind: { type: 'boolean' }, attachments: { type: 'array', items: { type: 'string' }, description: 'Upload ids, sent with the follow-up when it goes' } }, required: ['text'] }), responses: { 201: json({ type: 'object' }), 400: err[400] } },
         patch: { summary: 'Change a scheduled follow-up ({ item, at | in, text }), send it now ({ item, now: true }) or snooze a reminder that came due ({ item: "reminder", at | in })', requestBody: body({ type: 'object', properties: { item: { type: 'string' }, at: { type: ['integer', 'string'] }, in: { type: 'number' }, text: { type: 'string' }, now: { type: 'boolean' } }, required: ['item'] }), responses: { 200: json({ type: 'object' }), 400: err[400], 404: err[404] } },
         delete: { summary: 'Cancel a scheduled follow-up', parameters: [{ name: 'item', in: 'query', required: true, schema: { type: 'string' } }], responses: { 200: ok, 404: err[404] } },
       },
