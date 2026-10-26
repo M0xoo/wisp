@@ -20,7 +20,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Preconditions:** window 1440×900, fresh home.
 - **Steps:** open `/`.
 - **Expected:** sidebar with *New task*, *Needs you* listing *Welcome to wisp*; the home shows
-  *What should wisp do next?*, the launcher (prompt box, *This computer*, permission mode, harness)
+  *What should wisp do next?*, the launcher (prompt box, the place as a laptop icon titled *Runs on this computer…*, permission
+  mode, harness)
   and *Tips*; the sidebar's head ends with a round avatar (a greyed cloud, signed out) whose menu
   says *wisp Grid · Not connected · Sign in* (a click opens Machines' sign-in), then *Machines*,
   *Automations*, *Get the app* and *Settings*. No foot under the list. No console errors.

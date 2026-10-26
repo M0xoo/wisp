@@ -72,8 +72,11 @@ try {
   await check('WEB-02', 'first paint: split view home', async () => {
     await p.goto(w.url);
     await p.getByText('What should wisp do next?').waitFor();
-    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'This computer', 'Tips'])
+    for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'Tips'])
       ok(await p.getByText(t, { exact: false }).first().isVisible(), `"${t}" not visible`);
+    // The launcher is under 800px wide here, so the place shows as its icon; its title names it.
+    ok(await p.locator('#whereBtn').isVisible(), 'the place button is not visible');
+    ok(/this computer/i.test(await p.locator('#whereBtn').getAttribute('title')), 'the place button does not say this computer');
     await p.shot('home');
     // You, Machines, Automations and Settings: behind the avatar.
     await p.locator('#meBtn').click();
