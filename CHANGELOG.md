@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Mark done and Reopen follow the task at once.** Reopening a done task from the list (right-click, ⌘K or E) left its bar and reply box on *Reopen* and *Follow up to reopen…* until the page reloaded; they now switch to *Mark done* straight away, and the button's tooltip names what it does. The More menu's *Archive* / *Unarchive* no longer offers the old choice after you archive or unarchive from the list, and ⌘K says *Reopen* like every other menu instead of *Move back to review*.
 - **Answering from the task list in the phone app.** A question's answer buttons sit on their own line under it again, instead of a narrow column beside the row that pushed the list sideways and squeezed every label onto several lines.
 
 ## [0.42.0] - 2026-10-26
