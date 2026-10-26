@@ -89,6 +89,11 @@ if (name === 'codex' && argv.join(' ') === 'debug models') {
   ] }));
   process.exit(0);
 }
+if (name === 'opencode' && argv.join(' ') === 'auth list') {
+  // FAKE_OPENCODE_KEYS: how many providers it's signed in to (0: only the free models).
+  console.log(`┌  Credentials ~/.local/share/opencode/auth.json\n│\n└  ${process.env.FAKE_OPENCODE_KEYS ?? 1} credentials`);
+  process.exit(0);
+}
 if (name === 'opencode' && argv[0] === 'models') {
   // --verbose follows each id with pretty-printed metadata, including reasoning variants.
   if (argv.includes('--verbose')) {

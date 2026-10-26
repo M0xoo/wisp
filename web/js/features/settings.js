@@ -234,7 +234,7 @@ export function openSettings(opts) {
         // Not found: this OS's setup tip, with the command to copy unless wisp installs it itself.
         const out = !a.available && a.signedIn === false; // installed, signed out: hidden from the picker
         const desc = a.available || out
-          ? esc([a.version, out ? 'Sign in to use it' : n && `${n} model${n === 1 ? '' : 's'}`, accountCount(a)].filter(Boolean).join(' · '))
+          ? esc([a.version, out ? 'Sign in to use it' : n && `${n} model${n === 1 ? '' : 's'}`, a.hasKey === false && 'free models only', accountCount(a)].filter(Boolean).join(' · '))
           : busy ? 'Installing into ~/.wisp/tools…' : `${esc(setupTip(a))}${a.setup?.command && !canInstall ? setupCommand(a.setup.command) : ''}`;
         const install = canInstall ? `<button class="ghost sm" data-install="${esc(a.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Installing…' : 'Install'}</button>` : '';
         const docs = a.available || out ? '' : setupDocs(a);

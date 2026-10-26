@@ -78,6 +78,7 @@ for (const id of Object.keys(BIN)) {
     if (id === 'opencode') {
       assert.deepEqual(models.slice(1), ['fake/model-a', 'fake/model-b']);
       assert.deepEqual(found.models.map((m) => m.efforts), [undefined, ['low', 'high'], []], 'per-model reasoning variants');
+      assert.equal(found.hasKey, true, 'a provider from `opencode auth list`');
     }
     // Thinking levels from the CLI itself (--help, the catalog), not a list wisp keeps.
     const levels = { claude: ['low', 'medium', 'high', 'xhigh', 'max'], antigravity: ['low', 'medium', 'high', 'xhigh', 'max'], copilot: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], grok: ['low', 'high', 'xhigh'] };
@@ -316,6 +317,17 @@ test('grok: MCP server via a throwaway --agent file, cleaned up after the turn',
 
   await run('grok').done;
   assert.ok(!records(RECORD, 'grok').at(-1).argv.includes('--agent'), 'no agent file without an MCP server');
+});
+
+// Only free models (no provider, no key in the environment) doesn't count as set up on home.
+test('opencode: `auth list` tells a provider or key from the free models alone', async () => {
+  const { hasKey } = await import('../server/adapters/opencode.js');
+  const creds = (n) => `\n┌  Credentials ~/.local/share/opencode/auth.json\n│\n└  ${n} credentials\n`;
+  assert.equal(hasKey(creds(0)), false);
+  assert.equal(hasKey(creds(1)), true);
+  assert.equal(hasKey(`${creds(0)}\n┌  Environment\n│\n●  Anthropic ANTHROPIC_API_KEY\n│\n└  1 environment variable\n`), true);
+  assert.equal(hasKey(`\x1b[90m└  \x1b[0m0 credentials`), false, 'colours stripped');
+  assert.equal(hasKey(''), null, 'unknown output says nothing');
 });
 
 // A rate-limited free model: opencode retries without a word, so wisp stops it and says why.
