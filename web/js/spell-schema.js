@@ -50,6 +50,10 @@ export const PARTS = {
   'getapp.card': '.getapp',
   'topbar.automations': '#autoBtn',
   'topbar.search': '#searchBtn',
+  // You, the round avatar in the top bar's corner, and its menu: your account on the grid, then
+  // Machines, Automations, Get the app and Settings (the topbar.* parts of those name its rows).
+  'topbar.account': '#meBtn',
+  'account.menu': '#meMenu',
   'topbar.settings': '#settingsBtn',
   'topbar.view': '#viewBtn',
   feed: '#feed',
@@ -144,9 +148,9 @@ export const PARTS = {
   'card.body': '#feed .it-body',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
-  // The top bar is the sidebar's head there. Machines and Automations sit under New task (nav);
-  // you on the grid, Update, Get the app and Settings in its foot.
-  'sidebar.foot': '#splitFoot',
+  // The top bar is the sidebar's head. The foot is gone: what it held (you on the grid, Get the app,
+  // Settings) and the nav (Machines, Automations) are in the avatar's menu, so these name those.
+  'sidebar.foot': '#meBtn',
   'sidebar.new': '#splitNew',
   'sidebar.nav': '#splitNav',
   'sidebar.account': '#splitMe',
@@ -277,7 +281,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

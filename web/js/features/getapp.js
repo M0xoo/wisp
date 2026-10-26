@@ -1,5 +1,5 @@
-// "Get the app": in a plain browser tab (a wisp Grid, or `wisp --browser`), a pill in the top bar
-// invites you to the desktop app. Not in the desktop app itself, the phone app, or on a phone's
+// "Get the app": in a plain browser tab (a wisp Grid, or `wisp --browser`), a row in the avatar's
+// menu invites you to the desktop app. Not in the desktop app itself, the phone app, or on a phone's
 // browser. Its card says what the app adds and links to trywisp.dev; "Hide this" keeps it away
 // (the command palette still has it).
 
@@ -18,12 +18,13 @@ export function paintGetApp() {
   const b = $('#getAppBtn');
   if (!b) return;
   b.hidden = !inBrowser() || load(HIDDEN, false);
+  // Its card hangs from the avatar: the row is in a menu that closes as it opens.
   b.onclick = () => {
-    openGetApp(b, 'button');
+    openGetApp($('#meBtn'), 'button');
   };
 }
 
-export function openGetApp(anchor = $('#getAppBtn'), from = 'search') {
+export function openGetApp(anchor = $('#meBtn'), from = 'search') {
   if ($('.getapp')) return $('.getapp').close?.();
   track('getapp_opened', { from });
   const why = [

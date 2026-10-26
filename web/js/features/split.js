@@ -5,9 +5,9 @@
 // prompt box. It's the only layout: below SPLIT_MIN_WIDTH, and always in the phone app, it stacks
 // (body.stack): the list fills the window, and a task, a crew member's thread or home (New task)
 // opens over it as a page of its own, with Back (the head's button, Esc, the phone's Back) to the list.
-// The top bar becomes the sidebar's head (Machines and Automations move under New task as rows; Update,
-// Get the app and Settings to the sidebar's foot, beside you on the grid when you're signed in to one),
-// so the open task has the window's full height: its header is just the title,
+// The top bar becomes the sidebar's head, its corner a round avatar (you on the grid) whose menu holds
+// Machines, Automations, Get the app and Settings, so the list keeps its height and the open task the
+// window's: its header is just the title,
 // and on a wide pane what the card says about it, its PR and its actions sit in a details column on
 // the right that stays put while the task scrolls. The head's sidebar button (or [) hides the list
 // so the task gets the whole window.
@@ -23,6 +23,7 @@ import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { inGrid, load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { onBack } from '../ui/back.js';
+import { popover } from '../ui/popover.js';
 import { collapse, expand, groups, headPills, qDot, renderFeed, reveal, setFocus } from './feed.js';
 import { barCover, stage } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
@@ -102,11 +103,6 @@ export function goBack({ focus = false } = {}) {
 const home = $('#splitHome');
 const launchSlot = $('#launchSlot');
 const feedTop = $('#spFeedTop');
-const foot = $('#splitFoot');
-const nav = $('#splitNav');
-// The top bar's buttons that sit under New task, and in the sidebar's foot, in split view.
-const NAV = ['#machinesBtn', '#autoBtn'];
-const FOOT = ['#updateBtn', '#getAppBtn'];
 
 function enter() {
   // One task at a time: keep the focused one if it's open, else the first.
@@ -118,14 +114,10 @@ function enter() {
   launchSlot.style.height = '';
   // Already in place when index.html laid it out: re-inserting would replay their entrances.
   if (launchSlot.parentNode !== $('.sh-launch', home)) $('.sh-launch', home).append(launchSlot, feedTop);
-  if ($(NAV[0]).parentNode !== nav) nav.append(...NAV.map((sel) => $(sel)));
-  if ($(FOOT[0]).parentNode !== foot) foot.append(...FOOT.map((sel) => $(sel)));
-  placeSettings();
   document.body.classList.add('split');
   $('#splitMain').hidden = false;
   $('#splitGrip').hidden = false;
   $('#splitTop').hidden = false;
-  foot.hidden = false;
   if (S.sessions.size) renderFeed(); // heads show their preview line again, open or not
   paintSplit();
   const n = S.nodes.get(splitOpen());
@@ -133,17 +125,10 @@ function enter() {
   n?.card.scrollIntoView({ block: 'nearest' });
 }
 
-// Settings sits in the foot, or with search in the pane's corner while the list is hidden.
-function placeSettings() {
-  const b = $('#settingsBtn');
-  const to = listHidden() ? $('#searchBtn') : foot.lastElementChild;
-  if (b.previousElementSibling !== to) to.after(b);
-}
-
-// You, in the foot: the account this wisp is on a grid with, as the grid's own page shows it. A
+// You, the avatar in the top bar's corner and the first row of its menu: the account this wisp is on a grid with, as the grid's own page shows it. A
 // cloud computer is yours on the grid; a computer signed in to one has its account in Machines.
-// Signed out, the row stays where it was: the last account (wisp.lastMe), greyed, saying it's not
-// connected, and a click signs in again; never signed in, the same row with the cloud. Remembered
+// Signed out, it stays: the last account (wisp.lastMe), greyed, the row saying it's not connected,
+// and a click on it signs in again; never signed in, the cloud. Remembered
 // (wisp.me) so index.html paints it before the config lands.
 let lastMe;
 const hostOf = (g) => {
@@ -173,10 +158,12 @@ export function paintMe() {
   const who = me.name || me.handle;
   const av = who
     ? `${me.avatar ? `<img src="${esc(me.avatar)}" alt="" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}<b>${esc(who.trim()[0].toUpperCase())}</b>`
-    : icon('cloud');
+    : icon('user'); // never signed in: you, not a grid's status
   const sub = out ? 'Not connected · Sign in' : me.name ? `${me.handle} · ${host}` : host;
+  const circle = `<span class="sf-av${me.state === 'on' ? ' on' : ''}${out ? ' out' : ''}">${av}</span>`;
   const saved = {
-    html: `<span class="sf-av${me.state === 'on' ? ' on' : ''}${out ? ' out' : ''}">${av}</span><span class="sf-who"><b>${esc(who || 'wisp Grid')}</b><small>${esc(sub)}</small></span>`,
+    av: circle,
+    html: `${circle}<span class="sf-who"><b>${esc(who || 'wisp Grid')}</b><small>${esc(sub)}</small></span>`,
     href: !out && host ? `https://${host}/account` : '',
     title: out
       ? `Not connected to a wisp Grid${host ? ` (last: ${me.handle} on ${host})` : ''}: sign in`
@@ -187,12 +174,63 @@ export function paintMe() {
   lastMe = key;
   save('wisp.me', saved);
   if (a.dataset.h !== saved.html) (a.innerHTML = saved.html), (a.dataset.h = saved.html);
-  // Signed out it's a button (opens the sign-in), not a link: say so, and keep the pointer.
-  if (saved.href) (a.href = saved.href), a.removeAttribute('role');
-  else a.removeAttribute('href'), a.setAttribute('role', 'button');
+  if (meBtn.dataset.h !== saved.av) (meBtn.innerHTML = saved.av), (meBtn.dataset.h = saved.av);
+  // The phone app calls them Computers.
+  const what = `${MOBILE ? 'Computers' : 'Machines'}, Automations and Settings`;
+  meBtn.title = `${who ? `${who} · ` : ''}${what}`;
+  meBtn.setAttribute('aria-label', `You, ${what}`);
+  // Signed out it opens the sign-in here rather than linking to the account page (a menu row either way).
+  if (saved.href) a.href = saved.href;
+  else a.removeAttribute('href');
   a.title = saved.title;
-  a.hidden = false;
 }
+
+// The avatar's menu: the same buttons whatever opens (their counts and states are painted by their
+// own modules while it's closed), moved to the end of the page between openings.
+const meBtn = $('#meBtn');
+const meMenu = $('#meMenu');
+const meRows = () => $$('[role="menuitem"]', meMenu).filter((x) => !x.hidden);
+function openMe({ keys = false } = {}) {
+  meMenu.hidden = false;
+  document.body.append(meMenu);
+  const r = meBtn.getBoundingClientRect();
+  const w = meMenu.offsetWidth;
+  meMenu.style.top = `${r.bottom + 6}px`;
+  meMenu.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8))}px`;
+  meBtn.setAttribute('aria-expanded', 'true');
+  popover(meMenu, {
+    anchor: meBtn,
+    onClose: () => {
+      const inside = meMenu.contains(document.activeElement);
+      meMenu.hidden = true;
+      document.body.append(meMenu);
+      meBtn.setAttribute('aria-expanded', 'false');
+      if (inside) meBtn.focus({ preventScroll: true });
+    },
+  });
+  // Opened from the keyboard: on its first row, ready for the arrows.
+  if (keys) meRows()[0]?.focus();
+}
+meBtn.addEventListener('click', (e) => {
+  if (meMenu.hidden) openMe({ keys: e.detail === 0 });
+  else meMenu.close?.();
+});
+meBtn.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowDown' || !meMenu.hidden) return;
+  e.preventDefault();
+  openMe({ keys: true });
+});
+meMenu.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  const rows = meRows();
+  const i = rows.indexOf(document.activeElement);
+  rows[(i + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length]?.focus();
+});
+// A row does its thing (its own handler), then the menu goes.
+meMenu.addEventListener('click', (e) => {
+  if (e.target.closest('button, a')) meMenu.close?.();
+});
 $('#splitMe').addEventListener('click', (e) => {
   if (e.currentTarget.hasAttribute('href')) return;
   e.preventDefault();
@@ -437,7 +475,6 @@ function paintProps() {
   document.body.classList.toggle('side-full', spellProp('sidebar', 'details') === 'full');
   document.body.classList.toggle('stack', isStacked());
   document.body.classList.toggle('side-hidden', listHidden());
-  if (isSplit()) placeSettings();
   beforePaint(measure);
 }
 
