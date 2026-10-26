@@ -191,6 +191,7 @@ export const PARTS = {
   'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',
+  'tips.setup': '#splitHome .sh-tips .tip-setup', // pinned on top until a harness can run here; opens Settings → Agents
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
   // Stacked (narrow windows, the phone app): Back to the list, on a task's page and on home.

@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **A setup card on top of Tips until an agent can run.** With no harness found (or only signed-out ones), home pins *Connect a coding agent* (or *Sign in to Claude Code*) above the tips, on phones and stacked windows too, and it opens Settings → Agents. It goes away by itself once one is ready. Spells reach it as the `tips.setup` part.
+
 ### Changed
 
 - **Small polish in the task list, the prompt box and a finished task.** Titles in the sidebar run to the time instead of stopping halfway beside the state and PR pills. The prompt box folds the place to its icon a little sooner, so the harness keeps its name (no more *Au…*). A finished task's result no longer repeats the time, cost and file count shown right under it. On a phone, a task's branch gets its own line instead of shrinking to *wi…*. A result whose heading is the task's title doesn't repeat it under the head, and in split view the reply box no longer repeats *Ship it* and *Mark done*, which the task's bar keeps in reach.

@@ -261,6 +261,33 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
 .tip b { font-weight: 600; color: var(--ink); }
 .tip code { font: 12.5px var(--mono); padding: 1px 4px; border-radius: 4px; background: var(--bg-2); }
 .tip kbd { font-size: 11.5px; }
+/* Pinned until a harness can run here: a card, not a line, so it reads as the first thing to do */
+.tip.tip-setup {
+  grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; margin: 0 0 6px; padding: 12px 12px 12px 10px; width: 100%;
+  border-color: var(--line); border-radius: 12px; text-align: left; cursor: pointer;
+  background: linear-gradient(120deg, var(--accent-soft), var(--surface) 70%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.tip.tip-setup:hover { border-color: var(--line-2); background: linear-gradient(120deg, var(--accent-soft), var(--accent-soft)); }
+.ts-badge { position: relative; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: var(--surface); }
+.ts-badge .i { width: 17px; height: 17px; }
+/* a slow ring around the badge: alive, without moving the text */
+.ts-badge::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 0 var(--accent); opacity: 0.45; animation: ts-ring 2.4s ease-out infinite; }
+@keyframes ts-ring { to { box-shadow: 0 0 0 8px var(--accent); opacity: 0; } }
+.ts-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ts-text b { font-size: 13.5px; }
+.ts-text small { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.ts-cta {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px 0 12px; border-radius: 8px;
+  background: var(--ink); color: var(--bg); font-size: 12.5px; font-weight: 500; white-space: nowrap; transition: opacity 0.15s;
+}
+.ts-cta .i { width: 13px; height: 13px; transition: transform 0.15s; }
+.tip-setup:hover .ts-cta .i { transform: translateX(2px); }
+@media (max-width: 520px) {
+  .tip.tip-setup { grid-template-columns: 34px minmax(0, 1fr); }
+  .ts-cta { grid-column: 2; justify-self: start; margin-top: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .ts-badge::after { animation: none; } .ts-cta .i { transition: none; } }
 
 /* The open task's header: its title, one line, over the reading column (and the details beside it). */
 .split-head {
@@ -460,6 +487,9 @@ body.split.stack .split-home > * { max-width: none; }
 body.split.stack .sh-bar { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 6px 0; margin-bottom: 8px; }
 body.split.stack .sh-hello { margin: 0; padding: 0; font-size: 19px; }
 body.split.stack :is(.sh-tips, .sh-keys) { display: none; }
+/* …except the setup tip: with no harness, it's the one thing to do here */
+body.split.stack .sh-tips.has-setup:not([hidden]) { display: flex; margin-top: 22px; }
+body.split.stack .sh-tips.has-setup > :not(.tip-setup) { display: none; }
 body.split.stack .split-new.on { border-color: var(--line-2); color: var(--muted); }
 
 /* The task's body fills the page; its bar stays sticky over it. */
