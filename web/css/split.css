@@ -181,6 +181,10 @@ body.split #feed .it-side .pill i { width: 5px; height: 5px; }
    (28px is the widest time, "365d"). */
 body.split #feed .it-quick { position: absolute; top: 6px; right: 40px; margin: 0; background: var(--bg-2); }
 body.split #feed .it-quick-gap { display: none; }
+/* Save for later to its left; on a row without Mark done (a done task in For later) it takes that place. */
+body.split #feed .it-later { position: absolute; top: 6px; right: 68px; margin: 0; background: var(--bg-2); }
+body.split #feed .it-later:not(:has(+ .it-quick)) { right: 40px; }
+body.split #feed .it-later-gap { display: none; }
 body.split #feed .item.open:not(.unread):not(.st-waiting) .it-title { color: var(--ink-2); font-weight: 500; }
 body.split #feed .item.open.st-done .it-title { color: var(--muted); }
 body.split #feed .it-side .chev { display: none; }

@@ -167,6 +167,8 @@ export function register(r, app) {
     '/sessions/:id',
     one(async (c, s) => {
       const body = await c.body();
+      const park = body.forLater === true || (Number.isFinite(body.forLater) && body.forLater > 0); // a time: Undo puts it back in its place
+      if (park && (s.state === 'running' || s.state === 'waiting' || s.ask || runner.live.has(s.id))) throw bad('Still working — save it for later once it’s finished.', 409);
       if (typeof body.title === 'string' && body.title.trim()) Object.assign(s, { title: body.title.trim(), titleAuto: false });
       const was = s.state;
       if (body.state === 'done' && s.state !== 'running') s.state = 'done';
@@ -183,6 +185,11 @@ export function register(r, app) {
       }
       if (body.archived === true && s.state !== 'running' && s.state !== 'waiting') Object.assign(s, { archived: true, unread: false });
       if (body.archived === false) delete s.archived;
+      // For later (design/for-later.md): parked to look at again. Marking it done, reopening or
+      // archiving it takes it out; a task still working (or asking) can't be parked.
+      // Applied after state and archived, so Undo can send { state: 'review', forLater: true }.
+      if (body.forLater === false || body.state || s.archived) delete s.forLater;
+      if (park && !s.archived) s.forLater = { at: Math.min(Number.isFinite(body.forLater) ? body.forLater : Date.now(), Date.now()), by: 'user' };
       if (s.state === 'done' || s.archived) app.retro.schedule(s, 0); // finished with it: learn now
       // Archived: a clean worktree goes (its branch stays, a follow-up brings it back).
       // discardWorktree: a compare run you didn't keep; its changes go too.

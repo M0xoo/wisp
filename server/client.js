@@ -123,7 +123,7 @@ export class WispClient {
   }
   session = (id) => this.request('GET', `/sessions/${id}`);
   presentation = (id, { turn } = {}) => this.request('GET', `/sessions/${id}/presentation${turn !== undefined ? `?turn=${encodeURIComponent(turn)}` : ''}`);
-  update = (id, patch) => this.request('PATCH', `/sessions/${id}`, patch); // { title, state, unread, archived }
+  update = (id, patch) => this.request('PATCH', `/sessions/${id}`, patch); // { title, state, unread, archived, forLater }
   remove = (id) => this.request('DELETE', `/sessions/${id}`);
   stop = (id) => this.request('POST', `/sessions/${id}/stop`, {});
   answer = (id, text) => this.request('POST', `/sessions/${id}/answer`, { text });

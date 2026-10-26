@@ -25,6 +25,11 @@ export let HERE = COMPUTER || 'This computer'; // in labels
 export let here = COMPUTER || 'this computer'; // mid-sentence
 // On a wisp Grid this wisp is the user's cloud computer (GET /config says so: grid).
 export const inGrid = () => !!S.config?.grid;
+// Saved for later (design/for-later.md): in that section, and not counted as needing you. Work
+// that needs you now (running, asking, a reminder that came due) never hides there.
+export const isForLater = (s) => !!s?.forLater && !s.archived && !s.reminder && !s.pending && (s.state === 'review' || s.state === 'done');
+// What the tab title, the crew's dots and home count: asking you, or a report you haven't read.
+export const needsYou = (s) => !isForLater(s) && !s.archived && (s.state === 'waiting' || (s.state === 'review' && !!s.unread));
 export function nameHere() {
   if (COMPUTER) return;
   HERE = inGrid() ? 'Cloud computer' : 'This computer';

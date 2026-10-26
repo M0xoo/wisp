@@ -40,7 +40,7 @@ const whoSet = (by) => (by === 'user' ? 'you' : by === 'agent' ? 'the agent' : b
 
 // A task with only follow-ups to wait for: it sits in Scheduled. One that asks you or has a report
 // to read stays in Needs you with the pill (nothing an agent schedules hides what needs you).
-export const isScheduled = (s) => !s.archived && s.state === 'done' && !!s.later?.length;
+export const isScheduled = (s) => !s.archived && !s.forLater && s.state === 'done' && !!s.later?.length; // saved for later: that wins
 
 export function laterTip(s) {
   return (s.later || []).map((l) => `${l.remind ? 'Reminder' : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), set by ${whoSet(l.by)}: ${l.text}`).join('\n');

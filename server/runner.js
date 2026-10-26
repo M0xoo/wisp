@@ -145,6 +145,7 @@ export function summarize(s, store) {
     state: s.state,
     unread: s.unread,
     archived: !!s.archived,
+    ...(s.forLater && { forLater: { at: s.forLater.at, by: s.forLater.by } }), // parked to look at again (design/for-later.md)
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
     turnCount: s.turns.length,
@@ -933,6 +934,7 @@ export class Runner extends EventEmitter {
     session.state = 'running';
     session.unread = false;
     delete session.archived;
+    delete session.forLater; // new work: when it ends it lands in Needs you, not back in For later
     this.#touch(session, { turn: turn.id });
     this.#touchLead(session);
     this.emit('started', { session, turn });
@@ -1177,6 +1179,9 @@ export class Runner extends EventEmitter {
     // answer): filed under Done, nobody is pinged.
     const quiet = ((crewOut.quiet || crewOut.filed) && !holding && !handing) || waits;
     if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) });
+    // A crew report worth reading but not urgent: filed in For later, unread, and nobody is pinged.
+    const parked = !!crewOut.later && !quiet && !holding && !handing && !crewOut.filed;
+    if (parked) session.forLater = { at: Date.now(), by: 'crew' };
     this.store.save(session, { now: true });
     this.#touch(session, { turn: turn.id });
     this.emit('ended', { session, turn, interrupted, errorText: ev.isError && !ev.stopped ? ev.text : '' });
@@ -1185,7 +1190,7 @@ export class Runner extends EventEmitter {
     if (holding) setImmediate(() => (checks ? this.pipeline.run(session, turn) : this.goals.run(session, turn)));
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
-    else if (!handing && !quiet && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
+    else if (!handing && !quiet && !parked && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
   }
 
   // The run hit its account's usage limit: that account is marked until its reset, and the turn

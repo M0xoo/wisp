@@ -100,7 +100,7 @@ const TOOLS = [
 let client;
 const wisp = async () => (client ||= await WispClient.connect());
 
-const line = (s) => `- \`${s.id}\` **${s.title}** — ${s.state}${s.state === 'running' ? ` (${s.live})` : s.preview ? `: ${s.preview}` : ''}${s.question ? ` — asks: ${s.question}` : ''} [${s.agent}, ${s.project}]`;
+const line = (s) => `- \`${s.id}\` **${s.title}** — ${s.state}${s.forLater ? ' (for later)' : ''}${s.state === 'running' ? ` (${s.live})` : s.preview ? `: ${s.preview}` : ''}${s.question ? ` — asks: ${s.question}` : ''} [${s.agent}, ${s.project}]`;
 
 async function describe(id, extra = '') {
   const c = await wisp();

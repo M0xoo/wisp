@@ -50,6 +50,11 @@ export function createSpellHooks(app) {
         s.unread = false;
         app.sessionChanged(s);
         break;
+      case 'forLater':
+        if (s.state === 'running' || s.state === 'waiting' || s.archived || runner.live.has(s.id)) return;
+        s.forLater = { at: Date.now(), by: 'user' };
+        app.sessionChanged(s);
+        break;
       case 'notify':
         app.broadcast('spell', { toast: clip(text, 200), spell: spell.name, session: s.id });
         await app.remote?.send?.({ title: `🧙 ${spell.name}`, text, actions: [] }).catch(() => {});

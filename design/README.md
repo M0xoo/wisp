@@ -16,6 +16,8 @@ that matches your change:
 | [copy.md](copy.md) | Words: the names wisp uses, labels, toasts, CHANGELOG lines |
 | [site.md](site.md) | trywisp.dev (`docs/`): generated pages, cache busting, install text |
 | [crew.md](crew.md) | The crew: naming, where it sits, spirits (avatars), memory and context |
+| [later.md](later.md) | Later: scheduled follow-ups, tasks and reminders |
+| [for-later.md](for-later.md) | For later: finished tasks (and crew reports) parked to look at again |
 | [goals.md](goals.md) | Goals: a task that keeps going until a condition holds; the band, the checks, the words |
 | [checklist.md](checklist.md) | What to check before handing a UI change back |
 | [scorecard.md](scorecard.md) | A grid to measure a UI change, and wisp scored against Cursor, Codex and Claude Code |

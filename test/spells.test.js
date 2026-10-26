@@ -192,6 +192,13 @@ test('every task-list section and its folding heading are parts', () => {
   assert.ok(problems({ ...base0, ui: { hide: ['section.waiting'] } }).length);
 });
 
+test('for later: the section and the row button are parts; forLater is a button action and a hook action', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['section.forLater', 'card.quickLater'] }, parts: { 'section.forLater': { style: { opacity: '0.9' } } } }), []);
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'Park', icon: 'bookmark', do: { forLater: true } }], hooks: [{ on: 'turn.finished', if: { testsFailed: false }, do: { forLater: true } }] }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['section.later'] } }).some((x) => /section\.later isn't a part/.test(x)));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'Park', icon: 'flag', do: { forLater: true } }] }).some((x) => /icon/.test(x)));
+});
+
 test('later: Scheduled, Coming up, the follow-up rows, Send later and the time chip are parts; Coming up takes buttons and a count; readTimes is a setting', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.scheduled', 'split.upcoming', 'card.later', 'composer.sendLater', 'launcher.later'] }, parts: { 'composer.later': { style: { fontSize: '12px' } }, 'scheduled.row': { style: { opacity: '0.8' } }, 'split.upcoming': { props: { count: 8 } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.upcoming', label: 'All', do: { open: 'https://example.com' } }] }), []);

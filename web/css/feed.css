@@ -100,6 +100,23 @@
 @media (hover: none) { .it-quick { opacity: 1; } }
 /* holds the button's place (24px less its -6px margin) on rows without one, so nothing moves on open */
 .it-quick-gap { flex: none; width: 18px; }
+/* Save for later beside it (design/for-later.md): the same button, the accent on hover, filled once saved */
+.it-later {
+  display: grid; place-items: center; width: 24px; height: 24px; margin: -4px -4px -4px 0; border-radius: 7px;
+  color: var(--faint); opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.it-later .i { width: 14px; height: 14px; }
+.it-later.on { color: var(--accent-ink); }
+.it-later.on .i path, .cv-later.on .i path { fill: currentColor; }
+.item:hover .it-later, .item.focused .it-later, .it-later:focus-visible { opacity: 1; }
+.it-later:hover { background: var(--bg-2); color: var(--accent-ink); }
+.it-later-gap { flex: none; width: 20px; }
+/* No hover on touch: the long-press menu and the task's More have it instead. */
+@media (hover: none) { :is(.it-later, .it-later-gap) { display: none; } }
+body.wisp-mobile :is(.it-later, .it-later-gap) { display: none; }
+/* For later's heading: how many a crew member filed there that you haven't read */
+.f-group h4 .fl-new { color: var(--accent-ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.f-group h4 .fl-new::before { content: '· '; color: var(--faint); font-weight: 400; }
 
 /* expanded body */
 .it-body { animation: rise 0.3s var(--ease); }

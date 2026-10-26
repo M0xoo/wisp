@@ -63,6 +63,7 @@ export const PARTS = {
   'section.working': '#secWorking',
   'section.scheduled': '#secScheduled', // tasks and reminders set for later, and done tasks with follow-ups to come
   'scheduled.row': '#secScheduled .plan-row',
+  'section.forLater': '#secForLater', // finished tasks (and crew jobs) saved to look at again
   'section.done': '#secDone',
   'section.heading': '#feed .f-group > h4',
   // The crew: named agents pinned above Working (both layouts), each row a member with its spirit;
@@ -164,6 +165,7 @@ export const PARTS = {
   'card.time': '#feed .it-side .q-time',
   'card.later': '#feed .it-side .later-pill', // the next scheduled follow-up's time
   'card.quickDone': '#feed .it-quick',
+  'card.quickLater': '#feed .it-later', // Save for later / Unsave beside Mark done
   'card.choices': '#feed .it-choices',
   'card.body': '#feed .it-body',
   // Forks (Fork…): the fork's link to the task it came from, the original's count of its forks,
@@ -328,7 +330,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork', 'bookmark'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -351,6 +353,7 @@ export const ACTIONS = {
   ship: { kind: 'acts', doc: '{ "ship": true } open Ship it for the card\'s task' },
   done: { kind: 'acts', doc: '{ "done": true } mark the card\'s task done' },
   archive: { kind: 'acts', doc: '{ "archive": true } archive the card\'s task' },
+  forLater: { kind: 'acts', doc: '{ "forLater": true } save the card\'s task for later (a finished one; it leaves Needs you for For later)' },
   notify: { kind: 'acts', doc: '{ "notify": "text" } a desktop notification / toast (hooks: your phone, if linked)' },
   webhook: { kind: 'runs', doc: '{ "webhook": "https://…" } POST the task summary as JSON to a URL (hooks)' },
   exec: { kind: 'runs', doc: '{ "exec": "npm run e2e" } run a shell command in the task\'s folder (asks you the first time)' },
@@ -364,7 +367,7 @@ export const EVENTS = {
   'session.waiting': 'A task is waiting for your answer.',
 };
 export const HOOK_IF = ['status', 'testsFailed', 'agent', 'project', 'hasPr', 'mode'];
-export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'notify', 'webhook']);
+export const HOOK_ACTIONS = new Set(['reply', 'done', 'archive', 'forLater', 'notify', 'webhook']);
 
 // Settings a spell may set (while on). Telemetry, feedback, the update channel (a shared spell
 // mustn't move you onto nightlies) and anything secret are not here.

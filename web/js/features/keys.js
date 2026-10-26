@@ -1,10 +1,10 @@
 // The page-wide key bindings. Popovers handle their own Escape first (ui/popover.js).
 
 import { $, $$ } from '../core/dom.js';
-import { S } from '../core/state.js';
+import { isForLater, S } from '../core/state.js';
 import { modKey, shortcuts } from '../ui/kbd.js';
 import { closeOverlay } from '../ui/overlay.js';
-import { deleteSession, forkable, forkTask, rename, rerun, setArchived, takeOver, toggleDone } from './actions.js';
+import { deleteSession, forkable, forkTask, rename, rerun, setArchived, setForLater, takeOver, toggleDone } from './actions.js';
 import { openPalette } from './commands.js';
 import { collapseAll, expand, feedIds, setFocus, toggle } from './feed.js';
 import { focusLauncher } from './launcher.js';
@@ -15,7 +15,7 @@ import { activeSpells, runAction } from './spells.js';
 import { goBack, splitOpen, stackPage, toggleSidebar } from './split.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
-const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
+const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -69,6 +69,7 @@ export function onKey(e) {
     const s = S.sessions.get(id);
     if (s && (s.archived || (s.state !== 'running' && s.state !== 'waiting'))) setArchived(id, !s.archived);
   }
+  else if (k === 'l' && id) setForLater(id, !isForLater(S.sessions.get(id)));
   else if (k === 'c' && S.open.size) collapseAll();
   else if (k === 'u' || k === 'home') {
     e.preventDefault();

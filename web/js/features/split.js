@@ -20,7 +20,7 @@ import { esc } from '../md.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
-import { inGrid, load, MOBILE, S, save } from '../core/state.js';
+import { inGrid, isForLater, load, MOBILE, needsYou, S, save } from '../core/state.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { onBack } from '../ui/back.js';
 import { popover } from '../ui/popover.js';
@@ -382,7 +382,7 @@ export function paintHead(s) {
 }
 
 function backBtn(s) {
-  const m = s?.crew && S.crewOpen === s.crew.id && memberById(s.crew.id);
+  const m = s?.crew && S.crewOpen === s.crew.id && !isForLater(s) && memberById(s.crew.id);
   const label = m ? `Back to ${m.name}` : 'Back to tasks';
   return `<button class="icon-btn sh-back" title="${esc(label)}" aria-label="${esc(label)}">${icon('back')}</button>`;
 }
@@ -390,7 +390,7 @@ function backBtn(s) {
 // A crew member's job: the member, as a way back to its thread (Esc too).
 function crumb(s) {
   const m = s.crew && memberById(s.crew.id);
-  return m ? `<button class="sh-crumb" data-crew="${esc(m.id)}" title="Back to ${esc(m.name)} (Esc)">${avatarHtml(m, { size: 22, dot: false })}<span>${esc(m.name)}</span>${icon('chevron', 'chev')}</button>` : '';
+  return m ? `<button class="sh-crumb" data-crew="${esc(m.id)}" title="${isForLater(s) ? `Open ${esc(m.name)}` : `Back to ${esc(m.name)} (Esc)`}">${avatarHtml(m, { size: 22, dot: false })}<span>${esc(m.name)}</span>${icon('chevron', 'chev')}</button>` : '';
 }
 
 function paintDetails(s, pill) {
@@ -411,7 +411,7 @@ function paintHome() {
   $('.sh-hello', home).textContent = spellProp('split.home', 'greeting') || 'What should wisp do next?';
   // The tasks waiting on you, one click each: home doubles as the inbox. The sidebar's Needs you,
   // plus what the crew wants from you (a question, a report you haven't read), with their faces.
-  const crew = [...S.sessions.values()].filter((s) => s.crew && memberById(s.crew.id) && !s.pending && !s.archived && (s.state === 'waiting' || (s.state === 'review' && s.unread)));
+  const crew = [...S.sessions.values()].filter((s) => s.crew && memberById(s.crew.id) && !s.pending && needsYou(s));
   const all = [...groups().needs, ...crew].sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   const needs = all.slice(0, 5);
   const html = needs.length

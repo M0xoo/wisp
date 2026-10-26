@@ -407,6 +407,7 @@ body.split #crewView { flex: 1; }
 .cv-acts .ghost { gap: 5px; color: var(--muted); }
 .cv-acts .ghost:hover { color: var(--ink); }
 .cv-acts .i { width: 12px; height: 12px; }
+.cv-acts .cv-later.on { color: var(--accent-ink); }
 .cv-job.queued .cv-req { align-items: center; margin: 0; }
 .cv-job.queued .cv-prompt { flex: 1 1 0; background: none; border: 1px dashed var(--line-2); padding: 6px 10px; -webkit-line-clamp: 1; }
 .cv-job.sending { opacity: 0.85; }

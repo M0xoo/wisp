@@ -16,6 +16,7 @@ export function shortcuts() {
     ['/', 'Follow up on item'],
     ['E', 'Mark done & go to next'],
     ['A', 'Archive / unarchive'],
+    ['L', 'Save for later / unsave'],
     ['M', 'Rename item'],
     ['⌫', 'Delete item'],
     ['T', 'Take over in terminal'],

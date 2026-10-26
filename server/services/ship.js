@@ -89,7 +89,7 @@ export function createShip(app) {
         if (a.pr.state !== prev.state || a.pr.review !== prev.review || (!a.pr.checks.pending && prev.checks?.pending)) news = true;
       }),
     );
-    if (news) s.unread = true;
+    if (news) (s.unread = true), delete s.forLater; // news on its PR: back out of For later
     app.sessionChanged(s);
     return true;
   };
@@ -105,7 +105,7 @@ export function createShip(app) {
     if (pr.state !== prev.state) app.auto.signals(summarize(s, store));
     // Things worth coming back for: CI finished either way, a review landed, it merged or closed.
     const settledChecks = (x) => (x.checks.pending ? 'pending' : x.checks.fail ? 'fail' : 'pass');
-    if (changed((x) => x.state) || changed((x) => x.review) || (changed(settledChecks) && settledChecks(pr) !== 'pending')) s.unread = true;
+    if (changed((x) => x.state) || changed((x) => x.review) || (changed(settledChecks) && settledChecks(pr) !== 'pending')) (s.unread = true), delete s.forLater;
     app.sessionChanged(s);
     await fixConflicts(s).catch(() => {});
     return pr;
@@ -144,6 +144,7 @@ export function createShip(app) {
     const fail = (why) => {
       Object.assign(fix, { step: 'failed', why });
       s.unread = true;
+      delete s.forLater;
       app.sessionChanged(s, { now: true });
     };
     if (interrupted || s.queue?.length) return fail('Stopped: the task moved on before the conflicts were fixed.');
@@ -161,6 +162,7 @@ export function createShip(app) {
     } catch (err) {
       Object.assign(fix, { step: 'failed', why: `Push failed: ${err.message}` });
       s.unread = true;
+      delete s.forLater;
     } finally {
       delete s.shipping;
       app.sessionChanged(s, { now: true });
