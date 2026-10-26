@@ -4,7 +4,7 @@
 //
 // Which harness it plays comes from the script's file name (test/helpers.js installs copies as
 // claude.mjs, codex.mjs, …). Behaviour knobs, via env:
-//   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid, opencodeConfig, allowAll } to <name>.jsonl
+//   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid, opencodeConfig, allowAll, configDir, codexHome } to <name>.jsonl
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_LIMIT_ONCE=<file>  the first run hits a usage limit (stderr, exit 1); later runs work
@@ -62,6 +62,8 @@ if (argv[0] === '--version' || argv[0] === '-v') {
 }
 // Sign-in checks (server/agent-login.js) run in wisp's own folder: say nothing rather than do the
 // work below, which would leave math.js and notes.txt in the checkout.
+// Sign-out (removing an account signs it out first): nothing to do, and no prompt to work on.
+if ((name === 'claude' && argv.join(' ') === 'auth logout') || (name === 'codex' && argv.join(' ') === 'logout')) process.exit(0);
 if ((name === 'claude' && argv.join(' ') === 'auth status') || (name === 'codex' && argv.join(' ') === 'login status') || (name === 'cursor-agent' && argv.join(' ') === 'status')) process.exit(0);
 // --help, laid out like each real CLI's entry for its thinking-level flag (agy prints to stderr).
 if (argv[0] === '--help') {
@@ -152,7 +154,7 @@ const btw = stdin.includes('# wisp btw');
 
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME }) + '\n');
 }
 
 if (retro) {

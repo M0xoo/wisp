@@ -46,19 +46,51 @@ export function register(r, app) {
 
   r.route('GET', '/openapi.json', (c) => c.send(200, openapi({ version: VERSION, port })), { doc: false });
 
+  // Each harness that can have several accounts lists them (server/accounts.js), in your order.
+  const withAccounts = (list) => list.map((a) => (app.accounts?.supports(a.id) ? { ...a, accounts: app.accounts.view(a.id) } : a));
   // ?fresh=1 detects every harness again; ?fresh=<id> just that one (after signing in to it).
-  r.route('GET', '/agents', async (c) => c.send(200, await (c.query.has('fresh') ? app.auto.detect({ fresh: Object.hasOwn(adapters, c.query.get('fresh')) ? c.query.get('fresh') : true }) : app.auto.listed())));
+  r.route('GET', '/agents', async (c) => c.send(200, withAccounts(await (c.query.has('fresh') ? app.auto.detect({ fresh: Object.hasOwn(adapters, c.query.get('fresh')) ? c.query.get('fresh') : true }) : app.auto.listed()))));
   // Re-check: detect harnesses and models again, here and on every online machine.
   r.route('POST', '/agents/recheck', async (c) => {
     const [agents] = await Promise.all([app.auto.detect({ fresh: true }), machines.recheckAgents()]);
-    c.send(200, agents);
+    c.send(200, withAccounts(agents));
   });
   // Sign in to a harness here: its own login, shown as a link, a code, and a box to paste one back.
-  r.route('GET', '/agents/:id/login', async (c) => c.send(200, { ...app.agentLogin.view(c.params.id), ...(await app.agentLogin.status(c.params.id)) }));
-  r.route('POST', '/agents/:id/login', (c) => c.send(200, app.agentLogin.start(c.params.id)));
-  r.route('POST', '/agents/:id/login/input', async (c) => c.send(200, app.agentLogin.input(c.params.id, (await c.body()).code)));
-  r.route('DELETE', '/agents/:id/login', (c) => c.send(200, app.agentLogin.cancel(c.params.id)));
-  r.route('POST', '/agents/:id/logout', async (c) => c.send(200, await app.agentLogin.logout(c.params.id)));
+  // ?account=<id>: one of its extra accounts (none: the CLI's own).
+  const acc = (c) => c.query.get('account') || '';
+  r.route('GET', '/agents/:id/login', async (c) => c.send(200, { ...app.agentLogin.view(c.params.id, acc(c)), ...(await app.agentLogin.status(c.params.id, acc(c))) }));
+  r.route('POST', '/agents/:id/login', (c) => c.send(200, app.agentLogin.start(c.params.id, acc(c))));
+  r.route('POST', '/agents/:id/login/input', async (c) => c.send(200, app.agentLogin.input(c.params.id, (await c.body()).code, acc(c))));
+  r.route('DELETE', '/agents/:id/login', (c) => c.send(200, app.agentLogin.cancel(c.params.id, acc(c))));
+  r.route('POST', '/agents/:id/logout', async (c) => c.send(200, await app.agentLogin.logout(c.params.id, acc(c))));
+  // A harness's accounts: add one (its sign-in starts at once), rename, reorder or set its kind
+  // (personal or work), remove.
+  r.route('GET', '/agents/:id/accounts', (c) => c.send(200, { accounts: app.accounts.supports(c.params.id) ? app.accounts.view(c.params.id) : [] }));
+  r.route('POST', '/agents/:id/accounts', async (c) => {
+    const { label, kind } = await c.body();
+    const account = app.accounts.add(c.params.id, label, kind || '');
+    const login = app.agentLogin.start(c.params.id, account.id);
+    app.broadcast('agents', {});
+    telemetry.track('account', { agent: c.params.id, step: 'added', count: app.accounts.list(c.params.id).length });
+    c.send(200, { account: app.accounts.view(c.params.id).find((a) => a.id === account.id), accounts: app.accounts.view(c.params.id), login });
+  });
+  r.route('PATCH', '/agents/:id/accounts/:acc', async (c) => {
+    const { label, move, kind } = await c.body();
+    const accounts = app.accounts.update(c.params.id, c.params.acc, { label, move, kind });
+    app.broadcast('agents', {});
+    c.send(200, { accounts });
+  });
+  r.route('DELETE', '/agents/:id/accounts/:acc', async (c) => {
+    const { id, acc: a } = c.params;
+    if (a === 'default') app.accounts.remove(id, a); // refuses, with the reason
+    if (!app.accounts.get(id, a)) return c.send(404, { error: 'No such account.' });
+    app.agentLogin.cancel(id, a);
+    await app.agentLogin.logout(id, a).catch(() => {}); // its login goes with it (the keychain item too)
+    const accounts = app.accounts.remove(id, a);
+    app.broadcast('agents', {});
+    telemetry.track('account', { agent: id, step: 'removed', count: accounts.length });
+    c.send(200, { accounts });
+  });
   // Harnesses that sign in with an API key (opencode Zen and Go): which have one, add, remove.
   r.route('GET', '/agents/:id/keys', (c) => c.send(200, app.agentLogin.keys(c.params.id)));
   r.route('POST', '/agents/:id/keys', async (c) => {

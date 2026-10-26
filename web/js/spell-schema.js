@@ -99,6 +99,10 @@ export const PARTS = {
   'launcher.where': '#whereBtn',
   'launcher.mode': '#mode',
   'launcher.harness': '#runner',
+  // Accounts (a harness with more than one subscription): the account on a harness · model button
+  // (launcher, follow-up box), and the Account row under Thinking in the harness picker.
+  'runner.account': '.rb-a',
+  'picker.accounts': '.picker .pk-acct',
   'launcher.compare': '#compareBtn',
   'launcher.team': '#teamBtn',
   // The Delegate popover (launcher and follow-ups): the lead strip, and each delegate's place chip.
@@ -172,6 +176,10 @@ export const PARTS = {
   // says (state, PR, harness, project, time), how it runs (branch, mode, …), its PR and its actions.
   'split.details': 'body.split #feed .item.open > .it-body > .it-bar',
   'split.pr': 'body.split #feed .item.open .it-bar > .pr-strip',
+  // The account a task runs on (a harness with more than one): its initial on the harness logo.
+  'details.account': 'body.split #feed .item.open .it-props .model-logo .acc-i',
+  // A turn that hit its account's usage limit: the card under its hero (Wait until…, Continue on
+  // another account, Hand to another harness, Get extra usage).
   'split.actions': 'body.split #feed .item.open .it-bar > .it-actions',
   // Take over in wisp: the task's terminal (a sheet, over the open task in split view, full
   // screen on a phone), its header, the screen and the phone's row of keys (Esc, Tab, Ctrl, arrows).
@@ -203,6 +211,8 @@ export const PARTS = {
   'settings.connect': '.sx-connect',
   // Settings → Agents: signing in to a harness (its link, code and paste box).
   'settings.agent.signin': '.sx-login',
+  // Settings → Agents: a harness's accounts (each with its ⋯ menu) and Add another account.
+  'settings.accounts': '.sx-accts',
   // The image viewer: a picture from a reply or an attachment, full screen to zoom into, and its zoom buttons.
   viewer: '.lb',
   'viewer.bar': '.lb-bar',

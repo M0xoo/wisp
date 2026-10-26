@@ -164,6 +164,17 @@ test('toasts, their glyph, action, timer ring and Clear all are parts', () => {
   assert.ok(problems({ ...base0, ui: { hide: ['toast.close'] } }).length);
 });
 
+test('accounts: the picker row, the button part, the details initial and the Settings list are parts', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['picker.accounts', 'runner.account', 'details.account', 'settings.accounts'] } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'runner.account': { style: { color: 'red' } }, 'settings.accounts': { style: { borderRadius: '6px' } } } }), []);
+  for (const part of ['picker.accounts', 'runner.account', 'details.account', 'settings.accounts']) assert.ok(schema.PARTS[part], part);
+  assert.ok(problems({ ...base0, ui: { hide: ['picker.account'] } }).some((x) => /picker\.account/.test(x)));
+});
+
+test('the usage-limit card under a turn\'s hero is not a part: it asks you something', () => {
+  assert.equal(schema.PARTS['turn.limit'], undefined, 'a limit asks you what next: never a part a spell could hide');
+});
+
 test('every task-list section and its folding heading are parts', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.needs', 'section.working'] }, parts: { 'section.heading': { style: { fontSize: '13px' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['section.waiting'] } }).length);

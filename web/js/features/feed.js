@@ -381,7 +381,7 @@ export function headPills(s, pill) {
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${autoPill(s)}${overlapPill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
-      ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route)}
+      ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route, s.account)}
       ${s.machine ? machinePill(s.machine) : ''}
       ${projectLabel(s)}
       ${s.pending ? '' : slotHtml('card.head', s)}`;

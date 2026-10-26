@@ -17,6 +17,8 @@ import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
 import { bad, clip, MODES, newId } from './util.js';
 import { laterNote, laterView } from './later.js';
+import { HOMES as ACCOUNT_HOMES } from './accounts.js';
+import { infraError } from './router.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -91,8 +93,8 @@ function changedRun(session, run) {
   if (!run || typeof run !== 'object') return null;
   const agent = run.agent || session.agent;
   const same = agent === session.agent;
-  const next = { agent, model: String(run.model ?? (same ? session.model : '') ?? ''), effort: String(run.effort ?? (same ? session.effort : '') ?? '') };
-  return same && next.model === (session.model || '') && next.effort === (session.effort || '') ? null : next;
+  const next = { agent, model: String(run.model ?? (same ? session.model : '') ?? ''), effort: String(run.effort ?? (same ? session.effort : '') ?? ''), ...(run.account !== undefined && { account: String(run.account || '') }) };
+  return same && next.model === (session.model || '') && next.effort === (session.effort || '') && (next.account === undefined || next.account === (session.account || '')) ? null : next;
 }
 
 // The lead's roster changes between turns. Members it already used keep their child session (by
@@ -138,6 +140,7 @@ export function summarize(s, store) {
     mode: s.mode,
     model: s.model,
     effort: s.effort || '',
+    ...(s.account && { account: s.account }), // which of the harness's accounts it runs on (server/accounts.js)
     state: s.state,
     unread: s.unread,
     archived: !!s.archived,
@@ -233,6 +236,8 @@ export class Runner extends EventEmitter {
     this.crewDelegate = null;
     this.crewChild = () => null; // a member's job on another machine, as last fetched (id → session)
     this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
+    this.accounts = null; // a harness's several accounts (server/accounts.js); null: only the CLI's own
+    this.accountPref = () => ''; // (agent) => the account you last picked for it
 
     // Anything that was mid-flight when wisp last died is now orphaned.
     for (const s of store.all()) {
@@ -253,7 +258,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -265,6 +270,8 @@ export class Runner extends EventEmitter {
       mode,
       model,
       effort,
+      // You started it yourself (not a crew job, schedule, trigger or subagent): see #accountFor.
+      ...(this.#accountFor(agent, account, !origin && !parentId && !crew && !delegated) && { account: this.#accountFor(agent, account, !origin && !parentId && !crew && !delegated) }),
       state: 'running',
       unread: false,
       createdAt: now,
@@ -364,7 +371,7 @@ export class Runner extends EventEmitter {
   // A follow-up on another harness, model or thinking level. A model or level change resumes the
   // same conversation; a harness change resumes that harness's own one (if it ran earlier in this
   // task) or starts it fresh, and #startTurn hands it the turns it missed.
-  #switchRun(session, { agent, model, effort }) {
+  #switchRun(session, { agent, model, effort, account }) {
     session.agentSessions ||= {};
     // Sessions from before agentSessions: their conversation belongs to the harness they ran on.
     if (session.agentSessionId) session.agentSessions[session.agent] = session.agentSessionId;
@@ -374,9 +381,48 @@ export class Runner extends EventEmitter {
     if (agent !== session.agent) {
       session.agent = agent;
       session.agentSessionId = session.agentSessions[agent] || null;
-    }
+      const acc = this.#accountFor(agent, account);
+      if (acc) session.account = acc;
+      else delete session.account;
+    } else if (account !== undefined) this.#switchAccount(session, account);
     session.model = model;
     session.effort = effort;
+  }
+
+  // Which account a run of `agent` gets: the one asked for when the harness has it, else your last
+  // pick (byHand: skipping one already at its limit, server/accounts.js pick). '' when the harness
+  // has only the CLI's own.
+  #accountFor(agent, want = '', byHand = true) {
+    const a = this.accounts;
+    if (!a?.multi?.(agent)) return '';
+    if (want && want !== 'auto' && a.get(agent, want)) return want;
+    return a.pick(agent, this.accountPref(agent), { byHand });
+  }
+
+  // Another account of the same harness from the next turn on. A harness whose conversations don't
+  // carry over between logins starts a fresh one there, with a handoff of the turns it missed.
+  #switchAccount(session, want) {
+    const next = this.#accountFor(session.agent, want);
+    const was = session.account || '';
+    if (!next || next === was) return;
+    if (ACCOUNT_HOMES[session.agent]?.resumes === false) {
+      session.agentSessions ||= {};
+      if (session.agentSessionId) session.agentSessions[`${session.agent}@${was || 'default'}`] = session.agentSessionId;
+      session.agentSessionId = session.agentSessions[`${session.agent}@${next}`] || null;
+    }
+    session.account = next;
+  }
+
+  // The env a run on the task's account needs, its folder made ready first.
+  #accountEnv(session, agent = session.agent) {
+    const id = agent === session.agent ? session.account : '';
+    if (!id || !this.accounts) return {};
+    try {
+      this.accounts.prepare(agent, id);
+    } catch (err) {
+      console.warn(`wisp: account ${agent}/${id}: ${err.message}`);
+    }
+    return this.accounts.envFor(agent, id);
   }
 
   // Drop a follow-up that hasn't gone out yet.
@@ -430,6 +476,7 @@ export class Runner extends EventEmitter {
         model: entry.model,
         effort: session.effort || '',
         systemPrompt: BTW_SYSTEM,
+        accountEnv: this.#accountEnv(session, entry.agent),
         onEvent: (ev) => {
           if (ev.type === 'result') reply = ev;
         },
@@ -779,6 +826,7 @@ export class Runner extends EventEmitter {
       agent: session.agent,
       model: session.model,
       effort: session.effort || '',
+      ...(session.account && { account: session.account }),
       mode,
       attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })),
       startedAt: Date.now(),
@@ -878,7 +926,10 @@ export class Runner extends EventEmitter {
     // Leads get the delegate tool next to ask_user; subagents get neither (nobody to ask).
     const team = adapter.askTool !== null && !session.delegated ? session.subagents || [] : [];
     // A harness that hasn't seen every earlier turn (the user switched to it) gets them first.
-    const handoff = session.parentId ? '' : handoffNote(session, session.agent, session.agentSessionId, (t) => adapters[t.agent]?.name || t.agent);
+    // A harness whose conversations stay with the login counts another account's turns as missed.
+    const perLogin = session.account && ACCOUNT_HOMES[session.agent]?.resumes === false;
+    const mine = perLogin ? (t) => (t.agent || session.agent) === session.agent && (t.account || 'default') === session.account : undefined;
+    const handoff = session.parentId ? '' : handoffNote(session, session.agent, session.agentSessionId, (t) => adapters[t.agent]?.name || t.agent, mine);
     // Mentioned tasks: a lead reads them with wisp_session; a run without wisp's tools gets their reports.
     const tools = !session.parentId && !session.delegated && adapter.askTool !== null && this.bridge;
     const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id });
@@ -897,6 +948,7 @@ export class Runner extends EventEmitter {
       // A lead with a team delegates through wisp, so the harness's own subagent tool is switched off.
       delegating: team.length > 0 && !!this.bridge,
       mcpServers: this.#mcpServers(session, adapter, team),
+      accountEnv: this.#accountEnv(session),
       onEvent: (ev) => {
         if (released) return; // a lingering process we already let go of
         const waiting = this.#onEvent(session, turn, ev) === 'waiting';
@@ -925,6 +977,7 @@ export class Runner extends EventEmitter {
       const next = session.queue.shift();
       if (next?.mode) session.mode = next.mode;
       if (next?.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
+      if (next?.account) this.#switchAccount(session, next.account);
       if (next?.team) setTeam(session, next.team);
       const handed = this.handing.delete(session.id);
       if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments, next);
@@ -1076,6 +1129,8 @@ export class Runner extends EventEmitter {
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
     }
     if (!ev.stopped) blockedCard(turn);
+    // A usage limit on one of several accounts: the turn asks you what next.
+    if (ev.isError && !ev.stopped) this.#atLimit(session, turn, ev);
     // A lead that ends its turn without reading what its delegates finished gets it as a follow-up.
     if (!ev.stopped && !session.parentId) this.#reportBack(session, { ending: true });
     // Auto checks the work before it reaches you: the session stays in Working meanwhile.
@@ -1098,6 +1153,34 @@ export class Runner extends EventEmitter {
     // The follow-up starts right away; don't notify for the run it replaced. A subagent reports
     // to its lead, not to the user.
     else if (!handing && !quiet && !session.parentId && !session.delegated && !this.deleting.has(session.id)) this.emit('finished', { session: summarize(session, this.store) });
+  }
+
+  // The run hit its account's usage limit: that account is marked until its reset, and the turn
+  // asks you what next (turn.limit: wait for the reset, continue on another of your accounts, hand
+  // it to another harness, or the provider's extra usage). wisp never moves to another account by
+  // itself: the providers' terms forbid getting around their limits (design/accounts.md).
+  #atLimit(session, turn, ev) {
+    const accounts = this.accounts;
+    if (!session.account || !accounts?.multi?.(session.agent)) return;
+    const limit = infraError(ev.text);
+    if (limit?.scope !== 'agent') return;
+    accounts.cool(session.agent, session.account, { ms: limit.ms, why: clip(String(ev.text || '').split('\n').find((l) => l.trim()) || '', 160) });
+    const from = accounts.get(session.agent, session.account);
+    const until = from?.until || Date.now() + limit.ms;
+    turn.limit = {
+      account: session.account,
+      until,
+      others: accounts.list(session.agent).filter((a) => a.id !== session.account && a.state === 'ready').map(({ id, label, kind }) => ({ id, label, kind })),
+      kind: from?.kind || 'personal',
+      extra: ACCOUNT_HOMES[session.agent]?.extra || '',
+    };
+    turn.presentation = {
+      blocks: [
+        // No time here: the card under it says when, in the page's own time format.
+        { type: 'hero', title: `${from?.label || 'This account'} is at its usage limit`, summary: 'Wait for the reset, continue on another of your accounts, or hand the task to another agent.', status: 'blocked' },
+        { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
+      ],
+    };
   }
 
   // Auto is done with a session it held: it lands in your queue (quiet: handed to another run,

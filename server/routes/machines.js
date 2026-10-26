@@ -42,7 +42,9 @@ export function register(r, app) {
   const there = (method, rest, after) =>
     known(async (c, id) => {
       const body = method === 'GET' || method === 'DELETE' ? undefined : await c.body();
-      const v = await machines.json(id, method, `/agents/${encodeURIComponent(c.params.aid)}/${typeof rest === 'function' ? rest(c) : rest}`, body);
+      // ?account=: one of the harness's accounts over there (server/accounts.js).
+      const acc = c.query.get('account') ? `?account=${encodeURIComponent(c.query.get('account'))}` : '';
+      const v = await machines.json(id, method, `/agents/${encodeURIComponent(c.params.aid)}/${typeof rest === 'function' ? rest(c) : rest}${acc}`, body);
       if (after?.(v)) machines.recheckAgents([id, c.params.aid]).catch(() => {});
       c.send(200, v);
     });
@@ -52,6 +54,10 @@ export function register(r, app) {
   r.route('POST', '/machines/:id/agents/:aid/login/input', there('POST', 'login/input'));
   r.route('POST', '/machines/:id/agents/:aid/logout', there('POST', 'logout', () => true));
   r.route('GET', '/machines/:id/agents/:aid/keys', there('GET', 'keys'));
+  r.route('GET', '/machines/:id/agents/:aid/accounts', there('GET', 'accounts'));
+  r.route('POST', '/machines/:id/agents/:aid/accounts', there('POST', 'accounts', () => true));
+  r.route('PATCH', '/machines/:id/agents/:aid/accounts/:acc', there('PATCH', (c) => `accounts/${encodeURIComponent(c.params.acc)}`, () => true));
+  r.route('DELETE', '/machines/:id/agents/:aid/accounts/:acc', there('DELETE', (c) => `accounts/${encodeURIComponent(c.params.acc)}`, () => true));
   r.route('POST', '/machines/:id/agents/:aid/keys', there('POST', 'keys', () => true));
   r.route('DELETE', '/machines/:id/agents/:aid/keys/:provider', there('DELETE', (c) => `keys/${encodeURIComponent(c.params.provider)}`, () => true));
   r.route('GET', '/machines/:id/fs', known(async (c, id) => c.send(200, await machines.json(id, 'GET', `/fs?q=${encodeURIComponent(c.query.get('q') || '')}`))));

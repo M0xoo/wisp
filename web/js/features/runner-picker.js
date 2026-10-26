@@ -6,19 +6,20 @@ import { S, setAgents } from '../core/state.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { placeName } from './places.js';
-import { AUTO, AUTO_GOALS, effortLabel, effortsFor, harnessesAt, harnessLogo } from './runners.js';
+import { accountMark, AUTO, AUTO_GOALS, effortLabel, effortsFor, harnessesAt, harnessLogo, limitLine, savedAccount as rememberedAccount } from './runners.js';
 import { openSettings } from './settings.js';
 import { copySetupCommand, INSTALLABLE, installHarness, setupCommand, setupDocs, setupTip, setupTitle } from './setup.js';
 import { CAN, loginControl, loginPanel, wireLogins } from './agent-login.js';
 
 const ACCOUNT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', grok: 'xAI' };
 
-// One popover for all three choices: harnesses on the left, the focused harness's models on the
-// right, and its thinking levels underneath. Clicking (or arrowing to) a harness previews its
-// models; picking a model commits harness + model, picking a thinking level commits it in place.
+// One popover for all the choices: harnesses on the left, the focused harness's models on the
+// right, its thinking levels underneath and, when it has two or more, its accounts under those.
+// Clicking (or arrowing to) a harness previews its models; picking a model commits harness +
+// model, picking a thinking level or an account commits it in place. pick(agent, model, effort, account).
 // places: the "Run on" picks, so the list is what's installed there rather than only on this computer.
 // back: the prompt it's for, where the caret goes once it closes.
-export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEffort, places, auto = false, back }, pick) {
+export function runnerPicker(anchor, { agent, model, effort, account = '', savedModel, savedEffort, savedAccount = rememberedAccount, places, auto = false, back }, pick) {
   const open = $('.picker');
   if (open) return open.close(), back?.focus();
   const agents = places ? harnessesAt(places, { auto }) : auto ? [AUTO, ...S.agents] : S.agents;
@@ -61,14 +62,45 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
         <label class="field pk-search">${icon('search')}<input spellcheck="false" autocomplete="off"></label>
         <div class="pk-list" role="listbox" aria-label="Model"></div>
         <div class="pk-effort" role="radiogroup" aria-label="Thinking level"></div>
+        <div class="pk-effort pk-acct" role="radiogroup" aria-label="Account" hidden></div>
       </div>
     </div>`);
   const input = $('.pk-search input', node);
   const list = $('.pk-list', node);
   const sideRows = $$('.pk-h', node);
   const seg = $('.pk-effort', node);
+  const acctSeg = $('.pk-acct', node);
   const modelOf = (id) => (id === agent ? model : savedModel(id));
   const effortOf = (id) => (id === agent ? effort : savedEffort(id, modelOf(id)));
+  const accountOf = (id) => (id === agent ? account : savedAccount(id));
+  // The accounts of the place it runs on (a machine has its own), only when there are two or more.
+  const accountsAt = (id) => {
+    const a = agents.find((x) => x.id === id);
+    return a?.available && a.accounts?.length > 1 ? a.accounts : [];
+  };
+
+  // Auto first (your saved account; one already at its limit is skipped when you start a task, never
+  // mid-run), then each account in your order.
+  // State is never in the initial: a clock on the segment and one line under the row.
+  const paintAccounts = () => {
+    const list = accountsAt(focusAgent);
+    const current = accountOf(focusAgent);
+    acctSeg.hidden = !list.length;
+    if (!list.length) return (acctSeg.innerHTML = '');
+    const part = (id, inner, { on, off, tip, cls = '' }) =>
+      `<button role="radio" aria-checked="${on}" class="${on ? 'on' : ''}${off ? ' off' : ''}${cls}" data-acc="${esc(id)}" title="${esc(tip)}"${off ? ' aria-disabled="true"' : ''}>${inner}</button>`;
+    const notes = list.filter((x) => x.state === 'limit' || x.state === 'signedOut').map((x) => `${x.label} is ${x.state === 'limit' ? limitLine(x) : 'signed out'}.`);
+    acctSeg.innerHTML = `<span class="pk-ehead">Account</span><span class="pk-seg">${part('', 'Auto', { on: !current, tip: 'Your saved account; one already at its limit is skipped when you start a task' })}${list
+      .map((x) =>
+        part(x.id, `${accountMark(x)}<span>${esc(x.label)}</span>${x.state === 'limit' ? icon('clock', 'acc-clock') : ''}`, {
+          on: x.id === current,
+          off: x.state === 'signedOut',
+          cls: ' acc',
+          tip: [x.email, x.plan].filter(Boolean).join(' · ') + (x.state === 'signedOut' ? '\nSigned out: sign in from Settings → Agents' : x.state === 'limit' ? `\n${x.label} is ${limitLine(x)}` : ''),
+        }),
+      )
+      .join('')}</span>${notes.length ? `<p class="pk-anote">${esc(notes.join(' '))}</p>` : ''}`;
+  };
 
   const paintEffort = () => {
     const levels = effortsFor(focusAgent, modelOf(focusAgent));
@@ -85,13 +117,28 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   const chooseEffort = (e) => {
     const m = modelOf(focusAgent);
     if (focusAgent === agent && e === effort) return;
-    if (focusAgent !== agent) markInUse(focusAgent);
+    if (focusAgent !== agent) (markInUse(focusAgent), (account = savedAccount(focusAgent)));
     agent = focusAgent;
     model = m;
     effort = e;
-    pick(agent, model, effort);
+    pick(agent, model, effort, account);
     paintEffort();
     $(`button[data-e="${CSS.escape(e)}"]`, seg)?.focus();
+  };
+  // Like a thinking level: commits in place, the picker stays open.
+  const chooseAccount = (id) => {
+    if (accountsAt(focusAgent).find((x) => x.id === id)?.state === 'signedOut') return;
+    if (focusAgent === agent && id === account) return;
+    if (focusAgent !== agent) {
+      markInUse(focusAgent);
+      model = modelOf(focusAgent);
+      effort = effortOf(focusAgent);
+    }
+    agent = focusAgent;
+    account = id;
+    pick(agent, model, effort, account);
+    paintAccounts();
+    $(`button[data-acc="${CSS.escape(id)}"]`, acctSeg)?.focus();
   };
 
   const paintModels = () => {
@@ -111,6 +158,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
         openSettings({ pane: 'auto' });
       };
       paintEffort();
+      paintAccounts();
       return;
     }
     $('.pk-search', node).hidden = models.length <= 6;
@@ -135,12 +183,13 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
       .join('') + '<div class="pk-empty" hidden>No models match</div>';
     filter();
     paintEffort();
+    paintAccounts();
   };
   // A harness that's installed but signed out: sign it in right here (its own login, on the
   // computer it runs on), then use it.
   const paintSignIn = (a) => {
     $('.pk-search', node).hidden = true;
-    seg.hidden = true;
+    seg.hidden = acctSeg.hidden = true;
     const { scope } = signedOut(a);
     list.innerHTML = `<div class="pk-setup pk-signin">
       <b>${esc(a.name)} is signed out${scope ? ` on ${esc(placeName(scope))}` : ''}</b>
@@ -152,7 +201,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   // A harness that isn't installed: how to get it, in place of its models.
   const paintSetup = (a) => {
     $('.pk-search', node).hidden = true;
-    seg.hidden = true;
+    seg.hidden = acctSeg.hidden = true;
     const canInstall = !remote && INSTALLABLE.has(a.id);
     list.innerHTML = `<div class="pk-setup">
       <b>${esc(a.name)} isn’t installed${remote ? ' there' : ''}</b>
@@ -224,7 +273,9 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
     agent = id;
     model = savedModel(id);
     effort = savedEffort(id, model);
-    pick(agent, model, effort);
+    account = savedAccount(id);
+    pick(agent, model, effort, account);
+    paintAccounts();
   };
 
   const choose = (m) => {
@@ -233,7 +284,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
     // Carry the thinking level over when the new model accepts it, else fall back to the saved one.
     const cur = effortOf(focusAgent);
     const e = effortsFor(focusAgent, m).includes(cur) ? cur : savedEffort(focusAgent, m);
-    if (focusAgent !== agent || m !== model || e !== effort) pick(focusAgent, m, e);
+    if (focusAgent !== agent || m !== model || e !== effort) pick(focusAgent, m, e, accountOf(focusAgent));
   };
   const step = (items, d) => {
     if (!items.length) return;
@@ -246,12 +297,17 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   const keys = (e) => {
     if (document.activeElement?.closest?.('.sx-login')) return; // pasting a sign-in code
     const inSide = sideRows.includes(document.activeElement);
-    const segBtns = $$('button', seg);
-    const inSeg = segBtns.includes(document.activeElement);
-    // Tab hops from the model list to the thinking levels and back; anywhere else it leaves.
-    if (e.key === 'Tab' && !seg.hidden && (inSeg ? e.shiftKey : !e.shiftKey && !inSide)) {
+    // The rows under the models (thinking levels, accounts), top to bottom.
+    const groups = [seg, acctSeg].filter((g) => !g.hidden).map((g) => $$('.pk-seg button', g));
+    const gi = groups.findIndex((g) => g.includes(document.activeElement));
+    const inSeg = gi >= 0;
+    const segBtns = groups[gi] || [];
+    const enter = (g) => (g.find((b) => b.classList.contains('on')) || g[0]).focus();
+    const up = () => (gi > 0 ? enter(groups[gi - 1]) : focusModels());
+    // Tab hops from the model list down through those rows and back; anywhere else it leaves.
+    if (e.key === 'Tab' && groups.length && !inSide && (inSeg ? e.shiftKey || gi < groups.length - 1 : !e.shiftKey)) {
       e.preventDefault();
-      return inSeg ? focusModels() : (segBtns.find((b) => b.classList.contains('on')) || segBtns[0]).focus();
+      return !inSeg ? enter(groups[0]) : e.shiftKey ? up() : enter(groups[gi + 1]);
     }
     if (e.key === 'Tab') return close();
     if (inSeg && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
@@ -259,8 +315,13 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
       e.stopPropagation();
       return step(segBtns, e.key === 'ArrowRight' ? 1 : -1);
     }
-    if (inSeg && e.key === 'ArrowUp') return e.preventDefault(), focusModels();
-    if (inSeg && (e.key === 'Enter' || e.key === ' ')) return e.preventDefault(), chooseEffort(document.activeElement.dataset.e);
+    if (inSeg && e.key === 'ArrowUp') return e.preventDefault(), up();
+    if (inSeg && e.key === 'ArrowDown') return e.preventDefault(), gi < groups.length - 1 && enter(groups[gi + 1]);
+    if (inSeg && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      const b = document.activeElement;
+      return b.dataset.acc !== undefined ? chooseAccount(b.dataset.acc) : chooseEffort(b.dataset.e);
+    }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       e.stopPropagation();
@@ -291,7 +352,7 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
       close();
       (back || anchor).focus();
       const m = savedModel(id);
-      pick(id, m, savedEffort(id, m));
+      pick(id, m, savedEffort(id, m), savedAccount(id));
     }
   };
   // Sign-ins started from the picker: the harnesses signed out here or on the Run on machine.
@@ -318,6 +379,10 @@ export function runnerPicker(anchor, { agent, model, effort, savedModel, savedEf
   seg.onclick = (e) => {
     const b = e.target.closest('button[data-e]');
     if (b) chooseEffort(b.dataset.e);
+  };
+  acctSeg.onclick = (e) => {
+    const b = e.target.closest('button[data-acc]');
+    if (b) chooseAccount(b.dataset.acc);
   };
 
   paintModels();

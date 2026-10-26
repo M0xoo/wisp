@@ -7,7 +7,7 @@ import { esc, md } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
 import { load, S, save } from '../core/state.js';
 
-export const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock' };
+export const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock', account: 'clock' };
 
 // --- which view a card shows ---------------------------------------------------
 
@@ -109,7 +109,7 @@ function stepHtml(a, k, t, live) {
   const n = edits ? countChanges(edits) : null;
   return `<li class="tx-step k-${esc(a.kind)}${a.by === 'wisp' ? ' by-wisp' : ''}" data-k="${k}">
     <div class="tx-row" ${more ? 'role="button" tabindex="0" aria-expanded="false"' : ''}>
-      <span class="tx-ic">${icon(a.by === 'wisp' ? 'spark' : KIND_ICON[a.kind] || 'tool')}</span>
+      <span class="tx-ic">${icon(a.kind === 'account' ? 'clock' : a.by === 'wisp' ? 'spark' : KIND_ICON[a.kind] || 'tool')}</span>
       <span class="tx-label">${esc(a.label || '')}</span>
       ${cmd ? `<code class="tx-cmd">${esc(cmd)}</code>` : ''}
       ${n ? `<span class="nums"><span class="plus">+${n.add}</span><span class="minus">−${n.del}</span></span>` : ''}

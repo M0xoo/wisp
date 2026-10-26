@@ -4,6 +4,7 @@
 import { esc } from '../md.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
+import { whenLabel } from '../core/format.js';
 import { popover } from '../ui/popover.js';
 import { machineById, usable } from './places.js';
 
@@ -82,12 +83,34 @@ export function effortsFor(agent, model) {
 }
 export const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUpperCase() + e.slice(1);
 
-export function modelBadge(agent, model, effort, route) {
+// account: the task's account id; named only when its harness has more than one.
+export function modelBadge(agent, model, effort, route, account) {
   if (agent === 'wisp') return '';
   const label = (model && agentById(agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
-  const tip = route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`;
+  const acc = accountOf(agent, account);
+  const tip = `${route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`}${acc ? ` · ${acc.label}` : ''}`;
   const logo = harnessLogo(agent);
-  return `<span class="model-logo${route ? ' routed' : ''}" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}</span>`;
+  return `<span class="model-logo${route ? ' routed' : ''}" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}${acc ? accountMark(acc) : ''}</span>`;
+}
+
+// Accounts: more than one subscription per harness (claude, codex). Someone with one login sees
+// none of this, so every list here is empty unless the harness has two or more.
+export const accountsOf = (agent, list) => {
+  const a = list ? list.find((x) => x.id === agent) : agentById(agent);
+  return a?.accounts?.length > 1 ? a.accounts : [];
+};
+export const accountOf = (agent, id) => (id ? accountsOf(agent).find((x) => x.id === id) || null : null);
+// A neutral initial: state never shows in it (a clock and a line say that).
+export const accountInitial = (acc) => (String(acc?.label || acc?.email || '?').trim()[0] || '?').toUpperCase();
+export const accountMark = (acc, cls = 'acc-i') => `<i class="${cls}" aria-hidden="true">${esc(accountInitial(acc))}</i>`;
+// One time phrase everywhere: "at its limit until 9 pm" (the time as wisp writes it elsewhere).
+export const limitUntil = (acc) => whenLabel(acc?.until);
+export const limitLine = (acc) => `at its limit${acc?.until ? ` until ${limitUntil(acc)}` : ''}`;
+
+// The account is remembered per harness too; '' is Auto (wisp picks).
+export function savedAccount(id) {
+  const want = S.config.defaults.accounts?.[id];
+  return want && want !== 'auto' && accountsOf(id).some((a) => a.id === want) ? want : '';
 }
 
 // Why Auto picked what it picked, in one line.
@@ -118,18 +141,20 @@ export function savedEffort(id, model) {
 export const MAX_RUNNERS = 4;
 
 // A runner button's tooltip, for when the pill is too full to show names.
-export function runnerTip(agentId, model, effort) {
+export function runnerTip(agentId, model, effort, account) {
   const a = agentById(agentId);
   const m = (a?.models || []).find((x) => x.id === model);
-  return [a?.name || agentName(agentId), m?.label || model || 'Default model', effort && effortLabel(effort)].filter(Boolean).join(' · ');
+  return [a?.name || agentName(agentId), m?.label || model || 'Default model', effort && effortLabel(effort), accountOf(agentId, account)?.label].filter(Boolean).join(' · ');
 }
 
 // The harness · model · thinking button, as in the launcher. agent '' reads "Launcher default".
-export function paintRunnerBtn(btn, agentId, model, effort) {
+// account: shown as its own part (and an initial on the logo); nothing for Auto ('').
+export function paintRunnerBtn(btn, agentId, model, effort, account) {
   const a = agentById(agentId);
   const m = (a?.models || []).find((x) => x.id === model);
+  const acc = accountOf(agentId, account);
   btn.innerHTML = agentId
-    ? `<span class="rb-logo">${harnessLogo(agentId)}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${icon('chevron', 'chev')}`
+    ? `<span class="rb-logo">${harnessLogo(agentId)}${acc ? accountMark(acc) : ''}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${acc ? `<span class="rb-a">${esc(acc.label)}</span>` : ''}${icon('chevron', 'chev')}`
     : `<span class="rb-logo">${icon('spark')}</span><span class="rb-h">Launcher default</span>${icon('chevron', 'chev')}`;
 }
 

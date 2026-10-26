@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from './adapters/index.js';
 import { heroOf } from './protocol.js';
+import { sideEnv } from './accounts.js';
 import { clip, writeJsonAtomic } from './util.js';
 
 export const KINDS = ['preferences', 'lessons'];
@@ -242,6 +243,7 @@ export class Retro {
       effort: '',
       systemPrompt: RETRO_SYSTEM,
       mcpServers: {},
+      accountEnv: sideEnv(session.agent, session.account),
       onEvent: (ev) => {
         if (ev.type !== 'result') return;
         text = ev.text || '';

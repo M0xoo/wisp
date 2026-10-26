@@ -46,6 +46,8 @@ export function qaEnv(extra = {}) {
       WISP_FEEDBACK: '0',
       DO_NOT_TRACK: '1',
       FAKE_DELAY: process.env.FAKE_DELAY || '1200',
+      // Never this computer's Claude folder: extra accounts link to it (server/accounts.js).
+      CLAUDE_CONFIG_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-qa-claude-')),
       ...extra,
     },
   };

@@ -7,6 +7,9 @@
 // /api/machines/<id>/agents/…, passed through to its wisp). This computer's sign-ins also arrive
 // as 'agent-login' events; a machine's are polled while one is in progress.
 //
+// Claude and Codex can have several accounts: each signs in on its own (`?account=<id>`), so the
+// state is kept per harness and account (`claude@k3f9`; the default account is the plain id).
+//
 // opencode has no sign-in page: its paid providers (Zen, Go) take an API key, pasted here and
 // saved where opencode keeps it (/agents/opencode/keys). Its free models need none.
 
@@ -21,19 +24,30 @@ import { copy } from '../blocks.js';
 export const CAN = new Set(['claude', 'codex', 'cursor', 'grok', 'antigravity', 'gh', 'opencode']);
 const KEYED = new Set(['opencode']);
 const NAMES = { claude: 'Claude', codex: 'ChatGPT', grok: 'xAI', antigravity: 'Google', gh: 'GitHub' };
-const scopes = new Map(); // place -> { logins: Map(harness -> state), drafts: Map(harness -> pasted code) }
+const scopes = new Map(); // place -> { logins: Map(harness[@account] -> state), drafts: Map(harness[@account] -> pasted code) }
 const of = (scope) => {
   if (!scopes.has(scope)) scopes.set(scope, { logins: new Map(), drafts: new Map() });
   return scopes.get(scope);
 };
-const path = (scope, id, rest = '') => `${scope ? `/machines/${scope}` : ''}/agents/${id}/${rest || 'login'}`;
+// The default account ('default' or none) is the harness's own login, as before accounts.
+export const accKey = (acc) => (acc && acc !== 'default' ? acc : '');
+const key = (id, acc) => (accKey(acc) ? `${id}@${accKey(acc)}` : id);
+const path = (scope, id, rest = '', acc = '') => `${scope ? `/machines/${scope}` : ''}/agents/${id}/${rest || 'login'}${accKey(acc) ? `?account=${encodeURIComponent(accKey(acc))}` : ''}`;
 const busy = (l) => l?.state === 'running' || l?.state === 'waiting';
-const at = (scope, id) => `data-scope="${esc(scope)}" data-agent="${esc(id)}"`;
+const at = (scope, id, acc = '') => `data-scope="${esc(scope)}" data-agent="${esc(id)}" data-account="${esc(accKey(acc))}"`;
 
-export const loginControl = (id, scope = '') => (CAN.has(id) ? `<span class="sx-login-ctl" ${at(scope, id)} data-login-ctl>${control(id, scope)}</span>` : '');
+// acc: one account's control, in its row of Settings → Agents. That row says "Signed out" itself
+// and keeps Sign out in its ⋯ menu, so the control is only Sign in or Cancel.
+export const loginControl = (id, scope = '', acc) => (CAN.has(id) ? `<span class="sx-login-ctl" ${at(scope, id, acc)} data-login-ctl>${control(id, scope, acc)}</span>` : '');
+export const loginState = (id, scope = '', acc = '') => of(scope).logins.get(key(id, acc)) || {};
 
-function control(id, scope) {
-  const l = of(scope).logins.get(id) || {};
+function control(id, scope, acc) {
+  const l = of(scope).logins.get(key(id, acc)) || {};
+  if (acc !== undefined) {
+    if (busy(l)) return `<button class="ghost xs" data-login-cancel ${at(scope, id, acc)}>Cancel</button>`;
+    const out = l.signedIn === false || (l.signedIn !== true && accountOut(scope, id, acc));
+    return out ? `<button class="primary xs" data-login ${at(scope, id, acc)}>Sign in</button>` : '';
+  }
   if (KEYED.has(id)) {
     if (!l.providers) return '';
     const on = l.providers.filter((p) => p.set || l.env);
@@ -47,14 +61,14 @@ function control(id, scope) {
   return '';
 }
 
-export function loginPanel(id, scope = '') {
+export function loginPanel(id, scope = '', acc = '') {
   if (!CAN.has(id)) return '';
   const { logins, drafts } = of(scope);
-  const l = logins.get(id) || {};
-  const attrs = `${at(scope, id)} data-login-panel`;
+  const l = logins.get(key(id, acc)) || {};
+  const attrs = `${at(scope, id, acc)} data-login-panel`;
   if (KEYED.has(id)) return keysPanel(id, scope, l, attrs);
   if (!busy(l) && l.state !== 'failed') return `<div class="sx-login" ${attrs} hidden></div>`;
-  if (l.state === 'failed') return `<div class="sx-login bad" ${attrs}><p>${esc(l.error || 'Sign-in didn’t finish.')}</p><button class="ghost sm" data-login ${at(scope, id)}>Try again</button></div>`;
+  if (l.state === 'failed') return `<div class="sx-login bad" ${attrs}><p>${esc(l.error || 'Sign-in didn’t finish.')}</p><button class="ghost sm" data-login ${at(scope, id, acc)}>Try again</button></div>`;
   // Claude shows a code on its page to paste back here; Codex and GitHub show one to type there.
   const paste = (id === 'claude' && !l.checking) || l.needsInput;
   return `<div class="sx-login" ${attrs}>
@@ -62,7 +76,7 @@ export function loginPanel(id, scope = '') {
       ${l.url ? `<p><b>1.</b> Open the sign-in page and sign in${NAMES[id] ? ` with your ${NAMES[id]} account` : ''}.</p><div class="sx-login-row"><a class="primary sm btn-link" href="${esc(l.url)}" target="_blank" rel="noopener">${icon('external')}Open the sign-in page</a></div>` : ''}
       ${l.code ? `<p><b>2.</b> Enter this code there:</p><div class="sx-login-code"><span class="mono">${esc(l.code)}</span><button class="icon-btn" data-login-copy="${esc(l.code)}" title="Copy the code">${icon('copy')}</button></div><p class="sx-login-wait"><i class="spin"></i>Waiting for you to finish there…</p>` : ''}
       ${l.url && l.checking && !l.needsInput ? '<p class="sx-login-wait"><i class="spin"></i>Checking the code…</p>' : ''}
-      ${l.url && paste && !l.code ? `<form class="sx-login-row" data-login-form ${at(scope, id)}><input class="input mono" name="code" placeholder="Paste the code the page shows" autocomplete="off" spellcheck="false" value="${esc(drafts.get(id) || '')}"><button class="primary sm" type="submit">Continue</button></form>` : ''}
+      ${l.url && paste && !l.code ? `<form class="sx-login-row" data-login-form ${at(scope, id, acc)}><input class="input mono" name="code" placeholder="Paste the code the page shows" autocomplete="off" spellcheck="false" value="${esc(drafts.get(key(id, acc)) || '')}"><button class="primary sm" type="submit">Continue</button></form>` : ''}
     </div>`;
 }
 
@@ -121,54 +135,81 @@ export function keepSignIns(scope, list) {
   return list;
 }
 
+// Whether the harness list says that account is signed out (before its own state is looked up).
+const accountOut = (scope, id, acc) => {
+  const list = scope ? S.machines.find((m) => m.id === scope)?.remote?.agents : S.agents;
+  return list?.find((a) => a.id === id)?.accounts?.find((x) => accKey(x.id) === accKey(acc))?.state === 'signedOut';
+};
+
+// An account's label for toasts ('' for the default account: the harness's name says it).
+const accountName = (id, acc) => (accKey(acc) && S.agents.find((a) => a.id === id)?.accounts?.find((x) => x.id === accKey(acc))?.label) || '';
+
+// After an account change: the lists (Settings, the picker, the launcher) from the server again.
+// The server also broadcasts 'agents'; this is for when that event comes late or not at all.
+export async function refreshAgents() {
+  setAgents(keepSignIns('', await api('/agents').catch(() => S.agents)));
+  $('#launcher')?.placesChanged?.();
+  bus.emit('agents');
+}
+const accountChanged = (scope) => !scope && refreshAgents();
+
 // Whether a code is being pasted in this box: a repaint of the whole list would wipe it.
 export const typingLogin = (box) => !!document.activeElement?.closest?.('[data-login-form], [data-key-form]') && box.contains(document.activeElement);
 
-// Buttons, the paste box and updates for every place shown in box. places(): [[scope, [ids]]].
+// Buttons, the paste box and updates for every place shown in box. places(): [[scope, [ids]]]; an
+// id may be `harness@account` for one account's sign-in.
 export function wireLogins(box, places) {
-  const repaint = (scope, id) => {
-    const sel = `[data-scope="${CSS.escape(scope)}"][data-agent="${CSS.escape(id)}"]`;
+  const repaint = (scope, id, acc = '') => {
+    const sel = `[data-scope="${CSS.escape(scope)}"][data-agent="${CSS.escape(id)}"][data-account="${CSS.escape(accKey(acc))}"]`;
     const panel = $(`${sel}[data-login-panel]`, box);
-    if (panel && ![...panel.querySelectorAll('form')].some((f) => f.contains(document.activeElement))) panel.outerHTML = loginPanel(id, scope);
+    if (panel && ![...panel.querySelectorAll('form')].some((f) => f.contains(document.activeElement))) panel.outerHTML = loginPanel(id, scope, acc);
     const ctl = $(`${sel}[data-login-ctl]`, box);
-    if (ctl) ctl.innerHTML = control(id, scope);
+    // An account's row has its own control (only Sign in / Cancel); the harness row the full one.
+    if (ctl) ctl.innerHTML = control(id, scope, ctl.closest('[data-acc-row]') ? acc : undefined);
   };
-  const set = (scope, id, v) => {
+  const set = (scope, id, v, acc = '') => {
     const { logins } = of(scope);
-    const was = logins.get(id) || {};
+    const k = key(id, acc);
+    const was = logins.get(k) || {};
     // A wisp from before `checking` keeps saying needsInput after a paste: the spinner stays.
     const old = was.checking && v.checking === undefined && { needsInput: false };
-    logins.set(id, { ...was, ...v, ...old, ...(v.state === 'done' && v.signedIn === undefined && { signedIn: true }) });
-    if (v.state === 'done' && was.state !== 'done') toast(`Signed in to <b>${esc(NAMES[id] || id)}</b>`);
-    repaint(scope, id);
-    if (v.state === 'done' && was.state !== 'done') markSignedIn(scope, id, true);
-    bus.emit('agent-login-state', { scope, id, ...logins.get(id) });
+    logins.set(k, { ...was, ...v, ...old, ...(v.state === 'done' && v.signedIn === undefined && { signedIn: true }) });
+    const name = accountName(id, acc);
+    if (v.state === 'done' && was.state !== 'done') toast(`Signed in to <b>${esc(name || NAMES[id] || id)}</b>`);
+    repaint(scope, id, acc);
+    if (v.state === 'done' && was.state !== 'done') accKey(acc) ? accountChanged(scope) : markSignedIn(scope, id, true);
+    bus.emit('agent-login-state', { scope, id, account: accKey(acc), ...logins.get(k) });
   };
   // A machine's sign-in: ask how it's going until it's over.
   const polls = new Map();
-  const follow = (scope, id) => {
-    if (!scope || polls.has(`${scope}|${id}`)) return;
+  const follow = (scope, id, acc = '') => {
+    const k = `${scope}|${key(id, acc)}`;
+    if (!scope || polls.has(k)) return;
     const tick = async () => {
-      const v = await api(path(scope, id)).catch(() => null);
-      if (v) set(scope, id, v);
-      if (v && busy(v) && box.isConnected) polls.set(`${scope}|${id}`, setTimeout(tick, 1500));
-      else polls.delete(`${scope}|${id}`);
+      const v = await api(path(scope, id, '', acc)).catch(() => null);
+      if (v) set(scope, id, v, acc);
+      if (v && busy(v) && box.isConnected) polls.set(k, setTimeout(tick, 1500));
+      else polls.delete(k);
     };
-    polls.set(`${scope}|${id}`, setTimeout(tick, 1200));
+    polls.set(k, setTimeout(tick, 1200));
   };
-  const load = (scope, id) =>
-    api(path(scope, id, KEYED.has(id) ? 'keys' : ''))
+  const load = (scope, id, acc = '') =>
+    api(path(scope, id, KEYED.has(id) ? 'keys' : '', acc))
       .then((v) => {
-        set(scope, id, v);
-        if (busy(v)) follow(scope, id);
+        set(scope, id, v, acc);
+        if (busy(v)) follow(scope, id, acc);
       })
       .catch(() => {});
   const loadAll = () => {
-    for (const [scope, ids] of places()) for (const id of ids) if (CAN.has(id)) load(scope, id);
+    for (const [scope, ids] of places())
+      for (const k of ids) {
+        const [id, acc = ''] = k.split('@');
+        if (CAN.has(id)) load(scope, id, acc);
+      }
   };
   loadAll();
 
-  const target = (el) => ({ scope: el.dataset.scope || '', id: el.dataset.agent });
+  const target = (el) => ({ scope: el.dataset.scope || '', id: el.dataset.agent, acc: el.dataset.account || '' });
   box.addEventListener('click', async (e) => {
     const cp = e.target.closest('[data-login-copy]');
     if (cp) {
@@ -178,7 +219,7 @@ export function wireLogins(box, places) {
     }
     const b = e.target.closest('[data-login], [data-login-cancel], [data-logout], [data-keys], [data-key-remove]');
     if (!b) return;
-    const { scope, id } = target(b);
+    const { scope, id, acc } = target(b);
     if (b.matches('[data-keys]')) {
       set(scope, id, { open: !of(scope).logins.get(id)?.open });
       if (of(scope).logins.get(id).open) $(`[data-login-panel][data-agent="${CSS.escape(id)}"][data-scope="${CSS.escape(scope)}"] input`, box)?.focus();
@@ -196,12 +237,14 @@ export function wireLogins(box, places) {
       }
       if (b.matches('[data-login]')) {
         // At once: the panel, filled in as the CLI talks.
-        set(scope, id, { state: 'running', url: '', code: '', error: '', needsInput: false, checking: false });
-        set(scope, id, await api(path(scope, id), { method: 'POST', body: {} }));
-        follow(scope, id);
+        set(scope, id, { state: 'running', url: '', code: '', error: '', needsInput: false, checking: false }, acc);
+        set(scope, id, await api(path(scope, id, '', acc), { method: 'POST', body: {} }), acc);
+        follow(scope, id, acc);
       } else if (b.matches('[data-login-cancel]')) {
-        set(scope, id, { state: 'cancelled' });
-        await api(path(scope, id), { method: 'DELETE' });
+        // At once: 'Starting the sign-in…' and Cancel go. The view back (and the 'agent-login' event,
+        // for a sign-in cancelled elsewhere) says 'cancelled' too.
+        set(scope, id, { state: 'cancelled', url: '', code: '', needsInput: false, checking: false }, acc);
+        set(scope, id, await api(path(scope, id, '', acc), { method: 'DELETE' }), acc);
       } else {
         // At once: signed out here; signed in again if the CLI refuses (the catch looks it up).
         of(scope).logins.set(id, { state: 'idle', signedIn: false });
@@ -217,12 +260,12 @@ export function wireLogins(box, places) {
       }
     } catch (err) {
       toastError(err);
-      load(scope, id);
+      load(scope, id, acc);
     }
   });
   box.addEventListener('input', (e) => {
     const f = e.target.closest('[data-login-form]');
-    if (f) of(f.dataset.scope || '').drafts.set(f.dataset.agent, e.target.value);
+    if (f) of(f.dataset.scope || '').drafts.set(key(f.dataset.agent, f.dataset.account), e.target.value);
   });
   box.addEventListener('submit', async (e) => {
     const k = e.target.closest('[data-key-form]');
@@ -252,22 +295,23 @@ export function wireLogins(box, places) {
     const f = e.target.closest('[data-login-form]');
     if (!f) return;
     e.preventDefault();
-    const { scope, id } = target(f);
+    const { scope, id, acc } = target(f);
     const code = f.code.value.trim();
     if (!code) return;
-    of(scope).drafts.delete(id);
+    of(scope).drafts.delete(key(id, acc));
     // At once: the paste box gives way to a spinner while the CLI checks the code (seconds).
     document.activeElement?.blur();
-    set(scope, id, { checking: true, needsInput: false });
+    set(scope, id, { checking: true, needsInput: false }, acc);
     try {
-      set(scope, id, await api(path(scope, id, 'login/input'), { method: 'POST', body: { code } }));
-      follow(scope, id);
+      set(scope, id, await api(path(scope, id, 'login/input', acc), { method: 'POST', body: { code } }), acc);
+      follow(scope, id, acc);
     } catch (err) {
-      of(scope).drafts.set(id, code);
-      set(scope, id, { checking: false });
+      of(scope).drafts.set(key(id, acc), code);
+      set(scope, id, { checking: false }, acc);
       toastError(err);
     }
   });
-  bus.on('agent-login', (v) => set('', v.agent, v), { node: box });
-  return { reload: loadAll };
+  bus.on('agent-login', (v) => set('', v.agent, v, v.account || ''), { node: box });
+  // A sign-in that started elsewhere (Add another account): show and follow it here.
+  return { reload: loadAll, start: (scope, id, acc, v) => (set(scope, id, v, acc), busy(v) && follow(scope, id, acc)) };
 }

@@ -290,6 +290,19 @@
   border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line));
 }
 .b-blocked.resolved { background: var(--surface-2); border-color: var(--line); }
+/* At a usage limit: what next, under the hero. The hero says why, so the card is only choices. */
+.b-limit {
+  padding: 12px 14px; border-radius: var(--radius); background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line));
+}
+.b-limit.resolved { background: var(--surface-2); border-color: var(--line); }
+.lm-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.lm-acts a { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.lm-acts :is(button, a) .i { width: 13px; height: 13px; }
+.lm-acts .acc-i { width: 16px; height: 16px; font-size: 9px; }
+.b-limit.resolved .lm-acts { opacity: 0.55; pointer-events: none; }
+.lm-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+@media (pointer: coarse) { .lm-acts :is(button, a) { min-height: 44px; } }
 .b-blocked .q-head { margin-bottom: 8px; }
 .b-blocked.resolved .q-head { color: var(--muted); }
 .bl-state { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-weight: 500; color: var(--muted); }

@@ -40,7 +40,7 @@ export function createLaunch(app) {
   const { store, runner, machines } = app;
 
   // body: { prompt, cwd, also: [folder], scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
-  //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs } }
+  //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs }, account }
   // crew: a crew member's job ({ id, job, from? }, server/crew.js); only the crew sets it, never a request.
   async function launch(body, origin = null, { crew = null } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
@@ -69,7 +69,9 @@ export function createLaunch(app) {
     const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
       const agent = r.agent || (i ? d.agent : '') || 'claude';
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
-      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', ...(isRoute(r.route) && { route: r.route }) };
+      // account: which of the harness's accounts (server/accounts.js); none = your last pick, else the first free.
+      const account = !i && typeof body.account === 'string' && /^[\w-]{1,40}$/.test(body.account) && agent === resolved.agent ? body.account : '';
+      return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', account, ...(isRoute(r.route) && { route: r.route }) };
     });
     const strategy = ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
     const mode = MODES.has(body.mode) ? body.mode : 'auto';

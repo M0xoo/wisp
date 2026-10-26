@@ -24,7 +24,7 @@ import { projectList } from './project-list.js';
 import { openProjects } from './projects.js';
 import { runnerPicker } from './runner-picker.js';
 import { needsSetup, nudgeSetup, renderSetup } from './setup.js';
-import { agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedEffort, savedModel } from './runners.js';
+import { accountOf, agentName, agentsAt, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, MAX_RUNNERS, modeMenu, MODES, paintRunnerBtn, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
@@ -186,10 +186,11 @@ export function renderLauncher() {
   box.mode = () => curMode;
   let curModel = savedModel(agent?.id);
   let curEffort = savedEffort(agent?.id, curModel);
+  let curAccount = savedAccount(agent?.id); // '' is Auto: wisp picks
   const runnerBtn = $('#runner', box);
   const paintRunner = () => {
-    paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort);
-    runnerBtn.title = compare.length ? runnerTip(agent?.id, curModel, curEffort) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
+    paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort, curAccount);
+    runnerBtn.title = compare.length ? runnerTip(agent?.id, curModel, curEffort, curAccount) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
   };
 
   // Worktree: each launch gets a fresh branch from the remote's default branch (git repos only).
@@ -241,8 +242,8 @@ export function renderLauncher() {
       const name = agentName(c.agent);
       const del = el(`<button class="vs-btn vs-del cmp-x" data-i="${i}" title="Remove ${esc(name)} from the comparison" aria-label="Remove ${esc(name)}"><span>vs</span>${icon('x')}</button>`);
       const btn = el(`<button class="runner-btn cmp-x" data-i="${i}" aria-haspopup="dialog"></button>`);
-      paintRunnerBtn(btn, c.agent, c.model, c.effort);
-      btn.title = runnerTip(c.agent, c.model, c.effort);
+      paintRunnerBtn(btn, c.agent, c.model, c.effort, c.account);
+      btn.title = runnerTip(c.agent, c.model, c.effort, c.account);
       vsBtn.before(del, btn);
     });
     vsBtn.hidden = n >= MAX_RUNNERS - 1;
@@ -255,7 +256,7 @@ export function renderLauncher() {
     const here = harnessesAt(launch.where).filter((a) => a.available);
     const next = here.find((a) => !used.has(a.id)) || agent;
     const model = savedModel(next?.id);
-    compare = [...compare, { agent: next?.id, model, effort: savedEffort(next?.id, model) }];
+    compare = [...compare, { agent: next?.id, model, effort: savedEffort(next?.id, model), account: savedAccount(next?.id) || undefined }];
     paintCompare();
     // Its "vs" lands right under the pointer: it can't remove anything until the pointer has left.
     const fresh = $$('.vs-del', runners).at(-1);
@@ -275,26 +276,29 @@ export function renderLauncher() {
       (compare.length ? $$('.vs-del', runners)[Math.min(i, compare.length - 1)] : vsBtn).focus();
       return;
     }
-    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launch.where, back: ta }, (id, model, effort) => {
-      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort } : c));
+    runnerPicker(x, { ...compare[i], savedModel, savedEffort, places: launch.where, back: ta }, (id, model, effort, account) => {
+      compare = compare.map((c, k) => (k === i ? { agent: id, model, effort, account: account || undefined } : c));
       paintCompare();
     });
   });
   paintCompare();
-  const pickRun = (id, model, effort) => {
+  const pickRun = (id, model, effort, account = savedAccount(id)) => {
       agent = harnessesAt(launch.where, { auto: true }).find((a) => a.id === id);
       curModel = model;
       curEffort = effort;
+      curAccount = account || '';
       paintRunner();
       paintTeam();
       const d = S.config.defaults;
       const models = { ...d.models, [id]: model };
       // A model without levels leaves the harness's saved level alone, so switching back restores it.
       const efforts = effort || effortsFor(id, model).length ? { ...d.efforts, [id]: effort } : d.efforts;
-      Object.assign(d, { agent: id, model, models, effort, efforts });
-      api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models, effort, efforts } } }).catch(() => {});
+      // The account only once the harness has a choice of them; 'auto' keeps "let wisp pick" explicit.
+      const accounts = account || d.accounts?.[id] ? { ...d.accounts, [id]: account || 'auto' } : d.accounts;
+      Object.assign(d, { agent: id, model, models, effort, efforts, accounts });
+      api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models, effort, efforts, ...(accounts && { accounts }) } } }).catch(() => {});
   };
-  runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, savedModel, savedEffort, places: launch.where, auto: true, back: ta }, pickRun);
+  runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, account: curAccount, savedModel, savedEffort, places: launch.where, auto: true, back: ta }, pickRun);
   // Spells: set the pickers (setLaunch), or launch once with other settings (launchWith).
   box.spellSet = (v) => {
     if (v.agent && harnessesAt(launch.where, { auto: true }).some((a) => a.id === v.agent)) pickRun(v.agent, v.model ?? savedModel(v.agent), v.effort ?? savedEffort(v.agent, v.model ?? savedModel(v.agent)));
@@ -389,7 +393,7 @@ export function renderLauncher() {
       const t = targets[0];
       if (!t.project) return toast('Pick a project that’s ready first: this one is still cloning.', { tone: 'bad' });
       if (tray.busy || (await tray.ids()).length) return toast('A scheduled task can’t carry files yet. Start it now, or remove them.', { tone: 'bad' });
-      const r = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '' } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
+      const r = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
       ta.value = '';
       S.drafts.delete('home');
       ta.dispatchEvent(new Event('input'));
@@ -398,7 +402,7 @@ export function renderLauncher() {
       leaveHome();
       const body = w.reminder
         ? { text: w.rest }
-        : { prompt: w.rest, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, agent: r.agent, mode: over?.mode || curMode, model: r.model, effort: r.effort, worktree: S.config.defaults.worktree === 'off' ? false : undefined, subagents: team.length && canLead(r.agent) ? team : undefined };
+        : { prompt: w.rest, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, agent: r.agent, mode: over?.mode || curMode, model: r.model, effort: r.effort, account: r.account || undefined, worktree: S.config.defaults.worktree === 'off' ? false : undefined, subagents: team.length && canLead(r.agent) ? team : undefined };
       const p = await addPlan(w.reminder ? 'reminder' : 'task', w.at, body);
       if (!p) return !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
       return toast(`${w.reminder ? 'Reminds you' : 'Starts'} ${esc(aheadLabel(w.at))}`);
@@ -418,7 +422,7 @@ export function renderLauncher() {
     const attachments = await tray.ids();
     const files = tray.take();
     const cmp = compare;
-    const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '' } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort };
+    const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
     const launchMode = over?.mode || curMode;
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet
@@ -452,7 +456,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined },
           }),
         ),
       );
@@ -491,12 +495,15 @@ export function renderLauncher() {
   box.placesChanged = () => {
     renderSetup();
     const here = harnessesAt(launch.where, { auto: true }); // Auto works anywhere: it picks from what's there
+    // Accounts come with the harness list (and go with Settings): a pick that's gone falls back to the remembered one.
+    if (!accountOf(agent?.id, curAccount)) curAccount = savedAccount(agent?.id);
     if (!agent || here.find((a) => a.id === agent.id)?.available) return paintRunner();
     const next = here.find((a) => a.id === S.config.defaults.agent && a.available) || here.find((a) => a.available);
     if (!next) return paintRunner();
     agent = next;
     curModel = savedModel(agent.id);
     curEffort = savedEffort(agent.id, curModel);
+    curAccount = savedAccount(agent.id);
     paintRunner();
     paintTeam();
   };
@@ -819,7 +826,7 @@ function launchedFx(from, to) {
 // A launch the server hasn't answered yet: a placeholder summary that shows in Working as a
 // "Starting up" card. It can't be opened; the real card takes its place.
 let pendingSeq = 0;
-function addPending(prompt, { project: p, m, also = [] }, { agent, model, effort }, live = 'Starting up') {
+function addPending(prompt, { project: p, m, also = [] }, { agent, model, effort, account }, live = 'Starting up') {
   const id = `pending-${++pendingSeq}`;
   const line = plain(prompt).split('\n')[0].replace(/\s+/g, ' ');
   const now = Date.now();
@@ -830,6 +837,7 @@ function addPending(prompt, { project: p, m, also = [] }, { agent, model, effort
     agent,
     model,
     effort,
+    account: account || undefined,
     cwd: p.path,
     scratch: p.scratch,
     project: p.name,

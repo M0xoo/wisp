@@ -16,7 +16,8 @@ import { renderLauncher } from './launcher.js';
 import { loadConfig } from './live.js';
 import { openComputers, openMachines } from './machines.js';
 import { cloudPane, connectHtml, mountGridHere } from './cloud.js';
-import { loginControl, loginPanel, wireLogins } from './agent-login.js';
+import { loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
+import { accountCount, accountsHtml, gridAccountsNote, manyAccounts, wireAccounts } from './accounts.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
 import { notifyOn, notifyPermission, requestNotify } from './notify.js';
 import { openPhone, phoneSummary } from './phone.js';
@@ -210,8 +211,12 @@ export function openSettings(opts) {
     $(`.sx-nav [data-pane="${settingsPane}"]`, node)?.focus({ preventScroll: true });
   };
   spellsPane($('[data-pane="spells"].sx-pane', node));
-  const paintAgents = () => {
-    $('.sx-agents', node).innerHTML = S.agents.length
+  // force: a repaint the person asked for (an account added, renamed); a background one waits while
+  // a code is pasted or an account named, since it would wipe what's typed.
+  const paintAgents = (force) => {
+    const box = $('.sx-agents', node);
+    if (force !== true && (typingLogin(box) || document.activeElement?.closest?.('[data-acc-rename]'))) return;
+    box.innerHTML = gridAccountsNote() + (S.agents.length
       ? S.agents.map((a) => {
         const n = (a.models || []).filter((m) => m.id).length;
         // opencode: wisp can install it (free models, no account), so its row offers that.
@@ -220,14 +225,16 @@ export function openSettings(opts) {
         // Not found: this OS's setup tip, with the command to copy unless wisp installs it itself.
         const out = !a.available && a.signedIn === false; // installed, signed out: hidden from the picker
         const desc = a.available || out
-          ? esc([a.version, out ? 'Sign in to use it' : n && `${n} model${n === 1 ? '' : 's'}`].filter(Boolean).join(' · '))
+          ? esc([a.version, out ? 'Sign in to use it' : n && `${n} model${n === 1 ? '' : 's'}`, accountCount(a)].filter(Boolean).join(' · '))
           : busy ? 'Installing into ~/.wisp/tools…' : `${esc(setupTip(a))}${a.setup?.command && !canInstall ? setupCommand(a.setup.command) : ''}`;
         const install = canInstall ? `<button class="ghost sm" data-install="${esc(a.id)}" ${busy ? 'disabled' : ''}>${busy ? 'Installing…' : 'Install'}</button>` : '';
         const docs = a.available || out ? '' : setupDocs(a);
         const state = a.available ? ['ok', 'Ready'] : out ? ['warn', 'Signed out'] : ['bad', 'Not found'];
-        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}${a.available || out ? loginControl(a.id) : ''}<span class="sx-state ${state[0]}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${state[0]}"></i>${state[1]}</span>`) + (a.available || out ? loginPanel(a.id) : '');
+        // Several accounts: each signs in on its own row, so the harness row only says how it is.
+        const many = manyAccounts(a);
+        return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}${(a.available || out) && !many ? loginControl(a.id) : ''}<span class="sx-state ${state[0]}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${state[0]}"></i>${state[1]}</span>`) + ((a.available || out) && !many ? loginPanel(a.id) : '') + accountsHtml(a);
       }).join('')
-      : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>';
+      : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>');
     // GitHub: not a harness, but what Ship it pushes and opens pull requests with.
     $('.sx-agents', node).insertAdjacentHTML('beforeend', row(`<span class="model-logo">${icon('github')}</span>GitHub`, 'For pushing branches and opening pull requests (the gh CLI)', loginControl('gh')) + loginPanel('gh'));
     const missing = S.agents.filter((a) => !a.available).length;
@@ -238,8 +245,10 @@ export function openSettings(opts) {
     $('.recheck-hint', node).textContent = `After installing a CLI, signing in or adding a provider, look for harnesses and models again${online ? `, here and on ${online} machine${online === 1 ? '' : 's'}` : ''}`;
   };
   paintAgents();
-  wireLogins($('.sx-agents', node), () => [['', [...S.agents.filter((a) => a.available || a.signedIn === false).map((a) => a.id), 'gh']]]);
-  bus.on('agents', paintAgents, { node });
+  // Each extra account signs in on its own (`claude@k3f9`).
+  const signIns = wireLogins($('.sx-agents', node), () => [['', [...S.agents.filter((a) => a.available || a.signedIn === false).flatMap((a) => [a.id, ...(manyAccounts(a) ? a.accounts.filter((x) => x.id !== 'default').map((x) => `${a.id}@${x.id}`) : [])]), 'gh']]]);
+  wireAccounts($('.sx-agents', node), () => paintAgents(true), signIns);
+  bus.on('agents', () => paintAgents(), { node });
   bus.on('install', paintAgents, { node });
   $('.sx-agents', node).onclick = (e) => {
     const c = e.target.closest('[data-copy]');

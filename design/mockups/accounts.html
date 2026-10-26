@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wisp · accounts mockup</title>
+<style>
+/* tokens: copied from web/css/tokens.css (light, and [data-theme='dark'] as html.dark) */
+:root {
+  --bg: #ffffff; --bg-2: #f3f3f2; --rail: #f7f7f6; --surface: #ffffff; --surface-2: #f9f9f8;
+  --ink: #171717; --ink-2: #3d3d3d; --muted: #6e6e6e; --faint: #959595; --line: #ebebea; --line-2: #dcdcda;
+  --accent: #2f5bea; --accent-ink: #2149cc; --accent-soft: rgba(47, 91, 234, 0.08);
+  --good: #18794e; --warn: #a35c00; --bad: #cd2b31;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 30px -12px rgba(0, 0, 0, 0.14);
+  --radius: 10px;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.25, 0.8, 0.25, 1);
+  color-scheme: light;
+}
+html.dark {
+  --bg: #111111; --bg-2: #1e1e1e; --rail: #151515; --surface: #171717; --surface-2: #1a1a1a;
+  --ink: #ededed; --ink-2: #c7c7c7; --muted: #8f8f8f; --faint: #6e6e6e; --line: #262626; --line-2: #333333;
+  --accent: #6d8dff; --accent-ink: #94adff; --accent-soft: rgba(109, 141, 255, 0.12);
+  --good: #4cc38a; --warn: #f0a33a; --bad: #ff6369;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+.c-violet { --pc: #7c6bd6; } .c-teal { --pc: #2b9a8a; } .c-amber { --pc: #c9932a; }
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; letter-spacing: -0.003em; }
+button { font: inherit; color: inherit; cursor: pointer; background: none; border: 0; padding: 0; }
+.i { width: 16px; height: 16px; flex: none; vertical-align: -3px; }
+
+/* mockup frame only (not wisp UI) */
+.mk { max-width: 1280px; margin: 0 auto; padding: 28px 28px 40px; display: grid; gap: 28px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); align-items: start; }
+.mk > .wide { grid-column: 1 / -1; }
+.mk-cap { margin: 0 0 10px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.mk-cap b { color: var(--ink); font-weight: 600; margin-right: 6px; }
+.mk-stage { position: relative; border: 1px dashed var(--line-2); border-radius: 14px; padding: 18px; background: var(--rail); }
+
+/* base.css buttons */
+.primary { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 16px; border-radius: 8px; background: var(--ink); color: var(--bg); font-weight: 500; }
+.primary.sm { height: 30px; padding: 0 12px; font-size: 13px; border-radius: 9px; }
+.ghost { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 9px; color: var(--ink-2); }
+.ghost:hover { background: var(--bg-2); color: var(--ink); }
+.ghost.sm { height: 28px; font-size: 13px; }
+.ghost.xs { height: 24px; padding: 0 6px; border-radius: 7px; }
+.icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--muted); }
+.icon-btn:hover { background: var(--bg-2); color: var(--ink); }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+.check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; display: inline-block; }
+.dot.ok { background: var(--good); } .dot.warn { background: var(--warn); }
+
+/* NEW: the account's initial. Neutral (project colours are only for projects), one size everywhere. */
+.acc-i { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--bg-2); border: 1px solid var(--line-2); color: var(--ink-2); font: 600 9.5px/1 var(--sans); letter-spacing: 0; }
+.acc-i.off { opacity: 0.5; }
+/* on a logo: the bottom-right corner (Auto's .routed dot moves to the top-right) */
+.has-acc { position: relative; }
+.has-acc > .acc-i { position: absolute; right: -5px; bottom: -5px; width: 13px; height: 13px; font-size: 8px; background: var(--surface); box-shadow: 0 0 0 1.5px var(--surface); }
+
+/* runner chip (launcher.css .runner-btn) + the account as its own, never-truncated part */
+.runner-btn { display: inline-flex; align-items: center; height: 30px; padding: 0 8px 0 4px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--bg-2); font-size: 12.5px; color: var(--ink-2); }
+.rb-logo { display: grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 6px; background: var(--surface); color: var(--ink); }
+.rb-logo > img, .rb-logo > .mono { display: block; width: 13px; height: 13px; }
+.rb-h { font-weight: 500; color: var(--ink); }
+.rb-m { position: relative; margin-left: 13px; max-width: 180px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.rb-m::before, .rb-a::before { content: ''; position: absolute; left: -7px; top: 50%; width: 1px; height: 12px; margin-top: -6px; background: var(--line-2); }
+.rb-e { flex: none; margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: 11.5px; background: var(--accent-soft); color: var(--accent-ink); }
+.rb-a { position: relative; flex: none; margin-left: 13px; color: var(--ink-2); white-space: nowrap; }
+.runner-btn .chev { width: 12px; height: 12px; margin-left: 6px; color: var(--faint); transform: rotate(-90deg); }
+
+/* picker (launcher.css .picker, static here) */
+.picker { position: relative; display: grid; grid-template-columns: 200px 1fr; height: 400px; margin-top: 8px; overflow: hidden; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); }
+.pk-side { display: flex; flex-direction: column; gap: 2px; padding: 6px; overflow-y: auto; background: var(--surface-2); border-right: 1px solid var(--line); }
+.pk-head, .pk-ghead { padding: 8px 10px 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.pk-h, .pk-m { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 9px; border-radius: 9px; text-align: left; color: var(--ink-2); }
+.pk-h:hover, .pk-m:hover { background: var(--bg-2); }
+.pk-h.on { background: var(--surface); box-shadow: 0 0 0 1px var(--line-2), var(--shadow-1); }
+.pk-logo { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.pk-h.on .pk-logo { background: var(--bg-2); border-color: transparent; }
+.pk-logo > img, .pk-logo > .mono { display: block; width: 15px; height: 15px; }
+.mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
+.pk-text { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pk-text b { font-weight: 500; font-size: 13.5px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-text small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pk-list { flex: 1; overflow-y: auto; padding: 6px; }
+.pk-check { width: 15px; height: 15px; flex: none; color: var(--accent); visibility: hidden; }
+.pk-m.on .pk-check { visibility: visible; }
+.pk-m.on b { color: var(--accent-ink); }
+.pk-effort { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 8px 10px; border-top: 1px solid var(--line); background: var(--surface-2); }
+.pk-ehead { padding: 0 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.pk-seg { display: flex; min-width: 0; gap: 2px; padding: 2px; overflow-x: auto; border-radius: 9px; background: var(--bg-2); border: 1px solid var(--line); }
+.pk-seg button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 7px; border-radius: 7px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.pk-seg button:hover { color: var(--ink); }
+.pk-seg button.on { background: var(--surface); color: var(--accent-ink); font-weight: 500; box-shadow: var(--shadow-1); }
+/* NEW (picker.accounts): same .pk-seg; a cooling account keeps its width, the clock says why */
+.pk-seg .acc-wait { width: 12px; height: 12px; color: var(--warn); }
+.pk-note { margin: 0 2px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+
+/* split view: sidebar rows (feed.css + split.css) */
+.app { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: 520px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.sidebar { border-right: 1px solid var(--line); background: var(--rail); padding: 10px 8px; overflow: hidden; }
+.sb-h { padding: 6px 12px 6px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.item { position: relative; border: 1px solid transparent; border-radius: var(--radius); }
+.item:hover { background: var(--bg-2); }
+.item.open { background: var(--bg-2); }
+.it-head { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 1px; padding: 9px 12px; align-items: center; }
+.q-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pc); position: relative; align-self: start; margin-top: 7px; }
+.item.st-done .q-dot { opacity: 0.35; }
+.it-main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.it-title { font-size: 13.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item.open .it-title { color: var(--ink); }
+.it-sub { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.it-side { display: flex; flex-direction: column; align-items: flex-end; align-self: stretch; justify-content: space-between; gap: 2px; }
+.q-time { font-size: 11.5px; color: var(--faint); min-width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
+.pill { display: inline-flex; align-items: center; gap: 5px; height: 19px; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.pill i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.pill.st-running { color: var(--accent-ink); } .pill.st-done { color: var(--good); }
+
+.pane { display: flex; flex-direction: column; min-width: 0; }
+.split-head { flex: none; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 24px; border-bottom: 1px solid var(--line); }
+.sh-title { flex: 1; min-width: 0; margin: 0; font: 600 17px/1.3 var(--display); letter-spacing: -0.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.split-head .q-dot { margin-top: 0; align-self: center; }
+.body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 48px; padding: 18px 24px; overflow: hidden; }
+.read { min-width: 0; }
+.ask { margin: 0 0 14px auto; max-width: 85%; width: fit-content; padding: 9px 13px; border-radius: 14px; background: var(--bg-2); font-size: 14px; }
+.tx-head { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 12px; color: var(--faint); }
+.tx-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--muted); }
+.tx-title .i { width: 14px; height: 14px; }
+.tx-list { position: relative; list-style: none; margin: 0 0 14px; padding: 0; }
+.tx-list::before { content: ''; position: absolute; left: 11.5px; top: 12px; bottom: 12px; width: 1px; background: var(--line-2); }
+.tx-step { position: relative; padding-left: 28px; }
+.tx-ic { position: absolute; left: 2px; top: 5px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--bg); color: var(--faint); }
+.tx-ic .i { width: 14px; height: 14px; }
+.tx-row { display: flex; align-items: center; gap: 10px; min-height: 30px; padding: 4px 8px; font-size: 13px; color: var(--ink-2); }
+.tx-row code { font: 12px var(--mono); color: var(--muted); }
+/* NEW: wisp's own note in the transcript (the account switch). Same row, wisp's voice, no colour stripe. */
+.tx-step.note .tx-row { color: var(--muted); }
+.tx-step.note .tx-ic { color: var(--warn); }
+.tx-step.note b { font-weight: 500; color: var(--ink-2); }
+.answer { font-size: 14px; line-height: 1.6; color: var(--ink); }
+.answer p { margin: 0 0 10px; }
+.turn-meta { font-size: 12px; color: var(--faint); }
+
+/* the details column (split.css pane-wide .it-props) */
+.det { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.det-row { display: flex; align-items: flex-start; gap: 9px; }
+.det-row > .lead { flex: none; width: 14px; display: grid; place-items: center; margin-top: 2px; }
+.det-row > .lead img { width: 13px; height: 13px; display: block; }
+.det-row .t { color: var(--muted); }
+.det-row .st { color: var(--accent-ink); }
+.det-row .p-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pc); margin-top: 4px; }
+
+/* settings (modals.css .sx-*) */
+.sx { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 16px 20px 20px; }
+.sx-title { margin: 0 2px 4px; font: 600 16px/1.3 var(--display); letter-spacing: -0.01em; }
+.sx-lede { margin: 0 2px 14px; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.sx-group { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.sx-group + .sx-group { margin-top: 14px; }
+.sx-row { display: flex; align-items: center; gap: 16px; min-height: 52px; padding: 9px 14px; }
+.sx-row + .sx-row, .acc-list + .sx-row { border-top: 1px solid var(--line); }
+.sx-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sx-text b { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13.5px; }
+.sx-text b img { width: 18px; height: 18px; }
+.sx-text small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.sx-ctl { flex: none; display: flex; align-items: center; gap: 8px; }
+.sx-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.sx-state.ok { color: var(--good); } .sx-state.warn { color: var(--warn); }
+/* NEW (settings.accounts): the harness's accounts, under its row, in the sign-in panel's place */
+.acc-list { margin: 0 14px 12px 50px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.acc-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 8px; }
+.acc-row + .acc-row { border-top: 1px solid var(--line); }
+.acc-grip { flex: none; width: 14px; color: var(--faint); cursor: grab; }
+.acc-main { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.acc-main b { flex: none; font-weight: 500; font-size: 13px; color: var(--ink); }
+.acc-main small { min-width: 0; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acc-row .sx-state { flex: none; }
+.acc-add { display: flex; padding: 4px 4px; border-top: 1px solid var(--line); }
+/* the launcher's mode button + mode menu (launcher.css .mode-btn / .menu.mode) */
+.mode-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 9px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--surface); font-size: 12.5px; font-weight: 500; color: var(--ink-2); white-space: nowrap; }
+.mode-btn .chev { width: 12px; height: 12px; color: var(--faint); transform: rotate(90deg); }
+.menu { position: absolute; z-index: 5; right: 14px; top: calc(100% - 4px); width: 290px; max-width: calc(100% - 28px); padding: 5px; border-radius: 13px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); }
+.menu button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; color: var(--ink-2); text-align: left; }
+.menu button:hover, .menu button.act { background: var(--bg-2); color: var(--ink); }
+.menu button > .i { margin-top: 2px; }
+.mm-text { display: grid; gap: 1px; flex: 1; }
+.mm-text b { font-weight: 500; color: var(--ink); }
+.mm-text small { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.mm-check { margin-top: 2px; color: var(--accent); visibility: hidden; }
+.menu .on .mm-check { visibility: visible; }
+.sx-pick { position: relative; }
+
+/* phone frame for (b) */
+.page-head { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 6px 12px 6px 6px; border-bottom: 1px solid var(--line); }
+.page-head .sh-title { font-size: 16px; }
+.phone-only { display: none; }
+
+@media (max-width: 900px) {
+  .mk { grid-template-columns: minmax(0, 1fr); padding: 16px 12px 28px; gap: 22px; }
+  .mk-stage { padding: 10px; }
+  /* split view stacked: the list, and the task as a page with Back */
+  .app { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .app .split-head { display: none; }
+  .phone-only { display: flex; }
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+  .body { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 14px 14px 18px; }
+  .det { order: -1; flex-direction: row; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .det-row.when { display: none; }
+}
+@media (max-width: 560px) {
+  .picker { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 470px; }
+  .pk-side { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .pk-side .pk-head, .pk-h .pk-text small { display: none; }
+  .pk-h { width: auto; flex: none; }
+  .runner-btn .rb-m { display: none; } /* launcher ≤720: the model folds away; the account stays as the corner initial */
+  .runner-btn .rb-a { display: none; }
+  .sx { padding: 14px 12px 16px; }
+  .sx-row { flex-wrap: wrap; row-gap: 8px; padding: 11px 14px; }
+  .sx-text { flex: 1 1 200px; }
+  .acc-list { margin-left: 14px; }
+  .acc-grip { display: none; } /* no drag on touch: ⋯ → Move up / Move down */
+  .acc-row { min-height: 52px; }
+  .acc-row .icon-btn { width: 44px; height: 44px; }
+  .acc-main { flex-direction: column; gap: 0; }
+  .acc-row { flex-wrap: wrap; row-gap: 0; }
+  .acc-row .sx-state { order: 5; flex: 1 1 100%; padding: 0 0 6px 26px; }
+  .sx-pick .sx-ctl { flex: 1 1 100%; }
+  .sx-pick .mode-btn { width: 100%; justify-content: space-between; height: 44px; }
+  .menu { left: 14px; right: 14px; width: auto; max-width: none; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 6v12M6 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-transcript" viewBox="0 0 24 24"><path d="M6 6h12M6 10h12M6 14h8M6 18h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M7 3.5h6.5L18 8v12.5H7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="M5 7l5 5-5 5M12 18h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="7" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="7" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="17" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 8v8M17 10c0 4-10 2-10 6" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></g></symbol>
+</svg>
+
+<main class="mk">
+
+  <!-- (a) runner picker -->
+  <section>
+    <p class="mk-cap"><b>a</b>Runner picker: Account row under Thinking (picker.accounts)</p>
+    <div class="mk-stage">
+      <button class="runner-btn open" aria-label="Claude · Opus 5.5 · High thinking · Work" title="Claude · Opus 5.5 · High thinking · Work">
+        <span class="rb-logo has-acc"><img src="data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNsYXVkZSBDb2RlPC90aXRsZT48cGF0aCBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0yMC45OTggMTAuOTQ5SDI0djMuMTAyaC0zdjMuMDI4aC0xLjQ4N1YyMEgxOHYtMi45MjFoLTEuNDg3VjIwSDE1di0yLjkyMUg5VjIwSDcuNDg4di0yLjkyMUg2VjIwSDQuNDg3di0yLjkyMUgzVjE0LjA1SDBWMTAuOTVoM1Y1aDE3Ljk5OHY1Ljk0OXpNNiAxMC45NDloMS40ODhWOC4xMDJINnYyLjg0N3ptMTAuNTEgMEgxOFY4LjEwMmgtMS40OXYyLjg0N3oiIGZpbGw9IiNEOTc3NTciIGZpbGwtcnVsZT0iZXZlbm9kZCI+PC9wYXRoPjwvc3ZnPg==" alt=""><span class="acc-i">W</span></span>
+        <span class="rb-h">Claude</span><span class="rb-m">Opus 5.5</span><span class="rb-e">High</span><span class="rb-a">Work</span>
+        <svg class="i chev"><use href="#i-chevron"/></svg>
+      </button>
+      <div class="picker" role="dialog" aria-label="Harness and model">
+        <div class="pk-side">
+          <div class="pk-head">Harness</div>
+          <button class="pk-h on"><span class="pk-logo"><img src="data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNsYXVkZSBDb2RlPC90aXRsZT48cGF0aCBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0yMC45OTggMTAuOTQ5SDI0djMuMTAyaC0zdjMuMDI4aC0xLjQ4N1YyMEgxOHYtMi45MjFoLTEuNDg3VjIwSDE1di0yLjkyMUg5VjIwSDcuNDg4di0yLjkyMUg2VjIwSDQuNDg3di0yLjkyMUgzVjE0LjA1SDBWMTAuOTVoM1Y1aDE3Ljk5OHY1Ljk0OXpNNiAxMC45NDloMS40ODhWOC4xMDJINnYyLjg0N3ptMTAuNTEgMEgxOFY4LjEwMmgtMS40OXYyLjg0N3oiIGZpbGw9IiNEOTc3NTciIGZpbGwtcnVsZT0iZXZlbm9kZCI+PC9wYXRoPjwvc3ZnPg==" alt=""></span><span class="pk-text"><b>Claude</b><small>2 accounts</small></span></button>
+          <button class="pk-h"><span class="pk-logo"><img src="data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNvZGV4PC90aXRsZT48cGF0aCBkPSJNMTkuNTAzIDBINC40OTZBNC40OTYgNC40OTYgMCAwMDAgNC40OTZ2MTUuMDA3QTQuNDk2IDQuNDk2IDAgMDA0LjQ5NiAyNGgxNS4wMDdBNC40OTYgNC40OTYgMCAwMDI0IDE5LjUwM1Y0LjQ5NkE0LjQ5NiA0LjQ5NiAwIDAwMTkuNTAzIDB6IiBmaWxsPSIjZmZmIj48L3BhdGg+PHBhdGggZD0iTTkuMDY0IDMuMzQ0YTQuNTc4IDQuNTc4IDAgMDEyLjI4NS0uMzEyYzEgLjExNSAxLjg5MS41NCAyLjY3MyAxLjI3NS4wMS4wMS4wMjQuMDE3LjAzNy4wMjFhLjA5LjA5IDAgMDAuMDQzIDAgNC41NSA0LjU1IDAgMDEzLjA0Ni4yNzVsLjA0Ny4wMjIuMTE2LjA1N2E0LjU4MSA0LjU4MSAwIDAxMi4xODggMi4zOTljLjIwOS41MS4zMTMgMS4wNDEuMzE1IDEuNTk1YTQuMjQgNC4yNCAwIDAxLS4xMzQgMS4yMjMuMTIzLjEyMyAwIDAwLjAzLjExNWMuNTk0LjYwNy45ODggMS4zMyAxLjE4MyAyLjE3LjI4OSAxLjQyNS0uMDA3IDIuNzEtLjg4NyAzLjg1NGwtLjEzNi4xNjZhNC41NDggNC41NDggMCAwMS0yLjIwMSAxLjM4OC4xMjMuMTIzIDAgMDAtLjA4MS4wNzZjLS4xOTEuNTUxLS4zODMgMS4wMjMtLjc0IDEuNDk0LS45IDEuMTg3LTIuMjIyIDEuODQ2LTMuNzExIDEuODM4LTEuMTg3LS4wMDYtMi4yMzktLjQ0LTMuMTU3LTEuMzAyYS4xMDcuMTA3IDAgMDAtLjEwNS0uMDI0Yy0uMzg4LjEyNS0uNzguMTQzLTEuMjA0LjEzOGE0LjQ0MSA0LjQ0MSAwIDAxLTEuOTQ1LS40NjYgNC41NDQgNC41NDQgMCAwMS0xLjYxLTEuMzM1Yy0uMTUyLS4yMDItLjMwMy0uMzkyLS40MTQtLjYxN2E1LjgxIDUuODEgMCAwMS0uMzctLjk2MSA0LjU4MiA0LjU4MiAwIDAxLS4wMTQtMi4yOTguMTI0LjEyNCAwIDAwLjAwNi0uMDU2LjA4NS4wODUgMCAwMC0uMDI3LS4wNDggNC40NjcgNC40NjcgMCAwMS0xLjAzNC0xLjY1MSAzLjg5NiAzLjg5NiAwIDAxLS4yNTEtMS4xOTIgNS4xODkgNS4xODkgMCAwMS4xNDEtMS42Yy4zMzctMS4xMTIuOTgyLTEuOTg1IDEuOTMzLTIuNjE4LjIxMi0uMTQxLjQxMy0uMjUxLjYwMS0uMzMuMjE1LS4wODkuNDMtLjE2NC42NDYtLjIyN2EuMDk4LjA5OCAwIDAwLjA2NS0uMDY2IDQuNTEgNC41MSAwIDAxLjgyOS0xLjYxNSA0LjUzNSA0LjUzNSAwIDAxMS44MzctMS4zODh6bTMuNDgyIDEwLjU2NWEuNjM3LjYzNyAwIDAwMCAxLjI3MmgzLjYzNmEuNjM3LjYzNyAwIDEwMC0xLjI3MmgtMy42MzZ6TTguNDYyIDkuMjNhLjYzNy42MzcgMCAwMC0xLjEwNi42MzFsMS4yNzIgMi4yMjQtMS4yNjYgMi4xMzZhLjYzNi42MzYgMCAxMDEuMDk1LjY0OWwxLjQ1NC0yLjQ1NWEuNjM2LjYzNiAwIDAwLjAwNS0uNjRMOC40NjIgOS4yM3oiIGZpbGw9InVybCgjbG9iZS1pY29ucy1jb2RleC1fUl8wXykiPjwvcGF0aD48ZGVmcz48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSJsb2JlLWljb25zLWNvZGV4LV9SXzBfIiB4MT0iMTIiIHgyPSIxMiIgeTE9IjMiIHkyPSIyMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0IxQTdGRiI+PC9zdG9wPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiM3QTlERkYiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzOTQxRkYiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=" alt=""></span><span class="pk-text"><b>Codex</b><small>GPT-5.5</small></span></button>
+          <button class="pk-h"><span class="pk-logo"><i class="mono" style="--logo:url('data:image/svg+xml;base64,PHN2ZyBmaWxsPSJjdXJyZW50Q29sb3IiIGZpbGwtcnVsZT0iZXZlbm9kZCIgaGVpZ2h0PSIxZW0iIHN0eWxlPSJmbGV4Om5vbmU7bGluZS1oZWlnaHQ6MSIgdmlld0JveD0iMCAwIDI0IDI0IiB3aWR0aD0iMWVtIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjx0aXRsZT5Hcm9rPC90aXRsZT48cGF0aCBkPSJNOS4yNyAxNS4yOWw3Ljk3OC01Ljg5N2MuMzkxLS4yOS45NS0uMTc3IDEuMTM3LjI3Mi45OCAyLjM2OS41NDIgNS4yMTUtMS40MSA3LjE2OS0xLjk1MSAxLjk1NC00LjY2NyAyLjM4Mi03LjE0OSAxLjQwNmwtMi43MTEgMS4yNTdjMy44ODkgMi42NjEgOC42MTEgMi4wMDMgMTEuNTYyLS45NTMgMi4zNDEtMi4zNDQgMy4wNjYtNS41MzkgMi4zODgtOC40MmwuMDA2LjAwN2MtLjk4My00LjIzMi4yNDItNS45MjQgMi43NS05LjM4My4wNi0uMDgyLjEyLS4xNjQuMTc5LS4yNDhsLTMuMzAxIDMuMzA1di0uMDFMOS4yNjcgMTUuMjkyTTcuNjIzIDE2LjcyM2MtMi43OTItMi42Ny0yLjMxLTYuODAxLjA3MS05LjE4NCAxLjc2MS0xLjc2MyA0LjY0Ny0yLjQ4MyA3LjE2Ni0xLjQyNWwyLjcwNS0xLjI1YTcuODA4IDcuODA4IDAgMDAtMS44MjktMUE4Ljk3NSA4Ljk3NSAwIDAwNS45ODQgNS44M2MtMi41MzMgMi41MzYtMy4zMyA2LjQzNi0xLjk2MiA5Ljc2NCAxLjAyMiAyLjQ4Ny0uNjUzIDQuMjQ2LTIuMzQgNi4wMjItLjU5OS42My0xLjE5OSAxLjI1OS0xLjY4MiAxLjkyNWw3LjYyLTYuODE1Ij48L3BhdGg+PC9zdmc+')"></i></span><span class="pk-text"><b>Grok</b><small>Grok 5</small></span></button>
+        </div>
+        <div class="pk-main">
+          <div class="pk-list">
+            <div class="pk-ghead">Models</div>
+            <button class="pk-m on"><span class="pk-text"><b>Opus 5.5</b><small>Most capable</small></span><svg class="i pk-check"><use href="#i-check"/></svg></button>
+            <button class="pk-m"><span class="pk-text"><b>Sonnet 5.5</b><small>Fast and capable</small></span><svg class="i pk-check"><use href="#i-check"/></svg></button>
+            <button class="pk-m"><span class="pk-text"><b>Haiku 5.5</b><small>Fastest</small></span><svg class="i pk-check"><use href="#i-check"/></svg></button>
+          </div>
+          <div class="pk-effort">
+            <div class="pk-ehead">Thinking</div>
+            <div class="pk-seg" role="radiogroup" aria-label="Thinking"><button>Default</button><button>Low</button><button>Medium</button><button class="on">High</button></div>
+            <div class="pk-ehead">Account</div>
+            <div class="pk-seg" role="radiogroup" aria-label="Account">
+              <button>Auto</button>
+              <button class="on"><span class="acc-i">W</span>Work</button>
+              <button title="Personal: at its limit until 9 pm" aria-label="Personal, at its limit until 9 pm"><span class="acc-i">P</span>Personal<svg class="i acc-wait"><use href="#i-clock"/></svg></button>
+            </div>
+            <p class="pk-note">Personal is at its limit until 9 pm.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- (c) settings → agents -->
+  <section>
+    <p class="mk-cap"><b>c</b>Settings → Agents: Claude with two accounts (settings.accounts)</p>
+    <div class="mk-stage">
+      <div class="sx">
+        <h3 class="sx-title">Agents</h3>
+        <p class="sx-lede">The harnesses wisp found on this computer, and the accounts they run on.</p>
+        <div class="sx-group">
+          <div class="sx-row">
+            <div class="sx-text"><b><img src="data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNsYXVkZSBDb2RlPC90aXRsZT48cGF0aCBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0yMC45OTggMTAuOTQ5SDI0djMuMTAyaC0zdjMuMDI4aC0xLjQ4N1YyMEgxOHYtMi45MjFoLTEuNDg3VjIwSDE1di0yLjkyMUg5VjIwSDcuNDg4di0yLjkyMUg2VjIwSDQuNDg3di0yLjkyMUgzVjE0LjA1SDBWMTAuOTVoM1Y1aDE3Ljk5OHY1Ljk0OXpNNiAxMC45NDloMS40ODhWOC4xMDJINnYyLjg0N3ptMTAuNTEgMEgxOFY4LjEwMmgtMS40OXYyLjg0N3oiIGZpbGw9IiNEOTc3NTciIGZpbGwtcnVsZT0iZXZlbm9kZCI+PC9wYXRoPjwvc3ZnPg==" alt="">Claude Code</b><small>2.1.30 · 3 models · 2 accounts</small></div>
+            <div class="sx-ctl"><span class="sx-state ok"><i class="dot ok"></i>Ready</span></div>
+          </div>
+          <div class="acc-list" role="list" aria-label="Claude accounts">
+            <div class="acc-row" role="listitem">
+              <svg class="i acc-grip" aria-hidden="true"><use href="#i-grip"/></svg>
+              <span class="acc-i">W</span>
+              <span class="acc-main"><b>Work</b><small>a@corp.com · Max</small></span>
+              <button class="icon-btn" aria-label="Work: more" title="More"><svg class="i"><use href="#i-dots"/></svg></button>
+            </div>
+            <div class="acc-row" role="listitem">
+              <svg class="i acc-grip" aria-hidden="true"><use href="#i-grip"/></svg>
+              <span class="acc-i">P</span>
+              <span class="acc-main"><b>Personal</b><small>a@gmail.com · Pro</small></span>
+              <span class="sx-state warn"><svg class="i" style="width:13px;height:13px"><use href="#i-clock"/></svg>At its limit until 9 pm</span>
+              <button class="icon-btn" aria-label="Personal: more" title="More"><svg class="i"><use href="#i-dots"/></svg></button>
+            </div>
+            <div class="acc-add"><button class="ghost sm"><svg class="i"><use href="#i-plus"/></svg>Add another Claude account</button></div>
+          </div>
+          <div class="sx-row">
+            <div class="sx-text"><b><img src="data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNvZGV4PC90aXRsZT48cGF0aCBkPSJNMTkuNTAzIDBINC40OTZBNC40OTYgNC40OTYgMCAwMDAgNC40OTZ2MTUuMDA3QTQuNDk2IDQuNDk2IDAgMDA0LjQ5NiAyNGgxNS4wMDdBNC40OTYgNC40OTYgMCAwMDI0IDE5LjUwM1Y0LjQ5NkE0LjQ5NiA0LjQ5NiAwIDAwMTkuNTAzIDB6IiBmaWxsPSIjZmZmIj48L3BhdGg+PHBhdGggZD0iTTkuMDY0IDMuMzQ0YTQuNTc4IDQuNTc4IDAgMDEyLjI4NS0uMzEyYzEgLjExNSAxLjg5MS41NCAyLjY3MyAxLjI3NS4wMS4wMS4wMjQuMDE3LjAzNy4wMjFhLjA5LjA5IDAgMDAuMDQzIDAgNC41NSA0LjU1IDAgMDEzLjA0Ni4yNzVsLjA0Ny4wMjIuMTE2LjA1N2E0LjU4MSA0LjU4MSAwIDAxMi4xODggMi4zOTljLjIwOS41MS4zMTMgMS4wNDEuMzE1IDEuNTk1YTQuMjQgNC4yNCAwIDAxLS4xMzQgMS4yMjMuMTIzLjEyMyAwIDAwLjAzLjExNWMuNTk0LjYwNy45ODggMS4zMyAxLjE4MyAyLjE3LjI4OSAxLjQyNS0uMDA3IDIuNzEtLjg4NyAzLjg1NGwtLjEzNi4xNjZhNC41NDggNC41NDggMCAwMS0yLjIwMSAxLjM4OC4xMjMuMTIzIDAgMDAtLjA4MS4wNzZjLS4xOTEuNTUxLS4zODMgMS4wMjMtLjc0IDEuNDk0LS45IDEuMTg3LTIuMjIyIDEuODQ2LTMuNzExIDEuODM4LTEuMTg3LS4wMDYtMi4yMzktLjQ0LTMuMTU3LTEuMzAyYS4xMDcuMTA3IDAgMDAtLjEwNS0uMDI0Yy0uMzg4LjEyNS0uNzguMTQzLTEuMjA0LjEzOGE0LjQ0MSA0LjQ0MSAwIDAxLTEuOTQ1LS40NjYgNC41NDQgNC41NDQgMCAwMS0xLjYxLTEuMzM1Yy0uMTUyLS4yMDItLjMwMy0uMzkyLS40MTQtLjYxN2E1LjgxIDUuODEgMCAwMS0uMzctLjk2MSA0LjU4MiA0LjU4MiAwIDAxLS4wMTQtMi4yOTguMTI0LjEyNCAwIDAwLjAwNi0uMDU2LjA4NS4wODUgMCAwMC0uMDI3LS4wNDggNC40NjcgNC40NjcgMCAwMS0xLjAzNC0xLjY1MSAzLjg5NiAzLjg5NiAwIDAxLS4yNTEtMS4xOTIgNS4xODkgNS4xODkgMCAwMS4xNDEtMS42Yy4zMzctMS4xMTIuOTgyLTEuOTg1IDEuOTMzLTIuNjE4LjIxMi0uMTQxLjQxMy0uMjUxLjYwMS0uMzMuMjE1LS4wODkuNDMtLjE2NC42NDYtLjIyN2EuMDk4LjA5OCAwIDAwLjA2NS0uMDY2IDQuNTEgNC41MSAwIDAxLjgyOS0xLjYxNSA0LjUzNSA0LjUzNSAwIDAxMS44MzctMS4zODh6bTMuNDgyIDEwLjU2NWEuNjM3LjYzNyAwIDAwMCAxLjI3MmgzLjYzNmEuNjM3LjYzNyAwIDEwMC0xLjI3MmgtMy42MzZ6TTguNDYyIDkuMjNhLjYzNy42MzcgMCAwMC0xLjEwNi42MzFsMS4yNzIgMi4yMjQtMS4yNjYgMi4xMzZhLjYzNi42MzYgMCAxMDEuMDk1LjY0OWwxLjQ1NC0yLjQ1NWEuNjM2LjYzNiAwIDAwLjAwNS0uNjRMOC40NjIgOS4yM3oiIGZpbGw9InVybCgjbG9iZS1pY29ucy1jb2RleC1fUl8wXykiPjwvcGF0aD48ZGVmcz48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSJsb2JlLWljb25zLWNvZGV4LV9SXzBfIiB4MT0iMTIiIHgyPSIxMiIgeTE9IjMiIHkyPSIyMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0IxQTdGRiI+PC9zdG9wPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiM3QTlERkYiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzOTQxRkYiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=" alt="">Codex</b><small>0.71.0 · 4 models</small></div>
+            <div class="sx-ctl"><span class="sx-state ok"><i class="dot ok"></i>Ready</span></div>
+          </div>
+        </div>
+        <div class="sx-group">
+          <div class="sx-row sx-pick">
+            <div class="sx-text"><b>When a harness has several accounts</b><small>What Auto picks when you don't choose one</small></div>
+            <div class="sx-ctl"><button class="mode-btn open" aria-haspopup="menu" aria-expanded="true">Use them in order<svg class="i chev"><use href="#i-chevron"/></svg></button></div>
+            <div class="menu" role="menu">
+              <button class="on act" role="menuitemradio" aria-checked="true"><span class="mm-text"><b>Use them in order</b><small>The first account that isn't at its limit. Drag to change the order.</small></span><svg class="i mm-check"><use href="#i-check"/></svg></button>
+              <button role="menuitemradio" aria-checked="false"><span class="mm-text"><b>Spread the work</b><small>The account with the most room left.</small></span><svg class="i mm-check"><use href="#i-check"/></svg></button>
+            </div>
+          </div>
+          <div class="sx-row">
+            <div class="sx-text"><b>Switch accounts at a limit</b><small>Carry on in the same task on the next account, even one you picked</small></div>
+            <div class="sx-ctl"><label class="check"><input type="checkbox" checked aria-label="Switch accounts at a limit"></label></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- (b) the task -->
+  <section class="wide">
+    <p class="mk-cap"><b>b</b>Split view: the account on the details column's harness row; the switch as a transcript note</p>
+    <div class="mk-stage">
+      <div class="app">
+        <aside class="sidebar">
+          <div class="sb-h">Working</div>
+          <div class="item open c-violet">
+            <div class="it-head">
+              <span class="q-dot"></span>
+              <span class="it-main"><span class="it-title">Refactor the billing webhooks</span><span class="it-sub">Splitting the handler into one file per event</span></span>
+              <span class="it-side"><span class="q-time">2m</span><span class="pill st-running"><i></i>Working</span></span>
+            </div>
+          </div>
+          <div class="sb-h">Done</div>
+          <div class="item st-done c-teal">
+            <div class="it-head">
+              <span class="q-dot"></span>
+              <span class="it-main"><span class="it-title">Fix the flaky login test</span><span class="it-sub">The retry waited on the wrong promise</span></span>
+              <span class="it-side"><span class="q-time">1h</span><span class="pill st-done"><i></i>Done</span></span>
+            </div>
+          </div>
+          <div class="item st-done c-amber">
+            <div class="it-head">
+              <span class="q-dot"></span>
+              <span class="it-main"><span class="it-title">Draft the October changelog</span><span class="it-sub">12 entries, grouped by area</span></span>
+              <span class="it-side"><span class="q-time">3h</span><span class="pill st-done"><i></i>Done</span></span>
+            </div>
+          </div>
+        </aside>
+        <section class="pane">
+          <div class="page-head phone-only"><button class="icon-btn" aria-label="Back to tasks" title="Back to tasks" style="width:44px;height:44px"><svg class="i"><use href="#i-back"/></svg></button><h2 class="sh-title">Refactor the billing webhooks</h2></div>
+          <div class="split-head c-violet"><span class="q-dot"></span><h2 class="sh-title">Refactor the billing webhooks</h2><button class="icon-btn" aria-label="Close" title="Close: back to New task (Esc)"><svg class="i"><use href="#i-x"/></svg></button></div>
+          <div class="body">
+            <div class="read">
+              <div class="ask">Split the Stripe webhook handler into one file per event and keep the tests green.</div>
+              <div class="tx-head"><span class="tx-title"><svg class="i"><use href="#i-transcript"/></svg>Transcript</span><span>· 14 steps</span></div>
+              <ul class="tx-list">
+                <li class="tx-step"><span class="tx-ic"><svg class="i"><use href="#i-file"/></svg></span><div class="tx-row">Read <code>server/webhooks.js</code></div></li>
+                <li class="tx-step"><span class="tx-ic"><svg class="i"><use href="#i-terminal"/></svg></span><div class="tx-row">Ran <code>npm test -- webhooks</code></div></li>
+                <li class="tx-step note"><span class="tx-ic"><svg class="i"><use href="#i-clock"/></svg></span><div class="tx-row"><span><b>Work</b> is at its limit until 9 pm · carried on with <b>Personal</b></span></div></li>
+                <li class="tx-step"><span class="tx-ic"><svg class="i"><use href="#i-file"/></svg></span><div class="tx-row">Wrote <code>server/webhooks/invoice-paid.js</code></div></li>
+              </ul>
+              <div class="answer"><p>Split the handler into five files under <code>server/webhooks/</code>, one per event, with a shared signature check. All 38 webhook tests pass.</p></div>
+              <div class="turn-meta">Opus 5.5 · 6m 12s</div>
+            </div>
+            <aside class="det" aria-label="Details">
+              <div class="det-row"><span class="lead"><i class="dot" style="background:var(--accent)"></i></span><span><span class="st">Working</span><span class="t"> · 2 minutes ago</span></span></div>
+              <div class="det-row"><span class="lead has-acc"><img src="data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNsYXVkZSBDb2RlPC90aXRsZT48cGF0aCBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0yMC45OTggMTAuOTQ5SDI0djMuMTAyaC0zdjMuMDI4aC0xLjQ4N1YyMEgxOHYtMi45MjFoLTEuNDg3VjIwSDE1di0yLjkyMUg5VjIwSDcuNDg4di0yLjkyMUg2VjIwSDQuNDg3di0yLjkyMUgzVjE0LjA1SDBWMTAuOTVoM1Y1aDE3Ljk5OHY1Ljk0OXpNNiAxMC45NDloMS40ODhWOC4xMDJINnYyLjg0N3ptMTAuNTEgMEgxOFY4LjEwMmgtMS40OXYyLjg0N3oiIGZpbGw9IiNEOTc3NTciIGZpbGwtcnVsZT0iZXZlbm9kZCI+PC9wYXRoPjwvc3ZnPg==" alt=""><span class="acc-i">P</span></span><span>Claude · Opus 5.5 · High thinking · Personal</span></div>
+              <div class="det-row"><span class="lead"><span class="p-dot c-violet"></span></span><span>payments-api</span></div>
+              <div class="det-row when"><span class="lead"><svg class="i" style="width:13px;height:13px;color:var(--muted)"><use href="#i-branch"/></svg></span><span class="t">wisp/billing-webhooks</span></div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>
