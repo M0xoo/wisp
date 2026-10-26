@@ -28,7 +28,10 @@ stays put**, and **what needs you is easy to find**.
   (`ok: 'Delete recipe'`, not *OK*), and uses `danger: true` for destructive ones.
 - **Toasts** (`toast()`, `toastError()`) are short, past tense for what happened (*Archived*,
   *Marked done*), with at most one action (*Undo*, *Open*). They rise above an open task's reply box
-  so they never cover Ship it or Mark done (#269); don't position your own.
+  so they never cover Ship it or Mark done (#269); don't position your own. A message that starts with
+  an `icon()` wears it as the glyph (pass `glyph` for a face). Only the newest shows, the rest
+  tucked behind; hover (tap on phones) fans the stack and holds every timer. × closes one without
+  its action, Clear all the lot; the same text twice shows once and three stack at most.
 - Errors show the server's message, which should read as a sentence a person can act on.
 - Menus and popovers go through `popover()` (`web/js/ui/popover.js`): outside click and Escape close
   the newest one and put focus back on its anchor (or `back`, the text box it serves, so you keep

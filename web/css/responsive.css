@@ -57,7 +57,7 @@
 .drag-strip { display: none; }
 body.electron .topbar { -webkit-app-region: drag; }
 body.electron .topbar button, body.electron .topbar a, body.electron .topbar .projects { -webkit-app-region: no-drag; }
-body.electron .overlay, body.electron .overlay *, body.electron .menu, body.electron .menu *, body.electron .toasts, body.electron .toast * { -webkit-app-region: no-drag; }
+body.electron .overlay, body.electron .overlay *, body.electron .menu, body.electron .menu *, body.electron .toasts, body.electron .toasts * { -webkit-app-region: no-drag; }
 body.electron.mac .topbar { padding-left: 88px; }
 
 
