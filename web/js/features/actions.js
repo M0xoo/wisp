@@ -30,7 +30,7 @@ import { openTerm, termFailed, termSize, termStarted } from './term.js';
 import { ask } from '../ui/confirm.js';
 import { goalMenuHtml, runGoalAction } from './goal.js';
 import { DAY_TIME, fmtDate } from '../core/format.js';
-import { paintMeta } from './turns.js';
+import { paintMeta, paintState } from './turns.js';
 
 export async function toggleDone(id) {
   const s = S.sessions.get(id);
@@ -51,9 +51,9 @@ export async function toggleDone(id) {
 // Apply a summary change locally before the server confirms it. Leaving the list (done, archived)
 // hands focus to the next card; coming back just re-renders around the reader.
 function move(id, next, leaving) {
-  if (leaving) return handOff(id)(() => S.sessions.set(id, next));
-  S.sessions.set(id, next);
-  keepInPlace(feedAnchor(id), renderFeed);
+  if (leaving) handOff(id)(() => S.sessions.set(id, next));
+  else (S.sessions.set(id, next), keepInPlace(feedAnchor(id), renderFeed));
+  paintState(id);
 }
 
 // Put back a summary changed optimistically, unless a live update has replaced it since.
@@ -62,6 +62,7 @@ function revertSummary(id, prev) {
   if (cur && cur.updatedAt > prev.updatedAt) return;
   S.sessions.set(id, prev);
   keepInPlace(feedAnchor(id), renderFeed);
+  paintState(id);
 }
 
 // Every finished run of a compare task at once, with one toast to undo them all.
@@ -73,6 +74,7 @@ export async function taskDone(ids) {
     const prev = ids.map((id) => S.sessions.get(id));
     for (const id of ids) S.sessions.set(id, { ...S.sessions.get(id), state });
     renderFeed();
+    ids.forEach(paintState);
     Promise.all(ids.map((id) => api(`/sessions/${id}`, { method: 'PATCH', body: { state } }))).catch((err) => {
       prev.forEach((p, i) => p && revertSummary(ids[i], p));
       toastError(err);
@@ -176,7 +178,7 @@ export function moreMenu(id, anchor) {
   const sum = S.sessions.get(id);
   if (!s || !sum) return;
   const lastTurn = s.turns?.at(-1);
-  const canRollback = s.agent !== 'wisp' && s.state !== 'running' && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit);
+  const canRollback = s.agent !== 'wisp' && sum.state !== 'running' && (lastTurn?.changes?.length || lastTurn?.checkpoint?.commit);
   const rolledBack = !!lastTurn?.rolledBackAt;
   const r = anchor.getBoundingClientRect();
   const menu = el(`
@@ -193,7 +195,7 @@ export function moreMenu(id, anchor) {
       ${laterMenuHtml(sum)}
       ${goalMenuHtml(sum)}
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
-      ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : s.state !== 'running' && s.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
+      ${sum.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : sum.state !== 'running' && sum.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
       <button data-a="delete" class="danger">${icon('trash')}Delete task${keyHint('⌫')}</button>
     </div>`);

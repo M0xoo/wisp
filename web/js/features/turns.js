@@ -131,11 +131,7 @@ export function renderBody(id, { fresh }) {
   // in the composer's dock; in split view it's in the details column with them (placePr).
   renderPrStrip(id);
   renderOverlapStrip(id);
-  $$('[data-a="done"]', body).forEach((b) => {
-    b.classList.toggle('on', s.state === 'done');
-    b.hidden = s.state === 'running' || s.state === 'waiting';
-    $('span', b).textContent = s.state === 'done' ? 'Reopen' : 'Mark done';
-  });
+  paintDone(id);
   // While it works, the session id may still be on its way: takeOver asks for it.
   $('[data-a="takeover"]', body).hidden = !s.agentSessionId && !live;
   const tx = transcriptOn(id);
@@ -197,6 +193,25 @@ export function renderBody(id, { fresh }) {
   const landing = firstNew && tx ? $('.tx-end', firstNew) || firstNew : firstNew;
   if (landing && watched) requestAnimationFrame(() => landing.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 }
+
+// Mark done / Reopen, in the task's bar and next to the composer. The state comes from the summary:
+// toggling it is optimistic and changes the summary first; the full task catches up after the echo.
+export function paintDone(id) {
+  const body = S.nodes.get(id)?.body;
+  if (!body) return;
+  const state = S.sessions.get(id)?.state || S.full.get(id)?.state;
+  const label = state === 'done' ? 'Reopen' : 'Mark done';
+  $$('[data-a="done"]', body).forEach((b) => {
+    b.classList.toggle('on', state === 'done');
+    b.hidden = state === 'running' || state === 'waiting';
+    $('span', b).textContent = label;
+    b.title = `${label} (E)`;
+    if (b.hasAttribute('aria-label')) b.setAttribute('aria-label', label);
+  });
+}
+
+// After an optimistic state change: the buttons and the follow-up box's hint.
+export const paintState = (id) => (paintDone(id), updateDock(id));
 
 // The bar's meta: how the run was set up, and where it came from (moved, forked, launched by).
 // Repainted on its own when only the summary moved (a fork counted on the original).

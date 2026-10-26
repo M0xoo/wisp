@@ -425,7 +425,7 @@ export function updateDock(id) {
             : `Steer ${name} — interrupts and sends now. /btw asks without interrupting`
         : S.replyPlaces.has(id)
           ? `Follow up on ${replyPlace(id) ? placeName(replyPlace(id)) : here} with ${next}…`
-          : s.state === 'done'
+          : (S.sessions.get(id)?.state || s.state) === 'done' // the summary: Mark done / Reopen change it first
             ? next !== name
               ? `Follow up with ${next} to reopen…`
               : 'Follow up to reopen…'

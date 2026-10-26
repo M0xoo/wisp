@@ -57,7 +57,8 @@ export function connect() {
     const moved = prev && was !== sectionOf(s);
     const follow = moved && s.state !== 'done' && !s.archived && watching(s.id);
     follow ? keepFollowing(S.nodes.get(s.id).card, renderFeed) : keepInPlace(feedAnchor(s.id), renderFeed);
-    if (prev?.state !== s.state || prev?.queued !== s.queued) scheduleRefetch(s.id);
+    // The full task too when only it is behind: an optimistic Mark done / Reopen already set the summary.
+    if (prev?.state !== s.state || prev?.queued !== s.queued || (S.full.get(s.id) && S.full.get(s.id).state !== s.state)) scheduleRefetch(s.id);
     if (!!prev?.term !== !!s.term && S.nodes.has(s.id)) updateDock(s.id); // the follow-up box says it's in a terminal
     else if (JSON.stringify(prev?.later || null) !== JSON.stringify(s.later || null) && S.nodes.has(s.id)) updateDock(s.id); // its scheduled follow-ups, above the box
     if (JSON.stringify([prev?.pr, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
