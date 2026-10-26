@@ -53,9 +53,12 @@
   position: absolute; left: 8px; bottom: calc(100% + 6px); z-index: 30; min-width: 280px; max-width: calc(100% - 16px); padding: 5px;
   border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); animation: pop 0.18s var(--ease);
 }
+/* in the new-task box it opens right under the caret: it only shows while the box holds just "/go",
+   so that's the first line (8px padding + one 14px × 1.55 line), and above it is the top bar */
+.launcher .slash-menu { top: 34px; bottom: auto; left: 0; }
 .slash-item { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 7px 10px; border-radius: 8px; text-align: left; font-size: 13px; color: var(--ink-2); }
-.slash-item b { font: 600 12.5px var(--mono); color: var(--ink); }
-.slash-args { font: 12.5px var(--mono); color: var(--faint); }
+.slash-item b { flex: none; font: 600 12.5px var(--mono); color: var(--ink); }
+.slash-args { font: 12.5px var(--mono); color: var(--faint); white-space: nowrap; }
 .slash-hint { margin-left: auto; padding-left: 12px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slash-item.on, .slash-item:hover { background: var(--bg-2); }
 .slash-item.on b { color: var(--accent-ink); }

@@ -1,5 +1,6 @@
 // The / menu in a follow-up box: type "/" to see the commands, pick one with ↑↓ and Tab (or Enter,
-// or a click) and the box reads "/btw " ready for the rest. Esc closes it.
+// or a click) and the box reads "/btw " ready for the rest. Esc closes it. The new-task box has one
+// too, with the commands that make sense before a task exists (HOME_SLASH).
 
 import { esc } from '../md.js';
 import { el } from '../core/dom.js';
@@ -8,13 +9,13 @@ import { feedbackOn } from './feedback.js';
 import { activeSpells } from './spells.js';
 
 // Register before the box's own Enter handler: picking a command must not send it.
-export function slashMenu(ta, host) {
+export function slashMenu(ta, host, base = SLASH) {
   const menu = el('<div class="slash-menu" role="listbox" aria-label="Commands" hidden></div>');
   host.append(menu);
   let items = [];
   let sel = 0;
   let closed = false; // Esc: hidden until the text changes
-  const commands = () => [...SLASH.filter((c) => c.name !== 'feedback' || feedbackOn()), ...activeSpells().flatMap((s) => (s.slash || []).map((c) => ({ name: c.name, args: c.args || '', hint: c.hint || `From ${s.name}` })))];
+  const commands = () => [...base.filter((c) => c.name !== 'feedback' || feedbackOn()), ...activeSpells().flatMap((s) => (s.slash || []).map((c) => ({ name: c.name, args: c.args || '', hint: c.hint || `From ${s.name}` })))];
   const paint = () => {
     const next = !closed && document.activeElement === ta ? slashMatches(ta.value, commands()) : [];
     if (next.map((c) => c.name).join() !== items.map((c) => c.name).join()) sel = 0;
@@ -48,6 +49,7 @@ export function slashMenu(ta, host) {
     const complete = (e.key === 'Tab' && !e.shiftKey) || (e.key === 'Enter' && !e.shiftKey && !(c.bare && ta.value.slice(1).toLowerCase() === c.name));
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
+      e.stopImmediatePropagation(); // not the box's own ↑ (the prompts sent before)
       sel = (sel + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length;
       paint();
     } else if (complete) {
