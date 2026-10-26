@@ -8,7 +8,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { STATUS_LABEL } from '../core/format.js';
-import { S } from '../core/state.js';
+import { HERE, here, S } from '../core/state.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { draftInto } from './composer.js';
@@ -86,7 +86,7 @@ export function paintTeamBtn(btn, team, presetId, lead) {
 // Where a member runs, as the page names places: '' with the lead, 'here' this computer, or a
 // machine id. One away from the lead works on a copy of its work there (server/services/relay.js).
 const HERE_KEY = 'here';
-export const memberPlaceName = (m) => (!m.machine ? '' : m.machine === HERE_KEY ? 'this computer' : machineById(m.machine)?.name || m.place || 'a machine');
+export const memberPlaceName = (m) => (!m.machine ? '' : m.machine === HERE_KEY ? here : machineById(m.machine)?.name || m.place || 'a machine');
 // The places whose harnesses a member can use: the lead's, or its own.
 const placesFor = (m, leadPlaces) => (m.machine ? [m.machine === HERE_KEY ? '' : m.machine] : leadPlaces);
 const placeState = (k) => (k && k !== HERE_KEY ? machineById(k)?.state || 'off' : 'online');
@@ -258,7 +258,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
       return `<button class="wm-row ${on ? 'on' : ''}" data-k="${k}" role="menuitemradio" aria-checked="${on}">
         ${adding ? '' : `<span class="wm-check">${icon('check')}</span>`}
         <span class="wm-icon">${k ? placeIcon(k) : icon('agent')}${stateDot(k)}</span>
-        <span class="wm-name"><b>${esc(k ? (k === HERE_KEY ? 'This computer' : m?.name || 'machine') : 'With the lead')}</b><small>${esc(sub)}</small></span>
+        <span class="wm-name"><b>${esc(k ? (k === HERE_KEY ? HERE : m?.name || 'machine') : 'With the lead')}</b><small>${esc(sub)}</small></span>
         ${ready.length ? `<span class="wm-agents">${ready.slice(0, 4).map((a) => `<span class="model-logo">${harnessLogo(a.id)}</span>`).join('')}</span>` : ''}
       </button>`;
     };

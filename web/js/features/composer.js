@@ -12,7 +12,7 @@ import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
-import { askBtw, askCrew } from './btw.js';
+import { askBtw, askCrew, btwTipShown } from './btw.js';
 import { addressedTo } from './crew.js';
 import { expand, renderFeed, scheduleRefetch, setFocus } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
@@ -406,6 +406,7 @@ export function updateDock(id) {
   const name = agentName(s.agent);
   const next = agentName(replyRunner(id).agent); // where the next follow-up goes, if it was switched
   const tour = s.agent === 'wisp';
+  const btw = btwTipShown() ? '' : '. /btw asks'; // the working panel's tip says it while it shows
   ta.disabled = tour;
   ta.placeholder = tour
     ? 'This is the tour — launch a real wisp from the box at the top'
@@ -418,11 +419,11 @@ export function updateDock(id) {
       : s.state === 'running'
         ? queueing()
           ? next !== name
-            ? `Queue a follow-up for ${next} — sent when ${name} finishes. /btw asks now`
-            : `Queue a follow-up — sent when ${name} finishes. /btw asks now`
+            ? `Queue a follow-up for ${next} — sent when ${name} finishes${btw && `${btw} now`}`
+            : `Queue a follow-up — sent when ${name} finishes${btw && `${btw} now`}`
           : next !== name
-            ? `Hand over to ${next} — interrupts ${name} and sends now. /btw asks without interrupting`
-            : `Steer ${name} — interrupts and sends now. /btw asks without interrupting`
+            ? `Hand over to ${next} — interrupts ${name} and sends now${btw && `${btw} without interrupting`}`
+            : `Steer ${name} — interrupts and sends now${btw && `${btw} without interrupting`}`
         : S.replyPlaces.has(id)
           ? `Follow up on ${replyPlace(id) ? placeName(replyPlace(id)) : here} with ${next}…`
           : (S.sessions.get(id)?.state || s.state) === 'done' // the summary: Mark done / Reopen change it first

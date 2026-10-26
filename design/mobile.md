@@ -29,6 +29,12 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 
 - In the app, touch targets are at least 44px (an invisible `::before` can grow a 32px pill's hit
   area). Buttons get a press state (`scale(0.96)`), rows an active background.
+- Menus, the project list and search's rows are 44px on any touch screen (`@media (pointer: coarse)`,
+  `responsive.css`), not only in the app: a phone browser's thumb is the same size.
+- Search (⌘K's palette) is a sheet from the top on a narrow screen, as tall as the screen allows, so
+  the keyboard never covers the end of its list.
+- A panel with a leading icon (the working panel's orb) keeps the icon beside its first line only:
+  what's under it (a question, its answer box) takes the panel's whole width.
 - Nothing is hover-only on touch: a control that appears on hover on desktop is always shown, or
   reachable another way.
 - No keyboard hints on touch screens: `kbd`, `.key-hint`, the palette footer, *Press ⌘L*, the
@@ -47,6 +53,8 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   in the app): it opens home as a page, the prompt box focused. Sending goes back to the list, where
   the new task shows; Back leaves it, and the draft stays.
 - The app starts on the list, never inside a task it had open.
+- Name the computer you're on with `HERE` / `here` (`state.js`), never a literal *This computer*: in
+  the app it's the computer's name (*Studio*).
 - Hide desktop-only actions with `MOBILE` (*Open project in editor*, the layout switch, keyboard
   shortcuts), not by width; or give them a phone version (the terminal opens inline).
 - Keep `server/machines/bootstrap.js` and `server/shq.js` free of Node imports: the app runs them.

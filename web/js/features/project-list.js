@@ -20,7 +20,7 @@ export function projectList(anchor, { projects, current, meta = () => '', extras
   if ($('.menu.pm')) return $('.menu.pm').close(), back?.focus();
   const node = el(`
     <div class="menu pm" role="dialog" aria-label="${esc(label)}">
-      <label class="field pm-search">${icon('search')}<input spellcheck="false" autocomplete="off" placeholder="Search ${projects.length} projects" aria-label="Search projects"></label>
+      <label class="field pm-search">${icon('search')}<input spellcheck="false" autocomplete="off" placeholder="${projects.length === 1 ? 'Search projects' : `Search ${projects.length} projects`}" aria-label="Search projects"></label>
       <div class="pm-list" role="listbox"></div>
       ${extras.length ? `<div class="pm-extras">${extras.map((x) => `<button class="pm-row pm-x" data-id="${esc(x.id)}">${icon(x.icon)}<span class="pm-name">${esc(x.label)}</span></button>`).join('')}</div>` : ''}
     </div>`);

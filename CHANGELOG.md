@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Crew → Show fewer folds the list again.** On a phone the tap left the section hovered and focused, which kept every row shown; now it folds back to the compact list at once.
+- **Phone polish.** Menus (More, the project list) and search's rows are 44px tall on any touch screen, and search drops from the top as a full-width sheet instead of a card cut off at the bottom. A question in a working task gets the panel's whole width on a phone, so its answer box and the status line no longer squeeze into a column. In the app, the empty band above *Needs you* is gone, nothing peeks out from behind Send in the prompt box, and a crew member's *About* and Delegate list name the computer (*Studio*) instead of *This computer*. Said once: the reply box leaves */btw* out while the working panel's tip shows it, a crew member's *About* row drops the status the head already shows, and the project search reads *Search projects* with one project instead of *Search 1 projects*.
 - **The phone app's top bar lines up again.** Search, your avatar and the project filter are one row of matching 32px controls: search gets the same round outline as the avatar, and the filter pill is no longer a 44px lozenge sitting lower than the rest (each keeps its 44px touch area).
 
 ### Added
