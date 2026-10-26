@@ -858,7 +858,7 @@ function paintSide(m, st, side) {
       ${clipped(m.notebook, 'note', m.id, 'Empty so far. They add to it as they work; you can write in it too.')}
     </div>
     ${m.spell ? `<div class="cv-sec cv-spell"><p>${icon('wizard')}<span>From the “${esc(m.spell.name)}” spell, which keeps them up to date. <button class="link xs" data-a="mine">Make it mine</button></span></p></div>` : ''}
-    <div class="cv-sec"><h5>Brief ${m.spell ? '' : '<button class="link xs" data-a="edit">Edit</button>'}</h5>${clipped(m.brief, 'brief', m.id, 'No brief: they do what each job asks.')}</div>
+    <div class="cv-sec"><h5>Brief ${m.spell ? '' : '<button class="link xs" data-a="edit">Edit</button>'}</h5>${clipped(m.brief, 'brief', m.id, 'No brief: they do what each job asks.', !m.spell)}</div>
     ${kitHtml(m)}
     ${m.links?.length ? `<div class="cv-sec"><h5>Part of</h5><div class="cv-links">${m.links.slice(0, 6).map((l) => `<button class="cv-link" data-session="${esc(l.id)}" ${S.sessions.has(l.id) ? '' : 'disabled'}><span>${esc(l.title || 'A task')}</span>${icon('chevron')}</button>`).join('')}</div></div>` : ''}`;
   const key = html.replace(/<svg[\s\S]*?<\/svg>/g, '');
@@ -869,14 +869,15 @@ function paintSide(m, st, side) {
   countNotebook($('.cv-count', side), m.notebook || '');
 }
 
-// A notebook or brief, read as prose; a long one shows its start, Show all opens the rest.
+// A notebook or brief, read as prose; a long one shows its start. Its Edit opens the rest; a spell's
+// brief has no Edit, so there Show all does.
 const CLIP = 240; // characters
 const unclipped = new Set(); // `${kind}:${member id}` opened in full
-function clipped(text, kind, id, empty) {
+function clipped(text, kind, id, empty, editable = true) {
   if (!text?.trim()) return kind === 'note' ? `<button class="cv-none cv-nb-empty" data-a="note-edit">${esc(empty)}</button>` : `<p class="cv-none">${esc(empty)}</p>`;
   const long = text.length > CLIP || text.split('\n').length > 4;
-  const open = unclipped.has(`${kind}:${id}`);
-  return `<div class="cv-text${long && !open ? ' clip' : ''}"><div class="prose">${md(text)}</div></div>${long ? `<button class="link xs cv-all" data-clip="${kind}">${open ? 'Show less' : 'Show all'}</button>` : ''}`;
+  const open = !editable && unclipped.has(`${kind}:${id}`);
+  return `<div class="cv-text${long && !open ? ' clip' : ''}"><div class="prose">${md(text)}</div></div>${long && !editable ? `<button class="link xs cv-all" data-clip="${kind}">${open ? 'Show less' : 'Show all'}</button>` : ''}`;
 }
 
 // The size only matters while you write, or when it's nearly full (they're asked to tidy at 6,000).
