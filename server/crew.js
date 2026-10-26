@@ -835,9 +835,9 @@ export class Crew {
     if (m && data?.kit) this.#offer(m, s, data.kit);
     if (data) turn.crewOut = data;
     const quiet = !!data?.quiet && QUIET_JOBS.has(s.crew.job) && s.turns.length === 1;
-    // An answer to an @mention lands on the task that asked, a delegation's on its lead: the job
-    // itself is filed under Done instead of waiting in Needs you too.
-    const filed = s.crew.job === 'mention' || s.crew.job === 'delegated'; // every turn: a reply in the thread too
+    // A delegation's answer goes to its lead, which asked for it: the job itself is filed under
+    // Done. One the user asked for by @mention stays in Needs you until they mark it done.
+    const filed = s.crew.job === 'delegated'; // every turn
     if (data && m) this.#changed();
     return { quiet, filed };
   }

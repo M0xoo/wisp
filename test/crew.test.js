@@ -352,8 +352,7 @@ test('@Name starting a follow-up: they answer on the task, under the message', a
   const job = await api(`/sessions/${entry.job}`);
   assert.deepEqual([job.crew.id, job.crew.job, job.crew.from], [ada.id, 'mention', { id: task.id, title: t.title }]);
   assert.equal(job.crew.reply.entryId, entry.id);
-  assert.equal(job.state, 'done', 'its answer went to the task: the job itself is filed, not in Needs you');
-  assert.equal(job.unread, false);
+  assert.deepEqual([job.state, job.unread], ['review', true], 'you asked for it: it stays in Needs you until you mark it done');
 });
 
 test('@Name further in a prompt: the task’s agent can delegate to them, and the job is theirs', async () => {
@@ -421,7 +420,7 @@ test('a member follows up on the task that tagged it by itself, and you reply in
   const again = await api(`/sessions/${job.id}`);
   assert.equal(again.turns.length, 2, 'the same job, a second turn');
   assert.equal(again.turns[1].prompt, 'and the docs?');
-  assert.deepEqual([again.state, again.unread], ['done', false], 'its answer went to the thread: filed again, nobody pinged');
+  assert.deepEqual([again.state, again.unread], ['review', true], 'your reply in the thread: back in Needs you');
   await assert.rejects(api(`/sessions/${task.id}/crew-reply`, { entry: 'nope', text: 'x' }), /no longer on your crew/);
   // The task's agent hands it back: a delegated job for Ada, whose follow-up to that same task is
   // dropped (the agent reads its report already), so the two can't bounce work back and forth.

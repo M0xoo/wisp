@@ -1170,8 +1170,8 @@ export class Runner extends EventEmitter {
     // under Scheduled and carries on in the same conversation after the reset. Nobody is pinged.
     const waits = !!turn.limit && !holding && !handing && !!this.waitAtLimit?.(session, turn.limit.until);
     if (waits) this.#waitsForReset(session, turn);
-    // A crew check-in that found nothing (archived too), or a job whose answer went elsewhere:
-    // filed under Done, nobody is pinged.
+    // A crew check-in that found nothing (archived too), or a delegated job (its lead reads the
+    // answer): filed under Done, nobody is pinged.
     const quiet = ((crewOut.quiet || crewOut.filed) && !holding && !handing) || waits;
     if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) });
     this.store.save(session, { now: true });
