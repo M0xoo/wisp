@@ -211,6 +211,49 @@ test('task watchers: their project only, at most 3 times a task, never helpers o
   assert.throws(() => normalizeTrigger({ kind: 'ci' }, null, store.config), /Pick the project/);
 });
 
+test('CI watchers: a failure on a branch that has a task goes to it as a follow-up', async () => {
+  const dir = makeRepo();
+  const sessions = new Map();
+  const store = { config: { triggers: [], crew: [{ id: 'm', name: 'Flo', cwd: dir }], recipes: [], projects: [{ id: 'p', path: dir }] }, saveConfig() {}, sessions, get: (id) => sessions.get(id), projectFor: (cwd) => (cwd?.startsWith(dir) ? { path: dir } : null) };
+  const launched = [];
+  const assigned = [];
+  const sent = [];
+  const triggers = new Triggers({
+    store,
+    launch: async (body) => (launched.push(body), { id: `s${launched.length}` }),
+    assign: async (crew, work) => (assigned.push({ crew, work }), { id: `j${assigned.length}` }),
+    followUp: async (s, text) => (sent.push({ id: s.id, text }), { id: s.id, title: s.title }),
+  });
+  const run = (id, branch) => ({ id, name: 'test', branch, url: `u${id}` });
+  const t = normalizeTrigger({ kind: 'ci', cwd: dir }, null, store.config);
+  // Your task that opened the PR works in that branch's worktree: the failure goes to it.
+  sessions.set('pr', { id: 'pr', cwd: dir, state: 'review', createdAt: 1, worktree: { branch: 'wisp/fix' } });
+  sessions.set('other', { id: 'other', cwd: makeRepo(), state: 'review', createdAt: 2, worktree: { branch: 'wisp/fix' } });
+  const out = await triggers.fire(t, run(1, 'wisp/fix'));
+  assert.deepEqual([out.id, out.followUp, sent[0].id, launched.length], ['pr', true, 'pr', 0], 'not the same branch name in another project');
+  assert.match(sent[0].text, /run view 1 --log-failed/);
+  // A branch without one starts a task, and the next failure there goes to that task.
+  await triggers.fire(t, run(2, 'main'));
+  assert.equal(launched.length, 1);
+  sessions.set('s1', { id: 's1', cwd: dir, state: 'running' });
+  await triggers.fire(t, run(3, 'main'));
+  assert.deepEqual([launched.length, sent.at(-1).id, t.runs], [1, 's1', 3]);
+  // Marked done or archived, that work is over; deleted, it's gone.
+  sessions.get('s1').state = 'done';
+  await triggers.fire(t, run(4, 'main'));
+  sessions.set('s2', { id: 's2', cwd: dir, state: 'review', archived: true });
+  await triggers.fire(t, run(5, 'main'));
+  await triggers.fire(t, run(6, 'main')); // s3 never shows up: deleted
+  assert.deepEqual([launched.length, t.tasks.main], [4, 's4']);
+  // A member's CI watcher follows up on its job too.
+  const mt = normalizeTrigger({ kind: 'ci', crew: 'm' }, null, store.config);
+  await triggers.fire(mt, run(7, 'dev'));
+  sessions.set('j1', { id: 'j1', cwd: dir, state: 'review', crew: { id: 'm' } });
+  await triggers.fire(mt, run(8, 'dev'));
+  assert.deepEqual([assigned.length, sent.at(-1).id], [1, 'j1']);
+  assert.equal(triggerView(t).tasks, undefined, 'the links stay on the server');
+});
+
 // --- through the server ------------------------------------------------------------------------------
 
 const { startServer } = await import('../server/index.js');
