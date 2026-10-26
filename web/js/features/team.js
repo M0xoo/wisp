@@ -58,7 +58,7 @@ function uniqueNames(members) {
 export function teamStack(lead, team) {
   const shown = team.slice(0, 4);
   const tip = `${agentName(lead)} with ${team.map((m) => `${m.name}${m.busy ? ' (working)' : m.used === false ? ' (unused)' : ''}`).join(', ')}`;
-  return `<span class="team-stack" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">
+  return `<span class="team-stack" role="img" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">
     <span class="ts-l">${harnessLogo(lead)}</span>
     ${shown.map((m, i) => `<span class="ts-m${m.used === false ? ' idle' : ''}${m.busy ? ' busy' : ''}${m.crew ? ' crew' : ''}" style="--i:${i}">${faceOf(m, 18, { state: m.busy ? 'live' : 'idle', small: true })}</span>`).join('')}
     ${team.length > shown.length ? `<span class="ts-m ts-more" style="--i:${shown.length}">+${team.length - shown.length}</span>` : ''}

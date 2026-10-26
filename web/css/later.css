@@ -23,7 +23,7 @@
 .lm-t { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lm-pick { display: grid; gap: 8px; padding: 6px; }
 .lm-pick[hidden] { display: none; }
-.lm-in { width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13.5px; }
+.lm-in { width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); font-size: 13px; }
 .lm-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
 .menu.later-plan { width: 280px; }
 .lp-what { margin: 4px 10px 6px; font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

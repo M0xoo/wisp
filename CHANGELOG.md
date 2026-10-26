@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - **Small polish in the task list, the prompt box and a finished task.** Titles in the sidebar run to the time instead of stopping halfway beside the state and PR pills. The prompt box folds the place to its icon a little sooner, so the harness keeps its name (no more *Au…*). A finished task's result no longer repeats the time, cost and file count shown right under it. On a phone, a task's branch gets its own line instead of shrinking to *wi…*. A result whose heading is the task's title doesn't repeat it under the head, and in split view the reply box no longer repeats *Ship it* and *Mark done*, which the task's bar keeps in reach.
+- **Calmer, more readable page.** One type scale (at most five sizes on a screen, down from ten), hints and times at WCAG AA contrast in light and dark, and colour only where it means something (Plan, Full auto and Worktree tint their icon, not their words). A task says each thing once: the result drops its own *Finished* pill, the bar drops the overlap count while the overlap notices show, and with the list beside the task the details drop the state and clock time the row and the prompt already show. On phones the task's bar fits in two rows, with the branch cut in the middle (*wisp/add-a-rat…-9c5e26*) or on its own line on a touch screen, and overlap reasons wrap instead of ending in *Also …*. In the app every control is at least 44px, and every Tab stop shows a focus ring.
 
 ### Added
 

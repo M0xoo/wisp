@@ -90,7 +90,7 @@ export function modelBadge(agent, model, effort, route, account) {
   const acc = accountOf(agent, account);
   const tip = `${route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`}${acc ? ` · ${acc.label}` : ''}`;
   const logo = harnessLogo(agent);
-  return `<span class="model-logo${route ? ' routed' : ''}" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}${acc ? accountMark(acc) : ''}</span>`;
+  return `<span class="model-logo${route ? ' routed' : ''}" role="img" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}${acc ? accountMark(acc) : ''}</span>`;
 }
 
 // Accounts: more than one subscription per harness (claude, codex). Someone with one login sees

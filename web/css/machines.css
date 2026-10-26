@@ -2,7 +2,7 @@
 .machines-btn.trouble .i { color: var(--warn); }
 .q-machine {
   display: inline-flex; align-items: center; gap: 4px; max-width: 120px; padding: 0 6px; border-radius: 5px; border: 1px solid var(--line);
-  font-size: 11px; font-weight: 500; line-height: 17px; color: var(--ink-2); white-space: nowrap;
+  font-size: 11.5px; font-weight: 500; line-height: 17px; color: var(--ink-2); white-space: nowrap;
 }
 .q-machine span { overflow: hidden; text-overflow: ellipsis; }
 .q-machine .i { flex: none; width: 11px; height: 11px; color: var(--accent); }
@@ -12,14 +12,14 @@
 .l-projects { row-gap: 6px; }
 .lp-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .lp-group + .lp-group { margin-left: 4px; padding-left: 10px; border-left: 1px solid var(--line); }
-.lp-gl { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.lp-gl { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
 .lp-gl .i { width: 13px; height: 13px; color: var(--accent); }
 .lp-gl.off { color: var(--faint); }
 .lp-gl.off .i { color: var(--faint); }
 .lp-gl .link { margin-left: 2px; }
 .where-btn .chev { width: 11px; height: 11px; opacity: 0.6; transform: rotate(90deg); }
 .where-menu { min-width: 300px; }
-.wm-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 10px 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.wm-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 10px 6px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .wm-h small { font-weight: 400; color: var(--faint); }
 .where-menu .wm-row { gap: 10px; }
 .wm-check { display: grid; place-items: center; width: 16px; height: 16px; flex: none; border-radius: 5px; border: 1.5px solid var(--line-2); color: transparent; }
@@ -31,13 +31,13 @@
 .wm-row.on .wm-icon { color: var(--accent); }
 .wm-name { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
 .wm-name b { font-weight: 500; color: var(--ink); }
-.wm-name small { font: 11px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-name small { font: 11.5px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wm-agents { display: inline-flex; gap: 5px; }
-.wm-only { padding: 1px 6px; border-radius: 6px; font-size: 11px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
+.wm-only { padding: 1px 6px; border-radius: 6px; font-size: 11.5px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
 .wm-row:hover .wm-only { opacity: 1; }
 .wm-only:hover { background: var(--bg-2); color: var(--ink); }
 .wm-sep { height: 1px; margin: 5px 4px; background: var(--line); }
-.wm-note { margin: 0 10px 6px; max-width: 300px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.wm-note { margin: 0 10px 6px; max-width: 300px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .wm-note.warn { color: var(--warn); }
 .place-menu .wm-check { border-radius: 50%; }
 .place-menu .wm-row[disabled] { opacity: 0.45; cursor: default; }
@@ -60,11 +60,11 @@
 .mc-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .mc-title b { font-size: 14px; font-weight: 600; }
 .mc-title span { font: 11.5px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mc-state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mc-state { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .mc.st-online .mc-state { color: var(--good); }
 .mc.st-error .mc-state { color: var(--bad); }
 .mc-meta, .mc-steps, .mc-hint, .mc-projects, .mc-edit { margin-left: 42px; }
-.mc-meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.mc-meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 .mc-meta .bad { color: var(--bad); }
 .mc-meta .mc-update { margin-left: -6px; color: var(--accent); }
 .mc-agents { display: inline-flex; gap: 7px; }
@@ -89,11 +89,11 @@
 .mc-hint p { margin: 0 0 6px; }
 .mc-hint > :last-child { margin-bottom: 0; }
 .mc-cmd { display: flex; align-items: center; gap: 6px; margin: 4px 0 8px; padding: 3px 3px 3px 10px; border-radius: 8px; background: var(--term-bg); color: var(--term-ink); }
-.mc-cmd code { flex: 1; font: 12px var(--mono); }
+.mc-cmd code { flex: 1; font: 12.5px var(--mono); }
 .mc-cmd .ghost { color: var(--term-ink); }
 .mc-cmd .ghost:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
-.mc-log summary { cursor: pointer; font-size: 12px; color: var(--muted); width: max-content; }
-.mc-log pre { max-height: 180px; overflow: auto; margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font: 11px/1.5 var(--mono); white-space: pre-wrap; }
+.mc-log summary { cursor: pointer; font-size: 12.5px; color: var(--muted); width: max-content; }
+.mc-log pre { max-height: 180px; overflow: auto; margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font: 11.5px/1.5 var(--mono); white-space: pre-wrap; }
 .mc-projects { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
 .mc-edit { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .mc-add { margin-top: 12px; }
@@ -110,7 +110,7 @@
 .mc-row { display: flex; gap: 10px; }
 .mc-field { display: flex; flex-direction: column; gap: 5px; width: 150px; min-width: 0; }
 .mc-field.grow { flex: 1; width: auto; }
-.mc-field span { font-size: 12px; font-weight: 500; color: var(--ink-2); }
+.mc-field span { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
 .mc-adv summary { cursor: pointer; width: max-content; font-size: 12.5px; color: var(--muted); }
 .mc-adv[open] summary { margin-bottom: 8px; }
 .mc-check { margin-top: 8px; }
@@ -121,7 +121,7 @@
 .mc-form .mc-field > .input { flex: none; max-width: none; }
 .mc-form .mc-check { display: inline-flex; justify-content: flex-start; gap: 8px; width: max-content; }
 .mc-foot { display: flex; align-items: center; gap: 10px; }
-.mc-foot .hint { flex: 1; margin: 0 !important; font-size: 12px !important; }
+.mc-foot .hint { flex: 1; margin: 0 !important; font-size: 12.5px !important; }
 .mc-foot .primary { flex: none; }
 .mc-foot .primary .i { width: 14px; height: 14px; }
 .menu button.danger:hover { color: var(--bad); background: var(--del-bg); }
@@ -131,8 +131,8 @@
 .mc-howto { margin: 4px 0 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
 .mc-howto ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .mc-howto li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; }
-.mc-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font: 600 12px/1 var(--sans); margin-top: 1px; }
-.mc-howto b { font-size: 13.5px; font-weight: 600; }
+.mc-n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font: 600 12.5px/1 var(--sans); margin-top: 1px; }
+.mc-howto b { font-size: 13px; font-weight: 600; }
 .mc-howto p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 .mc-howto code { font-size: 11.5px; padding: 1px 5px; border-radius: 5px; background: var(--bg-2); }
 .mc-howto .mc-ts { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -154,7 +154,7 @@
 .mc-letin-row .primary .i { width: 14px; height: 14px; }
 .mc-letin small { font-size: 11.5px; color: var(--muted); }
 .mc-letin-err { margin: 0 !important; color: var(--bad); font-weight: 500; }
-.mc-byhand summary { cursor: pointer; width: max-content; font-size: 12px; color: var(--muted); }
+.mc-byhand summary { cursor: pointer; width: max-content; font-size: 12.5px; color: var(--muted); }
 .mc-byhand p { margin: 6px 0 0 !important; }
 
 /* Settings → Cloud (features/cloud.js): cloud computers, and signing in to a wisp Grid. */
@@ -170,14 +170,14 @@
 .cl-card:is(.st-connecting, .st-reconnecting) .mc-dot { background: var(--warn); animation: blink 1.2s infinite; }
 .cl-text { display: flex; flex-direction: column; min-width: 0; }
 .cl-text b { font-size: 14px; font-weight: 600; }
-.cl-text small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-text small { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-text .mono { font-family: var(--mono); font-size: 11.5px; }
-.cl-state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.cl-state { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
 .cl-card.st-online .cl-state { color: var(--good); }
 .cl-card.st-error .cl-state { color: var(--bad); }
 .cl-acts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
 .cl-acts .btn-link { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.cl-err { grid-column: 2 / -1; margin: 2px 0 0; font-size: 12px; color: var(--bad); }
+.cl-err { grid-column: 2 / -1; margin: 2px 0 0; font-size: 12.5px; color: var(--bad); }
 .cl-signin { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .cl-signin p { margin: 0; display: flex; flex-direction: column; gap: 3px; }
 .cl-signin p b { font-size: 14px; font-weight: 600; }
@@ -193,7 +193,7 @@
 
 /* Settings → Cloud: signing in to the agents on a cloud computer (features/agent-login.js). */
 .cl-agents { grid-column: 2 / -1; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
-.cl-ah { margin: 0; font-size: 12px; color: var(--muted); font-weight: 600; }
+.cl-ah { margin: 0; font-size: 12.5px; color: var(--muted); font-weight: 600; }
 .cl-ah span { font-weight: 400; color: var(--faint); margin-left: 6px; }
 .cl-agent { display: flex; align-items: center; gap: 8px; min-height: 32px; }
 .cl-agent .model-logo { width: 18px; height: 18px; display: inline-grid; place-items: center; }
@@ -207,7 +207,7 @@
 
 /* Machines: where each one comes from, and this computer on your wisp Grid (features/cloud.js). */
 .mc-title b { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.mc-title .mc-kind, .mc-kind { flex: none; font: 500 11px var(--sans); padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+.mc-title .mc-kind, .mc-kind { flex: none; font: 500 11.5px var(--sans); padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
 .mc-kind.cloud, .mc-kind.grid { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .mc-grid { margin: 0 0 14px; }
 .gh-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; }

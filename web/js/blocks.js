@@ -100,12 +100,14 @@ R.hero = (b, ctx) => {
     st.costUsd ? `$${st.costUsd.toFixed(2)}` : '',
     ctx.turn?.changes?.length ? `${ctx.turn.changes.length} file${ctx.turn.changes.length > 1 ? 's' : ''} touched` : '',
   ].filter(Boolean);
-  // In a task, the head above already shows this title: don't say it twice.
+  // In a task, the head above already shows this title, and its bar the latest turn's state: don't
+  // say them twice.
   const echo = ctx.trail && b.title && b.title === ctx.session?.title;
+  const own = ctx.trail && ctx.isLatest;
   return el(`
-    <div class="b-hero st-${status}${echo ? ' echo' : ''}">
+    <div class="b-hero st-${status}${echo ? ' echo' : ''}${own ? ' own' : ''}">
       <div class="aura"></div>
-      <div class="hero-top"><span class="pill st-${status}"><i></i>${label}</span>${meta.map((m) => `<span class="meta">${esc(m)}</span>`).join('')}</div>
+      ${own ? '' : `<div class="hero-top"><span class="pill st-${status}"><i></i>${label}</span>${meta.map((m) => `<span class="meta">${esc(m)}</span>`).join('')}</div>`}
       ${echo ? '' : `<h2>${esc(b.title || 'Finished')}</h2>`}
       ${b.summary ? `<p>${inlineMd(b.summary)}</p>` : ''}
     </div>`);
