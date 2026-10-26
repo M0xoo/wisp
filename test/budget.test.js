@@ -10,6 +10,45 @@ import net from 'node:net';
 import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
+// The server is set up before the first test: a top-level await after a test lets Node 22 run
+// the root's after hook before this before hook, and the open server keeps the run from ending.
+process.env.WISP_HOME = tmp('budget-wisp');
+process.env.WISP_UPDATE_CHECK = '0';
+process.env.CLAUDE_CONFIG_DIR = tmp('budget-claude-home'); // never this computer's ~/.claude
+installFakeBins();
+const { startServer } = await import('../server/index.js');
+let srv;
+let base;
+const freePort = () =>
+  new Promise((resolve) => {
+    const s = net.createServer().listen(0, '127.0.0.1', () => {
+      const { port } = s.address();
+      s.close(() => resolve(port));
+    });
+  });
+async function api(p, body, method) {
+  const r = await fetch(`${base}/api${p}`, { method: method || (body ? 'POST' : 'GET'), headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json();
+  if (!r.ok) throw Object.assign(new Error(`${p}: ${j.error}`), { status: r.status });
+  return j;
+}
+const ended = (id, state) => until(async () => {
+  const x = await api(`/sessions/${id}`);
+  return x.state === state && x.turns.at(-1).status !== 'running' && x;
+}, { timeout: 30_000 });
+
+before(async () => {
+  const port = await freePort();
+  base = `http://127.0.0.1:${port}`;
+  srv = await startServer({ port, handleSignals: false });
+  srv.later.stop(); // nothing fires on its own here
+});
+after(() => {
+  srv.shutdown();
+  srv.server.closeAllConnections?.();
+  srv.server.close();
+});
+
 const { Budget, claudeLimits, codexLimits, codexRollout, paceOf } = await import('../server/budget.js');
 const { LIMIT_CARRY_ON } = await import('../server/later.js');
 
@@ -91,45 +130,6 @@ test('Budget keeps each account’s windows, reads a passed reset as fresh, know
   assert.deepEqual([five.used, five.resetsAt, five.hitAt], [0, null, null], 'past its reset: fresh');
   assert.equal(b.resetAt('claude', 'default'), null);
   assert.deepEqual(b.view('codex'), []);
-});
-
-// --- through the server, with the fake harnesses ---------------------------------------------
-
-process.env.WISP_HOME = tmp('budget-wisp');
-process.env.WISP_UPDATE_CHECK = '0';
-process.env.CLAUDE_CONFIG_DIR = tmp('budget-claude-home'); // never this computer's ~/.claude
-installFakeBins();
-const { startServer } = await import('../server/index.js');
-let srv;
-let base;
-const freePort = () =>
-  new Promise((resolve) => {
-    const s = net.createServer().listen(0, '127.0.0.1', () => {
-      const { port } = s.address();
-      s.close(() => resolve(port));
-    });
-  });
-async function api(p, body, method) {
-  const r = await fetch(`${base}/api${p}`, { method: method || (body ? 'POST' : 'GET'), headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
-  const j = await r.json();
-  if (!r.ok) throw Object.assign(new Error(`${p}: ${j.error}`), { status: r.status });
-  return j;
-}
-const ended = (id, state) => until(async () => {
-  const x = await api(`/sessions/${id}`);
-  return x.state === state && x.turns.at(-1).status !== 'running' && x;
-}, { timeout: 30_000 });
-
-before(async () => {
-  const port = await freePort();
-  base = `http://127.0.0.1:${port}`;
-  srv = await startServer({ port, handleSignals: false });
-  srv.later.stop(); // nothing fires on its own here
-});
-after(() => {
-  srv.shutdown();
-  srv.server.closeAllConnections?.();
-  srv.server.close();
 });
 
 const limited = (reset) => ({ status: 'rejected', rateLimitType: 'five_hour', utilization: 1, resetsAt: Math.round(reset / 1000), unifiedWindows: { five_hour: { utilization: 1, resetsAt: Math.round(reset / 1000) }, seven_day: { utilization: 0.4, resetsAt: Math.round((reset + 3 * 24 * H) / 1000) } } });

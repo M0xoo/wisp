@@ -22,6 +22,11 @@ const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-real-'));
 execFileSync('git', ['init', '-q'], { cwd });
 fs.writeFileSync(path.join(cwd, 'README.md'), '# scratch\n');
 
+// opencode's default is a free hosted model that, once CI's shared free tier is spent, retries in
+// silence until we stop it: nothing to tell from a hang. A model no provider has fails at once,
+// after opencode started and read our arguments.
+const MODELS = { opencode: 'wisp/no-such-model' };
+
 let failed = false;
 const rows = [];
 for (const a of Object.values(adapters)) {
@@ -36,7 +41,7 @@ for (const a of Object.values(adapters)) {
     prompt: 'Reply with the single word: pong',
     cwd,
     mode: 'plan',
-    model: '',
+    model: MODELS[a.id] || '',
     resumeId: null,
     attachments: [],
     mcpServers: {},
