@@ -13,6 +13,7 @@
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
 //   FAKE_GOAL_DELAY  ms a goal check takes (screenshots of a check)
+//   FAKE_GOAL_SCRIPT  JSON [{ why, next, progress }]: what each goal check says (screenshots)
 //   FAKE_LINGER  ms to stay alive after the result, as a real CLI flushing on its way out does
 //   FAKE_MCP_POLICY=1  copilot: warn that an organization policy blocked wisp's MCP server
 //   FAKE_SESSION_ERROR  copilot: report this session.error (a quota) and end with exit code 1
@@ -200,7 +201,9 @@ if (stdin.includes('You check whether a coding agent reached its goal')) {
   const n = (stdin.split('Earlier checks:')[1] || '').split('\n').filter((l) => l.startsWith('- round')).length + 1;
   const after = Number(/\[met after (\d+)\]/.exec(goal)?.[1] || 0);
   const verdict = /\[impossible\]/.test(goal) ? 'impossible' : after && n >= after ? 'met' : 'not_yet';
-  const text = JSON.stringify({ verdict, why: `check ${n}: ${verdict}`, next: verdict === 'not_yet' ? `do part ${n + 1}` : '', progress: Math.min(100, n * 30), evidence: verdict === 'met' ? ['math.js: add is fixed'] : [] });
+  // FAKE_GOAL_SCRIPT: JSON [{ why, next, progress }] per check, for screenshots.
+  const said = JSON.parse(process.env.FAKE_GOAL_SCRIPT || '[]')[n - 1] || {};
+  const text = JSON.stringify({ verdict, why: said.why || `check ${n}: ${verdict}`, next: verdict === 'not_yet' ? said.next || `do part ${n + 1}` : '', progress: said.progress ?? Math.min(100, n * 30), evidence: verdict === 'met' ? ['math.js: add is fixed'] : [] });
   out({ type: 'system', subtype: 'init', session_id: 'goal-check' });
   out({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: 'goal-check' });
   process.exit(0);

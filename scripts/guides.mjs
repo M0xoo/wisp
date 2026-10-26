@@ -651,6 +651,73 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
     },
 
     {
+      slug: 'make-claude-code-keep-going-until-tests-pass',
+      title: 'Make Claude Code keep going until the tests pass — wisp',
+      h1: 'Make Claude Code keep going until the tests pass',
+      card: 'Give a task a Done when goal. wisp checks after every round and sends it back until it holds.',
+      description: 'Stop coding agents from quitting early. Give a task a Done when goal and wisp runs your tests after every round until it holds. Works on any harness.',
+      lede: 'Coding agents stop when they think they’re done, often with a test still failing. In wisp you give the task a goal, <i>Done when all tests pass and the login page works on a phone</i>. After every round wisp checks the work itself: it runs the tests and has a read-only model read the diff. Until the goal holds, the agent gets the task back with what’s missing. It works on Claude Code, Codex, opencode, Cursor and the rest.',
+      shot: ['goal', 'A wisp task working toward its goal: the condition, a progress bar at 60% (+30 since the last round), Round 3 of 10, and what the last check found still missing'],
+      body: `
+    <section>
+      <h2 id="why-agents-stop">Why agents stop early</h2>
+      <p>An agent ends its turn when its own reading of the task says it’s finished. It may have skipped the slow test suite, fixed the case it was shown and not the one next to it, or reported success on a build it never ran. The usual fix is to read the report, run the tests yourself and type “the auth tests still fail, keep going”, several times over. A goal hands that loop to wisp.</p>
+    </section>
+
+    <section>
+      <h2 id="done-when">Write a Done when that can be checked</h2>
+      <p>Turn on <b>Goal</b> in the prompt box and a <i>Done when</i> line opens under the prompt. Write what has to be true, not what to do:</p>
+      <ul class="doc-list">
+        <li><b>Good:</b> <i>every test in <code>test/auth</code> passes and <code>npm run build</code> has no warnings</i>. Tests and a build the checker can run.</li>
+        <li><b>Good:</b> <i>the login form fits a 390px screen with no horizontal scroll</i>. Something the checker can read in the CSS and markup.</li>
+        <li><b>Too vague:</b> <i>the code is clean</i>. Nothing to check it against, so the rounds run out.</li>
+      </ul>
+      <p>Pick how many rounds it gets: 3, 5, 10 or 20. On a task that’s already running or finished, type <code>/goal &lt;condition&gt;</code> in the reply box; an idle task is checked right away, since it may already hold.</p>
+    </section>
+
+    <section>
+      <h2 id="the-check">What wisp checks after each round</h2>
+      <ol class="doc-list">
+        <li><b>The tests.</b> wisp runs the project’s test command itself. Only tests that passed before the change count as failures.</li>
+        <li><b>The diff.</b> A cheap model, read-only, in the task’s folder, reads everything that changed since the goal was set, and can open any file.</li>
+        <li><b>The agent’s report, as a claim.</b> It goes in last and is labelled as what the agent says, not as evidence.</li>
+      </ol>
+      <p>The checker answers <i>met</i>, <i>not yet</i> or <i>can’t be done</i>, with why. A <i>met</i> needs evidence it saw for itself and tests that don’t disagree; otherwise it counts as not yet. Not yet sends the task back with what’s missing and the next step.</p>
+    </section>
+
+    <section>
+      <h2 id="rounds">Rounds, stalls and the one ping</h2>
+      <p>The task stays in Working through every round. A band on top of it shows the goal, a progress bar with how much the last round moved it, <i>Round 3 of 10</i>, and the last check in the checker’s words; the row in the list shows a ring and <i>3/10</i>. It lands in <i>Needs you</i>, with one notification, when the goal is:</p>
+      <div class="table"><table>
+        <thead><tr><th>Outcome</th><th>When</th><th>What you can do</th></tr></thead>
+        <tbody>
+          <tr><td>Met</td><td>the checker saw it hold, tests passing</td><td>Ship it</td></tr>
+          <tr><td>Can’t be done</td><td>it needs access or a decision only you have, or contradicts itself</td><td>read why, change the goal</td></tr>
+          <tr><td>Out of rounds</td><td>still not met after the last round</td><td><b>Resume goal</b> for another set of rounds</td></tr>
+          <tr><td>Stalled</td><td>two rounds changed nothing, or got the same next step with no progress</td><td>steer it with a follow-up, then resume</td></tr>
+        </tbody>
+      </table></div>
+      <p><b>Stop</b> pauses the goal. A follow-up of yours keeps it, and it’s checked again after your turn.</p>
+    </section>
+
+    <section>
+      <h2 id="any-harness">Goals on Codex, opencode and Cursor</h2>
+      <p>wisp checks the work outside the agent, so a goal works the same on every harness it runs: Claude Code, Codex, opencode, Cursor, Antigravity, Grok and Copilot. The agent is told its goal every turn and that it will be checked. With <a href="/guides/claude-code-vs-codex.html#let-results-pick">Auto</a>, a task handed to a stronger model takes its goal, and the rounds it has left, along.</p>
+      ${sh(`wisp "/goal every test in test/auth passes"        # the condition is the task
+curl -X PUT localhost:4477/api/sessions/$ID/goal \\
+  -H 'content-type: application/json' \\
+  -d '{"text":"npm run build has no warnings","max":5}'`)}
+    </section>
+`,
+      faq: [
+        ['Does it cost more?', 'Each round is another agent turn, plus a test run and a short call to a cheap model. Pick fewer rounds for small tasks; a stalled goal pauses on its own instead of using them up.'],
+        ['What if my project has no tests?', 'The checker still reads the diff and the files. Write a goal it can verify by reading, like a page that fits 390px or an endpoint that returns 404 for unknown ids.'],
+        ['Can I change the goal mid-way?', 'Yes. Edit goal… in the band, More, the right-click menu or ⌘K changes the words and keeps the rounds it has used. /goal drop, or Drop goal, removes it.'],
+      ],
+      related: ['run-coding-agents-in-the-background', 'claude-code-vs-codex', 'run-multiple-claude-code-agents-in-parallel'],
+    },
+
+    {
       slug: 'run-claude-code-24-7-without-a-vps',
       cloud: true,
       title: 'Run Claude Code 24/7 without setting up a VPS — wisp',

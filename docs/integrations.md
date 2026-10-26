@@ -158,7 +158,7 @@ Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
 | GET · POST | `/api/projects` | list / add a folder |
 | PATCH · DELETE | `/api/projects/:id` | rename, recolor, remove |
 | GET | `/api/sessions` | summaries; `?state=running,waiting&agent=&project=&cwd=&archived=&limit=` |
-| POST | `/api/sessions` | launch: `{ prompt, cwd, agent, mode, model, effort, attachments, worktree, compare }` |
+| POST | `/api/sessions` | launch: `{ prompt, cwd, agent, mode, model, effort, attachments, worktree, compare, goal }`; `goal: { text, max }` keeps it going until wisp's check finds it holds |
 | GET · PATCH · DELETE | `/api/sessions/:id` | full record / `{ title, state, unread, archived, discardWorktree }` / delete |
 | GET · POST | `/api/sessions/:id/ship` | what would ship / `{ title, body, draft }`: commit, push, open or update the PR |
 | POST | `/api/sessions/:id/pr` | refresh PR checks and review now (also polled every minute) |
@@ -179,6 +179,7 @@ Also exported: `wisp-agents/render` (`blocksToMarkdown`, `sessionToMarkdown`),
 | GET | `/api/sessions/:id/wait?timeout=60` | long-poll (max 290 s) until it finishes or asks; `timedOut` if not |
 | GET | `/api/sessions/:id/presentation` | `{ blocks, markdown, ask, changes, stats, … }`; `?turn=<id\|index>`, `?format=markdown` |
 | POST | `/api/sessions/:id/reply` | `{ text, attachments?, queue?, mode?, agent?, model?, effort? }` |
+| PUT · PATCH · DELETE | `/api/sessions/:id/goal` | set or replace the goal `{ text, max }` / `{ action: pause \| resume }` / drop it |
 | POST | `/api/sessions/:id/answer` | `{ text }` for a pending `ask_user` |
 | POST | `/api/sessions/:id/stop` | |
 | DELETE | `/api/sessions/:id/queue?item=` | cancel a queued follow-up |
