@@ -60,6 +60,10 @@
 .g-hero > [data-relay] { grid-column: content; max-width: none; margin: 0; }
 .g-hero > [data-spells] { grid-column: hero; margin: 0; }
 .guide .doc-shot { margin: 0; border-radius: 14px; }
+.guide .g-hero > .doc-shot { justify-self: center; width: 100%; max-width: 1080px; }
+.guide .g-body .doc-shot { justify-self: center; width: 100%; max-width: none; }
+.g-hero-cap { grid-column: content; margin-top: 14px; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+.g-hero-cap code { font-size: 0.86em; }
 
 /* ---------- text ---------- */
 
@@ -81,8 +85,23 @@
 
 /* the install line under the lede */
 .g-try-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 28px; font-size: 14px; color: var(--muted); }
-.g-try-line .cmd { height: 44px; }
-.g-try-line .cmd code { font-size: 14px; }
+
+/* ways to get wisp: npx / npm / curl / brew / Download over one command (the landing page's tabs) */
+.g-install { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 100%; }
+.g-install .hero-tabs { flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; }
+.g-install .hero-tabs .tab { padding: 2px 0 4px; font-size: 13.5px; }
+.g-install [role='tabpanel'] { max-width: 100%; }
+.guide .g-install [hidden], .guide .doc-steps .g-install .cmd[hidden] { display: none; }
+.g-install .cmd { max-width: 100%; height: 46px; }
+.g-install .cmd code { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 14px; }
+.guide .g-install .fine { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.guide .g-body .g-install .fine a { color: inherit; }
+.guide .doc-steps .g-install { margin-top: 12px; }
+.guide .doc-steps .g-install .cmd { display: inline-flex; margin: 0; }
+.g-or { margin: 12px 0 18px; font-size: 14px; color: var(--muted); }
+.g-try .g-install { align-items: center; margin: 24px auto 0; }
+.g-try .g-install .hero-tabs { justify-content: center; }
+.g-try .g-install .fine { text-align: center; max-width: 52ch; }
 
 .guide .doc-list { margin: 1.1em 0 0; padding-left: 1.3em; }
 .guide .doc-list li { margin: 0.6em 0; padding-left: 0.2em; }
@@ -122,6 +141,7 @@ li .g-code { margin-top: 0.8em; }
 .guide .g-body .table td { color: var(--ink-2); }
 .guide .g-body > section > .muted { font-size: 14px; margin-top: 12px; }
 .guide .g-body > section > .doc-shot, .guide .g-body > section > figure:not(.mfig) { grid-column: wide; margin-top: 1.6em; }
+.guide .g-body > section > figure:not(.mfig):has(pre) { grid-column: content; margin: 1.2em 0 0; }
 .guide .g-body figure pre { margin: 0; }
 .guide .g-body figcaption { padding: 12px 4px 0; font-size: 14px; color: var(--muted); }
 
@@ -140,7 +160,10 @@ li .g-code { margin-top: 0.8em; }
 .g-try h2 { margin: 0 0 10px; }
 .guide .g-try p { max-width: 46ch; margin: 0 auto; font-size: 17px; }
 .g-try .doc-cta { justify-content: center; margin-top: 24px; }
-.g-try .fine { margin-top: 14px; font-size: 13px; color: var(--muted); }
+.guide .g-try p.g-or { font-size: 14px; color: var(--muted); }
+.guide .g-try .doc-cta + p.g-or { margin: 14px auto 0; }
+.guide .g-try .g-install + p.g-or { margin: 18px auto 0; }
+.guide .g-try p.fine { margin-top: 14px; font-size: 13px; color: var(--muted); }
 
 /* keep reading */
 .g-more { margin-top: 72px; }
@@ -148,7 +171,10 @@ li .g-code { margin-top: 0.8em; }
 .g-more h2 { font-size: 22px; letter-spacing: -0.02em; margin: 0 0 18px; }
 .g-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
 .g-cards a { display: flex; flex-direction: column; gap: 8px; height: 100%; padding: 20px 22px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); text-decoration: none; transition: border-color 0.15s; }
-.g-cards a:hover { border-color: var(--faint); }
+/* A card is one link: no underline from the site's .doc a:hover, the title takes the accent instead. */
+.doc.guide .g-cards a:hover, .doc.guide a.g-feature:hover { text-decoration: none; border-color: var(--line-2); }
+.g-cards b, .g-feature b { transition: color 0.15s; }
+@media (hover: hover) { .g-cards a:hover b, .g-feature:hover b { color: var(--accent); } }
 .g-cards .k { font-size: 13px; color: var(--muted); }
 .g-cards b { font: 650 18px/1.3 var(--display); letter-spacing: -0.02em; color: var(--ink); text-wrap: balance; }
 .g-cards p { font-size: 14.5px; line-height: 1.5; color: var(--muted); }
@@ -175,14 +201,13 @@ li .g-code { margin-top: 0.8em; }
 /* the guides list */
 .g-index .g-head { padding-bottom: 8px; }
 .g-topic { margin-top: 56px; }
-.g-topic > h2 { display: flex; align-items: baseline; gap: 12px; font-size: 24px; letter-spacing: -0.02em; margin: 0 0 6px; }
-.g-topic > h2 small { font: 400 15px var(--sans); color: var(--muted); letter-spacing: 0; }
-.g-topic > p { margin-bottom: 20px; font-size: 16px; color: var(--muted); }
+.guide .g-topic h2 { display: flex; align-items: baseline; gap: 10px; font-size: 24px; letter-spacing: -0.02em; margin: 0 0 8px; }
+.g-topic h2 small { font: 400 15px var(--sans); color: var(--muted); letter-spacing: 0; }
+.guide .g-topic h2 + p { margin: 0 0 24px; font-size: 16px; color: var(--muted); }
 .g-index .g-topic { margin-top: 64px; }
 .g-index .g-hero > .g-feature { grid-column: wide; }
 .g-index .g-cards .k { display: none; }
 .g-feature { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px; align-items: center; margin-top: 40px; padding: 28px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); text-decoration: none; transition: border-color 0.15s; }
-.g-feature:hover { border-color: var(--faint); }
 .g-feature .doc-shot { border-radius: 12px; }
 .g-feature b { display: block; font: 700 clamp(24px, 3vw, 32px)/1.15 var(--display); letter-spacing: -0.03em; color: var(--ink); text-wrap: balance; }
 .g-feature p { margin-top: 12px; font-size: 17px; color: var(--muted); }
@@ -413,3 +438,4 @@ html:not(.js) .mf-wire > .pk { display: none; }
   .g-faq summary::after { transition: none; }
 }
 .g-feature .g-kicker + b { margin-top: 10px; }
+.guide .g-body figure > .g-code { margin-top: 0; }

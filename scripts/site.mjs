@@ -264,6 +264,29 @@ const COPY_JS = `<script>
 const installButton = (cmd = 'npx wisp-agents') =>
   `<button class="cmd" data-copy="${esc(cmd)}" aria-label="Copy install command"><span class="p">$</span><code>${esc(cmd)}</code><span class="copy">Copy</span></button>`;
 
+// Every way to get wisp, as tabs (the landing page's selector; docs/guide.js switches them):
+// npx, npm, curl, brew, and Download, which shows this OS's app (on a Mac, the curl --app install).
+const WAYS = [
+  ['npx', 'npx wisp-agents', 'macOS · Linux and Windows in beta · Node 20+ · MIT'],
+  ['npm', 'npm install -g wisp-agents', 'Puts the wisp command on your PATH · any OS · Node 20+'],
+  ['curl', 'curl -fsSL https://trywisp.dev/install.sh | bash', 'macOS and Linux · checks for Node 20+, then installs with npm'],
+  ['brew', 'brew install m0xoo/tap/wisp-agents', 'Homebrew · CLI and browser mode; the desktop app is the download'],
+  ['app', '', 'Free, no Node needed'],
+];
+const DL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>';
+let installN = 0;
+const installTabs = () => {
+  const id = `get${++installN}`;
+  return `<div class="g-install" data-tabs>
+      <div class="hero-tabs" role="tablist" aria-label="How to get wisp">${WAYS.map(([k, cmd, note], i) => `<button class="tab" role="tab" type="button" id="${id}-${k}" aria-controls="${id}-panel" aria-selected="${!i}" tabindex="${i ? -1 : 0}" data-tab="${k}"${cmd ? ` data-cmd="${esc(cmd)}"` : ''} data-note="${esc(note)}">${k === 'app' ? 'Download' : k}</button>`).join('')}</div>
+      <div role="tabpanel" id="${id}-panel" aria-labelledby="${id}-npx">
+        <a class="cmd dl" hidden href="https://github.com/M0xoo/wisp/releases/latest/download/wisp-mac-arm64.dmg" data-tab-dl>${DL_ICON}<span data-dl-label>Download for macOS</span><span class="copy" data-dl-kind>.dmg</span></a>
+        <button class="cmd" type="button" data-copy="npx wisp-agents" data-tab-copy aria-label="Copy install command"><span class="p">$</span><code data-tab-code>npx wisp-agents</code><span class="copy">Copy</span></button>
+      </div>
+      <p class="fine" data-tab-note>${WAYS[0][2]}</p>
+    </div>`;
+};
+
 // path: site path ('/agents/codex.html'); crumbs: [[label, path], …] after Home.
 // scripts: extra <script> tags for the end of <body> (a guide's demo).
 // image: the social preview (Cloud pages get their own).
@@ -495,7 +518,7 @@ function agentsIndex() {
 // ---------- guides ----------
 
 const sh = (code) => `<pre data-lang="sh"><code>${esc(code)}</code></pre>`;
-export const GUIDES = guides({ esc, sh, shot, installButton, agents: AGENTS, fig: FIGURES });
+export const GUIDES = guides({ esc, sh, shot, installButton, install: installTabs, agents: AGENTS, fig: FIGURES });
 const guideUrl = (g) => `/guides/${g.slug}.html`;
 // A guide's `demo`: a working copy of the feature in place of its screenshot (docs/relay.js, docs/spells.js).
 // A guide's `figure`: its own diagram (inline SVG) instead of a screenshot.
@@ -536,8 +559,8 @@ function guidePage(g) {
   const toc = [...g.body.matchAll(/<h2 id="([^"]+)">([\s\S]*?)<\/h2>/g)].map(([, id, t]) => [id, plain(t).replace(/\s+/g, ' ').trim()]);
   toc.push(['faq', 'Questions']);
   const cta = g.cloud
-    ? `<a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-${esc(g.slug)}">Try wisp Cloud</a>${installButton()}`
-    : `${installButton()}<a class="btn" href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a>`;
+    ? `<div class="doc-cta"><a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-${esc(g.slug)}">Try wisp Cloud</a></div><p class="g-or">or run it on your own computers</p>${installTabs()}`
+    : `${installTabs()}<p class="g-or"><a href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a></p>`;
   const body = `
     <div class="g-progress" aria-hidden="true"></div>
     <article class="g-art">
@@ -553,13 +576,13 @@ function guidePage(g) {
         </div>
       </header>
 
-      <div class="g-hero">${DEMOS[g.demo]?.html || g.figure || shot(...g.shot)}</div>
+      <div class="g-hero">${DEMOS[g.demo]?.html || g.figure || shot(...g.shot)}${g.caption ? `<p class="g-hero-cap">${g.caption}</p>` : ''}</div>
 
       <div class="g-body">
         <aside class="g-toc"><nav aria-label="On this page"><p>On this page</p><ol>${toc.map(([id, t]) => `<li><a href="#${id}">${esc(t)}</a></li>`).join('')}</ol></nav></aside>
         <section class="g-intro">
           <p class="g-lede">${g.lede}</p>
-          <div class="g-try-line">${g.cloud ? '<a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-intro">Try wisp Cloud</a><span>Free during the preview</span>' : `${installButton()}<span>Free and open source · macOS, Linux, Windows (beta)</span>`}</div>
+          <div class="g-try-line">${g.cloud ? '<a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-intro">Try wisp Cloud</a><span>Free during the preview</span>' : installTabs()}</div>
         </section>
 ${g.body}
         <section class="g-faq">
@@ -571,8 +594,8 @@ ${g.body}
           <div>
             <h2 id="try-it">${g.cloud ? 'Try it with the lid shut' : 'Try it on your own repo'}</h2>
             <p>${g.cloud ? 'Sign in with GitHub and give your own cloud wisp a task. Or run wisp on your own computers: same app, MIT.' : 'One command starts wisp in this folder. It runs the agent CLIs you already have, signed in as you.'}</p>
-            <div class="doc-cta">${cta}</div>
-            <p class="fine">Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build, Copilot CLI · Node 20+</p>
+            ${cta}
+            <p class="fine">Runs Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build and Copilot CLI</p>
           </div>
         </section>
       </div>
