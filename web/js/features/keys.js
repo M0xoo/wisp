@@ -64,8 +64,11 @@ export function onKey(e) {
   } else if ((k === 'o' || (k === 'enter' && !e.target.closest('button, a'))) && id) {
     e.preventDefault();
     toggle(id);
-  } else if (k === 'e' && id) toggleDone(id);
-  else if (k === 'a' && id) {
+  } else if (k === 'e' && id) {
+    e.preventDefault(); // done goes to New task, which focuses the prompt: the E mustn't land in it
+    toggleDone(id);
+  } else if (k === 'a' && id) {
+    e.preventDefault();
     const s = S.sessions.get(id);
     if (s && (s.archived || (s.state !== 'running' && s.state !== 'waiting'))) setArchived(id, !s.archived);
   }

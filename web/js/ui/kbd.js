@@ -14,7 +14,7 @@ export function shortcuts() {
     ['J / K', 'Next / previous item'],
     ['O / ↵', 'Expand / collapse item'],
     ['/', 'Follow up on item'],
-    ['E', 'Mark done & go to next'],
+    ['E', 'Mark done'],
     ['A', 'Archive / unarchive'],
     ['M', 'Rename item'],
     ['⌫', 'Delete item'],

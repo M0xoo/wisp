@@ -24,7 +24,7 @@ import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterPill, laterTip, planRows } from './later.js';
 import { crewDot, memberById, paintCrew, pinJob } from './crew.js';
-import { backToPlace, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
+import { backToPlace, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -675,23 +675,21 @@ export function reveal(id) {
 
 export const feedIds = () => $$('#feed .item[data-id]:not(.pending)').map((x) => x.dataset.id);
 
-// The user takes a card out of its list (done, archive, delete). The next card — the one below,
-// or the one above at the end of the list — gets focus and lands where the old one sat, so
-// triage continues on the same spot. Call before the request, while the card is still laid
-// out; the returned function applies the change locally and places the next card.
+// The user takes a card out of its list (done, archive, delete). Done with the open task is
+// done with it: the main pane goes to New task rather than opening whichever row sat next.
+// From the list itself, the next card — the one below, or the one above at the end — gets
+// focus where the old one sat, so E / A / j triage continues on the same spot. Call before the
+// request, while the card is still laid out; the returned function applies the change locally.
 export function handOff(id) {
   const card = S.nodes.get(id)?.card;
   if (!card?.isConnected) return (apply) => (apply(), renderFeed());
-  // The next task takes the main pane if this one had it. Stacked, done with the page is back to
-  // the list, where the next one sits in its place.
   const nextUp = (card.nextElementSibling || card.previousElementSibling)?.dataset.id || feedIds().find((x) => x !== id);
   const had = S.open.has(id);
   return (apply) => {
     if (had) collapse(id);
     apply(); // don't wait for the live update to drop the card
     renderFeed();
-    if (!nextUp || !S.nodes.has(nextUp)) return;
-    setFocus(nextUp);
-    if (had && !isStacked()) expand(nextUp);
+    if (had) return goHome({ focus: !isStacked() }); // no phone keyboard popping up
+    if (nextUp && S.nodes.has(nextUp)) setFocus(nextUp);
   };
 }
