@@ -24,6 +24,10 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 - Titles get two lines instead of `do a full audi…`.
 - A bar with more buttons than fit scrolls sideways with Send pinned at the end (`.c-bar` in the
   app).
+- A status line stays one line at any width and text size: what doesn't fit drops whole, least
+  important first (the working panel's action count, then its time), and the name ends in `…`
+  (`.w-status`: wrap onto a second line the box clips). A placeholder stays one line and fades out
+  at the edge instead of doubling an empty box that shrinks on the first key.
 
 ## Touch
 
@@ -35,6 +39,9 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   the keyboard never covers the end of its list.
 - A panel with a leading icon (the working panel's orb) keeps the icon beside its first line only:
   what's under it (a question, its answer box) takes the panel's whole width.
+- An icon-only button sits centred in its 44px; its pressed or hover background is a smaller square
+  (`background-clip: content-box`) whose edge lines up with the content above it. A tap leaves no
+  hover background behind (`@media (hover: none)` in `responsive.css`).
 - Nothing is hover-only on touch: a control that appears on hover on desktop is always shown, or
   reachable another way.
 - No keyboard hints on touch screens: `kbd`, `.key-hint`, the palette footer, *Press ⌘L*, the
