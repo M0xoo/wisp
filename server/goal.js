@@ -132,9 +132,12 @@ export class Goals {
   }
 
   // An idle task with a live goal gets checked now; one that's running is checked when its turn ends.
+  // A run still live after its turn landed is a CLI on its way out (or handing to a follow-up):
+  // only the hand-over counts as busy, or the goal would wait for a turn end that already came.
   #kick(session) {
     const last = session.turns.at(-1);
-    const idle = !this.runner.live.has(session.id) && last?.status !== 'running' && !session.auto?.busy && session.state !== 'waiting';
+    const handing = this.runner.live.has(session.id) && (session.state === 'running' || session.queue?.length > 0);
+    const idle = !handing && last?.status !== 'running' && !session.auto?.busy && session.state !== 'waiting';
     if (!idle || !last) return this.runner.refresh(session);
     session.state = 'running';
     session.unread = false;
