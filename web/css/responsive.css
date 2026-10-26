@@ -33,7 +33,6 @@
      box get the panel's whole width instead of a column beside it. */
   .w-panel { display: block; padding: 14px 16px; }
   .w-orb { float: left; margin-right: 12px; }
-  .w-status { flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
   /* Search drops from the top as a sheet, out of the keyboard's way, its list as tall as there's room. */
   .overlay:has(.palette) { padding: max(8px, env(safe-area-inset-top)) 8px 8px; }
   .palette { max-height: calc(100dvh - 16px - env(safe-area-inset-top)); }
@@ -48,6 +47,11 @@
   .menu .pm-search, .menu .pm-search:is(:hover, :focus-within) { height: 48px; font-size: 16px; }
   .pal-row { height: 44px; }
   .sx-top .icon-btn { width: 44px; height: 44px; }
+}
+
+/* A tap leaves :hover on the button until the next tap elsewhere: no grey box left behind on touch. */
+@media (hover: none) {
+  :is(.ghost, .icon-btn):hover:not(.on), .ghost.danger:hover { background: none; }
 }
 
 /* Touch screens have no keys to press: drop the shortcut hints on floating buttons. */
@@ -139,7 +143,11 @@ body.wisp-mobile .c-bar::-webkit-scrollbar { display: none; }
 body.wisp-mobile .c-bar .c-hint { flex: 1 0 4px; }
 body.wisp-mobile .c-bar > .send { position: sticky; right: 0; box-shadow: -10px 0 8px -2px var(--surface-2); }
 body.wisp-mobile .composer:focus-within .c-bar > .send { box-shadow: -10px 0 8px -2px var(--surface); }
-body.wisp-mobile .it-bar .ghost.xs { min-width: 44px; height: 44px; }
+/* The task's icon actions: each icon centred in its 44px, a pressed one (Transcript) on a 36px square
+   (content-box) so the first lines up with the pills above it, and no more air above and below than
+   between the bar's other lines. */
+body.wisp-mobile .it-bar .ghost.xs { min-width: 44px; height: 44px; padding: 4px; justify-content: center; border-radius: 12px; background-clip: content-box; }
+body.wisp-mobile .it-bar > .it-actions { margin: -6px 0 -6px -12px; }
 body.wisp-mobile .it-quick { width: 44px; height: 44px; margin: -10px -12px -10px 0; }
 body.wisp-mobile .it-quick-gap { width: 32px; }
 /* The rest of what a thumb taps: section folds, Crew's +, the overlap's Open and
@@ -158,7 +166,6 @@ body.wisp-mobile .opt .k { display: none; }
 /* The working panel, as on a narrow window (≤720px above): the orb beside the status line only. */
 body.wisp-mobile .w-panel { display: block; padding: 14px 16px; }
 body.wisp-mobile .w-orb { float: left; margin-right: 12px; }
-body.wisp-mobile .w-status { flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
 
 /* A row gives its title the whole width: status, harness, time, done and the chevron go under it. */
 body.wisp-mobile .it-head { grid-template-columns: 10px 1fr; row-gap: 6px; }
@@ -214,3 +221,7 @@ body.wisp-mobile :is(.q-time, .q-proj, .pill) { font-size: 12px; }
 body.wisp-mobile .f-group h4 { font-size: 13px; }
 body.wisp-mobile .trail-bar { font-size: 13px; }
 body.wisp-mobile .tb-l { display: inline; }
+/* With the counts named, the bar can't fit on one line: the files and the turn's tools always start the
+   second line, rather than landing wherever the wrap falls. */
+body.wisp-mobile .trail-bar:has(> .link.xs, .tb-tools > *) > .grow { flex-basis: 100%; }
+body.wisp-mobile .trail-bar > .link.xs + .tb-tools { margin-left: -14px; }

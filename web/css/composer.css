@@ -5,6 +5,9 @@
 }
 .composer:focus-within { background: var(--surface); border-color: color-mix(in srgb, var(--accent) 55%, var(--line-2)); box-shadow: 0 0 0 3px var(--accent-soft); }
 .composer textarea { min-height: 26px; font-size: 14px; padding: 6px 2px; }
+/* A long placeholder ("Steer Claude Code — interrupts…") stays one line instead of doubling the empty box
+   (which then shrank on the first key). A textarea's placeholder takes no ellipsis: it fades out instead. */
+.composer textarea:placeholder-shown { white-space: nowrap; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 32px), transparent); }
 .composer textarea:disabled { cursor: not-allowed; }
 .c-bar { display: flex; align-items: center; gap: 8px; }
 .c-queued { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }

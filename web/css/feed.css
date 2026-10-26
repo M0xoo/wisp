@@ -203,8 +203,10 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .w-panel.waiting { border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
 .w-orb { padding-top: 2px; }
 .w-body { flex: 1; min-width: 0; position: relative; }
-.w-status { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
-.w-status b { font-weight: 600; }
+/* One line at any width or text size: what doesn't fit wraps onto a second line the box clips, the
+   count first, then the time; the name itself ends in an ellipsis before it would wrap. */
+.w-status { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; height: 1.6em; line-height: 1.6em; overflow: hidden; margin-bottom: 10px; }
+.w-status b { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* "… is working" has a soft light passing over it, in step with the orb's ripple. */
 .w-panel:not(.waiting) .w-status b {
   color: transparent; -webkit-background-clip: text; background-clip: text;
@@ -212,7 +214,7 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
   background-size: 250% 100%; animation: w-shine 2.8s linear infinite;
 }
 @keyframes w-shine { from { background-position: 100% 0; } to { background-position: 0% 0; } }
-.w-status span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.w-status span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ticker, .log { list-style: none; margin: 0; padding: 0; }
 .act { display: flex; align-items: center; gap: 9px; padding: 3px 0; font-size: 13px; color: var(--ink-2); min-width: 0; }
 .act span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -227,6 +229,8 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .act.k-error { color: var(--bad); }
 .act.k-ask, .act.k-wait { color: var(--warn); }
 .act.k-text span { white-space: normal; color: var(--muted); }
+/* Said once: while the question card is up, the ticker doesn't repeat it as "Asked you: …". */
+.w-panel.waiting:has(.ask-slot > *) .ticker .act.k-ask { display: none; }
 .log { max-height: 340px; overflow-y: auto; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
 .w-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
 .w-queued { font-size: 12.5px; color: var(--accent-ink); font-weight: 500; }
