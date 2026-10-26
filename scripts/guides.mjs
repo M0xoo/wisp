@@ -4,7 +4,8 @@
 // Each guide answers its question in the lede (search engines and AI answers quote the opening),
 // shows the manual way too, then how wisp does it. Keep the facts in step with the README.
 //
-// h: helpers from site.mjs ({ esc, sh, shot, installButton, agents }).
+// h: helpers from site.mjs ({ esc, sh, shot, installButton, agents }) and fig, the motion figures
+// (scripts/figures.mjs). Gotchas go in <aside class="g-note">; the contents are built from the h2s.
 //
 // The spells guide's reference tables and examples come from wisp's own spell schema and the
 // examples its Cast a spell agent gets, so the guide can't drift from what wisp accepts.
@@ -48,7 +49,7 @@ const FIELDS = [
 ];
 
 export function guides(h) {
-  const { esc, sh, shot, installButton } = h;
+  const { esc, sh, shot, installButton, fig } = h;
   // Lists of plain values stay on one line, so a spell reads like the file people write.
   const json = (obj) => `<pre data-lang="json"><code>${esc(JSON.stringify(obj, null, 2).replace(/\[\s*\n((?:\s*(?:"(?:[^"\\]|\\.)*"|-?\d[\d.]*|true|false|null),?\n)+)\s*\]/g, (m, items) => `[${items.split('\n').map((x) => x.trim()).filter(Boolean).join(' ')}]`))}</code></pre>`;
   const claude = h.agents.find((a) => a.id === 'claude');
@@ -57,6 +58,7 @@ export function guides(h) {
   return [
     {
       slug: 'run-claude-code-and-codex-in-parallel',
+      topic: 'agents',
       title: 'How to run Claude Code and Codex in parallel — wisp',
       h1: 'Run Claude Code and Codex in parallel',
       card: 'Same task on both agents, or different tasks at once, each on its own branch.',
@@ -86,11 +88,20 @@ wait
 
 git diff --stat origin/main...try/claude
 git diff --stat origin/main...try/codex`)}
-      <p>That works, with gaps: a headless agent that needs a decision guesses instead of asking, nothing tells you when a run is done, you read two transcripts to find out what happened, each worktree needs its own <code>npm install</code>, and you clean up the worktrees and branches yourself.</p>
+      <aside class="g-note"><b>Where the manual way falls short</b>
+        <ul class="doc-list">
+          <li>A headless agent that needs a decision guesses instead of asking.</li>
+          <li>Nothing tells you when a run is done.</li>
+          <li>You read two transcripts to find out what happened.</li>
+          <li>Each worktree needs its own <code>npm install</code>, and you clean up the worktrees and branches yourself.</li>
+        </ul>
+      </aside>
     </section>
 
     <section>
       <h2 id="with-wisp">With wisp: click vs</h2>
+      <p>The same idea, with the gaps filled: one prompt, a worktree per agent, and one screen to compare them on.</p>
+      ${fig.parallel}
       <ol class="doc-steps">
         <li><b>Start wisp.</b> ${installButton()}</li>
         <li><b>Pick Claude Code in the launcher, click vs and pick Codex</b> (and a model for each, if you like). Describe the task and press Enter.</li>
@@ -121,6 +132,7 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
 
     {
       slug: 'run-coding-agents-on-multiple-machines',
+      topic: 'machines',
       title: 'Run Claude Code and Codex on multiple machines over SSH — wisp',
       h1: 'Run coding agents on multiple machines',
       card: 'Your desktop, a dev box, a cloud VM: one prompt, several machines, one queue.',
@@ -145,6 +157,7 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
         <li>On the machine it finds Node.js 20+ and starts <code>npx -y wisp-agents --no-open</code> detached, at the same version as yours, or reuses the wisp already running there.</li>
         <li>It forwards a free local port to that wisp with <code>ssh -L</code> and relays its events into your queue.</li>
       </ol>
+      ${fig.machines}
       <p>Nothing new listens on the network: wisp on the machine stays on its own <code>127.0.0.1</code>. There is no account, relay server or cloud in between. The machine needs SSH access with a key, Node.js 20+ and the agent CLIs you want to run, signed in.</p>
       <p>Want to reach it from anywhere, or from your phone? With no SSH at all: <a href="/guides/reach-your-computer-from-your-phone.html">add it to wisp Cloud from its Machines →</a> Or over SSH: <a href="/guides/connect-machines-with-tailscale.html">Connect your machines with Tailscale →</a></p>
     </section>
@@ -195,50 +208,13 @@ tmux new -d -s fix 'cd ../app-fix && claude -p "fix the flaky auth test"'`)}
 
     {
       slug: 'connect-machines-with-tailscale',
+      topic: 'machines',
       title: 'Reach your coding machines from anywhere with Tailscale and SSH — wisp',
       h1: 'Connect your machines with Tailscale',
       card: 'Laptop, desktop, server and phone on one private network: SSH in from anywhere, with no open ports.',
       description: 'Put your laptop, dev box and phone on Tailscale and turn on SSH. wisp installs the rest there, so you run Claude Code and Codex on it from anywhere, desktop or Android, without opening a port.',
       lede: 'To run coding agents on another computer from anywhere, put both devices on <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a>, and turn on SSH on the machine. wisp does the rest by the machine’s tailnet name, from your laptop or the wisp Android app: your password there once, then Node.js and wisp, and nothing is exposed to the internet. Settings → Machines → <b>This computer</b> checks each step for you.',
-      // Two drawings of one diagram: side by side, and stacked for phones (docs/style.css swaps them).
-      figure: `<figure class="doc-shot doc-diagram" aria-label="Your laptop and phone reach a machine over SSH inside your private tailnet; wisp on the machine stays on 127.0.0.1">
-  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
-    <rect x="330" y="20" width="300" height="260" rx="22" class="zone"/>
-    <text x="480" y="52" text-anchor="middle" class="sub">your tailnet · private, encrypted</text>
-    <rect x="20" y="58" width="220" height="74" rx="14" class="box"/>
-    <text x="130" y="91" text-anchor="middle" class="name">Laptop</text>
-    <text x="130" y="115" text-anchor="middle" class="sub">wisp · Machines</text>
-    <rect x="20" y="168" width="220" height="74" rx="14" class="box"/>
-    <text x="130" y="201" text-anchor="middle" class="name">Phone</text>
-    <text x="130" y="225" text-anchor="middle" class="sub">wisp Android app</text>
-    <path d="M240 95 C 330 95, 360 150, 715 150 M240 205 C 330 205, 360 150, 715 150" class="link"/>
-    <path d="M703 142 L717 150 L703 158" class="link"/>
-    <text x="480" y="252" text-anchor="middle" class="cmd">ssh you@devbox</text>
-    <rect x="720" y="58" width="220" height="184" rx="14" class="box"/>
-    <text x="830" y="91" text-anchor="middle" class="name">devbox</text>
-    <text x="830" y="135" text-anchor="middle" class="mono">sshd :22</text>
-    <text x="830" y="168" text-anchor="middle" class="mono">wisp 127.0.0.1:4477</text>
-    <text x="830" y="201" text-anchor="middle" class="sub">Claude Code · Codex · …</text>
-  </svg>
-  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
-    <rect x="10" y="10" width="150" height="74" rx="14" class="box"/>
-    <text x="85" y="43" text-anchor="middle" class="name">Laptop</text>
-    <text x="85" y="66" text-anchor="middle" class="sub">wisp</text>
-    <rect x="180" y="10" width="150" height="74" rx="14" class="box"/>
-    <text x="255" y="43" text-anchor="middle" class="name">Phone</text>
-    <text x="255" y="66" text-anchor="middle" class="sub">wisp app</text>
-    <rect x="30" y="112" width="280" height="150" rx="20" class="zone"/>
-    <text x="170" y="140" text-anchor="middle" class="sub">your tailnet · private</text>
-    <path d="M85 84 V 205 C 85 255, 170 250, 170 296 M255 84 V 205 C 255 255, 170 250, 170 296" class="link"/>
-    <path d="M162 284 L170 298 L178 284" class="link"/>
-    <text x="170" y="168" text-anchor="middle" class="cmd">ssh you@devbox</text>
-    <rect x="60" y="300" width="220" height="160" rx="14" class="box"/>
-    <text x="170" y="333" text-anchor="middle" class="name">devbox</text>
-    <text x="170" y="371" text-anchor="middle" class="mono">sshd :22</text>
-    <text x="170" y="402" text-anchor="middle" class="mono">wisp 127.0.0.1:4477</text>
-    <text x="170" y="433" text-anchor="middle" class="sub">Claude Code · Codex</text>
-  </svg>
-</figure>`,
+      figure: fig.tailscale,
       body: `
     <section>
       <h2 id="why">Why Tailscale</h2>
@@ -311,6 +287,7 @@ ${sh('sudo apt install -y openssh-server && sudo systemctl enable --now ssh')}
 
     {
       slug: 'move-a-task-to-another-machine-or-agent',
+      topic: 'machines',
       title: 'Move a Claude Code or Codex task to another machine or agent — wisp',
       h1: 'Move a task to another machine or agent, mid-way',
       card: 'Laptop to dev box, Claude Code to Codex: one follow-up, work and history included.',
@@ -340,7 +317,7 @@ scp /tmp/work.bundle devbox:/tmp/
 cd ~/code/app && git fetch /tmp/work.bundle HEAD:stripe-v2
 git worktree add ../app-stripe stripe-v2
 cd ../app-stripe && codex   # starts with no idea what happened so far`)}
-      <p>Then you explain the task again: what was asked, what the first agent did, what’s left. And the WIP commit is now part of your branch.</p>
+      <aside class="g-note"><b>What gets lost</b><p>You explain the task again: what was asked, what the first agent did, what’s left. And the WIP commit is now part of your branch.</p></aside>
     </section>
 
     <section>
@@ -351,6 +328,7 @@ cd ../app-stripe && codex   # starts with no idea what happened so far`)}
         <li><b>Type the follow-up and press Enter.</b> A running task has to stop or finish first.</li>
       </ol>
       <p>Then wisp:</p>
+      ${fig.move}
       <ol class="doc-list">
         <li>packs the task’s branch and its uncommitted and untracked changes into a git bundle (your own checkout and index are left alone);</li>
         <li>carries it to the other computer, which reuses its checkout of the project or clones the repo’s <code>origin</code>;</li>
@@ -399,6 +377,7 @@ curl -X POST localhost:4477/api/sessions/<id>/reply \\
 
     {
       slug: 'run-multiple-claude-code-agents-in-parallel',
+      topic: 'agents',
       title: 'How to run multiple Claude Code agents in parallel — wisp',
       h1: 'Run multiple Claude Code agents in parallel',
       card: 'Several Claude Code sessions on one repo, a git worktree each, one queue.',
@@ -409,6 +388,7 @@ curl -X POST localhost:4477/api/sessions/<id>/reply \\
     <section>
       <h2 id="why-worktrees">Why not just open more terminals?</h2>
       <p>Two Claude Code sessions in the same folder share one working tree. One overwrites the other’s edits, both fight over the git index, and the tests one runs see the other’s half-finished code. Separate <a href="https://git-scm.com/docs/git-worktree" target="_blank" rel="noopener">git worktrees</a> fix that: each session gets its own checkout and branch, and they share only the repository’s history.</p>
+      ${fig.worktrees}
     </section>
 
     <section>
@@ -422,7 +402,13 @@ cd ../app-stripe && claude
 
 # when a branch is merged
 git worktree remove ../app-auth`)}
-      <p>Things to know: dependencies aren’t shared, so each worktree needs its own install, and two dev servers on the same port collide. And you have to keep checking each terminal to see which session is waiting for you.</p>
+      <aside class="g-note"><b>Good to know</b>
+        <ul class="doc-list">
+          <li>Dependencies aren’t shared: each worktree needs its own install.</li>
+          <li>Two dev servers on the same port collide.</li>
+          <li>You keep checking each terminal to see which session is waiting for you.</li>
+        </ul>
+      </aside>
     </section>
 
     <section>
@@ -451,6 +437,7 @@ git worktree remove ../app-auth`)}
 
     {
       slug: 'claude-code-vs-codex',
+      topic: 'agents',
       title: 'Claude Code vs Codex: compare them on your own code — wisp',
       h1: 'Claude Code vs Codex, on your own repo',
       card: 'Run the same task on both and compare tests, time, cost and the diff.',
@@ -475,7 +462,8 @@ git worktree remove ../app-auth`)}
           <tr><th scope="row">Resume</th><td><code>${h.esc(claude.resume)}</code></td><td><code>${h.esc(codex.resume)}</code></td></tr>
         </tbody>
       </table></div>
-      <p>Models change every few months, so a verdict on which one writes better code goes stale fast. Your repo, your tests and your review time are the benchmark that matters.</p>
+      <p>Models change every few months, so a verdict on which one writes better code goes stale fast.</p>
+      <p class="g-pull">Your repo, your tests and your review time are the benchmark that matters.</p>
     </section>
 
     <section>
@@ -492,6 +480,7 @@ git worktree remove ../app-auth`)}
       <h2 id="run-the-comparison">Run the comparison</h2>
       <p>In the wisp launcher pick Claude Code, click <b>vs</b>, pick Codex and press Enter. Or from a terminal:</p>
       ${sh('wisp "add rate limiting to /login" --agent claude --compare codex')}
+      ${fig.versus}
       <p>Each run gets its own worktree. <b>Compare</b> shows them side by side with both reports, and <b>Keep this</b> keeps the better branch and deletes the other. The <a href="/guides/run-claude-code-and-codex-in-parallel.html">parallel guide</a> also shows how to do this by hand with <code>git worktree</code>.</p>
     </section>
 
@@ -511,6 +500,7 @@ git worktree remove ../app-auth`)}
 
     {
       slug: 'multi-agent-coding',
+      topic: 'agents',
       title: 'Multi-agent coding: Claude Code delegating to Codex and more — wisp',
       h1: 'Multi-agent coding across Claude Code, Codex and more',
       card: 'A lead agent with a team on other harnesses and other machines, working in parallel.',
@@ -535,6 +525,7 @@ git worktree remove ../app-auth`)}
     <section>
       <h2 id="team">Give the lead a team</h2>
       <p>The launcher’s <b>Delegate</b> button sets up a team of up to 6 members. Each has a place (with the lead, this computer or one of your machines), a harness, a model and thinking level, a name, a <b>Use for</b> note that tells the lead when to pick it, and a copies count:</p>
+      ${fig.delegate}
       <div class="table"><table>
         <thead><tr><th>Member</th><th>Harness</th><th>Use for</th></tr></thead>
         <tbody>
@@ -589,6 +580,7 @@ npx wisp-agents skill install --agent all`)}
 
     {
       slug: 'run-coding-agents-in-the-background',
+      topic: 'agents',
       title: 'Run Claude Code and Codex in the background, headless — wisp',
       h1: 'Run coding agents in the background',
       card: 'Headless runs that can still ask you, notify you, and report back in one screen.',
@@ -620,6 +612,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
 
     <section>
       <h2 id="away">While you’re away</h2>
+      ${fig.background}
       <ul class="doc-list">
         <li><b>Phone.</b> Questions and finished tasks go to ntfy or Telegram. Tap an option to answer, or start a task from Telegram with <code>/new</code>.</li>
         <li><b>Ask without interrupting.</b> <code>/btw did you update the docs too?</code> gets an answer from a copy of the conversation while the run keeps going.</li>
@@ -652,6 +645,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
 
     {
       slug: 'make-claude-code-keep-going-until-tests-pass',
+      topic: 'agents',
       title: 'Make Claude Code keep going until the tests pass — wisp',
       h1: 'Make Claude Code keep going until the tests pass',
       card: 'Give a task a Done when goal. wisp checks after every round and sends it back until it holds.',
@@ -666,7 +660,8 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
 
     <section>
       <h2 id="done-when">Write a Done when that can be checked</h2>
-      <p>Turn on <b>Goal</b> in the prompt box and a <i>Done when</i> line opens under the prompt. Write what has to be true, not what to do:</p>
+      <p class="g-pull">Write what has to be true, not what to do.</p>
+      <p>Turn on <b>Goal</b> in the prompt box and a <i>Done when</i> line opens under the prompt. For example:</p>
       <ul class="doc-list">
         <li><b>Good:</b> <i>every test in <code>test/auth</code> passes and <code>npm run build</code> has no warnings</i>. Tests and a build the checker can run.</li>
         <li><b>Good:</b> <i>the login form fits a 390px screen with no horizontal scroll</i>. Something the checker can read in the CSS and markup.</li>
@@ -683,6 +678,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
         <li><b>The agent’s report, as a claim.</b> It goes in last and is labelled as what the agent says, not as evidence.</li>
       </ol>
       <p>The checker answers <i>met</i>, <i>not yet</i> or <i>can’t be done</i>, with why. A <i>met</i> needs evidence it saw for itself and tests that don’t disagree; otherwise it counts as not yet. Not yet sends the task back with what’s missing and the next step.</p>
+      ${fig.goal}
     </section>
 
     <section>
@@ -719,53 +715,14 @@ curl -X PUT localhost:4477/api/sessions/$ID/goal \\
 
     {
       slug: 'run-claude-code-24-7-without-a-vps',
+      topic: 'cloud',
       cloud: true,
       title: 'Run Claude Code 24/7 without setting up a VPS — wisp',
       h1: 'Run Claude Code 24/7 without a VPS',
       card: 'Keep Claude Code and Codex working with the laptop shut: rent and run a server, or open a free box on wisp Cloud.',
       description: 'Keep Claude Code and Codex running while your laptop sleeps: a DIY VPS (tmux, SSH from your phone, upkeep) next to wisp Cloud, your own sandboxed box that is free during the preview.',
       lede: 'Claude Code runs where you start it, so it stops when your laptop sleeps or the SSH session drops. To keep it going overnight it needs a computer that stays on. You can rent one and run it yourself, or open <a href="https://grid.trywisp.dev" data-cloud-cta="guide-lede">wisp Cloud</a> and get your own box with Claude Code, Codex and Cursor already installed, free during the preview.',
-      figure: `<figure class="doc-shot doc-diagram" aria-label="On the laptop, the run stops when the lid closes at 18:40. On wisp Cloud it keeps going and the report is ready at 02:14.">
-  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
-    <text x="20" y="66" class="name">Laptop</text>
-    <text x="20" y="88" class="sub">Claude Code in a terminal</text>
-    <path d="M250 74 H 281" class="link"/>
-    <circle cx="288" cy="74" r="7" class="box"/>
-    <path d="M300 74 H 940" class="zone"/>
-    <text x="300" y="56" class="sub">18:40 · the lid closes and the run stops with it</text>
-    <text x="20" y="186" class="name">wisp Cloud</text>
-    <text x="20" y="208" class="sub">your own box on a server</text>
-    <path d="M250 194 H 610" class="link"/>
-    <path d="M598 186 L612 194 L598 202" class="link"/>
-    <text x="300" y="176" class="sub">keeps going with the lid shut</text>
-    <rect x="620" y="162" width="250" height="64" rx="14" class="box"/>
-    <text x="745" y="190" text-anchor="middle" class="name">Report ready</text>
-    <text x="745" y="212" text-anchor="middle" class="sub">02:14 · waiting on your phone</text>
-    <text x="250" y="282" class="mono">18:00</text>
-    <text x="388" y="282" text-anchor="middle" class="mono">21:00</text>
-    <text x="526" y="282" text-anchor="middle" class="mono">00:00</text>
-    <text x="664" y="282" text-anchor="middle" class="mono">03:00</text>
-    <text x="802" y="282" text-anchor="middle" class="mono">06:00</text>
-    <text x="940" y="282" text-anchor="end" class="mono">09:00</text>
-  </svg>
-  <svg class="tall" viewBox="0 0 340 440" aria-hidden="true">
-    <rect x="10" y="10" width="320" height="170" rx="16" class="box"/>
-    <text x="30" y="46" class="name">Laptop</text>
-    <text x="30" y="68" class="sub">Claude Code in a terminal</text>
-    <path d="M30 108 H 84" class="link"/>
-    <circle cx="92" cy="108" r="7" class="box"/>
-    <path d="M104 108 H 310" class="zone"/>
-    <text x="30" y="150" class="sub">18:40 · the lid closes, the run stops</text>
-    <rect x="10" y="200" width="320" height="230" rx="16" class="box"/>
-    <text x="30" y="236" class="name">wisp Cloud</text>
-    <text x="30" y="258" class="sub">your own box on a server</text>
-    <path d="M30 298 H 300" class="link"/>
-    <path d="M290 290 L304 298 L290 306" class="link"/>
-    <text x="30" y="340" class="sub">keeps going with the lid shut</text>
-    <rect x="30" y="358" width="280" height="52" rx="12" class="box"/>
-    <text x="170" y="390" text-anchor="middle" class="mono">02:14 · report on your phone</text>
-  </svg>
-</figure>`,
+      figure: fig.overnight,
       body: `
     <section>
       <h2 id="why">Why it stops</h2>
@@ -831,52 +788,14 @@ tmux attach -t agent`)}
 
     {
       slug: 'use-wisp-cloud',
+      topic: 'cloud',
       cloud: true,
       title: 'Run Claude Code and Codex on a server while your laptop sleeps',
       h1: 'Use wisp Cloud',
       card: 'Your own wisp on a server: sign in with GitHub or Google, close the laptop, read the report on your phone.',
       description: 'Your own wisp on a server at grid.trywisp.dev: sign in with GitHub or Google, connect Claude Code and Codex with a code, and agents keep working with your laptop closed.',
       lede: 'To keep coding agents working when your laptop is closed, run them on a computer that stays on. <a href="https://grid.trywisp.dev">wisp Cloud</a> gives you one: your own wisp on a server, in a sandbox of its own, that you open from the browser, from wisp on your computer, or from your phone. It’s free in early preview at <a href="https://grid.trywisp.dev">grid.trywisp.dev</a>, a few accounts at a time, and you can run the same thing on your own server.',
-      figure: `<figure class="doc-shot doc-diagram" aria-label="Your laptop, phone and browser open your own wisp on grid.trywisp.dev, in a sandbox of its own">
-  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
-    <rect x="20" y="20" width="200" height="66" rx="14" class="box"/>
-    <text x="120" y="50" text-anchor="middle" class="name">Laptop</text>
-    <text x="120" y="72" text-anchor="middle" class="sub">Machines</text>
-    <rect x="20" y="117" width="200" height="66" rx="14" class="box"/>
-    <text x="120" y="147" text-anchor="middle" class="name">Phone</text>
-    <text x="120" y="169" text-anchor="middle" class="sub">wisp Cloud</text>
-    <rect x="20" y="214" width="200" height="66" rx="14" class="box"/>
-    <text x="120" y="244" text-anchor="middle" class="name">Browser</text>
-    <text x="120" y="266" text-anchor="middle" class="sub">grid.trywisp.dev</text>
-    <path d="M220 53 C 300 53, 330 150, 430 150 M220 150 H 430 M220 247 C 300 247, 330 150, 430 150" class="link"/>
-    <path d="M418 142 L432 150 L418 158" class="link"/>
-    <rect x="440" y="20" width="500" height="260" rx="22" class="zone"/>
-    <text x="690" y="52" text-anchor="middle" class="sub">grid.trywisp.dev · sign in with GitHub or Google</text>
-    <rect x="540" y="82" width="300" height="164" rx="14" class="box"/>
-    <text x="690" y="116" text-anchor="middle" class="name">you.grid.trywisp.dev</text>
-    <text x="690" y="148" text-anchor="middle" class="sub">your own sandbox</text>
-    <text x="690" y="184" text-anchor="middle" class="mono">Claude Code · Codex · gh</text>
-    <text x="690" y="216" text-anchor="middle" class="sub">sleeps when idle</text>
-  </svg>
-  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
-    <rect x="10" y="10" width="100" height="62" rx="12" class="box"/>
-    <text x="60" y="47" text-anchor="middle" class="name">Laptop</text>
-    <rect x="120" y="10" width="100" height="62" rx="12" class="box"/>
-    <text x="170" y="47" text-anchor="middle" class="name">Phone</text>
-    <rect x="230" y="10" width="100" height="62" rx="12" class="box"/>
-    <text x="280" y="47" text-anchor="middle" class="name">Browser</text>
-    <path d="M60 72 C 60 120, 170 110, 170 150 M170 72 V 150 M280 72 C 280 120, 170 110, 170 150" class="link"/>
-    <path d="M162 138 L170 152 L178 138" class="link"/>
-    <rect x="20" y="160" width="300" height="296" rx="20" class="zone"/>
-    <text x="170" y="190" text-anchor="middle" class="sub">grid.trywisp.dev</text>
-    <rect x="50" y="216" width="240" height="210" rx="14" class="box"/>
-    <text x="170" y="254" text-anchor="middle" class="name">your wisp</text>
-    <text x="170" y="290" text-anchor="middle" class="sub">its own sandbox</text>
-    <text x="170" y="330" text-anchor="middle" class="mono">Claude Code · Codex</text>
-    <text x="170" y="360" text-anchor="middle" class="mono">gh</text>
-    <text x="170" y="398" text-anchor="middle" class="sub">sleeps when idle</text>
-  </svg>
-</figure>`,
+      figure: fig.cloud,
       body: `
     <section>
       <h2 id="signin">1. Sign in</h2>
@@ -935,52 +854,14 @@ tmux attach -t agent`)}
 
     {
       slug: 'reach-your-computer-from-your-phone',
+      topic: 'machines',
       cloud: true,
       title: 'Use Claude Code on your own computer from your phone, no SSH — wisp',
       h1: 'Reach your own computer from anywhere',
       card: 'Add your desktop to wisp Cloud from its Machines: your phone and other computers open it, with no SSH, Tailscale or open port.',
       description: 'Add the computer running wisp to wisp Cloud and open it from your phone or another computer, anywhere: no SSH, no Tailscale, no port forwarding. Claude Code and Codex keep running there with your files.',
       lede: 'To use the coding agents on your desktop from your phone or another computer, add it to <a href="https://grid.trywisp.dev">wisp Cloud</a>: in wisp on it, <b>Machines</b> → <i>Reach this computer from anywhere</i>. It dials out to the grid and keeps that connection open, so no port or router needs opening. Your phone and other computers, signed in as you, list it and open it with one tap. The agents run on it, with its files.',
-      figure: `<figure class="doc-shot doc-diagram" aria-label="Your phone and laptop open your desktop through grid.trywisp.dev; the desktop holds a tunnel open to the grid">
-  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
-    <rect x="20" y="40" width="200" height="66" rx="14" class="box"/>
-    <text x="120" y="70" text-anchor="middle" class="name">Phone</text>
-    <text x="120" y="92" text-anchor="middle" class="sub">wisp app</text>
-    <rect x="20" y="194" width="200" height="66" rx="14" class="box"/>
-    <text x="120" y="224" text-anchor="middle" class="name">Laptop</text>
-    <text x="120" y="246" text-anchor="middle" class="sub">Machines</text>
-    <path d="M220 73 C 280 73, 300 150, 350 150 M220 227 C 280 227, 300 150, 350 150" class="link"/>
-    <path d="M338 142 L352 150 L338 158" class="link"/>
-    <rect x="360" y="90" width="240" height="120" rx="16" class="zone"/>
-    <text x="480" y="140" text-anchor="middle" class="name">grid.trywisp.dev</text>
-    <text x="480" y="168" text-anchor="middle" class="sub">checks it’s you</text>
-    <path d="M600 150 H 720" class="link"/>
-    <text x="660" y="138" text-anchor="middle" class="sub">tunnel</text>
-    <rect x="730" y="70" width="210" height="160" rx="14" class="box"/>
-    <text x="835" y="114" text-anchor="middle" class="name">Your desktop</text>
-    <text x="835" y="144" text-anchor="middle" class="mono">Claude Code · Codex</text>
-    <text x="835" y="176" text-anchor="middle" class="sub">dials out, no open port</text>
-    <text x="835" y="204" text-anchor="middle" class="sub">your files stay here</text>
-  </svg>
-  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
-    <rect x="20" y="10" width="140" height="62" rx="12" class="box"/>
-    <text x="90" y="47" text-anchor="middle" class="name">Phone</text>
-    <rect x="180" y="10" width="140" height="62" rx="12" class="box"/>
-    <text x="250" y="47" text-anchor="middle" class="name">Laptop</text>
-    <path d="M90 72 C 90 110, 170 100, 170 130 M250 72 C 250 110, 170 100, 170 130" class="link"/>
-    <path d="M162 118 L170 132 L178 118" class="link"/>
-    <rect x="50" y="140" width="240" height="90" rx="16" class="zone"/>
-    <text x="170" y="180" text-anchor="middle" class="name">grid.trywisp.dev</text>
-    <text x="170" y="206" text-anchor="middle" class="sub">checks it’s you</text>
-    <path d="M170 230 V 290" class="link"/>
-    <text x="190" y="266" class="sub">tunnel</text>
-    <rect x="40" y="296" width="260" height="160" rx="14" class="box"/>
-    <text x="170" y="336" text-anchor="middle" class="name">Your desktop</text>
-    <text x="170" y="368" text-anchor="middle" class="mono">Claude Code · Codex</text>
-    <text x="170" y="400" text-anchor="middle" class="sub">dials out, no open port</text>
-    <text x="170" y="428" text-anchor="middle" class="sub">your files stay here</text>
-  </svg>
-</figure>`,
+      figure: fig.reach,
       body: `
     <section>
       <h2 id="add">1. Add the computer</h2>
@@ -1026,6 +907,7 @@ tmux attach -t agent`)}
 
     {
       slug: 'claude-code-remote-control-alternative',
+      topic: 'machines',
       cloud: true,
       title: 'Claude Code Remote Control alternative for every agent — wisp',
       h1: 'Beyond Claude Code Remote Control',
@@ -1053,6 +935,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
 
     <section>
       <h2 id="wisp">The same, for every agent: wisp</h2>
+      ${fig.remote}
       <ol class="doc-steps">
         <li><b>Run wisp on each computer</b> (<code>npx wisp-agents</code>) and open <b>Machines</b> → <i>Reach this computer from anywhere</i>. It dials out to <a href="https://grid.trywisp.dev">wisp Cloud</a>, so there’s no port, SSH or Tailscale to set up.</li>
         <li><b>Open any of them from your phone</b>: the wisp Android app, or grid.trywisp.dev in any phone’s browser. Start a task with Claude Code, Codex, Cursor, opencode, Grok, Antigravity or Copilot, in its own worktree.</li>
@@ -1087,6 +970,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
 
     {
       slug: 'use-codex-from-your-phone',
+      topic: 'machines',
       cloud: true,
       title: 'Use OpenAI Codex from your phone, Android or iPhone — wisp',
       h1: 'Use Codex from your phone',
@@ -1124,6 +1008,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
 
     <section>
       <h2 id="phone">What you do from the phone</h2>
+      ${fig.codexPhone}
       <ul class="doc-list">
         <li><b>Start tasks</b> with Codex, or send the same one to Codex and Claude Code and compare.</li>
         <li><b>Answer it.</b> When Codex asks or a permission blocks it, the card shows the question with a button per answer; ntfy or Telegram can notify you.</li>
@@ -1142,6 +1027,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
 
     {
       slug: 'remote-coding-agent-apps-compared',
+      topic: 'machines',
       cloud: true,
       title: 'Happy, Grass, CloudCLI and wisp: remote coding agents compared',
       h1: 'Remote coding agent apps compared',
@@ -1193,55 +1079,13 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
 
     {
       slug: 'self-host-wisp-grid',
+      topic: 'cloud',
       title: 'Self-host coding agents for your team with wisp Grid',
       h1: 'Run your own wisp Grid',
       card: 'One small Linux server, a GitHub or Google sign-in, and every person gets their own sandboxed wisp.',
       description: 'Run wisp Grid, the server behind wisp Cloud (MIT), on one small Linux server: each person signs in with GitHub or Google and gets their own sandboxed wisp.',
       lede: 'wisp Grid is what runs <a href="https://grid.trywisp.dev">wisp Cloud</a>, and it’s in the wisp repo (MIT). Put it on one small Linux server and everyone you let in gets their own wisp at <code>name.wisp.example.com</code>: signed in with GitHub, Google or your company’s OpenID Connect, sandboxed from each other, asleep when idle. grid.trywisp.dev runs on a Hetzner CAX21 (4 Arm vCPUs, 8 GB) for about €12 a month, which is enough for 4 people with agents running at once.',
-      figure: `<figure class="doc-shot doc-diagram" aria-label="People sign in at your grid, and each gets their own sandboxed wisp on one server">
-  <svg class="wide" viewBox="0 0 960 300" aria-hidden="true">
-    <rect x="20" y="60" width="200" height="74" rx="14" class="box"/>
-    <text x="120" y="93" text-anchor="middle" class="name">You</text>
-    <text x="120" y="117" text-anchor="middle" class="sub">GitHub · Google · SSO</text>
-    <rect x="20" y="166" width="200" height="74" rx="14" class="box"/>
-    <text x="120" y="199" text-anchor="middle" class="name">Your team</text>
-    <text x="120" y="223" text-anchor="middle" class="sub">desktop · phone · browser</text>
-    <path d="M220 97 C 290 97, 300 150, 350 150 M220 203 C 290 203, 300 150, 350 150" class="link"/>
-    <path d="M338 142 L352 150 L338 158" class="link"/>
-    <rect x="360" y="20" width="580" height="260" rx="22" class="zone"/>
-    <text x="650" y="52" text-anchor="middle" class="sub">one Linux server · wisp grid serve</text>
-    <rect x="390" y="80" width="160" height="170" rx="14" class="box"/>
-    <text x="470" y="112" text-anchor="middle" class="name">ada</text>
-    <text x="470" y="140" text-anchor="middle" class="sub">sandbox</text>
-    <text x="470" y="178" text-anchor="middle" class="mono">her logins</text>
-    <rect x="570" y="80" width="160" height="170" rx="14" class="box"/>
-    <text x="650" y="112" text-anchor="middle" class="name">bob</text>
-    <text x="650" y="140" text-anchor="middle" class="sub">sandbox</text>
-    <text x="650" y="178" text-anchor="middle" class="mono">his logins</text>
-    <rect x="750" y="80" width="160" height="170" rx="14" class="box"/>
-    <text x="830" y="112" text-anchor="middle" class="name">cy</text>
-    <text x="830" y="140" text-anchor="middle" class="sub">asleep</text>
-    <text x="830" y="178" text-anchor="middle" class="mono">wakes on use</text>
-  </svg>
-  <svg class="tall" viewBox="0 0 340 470" aria-hidden="true">
-    <rect x="10" y="10" width="150" height="70" rx="14" class="box"/>
-    <text x="85" y="42" text-anchor="middle" class="name">You</text>
-    <text x="85" y="64" text-anchor="middle" class="sub">GitHub · Google</text>
-    <rect x="180" y="10" width="150" height="70" rx="14" class="box"/>
-    <text x="255" y="42" text-anchor="middle" class="name">Your team</text>
-    <text x="255" y="64" text-anchor="middle" class="sub">any device</text>
-    <path d="M85 80 C 85 120, 170 110, 170 140 M255 80 C 255 120, 170 110, 170 140" class="link"/>
-    <path d="M162 128 L170 142 L178 128" class="link"/>
-    <rect x="20" y="150" width="300" height="306" rx="20" class="zone"/>
-    <text x="170" y="180" text-anchor="middle" class="sub">one Linux server</text>
-    <rect x="45" y="200" width="250" height="64" rx="12" class="box"/>
-    <text x="170" y="238" text-anchor="middle" class="name">ada · sandbox</text>
-    <rect x="45" y="280" width="250" height="64" rx="12" class="box"/>
-    <text x="170" y="318" text-anchor="middle" class="name">bob · sandbox</text>
-    <rect x="45" y="360" width="250" height="64" rx="12" class="box"/>
-    <text x="170" y="398" text-anchor="middle" class="name">cy · asleep</text>
-  </svg>
-</figure>`,
+      figure: fig.grid,
       body: `
     <section>
       <h2 id="try">Try it on your computer first</h2>
@@ -1295,6 +1139,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
 
     {
       slug: 'customize-wisp-with-spells',
+      topic: 'yours',
       title: 'Add buttons, panels and blocks to wisp by asking — spells',
       h1: 'Change wisp itself, by asking: spells',
       card: 'A floating button for your PRs, a stats panel, a block for agents: ask, try it, keep it.',
@@ -1304,19 +1149,6 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
       body: `
     <p class="muted">Above: a working copy. Pick an ask and the little wisp window changes the way the app does; switch a spell off and it changes back. <code>{ }</code> shows the spell file.</p>
 
-    <nav class="toc" aria-label="On this page"><p class="eyebrow">On this page</p><ul>
-      <li><a href="#cast">Cast one</a></li>
-      <li><a href="#what">What a spell can change</a></li>
-      <li><a href="#anatomy">What’s in a spell file</a></li>
-      <li><a href="#places">Where things can go</a></li>
-      <li><a href="#actions">What buttons can do</a></li>
-      <li><a href="#data">Data and scripts</a></li>
-      <li><a href="#agents">Blocks, prompt rules and hooks</a></li>
-      <li><a href="#safe">Why it’s safe to keep one</a></li>
-      <li><a href="#share">Share it with your team</a></li>
-      <li><a href="#cli">From the terminal</a></li>
-      <li><a href="#trouble">When something looks wrong</a></li>
-    </ul></nav>
 
     <section>
       <h2 id="cast">Cast one</h2>
@@ -1469,6 +1301,7 @@ wisp spell off --all`)}
 
     {
       slug: 'use-work-and-personal-claude-code-accounts',
+      topic: 'yours',
       title: 'Use your work and personal Claude Code accounts in one place — wisp',
       h1: 'Use your work and personal Claude Code accounts',
       card: 'Your work and personal Claude Code or Codex accounts in one app: pick one per task, and wisp asks when one runs out.',
@@ -1484,7 +1317,8 @@ CLAUDE_CONFIG_DIR=~/.claude-personal claude auth login
 # then run each session on the account you mean
 claude                                        # your usual account
 CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
-      <p>Codex works the same way with <code>CODEX_HOME</code>. Things to know: the second folder starts empty, so your settings, skills, MCP servers and past sessions aren’t there, and you have to remember which shell runs which account.</p>
+      <p>Codex works the same way with <code>CODEX_HOME</code>.</p>
+      <aside class="g-note"><b>Good to know</b><p>The second folder starts empty, so your settings, skills, MCP servers and past sessions aren’t there. And you have to remember which shell runs which account.</p></aside>
     </section>
 
     <section>
@@ -1499,6 +1333,7 @@ CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
 
     <section>
       <h2 id="limits">When an account reaches its limit</h2>
+      ${fig.accounts}
       <p>Each account keeps its own usage limits, and wisp doesn’t combine them. When one runs out, the task stops and asks: <b>wait</b> until the reset (wisp sends the follow-up then), <b>continue</b> on another of your accounts in the same conversation, <b>hand</b> the task to another agent like <a href="/agents/codex.html">Codex</a>, or get <b>extra usage</b> from the provider. Moving a conversation between a work and a personal account says so first, since its code goes with it.</p>
       <p>wisp never switches accounts on its own, and tasks that run without you (crew members, schedules, subagents) stay on the account you picked.</p>
     </section>
@@ -1519,12 +1354,13 @@ CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
 
     {
       slug: 'share-crew-members',
+      topic: 'yours',
       title: 'Share an AI coding agent with your team: wisp crew members',
       h1: 'Share a crew member with your team',
       card: 'A CI watcher or PR reviewer you tuned, as a file or a link: they import it, pick a project, and it starts paused.',
       description: 'Share a wisp crew member, a long-lived coding agent with a brief, schedule and skills, as a .crew.json file, a secret gist or a spell. Teammates import it in one step.',
       lede: 'A crew member in wisp is a long-lived agent with a name, a brief, a schedule and its own skills: a CI watcher, a PR reviewer. Once one works well, share it. <b>Share…</b> gives a <code>.crew.json</code> file, a secret gist or a spell, and your teammate imports it with a review of what it does. It arrives paused, in a project they pick.',
-      figure: `<figure class="doc-shot"><pre data-lang="json"><code>${esc(JSON.stringify({ wispCrew: 1, members: [{ key: TEMPLATES[1].key, name: TEMPLATES[1].name, role: TEMPLATES[1].role, avatar: TEMPLATES[1].avatar, brief: TEMPLATES[1].brief, cron: TEMPLATES[1].cron, on: [], mode: 'plan', kit: [{ kind: 'skill', name: 'read-ci-logs', description: 'When a CI run failed', body: '1. gh run view <id> --log-failed\n2. …' }] }] }, null, 2))}</code></pre><figcaption>scout.crew.json: who the member is. Never a folder, a computer or what they did.</figcaption></figure>`,
+      figure: fig.crew,
       body: `
     <section>
       <h2 id="share">Share one</h2>
@@ -1533,6 +1369,8 @@ CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
         <li>Choose what goes: their skills and instructions (on), their notebook (off: it holds what they learned about your code), and the crew members they delegate to.</li>
         <li><b>Copy</b> it for a chat, <b>Download</b> the <code>.crew.json</code>, or <b>Create a gist</b>: a secret gist on your GitHub account, after you confirm. <b>As a spell</b> saves a spell that brings them.</li>
       </ol>
+      <p>What goes is who the member is, never where they worked:</p>
+      ${`<figure><pre data-lang="json"><code>${esc(JSON.stringify({ wispCrew: 1, members: [{ key: TEMPLATES[1].key, name: TEMPLATES[1].name, role: TEMPLATES[1].role, avatar: TEMPLATES[1].avatar, brief: TEMPLATES[1].brief, cron: TEMPLATES[1].cron, on: [], mode: 'plan', kit: [{ kind: 'skill', name: 'read-ci-logs', description: 'When a CI run failed', body: '1. gh run view <id> --log-failed\n2. …' }] }] }, null, 2))}</code></pre><figcaption>scout.crew.json: who the member is. Never a folder, a computer or what they did.</figcaption></figure>`}
       <p>Before anything leaves, wisp scans the brief, notebook and skills for API keys, tokens and private keys, and won’t share one it finds; it tells you the line.</p>
       ${sh('wisp crew export scout > scout.crew.json\nwisp crew export scout --team --gist      # with their delegates, as a secret gist')}
     </section>

@@ -26,3 +26,19 @@ live demos and a layout that tells a story, not a generic landing page. It still
 - Every way in (npx, npm, curl, brew, the app) is offered at the top and the bottom, kept in step.
 - Check the page in real Chrome at desktop and phone widths, light and dark, before calling it done,
   and read the install text you changed.
+
+## Guides (`scripts/guides.mjs`, `docs/guide.css`, `docs/guide.js`)
+
+- **A long read, not a landing page.** Text sits in one 680px column at 19px (18px on phones);
+  screenshots step out to 1080px, tables and figures to 920px. The contents sit in the left margin
+  from 1320px and are generated from the `h2`s: don't hand-write a table of contents.
+- **Open with the answer.** Kicker (topic), h1, the `card` line as the subtitle, the byline, the hero
+  (demo, motion figure or screenshot), then the `lede` as the first paragraph. Questions are
+  `<details>`, and every guide ends with *Try it* and *Keep reading*.
+- **Asides, not paragraphs of caveats.** "Things to know" goes in `<aside class="g-note">`; one
+  sentence worth remembering can be a `<p class="g-pull">`. No coloured stripes on either.
+- **Motion explains, it doesn't decorate.** A motion figure (`scripts/figures.mjs`) shows how one
+  thing works in 4–8 steps with a sentence per step. It plays only on screen, has pause and step
+  dots, moves only `transform` and `opacity`, and shows its last step under reduced motion or no JS.
+  Parts that take turns share a `slot` or `swap`, so nothing leaves a hole when it goes.
+- `guide.css` and `guide.js` are versioned by their content in `site.mjs`: no `?v=` to bump.
