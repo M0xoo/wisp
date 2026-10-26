@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-26
+
 ### Added
 
 - **Ask an agent to add a connector.** Ask a task to *add PostHog* or *connect Linear* and the agent adds it to Settings → Connectors itself. Three new tools make this possible: `wisp_connectors` lists your connectors, `wisp_connector_add` adds one, and `wisp_connector_signin` asks you to finish. If the connector needs an account, a **Sign in** card appears in the task; if it needs a key, the card has a box to type it, and the value goes straight to wisp, never through the agent. The card closes by itself once the connector works, and the agent carries on. A connector that runs a command on your computer is added only after you say yes. Subagents and crew members' jobs can't add connectors.
