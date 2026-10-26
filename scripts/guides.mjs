@@ -438,7 +438,7 @@ git worktree remove ../app-auth`)}
 
     <section>
       <h2 id="how-many">How many at once?</h2>
-      <p>The limits are your Claude plan’s usage limits and your machine. When Claude Code says it’s at its limit, wisp’s <b>Auto</b> harness rests it until the limit resets and moves the next tasks to another agent you have, like <a href="/agents/codex.html">Codex</a>. For more CPU, <a href="/guides/run-coding-agents-on-multiple-machines.html">run some of the sessions on another machine</a>.</p>
+      <p>The limits are your Claude plan’s usage limits and your machine. When Claude Code says it’s at its limit, wisp’s <b>Auto</b> harness rests it until the limit resets and moves the next tasks to another agent you have, like <a href="/agents/codex.html">Codex</a>. Your work and personal plans each keep their own limits, and wisp doesn’t combine them; you <a href="/guides/use-work-and-personal-claude-code-accounts.html">pick which account each task runs on</a>. For more CPU, <a href="/guides/run-coding-agents-on-multiple-machines.html">run some of the sessions on another machine</a>.</p>
     </section>
 `,
       faq: [
@@ -1398,6 +1398,56 @@ wisp spell off --all`)}
         ['What if I ask for something spells can’t do?', 'The agent says so in its report and does the closest thing spells can. Spells can only use the slots, parts, actions and data sources in wisp’s reference, so they can’t reach further than that.'],
       ],
       related: ['run-coding-agents-in-the-background', 'multi-agent-coding', 'run-claude-code-and-codex-in-parallel'],
+    },
+
+    {
+      slug: 'use-work-and-personal-claude-code-accounts',
+      title: 'Use your work and personal Claude Code accounts in one place — wisp',
+      h1: 'Use your work and personal Claude Code accounts',
+      card: 'Your work and personal Claude Code or Codex accounts in one app: pick one per task, and wisp asks when one runs out.',
+      description: 'Sign in to a second Claude Code or Codex account, say your own plan and your employer’s, and pick which one each task runs on. Each keeps its own limits; wisp never switches on its own.',
+      lede: 'Claude Code keeps its login in one folder, and <code>CLAUDE_CONFIG_DIR</code> points it at another, so a second account is a second folder. wisp sets that up for you: add the account in Settings → Agents, pick it per task, and when one reaches its limit the task asks you what to do.',
+      shot: ['limit', 'A wisp task whose Work account reached its usage limit: Wait until the reset, Continue on Personal, Hand to Codex or Get extra usage'],
+      body: `
+    <section>
+      <h2 id="manual">The manual way</h2>
+      ${sh(`# a second login in a folder of its own
+CLAUDE_CONFIG_DIR=~/.claude-personal claude auth login
+
+# then run each session on the account you mean
+claude                                        # your usual account
+CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
+      <p>Codex works the same way with <code>CODEX_HOME</code>. Things to know: the second folder starts empty, so your settings, skills, MCP servers and past sessions aren’t there, and you have to remember which shell runs which account.</p>
+    </section>
+
+    <section>
+      <h2 id="with-wisp">With wisp</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp.</b> ${installButton()}</li>
+        <li><b>Add the account.</b> Settings → Agents → <b>Add another Claude account</b> (or Codex). Name it, say whether it’s personal or work, and sign in with the CLI’s own sign-in: a link and a code, no terminal. wisp never sees your password.</li>
+        <li><b>Everything but the login is shared.</b> The new account’s folder (<code>~/.wisp/accounts/claude/&lt;id&gt;</code>) links to your usual one for settings, skills, MCP servers and transcripts. The login stays separate.</li>
+        <li><b>Pick the account per task.</b> The runner picker has an <i>Account</i> row under Thinking, and the reply box can switch a task to the other account from its next follow-up. wisp remembers your pick per harness, and the task’s details say which account ran it.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="limits">When an account reaches its limit</h2>
+      <p>Each account keeps its own usage limits, and wisp doesn’t combine them. When one runs out, the task stops and asks: <b>wait</b> until the reset (wisp sends the follow-up then), <b>continue</b> on another of your accounts in the same conversation, <b>hand</b> the task to another agent like <a href="/agents/codex.html">Codex</a>, or get <b>extra usage</b> from the provider. Moving a conversation between a work and a personal account says so first, since its code goes with it.</p>
+      <p>wisp never switches accounts on its own, and tasks that run without you (crew members, schedules, subagents) stay on the account you picked.</p>
+    </section>
+
+    <section>
+      <h2 id="allowed">Which accounts to add</h2>
+      <p>Only accounts that are yours: your own plan, or a seat your employer gave you. Sharing a login with someone else is against Anthropic’s and OpenAI’s terms and can get the account closed. Before you use a work account on personal projects, or the other way round, check your employer’s rules. For heavy automated use, the providers ask you to use an API key, which wisp supports too.</p>
+    </section>
+`,
+      faq: [
+        ['Which agents can have more than one account?', 'Claude Code and Codex, the two whose login lives in one folder you can point elsewhere (CLAUDE_CONFIG_DIR, CODEX_HOME).'],
+        ['Does wisp switch to my other account when I hit a limit?', 'No. The task asks you: wait for the reset, continue on another of your accounts, hand it to another agent, or get extra usage from the provider.'],
+        ['Does the second account see my MCP servers and skills?', 'Yes. Its folder links to your usual one for everything except the login, and its settings file copies your MCP servers without who is signed in.'],
+        ['Can my team share one Claude account through wisp?', 'No. Each person signs in with their own account; Anthropic’s and OpenAI’s terms don’t allow sharing a login.'],
+      ],
+      related: ['run-multiple-claude-code-agents-in-parallel', 'claude-code-vs-codex', 'run-coding-agents-in-the-background'],
     },
 
     {
