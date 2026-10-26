@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Crew → Show fewer folds the list again.** On a phone the tap left the section hovered and focused, which kept every row shown; now it folds back to the compact list at once.
 - **The phone app's top bar lines up again.** Search, your avatar and the project filter are one row of matching 32px controls: search gets the same round outline as the avatar, and the filter pill is no longer a 44px lozenge sitting lower than the rest (each keeps its 44px touch area).
 
 ### Added
