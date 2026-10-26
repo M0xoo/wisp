@@ -116,6 +116,19 @@ test('/goal in a follow-up sets one on an idle task and goes after it; /goal dro
   await assert.rejects(api(`/sessions/${s.id}/goal`, {}, 'DELETE'), /no goal/);
 });
 
+test('/goal right after a turn lands, while its CLI is still on its way out, is still checked', async () => {
+  process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the run is still live when the goal is set
+  try {
+    const s = await api('/sessions', { prompt: 'look around', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+    await landed(s.id);
+    await api(`/sessions/${s.id}/reply`, { text: '/goal it is neat [met after 1]' });
+    const done = await landed(s.id);
+    assert.equal(done.goal.status, 'met');
+  } finally {
+    delete process.env.FAKE_LINGER;
+  }
+});
+
 test('a launch that is just /goal makes the condition the task; pause lands it after its round', async () => {
   const s = await api('/sessions', { prompt: '/goal the readme is clear', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
   assert.equal(s.goal.text, 'the readme is clear');
