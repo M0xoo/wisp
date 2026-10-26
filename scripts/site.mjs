@@ -9,7 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { guides } from './guides.mjs';
+import { FIGURES } from './figures.mjs';
 import { TEMPLATES } from '../web/js/crew-templates.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,6 +25,10 @@ const INDEX = fs.readFileSync(path.join(DOCS, 'index.html'), 'utf8');
 const CSS_V = INDEX.match(/style\.css\?v=(\d+)/)?.[1] || '1';
 const RELAY_V = INDEX.match(/relay\.js\?v=(\d+)/)?.[1] || '1';
 const SPELLS_V = INDEX.match(/spells\.js\?v=(\d+)/)?.[1] || '1';
+// The guides' own stylesheet and script, named by their content so a change reaches readers at once.
+const stamp = (f) => createHash('sha1').update(fs.readFileSync(path.join(DOCS, f))).digest('hex').slice(0, 8);
+const GUIDE_ASSETS = `<link rel="stylesheet" href="/guide.css?v=${stamp('guide.css')}" />
+  <script>document.documentElement.classList.add('js')</script>`;
 const POSTHOG = INDEX.match(/<script>\s*!function\(t,e\)[\s\S]*?<\/script>/)?.[0] || '';
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -261,7 +267,8 @@ const installButton = (cmd = 'npx wisp-agents') =>
 // path: site path ('/agents/codex.html'); crumbs: [[label, path], …] after Home.
 // scripts: extra <script> tags for the end of <body> (a guide's demo).
 // image: the social preview (Cloud pages get their own).
-function page({ path: p, title, description, crumbs = [], body, schema = [], noindex = false, scripts = '', image = '/assets/og.png' }) {
+// head: extra tags for <head>; main: the <main> class; trail: false hides the breadcrumb (it stays in the schema).
+function page({ path: p, title, description, crumbs = [], body, schema = [], noindex = false, scripts = '', image = '/assets/og.png', head = '', main = 'doc wrap', trail: showTrail = true }) {
   const url = `${SITE}${p}`;
   const trail = [['wisp', '/'], ...crumbs];
   const breadcrumb = {
@@ -299,7 +306,7 @@ ${noindex ? '  <meta name="robots" content="noindex" />' : `  <link rel="canonic
   <link rel="icon" href="/assets/favicon-48.png" type="image/png" sizes="48x48" />
   <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180" />
 ${graph.length ? `  <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph })}</script>\n` : ''}  <link rel="stylesheet" href="/style.css?v=${CSS_V}" />
-  ${POSTHOG}
+${head ? `  ${head}\n` : ''}  ${POSTHOG}
 </head>
 <body class="docpage">
   <header class="nav">
@@ -316,8 +323,8 @@ ${graph.length ? `  <script type="application/ld+json">${JSON.stringify({ '@cont
     </div>
   </header>
 
-  <main id="top" class="doc wrap">
-${crumbs.length ? `    <nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map(([name, at], i) => (i < trail.length - 1 ? `<li><a href="${at}">${esc(name)}</a></li>` : `<li aria-current="page">${esc(name)}</li>`)).join('')}</ol></nav>\n` : ''}${body}
+  <main id="top" class="${main}">
+${crumbs.length && showTrail ? `    <nav class="crumbs" aria-label="Breadcrumb"><ol>${trail.map(([name, at], i) => (i < trail.length - 1 ? `<li><a href="${at}">${esc(name)}</a></li>` : `<li aria-current="page">${esc(name)}</li>`)).join('')}</ol></nav>\n` : ''}${body}
   </main>
 
   <footer class="foot wrap">
@@ -488,7 +495,7 @@ function agentsIndex() {
 // ---------- guides ----------
 
 const sh = (code) => `<pre data-lang="sh"><code>${esc(code)}</code></pre>`;
-export const GUIDES = guides({ esc, sh, shot, installButton, agents: AGENTS });
+export const GUIDES = guides({ esc, sh, shot, installButton, agents: AGENTS, fig: FIGURES });
 const guideUrl = (g) => `/guides/${g.slug}.html`;
 // A guide's `demo`: a working copy of the feature in place of its screenshot (docs/relay.js, docs/spells.js).
 // A guide's `figure`: its own diagram (inline SVG) instead of a screenshot.
@@ -503,28 +510,79 @@ const DEMOS = {
   },
 };
 
+// The guides' sections on the index, in this order (each guide's `topic`).
+const TOPICS = [
+  ['agents', 'Agents side by side', 'Several agents on one repo, compared, as a team, or until the tests pass.'],
+  ['machines', 'Machines and phones', 'Your other computers over SSH or the grid, and your agents from your phone.'],
+  ['cloud', 'wisp Cloud', 'Agents that keep working with every lid shut, on our server or yours.'],
+  ['yours', 'Make it yours', 'Change wisp itself, bring a second account, share an agent with your team.'],
+];
+const plain = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/g, ' ');
+// Minutes to read the words (figures and code count a little).
+function readMinutes(g) {
+  const words = plain(`${g.lede} ${g.body} ${g.faq.flat().join(' ')}`).split(/\s+/).filter(Boolean).length;
+  return Math.max(2, Math.round(words / 230));
+}
+const readTime = (g) => `${readMinutes(g)} min read`;
+const longDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+const LINK_ICON = '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M6.8 9.2a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.7.7M9.2 6.8a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.7-.7"/></svg>';
+const guideCard = (r) => `<li><a href="${guideUrl(r)}"><span class="k">${esc(TOPICS.find(([k]) => k === r.topic)?.[1] || 'Guide')}</span><b>${esc(r.h1)}</b><p>${esc(r.card)}</p><span class="t">${readTime(r)}</span></a></li>`;
+
 function guidePage(g) {
   const related = g.related.map((r) => GUIDES.find((x) => x.slug === r));
+  const topic = TOPICS.find(([k]) => k === g.topic);
+  const updated = lastmod(['scripts/guides.mjs']);
+  // The contents: every h2 in the body, then the questions.
+  const toc = [...g.body.matchAll(/<h2 id="([^"]+)">([\s\S]*?)<\/h2>/g)].map(([, id, t]) => [id, plain(t).replace(/\s+/g, ' ').trim()]);
+  toc.push(['faq', 'Questions']);
+  const cta = g.cloud
+    ? `<a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-${esc(g.slug)}">Try wisp Cloud</a>${installButton()}`
+    : `${installButton()}<a class="btn" href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a>`;
   const body = `
-    <header class="doc-head">
-      <p class="eyebrow">Guide</p>
-      <h1>${esc(g.h1)}</h1>
-      <p class="doc-lede">${g.lede}</p>
-      ${g.cloud ? `<div class="doc-cta"><a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-${esc(g.slug)}">Try wisp Cloud</a>${installButton()}</div>
-      <p class="fine muted">wisp Cloud: free during the preview, sign in with GitHub · or run wisp on your own computers, MIT</p>` : `<div class="doc-cta">${installButton()}<a class="btn" href="${REPO}" target="_blank" rel="noopener">Source on GitHub</a></div>
-      <p class="fine muted">Free and open source · Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build, Copilot CLI · macOS, Linux, Windows (beta) · Node 20+</p>`}
-    </header>
+    <div class="g-progress" aria-hidden="true"></div>
+    <article class="g-art">
+      <header class="g-head">
+        <p class="g-kicker"><span><a href="/guides/">Guides</a></span>${topic ? `<span>${esc(topic[1])}</span>` : ''}</p>
+        <h1>${esc(g.h1)}</h1>
+        <p class="g-dek">${esc(g.card)}</p>
+        <div class="g-byline">
+          <span class="g-avatar" aria-hidden="true"><span class="mark"></span></span>
+          <div><b>wisp guides</b><span>Updated <time datetime="${updated}">${longDate(updated)}</time> · ${readTime(g)}</span></div>
+          <span class="grow"></span>
+          <button class="g-share" type="button" data-link aria-label="Copy a link to this guide" title="Copy a link to this guide">${LINK_ICON}<span>Copy link</span></button>
+        </div>
+      </header>
 
-    ${DEMOS[g.demo]?.html || g.figure || shot(...g.shot)}
+      <div class="g-hero">${DEMOS[g.demo]?.html || g.figure || shot(...g.shot)}</div>
+
+      <div class="g-body">
+        <aside class="g-toc"><nav aria-label="On this page"><p>On this page</p><ol>${toc.map(([id, t]) => `<li><a href="#${id}">${esc(t)}</a></li>`).join('')}</ol></nav></aside>
+        <section class="g-intro">
+          <p class="g-lede">${g.lede}</p>
+          <div class="g-try-line">${g.cloud ? '<a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="guide-intro">Try wisp Cloud</a><span>Free during the preview</span>' : `${installButton()}<span>Free and open source · macOS, Linux, Windows (beta)</span>`}</div>
+        </section>
 ${g.body}
-    <section class="faq-doc">
-      <h2 id="faq">Questions</h2>
-      <dl class="doc-dl">${g.faq.map(([q, a]) => `<div><dt>${esc(q)}</dt><dd>${esc(a)}</dd></div>`).join('')}</dl>
-    </section>
+        <section class="g-faq">
+          <h2 id="faq">Questions</h2>
+          <div>${g.faq.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</div>
+        </section>
 
-    <section>
-      <h2 id="related">Related guides</h2>
-      <ul class="guide-cards">${related.map((r) => `<li><a href="${guideUrl(r)}"><b>${esc(r.h1)}</b><span class="muted">${esc(r.card)}</span></a></li>`).join('')}</ul>
+        <section class="g-try">
+          <div>
+            <h2 id="try-it">${g.cloud ? 'Try it with the lid shut' : 'Try it on your own repo'}</h2>
+            <p>${g.cloud ? 'Sign in with GitHub and give your own cloud wisp a task. Or run wisp on your own computers: same app, MIT.' : 'One command starts wisp in this folder. It runs the agent CLIs you already have, signed in as you.'}</p>
+            <div class="doc-cta">${cta}</div>
+            <p class="fine">Claude Code, Codex, Cursor CLI, opencode, Antigravity CLI, Grok Build, Copilot CLI · Node 20+</p>
+          </div>
+        </section>
+      </div>
+    </article>
+
+    <section class="g-more" aria-labelledby="related">
+      <div>
+        <h2 id="related">Keep reading</h2>
+        <ul class="g-cards">${related.map(guideCard).join('')}</ul>
+      </div>
     </section>
 `;
   return page({
@@ -532,8 +590,11 @@ ${g.body}
     title: g.title,
     description: g.description,
     crumbs: [['Guides', '/guides/'], [g.h1, guideUrl(g)]],
+    trail: false,
+    main: 'doc guide',
+    head: GUIDE_ASSETS,
     body,
-    scripts: DEMOS[g.demo]?.script || '',
+    scripts: `${DEMOS[g.demo]?.script || ''}<script src="/guide.js?v=${stamp('guide.js')}" defer></script>`,
     image: g.cloud ? '/assets/og-cloud.png' : undefined,
     schema: [
       {
@@ -543,7 +604,8 @@ ${g.body}
         url: `${SITE}${guideUrl(g)}`,
         image: `${SITE}/assets/${g.cloud ? 'og-cloud' : 'og'}.png`,
         inLanguage: 'en',
-        dateModified: lastmod(['scripts/guides.mjs']),
+        dateModified: updated,
+        timeRequired: `PT${readMinutes(g)}M`,
         author: { '@type': 'Person', name: 'M0xoo', url: 'https://github.com/M0xoo' },
         about: APP,
         isPartOf: { '@id': `${SITE}/#website` },
@@ -557,22 +619,36 @@ ${g.body}
 }
 
 function guidesIndex() {
+  const lead = GUIDES.find((g) => g.slug === 'run-claude-code-and-codex-in-parallel');
   const body = `
-    <header class="doc-head">
-      <p class="eyebrow">Guides</p>
-      <h1>Run coding agents in parallel, anywhere</h1>
-      <p class="doc-lede">How to run Claude Code, Codex and other coding agents side by side on one repo, on several machines, as a team, and in the background. Each guide shows the manual way with plain <code>git</code> and <code>ssh</code>, then how wisp does it.</p>
-      <div class="doc-cta">${installButton()}</div>
-    </header>
+    <article class="g-art">
+      <header class="g-head">
+        <p class="g-kicker"><span>Guides</span><span>${GUIDES.length} guides</span></p>
+        <h1>Run coding agents in parallel, anywhere</h1>
+        <p class="g-dek">Claude Code, Codex and the rest side by side on one repo, on several machines, as a team and in the background. Each guide shows the manual way with plain <code>git</code> and <code>ssh</code> first, then how wisp does it.</p>
+      </header>
+      <div class="g-hero">
+        <a class="g-feature" href="${guideUrl(lead)}">
+          <div><span class="g-kicker"><span>Start here</span><span>${readTime(lead)}</span></span><b>${esc(lead.h1)}</b><p>${esc(lead.card)}</p><span class="t">Read the guide →</span></div>
+          ${shot(...lead.shot)}
+        </a>
+      </div>
+    </article>
+${TOPICS.map(([k, name, about]) => `
+    <section class="g-more g-topic" aria-labelledby="t-${k}">
+      <div>
+        <h2 id="t-${k}">${esc(name)} <small>${GUIDES.filter((g) => g.topic === k).length}</small></h2>
+        <p>${esc(about)}</p>
+        <ul class="g-cards">${GUIDES.filter((g) => g.topic === k && g !== lead).map(guideCard).join('')}</ul>
+      </div>
+    </section>`).join('')}
 
-    <ul class="guide-cards">${GUIDES.map((g) => `
-      <li><a href="${guideUrl(g)}"><b>${esc(g.h1)}</b><span class="muted">${esc(g.card)}</span><span class="agent-more">Read the guide →</span></a></li>`).join('')}
-    </ul>
-
-    <section>
-      <h2 id="agents">By agent</h2>
-      <p>How wisp runs each CLI: the flags behind each permission mode, how it asks you questions, and the take-over command.</p>
-      <ul class="agent-grid">${AGENTS.map((x) => `<li><a href="/agents/${x.slug}.html">${logo(x)}<span>${esc(x.name)}</span></a></li>`).join('')}</ul>
+    <section class="g-more g-topic" aria-labelledby="agents">
+      <div>
+        <h2 id="agents">By agent</h2>
+        <p>How wisp runs each CLI: the flags behind each permission mode, how it asks you questions, and the take-over command.</p>
+        <ul class="agent-grid">${AGENTS.map((x) => `<li><a href="/agents/${x.slug}.html">${logo(x)}<span>${esc(x.name)}</span></a></li>`).join('')}</ul>
+      </div>
     </section>
 `;
   return page({
@@ -580,6 +656,9 @@ function guidesIndex() {
     title: 'Guides: run Claude Code, Codex and other coding agents in parallel — wisp',
     description: 'Guides to running coding agents in parallel: Claude Code and Codex side by side, several Claude Code sessions on one repo, agents on multiple machines over SSH, multi-agent teams and background runs.',
     crumbs: [['Guides', '/guides/']],
+    trail: false,
+    main: 'doc guide g-index',
+    head: GUIDE_ASSETS,
     body,
     schema: [{
       '@type': 'ItemList',
