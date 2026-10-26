@@ -284,6 +284,8 @@ export async function runAction(spell, action, ctx = {}) {
         return m.done(need().id);
       case 'archive':
         return m.archive(need().id);
+      case 'forLater':
+        return m.forLater(need().id);
       case 'exec': {
         const command = fill(v);
         if (!(await confirmExec(spell, command))) return;

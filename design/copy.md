@@ -22,6 +22,7 @@ Use these, everywhere in the page, the app, the site and the CHANGELOG:
 | spell | plugin, theme, mod |
 | *Crew*, crew member, *job*, spirit (its avatar) | agents, assistants, bots (an agent is the harness running a task) |
 | Settings → *Section* → *Row* | the config, preferences |
+| *For later* (the list section), *Save for later* / *Unsave* (the action, everywhere; toasts *Saved for later* / *Unsaved*) | Bookmark, Pin, Park, Read later, Remove from For later |
 | *scheduled follow-up*, *scheduled task*, *reminder*; *Scheduled* (the list section), *Coming up* (split home) | wake-up, resume, timer (fine in code and in the agent's tool) |
 
 When you rename something, change every place it shows (menus, palette, settings, tooltips,

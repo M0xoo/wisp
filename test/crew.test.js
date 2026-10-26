@@ -622,3 +622,36 @@ test('a member starts when a task finishes or is marked done, in its project, ab
   await api(`/crew/${vee.id}`, { on: [] }, 'PATCH');
   assert.equal((await api('/triggers')).filter((t) => t.crew === vee.id).length, 0);
 });
+
+test('a check-in worth reading but not urgent is filed in For later: unread, nobody pinged, forLater beats quiet', async () => {
+  const bo = await api('/crew', { name: 'Bo', role: 'Digest', brief: 'Send a digest. CREWLATER', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  const { session } = await api(`/crew/${bo.id}/checkin`, {});
+  const done = await ended(session.id);
+  assert.equal(done.state, 'review');
+  assert.equal(done.archived, undefined, 'not archived like a quiet one');
+  assert.equal(done.unread, true, 'still bold in For later');
+  assert.equal(done.forLater.by, 'crew');
+  const sum = (await api('/sessions')).find((x) => x.id === session.id);
+  assert.equal(sum.forLater.by, 'crew');
+  const m = await until(async () => {
+    const x = await api(`/crew/${bo.id}`);
+    return x.log.length && x;
+  });
+  assert.equal(m.log[0].forLater, true);
+  assert.ok(!m.log[0].quiet);
+  assert.match(crewNote(m, { job: 'checkin' }), /forLater: true when you found something worth reading/);
+  assert.match(crewNote(m, { job: 'task' }), /forLater: only for check-ins/);
+  // A follow-up on it is new work: it leaves For later.
+  await api(`/sessions/${session.id}/reply`, { text: 'and the weekend?' });
+  const again = await until(async () => {
+    const x = await ended(session.id);
+    return x.turns.length === 2 && x;
+  });
+  assert.equal(again.forLater, undefined);
+  assert.equal(again.state, 'review');
+});
+
+test('takeCrewBlock keeps forLater', () => {
+  const p = { blocks: [{ type: 'hero', title: 'Weekly digest' }, { type: 'crew', forLater: true }] };
+  assert.deepEqual(takeCrewBlock(p), { remember: [], forLater: true });
+});

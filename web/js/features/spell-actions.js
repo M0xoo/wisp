@@ -7,7 +7,7 @@ import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { toast } from '../ui/toast.js';
-import { setArchived, toggleDone } from './actions.js';
+import { setArchived, setForLater, toggleDone } from './actions.js';
 import { recipeParams, runRecipe } from './automations.js';
 import { sendReply } from './composer.js';
 import { shipDialog } from './ship.js';
@@ -51,6 +51,7 @@ export function recipe(name) {
 export const ship = (id) => shipDialog(id);
 export const done = (id) => toggleDone(id);
 export const archive = (id) => setArchived(id, true);
+export const forLater = (id) => setForLater(id, true);
 
 export async function exec(id, command) {
   const out = await api(`/sessions/${id}/exec`, { method: 'POST', body: { command, key: `spell:${command}` } });

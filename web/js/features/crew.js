@@ -14,7 +14,8 @@ import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { fmtDuration } from '../blocks.js';
-import { launch, load, MOBILE, S, save } from '../core/state.js';
+import { isForLater, launch, load, MOBILE, S, save } from '../core/state.js';
+import { canSaveForLater, setForLater } from './actions.js';
 import { overlay } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { ask } from '../ui/confirm.js';
@@ -79,7 +80,7 @@ export function memberState(m) {
   const asks = jobs.some((s) => s.state === 'waiting');
   const sent = pendingOf(m);
   const live = [...jobs.filter((s) => s.state === 'running'), ...sent];
-  const unread = jobs.filter((s) => s.state === 'review' && s.unread && !s.archived).length;
+  const unread = jobs.filter((s) => s.state === 'review' && s.unread && !s.archived && !isForLater(s)).length; // saved for later: not a ping
   return { jobs, sent, asks, live, unread, mood: asks ? 'asks' : live.length ? 'live' : m.paused ? 'sleep' : 'idle' };
 }
 
@@ -133,7 +134,8 @@ export function pinJob(id) {
 // its thread.
 function memberJobs(m, st, max = JOBS_MAX) {
   const rank = (s) => (s.pending || s.state === 'running' ? 1 : s.state === 'waiting' ? 0 : s.state === 'review' && s.unread ? 2 : 3);
-  const list = [...st.sent, ...st.jobs.filter((s) => (!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id))];
+  // Saved for later: its card is in that section instead (feed.js groups).
+  const list = [...st.sent, ...st.jobs.filter((s) => !isForLater(s) && ((!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id)))];
   list.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   const open = S.crewOpen === m.id;
   const keep = list.filter((s, i) => i < max || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));
@@ -161,7 +163,7 @@ function statusLine(m, st) {
   const ask = st.jobs.find((s) => s.state === 'waiting');
   if (ask) return { cls: 'asks', text: `Asking you${ask.question ? `: ${ask.question}` : ''}` };
   if (st.live.length) return { cls: 'live', text: busyLine(st.live) };
-  const report = st.jobs.filter((s) => s.state === 'review' && s.unread && !s.archived).sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  const report = st.jobs.filter((s) => s.state === 'review' && s.unread && !s.archived && !isForLater(s)).sort((a, b) => b.updatedAt - a.updatedAt)[0];
   if (report) return { cls: 'report', text: `Reported: ${report.title}` };
   if (m.changed && m.paused) return { cls: '', text: m.changed.from ? 'Paused: their spell changed' : 'New from a spell: review to start' };
   if (m.queue?.length) return { cls: '', text: `${m.queue.length} waiting` };
@@ -380,7 +382,8 @@ export function closeMember() {
 export function crewBack() {
   if (!S.crewOpen || !isSplit()) return false;
   const open = splitOpen();
-  if (open && S.sessions.get(open)?.crew?.id === S.crewOpen) {
+  // A job opened from For later goes back to the list, where it came from.
+  if (open && S.sessions.get(open)?.crew?.id === S.crewOpen && !isForLater(S.sessions.get(open))) {
     openMember(S.crewOpen, { entry: open });
     return true;
   }
@@ -667,6 +670,7 @@ function jobHtml(m, s, { follow = false } = {}) {
           <div class="cv-acts">
             <button class="ghost xs" data-open="${esc(s.id)}">${icon('expand')}Open job</button>
             ${live || asks ? '' : `<button class="ghost xs" data-follow>${icon('enter')}Follow up</button>`}
+            ${isForLater(s) ? `<button class="ghost xs cv-later on" data-later aria-pressed="true" title="Unsave (L)">${icon('bookmark')}Saved for later</button>` : canSaveForLater(s) && !quietJob(s) ? `<button class="ghost xs cv-later" data-later aria-pressed="false" title="Save for later (L)">${icon('bookmark')}Save for later</button>` : ''}
           </div>
           ${follow ? `<form class="cv-inline" data-follow-form><input class="input sm" placeholder="Follow up with ${esc(m.name)} on this…" autocomplete="off" spellcheck="false"><button class="primary sm">Send</button></form>` : ''}
         </div>
@@ -847,6 +851,7 @@ function buildView(id) {
       paint();
       return $(`.cv-job[data-id="${job}"] [data-follow-form] input`, node)?.focus();
     }
+    if (e.target.closest('[data-later]') && job) return setForLater(job, !isForLater(S.sessions.get(job)));
     const answer = e.target.closest('[data-answer]')?.dataset.answer;
     if (answer && job) return answerJob(job, answer);
   });

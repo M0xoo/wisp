@@ -164,7 +164,7 @@ export function openapi({ version, port }) {
         get: { summary: 'Full session record: turns, activity, captured edits, presentations', responses: { 200: json({ type: 'object' }), 404: err[404] } },
         patch: {
           summary: 'Rename, mark done/review, mark read, archive',
-          requestBody: body({ type: 'object', properties: { title: { type: 'string' }, state: { enum: ['done', 'review'] }, unread: { type: 'boolean' }, archived: { type: 'boolean' }, discardWorktree: { type: 'boolean', description: 'Remove the worktree and its uncommitted changes (a compare run you did not keep)' } } }),
+          requestBody: body({ type: 'object', properties: { title: { type: 'string' }, state: { enum: ['done', 'review'] }, unread: { type: 'boolean' }, archived: { type: 'boolean' }, forLater: { type: ['boolean', 'number'], description: 'Save a finished task for later (true, or the time it was saved, to put it back in its place) or unsave it (false)' }, discardWorktree: { type: 'boolean', description: 'Remove the worktree and its uncommitted changes (a compare run you did not keep)' } } }),
           responses: { 200: json(ref('Summary')), 404: err[404] },
         },
         delete: { summary: 'Stop and delete. Its worktree is removed; its branch too unless it has commits', responses: { 200: ok, 404: err[404] } },

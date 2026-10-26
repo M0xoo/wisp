@@ -4,9 +4,9 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { ago, STATUS_LABEL, timeAttrs } from '../core/format.js';
-import { HERE, MOBILE, S, save, saveOpen } from '../core/state.js';
-import { taskDone, taskMenu, toggleDone } from './actions.js';
+import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
+import { HERE, isForLater, MOBILE, needsYou, S, save, saveOpen } from '../core/state.js';
+import { setForLater, taskDone, taskMenu, toggleDone } from './actions.js';
 import { compareView } from './compare.js';
 import { carryDock } from './composer.js';
 import { renderLaunchChips } from './launcher.js';
@@ -50,6 +50,7 @@ export function taskOf(s) {
     runs,
     state,
     unread: runs.some((r) => r.unread),
+    forLater: runs.every((r) => isForLater(r)) ? runs[0].forLater : undefined,
     createdAt: Math.min(...runs.map((r) => r.createdAt)),
     updatedAt: Math.max(...runs.map((r) => r.updatedAt)),
   };
@@ -60,13 +61,15 @@ export function groups() {
   const every = [];
   const seen = new Set();
   for (const s of visible([...S.sessions.values()])) {
-    if (s.crew && memberById(s.crew.id)) continue; // a crew member's job: under the member (crew.js)
+    if (s.crew && memberById(s.crew.id) && !isForLater(s)) continue; // a crew member's job: under the member (crew.js), unless saved for later
     const t = taskOf(s);
     if (t.runs && seen.has(t.key)) continue;
     if (t.runs) seen.add(t.key);
     every.push(t);
   }
-  const all = every.filter((s) => !s.archived);
+  // Saved for later: newest saved first. Out of Needs you, Scheduled and Done meanwhile.
+  const forLater = every.filter((s) => isForLater(s)).sort((a, b) => b.forLater.at - a.forLater.at);
+  const all = every.filter((s) => !s.archived && !isForLater(s));
   const needs = all
     .filter((s) => s.state === 'review' || s.state === 'waiting')
     .sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
@@ -76,13 +79,13 @@ export function groups() {
   const scheduled = all.filter((s) => isScheduled(s)).sort((a, b) => a.later[0].at - b.later[0].at);
   const done = all.filter((s) => s.state === 'done' && !isScheduled(s)).sort((a, b) => b.updatedAt - a.updatedAt);
   const archived = every.filter((s) => s.archived).sort((a, b) => b.updatedAt - a.updatedAt);
-  return { needs, working, scheduled, done, archived };
+  return { needs, working, scheduled, forLater, done, archived };
 }
 
 // Done and Archived can hold hundreds of tasks: they show a page of cards and add the next
 // page as the user scrolls to the end of the list. The headings count every one.
 const PAGE = 60;
-const page = { secDone: PAGE, secArchived: PAGE };
+const page = { secForLater: PAGE, secDone: PAGE, secArchived: PAGE };
 const moreObserver = new IntersectionObserver(
   (entries) => {
     for (const e of entries) {
@@ -136,7 +139,7 @@ export function placeCards(box, list) {
 }
 
 export function renderFeed() {
-  const { needs, working, scheduled, done, archived } = groups();
+  const { needs, working, scheduled, forLater, done, archived } = groups();
   // extra: rows that aren't tasks (Scheduled's plans), placed among them by their time.
   const place = (sec, list, extra = []) => {
     const box = $('.f-list', sec);
@@ -172,6 +175,12 @@ export function renderFeed() {
   // follow-ups to come, soonest first.
   const plansShown = planRows();
   place($('#secScheduled'), scheduled, plansShown);
+  place($('#secForLater'), forLater);
+  // What a crew member filed there unread could go unseen (nothing pings for it): the heading says so.
+  const fresh = forLater.filter((s) => s.unread && s.forLater.by === 'crew').length;
+  const nw = $('#secForLater .fl-new');
+  nw.hidden = !fresh;
+  nw.textContent = fresh ? `${fresh} new` : '';
   place($('#secDone'), done);
   place($('#secArchived'), archived);
   paintFold($('#secCrew'));
@@ -179,19 +188,19 @@ export function renderFeed() {
   // The crew's live jobs, nested under their members.
   const crewShown = paintCrew();
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
-  const tasks = [...needs, ...working, ...scheduled, ...done, ...archived, ...crewShown];
+  const tasks = [...needs, ...working, ...scheduled, ...forLater, ...done, ...archived, ...crewShown];
   const shown = new Set(tasks.flatMap((s) => (s.runs || [s]).map((r) => r.id)));
   for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id), kept.delete(id));
   const keys = new Set(tasks.map((t) => t.key));
   for (const [key, g] of S.tasks) if (!keys.has(key)) (g.card.remove(), S.tasks.delete(key));
 
-  const empty = !needs.length && !working.length && !scheduled.length && !plansShown.length && !done.length && !archived.length;
+  const empty = !needs.length && !working.length && !scheduled.length && !plansShown.length && !forLater.length && !done.length && !archived.length;
   $('#feedEmpty').hidden = !empty;
   if (empty)
     $('#feedEmpty').innerHTML = `<div class="orb big"><i></i><i></i><i></i></div><p>${S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.'}</p>`;
   placeCollapseAll();
 
-  const n = [...S.sessions.values()].filter((s) => (s.state === 'review' && s.unread) || s.state === 'waiting').length;
+  const n = [...S.sessions.values()].filter(needsYou).length;
   document.title = n ? `(${n}) wisp` : 'wisp';
   renderProjects();
   paintSplit();
@@ -251,6 +260,7 @@ function item(s) {
     n.head.addEventListener('click', (e) => {
       if (s.pending || n.head.querySelector('[contenteditable="true"]')) return;
       if (e.target.closest('[data-a="quick-done"]')) return toggleDone(s.id);
+      if (e.target.closest('[data-a="quick-later"]')) return setForLater(s.id, !isForLater(S.sessions.get(s.id)));
       const choice = e.target.closest('[data-choice]');
       if (choice) return answerInRow(s.id, choice);
       // Split view: a click opens the task beside the list (clicking it again leaves it open) and
@@ -318,9 +328,9 @@ function renderHead(n, s) {
     </span>
     <span class="it-side">
       ${headPills(s, pill)}
-      ${sched ? `<span class="q-time" title="${esc(laterTip(s))}">${esc(aheadLabel(s.later[0].at))}</span>` : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>`}
+      ${sched ? `<span class="q-time" title="${esc(laterTip(s))}">${esc(aheadLabel(s.later[0].at))}</span>` : isForLater(s) ? `<span class="q-time" title="${esc(savedTip(s))}">${ago(s.forLater.at)}</span>` : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>`}
       ${s.pending ? '' : slotHtml('card.hover', s)}
-      ${quickDone(s, open)}
+      ${quickLater(s, open)}${quickDone(s, open)}
       ${icon('chevron', 'chev')}
     </span>`);
 }
@@ -371,6 +381,21 @@ export function qDot(s, { ring = true } = {}) {
 function quickDone(s, open) {
   if (s.state === 'review' && !s.archived && (!open || isSplit())) return `<span class="it-quick" data-a="quick-done" title="Mark done (E)" aria-hidden="true">${icon('done')}</span>`; // a pointer shortcut inside the row's button: keys have E, the task's bar has Mark done
   return '<span class="it-quick-gap" aria-hidden="true"></span>';
+}
+
+// Save for later beside Mark done: triage is one click either way. Every row keeps its place so
+// the columns line up; touch has no hover, so there it isn't drawn at all (feed.css).
+function quickLater(s, open) {
+  if (s.pending || s.archived || (open && !isSplit())) return '<span class="it-later-gap" aria-hidden="true"></span>';
+  if (isForLater(s)) return `<button class="it-later on" data-a="quick-later" title="Unsave (L)" aria-label="Unsave">${icon('bookmark')}</button>`;
+  if (s.state === 'review') return `<button class="it-later" data-a="quick-later" title="Save for later (L)" aria-label="Save for later">${icon('bookmark')}</button>`;
+  return '<span class="it-later-gap" aria-hidden="true"></span>';
+}
+
+// "Saved for later 2h ago" (or who filed it there), for the time column's tooltip.
+function savedTip(s) {
+  const m = s.forLater.by === 'crew' && memberById(s.crew?.id);
+  return `${m ? `Filed for later by ${m.name}` : 'Saved for later'} ${agoLong(s.forLater.at)} · last activity ${agoLong(s.updatedAt)}`;
 }
 
 // What a card head says about its task, between the title and the time (the split view's header
@@ -640,7 +665,7 @@ function retryLater(id) {
 
 export const sectionOf = (s) => {
   const t = taskOf(s);
-  return t.archived ? 'archived' : t.state === 'running' ? 'working' : isScheduled(t) ? 'scheduled' : t.state === 'done' ? 'done' : 'needs';
+  return t.archived ? 'archived' : isForLater(t) ? 'forLater' : t.state === 'running' ? 'working' : isScheduled(t) ? 'scheduled' : t.state === 'done' ? 'done' : 'needs';
 };
 
 // Bring an item into view, expanded — used by notifications and links.
@@ -648,9 +673,9 @@ export function reveal(id) {
   const s = S.sessions.get(id);
   if (!s) return;
   // A crew member's job opens under the member (Crew unfolded), wherever it is in its life.
-  const crew = s.crew && memberById(s.crew.id);
+  const crew = s.crew && memberById(s.crew.id) && !isForLater(s);
   if (crew) pinJob(id);
-  const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', scheduled: 'secScheduled', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
+  const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', scheduled: 'secScheduled', forLater: 'secForLater', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
   if (!sectionOpen(sec)) toggleSection(sec, true);
   if (S.filter !== 'all' && !inProject(s, S.filter)) {
     S.filter = 'all';
@@ -659,8 +684,8 @@ export function reveal(id) {
   }
   // A card further down than the pages shown so far: show pages up to it.
   if (sec in page) {
-    const { done, archived } = groups();
-    const at = (sec === 'secDone' ? done : archived).findIndex((t) => (t.runs || [t]).some((r) => r.id === id));
+    const { forLater, done, archived } = groups();
+    const at = { secForLater: forLater, secDone: done, secArchived: archived }[sec].findIndex((t) => (t.runs || [t]).some((r) => r.id === id));
     if (at >= page[sec]) page[sec] = Math.ceil((at + 1) / PAGE) * PAGE;
   }
   renderFeed();

@@ -304,7 +304,7 @@ ${m.notebook ? `<notebook>\n${m.notebook}\n</notebook>` : 'Empty so far.'}
 
 ### Your recent jobs (newest first)
 
-${log.length ? log.map((l) => `- ${when(l.at)} · ${JOB_LABEL[l.job] || l.job} · ${l.title}${l.summary ? `: ${l.summary}` : ''}${l.quiet ? ' (nothing new)' : ''}`).join('\n') : 'None yet: this is your first.'}
+${log.length ? log.map((l) => `- ${when(l.at)} · ${JOB_LABEL[l.job] || l.job} · ${l.title}${l.summary ? `: ${l.summary}` : ''}${l.quiet ? ' (nothing new)' : l.forLater ? ' (filed for later)' : ''}`).join('\n') : 'None yet: this is your first.'}
 
 ### This job
 
@@ -313,11 +313,12 @@ ${(m.links || []).length ? `\n### Tasks you're part of\n\nYou were tagged in or 
 ### Memory and reporting
 
 Put one \`crew\` block last in your final message's blocks. wisp reads it and doesn't show it to the user:
-{"type":"crew","remember":["…"],"notebook":"…","wakeIn":30,"quiet":true,"followUp":{"task":"<id>","text":"…"}}
+{"type":"crew","remember":["…"],"notebook":"…","wakeIn":30,"quiet":true,"forLater":true,"followUp":{"task":"<id>","text":"…"}}
 - remember: lasting facts to add to your notebook: ids, versions and states you'll compare against next time, the user's preferences for this job, open threads. Other jobs of yours may write at the same time, so add lines with remember rather than rewriting.
 - notebook: the whole notebook rewritten, only to tidy it (it has ${m.notebook.length} characters; keep it under ${NOTEBOOK_SOFT}). Drop what's stale.
 - wakeIn: minutes until wisp should start a fresh check-in (at least ${WAKE_MIN}), when you want to do your standing job again sooner than your schedule. To carry on with *this* job instead (wait for a deploy or a run, then finish what you started, with this context), call resume_later.
 - quiet: ${QUIET_JOBS.has(job.job) ? `true when this ${job.job === 'event' ? 'job' : 'check-in'} found nothing the user needs to see: wisp logs it and doesn’t notify them. Leave it out when there is something to report.` : 'only for check-ins and jobs about a task you watch; this job is waited on, so always report.'}
+- forLater: ${QUIET_JOBS.has(job.job) ? 'true when you found something worth reading but not urgent (a digest, an FYI): wisp files your report in the user’s For later list without notifying them. Leave it out when they should know now, and use quiet when there is nothing to read.' : 'only for check-ins and jobs about a task you watch; this job is waited on, so leave it out.'}
 - kit: skills or instructions files you propose for your own kit, when a job asked for that or you found a lasting how-to worth keeping (rarely otherwise): [{"kind":"skill","name":"lowercase-with-dashes","description":"when to use it","body":"markdown steps"},{"kind":"rules","name":"AGENTS.md","body":"markdown"}]. The user reviews them before they're added; the same name replaces yours.
 - followUp: a message wisp sends to the agent working on one of your tasks above, as a follow-up from you (the user sees it in that task, from you). Use it when that agent should act on what you found (fix this, rerun that) or was waiting on you. Its task is one of the ids above (${job.job === 'delegated' ? 'not the one that delegated this job: its agent reads your report' : job.from?.id && (m.links || []).some((l) => l.id === job.from.id) ? `\`${job.from.id}\` is this job's` : 'none for this job'}). wisp adds you to that task's delegates, so its agent can hand the work back to you. At most 3 (a list); only when it helps: your answer already reaches the user.
 Leave out the fields you don't need, and keep secrets out of the notebook.`;
@@ -336,7 +337,7 @@ export const checkinPrompt = (m, { wake = false } = {}) => `Check-in #${(m.check
 
 // --- what a job hands back -----------------------------------------------------------------------
 
-// Takes the `crew` blocks out of a presentation: { remember, notebook, wakeIn, quiet } (merged).
+// Takes the `crew` blocks out of a presentation: { remember, notebook, wakeIn, quiet, forLater } (merged).
 export function takeCrewBlock(presentation) {
   const blocks = presentation?.blocks || [];
   const mine = blocks.filter((b) => b?.type === 'crew');
@@ -349,6 +350,7 @@ export function takeCrewBlock(presentation) {
     if (typeof b.notebook === 'string') out.notebook = b.notebook;
     if (Number(b.wakeIn) > 0) out.wakeIn = Number(b.wakeIn);
     if (b.quiet === true) out.quiet = true;
+    if (b.forLater === true) out.forLater = true;
     if (Array.isArray(b.kit))
       for (const k of b.kit) if (k && typeof k === 'object') (out.kit ||= []).push({ kind: String(k.kind || ''), name: String(k.name || '').trim().slice(0, 64), description: String(k.description || '').slice(0, 1024), body: String(k.body || '').slice(0, KIT_BODY_MAX) });
     for (const f of [b.followUp].flat())
@@ -384,6 +386,7 @@ export function logEntry(session, turn, { quiet = false } = {}) {
     ...(session.crew?.from?.title && { from: session.crew.from }),
     status,
     ...(quiet && { quiet: true }),
+    ...(session.forLater?.by === 'crew' && { forLater: true }), // filed in the user's For later
     sessionId: session.id,
   };
 }
@@ -834,12 +837,16 @@ export class Crew {
     if (m) applyMemory(m, data, this.now());
     if (m && data?.kit) this.#offer(m, s, data.kit);
     if (data) turn.crewOut = data;
-    const quiet = !!data?.quiet && QUIET_JOBS.has(s.crew.job) && s.turns.length === 1;
+    // Worth reading, not urgent: For later instead of a ping, and it beats quiet (there's something
+    // to read). Only where nobody waits on the answer: a check-in's (or a watch's) first turn.
+    const nobodyWaits = QUIET_JOBS.has(s.crew.job) && s.turns.length === 1;
+    const later = !!data?.forLater && nobodyWaits;
+    const quiet = !!data?.quiet && nobodyWaits && !later;
     // A delegation's answer goes to its lead, which asked for it: the job itself is filed under
     // Done. One the user asked for by @mention stays in Needs you until they mark it done.
     const filed = s.crew.job === 'delegated'; // every turn
     if (data && m) this.#changed();
-    return { quiet, filed };
+    return { quiet, filed, later };
   }
 
   // A job on a member's machine changed (its summary streamed in, or the tick saw it). Once a turn

@@ -168,6 +168,7 @@ export class Later {
       s.state = s.state === 'running' || s.state === 'waiting' ? s.state : 'review';
       s.unread = true;
       delete s.archived;
+      delete s.forLater; // it needs you now: out of For later
       this.changed(s);
       this.notify(s);
       return { reminded: true };
@@ -321,6 +322,7 @@ export class Later {
         s.reminder = { text: `Missed follow-up (due at ${clock(l.at, now)}, wisp was off): ${l.text}`, at: l.at, setAt: l.setAt, by: l.by, was: s.state, missed: true };
         s.state = 'review';
         s.unread = true;
+        delete s.forLater;
         this.changed(s);
         this.notify(s);
         continue;

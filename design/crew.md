@@ -25,7 +25,7 @@ its thread; its work never mixes with your tasks.
   dot on its face (amber: asking you; blue: a report you haven't read) and its spirit's mood. Under a
   member sit its recent jobs as ordinary cards: live first (asking you, working, an unread report),
   then the ones it finished, newest first, until you mark them done or archive them; three at most (plus the one open),
-  and an open member keeps every live one. Quiet check-ins are archived, so only the thread has them. Crew jobs never show in *Needs you*, *Working* or *Done*.
+  and an open member keeps every live one. Quiet check-ins are archived, so only the thread has them. Crew jobs never show in *Needs you*, *Working* or *Done*; the one section they join is *For later*, when you save one there or the member files a non-urgent report there (for-later.md).
 - **Compact.** A busy member always has its row: asking you, on a job, an unread report, a job open
   in the main pane, a spell's change to review. A member only making its rounds (a check-in) isn't
   busy, or scheduled members would pop in and out all day; its face moves instead, and a check-in

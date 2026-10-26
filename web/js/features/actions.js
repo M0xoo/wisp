@@ -7,7 +7,7 @@ import { esc } from '../md.js';
 import { addToCrew, memberById, openCrew } from './crew.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
-import { MOBILE, S } from '../core/state.js';
+import { isForLater, MOBILE, S } from '../core/state.js';
 import { keyHint } from '../ui/kbd.js';
 import { overlay } from '../ui/overlay.js';
 import { clampToViewport, popover } from '../ui/popover.js';
@@ -194,6 +194,7 @@ export function moreMenu(id, anchor) {
       ${crewItem(sum)}
       ${laterMenuHtml(sum)}
       ${goalMenuHtml(sum)}
+      ${forLaterMenuHtml(sum)}
       ${canRollback ? `<button data-a="rollback">${icon(rolledBack ? 'rerun' : 'replay')}${rolledBack ? 'Re-apply latest turn' : 'Restore to before latest turn'}</button>` : ''}
       ${sum.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : sum.state !== 'running' && sum.state !== 'waiting' ? `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>` : ''}
       ${slotHtml('card.menu', sum).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${id}" `)}
@@ -221,6 +222,7 @@ export function moreMenu(id, anchor) {
     }
     if (a === 'folder') openInEditor(s, '.');
     if (a === 'rollback') rollbackTurn(id, lastTurn?.id, rolledBack);
+    if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
   };
@@ -249,6 +251,7 @@ export function taskMenu(id, e) {
       ${crewItem(s)}
       ${laterMenuHtml(s)}
       ${goalMenuHtml(s)}
+      ${forLaterMenuHtml(s)}
       ${busy || s.archived ? '' : `<button data-a="done">${icon('done')}${s.state === 'done' ? 'Reopen' : 'Mark done'}${keyHint('E')}</button>`}
       ${s.archived ? `<button data-a="unarchive">${icon('archive')}Unarchive${keyHint('A')}</button>` : busy ? '' : `<button data-a="archive">${icon('archive')}Archive${keyHint('A')}</button>`}
       ${slotHtml('card.menu', s).replace(/class="ghost sm sp-btn"/g, 'class="sp-menu"').replace(/<button /g, `<button data-task="${s.id}" `)}
@@ -272,6 +275,7 @@ export function taskMenu(id, e) {
     if (a?.startsWith('later-')) runLaterAction(a, s, null, { x: e.clientX, y: e.clientY });
     if (a?.startsWith('goal-')) runGoalAction(a, id, null);
     if (a === 'done') toggleDone(id);
+    if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');
     if (a === 'archive' || a === 'unarchive') setArchived(id, a === 'archive');
     if (a === 'delete') deleteSession(id);
   };
@@ -500,6 +504,33 @@ export async function forkTask(id, turnId = '', draft = null) {
 
 // The original's "N forks" chip, after a fork was counted or taken back.
 const repaintForks = (id) => paintMeta(id);
+
+// For later (design/for-later.md): a finished task parked to look at again. Saving takes it out of
+// Needs you like Mark done does (the next one takes its place); Undo puts it back where it was.
+export const canSaveForLater = (s) => !!s && !s.pending && !s.archived && !s.ask && (s.state === 'review' || s.state === 'done');
+export const forLaterMenuHtml = (s) =>
+  isForLater(s) ? `<button data-a="unsave">${icon('bookmark')}Unsave${keyHint('L')}</button>` : canSaveForLater(s) ? `<button data-a="save-later">${icon('bookmark')}Save for later${keyHint('L')}</button>` : '';
+
+// on: true (now), false (unsave), or the time it was saved (Undo: back in its place).
+export async function setForLater(id, on) {
+  const prev = S.sessions.get(id);
+  if (!prev) return;
+  if (on && !canSaveForLater(prev)) return toast('Still working — save it for later once it’s finished.');
+  const next = { ...prev };
+  if (on) next.forLater = { at: on === true ? Date.now() : on, by: 'user' };
+  else delete next.forLater;
+  move(id, next, !!on && !isForLater(prev));
+  const undo = on ? () => setForLater(id, false) : prev.forLater ? () => setForLater(id, prev.forLater.at) : null;
+  toast(on ? 'Saved for later' : 'Unsaved', undo ? { action: { label: 'Undo', run: undo } } : {});
+  try {
+    const out = await api(`/sessions/${id}`, { method: 'PATCH', body: { forLater: on } });
+    // A wisp on another machine from before For later ignores it: say so rather than pretend.
+    if (on && out && !out.forLater) throw new Error(`Update wisp${prev.machine ? ` on ${prev.machine.name}` : ''} to save its tasks for later.`);
+  } catch (err) {
+    revertSummary(id, prev);
+    toastError(err);
+  }
+}
 
 export async function setArchived(id, archived) {
   const prev = S.sessions.get(id);

@@ -34,7 +34,7 @@
 // A prompt with ALSO (a task across several folders) makes claude fix math.js in each --add-dir too.
 // A prompt with NARRATE makes claude say a long message and run a command that prints something
 // (what the transcript shows).
-// A crew member's job: CREWQUIET in its brief makes a check-in quiet; CREWNOTE in the prompt
+// A crew member's job: CREWQUIET in its brief makes a check-in quiet, CREWLATER files it for later; CREWNOTE in the prompt
 // remembers a fact and asks for a wake-up (a `crew` block); CREWKIT proposes kit files; CREWFOLLOW follows up on the task that
 // tagged it.
 // A prompt with DELEGATE makes a lead call the injected `delegate` tool once per subagent
@@ -324,6 +324,8 @@ const final = (answer) => {
   // found nothing; CREWNOTE remembers a fact and asks to be woken in 30 minutes.
   const crewBrief = argv.join(' ').includes("on the user's crew");
   if (crewBrief && argv.join(' ').includes('CREWQUIET') && stdin.startsWith('Check-in')) blocks.push({ type: 'crew', quiet: true, remember: ['saw build 41'] });
+  // CREWLATER: a check-in files its report in For later (and says quiet too: forLater wins).
+  if (crewBrief && argv.join(' ').includes('CREWLATER') && stdin.startsWith('Check-in')) blocks.push({ type: 'crew', forLater: true, quiet: true });
   if (crewBrief && stdin.includes('CREWNOTE')) blocks.push({ type: 'crew', remember: ['deploy is v2'], wakeIn: 30 });
   // CREWFOLLOW: the member follows up on the task that tagged it, by itself.
   if (crewBrief && stdin.includes('CREWFOLLOW')) blocks.push({ type: 'crew', followUp: { text: 'Please rerun the tests after my note.' } });
