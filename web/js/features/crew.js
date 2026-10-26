@@ -316,6 +316,9 @@ sec.addEventListener('focusout', () => {
 });
 const showAll = (on) => {
   S.crewAll = on;
+  // Asked to fold: don't hold the rows that were shown (on a phone the tap leaves :hover and focus
+  // in the section, so the hold would never let go).
+  if (!on) wasFull = new Set();
   if (S.sessions.size) renderFeed();
   else paintCrew();
 };
