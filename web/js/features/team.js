@@ -28,10 +28,16 @@ export const copiesOf = (m) => Math.max(1, m.count || 1);
 export const teamSize = (team) => team.reduce((n, m) => n + copiesOf(m), 0);
 export const canLead = (id) => agentById(id)?.delegates !== false;
 export const memberLabel = (m) => {
+  if (m.crew) return memberById(m.crew)?.role || m.role || 'Crew member'; // a crew member brings its own harness: name its role
   const a = agentById(m.agent);
   const model = (m.model && a?.models?.find((x) => x.id === m.model)?.label) || m.model || 'Default model';
   const where = m.machine || m.place ? ` · on ${memberPlaceName(m) || m.place}` : ''; // a delegation keeps only the place's name
   return `${a?.name || agentName(m.agent)} · ${model}${m.effort ? ` · ${effortLabel(m.effort)}` : ''}${where}`;
+};
+// A delegate's face: a crew member's avatar, anyone else's harness logo.
+const faceOf = (m, size, opts = {}) => {
+  const c = m.crew && memberById(m.crew);
+  return c ? avatarHtml(c, { size, dot: false, ...opts }) : harnessLogo(m.agent);
 };
 const slugName = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
 
@@ -54,7 +60,7 @@ export function teamStack(lead, team) {
   const tip = `${agentName(lead)} with ${team.map((m) => `${m.name}${m.busy ? ' (working)' : m.used === false ? ' (unused)' : ''}`).join(', ')}`;
   return `<span class="team-stack" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">
     <span class="ts-l">${harnessLogo(lead)}</span>
-    ${shown.map((m, i) => `<span class="ts-m${m.used === false ? ' idle' : ''}${m.busy ? ' busy' : ''}${m.crew ? ' crew' : ''}" style="--i:${i}">${m.crew && memberById(m.crew) ? avatarHtml(memberById(m.crew), { size: 18, dot: false, state: m.busy ? 'live' : 'idle', small: true }) : harnessLogo(m.agent)}</span>`).join('')}
+    ${shown.map((m, i) => `<span class="ts-m${m.used === false ? ' idle' : ''}${m.busy ? ' busy' : ''}${m.crew ? ' crew' : ''}" style="--i:${i}">${faceOf(m, 18, { state: m.busy ? 'live' : 'idle', small: true })}</span>`).join('')}
     ${team.length > shown.length ? `<span class="ts-m ts-more" style="--i:${shown.length}">+${team.length - shown.length}</span>` : ''}
   </span>`;
 }
@@ -68,7 +74,7 @@ export function paintTeamBtn(btn, team, presetId, lead) {
   btn.classList.toggle('on', team.length > 0 && ok);
   btn.classList.toggle('off', team.length > 0 && !ok);
   btn.innerHTML = team.length
-    ? `<span class="tb-stack">${flat.slice(0, 5).map((m, i) => `<span class="ts-m" style="--i:${i}">${harnessLogo(m.agent)}</span>`).join('')}${n > 5 ? `<span class="ts-m ts-more" style="--i:5">+${n - 5}</span>` : ''}</span>${team.some((m) => m.machine) ? `<span class="tb-away" aria-hidden="true">${icon('server')}</span>` : ''}<span class="tb-label">${esc(p?.name || `${n} delegate${n > 1 ? 's' : ''}`)}</span>`
+    ? `<span class="tb-stack">${flat.slice(0, 5).map((m, i) => `<span class="ts-m${m.crew ? ' crew' : ''}" style="--i:${i}">${faceOf(m, 18)}</span>`).join('')}${n > 5 ? `<span class="ts-m ts-more" style="--i:5">+${n - 5}</span>` : ''}</span>${team.some((m) => m.machine) ? `<span class="tb-away" aria-hidden="true">${icon('server')}</span>` : ''}<span class="tb-label">${esc(p?.name || `${n} delegate${n > 1 ? 's' : ''}`)}</span>`
     : `${icon('agent')}<span class="tb-label">Delegate</span>`;
   btn.title = !team.length
     ? 'Delegate: agents the lead can hand parts of the task to, on other harnesses or other machines'
@@ -319,7 +325,7 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
           ? teams
               .map(
                 (t) => `<button role="menuitem" data-id="${esc(t.id)}" class="${t.id === preset ? 'on' : ''}">
-                  <span class="tb-stack">${t.members.slice(0, 4).map((m, i) => `<span class="ts-m" style="--i:${i}">${harnessLogo(m.agent)}</span>`).join('')}</span>
+                  <span class="tb-stack">${t.members.slice(0, 4).map((m, i) => `<span class="ts-m${m.crew ? ' crew' : ''}" style="--i:${i}">${faceOf(m, 18)}</span>`).join('')}</span>
                   <span class="mm-text"><b>${esc(t.name)}</b><small>${esc(t.members.map((m) => m.name).join(', '))}</small></span>
                   <span class="tp-mdel" data-del="${esc(t.id)}" title="Delete preset">${icon('trash')}</span>
                 </button>`,
@@ -482,7 +488,7 @@ export function teamLiveHtml(s, t) {
       const last = ct?.activity?.findLast((a) => a.kind !== 'text')?.label;
       const st = subStatus(ct);
       return `<div class="tl-row ${running ? 'live' : `st-${st.cls}`}" data-sub="${esc(d.sessionId)}">
-        <span class="tl-logo">${harnessLogo(d.agent)}</span>
+        <span class="tl-logo${d.crew ? ' crew' : ''}">${faceOf(d, 22, { state: running ? 'live' : 'idle' })}</span>
         <b class="tl-name">@${esc(d.name)}</b>
         ${ranOn(s, d)}
         <span class="tl-live">${esc(running ? last || 'Starting up' : hero?.title || st.label)}</span>
@@ -501,7 +507,7 @@ export function renderSubs(s, t) {
   const node = el(`
     <section class="subs">
       <div class="subs-head">
-        ${teamStack(s.agent, list.map(({ d, ct }) => ({ name: d.name, agent: d.agent, busy: ct?.status === 'running' })))}
+        ${teamStack(s.agent, list.map(({ d, ct }) => ({ name: d.name, agent: d.agent, crew: d.crew, busy: ct?.status === 'running' })))}
         <b>${list.length} delegated task${list.length > 1 ? 's' : ''}</b>
         <span class="subs-to">${esc(names.join(', '))}</span>
       </div>
@@ -515,7 +521,7 @@ export function renderSubs(s, t) {
     const card = el(`
       <article class="sub st-${st.cls} ${subOpen.has(d.id) ? 'open' : ''}">
         <button class="sub-head" aria-expanded="${subOpen.has(d.id)}">
-          <span class="sub-logo">${harnessLogo(d.agent)}</span>
+          <span class="sub-logo${d.crew ? ' crew' : ''}">${faceOf(d, 28)}</span>
           <span class="sub-main">
             <span class="sub-top"><b>@${esc(d.name)}</b>${ranOn(s, d)}<span class="sub-model">${esc(memberLabel({ ...d, place: '' }))}</span></span>
             <span class="sub-title">${esc(hero?.title || (ct?.status === 'running' ? ct.activity?.findLast((a) => a.kind !== 'text')?.label || 'Working' : d.prompt))}</span>
