@@ -54,10 +54,32 @@ let carryTo = null;
 export function carryDock(id) {
   carryTo = carry ? id : null;
 }
+// Folding hides the bar, which moves everything around the box: done on the press, the button
+// under the pointer slides away before the click lands and needs a second one. So a press only
+// folds once it's released and its click has gone through.
+let pressed = false;
 function settle(e) {
   if (e.type === 'pointerdown') carry = !!e.target.closest?.('body.split #feed .it-head') && !!document.querySelector('.composer:is(.awake, :has(.reply:focus))');
   if (carry && e.target.closest?.('.it-head')) return;
-  for (const c of document.querySelectorAll('.composer.awake')) if (!c.contains(e.target) && !e.target.closest?.(OWN_POPUPS)) c.classList.remove('awake');
+  const folding = [...document.querySelectorAll('.composer.awake')].filter((c) => !c.contains(e.target) && !e.target.closest?.(OWN_POPUPS));
+  if (!folding.length) return;
+  if (e.type === 'pointerdown') {
+    pressed = true;
+    const release = () => {
+      removeEventListener('pointerup', release, true);
+      removeEventListener('pointercancel', release, true);
+      setTimeout(() => {
+        pressed = false;
+        // A box the click put the focus back into stays open.
+        for (const c of folding) if (!c.contains(document.activeElement)) c.classList.remove('awake');
+      });
+    };
+    addEventListener('pointerup', release, true);
+    addEventListener('pointercancel', release, true);
+    return;
+  }
+  if (pressed) return; // the press's own focus change: its release folds
+  for (const c of folding) c.classList.remove('awake');
 }
 document.addEventListener('pointerdown', settle, true);
 document.addEventListener('focusin', settle, true);
