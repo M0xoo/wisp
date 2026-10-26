@@ -4,10 +4,10 @@
   font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s;
 }
 .tog-btn:hover { background: var(--bg-2); color: var(--ink); }
-.tog-btn.on { color: var(--accent-ink); }
+.tog-btn.on { color: var(--ink); } /* on reads as ink beside the muted offs: no colour needed */
 .tog-btn:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
-.vs-mark { font: 600 11px var(--mono); }
-.q-vs { font: 600 10.5px var(--mono); color: var(--accent-ink); padding: 1px 5px; border-radius: 5px; background: var(--accent-soft); }
+.vs-mark { font: 600 11.5px var(--mono); }
+.q-vs { font: 600 11.5px var(--mono); color: var(--accent-ink); padding: 1px 5px; border-radius: 5px; background: var(--accent-soft); }
 
 /* a compare task: one card, the shared prompt on top and a row per run under it */
 .task-item {
@@ -35,17 +35,19 @@
 .item.run .it-title { font-size: 13px; font-weight: 400; color: var(--ink-2); white-space: nowrap; }
 .item.run .it-title b { font-weight: 600; color: var(--ink); }
 .run-model { margin-left: 8px; color: var(--muted); }
-.item.run .it-sub, .item.run .q-live { font-size: 12px; }
+.item.run .it-sub, .item.run .q-live { font-size: 12.5px; }
 .run-logo { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--bg-2); color: var(--ink); }
 .run-logo > * { display: block; width: 11px; height: 11px; }
 .run-logo .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
 .pill.st-running { --tone: var(--accent); }
 .it-meta .m.branch, .it-meta .m:has(> .i) { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.it-meta .m.branch { font: 11px var(--mono); color: var(--ink-2); }
+.it-meta .m.branch { font: 11.5px var(--mono); color: var(--ink-2); }
 /* When the bar is short of room the branch gives way (with an ellipsis), not the short labels after it */
 .it-meta .m:not(.branch) { flex: none; }
-.it-meta .m.branch { display: block; flex: 0 1 auto; text-overflow: ellipsis; white-space: nowrap; }
-.it-meta .m.branch .i { margin-right: 4px; vertical-align: -2px; }
+.it-meta .m.branch { flex: 0 1 auto; gap: 0; white-space: nowrap; }
+.it-meta .m.branch .i { margin-right: 4px; }
+.m.branch .b-h { min-width: 5ch; overflow: hidden; text-overflow: ellipsis; }
+.m.branch .b-t { flex: none; }
 .it-meta .m.also { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2); }
 .it-meta .m .i { width: 12px; height: 12px; flex: none; color: var(--faint); }
 .it-meta .m.moved-to { color: var(--accent-ink); cursor: pointer; }
@@ -103,7 +105,7 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 
 .ship-modal, .run-modal { width: min(620px, 100%); }
 .ship-route { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; font-size: 12.5px; }
-.ship-route code { font: 12px var(--mono); padding: 1px 6px; border-radius: 6px; background: var(--bg-2); }
+.ship-route code { font: 12.5px var(--mono); padding: 1px 6px; border-radius: 6px; background: var(--bg-2); }
 .ship-route .i { width: 13px; height: 13px; color: var(--faint); }
 .ship-route .muted { margin-left: auto; }
 .ship-route .ship-repo { font-weight: 600; color: var(--ink); }
@@ -115,7 +117,7 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 .ship-foot { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .ship-foot > .muted { margin-right: auto; }
 .ship-foot > .primary { flex: none; white-space: nowrap; }
-.ship-foot code { font-size: 11px; }
+.ship-foot code { font-size: 11.5px; }
 .hint.bad { color: var(--bad); }
 /* Placeholders while GET /ship reads the worktree: the same boxes the filled dialog has. */
 .ship-modal .sk { display: block; height: 10px; width: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--bg-2) 0%, var(--line) 40%, var(--bg-2) 80%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
@@ -138,7 +140,7 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 .cmp-who small { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmp-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .cmp-stats div { display: flex; flex-direction: column; gap: 2px; }
-.cmp-stats dt { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); }
+.cmp-stats dt { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); }
 .cmp-stats dd { margin: 0; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cmp-body { flex: 1; min-height: 160px; max-height: 58vh; overflow: auto; padding: 12px; background: var(--surface); }
 .cmp-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); }
@@ -198,6 +200,12 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 .ov-row > .i { width: 13px; height: 13px; flex: none; color: var(--tone); }
 .ov-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
 .ov-text b { font-weight: 600; color: var(--ink); }
+/* A phone has no room for both on a line: the reason goes under the title, two lines at most. */
+@media (max-width: 520px) {
+  .ov-text { white-space: normal; }
+  .ov-text b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ov-text .ov-files { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+}
 .hint.warn { color: var(--warn); }
 /* Split view's wide details column: a row of its own, like the model and branch under it */
 body.split.pane-wide .it-bar > .it-props > .pill.overlap { order: 2; flex: 1 0 100%; gap: 9px; color: var(--ink-2); }

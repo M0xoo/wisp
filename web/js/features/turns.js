@@ -213,10 +213,10 @@ export function paintMeta(id) {
   const mode = MODES.find((m) => m.id === s.mode);
   const where = (proj?.path || s.cwd).replace(S.config.home || '', '~');
   const box = $('.it-meta', n.body);
-  box.title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where].filter(Boolean).join(' · ');
+  box.title = [agentName(s.agent), s.model, s.effort && `${effortLabel(s.effort)} thinking`, mode?.label, where, s.worktree?.branch].filter(Boolean).join(' · ');
   box.innerHTML = `
     ${mode && mode !== DEFAULT_MODE ? `<span class="m mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}${esc(mode.label)}</span>` : ''}
-    ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${esc(s.worktree.branch)}</span>` : ''}
+    ${s.worktree ? `<span class="m branch" title="Worktree: ${esc(s.worktree.path)}\nFrom ${esc(s.worktree.baseRef)}">${icon('branch')}${branchHtml(s.worktree.branch)}</span>` : ''}
     ${(s.also || []).map((a, i) => `<span class="m also c-${summary.also?.[i]?.color || 'slate'}" title="${esc(`Also works in ${a.cwd}${a.worktree ? `\nWorktree: ${a.worktree.path}\nBranch ${a.worktree.branch}, from ${a.worktree.baseRef}` : ''}`)}"><i class="p-dot"></i>${esc(summary.also?.[i]?.project || a.cwd.split(/[\\/]/).pop())}</span>`).join('')}
     ${s.subagents?.length ? `<span class="m team-m" title="${esc(s.subagents.map((m) => `@${m.name}${copiesOf(m) > 1 ? ` ×${copiesOf(m)}` : ''}: ${memberLabel(m)}${m.use ? ` — ${m.use}` : ''}`).join('\n'))}">${icon('agent')}${teamSize(s.subagents)} delegate${teamSize(s.subagents) > 1 ? 's' : ''}</span>` : ''}
     ${s.moved?.from ? `<span class="m" title="${esc(`This task ran on ${s.moved.from} before it moved here, with its work and history`)}">${icon('server')}From ${esc(s.moved.from)}</span>` : ''}
@@ -224,6 +224,14 @@ export function paintMeta(id) {
     ${s.forkedFrom ? (S.sessions.has(s.forkedFrom.id) ? `<button class="m fork-from" data-a="fork-src" title="${esc(`Open “${forkTitle(s.forkedFrom)}”, the task this one was forked from`)}">` : `<span class="m fork-from" title="The task this one was forked from was deleted">`) + `${icon('fork')}<span>Forked from <b>${esc(forkTitle(s.forkedFrom))}</b></span>${S.sessions.has(s.forkedFrom.id) ? '</button>' : '</span>'}` : ''}
     ${forks.length ? `<button class="m forks" data-a="forks" title="${forks.length > 1 ? 'Tasks forked from this one' : 'Open the task forked from this one'}"${forks.length > 1 ? ' aria-haspopup="menu"' : ''}>${icon('fork')}${forks.length} fork${forks.length > 1 ? 's' : ''}</button>` : ''}
     ${s.origin ? `<span class="m" title="${s.origin.kind === 'telegram' ? 'Started from Telegram' : `Launched by a ${esc(s.origin.kind)}`}">${icon({ recipe: 'bolt', trigger: 'replay', telegram: 'send' }[s.origin.kind] || 'spark')}${esc(s.origin.name)}</span>` : ''}`;
+}
+
+// A long branch gives way in the middle, so where it starts and its id at the end both stay:
+// "wisp/add-a-rate…-e648a7" rather than "wisp/add-a-rate-lim…".
+function branchHtml(b) {
+  const cut = b.lastIndexOf('-');
+  const at = b.length > 18 ? (cut > 0 && b.length - cut <= 10 ? cut : b.length - 8) : b.length;
+  return `<span class="b-h">${esc(b.slice(0, at))}</span>${at < b.length ? `<span class="b-t">${esc(b.slice(at))}</span>` : ''}`;
 }
 
 function forkLine(f) {

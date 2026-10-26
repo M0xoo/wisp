@@ -4,7 +4,7 @@
 .f-group { margin-bottom: 22px; }
 .f-group h4 {
   display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px;
-  font-size: 12px; font-weight: 500; color: var(--muted);
+  font-size: 12.5px; font-weight: 500; color: var(--muted);
 }
 .f-group h4 .n { color: var(--faint); }
 .collapse-all {
@@ -26,7 +26,7 @@
 .f-group.collapsed > h4.sec-toggle > .chev { transform: rotate(0deg); }
 .f-group h4 .n:not(:empty) { font-variant-numeric: tabular-nums; }
 /* Needs you folded away still says how much is waiting, so it can't be missed. */
-.f-group.needs.collapsed h4 .n:not(:empty) { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; font-size: 11px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); }
+.f-group.needs.collapsed h4 .n:not(:empty) { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; font-size: 11.5px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); }
 /* Folded groups are just a row of headings: stack them tight instead of leaving a section gap each. */
 .f-group.collapsed { margin-bottom: 2px; }
 .f-group.collapsed h4 { margin-top: 0; margin-bottom: 0; }
@@ -35,7 +35,7 @@
 /* The end of a paged Done / Archived list: scrolling near it adds the next page, clicking does too. */
 .f-more { display: block; margin: 10px auto 0; color: var(--faint); font-weight: 400; }
 .f-more:hover { color: var(--ink-2); }
-.feed-empty { padding: 48px 0; text-align: center; color: var(--faint); font-size: 13.5px; }
+.feed-empty { padding: 48px 0; text-align: center; color: var(--faint); font-size: 13px; }
 
 /* one feed item — a row that expands in place */
 .item {
@@ -81,18 +81,18 @@
 .it-side .chev { width: 14px; height: 14px; color: var(--faint); transition: transform 0.2s; }
 .item.open .it-side .chev { transform: rotate(90deg); }
 .q-proj {
-  font-size: 11px; font-weight: 500; padding: 0 7px; border-radius: 5px; line-height: 19px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11.5px; font-weight: 500; padding: 0 7px; border-radius: 5px; line-height: 19px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis;
   color: color-mix(in srgb, var(--pc) 65%, var(--ink)); background: color-mix(in srgb, var(--pc) 10%, transparent);
 }
 /* a task in several folders: the others after its own, each in its colour */
 .q-proj.multi { max-width: 180px; }
 .q-also { margin-left: 4px; color: color-mix(in srgb, var(--pc) 65%, var(--ink)); }
 .q-time { font-size: 11.5px; color: var(--faint); min-width: 26px; text-align: right; font-variant-numeric: tabular-nums; }
-.q-queued { font-size: 11px; color: var(--accent-ink); font-weight: 600; }
+.q-queued { font-size: 11.5px; color: var(--accent-ink); font-weight: 600; }
 /* one-click done on collapsed review rows; revealed on hover/focus */
 .it-quick {
   display: grid; place-items: center; width: 24px; height: 24px; margin: -4px -6px -4px 0; border-radius: 7px;
-  color: var(--faint); opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+  color: var(--faint); opacity: 0; cursor: pointer; transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .it-quick .i { width: 14px; height: 14px; }
 .item:hover .it-quick, .item.focused .it-quick, .it-quick:focus-visible { opacity: 1; }
@@ -105,7 +105,7 @@
 .it-body { animation: rise 0.3s var(--ease); }
 .it-loading { display: flex; align-items: center; gap: 10px; padding: 18px; color: var(--muted); font-size: 13px; }
 .it-bar { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 14px; }
-.it-meta { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.it-meta { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; }
 .it-actions { display: flex; gap: 2px; flex: none; }
 /* Split view's details only: what the card head says, spell buttons, and names for the icon actions. */
 .it-props, .it-slot { display: none; }
@@ -118,7 +118,7 @@
 /* ---------- pills ---------- */
 .pill {
   display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px;
-  font-size: 12px; font-weight: 500; --tone: var(--good); color: color-mix(in srgb, var(--tone) 85%, var(--ink));
+  font-size: 12.5px; font-weight: 500; --tone: var(--good); color: color-mix(in srgb, var(--tone) 85%, var(--ink));
   background: color-mix(in srgb, var(--tone) 9%, transparent);
 }
 .pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--tone); }
@@ -150,7 +150,7 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .t-fold:hover { background: var(--bg-2); color: var(--ink); }
 .t-fold .chev { flex: none; width: 12px; height: 12px; color: var(--faint); }
 .t-prompt { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
-.t-result { flex: 0 1 auto; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--faint); }
+.t-result { flex: 0 1 auto; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; color: var(--faint); }
 .t-fold time { flex: none; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
 .ask:has(.t-unfold) { padding-right: 40px; }
 .t-unfold { position: absolute; top: 6px; right: 6px; }
@@ -166,10 +166,11 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .model-logo .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
 .model-logo::after {
   content: attr(data-tip); position: absolute; left: -6px; bottom: calc(100% + 6px); transform: translateY(2px);
-  padding: 3px 7px; border-radius: 6px; background: var(--ink); color: var(--bg); font-size: 11px; white-space: nowrap;
+  padding: 3px 7px; border-radius: 6px; background: var(--ink); color: var(--bg); font-size: 11.5px; white-space: nowrap;
   opacity: 0; pointer-events: none; transition: opacity 0.12s, transform 0.12s; z-index: 5;
 }
 .model-logo:hover::after, .model-logo:focus-visible::after { opacity: 1; transform: none; }
+.model-logo:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; } /* the tip shows, and so does where the keys are */
 /* In the card header the logo sits at the right edge, so the tooltip opens down and leftwards. */
 .it-side .model-logo::after { left: auto; right: -6px; bottom: auto; top: calc(100% + 6px); transform: translateY(-2px); }
 .it-side .model-logo:hover::after, .it-side .model-logo:focus-visible::after { transform: none; }
@@ -211,10 +212,10 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .act.k-text span { white-space: normal; color: var(--muted); }
 .log { max-height: 340px; overflow-y: auto; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
 .w-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-.w-queued { font-size: 12px; color: var(--accent-ink); font-weight: 500; }
+.w-queued { font-size: 12.5px; color: var(--accent-ink); font-weight: 500; }
 /* the /btw tip (features/btw.js): until it's been used once */
 .w-tip { display: inline-flex; align-items: center; gap: 2px; min-width: 0; animation: fade-in 0.4s 0.6s var(--ease) both; }
-.w-tip-go { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--muted); }
+.w-tip-go { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; color: var(--muted); }
 .w-tip-go:hover { color: var(--ink); }
 .w-tip-k { color: var(--faint); }
 .w-tip-go code { flex: none; padding: 1px 5px; border-radius: 5px; background: var(--bg-2); font: 500 11.5px var(--mono); color: var(--ink-2); }
@@ -238,15 +239,15 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .btw { position: relative; padding: 10px 40px 11px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
 .btw.new { animation: rise 0.35s var(--ease) both; }
 .btw.landed > :is(.btw-a, .btw-err) { animation: fade-in 0.4s var(--ease) both; }
-.btw-q { display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; line-height: 20px; color: var(--ink); }
+.btw-q { display: flex; align-items: baseline; gap: 8px; font-size: 13px; line-height: 20px; color: var(--ink); }
 .btw-tag {
   flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px 1px 4px; border-radius: 5px; cursor: default;
-  font: 600 11px/18px var(--sans); color: var(--accent-ink); background: var(--accent-soft); align-self: flex-start; margin-top: 1px;
+  font: 600 11.5px/18px var(--sans); color: var(--accent-ink); background: var(--accent-soft); align-self: flex-start; margin-top: 1px;
 }
 .btw-tag .i { width: 12px; height: 12px; }
 .btw-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 500; }
 .btw-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.btw-a { margin-top: 6px; font-size: 13.5px; }
+.btw-a { margin-top: 6px; font-size: 13px; }
 .btw-a p, .btw-a ul, .btw-a ol, .btw-a pre { margin-bottom: 8px; }
 .btw-wait { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12.5px; color: var(--muted); }
 .btw-wait .elapsed { margin-left: auto; color: var(--faint); font-variant-numeric: tabular-nums; }
@@ -272,14 +273,14 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .q-head { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; color: var(--warn); }
 .b-question .q-head { color: var(--accent-ink); }
 .q-text { margin: 6px 0 12px; font: 600 17px/1.4 var(--display); letter-spacing: -0.015em; color: var(--ink); }
-.q-context { margin: -4px 0 12px; font-size: 13.5px; color: var(--ink-2); }
+.q-context { margin: -4px 0 12px; font-size: 13px; color: var(--ink-2); }
 .q-opts { display: flex; flex-wrap: wrap; gap: 8px; }
 .opt {
   display: inline-flex; align-items: center; gap: 9px; min-height: 34px; padding: 6px 12px 6px 8px; border-radius: 8px;
   border: 1px solid var(--line-2); background: var(--surface); font-weight: 500; text-align: left; transition: border-color 0.15s, background 0.15s;
 }
-.opt small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
-.opt .k { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--bg-2); font: 500 11px var(--mono); color: var(--muted); flex: none; }
+.opt small { display: block; font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.opt .k { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--bg-2); font: 500 11.5px var(--mono); color: var(--muted); flex: none; }
 .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
 .opt.own { color: var(--muted); border-style: dashed; padding-left: 12px; }
 .q-own { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
@@ -318,9 +319,9 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .bl-state svg { width: 13px; height: 13px; }
 .bl-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .bl-items li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; }
-.bl-tool { font: 500 11px var(--mono); padding: 1px 6px; border-radius: 5px; background: var(--bg-2); color: var(--ink-2); flex: none; }
+.bl-tool { font: 500 11.5px var(--mono); padding: 1px 6px; border-radius: 5px; background: var(--bg-2); color: var(--ink-2); flex: none; }
 .bl-items code { font: 12.5px/1.45 var(--mono); color: var(--ink); word-break: break-all; min-width: 0; }
 .bl-items small { flex-basis: 100%; color: var(--muted); font-size: 12.5px; }
 .bl-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 12px; }
-.bl-note { font-size: 12px; color: var(--muted); }
+.bl-note { font-size: 12.5px; color: var(--muted); }
 

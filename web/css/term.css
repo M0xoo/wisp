@@ -23,7 +23,7 @@
 .tm-head { display: flex; align-items: center; gap: 8px; flex: none; height: 42px; padding: 0 8px 0 6px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .tm-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
 .tm-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
-.tm-sub { flex: none; color: var(--muted); font-size: 12px; }
+.tm-sub { flex: none; color: var(--muted); font-size: 12.5px; }
 .tm-acts { display: flex; gap: 2px; flex: none; }
 .tm-end:hover { color: var(--bad); background: var(--del-bg); }
 

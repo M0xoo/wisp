@@ -20,9 +20,9 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .gb-sub { border-top: 1px solid var(--line); padding-right: 6px; }
 .gb-mark { flex: none; display: grid; place-items: center; width: 18px; height: 18px; color: var(--tone); }
 .gb-mark .i { width: 17px; height: 17px; }
-.gb-k { flex: none; font-size: 12px; font-weight: 500; color: var(--muted); }
-.gb-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 500; color: var(--ink); cursor: default; }
-.gb-state { flex: none; min-width: 92px; text-align: right; font-size: 12px; font-weight: 500; color: var(--muted); }
+.gb-k { flex: none; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.gb-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--ink); cursor: default; }
+.gb-state { flex: none; min-width: 92px; text-align: right; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .goal-band:is(.g-met, .g-impossible) .gb-state { color: color-mix(in srgb, var(--tone) 85%, var(--ink)); }
 .gb-more { flex: none; width: 28px; height: 28px; }
 
@@ -31,10 +31,10 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .gb-track i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; }
 .gb-was { width: var(--was); background: var(--line-2); }
 .gb-fill { width: var(--p); background: var(--tone); transition: width 0.6s var(--ease); }
-.gb-pct { flex: none; min-width: 58px; font-size: 12px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.gb-pct small { margin-left: 4px; font-size: 11px; font-weight: 500; color: var(--muted); }
+.gb-pct { flex: none; min-width: 58px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.gb-pct small { margin-left: 4px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
 .gb-pct small.up { color: var(--good); }
-.gb-round { flex: none; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gb-round { flex: none; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .gb-check { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--ink-2); }
 .gb-check b { font-weight: 600; color: var(--ink); margin-right: 6px; }
 .gb-next { margin-left: 10px; color: var(--muted); }
@@ -75,27 +75,27 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .g-rounds { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .g-rounds .g-r, .menu .g-rounds .g-r {
   width: auto; min-width: 28px; height: 24px; padding: 0 6px; justify-content: center; border-radius: 7px;
-  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+  font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums;
 }
 .g-rounds .g-r:hover { background: var(--bg-2); color: var(--ink); }
 .g-rounds .g-r.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
-.g-rounds small { margin-left: 4px; font-size: 12px; color: var(--faint); }
+.g-rounds small { margin-left: 4px; font-size: 12.5px; color: var(--faint); }
 
 /* The launcher: Goal in its bar, and "Done when" under the prompt while it's on. */
 .l-goal { display: flex; align-items: center; gap: 10px; margin: 2px 14px 4px; padding: 6px 4px 6px 10px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line); }
 .l-goal[hidden] { display: none; }
 .lg-k { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--accent-ink); }
 .lg-k .i { width: 15px; height: 15px; }
-.l-goal input { flex: 1; min-width: 0; height: 28px; border: 0; background: transparent; font: inherit; font-size: 13.5px; color: var(--ink); outline: 0; }
+.l-goal input { flex: 1; min-width: 0; height: 28px; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink); outline: 0; }
 .l-goal input::placeholder { color: var(--faint); }
 
 /* Set goal… / Edit goal…: a popover by what asked. */
 .menu.goal-pop { z-index: 60; width: min(380px, calc(100vw - 16px)); padding: 14px; }
 .goal-pop .gp-k { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .goal-pop .gp-k .i { width: 15px; height: 15px; color: var(--accent); }
-.goal-pop textarea { display: block; width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); font: inherit; font-size: 13.5px; line-height: 1.45; color: var(--ink); outline: 0; }
+.goal-pop textarea { display: block; width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface); font: inherit; font-size: 13px; line-height: 1.45; color: var(--ink); outline: 0; }
 .goal-pop textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
-.goal-pop .gp-hint { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.goal-pop .gp-hint { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 .goal-pop .gp-foot { display: flex; align-items: center; gap: 6px; margin-top: 12px; }
 .goal-pop .gp-foot .grow { flex: 1; }
 .menu.goal-pop .gp-foot > button { width: auto; padding: 0 12px; }

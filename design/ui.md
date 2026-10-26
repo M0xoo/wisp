@@ -17,7 +17,7 @@ blocks or none.** Components use the variables only.
 | `--surface`, `--surface-2` | cards and panels; tinted panels and form fields |
 | `--ink`, `--ink-2` | main text; secondary text that must still read (open done task titles use `--ink-2`, not grey) |
 | `--muted` | labels, inactive icons |
-| `--faint` | times, counts, hints, placeholders. Tuned to ~3:1 on white (#171): don't go lighter |
+| `--faint` | times, counts, hints, placeholders. 4.5:1 (WCAG AA) even on `--bg-2`, in both themes: don't go lighter |
 | `--line`, `--line-2` | 1px borders: separators / control borders |
 | `--accent`, `--accent-ink`, `--accent-soft` | the one accent: focus, links, selection, the live ring |
 | `--good`, `--warn`, `--bad`, `--info` | state only: done / waiting / error. Not decoration |
@@ -41,8 +41,11 @@ needs a reason.
 
 ## Type
 
-- Body is 14px/1.55 `--sans`. Most UI text is 13px, 12.5px and 12px; times and counts 11.5px.
-  Don't introduce a new size when a neighbour's fits; the phone app uses 15/13/12.
+- One scale, at most five sizes on a screen ([scorecard.md](scorecard.md), row 9): **11.5px** (times,
+  counts, keys, badges, mono chips), **12.5px** (secondary: pills, sub-lines, labels), **13px** (UI:
+  rows, buttons, menus), **14px** (reading: body, prompts, results, the task's title in its head) and
+  one display size per screen (26px: the home greeting, a result's heading). Dialogs and the docs
+  reader keep their own headings; the phone app's 15px title is its one exception. Don't add a size.
 - Numbers that change in place (times, counts, elapsed) get `font-variant-numeric: tabular-nums`
   so they don't wiggle.
 - Paths, commands, branches, cron, tokens: `--mono` (the form kit's `.mono`).

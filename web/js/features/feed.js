@@ -369,7 +369,7 @@ export function qDot(s, { ring = true } = {}) {
 // One-click done on review rows. A sidebar row keeps it while open, and rows without one keep its
 // space, so every row's pills and time line up and opening a row doesn't move anything.
 function quickDone(s, open) {
-  if (s.state === 'review' && !s.archived && (!open || isSplit())) return `<button class="it-quick" data-a="quick-done" title="Mark done (E)">${icon('done')}</button>`;
+  if (s.state === 'review' && !s.archived && (!open || isSplit())) return `<span class="it-quick" data-a="quick-done" title="Mark done (E)" aria-hidden="true">${icon('done')}</span>`; // a pointer shortcut inside the row's button: keys have E, the task's bar has Mark done
   return '<span class="it-quick-gap" aria-hidden="true"></span>';
 }
 

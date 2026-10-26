@@ -1,18 +1,18 @@
 /* Auto: wisp's router as a harness (picker, card badge, Settings → Auto) */
-.auto-mark { display: inline-flex; align-items: center; justify-content: center; color: var(--accent); }
+.auto-mark { display: inline-flex; align-items: center; justify-content: center; color: var(--ink-2); }
 .auto-mark .i { width: 100%; height: 100%; }
 .model-logo.routed::before { content: ''; position: absolute; right: -3px; bottom: -3px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--surface); }
 .pk-note { margin: 8px 10px 4px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
 .pk-note a { color: var(--accent-ink); }
 .ro-goal { flex: none; }
 .ro-allowed { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 360px; }
-.chip-tog { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.chip-tog { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
 .chip-tog:hover { color: var(--ink); }
 .chip-tog.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
 .router-modal { width: min(720px, 100%); position: relative; padding-bottom: 20px; }
 .router-modal .hint { margin: 0 0 12px; }
 .router-modal h4 { margin: 16px 0 6px; }
-.ro-table td small.ro-types { display: block; margin: 2px 0 0 19px; font-size: 11px; color: var(--faint); }
+.ro-table td small.ro-types { display: block; margin: 2px 0 0 19px; font-size: 11.5px; color: var(--faint); }
 .ro-table .sx-state { justify-content: flex-end; }
 .sx-state.ok { color: var(--good); }
 .sx-state.warn { color: var(--warn); }
@@ -43,12 +43,12 @@
 .ask-from > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; font: inherit; color: var(--accent-ink); }
 .ask-from > span:last-child { color: var(--ink-2); }
 .t-by { font-weight: 600; color: var(--accent-ink); }
-.tests-by { margin-left: 8px; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 500; vertical-align: middle; color: var(--accent-ink); background: var(--accent-soft); }
+.tests-by { margin-left: 8px; padding: 1px 6px; border-radius: 5px; font-size: 11.5px; font-weight: 500; vertical-align: middle; color: var(--accent-ink); background: var(--accent-soft); }
 .ro-repairs, .ro-scout { flex: none; }
 .ro-tests { display: flex; flex-direction: column; }
 .ro-test { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .ro-test .us-proj { width: 160px; flex: none; font-size: 12.5px; }
-.ro-test .input { flex: 1; min-width: 0; font-size: 12px; }
-.router-modal .hint code { font-size: 11px; padding: 0 4px; border-radius: 4px; background: var(--bg-2); }
-.ro-tier { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 10.5px; color: var(--faint); background: var(--bg-2); }
+.ro-test .input { flex: 1; min-width: 0; font-size: 12.5px; }
+.router-modal .hint code { font-size: 11.5px; padding: 0 4px; border-radius: 4px; background: var(--bg-2); }
+.ro-tier { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 11.5px; color: var(--faint); background: var(--bg-2); }
 .ro-tier.t3 { color: var(--accent-ink); background: var(--accent-soft); }

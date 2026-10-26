@@ -5,12 +5,12 @@
 .ghost.tx-toggle.on { color: var(--accent-ink); background: var(--accent-soft); }
 
 .tx { display: flex; flex-direction: column; }
-.tx-head { display: flex; align-items: center; gap: 6px; min-height: 22px; margin: -6px 0 8px; font-size: 12px; color: var(--faint); white-space: nowrap; }
+.tx-head { display: flex; align-items: center; gap: 6px; min-height: 22px; margin: -6px 0 8px; font-size: 12.5px; color: var(--faint); white-space: nowrap; }
 .tx-title { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--muted); }
 .tx-count { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tx-title .i { width: 14px; height: 14px; }
 .tx-title + .tx-count::before { content: '·'; margin-right: 6px; }
-.tx-jump { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.tx-jump { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
 .tx-jump .i { width: 12px; height: 12px; transform: rotate(90deg); }
 
 .tx-list { position: relative; list-style: none; margin: 0 0 18px; padding: 0; }
@@ -37,9 +37,9 @@
 /* Both give way on a narrow row, the command three times faster. (Shrink factors that sum under 1
    would leave part of the overflow in place.) */
 .tx-label { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tx-cmd { flex: 0 3 auto; min-width: 0; font: 12px/1.4 var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx-cmd { flex: 0 3 auto; min-width: 0; font: 12.5px/1.4 var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tx-row .nums { margin-left: auto; }
-.tx-t { margin-left: auto; flex: none; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity 0.15s; }
+.tx-t { margin-left: auto; flex: none; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity 0.15s; }
 .tx-row .nums + .tx-t { margin-left: 0; }
 .tx-step:hover .tx-t, .tx-msg:hover .tx-t, .tx-step.open .tx-t { opacity: 1; }
 .tx-open {
@@ -65,7 +65,7 @@
 .tx-more { margin: 2px 0 8px 8px; animation: rise 0.3s var(--ease); }
 .tx-out {
   margin: 0; padding: 10px 12px; max-height: 340px; overflow: auto; border-radius: 8px;
-  background: var(--surface-2); border: 1px solid var(--line); font: 12px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word;
+  background: var(--surface-2); border: 1px solid var(--line); font: 12.5px/1.55 var(--mono); white-space: pre-wrap; word-break: break-word;
 }
 .tx-cmdline, .tx-res { display: block; }
 .tx-cmdline { color: var(--ink); }

@@ -66,5 +66,5 @@
 .p-chip.add .i { width: 14px; height: 14px; }
 .p-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pc); display: inline-block; flex: none; }
 .p-run { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
-.p-need { font-size: 10.5px; font-weight: 600; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--ink); color: var(--bg); display: grid; place-items: center; }
+.p-need { font-size: 11.5px; font-weight: 600; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--ink); color: var(--bg); display: grid; place-items: center; }
 

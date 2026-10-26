@@ -10,13 +10,13 @@
 .c-queued { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .c-queued:not(:empty) { padding: 4px 0 6px; }
 .cq { position: relative; display: flex; align-items: baseline; gap: 8px; padding: 6px 30px 6px 10px; border-radius: 8px; border: 1px dashed var(--line-2); font-size: 12.5px; animation: pop 0.35s var(--ease); }
-.cq-tag { flex: none; font-size: 11px; font-weight: 600; color: var(--accent-ink); }
+.cq-tag { flex: none; font-size: 11.5px; font-weight: 600; color: var(--accent-ink); }
 .cq .att-x:hover { color: var(--bad); }
 .cq-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .c-hint { flex: 1; font-size: 11.5px; color: var(--faint); }
 .c-bar .mode-btn { height: 30px; min-width: 30px; padding: 0 8px; }
 .c-bar .mode-btn.changed { background: var(--bg-2); }
-.t-mode { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; font: 500 11px var(--sans); color: var(--muted); border: 1px solid var(--line); }
+.t-mode { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; font: 500 11.5px var(--sans); color: var(--muted); border: 1px solid var(--line); }
 .t-mode .i { width: 12px; height: 12px; }
 /* a follow-up that ran on another account than the turn before */
 .t-acct { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
@@ -32,7 +32,7 @@
 .c-done { color: var(--good); } /* green like Reopen, easy to spot */
 .c-ship { color: var(--accent-ink); }
 /* a switch, so on and off read at a glance: off is faint with the knob left, on is accent with the knob right */
-.c-queue { color: var(--faint); font-size: 12px; gap: 6px; border: 1px solid transparent; }
+.c-queue { color: var(--faint); font-size: 12.5px; gap: 6px; border: 1px solid transparent; }
 .c-queue.on { color: var(--accent-ink); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .c-queue.on:hover { color: var(--accent-ink); }
 .c-switch { position: relative; flex: none; width: 22px; height: 12px; border-radius: 99px; background: var(--line-2); transition: background 0.15s var(--ease); }
@@ -52,8 +52,8 @@
 }
 .slash-item { display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 7px 10px; border-radius: 8px; text-align: left; font-size: 13px; color: var(--ink-2); }
 .slash-item b { font: 600 12.5px var(--mono); color: var(--ink); }
-.slash-args { font: 12px var(--mono); color: var(--faint); }
-.slash-hint { margin-left: auto; padding-left: 12px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slash-args { font: 12.5px var(--mono); color: var(--faint); }
+.slash-hint { margin-left: auto; padding-left: 12px; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slash-item.on, .slash-item:hover { background: var(--bg-2); }
 .slash-item.on b { color: var(--accent-ink); }
 
@@ -66,7 +66,7 @@
 .att img { width: 36px; height: 36px; border-radius: 7px; object-fit: cover; }
 .att-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 7px; background: var(--bg-2); color: var(--muted); }
 .att-name { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.att-size { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.att-size { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
 .att-x { position: absolute; right: 6px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: var(--muted); }
 .att-x:hover { background: var(--bg-2); color: var(--ink); }
 .att-x .i { width: 12px; height: 12px; }
@@ -77,7 +77,7 @@
 /* harness · model for the next follow-up: a quiet logo, spelled out once it's switched */
 .c-runner {
   display: inline-flex; align-items: center; height: 30px; min-width: 30px; padding: 0 4px; border-radius: 8px; gap: 0;
-  font-size: 12px; color: var(--muted); transition: background 0.15s, color 0.15s;
+  font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s;
 }
 .c-runner .rb-logo { margin-right: 0; background: transparent; }
 .c-runner:hover, .c-runner.open, .c-runner.changed { background: var(--bg-2); color: var(--ink); }
@@ -85,13 +85,13 @@
 .c-runner.changed .rb-logo { margin-right: 4px; }
 .c-runner:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 /* where the next follow-up runs: a quiet icon, the computer's name once it's switched */
-.c-place { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.c-place { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s; }
 .c-place .i { width: 15px; height: 15px; }
 .c-place:hover, .c-place[aria-expanded='true'], .c-place.changed { background: var(--bg-2); color: var(--ink); }
 .c-place.changed { padding-right: 9px; color: var(--accent); }
 .c-place:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 /* subagents from the next follow-up on: a quiet icon, the members' logos once there's a team */
-.c-team { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.c-team { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s; }
 .c-team .i { width: 15px; height: 15px; }
 .c-team .tb-label { display: none; }
 .c-team.changed .tb-label { display: inline; font-weight: 500; }

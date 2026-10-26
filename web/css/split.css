@@ -79,7 +79,7 @@ body.split.side-hidden.pane-wide.side-right .split-head { padding-right: max(cal
 .me-menu .me-nav .auto-btn { height: auto; padding: 7px 10px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-weight: 400; }
 .me-menu .me-nav .auto-btn:hover { background: var(--bg-2); color: var(--ink); }
 .me-menu .me-nav .auto-btn > span { display: inline; flex: 1; text-align: left; }
-.me-menu .me-nav .auto-btn > span small { margin-left: 4px; font-size: 12px; color: var(--faint); }
+.me-menu .me-nav .auto-btn > span small { margin-left: 4px; font-size: 12.5px; color: var(--faint); }
 .me-menu .me-nav .auto-btn .i { width: 15px; height: 15px; color: var(--muted); }
 .me-menu .me-nav .getapp-btn .i { color: var(--accent); }
 .me-menu .me-nav [hidden] { display: none; }
@@ -164,7 +164,7 @@ body.split #feed .it-main { display: contents; }
 body.split #feed .it-head .q-dot { grid-row: 1; }
 /* The title runs the row's full width up to the time (pinned in the corner), so the state and PR
    pills under it no longer squeeze it to half the sidebar. */
-body.split #feed .it-title { grid-row: 1; grid-column: 2 / -1; padding-right: 36px; font-size: 13.5px; } /* "365d" is the widest */
+body.split #feed .it-title { grid-row: 1; grid-column: 2 / -1; padding-right: 36px; font-size: 13px; } /* "365d" is the widest */
 body.split #feed .f-group.scheduled .it-title { padding-right: 88px; } /* "Thu 09:00", "26 Oct 09:00" */
 body.split #feed :is(.it-sub, .q-live) { grid-row: 2; grid-column: 2; }
 body.split #feed .it-sub { color: var(--faint); }
@@ -207,17 +207,20 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-launch .sp-feedtop { margin-top: 18px; }
 .sh-next { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-next[hidden] { display: none; }
-.sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 8px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .sh-next h4 .n { color: var(--faint); }
 .sh-task {
   display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; width: 100%;
   padding: 9px 10px 9px 12px; border-radius: 9px; border: 1px solid transparent; text-align: left; transition: background 0.15s, border-color 0.15s;
 }
 .sh-task:hover { background: var(--surface); border-color: var(--line); }
-.sh-t { font-size: 13.5px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh-s { font-size: 12px; color: var(--muted); }
+.sh-t { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-s { font-size: 12.5px; color: var(--muted); }
 .sh-s.asking { color: var(--warn); font-weight: 500; }
-.sh-keys { margin: 18px 0 0; padding: 0 8px; font-size: 12px; color: var(--faint); line-height: 2; }
+/* Side by side, the sidebar's Needs you already says each task's state (and its dot says it here):
+   home lists them to open, without saying it again. Stacked or with the list hidden, it does. */
+body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
+.sh-keys { margin: 18px 0 0; padding: 0 8px; font-size: 12.5px; color: var(--faint); line-height: 2; }
 /* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */
 .split-home .launcher .lp-chip:not(.add) { border-color: transparent; }
 .split-home .launcher .lp-chip.on { background: var(--bg-2); }
@@ -237,9 +240,9 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-up > .q-dot.auto, .sh-up > .cr-av { justify-self: center; }
 .sh-up .sh-s { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-up .q-time { font-variant-numeric: tabular-nums; }
-.tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .sh-tips h4 { padding: 0 8px; }
-.tip-more { margin-left: auto; padding: 2px 6px; border-radius: 6px; font-size: 12px; color: var(--faint); }
+.tip-more { margin-left: auto; padding: 2px 6px; border-radius: 6px; font-size: 12.5px; color: var(--faint); }
 .tip-more:hover { color: var(--ink-2); background: var(--bg-2); }
 .tip {
   display: grid; grid-template-columns: 14px minmax(0, 1fr) 13px; gap: 10px; align-items: center;
@@ -252,8 +255,8 @@ body.split .task-runs { padding: 0 4px 4px; }
 .tip:hover > .i:first-child { color: var(--accent); }
 .tip:hover .tip-go, .tip:focus-visible .tip-go { opacity: 1; }
 .tip b { font-weight: 600; color: var(--ink); }
-.tip code { font: 12px var(--mono); padding: 1px 4px; border-radius: 4px; background: var(--bg-2); }
-.tip kbd { font-size: 11px; }
+.tip code { font: 12.5px var(--mono); padding: 1px 4px; border-radius: 4px; background: var(--bg-2); }
+.tip kbd { font-size: 11.5px; }
 
 /* The open task's header: its title, one line, over the reading column (and the details beside it). */
 .split-head {
@@ -263,7 +266,7 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-row { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
 .sh-row .q-dot { flex: none; }
 .sh-title {
-  flex: 1; min-width: 0; margin: 0; font: 600 17px/1.3 var(--display); letter-spacing: -0.015em; color: var(--ink); outline: 0; border-radius: 5px;
+  flex: 1; min-width: 0; margin: 0; font: 600 14px/1.3 var(--display); letter-spacing: -0.015em; color: var(--ink); outline: 0; border-radius: 5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sh-title[contenteditable='true'] { white-space: normal; background: var(--surface-2); box-shadow: 0 0 0 3px var(--accent-soft); padding: 0 4px; cursor: text; }
@@ -301,10 +304,15 @@ body.split #feed .item.open > .it-body > .it-bar {
   position: sticky; top: 0; z-index: 2; flex-wrap: wrap; row-gap: 6px; margin: 0 -8px; padding: 8px; background: var(--bg);
 }
 /* On a narrow pane the details are this bar: what the card says, how it runs, the actions, the PR. */
-body.split .it-bar > .it-props { display: flex; flex: none; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--muted); }
+body.split .it-bar > .it-props { display: flex; flex: none; align-items: center; gap: 6px 10px; font-size: 12.5px; color: var(--muted); }
 body.split .it-bar > .pr-strip { order: 9; flex: 1 0 100%; margin: 0; }
 body.split .it-bar > .it-slot:not(:empty) { display: flex; align-items: center; gap: 2px; }
 body.split .it-bar:has(> .pr-strip:not([hidden])) .it-props :is(.pill.pr, .ship-pill) { display: none; }
+/* Said once: the overlap notices above the reply box are the detail, so the bar drops its count; with
+   the list beside it (its open row says the state), the bar drops the state and gives the clock time. */
+body.split .it-body:has(.overlap-strip:not([hidden])) .it-props > .pill.overlap { display: none; }
+body.split:not(.stack):not(.side-hidden) .it-bar > .it-props > .pill[class*='st-'] { display: none; }
+
 
 /* The task's bar (sticky, or the details column) keeps Ship it and Mark done in reach at any scroll:
    the reply box doesn't say them a second time. */
@@ -333,6 +341,9 @@ body.split.pane-wide .it-props > .q-time { order: 1; flex: 1 0 auto; min-width: 
 body.split.pane-wide .it-props:has(> .pill:not(.pr)) > .q-time::before { content: '\00a0·\00a0'; }
 body.split.pane-wide .it-props:not(:has(> .pill:not(.pr))) > .q-time { padding-left: 22px; }
 body.split.pane-wide .it-props:not(:has(> .pill:not(.pr))) > .q-time::before { content: 'Updated '; }
+/* …and so does it when the list beside it says the state (its pill is hidden above). */
+body.split.pane-wide:not(.side-hidden):not(.stack) .it-bar > .it-props > .q-time { padding-left: 22px; }
+body.split.pane-wide:not(.side-hidden):not(.stack) .it-bar > .it-props > .q-time::before { content: 'Updated '; }
 /* the harness by name: there's room, and a tooltip would run off the column */
 body.split.pane-wide .it-props .model-logo { flex: 1 0 100%; order: 2; width: auto; height: auto; align-items: flex-start; gap: 9px; color: var(--ink-2); }
 body.split.pane-wide .it-props .model-logo > * { width: 13px; height: 13px; flex: none; margin-top: 2px; }
@@ -348,8 +359,8 @@ body.split.pane-wide .it-props > .q-proj::before { content: ''; position: absolu
 body.split.pane-wide .it-bar > .it-meta { flex: none; flex-direction: column; align-items: stretch; gap: 8px; margin-top: -6px; overflow: visible; font-size: 12.5px; }
 body.split.pane-wide .it-meta .m { display: flex; align-items: center; max-width: 100%; min-width: 0; }
 body.split.pane-wide .it-meta .m > .i { width: 13px; height: 13px; flex: none; margin: 0 9px 0 0; color: var(--faint); }
-body.split.pane-wide .it-meta .m.branch { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-body.split.pane-wide .it-meta .m.branch > .i { margin-right: 9px; vertical-align: -2px; }
+body.split.pane-wide .it-meta .m.branch { overflow: hidden; white-space: nowrap; color: var(--muted); }
+body.split.pane-wide .it-meta .m.branch > .i { margin-right: 9px; }
 body.split.pane-wide .it-meta .m.also .p-dot { margin: 0 12px 0 4px; }
 body.split.pane-wide .it-meta:empty { display: none; }
 /* the PR: a card of its own, its number and GitHub, its state, then Merge / Fix conflicts / Check now */
@@ -374,7 +385,7 @@ body.split.pane-wide .it-actions :is(.ghost.on, .it-done) { color: var(--good); 
 body.split.pane-wide .it-actions .ghost .i { width: 15px; height: 15px; }
 body.split.pane-wide .it-actions .ghost > .it-lbl { display: inline; }
 body.split.pane-wide .it-actions .ghost[data-key]::after {
-  content: attr(data-key); margin-left: auto; font: 10.5px/1.4 var(--mono); padding: 0 5px; border-radius: 5px;
+  content: attr(data-key); margin-left: auto; font: 11.5px/1.4 var(--mono); padding: 0 5px; border-radius: 5px;
   border: 1px solid var(--line-2); border-bottom-width: 2px; color: var(--faint);
 }
 body.split.pane-wide .it-bar > .it-slot:not(:empty) { flex-direction: column; align-items: stretch; }
@@ -407,9 +418,21 @@ body.split.stack .split-top { margin: 0 -8px; padding: 8px 8px 10px; }
 /* The list's rows get the room a sidebar doesn't have: titles on two lines. */
 body.split.stack #feed .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
 body.split.stack #feed .item.open .it-title { white-space: normal; }
-/* The task's facts on a narrow page: a branch with too little room left moves to its own line
-   instead of shrinking to "wi…". */
-body.split.stack .it-bar > .it-meta:not(:empty) { min-width: min(100%, 180px); }
+/* The task's bar on a narrow page, two rows: its facts, then the actions with how it runs (the
+   branch, cut in the middle) in the room left beside them. */
+body.split.stack .it-bar > .it-props { flex: 1 0 100%; flex-wrap: nowrap; min-width: 0; }
+body.split.stack .it-bar > .it-props > * { flex: none; }
+body.split:not(.pane-wide) .it-bar > .it-props > .q-proj { flex: 0 1 auto; min-width: 6ch; max-width: none; } /* whole while there's room */
+body.split.stack .it-bar > .it-actions { order: 1; }
+body.split.stack .it-bar > .it-meta { order: 2; flex: 1 1 0; justify-content: flex-end; }
+/* A touch screen's 44px actions leave a branch too little room to say anything: there it gets its
+   own line, under the facts, rather than "wi…". */
+@media (pointer: coarse) { body.split.stack .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; } }
+body.wisp-mobile.split.stack .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; }
+body.split.stack .it-bar > .it-slot { order: 3; }
+/* A pane too narrow for the details column but wide enough for one row: the facts keep room for a
+   branch that says something, and the actions go under them rather than squeeze it. */
+body.split:not(.stack):not(.pane-wide) .it-bar > .it-meta:has(.m.branch) { min-width: min(100%, 260px); }
 
 /* The page's head: Back, the title (two lines at most, so a long one never pushes the rest off), the
    split.head slot. A fixed minimum height, so a title that wraps or changes doesn't move the task. */
@@ -421,7 +444,7 @@ body.split.stack .split-head { min-height: 56px; align-items: center; padding: 6
 body.split.stack .split-head .sh-row { align-items: center; gap: 6px; }
 body.split.stack .split-head .sh-title {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere;
-  font-size: 15px; line-height: 1.3;
+  font-size: 14px; line-height: 1.3;
 }
 body.split.stack .split-head .sh-acts { min-height: 44px; }
 body.split.stack .crew-view .cv-top .sh-back { margin-right: -2px; }

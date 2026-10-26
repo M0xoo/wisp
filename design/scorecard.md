@@ -27,63 +27,84 @@ Use it with [checklist.md](checklist.md): the checklist says what to look at, th
 | 15 | Theming | Light and dark | Elements that read wrong in either theme | 0 |
 | 16 | Multi-agent | Many tasks at once | Tasks visible and comparable at once; compare runs side by side | Yes, without leaving the page |
 
+## How to measure
+
+Rows 9, 13 and 14 have numbers you can take from the page, so take them rather than eyeball them.
+Start a QA wisp with fake agents (`qa/lib.mjs` `startWisp`), open home and a finished task, and in
+each of the 20 views (1440, 1000, 390px browser, 390px touch, 390px phone app with `wispMobile` in
+the user agent; light and dark):
+
+- **Font sizes:** count the distinct computed `font-size` of visible text nodes (target ≤ 5).
+- **Overflow:** `scrollWidth - clientWidth` of the page (target 0).
+- **axe-core** (installed in `/tmp`, not the repo) with `wcag2a` and `wcag2aa` (target 0 violations;
+  this covers contrast, names and nested controls).
+- **Focus:** press Tab through home and a task; every stop must draw a ring (outline or box-shadow).
+- **Taps:** in the app view, visible controls under 44px on either side (target 0).
+
 ## Scores, October 2026
 
-wisp is scored from screenshots of the page at 1440, 1000 and 390px (and 390px touch), light and dark,
-with a QA wisp (fake agents). The other three are scored from their current public UI: a judgment,
-not a measurement. *Review* is Gucci's (the crew's UI reviewer) independent pass after round 1;
-*after* is after round 2, which fixed what that review found.
+The other three are scored from their current public UI: a judgment, not a measurement. Each wisp
+column after *before* is Gucci's (the crew's UI reviewer) independent score, given from the
+screenshots, the measurements above and the diff.
 
-| # | Criterion | wisp before | wisp review (round 1) | wisp after | Cursor | Codex | Claude Code |
-|---|---|---|---|---|---|---|---|
-| 1 | Primary text is whole | 2 | 4 | 5 | 4 | 4 | 3 |
-| 2 | Nothing said twice | 2 | 3 | 4 | 4 | 4 | 4 |
-| 3 | No fragment labels | 2 | 5 | 5 | 4 | 4 | 5 |
-| 4 | State readable from the list | 5 | 5 | 5 | 3 | 4 | 3 |
-| 5 | One place for what needs you | 5 | 5 | 5 | 2 | 3 | 2 |
-| 6 | Instant actions | 5 | 5 | 5 | 4 | 4 | 4 |
-| 7 | Nothing jumps | 4 | 5 | 5 | 3 | 4 | 4 |
-| 8 | Never empty while loading | 5 | 5 | 5 | 4 | 3 | 4 |
-| 9 | Calm density | 3 | 3 | 4 | 3 | 4 | 4 |
-| 10 | One kit | 5 | 5 | 5 | 4 | 5 | 5 |
-| 11 | Same action, same name | 5 | 5 | 5 | 3 | 4 | 4 |
-| 12 | Keyboard | 5 | 5 | 5 | 5 | 4 | 5 |
-| 13 | Accessibility | 4 | 4 | 4 | 4 | 4 | 3 |
-| 14 | Phones | 3 | 4 | 4 | 3 | 4 | 3 |
-| 15 | Light and dark | 5 | 5 | 5 | 5 | 4 | 4 |
-| 16 | Many tasks at once | 5 | 5 | 5 | 4 | 5 | 3 |
-| | **Total (of 80)** | **65** | **73** | **76** | **59** | **64** | **60** |
+| # | Criterion | wisp before | round 1 | round 2 | round 3 | round 4 | Cursor | Codex | Claude Code |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | Primary text is whole | 2 | 4 | 5 | 4.5 | 5 | 4 | 4 | 3 |
+| 2 | Nothing said twice | 2 | 3 | 3 | 4.5 | 5 | 4 | 4 | 4 |
+| 3 | No fragment labels | 2 | 5 | 4 | 5 | 5 | 4 | 4 | 5 |
+| 4 | State readable from the list | 5 | 5 | 5 | 5 | 5 | 3 | 4 | 3 |
+| 5 | One place for what needs you | 5 | 5 | 5 | 5 | 5 | 2 | 3 | 2 |
+| 6 | Instant actions | 5 | 5 | 5 | 5 | 5 | 4 | 4 | 4 |
+| 7 | Nothing jumps | 4 | 5 | 5 | 5 | 4.75 → 5¹ | 3 | 4 | 4 |
+| 8 | Never empty while loading | 5 | 5 | 5 | 5 | 5 | 4 | 3 | 4 |
+| 9 | Calm density | 3 | 3 | 4 | 5 | 5 | 3 | 4 | 4 |
+| 10 | One kit | 5 | 5 | 4 | 5 | 5 | 4 | 5 | 5 |
+| 11 | Same action, same name | 5 | 5 | 5 | 5 | 5 | 3 | 4 | 4 |
+| 12 | Keyboard | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 5 |
+| 13 | Accessibility | 4 | 4 | 4.5 | 5 | 5 | 4 | 4 | 3 |
+| 14 | Phones | 3 | 4 | 4 | 4.5 | 5 | 3 | 4 | 3 |
+| 15 | Light and dark | 5 | 5 | 5 | 5 | 5 | 5 | 4 | 4 |
+| 16 | Many tasks at once | 5 | 5 | 5 | 5 | 5 | 4 | 5 | 3 |
+| | **Total (of 80)** | **65** | **73** | **73.5** | **77.5** | **80** | **59** | **64** | **60** |
+
+¹ Round 4 gave 4.75: the details column's clock time came and went with the task's state, moving
+the actions under it. Its fix (the time shows only before a task's first prompt) is in; that makes
+the row a 5 by the review's own words.
+
+Measured after round 4, in all 20 views: 3–5 font sizes (was 7–10), 0 overflow, 0 axe-core
+violations (was 7: contrast, nested controls, a prohibited label), 40 Tab stops all ringed, 0 app
+controls under 44px (was 7).
 
 ## What changed
 
-Round 1:
+Round 1 (merged in #350):
 
-- **Row titles use the row (1).** The sidebar's state and PR pills used to take a column that ran
-  the height of the row, so a title stopped halfway ("Fake claude …") beside empty space. The pills
-  now sit on the second line only and the time is pinned in the corner: titles run to the time.
-- **No "Au…" in the launcher (3).** The place's label folds to its icon under 800px of box (was
-  720px), so the harness keeps its name and the model shows beside it.
-- **The result doesn't repeat its numbers (2).** A finished turn's hero said "1s · $0.01 · 1 file
-  touched", and the trail right under it said 1s, $0.01 and 1 file again. In a task the hero keeps
-  only its state; the trail has the numbers (Compare and crew threads keep them).
-- **The branch on a phone (3, 14).** In a stacked task the branch shrank to "wi…" at the end of the
-  first row; with too little room it now gets a line of its own.
+- **Row titles use the row.** The pills sit on the second line; titles run up to the time.
+- **No "Au…" in the launcher.** The place folds to its icon under 800px of box.
+- **The result doesn't repeat its numbers or its title** (the trail and the head have them).
+- **Ship it and Mark done once** in split view (the bar keeps them in reach).
 
-Round 2 (from the review):
+Round 2 (this branch):
 
-- **Titles never run under the time.** Scheduled rows (whose time is "Thu 09:00") reserve 88px, and
-  on touch screens, where the done button has its own column, titles reserve both.
-- **The account label keeps its old fold (720px)**; only the place folds sooner.
-- **The result's heading isn't the task's title again (2).** When the hero's title is the task's
-  title, which the head above already shows, the hero drops it and leads with its summary.
-- **Ship it and Mark done once (2, 9).** In split view the task's bar is sticky (or is the details
-  column), so the reply box no longer repeats its two coloured buttons.
+- **One type scale** (rows 9, 10): every size in `web/css` mapped onto 11.5 / 12.5 / 13 / 14 and one
+  display size; the task's head title is 14px. `design/ui.md` → Type.
+- **Hints at AA** (row 13): `--faint` 4.5:1 on `--bg-2` in both themes, `--muted` a step darker.
+- **No nested controls** (row 13): the row's hover done is a pointer shortcut (keys have E, the bar
+  has Mark done); Crew's + sits beside its fold heading, not in it; logos with a tip are `role=img`
+  and draw a focus ring.
+- **Said once** (row 2): the latest result drops its own state pill in a task; the bar drops its
+  overlap count while the overlap notices show; with the list beside the task the bar drops the
+  state (the open row says it) and the clock time (the prompt's foot says it); home's Needs you
+  drops the state word beside the sidebar.
+- **Colour for state only** (row 9): Plan, Full auto and Worktree read in ink with only the
+  icon tinted (Worktree's on is ink, not blue); Recipes and Auto's mark are neutral.
+- **Phones** (rows 3, 14): the task's bar is facts, then actions with the branch beside them (cut in
+  the middle, "wisp/add-a-rat…-9c5e26"); on touch the branch takes its own line. Overlap reasons wrap
+  under their title. The app's section folds, Crew's +, project chips, Open and the trail buttons
+  are 44px.
+- **Tokens** (row 10): the terminal's greys, line and states are `--term-*` tokens.
 
-## Still below 5
+## Still to watch
 
-- **2:** *Finished* shows in the details column and in the result's pill. The pill is the agent's
-  own verdict (Finished / Partly done / Blocked), so it stays. Two overlap notices for two tasks
-  with the same title read alike (that's the fake agent's titles).
-- **9:** 7 font sizes on a task screen; Full auto stays amber because it's a state (no approvals).
-- **13:** `--faint` hints are 3:1 by design; body text passes AA.
-- **14:** a stacked task's head can take three rows (facts, branch, actions) before the result.
+- Home's Needs you repeats the sidebar's titles side by side. It's the inbox by design (it must
+  list what needs you above the tips); its rows say nothing else twice.

@@ -19,7 +19,7 @@
 import { esc } from '../md.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, icon } from '../core/dom.js';
-import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
+import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { inGrid, load, MOBILE, S, save } from '../core/state.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { onBack } from '../ui/back.js';
@@ -397,7 +397,10 @@ function paintDetails(s, pill) {
   const body = S.nodes.get(s.id)?.body;
   const props = body && $('.it-props', body);
   if (!props) return;
-  const html = `${headPills(s, pill)}<span class="q-time" ${timeAttrs(s.updatedAt)}>${agoLong(s.updatedAt)}</span>`;
+  // The clock time only before the first prompt: after it, the list says how long ago and the prompt's
+  // foot gives the time. Never on a state or minute, so the actions under it never move.
+  const echo = !!S.full.get(s.id)?.turns?.at(-1)?.startedAt;
+  const html = `${headPills(s, pill)}${echo ? '' : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${whenLabel(s.updatedAt)}</span>`}`;
   if (props.dataset.h !== html) (props.innerHTML = html), (props.dataset.h = html);
   const slot = $('.it-slot', body);
   const btns = slotHtml('split.details', s);
