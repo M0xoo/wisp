@@ -314,45 +314,61 @@ export function renderLauncher() {
 
   // "in 5 min run the e2e suite", "remind me to … in 1 h": the time wisp read, shown in place of
   // the recipes row once you pause typing. Only a shown time schedules; × (Not a time) holds for
-  // the draft, and Alt+Enter starts it now as typed.
+  // the draft, and Alt+Enter starts it now as typed. A time set with the clock (armed) comes first:
+  // it can be set before typing, Enter schedules the task then, and no time in the text replaces it.
   let when = null;
+  let armed = null; // { at }
   let notTime = false;
   let whenTimer = 0;
   const whenRow = $('.l-when', box);
   const laterBtn = $('#launchLater', box);
+  const passed = () => !!armed && armed.at < Date.now() + 60_000;
+  const startsAt = (t) => `${new Date(t).toDateString() === new Date().toDateString() ? 'at ' : ''}${esc(aheadLabel(t))}`;
   const paintWhen = () => {
-    const html = when
-      ? `<span class="when-chip" title="${esc(whenTip(when.at))}">${icon(when.reminder ? 'bell' : 'clock')}<span>${when.reminder ? `Reminds you at ${esc(aheadLabel(when.at))}` : `Starts ${new Date(when.at).toDateString() === new Date().toDateString() ? 'at ' : ''}${esc(aheadLabel(when.at))}`}</span>${when.reminder ? '' : '<button type="button" class="link" data-a="now">Start now</button>'}<button type="button" class="att-x" data-a="x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
-      : '';
+    const w = armed || when;
+    const html = armed
+      ? `<span class="when-chip${passed() ? ' passed' : ''}" title="${esc(whenTip(armed.at))}">${icon('clock')}<span>${passed() ? `${esc(aheadLabel(armed.at))} has passed` : `Starts ${startsAt(armed.at)}`}</span><button type="button" class="att-x" data-a="x" aria-label="Clear the time" title="Clear the time">${icon('x')}</button></span>`
+      : when
+        ? `<span class="when-chip" title="${esc(whenTip(when.at))}">${icon(when.reminder ? 'bell' : 'clock')}<span>${when.reminder ? `Reminds you at ${esc(aheadLabel(when.at))}` : `Starts ${startsAt(when.at)}`}</span>${when.reminder ? '' : '<button type="button" class="link" data-a="now">Start now</button>'}<button type="button" class="att-x" data-a="x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
+        : '';
     if (whenRow.dataset.h !== html) (whenRow.innerHTML = html), (whenRow.dataset.h = html);
-    whenRow.hidden = !when;
-    box.classList.toggle('when-on', !!when);
+    whenRow.hidden = !w;
+    box.classList.toggle('when-on', !!w);
     const touch = matchMedia('(pointer: coarse)').matches;
     const send = $('#launch', box);
-    send.title = when ? `${when.reminder ? 'Remind you' : 'Start'} at ${aheadLabel(when.at)}${touch ? '' : ' (Enter) · Alt+Enter starts now'}` : 'Launch (Enter · Shift+Enter for newline)';
-    laterBtn.disabled = !ta.value.trim();
-    laterBtn.title = laterBtn.disabled ? 'Type a task first' : 'Start later';
-    laterBtn.classList.toggle('on', !!when);
+    send.title = w ? `${w.reminder ? 'Remind you' : 'Start'} at ${aheadLabel(w.at)}${touch ? '' : ' (Enter) · Alt+Enter starts now'}` : 'Launch (Enter · Shift+Enter for newline)';
+    laterBtn.title = armed ? 'Change start time' : 'Start later';
+    laterBtn.classList.toggle('on', !!w);
   };
   const readWhen = () => {
     clearTimeout(whenTimer);
     if (!ta.value.trim()) notTime = false;
     const text = ta.value;
-    const ok = S.config.defaults?.readTimes !== 'off' && !notTime && !spellAsk(text.trim()) && !spellSlash(text.trim()) && !isFeedback(text.trim()) && !addressedTo(text).members.length;
+    const ok = !armed && S.config.defaults?.readTimes !== 'off' && !notTime && !spellAsk(text.trim()) && !spellSlash(text.trim()) && !isFeedback(text.trim()) && !addressedTo(text).members.length;
     if (!ok || !parseWhen(text)) return (when = null), paintWhen();
     whenTimer = setTimeout(() => ((when = parseWhen(ta.value)), paintWhen()), 250);
   };
   whenRow.onclick = (e) => {
     const a = e.target.closest('button')?.dataset.a;
     if (a === 'now') (when = null), go(null, { now: true });
-    if (a === 'x') (notTime = true), (when = null), paintWhen(), ta.focus();
+    if (a === 'x' && armed) (armed = null), readWhen(), ta.focus();
+    else if (a === 'x') (notTime = true), (when = null), paintWhen(), ta.focus();
   };
-  laterBtn.onclick = () => {
-    if (!ta.value.trim()) return;
-    timeMenu(laterBtn, { verb: 'Starts', back: ta, pick: (at) => go(null, { at }) });
-  };
+  // Picking a time sets it; the task goes on Enter, once there is one.
+  const pickTime = () =>
+    timeMenu(laterBtn, {
+      back: ta,
+      pick: (at) => {
+        armed = { at };
+        when = null;
+        clearTimeout(whenTimer);
+        paintWhen();
+        ta.focus();
+      },
+    });
+  laterBtn.onclick = pickTime;
   paintWhen();
-  box.whenNow = () => when; // Enter reads it (keydown below)
+  box.whenNow = () => armed || when; // Enter reads it (keydown below)
 
   // over: a spell's launchWith ({ agent, model, effort, mode, text }) for this one launch.
   // at: start it then instead (Start later, or the time read from the box); now: ignore that time.
@@ -393,23 +409,34 @@ export function renderLauncher() {
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
     // For later: a task (or a reminder) that starts at that time, kept by wisp until then.
-    const w = now ? null : at ? { at, rest: prompt, reminder: false } : when;
+    if (now) armed = null; // Alt+Enter: now, whatever time was set
+    // A time set with the clock that went by while you typed: pick another, the draft waits.
+    if (!at && passed()) return paintWhen(), pickTime();
+    const w = now ? null : at ? { at, rest: prompt, reminder: false } : armed ? { at: armed.at, rest: prompt, reminder: false } : when;
     if (w) {
       const t = targets[0];
       if (!t.project) return toast('Pick a project that’s ready first: this one is still cloning.', { tone: 'bad' });
-      if (tray.busy || (await tray.ids()).length) return toast('A scheduled task can’t carry files yet. Start it now, or remove them.', { tone: 'bad' });
       const r = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
+      // Its files go with it: wisp keeps uploads until the task starts.
+      const attachments = w.reminder ? [] : await tray.ids();
+      const files = w.reminder ? [] : tray.take();
+      const was = armed;
       ta.value = '';
       S.drafts.delete('home');
+      armed = null;
       ta.dispatchEvent(new Event('input'));
       when = null;
       paintWhen();
       leaveHome();
       const body = w.reminder
         ? { text: w.rest }
-        : { prompt: w.rest, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, agent: r.agent, mode: over?.mode || curMode, model: r.model, effort: r.effort, account: r.account || undefined, worktree: S.config.defaults.worktree === 'off' ? false : undefined, subagents: team.length && canLead(r.agent) ? team : undefined };
+        : { prompt: w.rest, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, agent: r.agent, mode: over?.mode || curMode, model: r.model, effort: r.effort, account: r.account || undefined, attachments: attachments.length ? attachments : undefined, worktree: S.config.defaults.worktree === 'off' ? false : undefined, subagents: team.length && canLead(r.agent) ? team : undefined };
       const p = await addPlan(w.reminder ? 'reminder' : 'task', w.at, body);
-      if (!p) return !ta.value && ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
+      if (!p) {
+        tray.restore(files);
+        if (!ta.value) (armed = was), (ta.value = prompt), ta.dispatchEvent(new Event('input'));
+        return;
+      }
       return toast(`${w.reminder ? 'Reminds you' : 'Starts'} ${esc(aheadLabel(w.at))}`);
     }
     // Delegates on machines that aren't connected: connecting now has them ready by the first delegation.

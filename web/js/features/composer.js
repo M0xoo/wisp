@@ -143,16 +143,15 @@ export function renderDock(id) {
     readWhen(id);
   });
   const laterBtn = $('.c-later', comp);
-  laterBtn.onclick = () => {
-    const text = ta.value.trim();
-    if (!text) return;
-    timeMenu(laterBtn, { verb: 'Sends', back: ta, pick: (at) => scheduleReply(id, at, text) });
-  };
+  laterBtn.onclick = () => pickSendTime(id, laterBtn, ta);
   ta.addEventListener('focus', () => setFocus(id, { scroll: false }));
   ta.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      // A time wisp read (the chip shows it): scheduled. Alt+Enter sends it now, as typed.
+      // A time set with the clock, or one wisp read (the chip shows it): scheduled. Alt+Enter sends
+      // it now, as typed.
+      if (e.altKey) armedAt.delete(id);
+      else if (armedAt.has(id) && !isBtw(ta.value)) return sendArmed(id, ta);
       const w = !e.altKey && whenShown.get(id);
       if (w) return scheduleReply(id, w.at, w.rest, { remind: w.reminder, typed: ta.value });
       sendReply(id, ta.value);
@@ -163,6 +162,7 @@ export function renderDock(id) {
     }
   });
   $('.send', comp).onclick = () => {
+    if (armedAt.has(id) && !isBtw(ta.value)) return sendArmed(id, ta);
     const w = whenShown.get(id);
     if (w) return scheduleReply(id, w.at, w.rest, { remind: w.reminder, typed: ta.value });
     sendReply(id, ta.value);
@@ -172,7 +172,12 @@ export function renderDock(id) {
       whenShown.delete(id);
       sendReply(id, ta.value);
     }
-    if (e.target.closest('.c-when-x')) {
+    if (e.target.closest('.c-when-clear')) {
+      armedAt.delete(id);
+      readWhen(id);
+      paintSide(id);
+      ta.focus();
+    } else if (e.target.closest('.c-when-x')) {
       notTime.add(id);
       whenShown.delete(id);
       paintSide(id);
@@ -186,6 +191,33 @@ export function renderDock(id) {
 // the hint row once you stop typing for a moment (so "at 2" doesn't flash 02:00 before "pm").
 // Only a shown time schedules; × (Not a time) holds for that draft.
 const whenShown = new Map(); // id -> { at, rest, reminder }
+// A time set with Send later's clock, before or after typing: Enter schedules the follow-up then,
+// and no time in the text replaces it.
+const armedAt = new Map(); // id -> at
+const passed = (id) => armedAt.has(id) && armedAt.get(id) < Date.now() + 60_000;
+
+function pickSendTime(id, btn, ta) {
+  timeMenu(btn, {
+    back: ta,
+    pick: (at) => {
+      armedAt.set(id, at);
+      clearTimeout(whenTimers.get(id));
+      whenShown.delete(id);
+      paintSide(id);
+      ta.focus();
+    },
+  });
+}
+
+// Enter with a time set: scheduled, or (gone by while you typed) pick another; the draft waits.
+function sendArmed(id, ta) {
+  const text = ta.value.trim();
+  if (!text) return ta.focus();
+  if (passed(id)) return paintSide(id), pickSendTime(id, $('.c-later', S.nodes.get(id)?.card), ta);
+  const at = armedAt.get(id);
+  armedAt.delete(id);
+  scheduleReply(id, at, text, { typed: ta.value, armed: at });
+}
 const notTime = new Set(); // ids whose draft isn't a time, as the user said
 const whenTimers = new Map();
 function readWhen(id) {
@@ -194,7 +226,7 @@ function readWhen(id) {
   const ta = $('.reply', S.nodes.get(id)?.card);
   const text = ta?.value || '';
   // Typing on: the chip that's up stays until the new reading is in, so the row doesn't flicker.
-  const ok = S.config.defaults?.readTimes !== 'off' && s && !s.ask && s.agent !== 'wisp' && s.kind !== 'reminder' && !s.parentId && !isBtw(text) && !addressedTo(text).members.length && !notTime.has(id);
+  const ok = !armedAt.has(id) && S.config.defaults?.readTimes !== 'off' && s && !s.ask && s.agent !== 'wisp' && s.kind !== 'reminder' && !s.parentId && !isBtw(text) && !addressedTo(text).members.length && !notTime.has(id);
   const now = ok ? parseWhen(text) : null;
   if (!now) {
     if (whenShown.delete(id)) paintSide(id);
@@ -211,17 +243,26 @@ function readWhen(id) {
   );
 }
 
-// Scheduled from the box: it empties at once and the row above it appears; back if refused.
-async function scheduleReply(id, at, text, { remind = false, typed } = {}) {
+// Scheduled from the box: it empties at once and the row above it appears; back if refused. Its
+// files go with it (wisp keeps uploads until it's sent). armed: the clock's time, set again if refused.
+async function scheduleReply(id, at, text, { remind = false, typed, armed } = {}) {
   const n = S.nodes.get(id);
   const ta = n && $('.reply', n.card);
-  if (n?.tray?.take && (await n.tray.ids()).length) return toast('A scheduled follow-up can’t carry files yet. Send it now, or remove them.', { tone: 'bad' });
+  if (n?.tray?.busy) toast('Waiting for uploads…');
+  const attachments = !remind && n?.tray ? await n.tray.ids() : [];
+  const files = (!remind && n?.tray?.take()) || [];
   const was = typed ?? ta?.value ?? text;
   whenShown.delete(id);
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
   S.drafts.delete(id);
-  const ok = await scheduleFollowUp(id, { at, text, remind });
-  if (!ok && ta?.isConnected && !ta.value) ((ta.value = was), ta.dispatchEvent(new Event('input')));
+  const ok = await scheduleFollowUp(id, { at, text, remind, attachments: attachments.length ? attachments : undefined });
+  if (ok) return;
+  n?.tray?.restore(files);
+  if (ta?.isConnected && !ta.value) {
+    if (armed) armedAt.set(id, armed);
+    ta.value = was;
+    ta.dispatchEvent(new Event('input'));
+  }
 }
 
 // The mode the next follow-up runs in: the session's own until the user picks another here.
@@ -457,22 +498,24 @@ function paintSide(id) {
   const side = isBtw($('.reply', comp).value);
   const live = s.state === 'running' || s.state === 'waiting';
   comp.classList.toggle('is-btw', side);
-  const w = !side && whenShown.get(id);
+  const armed = !side && armedAt.has(id) ? { at: armedAt.get(id) } : null;
+  const w = armed || (!side && whenShown.get(id));
   const send = $('.send', comp);
   const touch = matchMedia('(pointer: coarse)').matches;
   send.title = side ? 'Ask on the side (Enter): nothing is interrupted' : w ? `${w.reminder ? 'Remind you' : 'Send'} at ${aheadLabel(w.at)}${touch ? '' : ' (Enter) · Alt+Enter sends now'}` : 'Send (Enter · Shift+Enter for newline)';
   const later = $('.c-later', comp);
-  later.disabled = !$('.reply', comp).value.trim();
-  later.title = later.disabled ? 'Type a follow-up first' : 'Send later';
+  later.title = armed ? 'Change send time' : 'Send later';
   later.classList.toggle('on', !!w);
   later.hidden = s.agent === 'wisp' || s.kind === 'reminder' || !!s.parentId || side;
   const html = side
     ? `<span class="c-side">Side question</span> · ${live ? `${esc(agentName(s.agent))} keeps working` : 'no new turn'}`
-    : w
-      ? `<span class="when-chip" title="${esc(whenTip(w.at))}">${icon(w.reminder ? 'bell' : 'clock')}<span>${w.reminder ? `Reminds you at ${esc(aheadLabel(w.at))}` : `Sends at ${esc(aheadLabel(w.at))}`}</span>${w.reminder ? '' : '<button type="button" class="link c-when-now">Send now</button>'}<button type="button" class="att-x c-when-x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
-      : s.queue?.length
-        ? `${s.queue.length} queued`
-        : '';
+    : armed
+      ? `<span class="when-chip${passed(id) ? ' passed' : ''}" title="${esc(whenTip(w.at))}">${icon('clock')}<span>${passed(id) ? `${esc(aheadLabel(w.at))} has passed` : `Sends at ${esc(aheadLabel(w.at))}`}</span><button type="button" class="att-x c-when-clear" aria-label="Clear the time" title="Clear the time">${icon('x')}</button></span>`
+      : w
+        ? `<span class="when-chip" title="${esc(whenTip(w.at))}">${icon(w.reminder ? 'bell' : 'clock')}<span>${w.reminder ? `Reminds you at ${esc(aheadLabel(w.at))}` : `Sends at ${esc(aheadLabel(w.at))}`}</span>${w.reminder ? '' : '<button type="button" class="link c-when-now">Send now</button>'}<button type="button" class="att-x c-when-x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
+        : s.queue?.length
+          ? `${s.queue.length} queued`
+          : '';
   const hint = $('.c-hint', comp);
   if (hint.dataset.h !== html) (hint.innerHTML = html), (hint.dataset.h = html);
 }

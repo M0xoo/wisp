@@ -70,9 +70,10 @@ const tomorrowAt9 = () => {
 };
 
 // The time menu (Send later, Start later, Change time…, Snooze…), in the mode menu's style: one
-// row per choice with the time it means on the right, then Pick a time…, which turns into a field.
-// verb: what the field's result says ('Sends', 'Starts', 'Reminds you'). action: its button.
-export function timeMenu(anchor, { verb = 'Sends', action = 'Schedule', back, at: point, pick }) {
+// row per choice with the time it means on the right, then Pick a time…, which turns into a field
+// in its own row (the menu keeps its size and place): its time shows where the others do, Enter
+// takes it, Escape goes back to the row.
+export function timeMenu(anchor, { back, at: point, pick }) {
   const open = $('.menu.later-menu');
   if (open) return open.close(), back?.focus();
   const now = Date.now();
@@ -88,21 +89,31 @@ export function timeMenu(anchor, { verb = 'Sends', action = 'Schedule', back, at
       ${choices.map(([label, t], i) => `<button role="menuitem" data-i="${i}"><span class="lm-l">${label}</span><span class="lm-t">${esc(aheadLabel(t))}</span></button>`).join('')}
       <button role="menuitem" data-a="pick"><span class="lm-l">Pick a time…</span></button>
       <form class="lm-pick" hidden>
-        <input class="lm-in" placeholder="16:30, tomorrow 10, Friday 9" aria-label="When" autocomplete="off" spellcheck="false">
-        <div class="lm-row"><span class="lm-says muted xs"></span><button class="primary sm" type="submit" disabled>${esc(action)}</button></div>
+        <input class="lm-in" placeholder="tomorrow 10, Fri 9" aria-label="When" autocomplete="off" spellcheck="false" enterkeyhint="done">
+        <button class="lm-go" type="submit" disabled></button>
       </form>
     </div>`);
   const form = $('.lm-pick', menu);
   const input = $('.lm-in', menu);
-  const says = $('.lm-says', menu);
+  const go = $('.lm-go', menu);
+  const pickRow = $('[data-a=pick]', menu);
   let chosen = null;
   input.addEventListener('input', () => {
     chosen = parseTime(input.value);
     if (chosen && chosen < Date.now() + 60_000) chosen = null;
-    says.textContent = chosen ? `${verb} ${aheadLabel(chosen)}` : input.value.trim() ? 'Not a time yet' : '';
-    says.title = chosen ? whenTip(chosen) : '';
-    $('button[type=submit]', form).disabled = !chosen;
+    go.innerHTML = chosen ? `<span class="lm-t">${esc(aheadLabel(chosen))}</span><kbd class="key-hint">↵</kbd>` : input.value.trim() ? '<span class="lm-t no">not yet</span>' : '';
+    go.title = chosen ? whenTip(chosen) : '';
+    go.disabled = !chosen;
   });
+  // Escape in the field: back to its row, the menu stays.
+  const unpick = () => {
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    form.hidden = true;
+    pickRow.hidden = false;
+    pickRow.focus();
+    return true;
+  };
   form.onsubmit = (e) => {
     e.preventDefault();
     if (!chosen) return;
@@ -113,7 +124,7 @@ export function timeMenu(anchor, { verb = 'Sends', action = 'Schedule', back, at
     const b = ev.target.closest('button[role=menuitem]');
     if (!b) return;
     if (b.dataset.a === 'pick') {
-      $$('button[role=menuitem]', menu).forEach((x) => (x.hidden = true));
+      pickRow.hidden = true;
       form.hidden = false;
       input.focus();
       return;
@@ -123,15 +134,14 @@ export function timeMenu(anchor, { verb = 'Sends', action = 'Schedule', back, at
     back?.focus();
   };
   menu.addEventListener('keydown', (ev) => {
-    if (ev.target === input) return;
+    if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+    ev.preventDefault();
     const items = $$('button[role=menuitem]:not([hidden])', menu);
+    if (ev.target === input) return items[ev.key === 'ArrowDown' ? 0 : items.length - 1]?.focus();
     const i = items.indexOf(document.activeElement);
-    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-      ev.preventDefault();
-      items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
-    }
+    items[(i + (ev.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
   });
-  const close = popover(menu, { anchor, back, onClose: () => anchor?.classList.remove('open') });
+  const close = popover(menu, { anchor, back, onClose: () => anchor?.classList.remove('open'), onEscape: () => document.activeElement === input && unpick() });
   anchor?.classList.add('open');
   if (point) return clampToViewport(menu, point.x, point.y), $('button', menu).focus();
   const r = anchor.getBoundingClientRect();
@@ -151,14 +161,15 @@ function setLater(id, later) {
   import('./composer.js').then((m) => m.updateDock(id));
 }
 
-// remind: a reminder about this task (no agent run). Resolves true once the server has it.
-export async function scheduleFollowUp(id, { at, text, remind = false }) {
+// remind: a reminder about this task (no agent run). attachments: upload ids that go with it.
+// Resolves true once the server has it.
+export async function scheduleFollowUp(id, { at, text, remind = false, attachments }) {
   const s = S.sessions.get(id);
   const before = s?.later || [];
-  const temp = { id: `tmp${Date.now()}`, at, text, by: 'user', setAt: Date.now(), ...(remind && { remind: true }) };
+  const temp = { id: `tmp${Date.now()}`, at, text, by: 'user', setAt: Date.now(), ...(remind && { remind: true }), ...(attachments?.length && { files: attachments.length }) };
   setLater(id, [...before, temp].sort((a, b) => a.at - b.at));
   try {
-    await api(`/sessions/${id}/later`, { method: 'POST', body: { at, text, remind } });
+    await api(`/sessions/${id}/later`, { method: 'POST', body: { at, text, remind, attachments } });
     return true;
   } catch (err) {
     setLater(id, (S.sessions.get(id)?.later || []).filter((x) => x !== temp));
@@ -209,7 +220,7 @@ export function followUpMenu(e, id, l, anchor) {
     close();
     if (a === 'now') sendNow(id, l);
     if (a === 'cancel') cancelFollowUp(id, l);
-    if (a === 'time') timeMenu(anchor, { verb: l.remind ? 'Reminds you' : 'Sends', action: 'Move', at: { x, y }, pick: (at) => moveFollowUp(id, l, at) });
+    if (a === 'time') timeMenu(anchor, { at: { x, y }, pick: (at) => moveFollowUp(id, l, at) });
   };
   const close = popover(menu);
   clampToViewport(menu, x, y);
@@ -220,7 +231,7 @@ export function followUpRows(s, list) {
   for (const l of s.later || []) {
     const li = el(`
       <li class="cq later" data-later="${esc(l.id)}">
-        <span class="cq-tag" title="${esc(whenTip(l.at))}">${icon(l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · set by ${esc(whoSet(l.by))}</span>
+        <span class="cq-tag" title="${esc(whenTip(l.at))}">${icon(l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · set by ${esc(whoSet(l.by))}${l.files ? ` · <span title="${l.files === 1 ? '1 file goes with it' : `${l.files} files go with it`}">${icon('clip')}${l.files}</span>` : ''}</span>
         <span class="cq-text">${esc(l.text)}</span>
         <button class="att-x" aria-label="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}" title="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}">${icon('x')}</button>
       </li>`);
@@ -244,8 +255,6 @@ export function followUpRows(s, list) {
 
 export function snooze(id, anchor, point) {
   timeMenu(anchor, {
-    verb: 'Reminds you',
-    action: 'Snooze',
     at: point,
     pick: async (at) => {
       try {
@@ -331,7 +340,7 @@ export function planMenu(e, p, anchor) {
     close();
     if (a === 'now') startPlan(p);
     if (a === 'cancel') cancelPlan(p);
-    if (a === 'time') timeMenu(anchor, { verb: task ? 'Starts' : 'Reminds you', action: 'Move', at: { x, y }, pick: (at) => movePlan(p, at) });
+    if (a === 'time') timeMenu(anchor, { at: { x, y }, pick: (at) => movePlan(p, at) });
   };
   const close = popover(menu);
   clampToViewport(menu, x, y);
@@ -446,5 +455,5 @@ export function runLaterAction(a, s, anchor, point) {
   if (!l) return;
   if (a === 'later-now') sendNow(s.id, l);
   if (a === 'later-cancel') cancelFollowUp(s.id, l);
-  if (a === 'later-time') timeMenu(anchor, { verb: l.remind ? 'Reminds you' : 'Sends', action: 'Move', at: point, pick: (at) => moveFollowUp(s.id, l, at) });
+  if (a === 'later-time') timeMenu(anchor, { at: point, pick: (at) => moveFollowUp(s.id, l, at) });
 }

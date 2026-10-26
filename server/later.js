@@ -54,7 +54,7 @@ export function clock(t, now = Date.now()) {
 }
 
 // What the page and machines see of a task's follow-ups.
-export const laterView = (s) => (s.later?.length ? s.later.map(({ id, at, text, by, setAt, remind }) => ({ id, at, text, by, setAt, ...(remind && { remind: true }) })) : undefined);
+export const laterView = (s) => (s.later?.length ? s.later.map(({ id, at, text, by, setAt, remind, attachments }) => ({ id, at, text, by, setAt, ...(remind && { remind: true }), ...(attachments?.length && { files: attachments.length }) })) : undefined);
 
 // The note the agent reads ahead of a follow-up it (or you) scheduled. The bubble shows only the text.
 export function laterNote(l, now = Date.now()) {
@@ -65,11 +65,11 @@ export function laterNote(l, now = Date.now()) {
 }
 
 export class Later {
-  // runner: the Runner. launch(body, origin): a new task (services/launch.js launchAny).
+  // runner: the Runner. launch(body, origin): a new task (services/launch.js launchAny). uploads: follow-ups' files.
   // changed(s): a session's fields changed (persist + summary). configChanged(): config.later did.
   // notify(s): a reminder came due (the page's notification, the phone).
-  constructor({ store, runner, launch, changed = () => {}, configChanged = () => {}, notify = () => {}, now = () => Date.now() }) {
-    Object.assign(this, { store, runner, launch, changed, configChanged, notify, now });
+  constructor({ store, runner, launch, uploads = null, changed = () => {}, configChanged = () => {}, notify = () => {}, now = () => Date.now() }) {
+    Object.assign(this, { store, runner, launch, uploads, changed, configChanged, notify, now });
     store.config.later ||= [];
   }
 
@@ -80,7 +80,8 @@ export class Later {
   // --- follow-ups and reminders on a task ---------------------------------------------------
 
   // by: 'user' | 'agent' | a crew member's name. remind: a reminder about this task, no agent run.
-  add(s, { text, remind = false, by = 'user', ...when }) {
+  // attachments: upload ids, sent with it when it goes (they stay on disk until then).
+  add(s, { text, remind = false, by = 'user', attachments, ...when }) {
     if (s.parentId || s.delegated) throw bad('A subagent can’t schedule follow-ups: its lead can.');
     if (s.kind === 'reminder') throw bad('That’s a reminder: snooze it instead.');
     if (s.agent === 'wisp') throw bad('This is the tour — launch a real wisp to schedule things.');
@@ -89,6 +90,8 @@ export class Later {
     const agent = by !== 'user';
     if (agent && (s.laterChain || 0) >= CHAIN_MAX) throw bad(`That's ${CHAIN_MAX} scheduled follow-ups in a row with no word from the user. Don't schedule another: report where things stand, and the user can follow up.`);
     const entry = { id: newId(), at: whenOf(when, { now: this.now(), max: agent ? AGENT_MAX_MS : MAX_MS }), text: textOf(text, remind ? 'What to remind you about' : 'The follow-up'), by, setAt: this.now(), ...(remind && { remind: true }) };
+    const files = !remind && Array.isArray(attachments) ? attachments.filter((a) => typeof a === 'string').slice(0, 20) : [];
+    if (files.length) entry.attachments = files;
     s.later.push(entry);
     s.later.sort((a, b) => a.at - b.at);
     this.changed(s);
@@ -175,7 +178,7 @@ export class Later {
     }
     const late = !force && now - l.at > LATE_MS;
     this.changed(s);
-    return this.runner.reply(s, l.text, [], { queue: true, by: 'later', later: { by: l.by, setAt: l.setAt, at: l.at, ...(late && { late: true }) } });
+    return this.runner.reply(s, l.text, this.uploads?.resolve(l.attachments) || [], { queue: true, by: 'later', later: { by: l.by, setAt: l.setAt, at: l.at, ...(late && { late: true }) } });
   }
 
   // --- plans: a task or a reminder that doesn't exist yet -------------------------------------
