@@ -18,6 +18,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **A crew member you `@`-mention stays in the sidebar.** The job you started with `@Ada …` in a follow-up now waits in *Needs you* until you mark it done, instead of filing itself away once it answers. Jobs that another task's agent delegates to a crew member still file themselves under *Done*.
 
+### Fixed
+
+- **Answering from the task list in the phone app.** A question's answer buttons sit on their own line under it again, instead of a narrow column beside the row that pushed the list sideways and squeezed every label onto several lines.
+
 ## [0.42.0] - 2026-10-26
 
 ### Added
