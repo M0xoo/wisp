@@ -86,6 +86,7 @@ export const PARTS = {
   // Generate: the dialog that has a member build its kit, and the files it proposed, under that job.
   'crew.kitGenerate': '.kit-gen',
   'crew.offer': '.crew-view .cv-offer',
+  'turn.kitOffer': '#feed .t-offers', // kit files an agent proposed for a crew member, under its answer
   'crew.editor.events': '.crew-edit .ce-events', // its "Also starts when" chips
   // Sharing (crew-share.js): Share (a file, JSON, a gist or a spell) and Import with its review. Not
   // the review a spell's member needs before it resumes, nor the note saying which spell it's from:

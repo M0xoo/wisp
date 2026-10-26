@@ -125,9 +125,10 @@ export { clip, MAX_SNAPSHOT, rel };
 // The crew and connector tools of wisp's MCP server (mcp-ask.js), by bare tool name; null for any other tool.
 export function crewToolLabel(tool, input = {}) {
   const who = clip(String(input?.member || input?.name || ''), 40);
-  if (tool === 'wisp_crew') return { kind: 'tool', label: 'Listing your crew' };
+  if (tool === 'wisp_crew') return { kind: 'tool', label: who ? `Reading ${who}’s brief, notebook and kit` : 'Listing your crew' };
   if (tool === 'wisp_crew_add') return { kind: 'tool', label: `Adding ${who || 'a member'} to your crew` };
   if (tool === 'wisp_crew_edit') return { kind: 'tool', label: `Changing ${who || 'a crew member'}` };
+  if (tool === 'wisp_crew_kit') return { kind: 'tool', label: `Writing skills for ${who || 'a crew member'}` };
   if (tool === 'wisp_crew_remove') return { kind: 'tool', label: `Removing ${who || 'a member'} from your crew` };
   if (tool === 'wisp_connectors') return { kind: 'tool', label: 'Listing your connectors' };
   if (tool === 'wisp_connector_add') return { kind: 'tool', label: `Adding ${who || 'a connector'} to your connectors` };

@@ -142,6 +142,8 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   Show each task you name in the answer as a "task" block so the user can open it.
 - If the user asks to add, change or remove a member of their crew (wisp's long-lived agents), do it with
   \`wisp_crew_add\`, \`wisp_crew_edit\` or \`wisp_crew_remove\` (${tool.replace(/ask_user$/, 'wisp_crew_add')}, …); \`wisp_crew\` lists them.
+  Their notebook is set with \`wisp_crew_edit\`; skills and instructions files are proposed with \`wisp_crew_kit\`
+  (the user picks what to add); \`wisp_crew\` with \`member\` reads one in full first.
 - If the user asks to add or connect an MCP server or a service's tools ("add PostHog"), add it to their connectors
   with \`wisp_connector_add\` (${tool.replace(/ask_user$/, 'wisp_connector_add')}), then \`wisp_connector_signin\` if it needs a
   sign-in or keys; \`wisp_connectors\` lists them. Never ask the user to paste a key into the chat.`;

@@ -642,6 +642,32 @@ export class Crew {
     m.offers = [offer, ...(m.offers || []).filter((o) => o.job !== s.id)].slice(0, OFFERS_MAX);
   }
 
+  // Files an agent proposed for the member's kit from a task (wisp_crew_kit): an offer that task
+  // shows under the turn that made it. A second call in the same turn adds to that offer (the same
+  // name replaces). Each file is checked on its own; refused ones come back with why.
+  propose(m, s, list = []) {
+    const turn = s.turns?.at(-1)?.id || '';
+    const files = [];
+    const refused = [];
+    for (const x of (Array.isArray(list) ? list : []).slice(0, OFFER_FILES)) {
+      const kind = x?.kind === 'rules' || x?.kind === 'instructions' ? 'rules' : 'skill';
+      const name = kind === 'skill' ? skillName(x?.name) : String(x?.name || 'AGENTS.md').replace(/[^\w .-]/g, '').trim();
+      try {
+        const [k] = normalizeKit([{ kind, name, description: String(x?.description || '').slice(0, 1024), body: String(x?.body || '').slice(0, KIT_BODY_MAX) }]);
+        files.push((({ id, on, path: _, ...rest }) => rest)(k));
+      } catch (err) {
+        refused.push(`${name || x?.name || 'a file'}: ${err.message}`);
+      }
+    }
+    if (!files.length) throw bad(refused.length ? `None of those could join ${m.name}’s kit. ${refused.join(' ')}` : 'Give at least one file to propose.');
+    const prev = (m.offers || []).find((o) => o.job === s.id && o.turn === turn && o.state === 'open');
+    const merged = [...(prev?.files || []).filter((f) => !files.some((y) => y.kind === f.kind && y.name.toLowerCase() === f.name.toLowerCase())), ...files].slice(-OFFER_FILES);
+    const offer = { id: prev?.id || newId(), job: s.id, turn, at: this.now(), files: merged, state: 'open' };
+    m.offers = [offer, ...(m.offers || []).filter((o) => o.id !== offer.id)].slice(0, OFFERS_MAX);
+    this.#changed();
+    return { offer, refused };
+  }
+
   // You added (taken: the names added) or dismissed an offer.
   settleOffer(m, id, { state, names = [] }) {
     const o = (m.offers || []).find((x) => x.id === id);

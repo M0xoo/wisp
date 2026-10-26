@@ -574,6 +574,37 @@ test('an agent adds, changes and removes crew members when the user asks; a memb
   await api(`/crew/${bo.id}`, undefined, 'DELETE');
 });
 
+test('an agent reads a member in full, adds to their notebook and proposes kit files the user picks from', async () => {
+  const cwd = makeRepo();
+  const said = async (prompt) => {
+    const s = await api('/sessions', { prompt, cwd, agent: 'claude', mode: 'edits', worktree: false });
+    const done = await ended(s.id);
+    return { s: done, text: done.turns.at(-1).presentation.blocks[0].summary };
+  };
+  const quill = await api('/crew', { name: 'Quill', role: 'Docs writer', brief: 'Keep the README current.', notebook: 'Docs live in docs/.', cwd, agent: 'claude' });
+
+  assert.match((await said('CREWMEMO: Quill should know where release notes go')).text, /Updated Quill\..*notebook now has \d+ characters/);
+  assert.equal((await api(`/crew/${quill.id}`)).notebook, 'Docs live in docs/.\n- Release notes go in CHANGELOG.md', 'remember adds lines to the end');
+  assert.match((await said('CREWREAD: what does Quill know?')).text, /## Brief\s+Keep the README current\.\s+## Notebook\s+Docs live in docs\/\. - Release notes go in CHANGELOG\.md .*## Kit\s+No skills/);
+
+  // A proposal changes nothing: it waits on the member as an offer, under the turn that made it.
+  const { s, text } = await said('CREWPROPOSE: give Quill a skill for release notes');
+  assert.match(text, /Proposed for Quill’s kit; nothing is added until the user picks\..*skill \*\*release-notes\*\*.*instructions \*\*AGENTS\.md\*\*.*Left out: - nope: Say when nope should be used/);
+  let m = await api(`/crew/${quill.id}`);
+  assert.deepEqual(m.kit, []);
+  const [offer] = m.offers;
+  assert.deepEqual([offer.job, offer.turn, offer.state, offer.files.map((f) => f.name)], [s.id, s.turns.at(-1).id, 'open', ['release-notes', 'AGENTS.md']]);
+  // The user adds one: the kit takes it and the offer is settled.
+  m = await api(`/crew/${quill.id}`, { kit: [{ ...offer.files[0] }], offers: [{ id: offer.id, state: 'taken', names: ['release-notes'] }] }, 'PATCH');
+  assert.deepEqual([m.kit.map((k) => k.name), m.offers[0].state, m.offers[0].names], [['release-notes'], 'taken', ['release-notes']]);
+
+  // A member's own job may propose too (the user still picks); only a subagent can't.
+  const { session } = await api(`/crew/${quill.id}/jobs`, { prompt: 'CREWPROPOSE for yourself' });
+  assert.match((await ended(session.id)).turns.at(-1).presentation.blocks[0].summary, /Proposed for Quill’s kit/);
+  assert.ok((await api(`/crew/${quill.id}`)).offers.some((o) => o.job === session.id && o.state === 'open'));
+  await api(`/crew/${quill.id}`, undefined, 'DELETE');
+});
+
 test('a member starts when a task finishes or is marked done, in its project, about that task', async () => {
   const cwd = makeRepo();
   const vee = await api('/crew', { name: 'Vee', role: 'Verifier', brief: 'Check finished work.', cwd, agent: 'claude', parallel: 3, on: ['finished', 'done'] });

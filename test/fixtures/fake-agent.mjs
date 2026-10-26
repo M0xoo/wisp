@@ -382,6 +382,22 @@ const ask = async () => {
     const list = await mcpCall(srv, 'wisp_crew', {});
     return `${added.split('\n')[0]} | ${list.split('\n')[0]}`;
   }
+  // CREWMEMO / CREWREAD / CREWPROPOSE: the user asked to change a member's notebook, read them, give them skills.
+  if (stdin.includes('CREWMEMO') && srv) return (await mcpCall(srv, 'wisp_crew_edit', { member: 'Quill', remember: ['Release notes go in CHANGELOG.md'] })).split('\n').join(' ');
+  if (stdin.includes('CREWREAD') && srv) return (await mcpCall(srv, 'wisp_crew', { member: '@quill' })).split('\n').join(' ');
+  if (stdin.includes('CREWPROPOSE') && srv)
+    return (
+      await mcpCall(srv, 'wisp_crew_kit', {
+        member: 'Quill',
+        files: [
+          { kind: 'skill', name: 'Release Notes', description: 'Writing release notes.', body: '1. Read the merged PRs.' },
+          { kind: 'rules', name: 'AGENTS.md', body: 'Plain words.' },
+          { kind: 'skill', name: 'nope', body: 'x' },
+        ],
+      })
+    )
+      .split('\n')
+      .join(' ');
   if (stdin.includes('CREWEDIT') && srv) return (await mcpCall(srv, 'wisp_crew_edit', { member: '@quill', role: 'Docs lead', paused: true })).split('\n').join(' ');
   // CREWIMPORT: the user gave a shared crew file.
   if (stdin.includes('CREWIMPORT') && srv) return (await mcpCall(srv, 'wisp_crew_add', { from: JSON.stringify({ wispCrew: 1, members: [{ name: 'Iris', role: 'Importer', brief: 'Came in a file.', on: ['finished'] }] }) })).split('\n')[0];

@@ -16,13 +16,20 @@ export const MEMBER_PROPS = {
   avatar: { type: 'string', description: 'An emoji. Default: one rolled from the name.' },
 };
 
+// What only an edit sets: the member's notebook, their memory from job to job.
+export const NOTEBOOK_PROPS = {
+  notebook: { type: 'string', description: 'Their whole notebook rewritten (markdown): lasting facts and the state they compare against next time. "" empties it. To add a few lines, use remember.' },
+  remember: { type: 'array', items: { type: 'string' }, maxItems: 12, description: 'Lines to add to the end of their notebook, e.g. a preference of the user\'s for this job.' },
+};
+
 export const CREW_TOOLS = [
   {
     name: 'wisp_crew',
     description:
       'List the user\'s crew in wisp: their long-lived agents, each with a name, role, brief, folder, harness, schedule and jobs. Read-only. ' +
-      'Use it before changing a member, or when the user asks who is on their crew.',
-    inputSchema: { type: 'object', properties: {} },
+      'Use it before changing a member, or when the user asks who is on their crew. With `member`: that one in full, their whole brief, ' +
+      'notebook and kit (skills and instructions files, with their text), to read before you change their notebook or propose kit files.',
+    inputSchema: { type: 'object', properties: { member: { type: 'string', description: 'Their name, @handle or id: read that member in full.' } } },
   },
   {
     name: 'wisp_crew_add',
@@ -42,11 +49,44 @@ export const CREW_TOOLS = [
   },
   {
     name: 'wisp_crew_edit',
-    description: 'Change a member of the user\'s crew in wisp (rename, new brief, schedule, folder, harness, pause…) when the user asks. Only the fields given change.',
+    description:
+      'Change a member of the user\'s crew in wisp (rename, new brief, schedule, folder, harness, pause, notebook…) when the user asks. Only the fields given change. ' +
+      'Their skills and instructions files aren\'t set here: propose those with wisp_crew_kit.',
     inputSchema: {
       type: 'object',
-      properties: { member: { type: 'string', description: 'Their name, @handle or id.' }, ...MEMBER_PROPS },
+      properties: { member: { type: 'string', description: 'Their name, @handle or id.' }, ...MEMBER_PROPS, ...NOTEBOOK_PROPS },
       required: ['member'],
+    },
+  },
+  {
+    name: 'wisp_crew_kit',
+    description:
+      'Propose skills or instructions files for a crew member\'s kit, when the user asks you to give them, write or improve one ("give Gucci a skill for UI reviews"). ' +
+      'A skill is a how-to for one kind of work, read when a job fits its description; an instructions file (rules, e.g. AGENTS.md) is followed on every job. ' +
+      'Nothing changes yet: wisp shows the files under your answer, and the user reads them and picks what to add. The same name as one they have replaces it. ' +
+      'Read the member with wisp_crew { member } first. Write each file for them: concrete steps, checklists, commands and paths, not generic advice.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        member: { type: 'string', description: 'Their name, @handle or id.' },
+        files: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 12,
+          description: 'The files to propose.',
+          items: {
+            type: 'object',
+            properties: {
+              kind: { type: 'string', enum: ['skill', 'rules'], description: 'skill, or rules for an instructions file.' },
+              name: { type: 'string', description: 'A skill: lowercase-with-dashes, up to 64. An instructions file: its file name, e.g. AGENTS.md.' },
+              description: { type: 'string', description: 'A skill only: exactly when to use it. That is how they know to read it.' },
+              body: { type: 'string', description: 'The markdown: the skill\'s steps, or the instructions.' },
+            },
+            required: ['kind', 'name', 'body'],
+          },
+        },
+      },
+      required: ['member', 'files'],
     },
   },
   {
@@ -60,9 +100,19 @@ export const CREW_TOOLS = [
 
 // What the tools may set (the rest is the member's memory and wisp's bookkeeping).
 export const CREW_FIELDS = Object.keys(MEMBER_PROPS);
+export const EDIT_FIELDS = [...CREW_FIELDS, 'notebook'];
 
 const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 // A member as crew.view() gives it, in one markdown item.
 export const memberLine = (m) =>
   `- **${m.name}** (@${m.handle}, id \`${m.id}\`)${m.role ? ` — ${m.role}` : ''} · ${[m.agent + (m.model ? ` (${m.model})` : ''), `${m.mode} mode`, m.machine ? `on machine ${m.machine}` : m.cwd ? `in ${m.cwd}` : 'no folder', m.cron ? `checks in on \`${m.cron}\`` : 'no schedule', m.paused && 'paused', m.running && `${m.running} job${m.running === 1 ? '' : 's'} running`, m.queue?.length && `${m.queue.length} waiting`].filter(Boolean).join(' · ')}${m.brief ? `\n  Brief: ${clip(m.brief.replace(/\s+/g, ' '), 200)}` : ''}`;
+
+// A member in full, for wisp_crew { member }: what an agent reads before changing their memory or kit.
+export const memberDetail = (m) =>
+  [
+    memberLine({ ...m, brief: '' }),
+    `\n## Brief\n\n${m.brief || '(none)'}`,
+    `\n## Notebook\n\n${m.notebook ? `${m.notebook}\n\n(${m.notebook.length} characters)` : '(empty)'}`,
+    `\n## Kit\n\n${(m.kit || []).length ? m.kit.map((k) => `### ${k.kind === 'skill' ? 'Skill' : 'Instructions'}: ${k.name}${k.on === false ? ' (off)' : ''}\n\n${k.kind === 'skill' ? `When: ${k.description}\n\n` : ''}${k.body}`).join('\n\n') : 'No skills or instructions files yet. Propose some with wisp_crew_kit.'}`,
+  ].join('\n');

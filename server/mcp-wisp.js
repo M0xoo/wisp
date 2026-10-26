@@ -8,7 +8,7 @@
 import readline from 'node:readline';
 import { WispClient } from './client.js';
 import { VERSION } from './util.js';
-import { CREW_FIELDS, CREW_TOOLS, memberLine } from './crew-tools.js';
+import { CREW_TOOLS, EDIT_FIELDS, memberDetail, memberLine } from './crew-tools.js';
 
 const AGENTS = ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok', 'copilot'];
 const DEFAULT_WAIT_S = 240; // stay under typical MCP client tool-call timeouts; call wisp_wait again for more
@@ -94,7 +94,8 @@ const TOOLS = [
     description: 'Which harnesses are installed, with their models and thinking levels.',
     inputSchema: { type: 'object', properties: {} },
   },
-  ...CREW_TOOLS,
+  // wisp_crew_kit shows its files under a task's answer for the user to pick from: there's none here.
+  ...CREW_TOOLS.filter((t) => t.name !== 'wisp_crew_kit'),
 ];
 
 let client;
@@ -111,7 +112,7 @@ async function describe(id, extra = '') {
   return `${head}\n\n${p.markdown}${hint}`;
 }
 
-const pick = (a) => Object.fromEntries(CREW_FIELDS.filter((k) => a[k] !== undefined).map((k) => [k, a[k]]));
+const pick = (a) => Object.fromEntries(EDIT_FIELDS.filter((k) => a[k] !== undefined).map((k) => [k, a[k]]));
 
 async function callTool(name, a = {}) {
   const c = await wisp();
@@ -147,6 +148,7 @@ async function callTool(name, a = {}) {
         .map((x) => `- **${x.id}** (${x.name}) — ${x.available ? `installed${x.version ? ` ${x.version}` : ''}; models: ${(x.models || []).map((m) => m.id).filter(Boolean).slice(0, 12).join(', ') || 'default'}` : 'not installed'}`)
         .join('\n');
     case 'wisp_crew': {
+      if (a.member) return memberDetail(await c.crewMember(String(a.member).replace(/^@/, '')));
       const list = await c.crew();
       return list.length ? list.map(memberLine).join('\n') : 'No crew yet. Add a member with wisp_crew_add.';
     }
@@ -163,8 +165,14 @@ async function callTool(name, a = {}) {
       const m = await c.addCrew({ ...fields, cwd: fields.cwd ?? process.cwd(), checkin: a.checkin === true });
       return `Added ${m.name} to the crew.\n\n${memberLine(m)}${m.session ? `\n\nTheir first check-in is running (session \`${m.session.id}\`).` : ''}`;
     }
-    case 'wisp_crew_edit':
-      return `Updated.\n\n${memberLine(await c.updateCrew(String(a.member || '').replace(/^@/, ''), pick(a)))}`;
+    case 'wisp_crew_edit': {
+      const id = String(a.member || '').replace(/^@/, '');
+      const fields = pick(a);
+      // remember: lines added to the end of their notebook.
+      const lines = (Array.isArray(a.remember) ? a.remember : []).filter((x) => typeof x === 'string' && x.trim()).slice(0, 12);
+      if (lines.length) fields.notebook = [fields.notebook ?? (await c.crewMember(id)).notebook, ...lines.map((x) => `- ${x.replace(/\s+/g, ' ').trim()}`)].filter(Boolean).join('\n');
+      return `Updated.\n\n${memberLine(await c.updateCrew(id, fields))}`;
+    }
     case 'wisp_crew_remove': {
       const m = await c.crewMember(String(a.member || '').replace(/^@/, ''));
       await c.removeCrew(m.id);
