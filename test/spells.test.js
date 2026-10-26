@@ -173,6 +173,10 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.scheduled', 'split.upcoming', 'card.later', 'composer.sendLater', 'launcher.later'] }, parts: { 'composer.later': { style: { fontSize: '12px' } }, 'scheduled.row': { style: { opacity: '0.8' } }, 'split.upcoming': { props: { count: 8 } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.upcoming', label: 'All', do: { open: 'https://example.com' } }] }), []);
   assert.ok(problems({ ...base0, parts: { 'split.upcoming': { props: { count: 41 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
+  // The crew's folded row and how many full rows it keeps.
+  assert.deepEqual(problems({ ...base0, parts: { 'section.crew': { props: { rows: 4 } }, 'crew.strip': { style: { opacity: '0.8' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'section.crew': { props: { rows: 0 } } } }).some((x) => /rows: int from 1 to 40/.test(x)));
+  assert.ok(problems({ ...base0, parts: { 'section.crew': { props: { rows: '3' } } } }).some((x) => /rows: int from 1 to 40/.test(x)));
   assert.ok(problems({ ...base0, buttons: [{ slot: 'split.upcoming', panel: 'x' }] }).length);
   assert.deepEqual(problems({ ...base0, settings: { readTimes: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { readTimes: 'sometimes' } }).some((x) => /readTimes/.test(x) && /on \| off/.test(x)));
