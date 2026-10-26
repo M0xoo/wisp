@@ -248,7 +248,9 @@ test('deleting an account: typed handle and CSRF, then its box, files, secrets, 
   const forged = await b.go(`${base}/account/delete`, { method: 'POST', form: { csrf: 'nope', confirm: 'eve' }, headers: { origin: base } });
   assert.equal(forged.status, 403);
   assert.ok(grid.accounts.byHandle('eve'));
-  assert.equal(grid.hostd.state(eve.id), 'running');
+  // Her box is untouched. Not "still running": idleMs is 1.5s, and a slow runner idles it out by now.
+  assert.ok(fs.existsSync(path.join(folder, 'home')));
+  assert.ok(grid.hostd.inst.has(eve.id) && !grid.hostd.inst.get(eve.id).gone);
 
   const done = await b.go(`${base}/account/delete`, { method: 'POST', form: { csrf, confirm: ' Eve ' }, headers: { origin: base } });
   assert.equal(done.status, 200, done.text);
