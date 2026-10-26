@@ -94,7 +94,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   runner.accounts = accounts;
   runner.accountPref = (agent) => store.config.defaults.accounts?.[agent] || '';
   // Your MCP servers (Settings → Connectors), for every turn of a harness that takes them.
-  runner.connectors = ({ agent, mode, cwd }) => turnServers(store.config.connectors, { agent, mode, cwd, home: store.home });
+  runner.connectors = ({ agent, mode, cwd }) => turnServers(store.config.connectors, { agent, mode, cwd, home: store.home, bridge: runner.bridge });
   // How much of each account's usage windows is gone (server/budget.js): Settings → Usage and the
   // limit card's reset time. The page hears of a change with the harness list, at most every 2 s.
   let budgetTimer = null;

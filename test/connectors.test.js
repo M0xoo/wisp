@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
-import { installFakeBins, tmp } from './helpers.js';
+import { installFakeBins, tmp, until } from './helpers.js';
 
 // A home of our own, so the import list reads these fake configs and not yours.
 const HOME = tmp('conn-user');
@@ -174,7 +174,8 @@ test('a remote connector is bridged over Streamable HTTP with its headers', asyn
     const bad = saveAt(home, { name: 'remote', url, headers: { Authorization: 'Bearer nope' } });
     const r2 = await probe(bad, home);
     assert.equal(r2.ok, false);
-    assert.match(r2.error, /refused the sign-in/);
+    assert.match(r2.error, /Needs sign-in/);
+    assert.equal(r2.auth, true);
   } finally {
     server.close();
   }
@@ -239,4 +240,87 @@ test('servers in the harnesses’ configs are offered, imported with their secre
   const c = imp.body.connectors.find((x) => x.name === 'docs');
   assert.ok(c);
   assert.deepEqual(c.own, ['codex'], 'Codex has its own docs and keeps it');
+});
+
+// An MCP server behind OAuth: metadata, dynamic registration, PKCE, refresh. `valid` is the one
+// access token it takes; changing it makes the next call a 401 the proxy has to refresh past.
+function oauthServer() {
+  const st = { valid: 'tok1', codes: new Map(), refreshed: 0 };
+  const server = http.createServer(async (req, res) => {
+    let raw = '';
+    for await (const d of req) raw += d;
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const u = new URL(req.url, base);
+    const json = (code, body) => (res.writeHead(code, { 'content-type': 'application/json' }), res.end(JSON.stringify(body)));
+    if (u.pathname === '/.well-known/oauth-protected-resource/mcp') return json(200, { resource: `${base}/mcp`, authorization_servers: [base], scopes_supported: ['mcp'] });
+    if (u.pathname === '/.well-known/oauth-authorization-server') return json(200, { issuer: base, authorization_endpoint: `${base}/authorize`, token_endpoint: `${base}/token`, registration_endpoint: `${base}/register` });
+    if (u.pathname === '/register') return json(201, { client_id: 'cid-1', ...JSON.parse(raw) });
+    if (u.pathname === '/authorize') {
+      const code = `code-${st.codes.size}`;
+      st.codes.set(code, u.searchParams.get('code_challenge'));
+      assert.equal(u.searchParams.get('code_challenge_method'), 'S256');
+      assert.equal(u.searchParams.get('scope'), 'mcp');
+      res.writeHead(302, { location: `${u.searchParams.get('redirect_uri')}?code=${code}&state=${u.searchParams.get('state')}` });
+      return res.end();
+    }
+    if (u.pathname === '/token') {
+      const f = new URLSearchParams(raw);
+      if (f.get('grant_type') === 'authorization_code') {
+        const challenge = (await import('node:crypto')).createHash('sha256').update(f.get('code_verifier')).digest('base64url');
+        if (st.codes.get(f.get('code')) !== challenge) return json(400, { error: 'invalid_grant' });
+        return json(200, { access_token: st.valid, refresh_token: 'r1', expires_in: 3600 });
+      }
+      if (f.get('grant_type') === 'refresh_token' && f.get('refresh_token') === 'r1') {
+        st.refreshed++;
+        return json(200, { access_token: st.valid, expires_in: 3600 });
+      }
+      return json(400, { error: 'invalid_grant' });
+    }
+    if (u.pathname === '/mcp') {
+      if (req.headers.authorization !== `Bearer ${st.valid}`) {
+        res.writeHead(401, { 'www-authenticate': `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/mcp"` });
+        return res.end();
+      }
+      const m = JSON.parse(raw);
+      if (m.id == null) return (res.statusCode = 202), res.end();
+      return json(200, { jsonrpc: '2.0', id: m.id, result: m.method === 'initialize' ? { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'o', version: '1' } } : { tools: [{ name: 'insights' }] } });
+    }
+    res.writeHead(404);
+    res.end();
+  });
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, st, url: `http://127.0.0.1:${server.address().port}/mcp` })));
+}
+
+test('a remote connector signs in with OAuth, and its token is refreshed when it runs out', async () => {
+  const { server, st, url } = await oauthServer();
+  try {
+    const add = await api('/connectors', { name: 'analytics', url });
+    const id = add.body.connectors.find((c) => c.name === 'analytics').id;
+    const row = async () => (await api('/connectors')).body.connectors.find((c) => c.id === id);
+    await until(async () => (await row()).test, { what: 'first check' });
+    assert.equal((await row()).test.auth, true, 'a 401 asks for a sign-in');
+    const origin = base.replace(/\/api$/, '');
+    const { url: signin } = (await api(`/connectors/${id}/signin`, { origin })).body;
+    assert.match(signin, /\/authorize\?/);
+    const back = (await fetch(signin, { redirect: 'manual' })).headers.get('location');
+    assert.ok(back.startsWith(`${origin}/api/connectors/oauth/callback?`));
+    const page = await (await fetch(back)).text();
+    assert.match(page, /Signed in to analytics/);
+    await until(async () => (await row()).test?.ok, { what: 'check after sign-in' });
+    const r = await row();
+    assert.deepEqual(r.test.tools, ['insights']);
+    assert.equal(r.signedIn.host, new URL(url).host);
+    assert.ok(!JSON.stringify((await api('/connectors')).body).includes('tok1'), 'the token never reaches the page');
+    // The server stops taking tok1: the proxy gets a fresh one from wisp and carries on.
+    st.valid = 'tok2';
+    const again = await api(`/connectors/${id}/test`, {});
+    assert.equal(again.body.connectors.find((c) => c.id === id).test.ok, true);
+    assert.equal(st.refreshed, 1);
+    // An old or reused callback is refused, and says what to do.
+    assert.match(await (await fetch(back)).text(), /too old or was already used/);
+    await api(`/connectors/${id}/signin`, null, 'DELETE');
+    assert.equal((await row()).signedIn, null);
+  } finally {
+    server.close();
+  }
 });

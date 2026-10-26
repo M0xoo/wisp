@@ -47,8 +47,23 @@ function runLocal() {
   for (const s of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(s, () => child.kill(s));
 }
 
+// A signed-in connector's token, from wisp: it's the one that refreshes them (one writer for
+// secrets.json). null: sign in again.
+async function freshToken(force) {
+  if (!process.env.WISP_URL) return null;
+  try {
+    const res = await fetch(`${process.env.WISP_URL}/api/internal/connectors/${id}/token`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-token': process.env.WISP_TOKEN || '' }, body: JSON.stringify({ force }), signal: AbortSignal.timeout(20_000) });
+    return res.ok ? (await res.json()).token || null : null;
+  } catch {
+    return null;
+  }
+}
+
 function runRemote() {
   const headers = pick('header', c.headers);
+  // Signed in: its token, refreshed first if it's about to run out.
+  let auth = c.oauth ? Promise.resolve(c.oauth.expiresAt && c.oauth.expiresAt < Date.now() + 60_000 ? freshToken(false) : secrets['oauth:access'] || freshToken(false)) : null;
+  const authorized = async () => (auth ? { ...headers, authorization: `Bearer ${(await auth) || ''}` } : headers);
   const out = (msg) => process.stdout.write(`${typeof msg === 'string' ? msg : JSON.stringify(msg)}\n`);
   // A request that failed still needs an answer, or the harness waits for it until its timeout.
   const fail = (msg, text) => {
@@ -83,7 +98,8 @@ function runRemote() {
   function openLegacy() {
     let ready;
     const endpoint = new Promise((r) => (ready = r));
-    fetch(c.url, { headers: { ...headers, accept: 'text/event-stream' } })
+    authorized()
+      .then((h) => fetch(c.url, { headers: { ...h, accept: 'text/event-stream' } }))
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return events(res.body, (event, data) => {
@@ -110,8 +126,9 @@ function runRemote() {
     for (const m of text.startsWith('[') ? JSON.parse(text) : [text]) out(m);
   }
 
-  async function post(msg) {
+  async function post(msg, retried = false) {
     try {
+      const headers = await authorized();
       if (legacy) {
         const res = await fetch(await legacy.endpoint, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify(msg) });
         if (!res.ok) fail(msg, `HTTP ${res.status}`);
@@ -123,7 +140,15 @@ function runRemote() {
         body: JSON.stringify(msg),
       });
       session = res.headers.get('mcp-session-id') || session;
-      if (res.status === 401 || res.status === 403) return fail(msg, `the server refused the sign-in (HTTP ${res.status}). Check its headers in Settings → Connectors`);
+      if (res.status === 401 || res.status === 403) {
+        res.body?.cancel().catch(() => {});
+        // A token that ran out early: one fresh one, then the request again.
+        if (auth && !retried) {
+          auth = freshToken(true);
+          if (await auth) return post(msg, true);
+        }
+        return fail(msg, `needs sign-in (HTTP ${res.status}). ${c.oauth ? 'Sign in again' : 'Sign in, or check its headers,'} in Settings → Connectors`);
+      }
       if (!res.ok) return fail(msg, `HTTP ${res.status} ${res.statusText}`.trim());
       if (res.status === 202 || !res.body) return;
       const type = res.headers.get('content-type') || '';
