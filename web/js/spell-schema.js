@@ -198,6 +198,8 @@ export const PARTS = {
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',
   'tips.setup': '#splitHome .sh-tips .tip-setup', // pinned on top until a harness can run here; opens Settings → Agents
+  'tips.grid': '#splitHome .sh-tips .tip-grid', // pinned until this computer is on a wisp Grid (opens Machines); on a cloud computer, its address until opened once
+  'tips.tools': '#splitHome .sh-tips .tip-tool', // pinned until git and gh are installed and gh is signed in to GitHub; opens Settings → Agents
   'split.head': '#splitHead',
   'split.title': '#splitHead .sh-title',
   // Stacked (narrow windows, the phone app): Back to the list, on a task's page and on home.

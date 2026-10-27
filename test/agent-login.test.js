@@ -169,6 +169,8 @@ test('Codex: a device code to enter on its page; done when the CLI says so; sign
 
 test('GitHub (gh): a device code; then git pushes with it and commits get your GitHub name', async () => {
   assert.equal((await api('/agents/gh/login')).json.signedIn, false);
+  // Home's pinned tip asks for the sign-in: gh is there, signed out.
+  assert.deepEqual((await api('/tools')).json.gh, { installed: true, signedIn: false });
   await api('/agents/gh/login', 'POST');
   const w = await until(async () => {
     const v = (await api('/agents/gh/login')).json;
@@ -183,6 +185,25 @@ test('GitHub (gh): a device code; then git pushes with it and commits get your G
   assert.match(cfg, /email = 583231\+octo@users\.noreply\.github\.com/);
   // gh isn't a harness: it never shows up in the model picker.
   assert.equal((await agent('gh')), undefined);
+  assert.deepEqual((await api('/tools')).json.gh, { installed: true, signedIn: true });
+});
+
+test('git or gh missing: /tools says so, with how to install it on this OS', async () => {
+  const { tools } = await import('../server/git.js');
+  const was = { git: process.env.WISP_GIT_BIN, gh: process.env.WISP_GH_BIN };
+  Object.assign(process.env, { WISP_GIT_BIN: path.join(bins, 'no-git'), WISP_GH_BIN: path.join(bins, 'no-gh') });
+  try {
+    const mac = await tools('darwin');
+    assert.equal(mac.git.installed, false);
+    assert.equal(mac.git.setup.command, 'xcode-select --install');
+    assert.deepEqual({ ...mac.gh, setup: mac.gh.setup.command }, { installed: false, signedIn: null, setup: 'brew install gh' });
+    assert.match((await tools('win32')).gh.setup.command, /^winget install --id GitHub\.cli/);
+    assert.match((await tools('freebsd')).git.setup.command, /apt install -y git/); // anything else: Linux's
+  } finally {
+    for (const [k, v] of [['WISP_GIT_BIN', was.git], ['WISP_GH_BIN', was.gh]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
+  }
+  // git found: no setup.
+  assert.deepEqual((await tools()).git, { installed: true });
 });
 
 test('a harness wisp can’t sign in to says how', async () => {

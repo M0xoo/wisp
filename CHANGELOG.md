@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **git and GitHub, pinned in Tips until they're set up.** Ship it needs git, the GitHub CLI and a GitHub sign-in. Until all three are there, on this computer or a cloud computer, a card stays on top of the tips on the home page (phones too) asking for the next one: *Install git*, *Install the GitHub CLI*, then *Sign in to GitHub*. It opens Settings → Agents at that row, which now shows git and gh when they're missing with this OS's install command to copy (`xcode-select --install`, `brew install gh`, `winget …`, `apt …`) and a Docs link. The card goes away once you've signed in, and checks again when you come back to the window after installing one in a terminal. New `GET /api/tools`. Spells: the `tips.tools` part.
+- **Reach this wisp from anywhere, pinned in Tips.** A wisp on your own computer that isn't on a wisp Grid yet keeps a *Reach this wisp from anywhere* card on top of the tips: once it's on a grid you open it at your grid address from your phone or any browser, with no SSH and no open ports. It opens Machines at the grid sign-in (or *Add to grid* if you're signed in) and goes away once it's on. On a cloud computer the card explains its address instead, and opens Settings → Connect; it goes once you've opened it. Not in the phone app. Spells: the `tips.grid` part.
+
 ### Changed
 
 - **The setup card names no single agent.** A signed-out harness no longer reads *Sign in to Claude Code*: the card says *Sign in to a coding agent* (Claude Code, Codex or another) and offers opencode’s free models, which need no account, as a way to start.
