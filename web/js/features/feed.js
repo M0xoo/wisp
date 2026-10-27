@@ -22,7 +22,7 @@ import { slotHtml } from './spells.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
-import { aheadLabel, isScheduled, laterPill, laterTip, planRows } from './later.js';
+import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, planRows } from './later.js';
 import { crewDot, memberById, paintCrew, pinJob, underMember } from './crew.js';
 import { backToPlace, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
@@ -323,7 +323,7 @@ function renderHead(n, s) {
     ${(s.crew && crewDot(s)) || (s.kind === 'reminder' ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s))}
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : sched ? `<span class="it-sub" title="${esc(laterTip(s))}">${icon(s.later[0].remind ? 'bell' : 'clock')}${esc(s.later[0].text)}</span>` : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : sched ? `<span class="it-sub${s.later[0].held ? ' held' : ''}" title="${esc(laterTip(s))}">${icon(laterLine(s.later[0])[0])}${esc(laterLine(s.later[0])[1])}</span>` : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
       ${rowChoices(s, open)}
     </span>
     <span class="it-side">

@@ -11,7 +11,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { Store } from './store.js';
 import { Runner, summarize } from './runner.js';
-import { listAgents } from './adapters/index.js';
+import { adapters, listAgents } from './adapters/index.js';
 import { welcomeSession } from './welcome.js';
 import { Telemetry } from './telemetry.js';
 import { Updater } from './update.js';
@@ -35,7 +35,7 @@ import { createComputer } from './services/computer.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
-import { Budget } from './budget.js';
+import { Budget, addShare, holdWhy, stopAtOf } from './budget.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
@@ -106,6 +106,14 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
         app.broadcast('agents', {});
       }, 2000);
       budgetTimer.unref?.();
+    },
+    // A turn's part of a window's move: kept on the turn, for its task's details and Where it went.
+    onShare: (sid, tid, share) => {
+      const s = store.get(sid);
+      const turn = s?.turns.find((t) => t.id === tid);
+      if (!turn) return;
+      addShare(turn, share.agent, share);
+      app.sessionChanged(s);
     },
   });
   runner.budget = budget;
@@ -203,7 +211,17 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.router = new Router(store.home);
   app.auto = createAuto(app);
   // Goals: the task keeps going until its condition holds (server/goal.js).
-  app.goals = runner.goals = new Goals({ store, runner, agents: () => app.auto.here(), defaults: () => store.config.defaults, projectOf: (s) => store.projectFor(s.cwd), track: (e, p) => app.telemetry.track(e, p) });
+  app.goals = runner.goals = new Goals({
+    store,
+    runner,
+    agents: () => app.auto.here(),
+    defaults: () => store.config.defaults,
+    projectOf: (s) => store.projectFor(s.cwd),
+    track: (e, p) => app.telemetry.track(e, p),
+    // Automations stop at: a round past it waits for the reset, as a scheduled follow-up.
+    hold: (s) => app.reserve.forTask(s),
+    schedule: (s, entry) => app.later.add(s, entry),
+  });
   app.installer = createInstaller(app);
   runner.on('started', ({ session }) => {
     if (session.route && !app.router.route(session.id)) app.router.record(session.id, session.route);
@@ -271,6 +289,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     followUp: (s, text, { queue = false, team } = {}) => app.launcher.replyTo(s, text, [], queue, undefined, undefined, team),
     onChange: () => app.broadcast('config', {}),
     exists: (dir) => fs.existsSync(dir) && fs.statSync(dir).isDirectory(),
+    hold: (m) => (m.agent && m.agent !== 'auto' ? app.reserve.check(m.agent) : null),
   });
   // A quiet check-in is archived as it ends: its worktree goes like any archived task's.
   runner.on('ended', ({ session: s }) => {
@@ -278,7 +297,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   });
   app.triggers = new Triggers({
     store,
-    launch: async (body, origin) => (await app.launcher.launchAny(body, origin))[0],
+    launch: async (body, origin, opts) => (await app.launcher.launchAny(body, origin, opts))[0],
+    hold: (s) => app.reserve.forTask(s),
     // A trigger that sends its work to a crew member: the member's job, or its place in the queue.
     assign: async (crewId, work) => {
       const m = app.crew.get(crewId);
@@ -302,6 +322,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     uploads: app.uploads,
     changed: (s) => app.sessionChanged(s),
     configChanged: () => app.configChanged(),
+    hold: (s) => app.reserve.forTask(s),
+    goalRound: (s, l) => app.goals.carryOn(s, l),
     // A reminder came due: the page notifies, and so does the phone.
     notify: (s) => {
       app.broadcast('reminder', { session: summarize(s, store) });
@@ -309,6 +331,16 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
   });
   app.later.onRemoved = (s) => app.broadcast('removed', { id: s.id });
+  // Automations stop at (Settings → Usage): work nobody started by hand (check-ins, triggers, goal
+  // rounds, agents' own follow-ups) waits while the account it would run on is past that share of a
+  // usage window, and goes on at the reset. null: it can run. See design/budget.md.
+  app.reserve = {
+    check(agent, account = '') {
+      const h = budget.hold(agent, account || runner.accountOf(agent), stopAtOf(store.config.defaults.autoStop));
+      return h && { ...h, why: holdWhy(h, adapters[agent]?.name || agent, accounts.multi(agent) ? accounts.get(agent, h.account)?.label : '') };
+    },
+    forTask: (s) => app.reserve.check(s.agent, s.account || 'default'),
+  };
   // At a usage limit with Settings → Wait for the reset on: the task carries on in the same
   // conversation once the window resets. null: it asks you (the limit card) as before.
   runner.waitAtLimit = (s, at) => {
@@ -426,5 +458,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, token, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, budget: app.budget, token, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
 }

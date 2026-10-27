@@ -534,6 +534,8 @@ wisp spell off --all
 
 ⌘K → *Usage* shows spend per day and, per project and per harness · model: spend, turns, how often the run worked (finished, not partial or blocked), how often the agent had to ask you, and the average time. Claude Code, opencode and Grok report cost (Grok only when its plan does); Codex, Cursor, Antigravity and Copilot only report tokens (Copilot bills in premium requests), so their turns are counted but not priced. Also `wisp usage` and `GET /api/usage?days=30`.
 
+Settings → *Usage* → **Plan budget** shows how much of each Claude Code and Codex account's 5-hour and weekly windows is gone, and where it went: the tasks that used the most of it this week (each task's details show its own share). **Automations stop at** (Off, 50%, 75%, 90%) keeps the rest for you. Past that mark, crew check-ins, triggers, goal rounds and agents' own follow-ups wait for the window's reset. Anything you start yourself still runs.
+
 ## Phone
 
 Settings → *Phone* sends questions and finished tasks to your phone and takes the answers back. wisp polls both services, so it works from anywhere without opening a port.

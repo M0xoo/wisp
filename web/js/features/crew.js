@@ -7,6 +7,7 @@
 //
 // Spells reach it through spell-schema.js: the sidebar.crew / crew.* parts and the crew.page slot.
 
+import { aheadLabel } from './later.js';
 import { esc, md } from '../md.js';
 import { plain } from '../mention-text.js';
 import { api } from '../core/api.js';
@@ -1015,6 +1016,8 @@ function paintSide(m, st, side) {
   const project = S.config.projects?.find((p) => pathAt(p, m.machine || '') === m.cwd);
   const facts = [
     ['clock', m.paused ? 'Paused' : `${cadenceLabel(m.cron)}${m.nextAt && !m.paused ? ` · next ${whenLabel(m.nextAt)}` : ''}`],
+    // Settings → Usage → Automations stop at: its account is past it, so check-ins skip until the reset.
+    ...(m.held && !m.paused ? [['pause', `Waits for your plan · ${aheadLabel(m.held.until)}`, `Check-ins wait for your plan until ${whenLabel(m.held.until)}: ${m.held.why}. Check in now still runs.`]] : []),
     ...(eventsLabel(m) ? [['bolt', eventsLabel(m)]] : []),
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
     // Paired on one line each so the column fits a window without scrolling.
@@ -1023,7 +1026,7 @@ function paintSide(m, st, side) {
   ];
   const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');
   const html = `
-    <div class="cv-facts">${facts.map(([ic, t]) => `<div class="m">${ic.startsWith('logo:') ? `<span class="cv-logo">${harnessLogo(ic.slice(5))}</span>` : icon(ic)}<span title="${esc(t)}">${esc(t)}</span></div>`).join('')}
+    <div class="cv-facts">${facts.map(([ic, t, tip]) => `<div class="m${ic === 'pause' ? ' held' : ''}">${ic.startsWith('logo:') ? `<span class="cv-logo">${harnessLogo(ic.slice(5))}</span>` : icon(ic)}<span title="${esc(tip || t)}">${esc(t)}</span></div>`).join('')}
       <div class="m">${icon('agent')}<span>${team ? `<span class="cv-team">${team}</span>` : 'No delegates'}</span></div></div>
     <div class="cv-actions">
       <button class="ghost sm" data-a="checkin">${icon('clock')}<span>Check in now</span></button>

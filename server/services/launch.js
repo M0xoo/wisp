@@ -43,7 +43,9 @@ export function createLaunch(app) {
   // body: { prompt, cwd, also: [folder], scratch: true = no folder, agent, mode, model, effort, attachments: [uploadId], worktree, compare,
   //         subagents: [{ name, agent, model, effort, use }] | preset: teamId, moved: { from, title, turns, packs }, account }
   // crew: a crew member's job ({ id, job, from? }, server/crew.js); only the crew sets it, never a request.
-  async function launch(body, origin = null, { crew = null } = {}) {
+  // unattended: nobody started it by hand (a check-in, a trigger): it doesn't start on an account
+  // past Settings → Usage → Automations stop at, and throws with `held` instead.
+  async function launch(body, origin = null, { crew = null, unattended = false } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
     crew ||= crewJobOf(body.crewJob);
     // "/goal all tests pass" as the whole prompt: that's the goal, and the task is to reach it.
@@ -79,6 +81,10 @@ export function createLaunch(app) {
       const account = !i && typeof body.account === 'string' && /^[\w-]{1,40}$/.test(body.account) && agent === resolved.agent ? body.account : '';
       return { agent, model: r.model ?? (i ? d.models?.[agent] || '' : ''), effort: /^[\w-]{1,20}$/.test(r.effort || '') ? r.effort : '', account, ...(isRoute(r.route) && { route: r.route }) };
     });
+    if (unattended) {
+      const h = app.reserve?.check(runners[0].agent, runners[0].account);
+      if (h) throw Object.assign(bad(h.why, 409), { held: h });
+    }
     const strategy = ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
     const mode = MODES.has(body.mode) ? body.mode : 'auto';
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
@@ -149,14 +155,15 @@ export function createLaunch(app) {
   }
 
   // launch(), here or on a machine. Resolves with summaries (a compare launch has several).
-  async function launchAny(body, origin = null) {
+  // opts: launch()'s (unattended). A machine keeps its own plan budget, so it isn't held here.
+  async function launchAny(body, origin = null, opts = {}) {
     const mid = body.kind === 'spell' ? null : machineFor(body); // spells change this wisp, so they're cast here
     // The team as that place runs it: members on other machines are carried there from here.
     const preset = !body.subagents && body.preset && store.config.teams.find((t) => t.id === body.preset);
     if (body.subagents || preset) body = { ...body, subagents: app.relay.placeTeam(body.subagents || preset.members, mid), preset: undefined };
     // Every project runs anywhere: its folders become the ones on that place, cloned there first if need be.
     body = await app.places.placeBody(body, mid);
-    if (!mid) return (await launch(body, origin)).map((x) => summarize(x, store));
+    if (!mid) return (await launch(body, origin, opts)).map((x) => summarize(x, store));
     // Auto for a machine: routed here, with the harnesses that machine has; its outcomes come
     // back through the summaries it streams (auto.signals), so one router learns from every place.
     const routed = await app.auto.resolve(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset), place: machines.get(mid).name });

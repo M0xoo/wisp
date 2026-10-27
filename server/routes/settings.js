@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
+import { STOP_AT } from '../budget.js';
 import { KINDS } from '../preferences.js';
 import { normalizePreset } from '../subagents.js';
 import { envDisabled, feedbackAvailable } from '../telemetry.js';
@@ -47,6 +48,7 @@ export function register(r, app) {
     const locked = app.spells.settings().lockedBy;
     const clash = Object.keys(body.defaults || {}).find((k) => locked[k] && body.defaults[k] !== store.config.defaults[k]);
     if (clash) return c.send(409, { error: `${clash} is set by the spell ${locked[clash].name}. Turn it off in Settings → Spells to change it.`, spell: locked[clash] });
+    if (body.defaults?.autoStop !== undefined && !STOP_AT.includes(body.defaults.autoStop)) return c.send(400, { error: `autoStop must be one of ${STOP_AT.join(', ')}` });
     if (body.defaults?.updateChannel !== undefined && !Object.hasOwn(CHANNELS, body.defaults.updateChannel)) return c.send(400, { error: `updateChannel must be one of ${Object.keys(CHANNELS).join(', ')}` });
     const channelWas = store.config.defaults.updateChannel;
     if (body.defaults) Object.assign(store.config.defaults, Object.fromEntries(Object.entries(body.defaults).filter(([k]) => !locked[k])));

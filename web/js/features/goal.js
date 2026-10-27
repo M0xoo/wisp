@@ -10,6 +10,7 @@ import { load, S, save } from '../core/state.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { fmtDuration } from '../blocks.js';
+import { whenLabel } from '../core/format.js';
 import { slotHtml } from './spells.js';
 
 export const GOAL_ROUNDS = [3, 5, 10, 20];
@@ -45,6 +46,8 @@ function checkLine(g) {
   if (g.status === 'met') return `<b>Met in ${plural(g.round, 'round')}</b>${esc([spent, last?.why].filter(Boolean).join(' · '))}`;
   if (g.status === 'impossible') return `<b>Why</b>${esc(g.why || last?.why || '')}`;
   if (g.status === 'out') return `<b>Stopped at ${lastProgress(g) ?? 0}%</b>${last ? esc(last.why) : ''}`;
+  // Automations stop at held the next round back: it goes on by itself at the plan's reset.
+  if (g.status === 'paused' && g.held) return `<b>Round ${g.round} goes on ${esc(whenLabel(g.held))}</b>${esc(g.why || '')}`;
   if (g.status === 'paused') return `<b>${esc(g.why || 'Paused')}</b>${last ? esc(last.why) : ''}`;
   if (g.status === 'handed') return '<b>Another run carries it on</b>';
   if (g.status === 'checking') return last ? `<b>Last check</b>${esc(last.why)}` : '<b>First check under way</b>';
@@ -67,14 +70,14 @@ function bandHtml(s) {
         <span class="gb-mark">${g.status === 'met' ? '<svg class="gb-met" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.2"/><path d="M6.2 10.4l2.6 2.6 5-5.4"/></svg>' : icon('target')}</span>
         <span class="gb-k">Done when</span>
         <span class="gb-text" title="${esc(g.text)}">${esc(g.text)}</span>
-        <span class="gb-state">${STATE[g.status] || ''}</span>
+        <span class="gb-state">${g.held && g.status === 'paused' ? 'Waiting' : STATE[g.status] || ''}</span>
         <button class="icon-btn gb-more" data-g="menu" aria-label="Goal actions" title="Goal actions">${icon('dots')}</button>
       </div>
       <div class="gb-row gb-sub">
         <span class="gb-track" title="${esc(history || 'Not checked yet')}" style="--p:${p ?? 0}%;--was:${was ?? 0}%"><i class="gb-was"></i><i class="gb-fill"></i></span>
         <span class="gb-pct">${p == null ? '–' : `${p}%`}${delta ? `<small class="${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
         ${ended ? '' : `<span class="gb-round">Round ${g.round} of ${g.max}</span>`}
-        <span class="gb-check">${checkLine(g)}</span>
+        <span class="gb-check"${g.held && g.why ? ` title="${esc(g.why)}"` : ''}>${checkLine(g)}</span>
         ${primary}${slotHtml('goal.band', S.sessions.get(s.id))}
       </div>
     </section>`;
@@ -159,15 +162,19 @@ export async function goalAction(id, action) {
   const s = S.sessions.get(id);
   if (!s?.goal) return;
   const prev = s.goal;
+  const prevLater = s.later;
+  // A round that waited for the plan leaves Scheduled with it: Resume sends it now, the rest drop it.
+  if (prev.held) s.later = s.later?.filter((l) => !l.goal);
+  if (s.later && !s.later.length) delete s.later;
   if (action === 'drop') delete s.goal;
-  else s.goal = { ...prev, status: action === 'pause' ? 'paused' : 'working', why: action === 'pause' ? 'You paused it' : undefined, ...(action === 'resume' && prev.round >= prev.max && { max: prev.round + (prev.budget || prev.max) }) };
+  else s.goal = { ...prev, held: undefined, status: action === 'pause' ? 'paused' : 'working', why: action === 'pause' ? 'You paused it' : undefined, ...(action === 'resume' && !prev.held && prev.round >= prev.max && { max: prev.round + (prev.budget || prev.max) }) };
   repaint(id);
   try {
     if (action === 'drop') await api(`/sessions/${id}/goal`, { method: 'DELETE', body: {} });
     else await api(`/sessions/${id}/goal`, { method: 'PATCH', body: { action } });
     if (action === 'drop') toast(`${icon('target')} Goal dropped`, { action: { label: 'Undo', run: () => setGoal(id, prev.text, prev.max) } });
   } catch (err) {
-    if (S.sessions.get(id) === s) (s.goal = prev), repaint(id);
+    if (S.sessions.get(id) === s) (s.goal = prev), (s.later = prevLater), repaint(id);
     toastError(err);
   }
 }

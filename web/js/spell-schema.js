@@ -209,6 +209,8 @@ export const PARTS = {
   'split.pr': 'body.split #feed .item.open .it-bar > .pr-strip',
   // The account a task runs on (a harness with more than one): its initial on the harness logo.
   'details.account': 'body.split #feed .item.open .it-props .model-logo .acc-i',
+  // The open task's share of its plan's usage windows (4% of weekly · 18% of 5-hour).
+  'details.plan': 'body.split #feed .item.open .it-props > .plan-used',
   // A turn that hit its account's usage limit: the card under its hero (Wait until…, Continue on
   // another account, Hand to another harness, Get extra usage).
   'split.actions': 'body.split #feed .item.open .it-bar > .it-actions',
@@ -250,6 +252,9 @@ export const PARTS = {
   'connectors.import': '.cx-found',
   // Settings → Usage: Plan budget, each account's 5-hour and weekly windows, and Wait for the reset.
   'settings.budget': '.sx-budget',
+  // …its Automations stop at row, and Where it went: the tasks that used most of an account's longest window.
+  'settings.autoStop': '.sx-budget .sx-row:has(.us-stop)',
+  'budget.where': '.sx-budget .bg-where',
   // The image viewer: a picture from a reply or an attachment, full screen to zoom into, and its zoom buttons.
   viewer: '.lb',
   'viewer.bar': '.lb-bar',
@@ -403,6 +408,9 @@ export const SETTINGS = {
   goalRounds: ['3', '5', '10', '20'],
   // At a usage limit: wait for the window's reset and carry on in the same conversation, or ask.
   limitWait: ['on', 'off'],
+  // Automations stop at: check-ins, triggers, goal rounds and agents' follow-ups wait once an
+  // account is past this percent of a usage window, until it resets (server/budget.js).
+  autoStop: ['off', '50', '75', '90'],
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).

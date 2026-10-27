@@ -225,6 +225,13 @@ test('plan budget: its group in Settings → Usage is a part; Wait for the reset
   assert.ok(problems({ ...base0, settings: { limitWait: 'always' } }).some((x) => /limitWait/.test(x) && /on \| off/.test(x)));
 });
 
+test('Automations stop at (autoStop) is a setting; its row, Where it went and a task’s plan share are parts', () => {
+  assert.deepEqual(problems({ ...base0, settings: { autoStop: '75' } }), []);
+  assert.deepEqual(problems({ ...base0, settings: { autoStop: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { autoStop: '80' } }).some((x) => /autoStop/.test(x) && /off \| 50 \| 75 \| 90/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['budget.where', 'details.plan'] }, parts: { 'settings.autoStop': { style: { opacity: '0.8' } } } }), []);
+});
+
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,

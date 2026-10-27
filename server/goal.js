@@ -6,6 +6,8 @@
 // State lives on the session as `goal`: { text, max, round, status, setAt, endedAt?, why?, checks[] }
 // status: working (the agent is on a round) · checking · met · impossible · out (of rounds) · paused
 //         · handed (Auto moved the task to another run, which carries the goal on)
+// held: the reset a paused goal's next round waits for (Automations stop at, server/budget.js). The
+//       round itself is a scheduled follow-up by wisp with `goal` (server/later.js), under Scheduled.
 
 import { askJson, cheapest } from './quick.js';
 import { check as runCheck } from './check.js';
@@ -54,13 +56,14 @@ export function goalNote(s) {
 export function goalView(g) {
   if (!g) return undefined;
   const last = g.checks.at(-1);
-  return { text: g.text, status: g.status, round: g.round, max: g.max, ...(g.budget && { budget: g.budget }), ...(g.why && { why: g.why }), setAt: g.setAt, ...(g.endedAt && { endedAt: g.endedAt }), checks: g.checks.slice(-50).map(({ round, verdict, why, next, progress, at, tests }) => ({ round, verdict, why, ...(next && { next }), ...(progress != null && { progress }), ...(tests && { tests }), at })), ...(last && { last: { verdict: last.verdict, why: last.why } }) };
+  return { text: g.text, status: g.status, round: g.round, max: g.max, ...(g.budget && { budget: g.budget }), ...(g.why && { why: g.why }), ...(g.held && { held: g.held }), setAt: g.setAt, ...(g.endedAt && { endedAt: g.endedAt }), checks: g.checks.slice(-50).map(({ round, verdict, why, next, progress, at, tests }) => ({ round, verdict, why, ...(next && { next }), ...(progress != null && { progress }), ...(tests && { tests }), at })), ...(last && { last: { verdict: last.verdict, why: last.why } }) };
 }
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 export class Goals {
-  // deps: { store, runner, agents(), defaults(), projectOf(session), track?(event, props) }
+  // deps: { store, runner, agents(), defaults(), projectOf(session), track?(event, props),
+  //         hold?(session) → what holds back automations on its account, schedule?(session, entry) → Later.add }
   constructor(deps) {
     Object.assign(this, deps);
     this.tokens = new Map(); // sessionId -> the check in flight; a move by the user cancels it
@@ -87,6 +90,7 @@ export class Goals {
     const g = normalizeGoal(goal, prev?.max || this.rounds());
     if (!g) throw bad('Say what has to be true, like “all tests pass”.');
     this.tokens.delete(session.id);
+    this.#unhold(session);
     // Editing the words of a goal still being worked on keeps its rounds; anything else starts over.
     const keep = prev && !ENDED.has(prev.status) && prev.status !== 'paused';
     session.goal = keep ? { ...prev, ...g, status: prev.status === 'checking' ? 'working' : prev.status, why: undefined } : { ...g, budget: g.max, round: 1, status: 'working', setAt: Date.now(), by: 'user', checks: [], from: session.turns.at(-1)?.id };
@@ -101,6 +105,14 @@ export class Goals {
     if (!g) throw bad('This task has no goal.', 404);
     if (g.status === 'met') throw bad('The goal is already met.', 409);
     if (g.status === 'working' || g.status === 'checking') return g;
+    // A round that waited for the plan: you said go, so it goes now, without checking again.
+    const waiting = g.held && this.#unhold(session);
+    if (waiting) {
+      Object.assign(g, { status: 'working', why: undefined });
+      this.#note(session, 'Goal resumed');
+      this.runner.reply(session, waiting.text, [], { by: 'wisp', goal: waiting.goal });
+      return g;
+    }
     Object.assign(g, { status: 'working', why: undefined, endedAt: undefined });
     if (g.round >= g.max) g.max = g.round + (g.budget || g.max); // its next check gets the rounds it started with
     this.#note(session, 'Goal resumed');
@@ -112,6 +124,14 @@ export class Goals {
   pause(session, why = 'You paused it') {
     const g = session.goal;
     if (!g) throw bad('This task has no goal.', 404);
+    if (g.held) {
+      // It was waiting for the plan: now it waits for you, back out of Scheduled.
+      this.#unhold(session);
+      Object.assign(g, { why });
+      if (session.state === 'done') session.state = 'review';
+      this.runner.refresh(session);
+      return g;
+    }
     if (ENDED.has(g.status) || g.status === 'paused') return g;
     const checking = g.status === 'checking';
     this.tokens.delete(session.id);
@@ -123,6 +143,7 @@ export class Goals {
 
   drop(session) {
     if (!session.goal) return false;
+    if (this.#unhold(session) && session.state === 'done') session.state = 'review'; // out of Scheduled, back to you
     const checking = session.goal.status === 'checking';
     this.tokens.delete(session.id);
     delete session.goal;
@@ -162,7 +183,9 @@ export class Goals {
     if (!g) return false;
     const checking = g.status === 'checking';
     if (checking) this.tokens.delete(session.id);
-    if (stop && !ENDED.has(g.status)) Object.assign(g, { status: 'paused', why: 'You stopped it' });
+    // A goal already paused keeps its reason (one waiting for the plan keeps waiting): Stop, and
+    // every task wisp stops as it quits, only pause a goal that was going.
+    if (stop && !ENDED.has(g.status) && g.status !== 'paused') Object.assign(g, { status: 'paused', why: 'You stopped it' });
     else if (checking) g.status = 'working';
     return checking;
   }
@@ -226,7 +249,46 @@ export class Goals {
     g.status = 'working';
     this.tokens.delete(session.id);
     this.runner.note(session, turn, { kind: 'goal', label: 'Goal check: not yet' });
-    this.runner.reply(session, continuePrompt(g, entry), [], { by: 'wisp', goal: g.round });
+    const prompt = continuePrompt(g, entry);
+    // Automations stop at: the account is past it, so the next round waits for the reset.
+    const h = this.hold?.(session);
+    if (h) return this.#waitForPlan(session, turn, prompt, h);
+    this.runner.reply(session, prompt, [], { by: 'wisp', goal: g.round });
+  }
+
+  // The next round goes at the reset, as a follow-up by wisp under Scheduled; nobody is pinged.
+  // If it can't be scheduled (the task has its five), the goal pauses and the task lands with you.
+  #waitForPlan(session, turn, prompt, h) {
+    const g = session.goal;
+    let scheduled = false;
+    try {
+      scheduled = !!this.schedule?.(session, { text: prompt, by: 'wisp', goal: g.round, held: { why: h.why, until: h.until }, at: Math.max(h.until, Date.now() + 61_000) });
+    } catch {}
+    Object.assign(g, { status: 'paused', why: `Waits for your plan: ${h.why}`, ...(scheduled && { held: h.until }) });
+    this.runner.note(session, turn, { kind: 'goal', label: 'Next round waits for your plan' });
+    if (!scheduled) return this.runner.settle(session);
+    Object.assign(session, { state: 'done', unread: false });
+    this.runner.refresh(session);
+  }
+
+  // The plan's reset came (server/later.js fires the waiting round), or you sent it now: the round goes.
+  // null: it lapsed (the goal was dropped, replaced or resumed meanwhile).
+  carryOn(session, l) {
+    const g = session.goal;
+    if (!g?.held || g.status !== 'paused') return null;
+    Object.assign(g, { status: 'working', why: undefined, held: undefined });
+    return this.runner.reply(session, l.text, [], { by: 'wisp', goal: l.goal });
+  }
+
+  // The round that waited for the plan, taken off Scheduled. Returns it, or null.
+  #unhold(session) {
+    const g = session.goal;
+    if (g) delete g.held;
+    const l = session.later?.find((x) => x.goal);
+    if (!l) return null;
+    session.later = session.later.filter((x) => !x.goal);
+    if (!session.later.length) delete session.later;
+    return l;
   }
 
   // Rounds that changed nothing, or were sent back with the same next step and no more progress:

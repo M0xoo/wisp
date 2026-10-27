@@ -54,7 +54,8 @@ export function clock(t, now = Date.now()) {
 }
 
 // What the page and machines see of a task's follow-ups.
-export const laterView = (s) => (s.later?.length ? s.later.map(({ id, at, text, by, setAt, remind, attachments }) => ({ id, at, text, by, setAt, ...(remind && { remind: true }), ...(attachments?.length && { files: attachments.length }) })) : undefined);
+// held: { why, until }: Automations stop at moved it to the reset (the page says Waits for your plan).
+export const laterView = (s) => (s.later?.length ? s.later.map(({ id, at, text, by, setAt, remind, attachments, held, goal }) => ({ id, at, text, by, setAt, ...(remind && { remind: true }), ...(attachments?.length && { files: attachments.length }), ...(held && { held }), ...(goal && { goal }) })) : undefined);
 
 // The note the agent reads ahead of a follow-up it (or you) scheduled. The bubble shows only the text.
 export function laterNote(l, now = Date.now()) {
@@ -68,8 +69,10 @@ export class Later {
   // runner: the Runner. launch(body, origin): a new task (services/launch.js launchAny). uploads: follow-ups' files.
   // changed(s): a session's fields changed (persist + summary). configChanged(): config.later did.
   // notify(s): a reminder came due (the page's notification, the phone).
-  constructor({ store, runner, launch, uploads = null, changed = () => {}, configChanged = () => {}, notify = () => {}, now = () => Date.now() }) {
-    Object.assign(this, { store, runner, launch, uploads, changed, configChanged, notify, now });
+  // hold(s): what holds back a follow-up nobody sent by hand (Automations stop at), or null.
+  // goalRound(s, l): a goal's next round that waited for the plan goes now (server/goal.js).
+  constructor({ store, runner, launch, uploads = null, changed = () => {}, configChanged = () => {}, notify = () => {}, hold = () => null, goalRound = null, now = () => Date.now() }) {
+    Object.assign(this, { store, runner, launch, uploads, changed, configChanged, notify, hold, goalRound, now });
     store.config.later ||= [];
   }
 
@@ -81,7 +84,9 @@ export class Later {
 
   // by: 'user' | 'agent' | a crew member's name. remind: a reminder about this task, no agent run.
   // attachments: upload ids, sent with it when it goes (they stay on disk until then).
-  add(s, { text, remind = false, by = 'user', attachments, ...when }) {
+  // goal: the goal round it starts (by 'wisp': a round that waits for the plan, server/goal.js).
+  // held: { why, until }: it waits for the plan (Automations stop at).
+  add(s, { text, remind = false, by = 'user', attachments, goal, held, ...when }) {
     if (s.parentId || s.delegated) throw bad('A subagent can’t schedule follow-ups: its lead can.');
     if (s.kind === 'reminder') throw bad('That’s a reminder: snooze it instead.');
     if (s.agent === 'wisp') throw bad('This is the tour — launch a real wisp to schedule things.');
@@ -89,7 +94,7 @@ export class Later {
     if (s.later.length >= PER_TASK) throw bad(`A task can have ${PER_TASK} follow-ups scheduled at most. Cancel one first.`);
     const agent = by !== 'user';
     if (agent && (s.laterChain || 0) >= CHAIN_MAX) throw bad(`That's ${CHAIN_MAX} scheduled follow-ups in a row with no word from the user. Don't schedule another: report where things stand, and the user can follow up.`);
-    const entry = { id: newId(), at: whenOf(when, { now: this.now(), max: agent ? AGENT_MAX_MS : MAX_MS }), text: textOf(text, remind ? 'What to remind you about' : 'The follow-up'), by, setAt: this.now(), ...(remind && { remind: true }) };
+    const entry = { id: newId(), at: whenOf(when, { now: this.now(), max: agent ? AGENT_MAX_MS : MAX_MS }), text: textOf(text, remind ? 'What to remind you about' : 'The follow-up'), by, setAt: this.now(), ...(remind && { remind: true }), ...(by === 'wisp' && Number.isInteger(goal) && { goal }), ...(held && { held }) };
     const files = !remind && Array.isArray(attachments) ? attachments.filter((a) => typeof a === 'string').slice(0, 20) : [];
     if (files.length) entry.attachments = files;
     s.later.push(entry);
@@ -104,7 +109,10 @@ export class Later {
     const l = s.later?.find((x) => x.id === id);
     if (!l) throw bad('Already sent, or cancelled.', 404);
     if (body.now === true) return this.fire(s, l, { force: true });
-    if (body.at !== undefined || body.in !== undefined) l.at = whenOf(body, { now: this.now() });
+    if (body.at !== undefined || body.in !== undefined) {
+      l.at = whenOf(body, { now: this.now() });
+      delete l.held; // your time now, not the reset's
+    }
     if (body.text !== undefined) l.text = textOf(body.text);
     s.later.sort((a, b) => a.at - b.at);
     this.changed(s);
@@ -114,8 +122,13 @@ export class Later {
   cancel(s, id) {
     const i = s.later?.findIndex((x) => x.id === id) ?? -1;
     if (i < 0) return false;
-    s.later.splice(i, 1);
+    const [l] = s.later.splice(i, 1);
     if (!s.later.length) delete s.later;
+    // A goal round that waited for the plan: the goal waits for you now, out of Scheduled.
+    if (l.goal && s.goal?.held) {
+      Object.assign(s.goal, { held: undefined, why: 'You cancelled its next round' });
+      if (s.state === 'done') s.state = 'review';
+    }
     this.changed(s);
     return true;
   }
@@ -148,6 +161,8 @@ export class Later {
   done(s) {
     if (s.reminder) delete s.reminder;
     if (!s.later?.some((l) => l.by !== 'user')) return;
+    // A goal round that waited for the plan goes with them: the goal waits for you now.
+    if (s.goal?.held) Object.assign(s.goal, { held: undefined, why: 'You marked the task done' });
     s.later = s.later.filter((l) => l.by === 'user');
     if (!s.later.length) delete s.later;
   }
@@ -175,6 +190,12 @@ export class Later {
       this.changed(s);
       this.notify(s);
       return { reminded: true };
+    }
+    // A goal round that waited for the plan: the goal takes it from here (or it lapsed: the goal
+    // was dropped, or you resumed it yourself meanwhile).
+    if (l.goal) {
+      this.changed(s);
+      return this.goalRound?.(s, l) || { lapsed: true };
     }
     const late = !force && now - l.at > LATE_MS;
     this.changed(s);
@@ -314,7 +335,11 @@ export class Later {
         this.changed(s);
         continue;
       }
-      const l = due[0];
+      // Not sent by you, and its account is past Automations stop at: it waits for the reset, and
+      // the next one due (yours, say) goes instead.
+      let l = due[0];
+      for (let h; l && !l.remind && l.by !== 'user' && this.#free(s) && (h = this.hold(s)); l = s.later?.find((x) => x.at <= now)) this.#waitForPlan(s, l, h);
+      if (!l) continue;
       if (!l.remind && !this.#free(s)) continue; // held; tries again next tick
       if (fired >= PER_TICK) return;
       fired++;
@@ -332,6 +357,14 @@ export class Later {
       }
       await Promise.resolve(this.fire(s, l)).catch((err) => console.warn(`wisp: later: ${err.message}`));
     }
+  }
+
+  // Moved to the reset of the window that holds it back; Send now still sends it at once.
+  #waitForPlan(s, l, h) {
+    l.at = Math.max(h.until, this.now() + MIN_MS);
+    l.held = { why: h.why, until: h.until };
+    s.later.sort((a, b) => a.at - b.at);
+    this.changed(s);
   }
 
   // The soonest thing that will run, for GET /api/status: a host starts a stopped wisp for it.

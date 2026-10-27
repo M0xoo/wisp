@@ -20,6 +20,7 @@ import { laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
 import { goalNote, goalView } from './goal.js';
+import { planOf } from './budget.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -142,6 +143,7 @@ export function summarize(s, store) {
     model: s.model,
     effort: s.effort || '',
     ...(s.account && { account: s.account }), // which of the harness's accounts it runs on (server/accounts.js)
+    ...(planOf(s) && { plan: planOf(s) }), // its share of each kind of usage window (server/budget.js)
     state: s.state,
     unread: s.unread,
     archived: !!s.archived,
@@ -401,6 +403,11 @@ export class Runner extends EventEmitter {
     } else if (account !== undefined) this.#switchAccount(session, account);
     session.model = model;
     session.effort = effort;
+  }
+
+  // The account a run that nobody started by hand would get (Automations stop at checks it first).
+  accountOf(agent, want = '') {
+    return this.#accountFor(agent, want, false) || 'default';
   }
 
   // Which account a run of `agent` gets: the one asked for when the harness has it, else your last
@@ -945,6 +952,8 @@ export class Runner extends EventEmitter {
       return;
     }
 
+    // Where the plan went: this turn's part of the account's next move (server/budget.js).
+    this.budget?.begin?.(session.agent, session.account || 'default', session.id, turn.id);
     let released = false;
     let linger;
     const adapter = adapters[session.agent];
@@ -1120,6 +1129,7 @@ export class Runner extends EventEmitter {
   #finishTurn(session, turn, ev, reason) {
     let crewOut = {};
     turn.endedAt = Date.now();
+    this.budget?.end?.(session.agent, session.account || 'default', session.id, turn.id);
     delete turn.interim;
     delete turn.background;
     turn.stats = ev.stats || null;

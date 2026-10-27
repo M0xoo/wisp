@@ -31,7 +31,8 @@ import { openUsage } from './usage.js';
 import { crewRecord } from './crew-record.js';
 import { crewList } from './crew.js';
 import { connectorsPane } from './connectors.js';
-import { budgetHtml } from './budget.js';
+import { budgetHtml, stopAt, STOP_AT } from './budget.js';
+import { reveal } from './feed.js';
 import { spellsPane } from './spell-ui.js';
 import { setTheme, themePref } from './theme.js';
 import { loadUpdate, updateState } from './update.js';
@@ -196,6 +197,7 @@ export function openSettings(opts) {
           <div class="sx-head"><div><b>Plan budget</b><small>Your plans’ usage windows, as Claude Code and Codex report them on each run</small></div></div>
           <div class="sx-group sx-budget">
             <div class="bg-list"></div>
+            ${row('Automations stop at', 'Check-ins, triggers, goal rounds and agents’ own follow-ups wait once an account passes this much of a window, and go on after it resets. What you start always runs', `<fieldset class="pk-seg us-stop" aria-label="Automations stop at">${STOP_AT.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</fieldset>`)}
             ${row('Wait for the reset', 'At a usage limit, the task waits under Scheduled and carries on in the same conversation when the window resets. Off: it stops and asks you', '<button class="switch" id="limitWait" role="switch"></button>')}
           </div>
         </section>
@@ -440,13 +442,48 @@ export function openSettings(opts) {
   };
   paintFc();
   // Plan budget: the windows repaint with the harness list; the switch is instant, rolled back on a refusal.
+  // Only what changed is written: a repaint on every 'agents' would restart the bars' fill.
   const paintBudget = () => {
     const list = $('.bg-list', node);
-    list.innerHTML = budgetHtml(S.agents);
-    list.hidden = !list.innerHTML;
+    const html = budgetHtml(S.agents);
+    if (list.dataset.h !== html) (list.innerHTML = html), (list.dataset.h = html);
+    list.hidden = !html;
+    const stop = stopAt();
+    list.classList.toggle('stops', !!stop);
+    list.style.setProperty('--stop', stop ? `${stop * 100}%` : '');
   };
   paintBudget();
   bus.on('agents', paintBudget, { node });
+  // A task in Where it went opens it.
+  $('.bg-list', node).addEventListener('click', (e) => {
+    const t = e.target.closest('[data-session]');
+    if (!t) return;
+    close();
+    reveal(t.dataset.session);
+  });
+  // Automations stop at: instant, the bars' marks with it; rolled back on a refusal.
+  const paintStop = () => {
+    const v = STOP_AT.includes(S.config.defaults.autoStop) ? S.config.defaults.autoStop : 'off';
+    $$('.us-stop button', node).forEach((b) => {
+      b.classList.toggle('on', b.dataset.v === v);
+      b.setAttribute('aria-pressed', b.dataset.v === v);
+    });
+    paintBudget();
+  };
+  $('.us-stop', node).onclick = async (e) => {
+    const b = e.target.closest('[data-v]');
+    const was = S.config.defaults.autoStop || 'off';
+    if (!b || b.dataset.v === was) return;
+    S.config.defaults.autoStop = b.dataset.v;
+    paintStop();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { autoStop: b.dataset.v } } }));
+    if (!saved) {
+      S.config.defaults.autoStop = was;
+      paintStop();
+    }
+  };
+  paintStop();
+  bus.on('config', paintStop, { node });
   const lw = $('#limitWait', node);
   const paintLw = () => lw.setAttribute('aria-checked', S.config.defaults.limitWait === 'on');
   lw.onclick = async () => {
@@ -608,7 +645,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

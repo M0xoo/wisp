@@ -31,6 +31,7 @@ import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
 import { openUpcoming, upcoming, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
+import { planLine } from './budget.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const SIDE_W = 340;
@@ -400,7 +401,8 @@ function paintDetails(s, pill) {
   // The clock time only before the first prompt: after it, the list says how long ago and the prompt's
   // foot gives the time. Never on a state or minute, so the actions under it never move.
   const echo = !!S.full.get(s.id)?.turns?.at(-1)?.startedAt;
-  const html = `${headPills(s, pill)}${echo ? '' : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${whenLabel(s.updatedAt)}</span>`}`;
+  // Its share of the plan's windows (Claude Code, Codex): only here, not on the list's rows.
+  const html = `${headPills(s, pill)}${planLine(s)}${echo ? '' : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${whenLabel(s.updatedAt)}</span>`}`;
   if (props.dataset.h !== html) (props.innerHTML = html), (props.dataset.h = html);
   const slot = $('.it-slot', body);
   const btns = slotHtml('split.details', s);

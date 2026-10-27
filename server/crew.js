@@ -445,8 +445,9 @@ export class Crew {
   // remote (members on machines): { ok(mid), launch(body, origin) → [summary], jobs(m) → the
   // member's job summaries there, fetch(id) → a job's full session }, ids qualified (`id@machine`).
   // followUp(task, text): a follow-up on a task, as the user would send it (services/launch.js replyTo).
-  constructor({ store, runner, launch, remote = null, followUp = null, onChange = () => {}, exists = () => true, now = () => Date.now() }) {
-    Object.assign(this, { store, runner, launch, remote, followUp, onChange, exists, now });
+  // hold(m): what holds back the member's check-ins on its account (Automations stop at), or null.
+  constructor({ store, runner, launch, remote = null, followUp = null, onChange = () => {}, exists = () => true, hold = () => null, now = () => Date.now() }) {
+    Object.assign(this, { store, runner, launch, remote, followUp, onChange, exists, hold, now });
     store.config.crew ||= [];
     for (const m of store.config.crew) Object.assign(m, { away: m.away || {}, seen: m.seen || [], links: m.links || [], machine: m.machine || '' }); // members from before these
     this.starting = new Map(); // member id -> jobs being launched (not sessions yet)
@@ -486,7 +487,19 @@ export class Crew {
   // A member as the page and the API see it: its jobs running and what's next.
   view(m) {
     const jobs = this.jobs(m);
-    return { ...m, running: jobs.filter((s) => s.state === 'running' || s.state === 'waiting').length + (this.starting.get(m.id) || 0), jobs: jobs.length, nextAt: nextCheckin(m, this.now()), handle: handleOf(m.name), on: this.on(m) };
+    const held = this.#held(m);
+    // While held, the next check-in that can run: the first one after the reset.
+    const next = nextCheckin(m, held ? Math.max(this.now(), held.until) : this.now());
+    return { ...m, running: jobs.filter((s) => s.state === 'running' || s.state === 'waiting').length + (this.starting.get(m.id) || 0), jobs: jobs.length, nextAt: next && held ? Math.max(next, held.until) : next, handle: handleOf(m.name), on: this.on(m), held: held || undefined };
+  }
+
+  // Automations stop at: { why, until } while its check-ins wait for the plan. Its harness's account
+  // says so now; a member on Auto (no account known ahead) shows the last check-in it skipped.
+  #held(m) {
+    if (m.paused || m.machine) return null;
+    const h = this.hold(m);
+    if (h) return { why: h.why, until: h.until };
+    return m.held?.until > this.now() ? { why: m.held.why, until: m.held.until } : null;
   }
 
   // What else starts its jobs: the kinds of the triggers that are on and send it work.
@@ -583,12 +596,14 @@ export class Crew {
   // tagged: crew members named in the prompt (@Quill), who join this job's delegates.
   // kit: the job builds the member's kit (it proposes files; you pick).
   // event: what a task watcher saw happen to `from` (finished, done).
-  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '' } = {}) {
+  // unattended: nobody asked for it just now (a check-in on its schedule, a trigger): it doesn't
+  // start while its account is past Automations stop at (it's skipped, see #failed).
+  async assign(m, { prompt, job = 'task', from = null, origin = null, attachments = [], reply = null, wake = false, tagged = [], kit = false, event = '', unattended = false } = {}) {
     if (!JOBS.has(job)) job = 'task';
     const text = String(prompt || '').trim() || (job === 'checkin' ? checkinPrompt(m, { wake }) : '');
     if (!text) throw bad('Tell them what to do.');
     const extra = tagged.filter((x) => x.id !== m.id).map((x) => taggedDelegate(x, 'job'));
-    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), at: this.now() };
+    const w = { id: newId(), prompt: text, job, ...(from && { from }), ...(origin && { origin }), ...(attachments.length && { attachments }), ...(reply && { reply }), ...(wake && { wake: true }), ...(EVENT_WHAT[event] && { event }), ...(kit && { kit: true }), ...(extra.length && { team: extra }), ...(unattended && { unattended: true }), at: this.now() };
     if (from?.id && (job === 'mention' || job === 'delegated' || job === 'event')) this.#link(m, from);
     if (this.busy(m) >= m.parallel || (m.paused && job !== 'task' && job !== 'mention')) {
       if (m.queue.length >= QUEUE_MAX) throw bad(`${m.name} already has ${QUEUE_MAX} jobs waiting.`, 429);
@@ -601,13 +616,18 @@ export class Crew {
 
   async #start(m, w) {
     this.starting.set(m.id, (this.starting.get(m.id) || 0) + 1);
+    const was = { checkins: m.checkins || 0, lastCheckinAt: m.lastCheckinAt || null };
     try {
-      if (w.job === 'checkin') Object.assign(m, { checkins: (m.checkins || 0) + 1, lastCheckinAt: this.now() });
+      if (w.job === 'checkin') Object.assign(m, { checkins: was.checkins + 1, lastCheckinAt: this.now() });
       const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.event && { event: w.event }), ...(w.kit && { kit: true }) };
       const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
       if (m.machine) return await this.#startAway(m, body, crew, w.origin);
-      const [s] = await this.launch(body, w.origin || null, { crew });
+      const [s] = await this.launch(body, w.origin || null, { crew, unattended: !!w.unattended });
+      delete m.held;
       return s;
+    } catch (err) {
+      if (err.held && w.job === 'checkin') Object.assign(m, was); // a check-in that didn't start isn't counted
+      throw err;
     } finally {
       this.starting.set(m.id, this.starting.get(m.id) - 1);
       this.#changed();
@@ -757,6 +777,17 @@ export class Crew {
   }
 
   #failed(m, w, err) {
+    // Held for the plan (Automations stop at): skipped, not failed. Skips in a row share one line
+    // of its log, so a member on a 15-minute schedule doesn't fill it.
+    if (err.held) {
+      m.held = { at: this.now(), why: err.message, until: err.held.until };
+      const top = m.log[0];
+      if (top?.skipped) Object.assign(top, { at: this.now(), skipped: top.skipped + 1, summary: truncate(err.message, 160) });
+      else m.log.unshift({ at: this.now(), job: w.job, title: 'Skipped: waits for the plan', summary: truncate(err.message, 160), status: 'partial', skipped: 1 });
+      m.log.length = Math.min(m.log.length, LOG_MAX);
+      if (w.reply) this.#answer(w.reply, { status: 'error', error: `${m.name} didn’t start: ${err.message}` });
+      return this.#changed();
+    }
     m.log.unshift({ at: this.now(), job: w.job, title: 'Couldn’t start', summary: truncate(err.message, 160), status: 'blocked' });
     m.log.length = Math.min(m.log.length, LOG_MAX);
     if (w.reply) this.#answer(w.reply, { status: 'error', error: `${m.name} couldn’t start: ${err.message}` });
@@ -764,9 +795,10 @@ export class Crew {
   }
 
   // Check in now (the page's button): one check-in at a time per member.
-  async checkin(m, { wake = false } = {}) {
+  // unattended: its schedule's, not the button's (see assign).
+  async checkin(m, { wake = false, unattended = false } = {}) {
     if (this.jobs(m).some((s) => s.crew.job === 'checkin' && (s.state === 'running' || s.state === 'waiting')) || m.queue.some((w) => w.job === 'checkin')) return { already: true };
-    return this.assign(m, { job: 'checkin', wake });
+    return this.assign(m, { job: 'checkin', wake, unattended });
   }
 
   // Every 20 s: check-ins that are due, and queues with room.
@@ -777,7 +809,7 @@ export class Crew {
         const wake = !!m.wakeAt && m.wakeAt <= now;
         m.lastMinute = Math.floor(now / 60_000);
         if (wake) m.wakeAt = null;
-        await this.checkin(m, { wake }).catch((err) => this.#failed(m, { job: 'checkin' }, err));
+        await this.checkin(m, { wake, unattended: true }).catch((err) => this.#failed(m, { job: 'checkin' }, err));
         this.#changed();
       }
       // Jobs on its machine that finished while we weren't told (a dropped stream, a restart).
