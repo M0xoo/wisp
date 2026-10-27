@@ -1,17 +1,20 @@
 import { icon, el } from './blocks.js';
 import { esc } from './md.js';
 import { byScore, fuzzy, highlight, recency } from './fuzzy.js';
+import { splitQuery, tagScore } from './tags.js';
 
 // ⌘K command palette: one input over a grouped list of sessions, projects and
 // actions. Generic over its items; app.js decides what's in it and what runs.
 //
-// item: { id, group, label, sub?, icon?, dot?, kbd?, keywords?, run, rank?, at? }
+// item: { id, group, label, sub?, icon?, dot?, kbd?, keywords?, tags?, run, rank?, at?, fill? }
 // `at` (ms) is when the item was last touched: recent items score higher (fuzzy.js recency).
+// `tags`: topic words (tags.js); "#auth" in the query keeps only items tagged auth. `fill`: picking
+// the item types that into the input instead of running anything (a topic narrows the search).
 // With an empty query each group shows its first `limit` items in the given order.
 
 const GROUP_LIMIT = 6;
 
-export function palette({ items, overlay, placeholder = 'Search tasks, projects and actions…' }) {
+export function palette({ items, overlay, placeholder = 'Search tasks, #topics, projects and actions…' }) {
   const node = el(`
     <div class="palette" role="dialog" aria-label="Command palette">
       <div class="pal-input">${icon('search')}<input type="text" placeholder="${esc(placeholder)}" spellcheck="false" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="palList"></div>
@@ -34,9 +37,13 @@ export function palette({ items, overlay, placeholder = 'Search tasks, projects 
     }
     const hits = [];
     const now = Date.now();
+    const query = splitQuery(q);
     for (const it of items) {
-      const m = fuzzy(q, [it.label, it.sub || '', it.keywords || '', it.group]);
-      if (m) hits.push({ it, idx: m.idx, at: it.at, score: m.score + (it.rank || 0) + recency(it.at, now) });
+      const t = tagScore(query, it.tags);
+      if (!t || (it.fill && query.tags.includes(it.tags?.[0]))) continue; // a topic already in the query
+      const tags = it.tags?.join(' ') || '';
+      const m = query.text ? fuzzy(query.text, [it.label, it.sub || '', tags, it.keywords || '', it.group]) : { score: 0, idx: [] };
+      if (m) hits.push({ it, idx: m.idx, hit: t.hit, at: it.at, score: m.score + t.score + (it.rank || 0) + recency(it.at, now) });
     }
     // Best match first, but keep groups together, ordered by their best hit.
     hits.sort(byScore);
@@ -53,12 +60,13 @@ export function palette({ items, overlay, placeholder = 'Search tasks, projects 
     }
     let group = null;
     list.innerHTML = shown
-      .map(({ it, idx }, i) => {
+      .map(({ it, idx, hit = [] }, i) => {
         const head = it.group !== group ? `<div class="pal-group">${esc((group = it.group))}</div>` : '';
         const lead = it.dot ? `<i class="p-dot c-${esc(it.dot)}"></i>` : icon(it.icon || 'arrow');
         return `${head}<div class="pal-row ${i === sel ? 'on' : ''}" role="option" data-i="${i}" aria-selected="${i === sel}">
           <span class="pal-lead">${lead}</span>
           <span class="pal-label">${highlight(it.label, idx, esc)}</span>
+          ${!it.fill && it.tags?.length && input.value.trim() ? tagsHtml(it.tags, hit) : ''}
           ${it.sub ? `<span class="pal-sub">${esc(it.sub)}</span>` : ''}
           ${it.kbd ? `<span class="pal-kbd">${it.kbd.split(' ').map((k) => `<kbd>${esc(k)}</kbd>`).join('')}</span>` : ''}
         </div>`;
@@ -80,6 +88,16 @@ export function palette({ items, overlay, placeholder = 'Search tasks, projects 
   const pick = (i) => {
     const hit = shown[i];
     if (!hit) return;
+    if (hit.it.fill) {
+      // A topic: narrow to it, keeping the words typed that weren't its name.
+      const rest = splitQuery(input.value);
+      const words = rest.text.split(/\s+/).filter((w) => w && !hit.it.tags[0].startsWith(w.toLowerCase()));
+      input.value = `${[...rest.tags.filter((t) => !hit.it.tags[0].startsWith(t)).map((t) => `#${t}`), hit.it.fill.trim(), ...words].join(' ')} `;
+      sel = 0;
+      render();
+      list.scrollTop = 0;
+      return input.focus();
+    }
     close();
     // Let the overlay start fading before the action moves focus or opens another modal.
     setTimeout(() => hit.it.run(), 0);
@@ -109,4 +127,10 @@ export function palette({ items, overlay, placeholder = 'Search tasks, projects 
   render();
   input.focus();
   return close;
+}
+
+// Up to three of a task's topics, the ones the query found first and marked.
+function tagsHtml(tags, hit) {
+  const list = [...hit, ...tags.filter((t) => !hit.includes(t))].slice(0, 3);
+  return `<span class="pal-tags">${list.map((t) => `<span class="pal-tag${hit.includes(t) ? ' on' : ''}">#${esc(t)}</span>`).join('')}</span>`;
 }

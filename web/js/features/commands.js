@@ -94,12 +94,21 @@ function paletteItems() {
       sub: `${s.project} · ${state} · ${ago(s.updatedAt)}`,
       dot: s.color,
       keywords: [s.preview, s.live, s.question, agentName(s.agent)].filter(Boolean).join(' '),
+      tags: s.tags,
       // Live and unread work floats up; archived sinks.
       rank: (s.state === 'waiting' ? 3 : 0) + (s.unread ? 2 : 0) + (s.state === 'running' ? 1 : 0) - (s.archived ? 4 : 0),
       at: s.updatedAt,
       run: () => reveal(s.id),
     });
   }
+
+  // Topics: the tags agents gave their tasks (wisp_tag). Only while typing: picking one narrows to #it.
+  const topics = new Map();
+  for (const s of sessions) for (const t of s.tags || []) {
+    const x = topics.get(t) || { n: 0, at: 0 };
+    topics.set(t, { n: x.n + 1, at: Math.max(x.at, s.updatedAt || 0) });
+  }
+  for (const [t, x] of topics) items.push({ group: 'Topics', label: `#${t}`, sub: `${x.n} task${x.n === 1 ? '' : 's'}`, icon: 'search', tags: [t], at: x.at, rank: Math.min(x.n, 6), limit: 0, fill: `#${t}`, run: () => {} });
 
   const a = 'Actions';
   items.push(

@@ -15,6 +15,7 @@ import { fetchShared } from './spells.js';
 import { describeSpell, normalizeSpell } from '../spells.js';
 import { spellReference } from '../spell-guide.js';
 import { ghProblem, wispPathProblem } from '../../web/js/spell-schema.js';
+import { MAX_TAGS, normalizeTags } from '../../web/js/tags.js';
 
 export function register(r, app) {
   const { store, runner, telemetry } = app;
@@ -59,6 +60,28 @@ export function register(r, app) {
       const when = (t) => new Date(t).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
       const others = (s.later || []).filter((x) => x !== l).map((x) => `- ${x.id} at ${when(x.at)}: ${clip(x.text, 80)}`).join('\n');
       c.send(200, { text: `Scheduled (id ${l.id}) for ${when(l.at)}, in ${Math.round((l.at - Date.now()) / 60_000)} min. Finish your turn now with your report, saying what you'll check then; wisp resumes this conversation at that time with your message.${others ? `\nAlso pending on this task:\n${others}` : ''}` });
+    }),
+    opts,
+  );
+
+  // wisp_tag: the agent names its task's topics, the words the user will search it by (⌘K, #tag).
+  // It replaces the tags: the agent passes the whole list each time.
+  r.route(
+    'POST',
+    '/internal/tags',
+    guarded(async (c) => {
+      const body = await c.body();
+      const s = store.get(body.session);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const tags = normalizeTags(body.tags);
+      if (!tags.length) return c.send(400, { error: 'Give 3 to 8 short topic words, e.g. ["auth", "rate-limit", "redis"].' });
+      const was = s.tags || [];
+      s.tags = tags;
+      store.save(s);
+      app.sessionChanged(s);
+      if (!was.length) telemetry.track('wisp_tag', { agent: s.agent, tags: tags.length });
+      const cut = Array.isArray(body.tags) && body.tags.length > MAX_TAGS ? ` (only the first ${MAX_TAGS} are kept)` : '';
+      c.send(200, { text: `Tagged: ${tags.map((t) => `#${t}`).join(' ')}${cut}. Call wisp_tag again only if the work moves to another topic; it replaces these.` });
     }),
     opts,
   );
@@ -209,7 +232,7 @@ export function register(r, app) {
         .map((x) => summarize(x, store))
         .filter((x) => (q.archived === 'true' || !x.archived) && (!states || states.includes(x.state)))
         .filter((x) => !project || x.projectId === project || x.project === project)
-        .filter((x) => words.every((w) => `${x.title} ${x.preview}`.toLowerCase().includes(w)))
+        .filter((x) => words.every((w) => `${x.title} ${x.preview} ${(x.tags || []).join(' ')}`.toLowerCase().includes(w.replace(/^#/, ''))))
         .sort((a, b) => b.updatedAt - a.updatedAt);
       const list = all.slice(0, Math.min(Math.max(Number(q.limit) || 20, 1), 100));
       telemetry.track('wisp_sessions', { agent: s.agent });
@@ -362,7 +385,7 @@ const age = (t) => {
 };
 
 const sessionLine = (x) =>
-  `- \`${x.id}\` **${x.title}** — ${x.archived ? 'archived, ' : ''}${x.state}, ${x.agent}${x.model ? ` (${x.model})` : ''}, ${x.project}, ${age(x.updatedAt)}${x.state === 'running' && x.live ? `: ${x.live}` : x.preview ? `: ${clip(x.preview, 160)}` : ''}`;
+  `- \`${x.id}\` **${x.title}** — ${x.archived ? 'archived, ' : ''}${x.state}, ${x.agent}${x.model ? ` (${x.model})` : ''}, ${x.project}, ${age(x.updatedAt)}${x.tags?.length ? ` ${x.tags.map((t) => `#${t}`).join(' ')}` : ''}${x.state === 'running' && x.live ? `: ${x.live}` : x.preview ? `: ${clip(x.preview, 160)}` : ''}`;
 
 export function sessionText(x, store, turnArg) {
   const sum = summarize(x, store);

@@ -7,6 +7,7 @@
 // With WISP_APPROVE, it offers `approve`: the harness's permission prompt (Claude's
 // --permission-prompt-tool), answered by the user in wisp.
 // `resume_later` schedules a follow-up to this same task (server/later.js).
+// `wisp_tag` names the task's topics, the words the user finds it by in wisp's search.
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
 // reports, e.g. a task the user mentioned in the prompt.
@@ -62,6 +63,22 @@ const LATER = {
       message: { type: 'string', description: 'What to do then, written to yourself: the check to run and what to do with the result.' },
       cancel: { type: 'string', description: 'The id of a follow-up you scheduled, to cancel it instead.' },
     },
+  },
+};
+
+// wisp_tag: the task's topics, for the user's search (web/js/tags.js).
+const TAG = {
+  name: 'wisp_tag',
+  description:
+    'Tag this task with the topics it is about, so the user can find it later by searching wisp (⌘K, or #tag). ' +
+    'Call it once you know what the task is about, in your first turn, and again only if the work moves to another topic: ' +
+    'it replaces the tags. 3–8 short lowercase words or hyphenated terms a person would search for: the area or feature ' +
+    '(auth, billing, search), the tech (redis, react, postgres), the kind of work (bugfix, refactor, research, release). ' +
+    'Not the project name or words already in the title.',
+  inputSchema: {
+    type: 'object',
+    properties: { tags: { type: 'array', items: { type: 'string' }, description: 'e.g. ["auth", "rate-limit", "redis", "bugfix"]' } },
+    required: ['tags'],
   },
 };
 
@@ -372,7 +389,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, TAG, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -380,6 +397,9 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     } else if (method === 'tools/call' && params?.name === 'resume_later') {
       const a = params.arguments || {};
       send({ id, result: { content: [{ type: 'text', text: (await call(`/api/internal/later`, { session: WISP_SESSION, ...a })).text }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_tag') {
+      const r = await call(`/api/internal/tags`, { session: WISP_SESSION, tags: params.arguments?.tags });
+      send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && WISP_APPROVE && params?.name === 'approve') {
       send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_stats') {

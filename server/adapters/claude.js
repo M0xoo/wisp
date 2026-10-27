@@ -284,6 +284,8 @@ function describeTool(name, input, cwd) {
       return { kind: 'agent', label: 'Waiting on subagents' };
     case 'mcp__wisp__resume_later':
       return { kind: 'tool', label: input?.cancel ? 'Cancelling a scheduled follow-up' : `Scheduling a follow-up${input?.minutes ? ` in ${input.minutes} min` : ''}` };
+    case 'mcp__wisp__wisp_tag':
+      return { kind: 'tool', label: `Tagging the task${input?.tags?.length ? `: ${clip(input.tags.map((t) => `#${t}`).join(' '), 60)}` : ''}` };
     case 'mcp__wisp__wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
     case 'mcp__wisp__wisp_sessions':

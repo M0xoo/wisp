@@ -44,6 +44,11 @@
 .pal-lead .i { width: 15px; height: 15px; }
 .pal-label { flex: none; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pal-label mark { background: none; color: var(--accent-ink); font-weight: 600; }
+/* a task's topics (wisp_tag), between its title and where it lives */
+.pal-tags { flex: 0 1 auto; min-width: 0; display: flex; gap: 4px; overflow: hidden; }
+.pal-tag { flex: none; padding: 0 7px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 11.5px; line-height: 17px; white-space: nowrap; }
+.pal-tag.on { border-color: transparent; background: var(--accent-soft); color: var(--accent-ink); }
+@media (max-width: 520px) { .pal-tag:not(.on) { display: none; } } /* narrow: only the ones the query found, never a cut-off pill */
 .pal-sub { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; color: var(--faint); }
 .pal-kbd { margin-left: auto; display: flex; gap: 3px; flex: none; }
 .pal-empty { padding: 34px 12px; text-align: center; color: var(--muted); font-size: 13px; }

@@ -81,6 +81,9 @@ Every page check also fails on an uncaught page error or a `console.error`.
 ### WEB-12 · Command palette
 - **Steps:** `⌘K` / `Ctrl+K`, type part of a task title, ↵.
 - **Expected:** the palette lists the task under sessions and opens it; `Esc` closes.
+- **Topics:** after a task's agent called `wisp_tag` (its activity says *Tagging the task*), type one of its tags:
+  the task shows with that tag marked, and *Topics* lists `#tag · N tasks`; ↵ on it turns the query into `#tag `,
+  which keeps only tasks with that tag. A title word with `#tag` (`#auth login`) narrows further.
 - **Automated**
 
 ### WEB-13 · Split view is the only layout

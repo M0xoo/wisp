@@ -135,6 +135,8 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
 - If you must wait before you can go on (a deploy, CI, "check again in 10 minutes") or the user asks you to do
   something later ("in 5 minutes do X"), call \`resume_later\` (${tool.replace(/ask_user$/, 'resume_later')}) and end your
   turn: wisp sends your message back into this conversation at that time. Never sleep or poll for it.
+- Once you know what this task is about, call \`wisp_tag\` (${tool.replace(/ask_user$/, 'wisp_tag')}) with 3–8 short topic words
+  the user would search for it by (area, feature, tech, kind of work). Once per task, again only if the topic changes.
 - If the user asks about their past wisp tasks (which tools or harnesses they use, cost, success rate),
   call \`wisp_stats\` (${tool.replace(/ask_user$/, 'wisp_stats')}) instead of digging through files.
 - If the prompt mentions another wisp task ("@Title (wisp task <id>)") or the user asks what another task
