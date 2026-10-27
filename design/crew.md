@@ -19,8 +19,11 @@ Named agents that stay on hand and keep working: *Scout · CI watcher*, *Quill �
 A member is like a teammate you keep a conversation with. Everything about it happens in one place,
 its thread; its work never mixes with your tasks.
 
-- **The list.** The *Crew* section is pinned above *Working*, in the task list, rows in a
-  fixed order (when they joined). A row never moves: what changes is its status line (*Asking you:
+- **The list.** The *Crew* section is pinned above *Working*, in the task list, the one you
+  need first: asking you, then working for you, then an unread report, then the ones you send the
+  most work (jobs you handed them or @-tagged them in, last 30 days; ties: the latest, then when they
+  joined), paused ones last. The @ picker uses the same order. The order holds while the pointer or
+  focus is in the section, so a row never moves under the cursor. Besides its place, what changes is its status line (*Asking you:
   …*, *Running tests · 2 jobs*, *Reported: …*, *Looks again 14:30*, *Every 30 min*, *Paused*), the
   dot on its face (amber: asking you; blue: a report you haven't read) and its spirit's mood. Under a
   member sit its recent jobs as ordinary cards: live first (asking you, working, an unread report),
@@ -29,7 +32,7 @@ its thread; its work never mixes with your tasks.
 - **Compact.** A busy member always has its row: asking you, on a job, an unread report, a job open
   in the main pane, a spell's change to review. A member only making its rounds (a check-in) isn't
   busy, or scheduled members would pop in and out all day; its face moves instead, and a check-in
-  that reports gets the row. Idle members fill up to two rows (join order, one finished job card
+  that reports gets the row. Idle members fill up to two rows (in that order, one finished job card
   each; spell prop `section.crew` `rows`), and the rest fold into one last row: up to four faces and
   *4 on call* / *3 on call · 1 paused*, with the chevron. A face opens that member (a ring marks the
   one open; touch unfolds the row instead), the row shows everyone until a reload or **Show fewer**.
