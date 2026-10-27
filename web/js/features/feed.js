@@ -23,7 +23,7 @@ import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
-import { crewDot, memberById, paintCrew, pinJob, underMember } from './crew.js';
+import { crewDot, crewFace, memberById, paintCrew, pinJob, underMember } from './crew.js';
 import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
@@ -413,7 +413,7 @@ export function headPills(s, pill) {
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
       ${goalPill(s)}${autoPill(s)}${overlapPill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
-      ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route, s.account)}
+      ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route, s.account, crewFace(s))}
       ${s.machine ? machinePill(s.machine) : ''}
       ${projectLabel(s)}
       ${s.pending ? '' : slotHtml('card.head', s)}`;

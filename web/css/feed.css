@@ -180,6 +180,8 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
 .ask time { font-size: 11.5px; color: var(--faint); }
 .model-logo { position: relative; display: inline-flex; width: 13px; height: 13px; color: var(--ink-2); cursor: default; outline: none; }
 .model-logo > * { display: block; width: 100%; height: 100%; }
+.model-logo.by-crew { width: 16px; height: 16px; margin: -1.5px 0; } /* a crew member's face, a touch bigger than a logo */
+.model-logo.by-crew > .cr-av { --size: 16px; }
 .model-logo .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
 .model-logo::after {
   content: attr(data-tip); position: absolute; left: -6px; bottom: calc(100% + 6px); transform: translateY(2px);
