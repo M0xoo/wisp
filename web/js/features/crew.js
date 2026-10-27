@@ -192,7 +192,7 @@ function rowHtml(m, st) {
 
 // Who gets a full row. Busy members always do: asking you, on a job (not just making their rounds,
 // or scheduled members would pop in and out all day), an unread report, a job open or pinned (its
-// card must stay in the list), a spell's change to review. Then idle ones in join order up to the
+// card must stay in the list), a spell's change to review. Then idle ones in rank order up to the
 // minimum; the rest fold into one row of faces. While the pointer or focus is in the section a row
 // that was shown stays (promoted at once, folded later), so nothing moves under the cursor.
 S.crewAll = false; // Show all: this visit only, a reload is compact again
@@ -200,6 +200,51 @@ let holding = false;
 let wasFull = new Set();
 const busy = (m, st) =>
   st.asks || st.unread || st.live.some((s) => s.crew?.job !== 'checkin') || (m.changed && m.paused) || st.jobs.some((s) => S.open.has(s.id) || pinned.has(s.id));
+
+// Who comes first: the ones that need you or are working for you, then the ones you send the most
+// work (jobs you handed them or @-tagged them in, last 30 days), then join order. While the pointer
+// or focus is in the section the order holds (newcomers go last), so nothing moves under the cursor.
+const SENT_DAYS = 30;
+const BY_YOU = new Set(['task', 'mention']);
+function sentByYou(st) {
+  const since = Date.now() - SENT_DAYS * 864e5;
+  let n = 0;
+  let last = 0;
+  for (const s of [...st.jobs, ...st.sent]) {
+    if (!s.pending && !BY_YOU.has(s.crew?.job)) continue;
+    const at = s.createdAt || s.updatedAt || 0;
+    if (!s.pending && at < since) continue;
+    n += 1;
+    last = Math.max(last, at);
+  }
+  return { n, last };
+}
+const tier = (m, st) => (st.asks ? 0 : st.live.some((s) => s.crew?.job !== 'checkin') ? 1 : st.unread ? 2 : m.paused ? 4 : 3);
+let order = [];
+// Most-needed first, for the @ picker too. states: memberState per id, made when missing.
+export function rankCrew(list, states = new Map()) {
+  const at = new Map(crewList().map((m, i) => [m.id, i]));
+  const key = new Map(
+    list.map((m) => {
+      const st = states.get(m.id) || memberState(m);
+      return [m.id, { tier: tier(m, st), ...sentByYou(st) }];
+    }),
+  );
+  return [...list].sort((a, b) => {
+    const x = key.get(a.id);
+    const y = key.get(b.id);
+    return x.tier - y.tier || y.n - x.n || y.last - x.last || at.get(a.id) - at.get(b.id);
+  });
+}
+function sortCrew(list, states) {
+  if (holding && order.length) {
+    const i = new Map(order.map((id, k) => [id, k]));
+    return [...list].sort((a, b) => (i.get(a.id) ?? 1e9) - (i.get(b.id) ?? 1e9));
+  }
+  const out = rankCrew(list, states);
+  order = out.map((m) => m.id);
+  return out;
+}
 
 function crewRows(list, states) {
   if (S.crewAll) return { full: new Set(list.map((m) => m.id)), busyIds: new Set() };
@@ -229,11 +274,11 @@ function stripHtml(folded) {
 // Blocks keyed by member, rows rewritten only when what they say changed and never re-appended (a
 // spirit would restart its animation). Returns the job cards it placed, so the feed keeps them.
 export function paintCrew() {
-  const list = crewList();
   sec.hidden = !('crew' in S.config); // until the config lands
-  $('h4 .n', sec).textContent = list.length || '';
+  $('h4 .n', sec).textContent = crewList().length || '';
   if (S.crewOpen && !memberById(S.crewOpen)) setOpen(null);
-  const states = new Map(list.map((m) => [m.id, memberState(m)]));
+  const states = new Map(crewList().map((m) => [m.id, memberState(m)]));
+  const list = sortCrew(crewList(), states);
   const { full, busyIds } = crewRows(list, states);
   wasFull = full;
   const folded = list.filter((m) => !full.has(m.id));
@@ -1480,7 +1525,7 @@ function pickerFor(ta) {
   const m = before.match(/(^|[\s(])@([\p{L}\p{N}._-]{0,24})$/u);
   if (!m) return closePicker();
   const q = m[2].toLowerCase();
-  const list = crewList().filter((x) => x.id !== ta.dataset.crew && (!q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q))).slice(0, 6);
+  const list = rankCrew(crewList().filter((x) => x.id !== ta.dataset.crew && (!q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q)))).slice(0, 6);
   if (!list.length) return closePicker();
   const start = caret - m[2].length - 1;
   if (!picker || picker.ta !== ta) {
