@@ -29,7 +29,7 @@ import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript
 import { paintCard } from './spells.js';
 import { paintGoal, wireGoalSlot } from './goal.js';
 import { signIn } from './connectors.js';
-import { paintOffers } from './crew.js';
+import { crewFace, paintOffers } from './crew.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -458,7 +458,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
       <div class="ask-foot">
-        ${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort)}
+        ${modelBadge(t.agent || s.agent, t.model ?? s.model, t.effort ?? s.effort, null, null, crewFace(s))}
         ${modeSwitch(s, t)}
         ${accountSwitch(s, t)}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}, before the task moved`)}">${icon('server')}${esc(t.moved)}</span>` : ''}

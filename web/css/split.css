@@ -378,6 +378,8 @@ body.split.pane-wide:not(.side-hidden):not(.stack) .it-bar > .it-props > .q-time
 /* the harness by name: there's room, and a tooltip would run off the column */
 body.split.pane-wide .it-props .model-logo { flex: 1 0 100%; order: 2; width: auto; height: auto; align-items: flex-start; gap: 9px; color: var(--ink-2); }
 body.split.pane-wide .it-props .model-logo > * { width: 13px; height: 13px; flex: none; margin-top: 2px; }
+body.split.pane-wide .it-props .model-logo.by-crew { margin: 0; }
+body.split.pane-wide .it-props .model-logo.by-crew > .cr-av { width: 16px; height: 16px; margin: 0 -1.5px 0 -1.5px; }
 body.split.pane-wide .it-props .model-logo::after { content: attr(data-tip); position: static; opacity: 1; transform: none; transition: none; padding: 0; background: none; color: var(--ink-2); font-size: 12.5px; white-space: normal; }
 body.split.pane-wide .it-props .model-logo.routed::before { right: auto; bottom: auto; left: 9px; top: 11px; }
 /* the account's initial, bottom-right of the logo; Auto's dot moves to its top-right */

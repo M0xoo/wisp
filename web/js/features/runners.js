@@ -84,13 +84,15 @@ export function effortsFor(agent, model) {
 export const effortLabel = (e) => ({ xhigh: 'X-High' })[e] || e.charAt(0).toUpperCase() + e.slice(1);
 
 // account: the task's account id; named only when its harness has more than one.
-export function modelBadge(agent, model, effort, route, account) {
+// crew: { name, face } when a crew member ran it: their face stands in for the logo, and the
+// tooltip names them before the harness and model.
+export function modelBadge(agent, model, effort, route, account, crew) {
   if (agent === 'wisp') return '';
   const label = (model && agentById(agent)?.models?.find((x) => x.id === model)?.label) || model || 'Default model';
   const acc = accountOf(agent, account);
-  const tip = `${route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`}${acc ? ` · ${acc.label}` : ''}`;
-  const logo = harnessLogo(agent);
-  return `<span class="model-logo${route ? ' routed' : ''}" role="img" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}${acc ? accountMark(acc) : ''}</span>`;
+  const tip = `${crew ? `${crew.name} · ` : ''}${route ? routeTip(route) : `${agentName(agent)} · ${label}${effort ? ` · ${effortLabel(effort)} thinking` : ''}`}${acc ? ` · ${acc.label}` : ''}`;
+  const logo = crew ? crew.face : harnessLogo(agent);
+  return `<span class="model-logo${crew ? ' by-crew' : ''}${route ? ' routed' : ''}" role="img" data-tip="${esc(tip)}" aria-label="${esc(tip)}" tabindex="0">${logo}${acc ? accountMark(acc) : ''}</span>`;
 }
 
 // Accounts: more than one subscription per harness (claude, codex). Someone with one login sees

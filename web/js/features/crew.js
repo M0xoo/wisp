@@ -103,6 +103,12 @@ export function avatarHtml(m, { size = 30, state, dot = true, small = size < 22 
   return `<span class="cr-av c-${color}${m.avatar && !isSpirit(m.avatar) ? ' emoji' : ''}" style="--size:${size}px">${face}${badge}</span>`;
 }
 
+// A crew job's face for modelBadge: the member, not the harness they run on.
+export function crewFace(s) {
+  const m = memberById(s?.crew?.id);
+  return m ? { name: m.name, face: avatarHtml(m, { size: 16, dot: false }) } : null;
+}
+
 // A crew job's card shows the member's face where other cards have their project dot.
 export function crewDot(s) {
   const m = memberById(s.crew?.id);

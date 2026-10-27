@@ -18,6 +18,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **A crew member's task shows their face, not the model's logo.** The task's details and each request in it show the member's avatar; hover it (or read the details column) for who ran it and on what: *Sana · Claude Code · Opus*.
 - **A failed Auto run tries harder before it hands over.** A run that thought at low or medium and still fails its tests goes again at high on the same model (one at high, at x-high), before Auto moves the task to a stronger model. Anthropic measured this on Opus 5.5: 97% solved at $0.17 a task, against 95% at $0.29 with everything at high.
 
 - **The setup card names no single agent.** A signed-out harness no longer reads *Sign in to Claude Code*: the card says *Sign in to a coding agent* (Claude Code, Codex or another) and offers opencode’s free models, which need no account, as a way to start.
