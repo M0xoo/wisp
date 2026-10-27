@@ -386,6 +386,11 @@ body.split.pane-wide .it-props .model-logo.routed:has(> .acc-i)::before { top: -
 body.split.pane-wide .it-props > :is(.q-proj, .q-machine) {
   flex: 1 0 100%; order: 3; position: relative; max-width: none; padding: 0 0 0 22px; background: none; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
 }
+/* its share of the plan's windows (budget.js planLine): a row of the details column. The narrow
+   bar keeps to its two rows, so it's left out there (Settings → Usage → Where it went has it). */
+body.split .it-props > .plan-used { display: none; }
+body.split.pane-wide .it-props > .plan-used { flex: 1 0 100%; order: 3; display: flex; align-items: flex-start; gap: 9px; color: var(--ink-2); }
+body.split.pane-wide .it-props > .plan-used > .i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--faint); }
 body.split.pane-wide .it-props > .q-proj::before { content: ''; position: absolute; left: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--pc); }
 body.split.pane-wide .it-bar > .it-meta { flex: none; flex-direction: column; align-items: stretch; gap: 8px; margin-top: -6px; overflow: visible; font-size: 12.5px; }
 body.split.pane-wide .it-meta .m { display: flex; align-items: center; max-width: 100%; min-width: 0; }

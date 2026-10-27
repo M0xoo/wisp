@@ -294,6 +294,7 @@ body.split #crewView { flex: 1; }
 .cv-facts { display: flex; flex-direction: column; gap: 5px; color: var(--ink-2); }
 .cv-facts .m { display: flex; align-items: flex-start; gap: 9px; min-width: 0; line-height: 1.4; }
 .cv-facts .m > .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--faint); }
+.cv-facts .m.held > .i { color: var(--warn); } /* check-ins wait for the plan (Automations stop at) */
 .cv-facts .m > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-facts .cv-logo { flex: none; display: grid; place-items: center; width: 13px; height: 13px; margin-top: 2px; }
 .cv-facts .cv-logo > * { width: 13px; height: 13px; }

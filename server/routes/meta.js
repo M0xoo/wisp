@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
+import { whereItWent } from '../budget.js';
 import { openapi } from '../openapi.js';
 import { pageEvent } from '../telemetry.js';
 import { triggerView } from '../triggers.js';
@@ -48,9 +49,14 @@ export function register(r, app) {
 
   // Each harness that can have several accounts lists them (server/accounts.js), in your order, and
   // one whose CLI reports its usage windows says how much of them is gone (server/budget.js).
+  // Each account's longest window also says where it went this period: the tasks that used most.
   const withAccounts = (list) =>
     list.map((a) => {
-      const budget = app.budget?.view(a.id) || [];
+      const budget = (app.budget?.view(a.id) || []).map((b) => {
+        const w = b.windows.filter((x) => x.resetsAt && x.used > 0).sort((x, y) => (y.ms || 0) - (x.ms || 0))[0];
+        const where = w && whereItWent(app.store.all(), a.id, b.account, w.id, w.resetsAt);
+        return where ? { ...b, where: { window: w.id, label: w.label, used: w.used, ...where } } : b;
+      });
       return { ...a, ...(app.accounts?.supports(a.id) && { accounts: app.accounts.view(a.id) }), ...(budget.length && { budget }) };
     });
   // ?fresh=1 detects every harness again; ?fresh=<id> just that one (after signing in to it).

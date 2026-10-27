@@ -43,7 +43,15 @@ const whoSet = (by) => (by === 'user' ? 'you' : by === 'agent' ? 'the agent' : b
 export const isScheduled = (s) => !s.archived && !s.forLater && s.state === 'done' && !!s.later?.length; // saved for later: that wins
 
 export function laterTip(s) {
-  return (s.later || []).map((l) => `${l.remind ? 'Reminder' : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), set by ${whoSet(l.by)}: ${l.text}`).join('\n');
+  return (s.later || []).map((l) => (l.held ? `${l.goal ? `Goal round ${l.goal}` : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), when the plan resets. Waits for your plan: ${l.held.why}` : `${l.remind ? 'Reminder' : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), set by ${whoSet(l.by)}: ${l.text}`)).join('\n');
+}
+
+// What a scheduled follow-up says on its row: its text, or (moved to the plan's reset by
+// Settings → Usage → Automations stop at) that it waits for the plan. [icon, text]
+export function laterLine(l) {
+  if (l.held) return ['pause', l.goal ? `Goal round ${l.goal} waits for your plan` : `Waits for your plan: ${l.text}`];
+  if (l.goal) return ['target', `Goal round ${l.goal}`];
+  return [l.remind ? 'bell' : 'clock', l.text];
 }
 
 // The pill on a card: the next one, and how many more.
@@ -231,8 +239,8 @@ export function followUpRows(s, list) {
   for (const l of s.later || []) {
     const li = el(`
       <li class="cq later" data-later="${esc(l.id)}">
-        <span class="cq-tag" title="${esc(whenTip(l.at))}">${icon(l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · set by ${esc(whoSet(l.by))}${l.files ? ` · <span title="${l.files === 1 ? '1 file goes with it' : `${l.files} files go with it`}">${icon('clip')}${l.files}</span>` : ''}</span>
-        <span class="cq-text">${esc(l.text)}</span>
+        <span class="cq-tag" title="${esc(l.held ? `${whenTip(l.at)}\nWaits for your plan: ${l.held.why}` : whenTip(l.at))}">${icon(l.held ? 'pause' : l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · ${l.held ? 'when your plan resets' : `set by ${esc(whoSet(l.by))}`}${l.files ? ` · <span title="${l.files === 1 ? '1 file goes with it' : `${l.files} files go with it`}">${icon('clip')}${l.files}</span>` : ''}</span>
+        <span class="cq-text">${esc(l.goal ? laterLine(l)[1] : l.text)}</span>
         <button class="att-x" aria-label="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}" title="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}">${icon('x')}</button>
       </li>`);
     $('.att-x', li).onclick = (e) => {
@@ -402,11 +410,11 @@ export function upcoming() {
   for (const p of plans()) out.push({ kind: p.kind, at: p.at, title: p.kind === 'task' ? p.title : p.text, sub: p.kind === 'task' ? 'Scheduled task' : 'Reminder', plan: p });
   for (const s of S.sessions.values()) {
     if (s.archived || !s.later?.length) continue;
-    for (const l of s.later) out.push({ kind: l.remind ? 'reminder' : 'followup', at: l.at, title: s.title, sub: l.text, id: s.id, crew: s.crew });
+    for (const l of s.later) out.push({ kind: l.remind ? 'reminder' : 'followup', at: l.at, title: s.title, sub: laterLine(l)[1], id: s.id, crew: s.crew, ...(l.held && { held: true }) });
   }
   for (const m of crewList()) {
     if (m.paused || !m.nextAt) continue;
-    out.push({ kind: 'checkin', at: m.nextAt, title: m.name, sub: m.wakeAt && m.wakeAt <= m.nextAt + 1000 ? 'Looks again' : 'Check-in', member: m });
+    out.push({ kind: 'checkin', at: m.nextAt, title: m.name, sub: m.held ? 'Check-in waits for your plan' : m.wakeAt && m.wakeAt <= m.nextAt + 1000 ? 'Looks again' : 'Check-in', member: m, ...(m.held && { held: true }) });
   }
   for (const t of S.config.triggers || []) if (t.kind === 'schedule' && t.enabled && t.nextAt) out.push({ kind: 'trigger', at: t.nextAt, title: t.name, sub: 'Schedule', trigger: t });
   return out.filter((x) => x.at > Date.now() - 60_000).sort((a, b) => a.at - b.at);
@@ -414,7 +422,7 @@ export function upcoming() {
 
 export function upcomingRow(x, i) {
   const glyph = x.kind === 'checkin' ? avatarHtml(x.member, { size: 18, dot: false }) : `<span class="q-dot auto">${icon(x.kind === 'trigger' ? 'bolt' : x.kind === 'reminder' ? 'bell' : 'clock')}</span>`;
-  return `<button class="sh-task sh-up" data-up="${i}" title="${esc(`${x.title}: ${x.sub}`)}">
+  return `<button class="sh-task sh-up${x.held ? ' held' : ''}" data-up="${i}" title="${esc(`${x.title}: ${x.sub}`)}">
     ${glyph}
     <span class="sh-t">${esc(x.title)}</span>
     <span class="sh-s">${esc(x.sub)}</span>

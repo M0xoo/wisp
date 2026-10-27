@@ -179,10 +179,11 @@ export function triggerView(t) {
 // --- the loop --------------------------------------------------------------------------------
 
 export class Triggers {
-  // launch(body, origin) starts a session like POST /api/sessions; assign(crewId, work) hands it
+  // launch(body, origin, { unattended }) starts a session like POST /api/sessions; assign(crewId, work) hands it
   // to a crew member instead; followUp(s, text) queues a follow-up on a task; onChange() after state changes.
-  constructor({ store, launch, assign = null, followUp = null, onChange = () => {}, gh = ghCli, now = () => Date.now() }) {
-    Object.assign(this, { store, launch, assign, followUp, onChange, gh, now });
+  // hold(s): what holds back automations on a task's account (Settings → Usage → Automations stop at).
+  constructor({ store, launch, assign = null, followUp = null, onChange = () => {}, gh = ghCli, hold = () => null, now = () => Date.now() }) {
+    Object.assign(this, { store, launch, assign, followUp, onChange, gh, hold, now });
     this.busy = new Set();
   }
 
@@ -223,7 +224,7 @@ export class Triggers {
   // Run now, from the UI: a schedule fires, a watcher polls (and fires for anything new).
   async runNow(t) {
     if (TASK_KINDS.has(t.kind)) throw bad(`This trigger starts when a task ${t.kind === 'done' ? 'is marked done' : 'finishes'}: there's nothing to run now.`, 409);
-    return this.#guard(t, () => (t.kind === 'schedule' ? this.fire(t, {}) : this.poll(t, { force: true })), { rethrow: true });
+    return this.#guard(t, () => (t.kind === 'schedule' ? this.fire(t, {}, { manual: true }) : this.poll(t, { force: true, manual: true })), { rethrow: true });
   }
 
   async #guard(t, fn, { rethrow = false } = {}) {
@@ -233,6 +234,12 @@ export class Triggers {
       t.lastError = '';
       return r;
     } catch (err) {
+      // Automations stop at held it back: not a failure. The row says it skipped, and why.
+      if (err.held) {
+        t.held = { at: this.now(), why: String(err.message).slice(0, 300), until: err.held.until };
+        t.lastError = '';
+        return null;
+      }
       t.lastError = String(err.message || err).slice(0, 300);
       if (rethrow) throw err;
     } finally {
@@ -304,7 +311,8 @@ export class Triggers {
     return (this.store.config.projects || []).find((p) => !p.machine && Object.values(p.copies || {}).includes(m.cwd))?.path || '';
   }
 
-  async fire(t, vars, { task = null } = {}) {
+  // manual: Run now. Anything else is unattended and waits out Automations stop at (it's skipped).
+  async fire(t, vars, { task = null, manual = false } = {}) {
     const recipe = t.recipeId ? findRecipe(this.store.config.recipes, t.recipeId) : null;
     if (t.recipeId && !recipe) throw new Error('Its recipe was deleted.');
     const template = recipe ? recipe.prompt : t.prompt;
@@ -313,6 +321,8 @@ export class Triggers {
     const branch = t.kind === 'ci' ? String(vars.branch || '') : '';
     const open = branch && this.#taskFor(t, branch);
     if (open) {
+      const h = !manual && this.hold(open);
+      if (h) throw Object.assign(new Error(h.why), { held: h });
       const out = (await this.followUp(open, prompt)) || { id: open.id };
       return this.#ran(t, branch, open.id, { ...out, followUp: true });
     }
@@ -320,7 +330,7 @@ export class Triggers {
       if (!this.assign) throw new Error('The crew is not available.');
       // A task watcher's job is about that task: the member may follow up on it.
       const about = task ? { job: 'event', event: t.kind, from: { id: task.id, title: task.title || 'Untitled' } } : { job: 'trigger', from: { id: t.id, title: t.name } };
-      const out = await this.assign(t.crew, { prompt, ...about, origin: { kind: 'trigger', id: t.id, name: t.name } });
+      const out = await this.assign(t.crew, { prompt, ...about, origin: { kind: 'trigger', id: t.id, name: t.name }, unattended: !manual });
       return this.#ran(t, branch, out.id, out);
     }
     const s = await this.launch(
@@ -333,11 +343,13 @@ export class Triggers {
         mode: t.mode || recipe?.mode || undefined,
       },
       { kind: 'trigger', id: t.id, name: t.name },
+      { unattended: !manual },
     );
     return this.#ran(t, branch, s.id, s);
   }
 
   #ran(t, branch, id, out) {
+    delete t.held;
     t.lastRunAt = this.now();
     t.lastSessionId = id || t.lastSessionId;
     t.runs = (t.runs || 0) + 1;
@@ -363,7 +375,7 @@ export class Triggers {
     return best;
   }
 
-  async poll(t, { force = false } = {}) {
+  async poll(t, { force = false, manual = false } = {}) {
     t.lastPolledAt = this.now();
     const items = t.kind === 'ci' ? await this.#failedRuns(t) : await this.#labelledIssues(t);
     const fresh = items.filter((x) => !t.seen.includes(x.key));
@@ -374,7 +386,16 @@ export class Triggers {
     }
     t.seeded = true;
     const started = [];
-    for (const x of fresh.slice(0, MAX_PER_POLL)) started.push(await this.fire(t, x.vars));
+    const sent = fresh.slice(0, MAX_PER_POLL);
+    for (let i = 0; i < sent.length; i++) {
+      try {
+        started.push(await this.fire(t, sent[i].vars, { manual }));
+      } catch (err) {
+        // Held for the plan: what's left counts as new again, so a poll after the reset starts it.
+        if (err.held) t.seen = t.seen.filter((k) => !sent.slice(i).some((x) => x.key === k));
+        throw err;
+      }
+    }
     return started;
   }
 

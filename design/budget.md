@@ -53,6 +53,45 @@ windows after its next Claude Code or Codex run.* The **Wait for the reset** swi
 Waiting stays within the provider's limit; wisp still never switches accounts because of a limit
 (design/accounts.md → Terms). Reading the CLI's own output is not an API call.
 
+## Automations stop at
+
+Users leave check-ins, triggers and goals running overnight, and wake up to an empty plan (CC
+#105111, r/codex 1xgm9xm). `defaults.autoStop` (`off` | `50` | `75` | `90`, off by default,
+spell-lockable, refused otherwise) holds back **work nobody started by hand** while the account it
+would run on has a window at or past that share. The work goes on at the latest reset among those
+windows (`Budget.hold(agent, account, stop)` → `{ window, label, used, stop, until }`; a window
+with no reset time holds nothing). `app.reserve.check(agent, account)` adds the words
+(`holdWhy`: *Claude Code’s weekly window is at 81%, past your 75%*; the page adds the time).
+
+| Work | Held where | What the user sees |
+|---|---|---|
+| Crew check-in on its schedule or a wake-up | `Crew.tick` → `launch(…, { unattended })` throws `held` → `#failed` | skipped; `m.held`, one log line for skips in a row (`skipped: n`), not counted; the page: *Waits for your plan · Thu 21:00*, the next check-in after the reset, Scheduled row *Check-in waits for your plan* |
+| Trigger (schedule, GitHub watcher, task watcher), its crew job, its CI follow-up | `Triggers.fire` (not `manual`) | `t.held`, not `lastError`: *Skipped 4h ago for your plan · runs again after …*; a held GitHub item isn't marked seen, so a later poll picks it up |
+| Goal round | `Goals.run` before the reply | the goal pauses with `held: until`; the round is a Later follow-up by wisp with `goal: round` and `held`; the task goes to `done` (Scheduled). At the reset `Later.fire` → `Goals.carryOn`. **Resume goal** sends that round now; Pause, Drop, cancelling the row or Mark done bring the task back to Needs you |
+| Follow-up an agent / wisp / a crew member scheduled | `Later.tick` | moved to the reset with `held: { why, until }`; *Send now* still sends it; the next due follow-up (yours) goes in the same tick |
+
+Not held: anything you start or schedule, *Check in now*, *Run now*, delegations (a lead waits on
+them), Auto's repair rounds (part of the run), subagents, members and launches on other machines
+(each machine keeps its own budget).
+
+## Where it went
+
+`Budget.begin/end(agent, account, session, turn)` (runner `#startTurn` / `#finishTurn`, in memory)
+keeps which turns ran on an account. On each report, a window's move since the last one (all of
+it in a new period) is shared among the turns that ran in between, weighted by how long each ran
+then (`onShare` → `addShare` → `turn.plan: [{ agent, account, window, used, resetsAt }]`). Moves
+with no turn running are left untraced (outside wisp). Claude reports once per run, after its first
+reply, so a turn's share mostly arrives with the next run's report. Codex reports at the end of the
+turn.
+
+- A summary carries `plan: { seven_day: 0.22, five_hour: 0.31 }` (`planOf`). The details column
+  shows *22% of weekly · 31% of 5-hour* (`.plan-used`, spell part `details.plan`). The narrow bar
+  leaves it out to stay at two rows.
+- `GET /agents` budget blocks carry `where` for the longest window: `{ window, label, used, tasks:
+  [{ id, title, used }] (top 3), more, traced }` (`whereItWent`; a subagent's share counts on its
+  lead). Settings shows *Where the weekly window went*: the tasks (each opens), *n other tasks*,
+  and *Outside wisp or earlier* (= used − traced). Spell part `budget.where`.
+
 ## Not yet
 
 - Budget of tasks on other machines (each machine keeps its own `budget.json`).

@@ -5,6 +5,13 @@
 //
 // ~/.wisp/budget.json: { [agent]: { [account]: { at, windows: { [id]: { used, resetsAt, ms } } } } }
 // used: 0..1, resetsAt: ms, ms: the window's length (for the pace). account: 'default' for the CLI's own.
+//
+// Two uses on top of the numbers (design/budget.md):
+// - Automations stop at (defaults.autoStop): work nobody started by hand (check-ins, triggers, goal
+//   rounds, agents' own follow-ups) waits while its account is past that share of a window: hold().
+// - Where it went: each move of a window is shared out among the turns that ran on that account
+//   since the last report (by how long each ran then), and kept on the turn as turn.plan. Claude
+//   reports once per run, after its first reply, so a turn's share lands with the next report.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -20,6 +27,12 @@ export const WINDOWS = {
   seven_day_sonnet: { label: 'Weekly Sonnet', ms: 7 * 24 * H },
 };
 const ORDER = Object.keys(WINDOWS);
+// Settings → Usage → Automations stop at: 'off', or the percent of a window.
+export const STOP_AT = ['off', '50', '75', '90'];
+export const stopAtOf = (v) => (STOP_AT.includes(String(v)) && String(v) !== 'off' ? Number(v) / 100 : null);
+// Two reports of the same window period: Codex's reset can drift when it only says "in n seconds".
+const samePeriod = (a, b) => !!a && !!b && Math.abs(a - b) < 10 * 60_000;
+const MAX_LEDGER = 100; // turns remembered per account between two reports
 const MAX_WINDOWS = 6; // a CLI that starts reporting dozens doesn't grow the file
 const clamp = (n) => Math.min(1, Math.max(0, n));
 const toMs = (s) => (Number.isFinite(s) && s > 0 ? (s < 1e12 ? s * 1000 : s) : null); // seconds or ms
@@ -123,10 +136,12 @@ function lastRateLimits(file) {
 
 export class Budget {
   // onChange(): a number the page shows moved (wisp broadcasts 'agents').
-  constructor(home, { now = () => Date.now(), onChange = () => {} } = {}) {
+  // onShare(sessionId, turnId, { agent, account, window, used, resetsAt }): a turn's part of a move.
+  constructor(home, { now = () => Date.now(), onChange = () => {}, onShare = () => {} } = {}) {
     this.file = path.join(home, 'budget.json');
     this.now = now;
     this.onChange = onChange;
+    this.onShare = onShare;
     this.state = readJson(this.file) || {};
   }
 
@@ -142,7 +157,10 @@ export class Budget {
   // What a run reported: { windows: [{ id, used, resetsAt, ms }], rejected? }.
   record(agent, account, { windows = [] } = {}) {
     if (!agent || !Array.isArray(windows) || !windows.length) return;
-    const acc = ((this.state[agent] ||= {})[account || 'default'] ||= { windows: {} });
+    account ||= 'default';
+    const acc = ((this.state[agent] ||= {})[account] ||= { windows: {} });
+    const now = this.now();
+    const share = this.#sharers(agent, account, acc.at, now);
     let moved = false;
     for (const w of windows) {
       if (!w?.id || !Number.isFinite(w.used)) continue;
@@ -150,11 +168,62 @@ export class Budget {
       if (!was && Object.keys(acc.windows).length >= MAX_WINDOWS) continue;
       const next = { used: clamp(w.used), resetsAt: w.resetsAt || null, ms: w.ms || WINDOWS[w.id]?.ms || null };
       if (!was || Math.round(was.used * 100) !== Math.round(next.used * 100) || was.resetsAt !== next.resetsAt) moved = true;
+      // How far it moved since the last report: in a new period, all of what's used now.
+      const d = !was ? 0 : samePeriod(was.resetsAt, next.resetsAt) ? next.used - was.used : was.resetsAt && was.resetsAt <= now ? next.used : 0;
+      if (d > 0 && share.length) for (const [k, part] of share) this.onShare(k.sid, k.tid, { agent, account, window: w.id, used: d * part, resetsAt: next.resetsAt });
       acc.windows[w.id] = next;
     }
-    acc.at = this.now();
+    acc.at = now;
     this.save();
     if (moved) this.onChange();
+  }
+
+  // --- where it went: the turns that ran on an account between two of its reports ---------------
+
+  // A turn starts or ends on an account (runner.js). Kept in memory: after a restart, what ran
+  // before it isn't traced.
+  begin(agent, account, sid, tid) {
+    const list = this.#ledger(agent, account);
+    list.push({ sid, tid, from: this.now(), to: null });
+    if (list.length > MAX_LEDGER) list.splice(0, list.length - MAX_LEDGER);
+  }
+
+  end(agent, account, sid, tid) {
+    const e = this.#ledger(agent, account).findLast((x) => x.sid === sid && x.tid === tid && !x.to);
+    if (e) e.to = this.now();
+  }
+
+  #ledger(agent, account) {
+    this.ledger ||= new Map();
+    const key = `${agent}@${account || 'default'}`;
+    if (!this.ledger.has(key)) this.ledger.set(key, []);
+    return this.ledger.get(key);
+  }
+
+  // [[turn, part]]: each turn's part of the time turns ran on the account since `since` (the last
+  // report); the ones that ended are let go. None: the move happened outside wisp.
+  #sharers(agent, account, since, now) {
+    const list = this.#ledger(agent, account);
+    const start = since || now;
+    const spans = list.map((e) => [e, Math.max(0, Math.min(e.to ?? now, now) - Math.max(e.from, start))]).filter(([e, ms]) => ms > 0 || (!e.to && e.from >= start));
+    // A run that reports the moment it starts (no time yet) still counts: it's what moved it.
+    const total = spans.reduce((t, [, ms]) => t + ms, 0);
+    const out = spans.map(([e, ms]) => [e, total ? ms / total : 1 / spans.length]);
+    this.ledger.set(`${agent}@${account || 'default'}`, list.filter((e) => !e.to));
+    return out;
+  }
+
+  // Automations stop at: the window that holds work back on this account, or null.
+  // { agent, account, window, label, used, stop, until }: until is when every window past `stop`
+  // has reset. A window without a reset time doesn't hold anything (wisp couldn't say until when).
+  hold(agent, account, stop) {
+    if (!stop) return null;
+    const acc = this.state[agent]?.[account || 'default'];
+    const now = this.now();
+    const over = Object.entries(acc?.windows || {}).filter(([, w]) => w.used >= stop - 1e-9 && w.resetsAt > now);
+    if (!over.length) return null;
+    const [id, w] = over.sort((a, b) => b[1].used - a[1].used)[0];
+    return { agent, account: account || 'default', window: id, label: WINDOWS[id]?.label || labelOf(w.ms), used: w.used, stop, until: Math.max(...over.map(([, x]) => x.resetsAt)) };
   }
 
   // When the account can run again after a limit: the latest reset among its full windows (the
@@ -177,7 +246,7 @@ export class Budget {
         .map(([id, w]) => {
           const fresh = w.resetsAt && w.resetsAt <= now;
           const used = fresh ? 0 : w.used;
-          return { id, label: WINDOWS[id]?.label || labelOf(w.ms), used, resetsAt: fresh ? null : w.resetsAt, hitAt: fresh ? null : paceOf({ ...w, used }, now) };
+          return { id, label: WINDOWS[id]?.label || labelOf(w.ms), used, resetsAt: fresh ? null : w.resetsAt, hitAt: fresh ? null : paceOf({ ...w, used }, now), ms: w.ms || null };
         })
         .sort((a, b) => rank(a.id) - rank(b.id));
       if (windows.length) out.push({ account, at: acc.at || null, windows });
@@ -189,3 +258,47 @@ export class Budget {
 const rank = (id) => (ORDER.includes(id) ? ORDER.indexOf(id) : ORDER.length);
 // A window wisp has no name for, by its length: "30-day", "12-hour".
 const labelOf = (ms) => (!ms ? 'Usage' : ms >= 24 * H ? `${Math.round(ms / (24 * H))}-day` : `${Math.round(ms / H)}-hour`);
+
+// What holds the work back, in words the page puts after "Waits for your plan:" (no time: the page
+// says when, in its own format): "Claude Code’s weekly window is at 78%, past your 75%".
+export function holdWhy(h, name, label = '') {
+  const win = h.label.charAt(0).toLowerCase() + h.label.slice(1);
+  return `${name}${label ? ` (${label})` : ''}’s ${win} window is at ${Math.round(h.used * 100)}%, past your ${Math.round(h.stop * 100)}%`;
+}
+
+// A turn's part of a window's move, added to what it already has there (turn.plan, runner.js).
+export function addShare(turn, agent, { account, window, used, resetsAt }) {
+  if (!(used > 0)) return;
+  const list = (turn.plan ||= []);
+  const e = list.find((x) => x.agent === agent && x.account === account && x.window === window && samePeriod(x.resetsAt, resetsAt));
+  if (e) e.used = Math.min(1, e.used + used);
+  else list.push({ agent, account, window, used: Math.min(1, used), resetsAt });
+}
+
+// A task's share of each kind of window, summed over its turns: { five_hour: 0.18, seven_day: 0.04 }.
+export function planOf(s) {
+  const out = {};
+  for (const t of s.turns || []) for (const p of t.plan || []) out[p.window] = (out[p.window] || 0) + p.used;
+  return Object.keys(out).length ? out : undefined;
+}
+
+// Where an account's window went this period: the tasks that used most of it, and how much of
+// what's gone wisp traced to a task at all (the rest ran outside wisp, or before it measured).
+// sessions: every task. → { tasks: [{ id, title, used }], traced } or null when nothing is traced.
+export function whereItWent(sessions, agent, account, win, resetsAt, { limit = 3 } = {}) {
+  const by = new Map();
+  const titles = new Map(sessions.map((s) => [s.id, s.title || 'Untitled']));
+  for (const s of sessions) {
+    // A subagent's share is its lead's (one with no lead left counts on its own).
+    const id = s.parentId && titles.has(s.parentId) ? s.parentId : s.id;
+    let used = 0;
+    for (const t of s.turns || []) for (const p of t.plan || []) if (p.agent === agent && p.account === account && p.window === win && samePeriod(p.resetsAt, resetsAt)) used += p.used;
+    if (!(used > 0)) continue;
+    const e = by.get(id) || { id, title: titles.get(id), used: 0 };
+    e.used += used;
+    by.set(id, e);
+  }
+  if (!by.size) return null;
+  const all = [...by.values()].sort((a, b) => b.used - a.used);
+  return { tasks: all.slice(0, limit), more: Math.max(0, all.length - limit), traced: all.reduce((t, x) => t + x.used, 0) };
+}

@@ -15,6 +15,7 @@
 .plan-row .it-title { color: var(--ink-2); }
 .f-group.scheduled .q-time { font-variant-numeric: tabular-nums; }
 .f-group.scheduled .it-sub .i { width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; color: var(--muted); }
+.f-group.scheduled .it-sub.held .i { color: var(--warn); } /* waits for the plan's reset (Automations stop at) */
 
 /* the time menu: a choice per row, the time it means in a fixed column */
 .menu.later-menu { width: 240px; }
