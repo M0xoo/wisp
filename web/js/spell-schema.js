@@ -479,7 +479,7 @@ export function whenMatches(when, s) {
   if (!when) return true;
   if (!s) return false;
   const list = (v) => (Array.isArray(v) ? v : [v]);
-  if (when.hasPr !== undefined && !!s.pr !== !!when.hasPr) return false;
+  if (when.hasPr !== undefined && !!(s.pr || s.prs?.length) !== !!when.hasPr) return false;
   if (when.prState !== undefined && !list(when.prState).includes(s.pr?.state)) return false;
   if (when.state !== undefined && !list(when.state).includes(s.state)) return false;
   if (when.status !== undefined && !list(when.status).includes(s.status)) return false;

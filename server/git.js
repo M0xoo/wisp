@@ -148,7 +148,7 @@ export async function removeWorktree(wt, { force = false, branch = false } = {})
 
 // --- Ship it: commit, push, open a PR, follow it, merge it -----------------------------------
 
-const PR_FIELDS = 'number,url,title,state,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,headRefOid,baseRefName,mergedAt';
+const PR_FIELDS = 'number,url,title,state,isDraft,reviewDecision,mergeable,mergeStateStatus,statusCheckRollup,headRefOid,headRefName,baseRefName,mergedAt';
 const PASS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const FAIL = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
 
@@ -171,6 +171,7 @@ export function prSummary(j) {
     // GitHub can't merge it into its base: both sides changed the same lines (UNKNOWN while it computes).
     conflict: j.mergeable === 'CONFLICTING' || j.mergeStateStatus === 'DIRTY',
     head: j.headRefOid,
+    branch: j.headRefName || '',
     base: j.baseRefName,
     mergedAt: j.mergedAt || null,
     checks,
@@ -279,6 +280,15 @@ export async function merge(wt, number) {
   await removeWorktree(wt, { force: true, branch: 'force' });
   await quiet(git(wt.root, ['push', '--quiet', wt.remote || 'origin', '--delete', wt.branch]));
   return { pr, sync };
+}
+
+// Squash-merge a PR the agent attached to its task (by URL): no worktree of wisp's to sync or clean up.
+export async function mergeUrl(cwd, url) {
+  let pr = await prView(cwd, url);
+  if (pr.state !== 'OPEN') throw bad(`PR #${pr.number} is ${pr.state.toLowerCase()}.`);
+  if (pr.draft) await gh(cwd, ['pr', 'ready', url]);
+  await gh(cwd, ['pr', 'merge', url, '--squash', '--match-head-commit', pr.head]);
+  return prView(cwd, url);
 }
 
 // Fast-forward the user's base branch to the remote, never anything more invasive.

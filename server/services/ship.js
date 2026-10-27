@@ -2,11 +2,13 @@
 // text, and following open PRs (checks, reviews, merges) so their cards stay current. A PR that
 // conflicts with its base gets fixed when the user clicks Fix conflicts on its row (or on its own
 // with defaults.fixConflicts: 'on'): the task is sent a follow-up to merge the base in, and the
-// result is pushed to the PR when it's done.
+// result is pushed to the PR when it's done. The agent can also attach PRs to its task (wisp_pr):
+// they show and are followed on the same row, and Merge merges them too.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { worktreeStatus, prView, ship, merge, baseMerged, conflictsWithBase } from '../git.js';
+import { worktreeStatus, prView, ship, merge, mergeUrl, baseMerged, conflictsWithBase } from '../git.js';
 import { blocksToMarkdown } from '../render.js';
 import { summarize } from '../runner.js';
 import { bad } from '../util.js';
@@ -40,6 +42,10 @@ export function reposOf(s, store) {
 // Something new for this repo's PR: uncommitted changes, or commits its open PR (or a new one) lacks.
 const pending = (st, pr) => !!(st.dirty || (pr?.state === 'OPEN' ? st.unpushed : st.ahead));
 const hasTrees = (s) => !!(s?.worktree || s?.also?.some((a) => a.worktree));
+const MAX_ATTACHED = 20;
+// Where to run `gh` for a PR given by URL: any folder will do, the task's own if it's still there.
+const ghDir = (s) => [s.worktree?.path, s.cwd].find((d) => d && fs.existsSync(d)) || os.homedir();
+const repoOfUrl = (url) => String(url).match(/github\.com\/[^/]+\/([^/]+)\/pull\//)?.[1] || '';
 
 export function createShip(app) {
   const { store, runner } = app;
@@ -77,15 +83,18 @@ export function createShip(app) {
       });
   };
 
-  // The PRs of the task's other repos: their state, checks and reviews, for the card.
+  // The PRs of the task's other repos, and those its agent attached: their state, checks and reviews, for the card.
   const refreshAlso = async (s) => {
-    const open = (s.also || []).filter((a) => a.pr && a.worktree && a.pr.state === 'OPEN');
+    const open = [
+      ...(s.also || []).filter((a) => a.pr && a.worktree && a.pr.state === 'OPEN').map((a) => ({ at: a, dir: fs.existsSync(a.worktree.path) ? a.worktree.path : a.worktree.root, ref: a.pr.number })),
+      ...(s.prs || []).filter((x) => x.pr.state === 'OPEN').map((x) => ({ at: x, dir: ghDir(s), ref: x.pr.url })),
+    ];
     if (!open.length) return false;
     let news = false;
     await Promise.all(
-      open.map(async (a) => {
+      open.map(async ({ at: a, dir, ref }) => {
         const prev = a.pr;
-        a.pr = await prView(fs.existsSync(a.worktree.path) ? a.worktree.path : a.worktree.root, prev.number).catch(() => ({ ...prev, checkedAt: Date.now() }));
+        a.pr = await prView(dir, ref).catch(() => ({ ...prev, checkedAt: Date.now() }));
         if (a.pr.state !== prev.state || a.pr.review !== prev.review || (!a.pr.checks.pending && prev.checks?.pending)) news = true;
       }),
     );
@@ -95,7 +104,7 @@ export function createShip(app) {
   };
   const refreshPr = async (s) => {
     await refreshAlso(s);
-    if (!s.pr || !s.worktree) return s.pr || s.also?.find((a) => a.pr)?.pr;
+    if (!s.pr || !s.worktree) return s.pr || s.also?.find((a) => a.pr)?.pr || s.prs?.[0]?.pr;
     const prev = s.pr;
     const dir = fs.existsSync(s.worktree.path) ? s.worktree.path : s.worktree.root;
     const pr = await prView(dir, prev.number);
@@ -201,19 +210,23 @@ export function createShip(app) {
     recheck(s);
     return { ...(s.pr || todo[0].at.pr), ...(repos.length > 1 && { prs: prsOf(s) }) };
   };
-  // Every PR the task opened, its own first: { repo, number, url, state }.
-  const prsOf = (s) => reposOf(s, store).filter((r) => r.at.pr).map((r) => ({ repo: r.name, number: r.at.pr.number, url: r.at.pr.url, state: r.at.pr.state }));
+  // Every PR of the task, its own first, then those its agent attached: { repo, number, url, state }.
+  const allPrs = (s) => [...reposOf(s, store).filter((r) => r.at.pr), ...(s.prs || []).map((x) => ({ name: x.repo, at: x }))];
+  const prsOf = (s) => allPrs(s).map((r) => ({ repo: r.name, number: r.at.pr.number, url: r.at.pr.url, state: r.at.pr.state }));
 
   // Merge: squash-merge each open PR of the task, its own first. Stops at the first that fails.
+  // An attached PR has no worktree of wisp's: it's merged on GitHub, nothing to sync.
   const mergeAll = async (s) => {
-    const open = reposOf(s, store).filter((r) => r.at.pr?.state === 'OPEN');
+    const open = allPrs(s).filter((r) => r.at.pr?.state === 'OPEN');
     if (!open.length) throw bad('No pull request to merge.');
     const synced = [];
     for (const r of open) {
       try {
-        const { pr, sync } = await merge(r.wt, r.at.pr.number);
-        r.at.pr = pr;
-        synced.push(sync);
+        if (r.wt) {
+          const { pr, sync } = await merge(r.wt, r.at.pr.number);
+          r.at.pr = pr;
+          synced.push(sync);
+        } else r.at.pr = await mergeUrl(ghDir(s), r.at.pr.url);
       } catch (err) {
         app.sessionChanged(s, { now: true });
         throw open.length > 1 ? Object.assign(new Error(`${r.name}: ${err.message}`), { status: err.status }) : err;
@@ -221,7 +234,42 @@ export function createShip(app) {
     }
     app.overlaps?.touch(s); // merged: it no longer overlaps the others
     const sync = { ok: synced.every((x) => x.ok), text: synced.map((x) => x.text).join(' ') };
-    return { pr: s.pr || open[0].at.pr, sync, ...(reposOf(s, store).length > 1 && { prs: prsOf(s) }) };
+    return { pr: s.pr || open[0].at.pr, sync, ...(allPrs(s).length > 1 && { prs: prsOf(s) }) };
+  };
+
+  // wisp_pr: the agent attaches a PR (URL, or number in the task's repo) to its task. The PR of the
+  // task's own branch becomes the one Ship it pushes to; any other joins s.prs. `remove` detaches one.
+  const attach = async (s, ref, { remove = false } = {}) => {
+    ref = String(ref ?? '').trim().replace(/^#/, '');
+    if (!ref) throw bad('Give the pull request’s URL (https://github.com/owner/repo/pull/123), or its number in this task’s repo.');
+    const same = (pr) => pr.url === ref || String(pr.number) === ref;
+    if (remove) {
+      const x = (s.prs || []).find((y) => same(y.pr));
+      if (!x) throw bad(reposOf(s, store).some((r) => r.at.pr && same(r.at.pr)) ? 'That is the PR of the task’s own branch: it stays.' : 'No PR like that is attached to this task.');
+      s.prs = s.prs.filter((y) => y !== x);
+      if (!s.prs.length) delete s.prs;
+      app.sessionChanged(s, { now: true });
+      return x.pr;
+    }
+    const pr = await prView(ghDir(s), ref).catch((err) => {
+      throw bad(`gh could not read that PR: ${err.message}`.slice(0, 300));
+    });
+    const own = reposOf(s, store).find((r) => pr.branch && r.wt.branch === pr.branch);
+    if (own) {
+      own.at.pr = pr;
+      s.prs = s.prs?.filter((x) => x.pr.url !== pr.url);
+      if (!s.prs?.length) delete s.prs;
+    } else {
+      const list = s.prs || [];
+      const at = list.findIndex((x) => x.pr.url === pr.url);
+      if (at < 0 && list.length >= MAX_ATTACHED) throw bad(`A task holds at most ${MAX_ATTACHED} PRs: detach one first.`);
+      const x = { repo: repoOfUrl(pr.url) || store.projectFor?.(s.cwd)?.name || path.basename(s.cwd || ''), pr };
+      s.prs = at < 0 ? [...list, x] : list.with(at, x);
+    }
+    s.pushedAt = Date.now(); // followed closely for a while, so its checks show up as they start
+    app.sessionChanged(s, { now: true });
+    recheck(s);
+    return { ...pr, own: !!own };
   };
 
   // Default commit message and PR text, from the session's latest presentation.
@@ -251,18 +299,15 @@ export function createShip(app) {
 
   // Open PRs are checked every minute, and every few seconds while their state is still settling,
   // so a check finishing or a pushed fix clearing the conflict shows up quickly.
-  const settling = (s) => {
-    const pr = s.pr;
-    return !!(pr.checks?.pending || pr.mergeState === 'UNKNOWN' || ['pushing', 'done'].includes(s.conflictFix?.step) || Date.now() - (s.pushedAt || 0) < 5 * 60_000);
-  };
+  const settling = (s, pr) => !!(pr.checks?.pending || pr.mergeState === 'UNKNOWN' || ['pushing', 'done'].includes(s.conflictFix?.step) || Date.now() - (s.pushedAt || 0) < 5 * 60_000);
   let polling = false;
   const timer = setInterval(async () => {
     if (polling) return;
     polling = true;
     try {
       // A task's other repos' PRs ride along with its own (or poll on their own when it has none open).
-      const lead = (s) => (s.pr?.state === 'OPEN' ? s.pr : s.also?.find((a) => a.pr?.state === 'OPEN')?.pr);
-      const due = store.all().filter((s) => lead(s) && Date.now() - (lead(s).checkedAt || 0) >= (s.pr?.state === 'OPEN' && settling(s) ? PR_FAST_POLL_MS : PR_POLL_MS));
+      const lead = (s) => (s.pr?.state === 'OPEN' ? s.pr : [...(s.also || []), ...(s.prs || [])].find((a) => a.pr?.state === 'OPEN')?.pr);
+      const due = store.all().filter((s) => lead(s) && Date.now() - (lead(s).checkedAt || 0) >= (settling(s, lead(s)) ? PR_FAST_POLL_MS : PR_POLL_MS));
       await Promise.all(due.map((s) => refreshPr(s).catch(() => {})));
     } finally {
       polling = false;
@@ -270,5 +315,5 @@ export function createShip(app) {
   }, PR_TICK_MS);
   timer.unref();
 
-  return { recheck, refreshPr, fixConflicts, draft, shipAll, mergeAll, prsOf, stop: () => clearInterval(timer) };
+  return { recheck, refreshPr, fixConflicts, draft, shipAll, mergeAll, prsOf, attach, stop: () => clearInterval(timer) };
 }

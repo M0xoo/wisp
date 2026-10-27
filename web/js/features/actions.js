@@ -24,7 +24,7 @@ import { placeMenu } from './place-menu.js';
 import { machineById, pathAt, placeName, projectById } from './places.js';
 import { agentById, agentName, DEFAULT_MODE, effortsFor, harnessesAt, modeMenu, MODES, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepInPlace } from './scroll.js';
-import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
+import { mergeLabel, mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
 import { ask } from '../ui/confirm.js';
@@ -188,7 +188,7 @@ export function moreMenu(id, anchor) {
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
       ${forkable(sum) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
-      ${sum.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${sum.pr.number}…</button>` : ''}
+      ${mergeLabel(sum) ? `<button data-a="merge">${icon('check')}${mergeLabel(sum)}</button>` : ''}
       ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(sum)}
@@ -245,7 +245,7 @@ export function taskMenu(id, e) {
       <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
       ${forkable(s) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
       ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
-      ${s.pr?.state === 'OPEN' ? `<button data-a="merge">${icon('check')}Merge PR #${s.pr.number}…</button>` : ''}
+      ${mergeLabel(s) ? `<button data-a="merge">${icon('check')}${mergeLabel(s)}</button>` : ''}
       ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(s)}

@@ -46,7 +46,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/pr',
     one(async (c, s) => {
-      if (!s.pr && !s.also?.some((a) => a.pr)) return c.send(404, { error: 'No pull request yet.' });
+      if (!s.pr && !s.also?.some((a) => a.pr) && !s.prs?.length) return c.send(404, { error: 'No pull request yet.' });
       c.send(200, await app.ship.refreshPr(s));
     }),
   );
@@ -72,7 +72,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/merge',
     one(async (c, s) => {
-      if (!reposOf(s, store).some((r) => r.at.pr)) return c.send(400, { error: 'No pull request to merge.' });
+      if (!app.ship.prsOf(s).length) return c.send(400, { error: 'No pull request to merge.' });
       const out = await app.ship.mergeAll(s);
       app.launcher.markDone(s);
       telemetry.track('merge', { agent: s.agent });

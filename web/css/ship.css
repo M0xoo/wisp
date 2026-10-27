@@ -77,7 +77,7 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 .pill.pr-merged, .pr-strip.pr-merged { --tone: #8250df; }
 .pill.pr-closed, .pr-strip.pr-closed { --tone: var(--faint); }
 .pr-strip {
-  display: flex; align-items: center; gap: 8px; margin: 8px 14px 4px; padding: 5px 6px 5px 10px; border-radius: 9px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; margin: 8px 14px 4px; padding: 5px 6px 5px 10px; border-radius: 9px;
   font-size: 12.5px; background: color-mix(in srgb, var(--tone) 7%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
 }
 .pr-strip[hidden] { display: none; }
@@ -94,7 +94,8 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 .pr-also.pr-fail { --tone: var(--bad); }
 .pr-also.pr-merged { --tone: #8250df; }
 .pr-also.pr-closed { --tone: var(--faint); }
-.pr-line { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* shrinks first; with several PRs on a phone it drops to its own line instead of pushing the row wide */
+.pr-line { flex: 1 1 9em; min-width: 0; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pr-strip .ghost .i { width: 13px; height: 13px; }
 .pr-strip .pr-merge { color: var(--good); font-weight: 500; }
 .pr-strip .pr-fix { color: var(--bad); font-weight: 500; }
