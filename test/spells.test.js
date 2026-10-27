@@ -169,6 +169,8 @@ test('accounts: the picker row, the button part, the details initial and the Set
   assert.deepEqual(problems({ ...base0, ui: { hide: ['picker.accounts', 'runner.account', 'details.account', 'settings.accounts'] } }), []);
   assert.deepEqual(problems({ ...base0, parts: { 'runner.account': { style: { color: 'red' } }, 'settings.accounts': { style: { borderRadius: '6px' } } } }), []);
   for (const part of ['picker.accounts', 'picker.thinking', 'runner.account', 'details.account', 'settings.accounts']) assert.ok(schema.PARTS[part], part);
+  // A task's topics on its ⌘K row (wisp_tag): restyle or hide them.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['palette.tags'] }, parts: { 'palette.tags': { style: { color: 'red' } } } }), []);
   // Connectors: restyle or hide the pane, its rows and the import offer; never add one (they run commands).
   assert.deepEqual(problems({ ...base0, ui: { hide: ['connectors.import'] }, parts: { 'connectors.row': { style: { borderRadius: '6px' } }, 'settings.connectors': { style: { color: 'red' } } } }), []);
   assert.ok(schema.ICONS.includes('plug'));
