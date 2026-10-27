@@ -210,6 +210,10 @@ test('later: Scheduled, Coming up, the follow-up rows, Send later and the time c
   assert.deepEqual(problems({ ...base0, parts: { 'section.crew': { props: { rows: 4 } }, 'crew.strip': { style: { opacity: '0.8' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'section.crew': { props: { rows: 0 } } } }).some((x) => /rows: int from 1 to 40/.test(x)));
   assert.ok(problems({ ...base0, parts: { 'section.crew': { props: { rows: '3' } } } }).some((x) => /rows: int from 1 to 40/.test(x)));
+  // A member's Track record and Compare crew are parts; the suggestion line is a switch.
+  assert.deepEqual(problems({ ...base0, parts: { 'crew.record': { props: { tips: false }, style: { opacity: '0.9' } }, 'crew.compare': { hide: true } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'crew.record': { props: { tips: 'no' } } } }).some((x) => /tips: bool/.test(x)));
+  assert.ok(problems({ ...base0, parts: { 'crew.record': { props: { days: 7 } } } }).some((x) => /days isn't a prop of crew.record \(tips\)/.test(x)));
   assert.ok(problems({ ...base0, buttons: [{ slot: 'split.upcoming', panel: 'x' }] }).length);
   assert.deepEqual(problems({ ...base0, settings: { readTimes: 'off' } }), []);
   assert.ok(problems({ ...base0, settings: { readTimes: 'sometimes' } }).some((x) => /readTimes/.test(x) && /on \| off/.test(x)));

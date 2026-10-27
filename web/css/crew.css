@@ -595,3 +595,57 @@ body.wisp-mobile :is(.crew-share, .crew-import, .crew-review) .ce-foot button { 
 :is(.ts-m, .tl-logo, .sub-logo).crew { background: none; }
 :is(.ts-m, .tl-logo, .sub-logo).crew > .cr-av { width: var(--size); height: var(--size); }
 .tl-logo.crew { box-shadow: none; }
+
+/* Track record (crew-record.js): the About section and Compare crew. Counts, never percentages; the
+   strip is jobs per day, finished at the bottom, quiet check-ins left out (they're in its tooltip). */
+.rec-strip { display: flex; align-items: flex-end; gap: 1px; height: 28px; border-bottom: 1px solid var(--line-2); }
+.rec-strip.skel, .rec-sk { border: 0; border-radius: 4px; background: linear-gradient(90deg, var(--bg-2) 0%, var(--line) 40%, var(--bg-2) 80%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
+.rec-sk { display: inline-block; width: 44px; height: 10px; vertical-align: middle; }
+.rec-bar { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; cursor: default; }
+.rec-bar > span { display: flex; flex-direction: column; width: 100%; min-height: 0; border-radius: 2px 2px 0 0; overflow: hidden; }
+.rec-bar i { display: block; min-height: 1px; }
+.rec-bar i.done { background: color-mix(in srgb, var(--good) 70%, transparent); }
+.rec-bar i.partial { background: color-mix(in srgb, var(--warn) 65%, transparent); }
+.rec-bar i.missed { background: color-mix(in srgb, var(--bad) 60%, transparent); }
+.rec-bar i.stopped { background: color-mix(in srgb, var(--ink) 18%, transparent); }
+.rec-bar:hover > span { filter: brightness(1.1); }
+.rec-rows { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 2px 0 0; font-size: 12.5px; line-height: 1.4; }
+.rec-rows dt { color: var(--muted); }
+.rec-rows dd { margin: 0; text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-rows .faint, .rec-table .faint, .rec-spend .faint { color: var(--faint); }
+.rec-tip-line { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.rec-tip { position: fixed; z-index: 55; } /* over dialogs (50), under toasts (60) */
+
+.crew-record { width: min(860px, 100%); }
+.rec-body { min-height: 120px; }
+.rec-who { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.rec-who > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-table th button { all: unset; cursor: pointer; }
+.rec-table th button:hover, .rec-table th[aria-sort$='ending'] button { color: var(--ink); }
+.rec-table th button:focus-visible { box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); border-radius: 4px; }
+.rec-table th[aria-sort='descending'] button::after { content: ' ↓'; }
+.rec-table th[aria-sort='ascending'] button::after { content: ' ↑'; }
+.rec-table th:nth-child(2) { text-align: left; }
+.rec-table tbody tr { cursor: pointer; }
+.rec-table tbody tr:hover, .rec-table tbody tr.sel { background: var(--surface-2); }
+.rec-table tbody tr:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--accent-soft), inset 0 0 0 1px var(--accent); }
+.rec-table .rec-cell { width: 96px; }
+.rec-table .rec-strip { height: 20px; width: 96px; }
+.rec-empty { color: var(--faint); text-align: left !important; }
+.rec-cards { display: none; }
+@media (max-width: 720px) {
+  .rec-table { display: none; }
+  .rec-cards { display: flex; flex-direction: column; }
+  .rec-card { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; min-height: 44px; padding: 12px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .rec-card:first-child { padding-top: 4px; }
+  .rec-card.sel { background: var(--surface-2); margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-radius: 8px; }
+  .rec-card:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-soft), inset 0 0 0 1px var(--accent); border-radius: 8px; }
+  .rec-card-top { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .rec-spend { margin-left: auto; font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .rec-card .rec-strip { height: 24px; }
+  .crew-record header { flex-wrap: wrap; }
+  .crew-record header .us-range { order: 3; flex: 1 0 100%; }
+  .crew-record header .us-range button { flex: 1; }
+  .rec-card .rec-empty { font-size: 12.5px; }
+}
+@media (prefers-reduced-motion: reduce) { .rec-strip.skel, .rec-sk { animation: none; } }

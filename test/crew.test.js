@@ -13,6 +13,7 @@ import { normalizeTrigger, triggerView, Triggers } from '../server/triggers.js';
 import { newId } from '../server/util.js';
 import { applyMemory, crewJobOf, crewMentions, crewNote, dueNow, localKit, nextCheckin, normalizeKit, offerFiles, normalizeMember, NOTEBOOK_MAX, takeCrewBlock } from '../server/crew.js';
 import { parseSkillMd } from '../web/js/skill-md.js';
+import { crewStats } from '../server/usage.js';
 
 const RECORD = tmp('crew-record');
 process.env.FAKE_RECORD = RECORD;
@@ -687,4 +688,55 @@ test('a check-in worth reading but not urgent is filed in For later: unread, nob
 test('takeCrewBlock keeps forLater', () => {
   const p = { blocks: [{ type: 'hero', title: 'Weekly digest' }, { type: 'crew', forLater: true }] };
   assert.deepEqual(takeCrewBlock(p), { remember: [], forLater: true });
+});
+
+test('crewStats: a member’s track record counts jobs, finished (without quiet check-ins or stops), check-ins reported, questions, follow-ups and spend', () => {
+  const now = new Date('2026-10-27T15:00:00').getTime();
+  const at = (d) => now - d * 864e5;
+  const hero = (status) => ({ blocks: [{ type: 'hero', title: 't', status }] });
+  const turn = (o = {}) => ({ status: 'done', startedAt: o.at, endedAt: o.at + 60_000, presentation: hero(o.hero || 'done'), stats: o.cost === undefined ? { inputTokens: 1000, outputTokens: 500 } : { costUsd: o.cost }, activity: o.activity || [], ...o.t });
+  const job = (kind, d, o = {}) => ({ id: `s${Math.random()}`, crew: { id: 'ada', job: kind }, agent: o.agent || 'claude', createdAt: at(d), state: o.state || 'review', archived: !!o.archived, ...(o.pr && { pr: { state: o.pr } }), turns: o.turns || [turn({ at: at(d), ...o })] });
+  const sessions = [
+    job('checkin', 1, { cost: 0.1, t: { quiet: true }, state: 'done', archived: true }),
+    job('checkin', 1, { cost: 0.1, state: 'done', archived: true }), // older quiet check-in: no flag, archived and done
+    job('checkin', 2, { cost: 0.2 }), // reported
+    job('task', 3, { cost: 0.5, hero: 'blocked', activity: [{ kind: 'ask', label: 'Needs your OK to run npm publish' }] }),
+    job('task', 4, { cost: 0.4, pr: 'merged', turns: [turn({ at: at(4), cost: 0.3, t: { presentation: { blocks: [{ type: 'hero', status: 'done' }, { type: 'question', question: 'Which?' }] } } }), turn({ at: at(4), cost: 0.1 }), turn({ at: at(4), cost: 0, t: { by: undefined } })] }),
+    job('mention', 5, { cost: 0.2, t: { status: 'stopped' } }),
+    job('task', 40, { cost: 9 }), // before the range
+  ];
+  const { members: [r] } = crewStats([{ id: 'ada', name: 'Ada', createdAt: at(60) }], () => sessions, { days: 30, now });
+  assert.equal(r.jobs, 6);
+  assert.deepEqual(r.kinds, { checkin: 3, task: 2, mention: 1, delegated: 0, trigger: 0 });
+  assert.equal(r.checkins, 3);
+  assert.equal(r.quiet, 2);
+  assert.equal(r.counted, 3); // the reported check-in and the two tasks
+  assert.equal(r.done, 2);
+  assert.equal(r.blocked, 1);
+  assert.equal(r.stopped, 1);
+  assert.equal(r.approvals, 1);
+  assert.equal(r.questions, 1);
+  assert.equal(r.followups, 1); // the answer to its question isn't one
+  assert.equal(r.followedUp, 1);
+  assert.deepEqual(r.prs, { merged: 1, open: 0 });
+  assert.equal(r.cost, 1.5);
+  assert.equal(r.priced, 6);
+  assert.equal(r.daily.length, 30);
+  const d1 = r.daily.find((d) => d.date === new Date(at(1)).toLocaleDateString('sv'));
+  assert.deepEqual([d1.done, d1.quiet], [0, 2]);
+});
+
+test('crewStats: tokens when the harness has no price, summaries for a member on another machine', () => {
+  const now = Date.now();
+  const s = { crew: { id: 'q', job: 'task' }, agent: 'codex', createdAt: now - 1000, state: 'review', turns: [{ status: 'done', startedAt: now - 1000, endedAt: now, stats: { inputTokens: 3000, outputTokens: 1000 }, presentation: { blocks: [] } }] };
+  const [local] = crewStats([{ id: 'q', name: 'Quill' }], () => [s], { now }).members;
+  assert.equal(local.priced, 0);
+  assert.equal(local.tokens, 4000);
+  assert.deepEqual(local.unpricedAgents, ['codex']);
+  const [remote] = crewStats([{ id: 'q', name: 'Quill', machine: 'm1' }], () => [{ crew: { id: 'q', job: 'task' }, createdAt: now - 1000, state: 'review', status: 'partial', followups: 2 }], { now }).members;
+  assert.equal(remote.remote, true);
+  assert.equal(remote.partial, 1);
+  assert.equal(remote.followups, 2);
+  const [none] = crewStats([{ id: 'z', name: 'Zed' }], () => [], { now }).members;
+  assert.equal(none.jobs, 0);
 });

@@ -7,6 +7,7 @@ import { splitId } from '../machines.js';
 import { crewMentions, localKit, MAX_CREW } from '../crew.js';
 import { applyImport, createGist, exportCrew, parseCrewFile, planImport } from '../crew-share.js';
 import { fetchShared } from './spells.js';
+import { crewStats } from '../usage.js';
 import os from 'node:os';
 
 export function register(r, app) {
@@ -48,6 +49,8 @@ export function register(r, app) {
     const out = body.checkin === true ? await crew.checkin(m).catch(() => ({})) : {};
     c.send(201, { ...crew.view(m), ...(out.session && { session: sumOf(out.session) }) });
   });
+  // Each member's track record over the last `days` (and the range before, for the change).
+  r.route('GET', '/crew/stats', (c) => c.send(200, crewStats(crew.list, (m) => crew.jobs(m), { days: Math.min(Math.max(Number(c.query.get('days')) || 30, 1), 365) })));
   r.route('GET', '/crew/:id', member((c, m) => c.send(200, { ...crew.view(m), jobList: crew.jobs(m).sort((a, b) => b.createdAt - a.createdAt).slice(0, 50).map(sumOf) })));
   r.route(
     'PATCH',

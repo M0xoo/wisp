@@ -67,6 +67,35 @@ its thread; its work never mixes with your tasks.
 - With no crew yet, the section is one dashed row that invites you to add someone. It's useful, so it
   stays (ux.md: empty states are useful or absent).
 
+## Track record
+
+How a member is doing, so you know what to change (`web/js/features/crew-record.js`, `crewStats` in
+`server/usage.js`). Built from its job sessions; nothing extra is stored but a `quiet` flag on a
+check-in's turn.
+
+- **In About**, after the actions and before the notebook: the setup, what you can do, how it went,
+  then what to change. Always 30 days (*since 22 Oct* for a newer member). A strip of jobs per day,
+  then rows: *Jobs* (tooltip: by kind), *Finished* (*8 of 9*: jobs that ended, without quiet
+  check-ins or ones you stopped), *Check-ins* (*3 of 14 reported*, only with a schedule or
+  check-ins), *Needed you* (questions and approvals), *Your follow-ups* (not answers to its
+  questions), *Spend* (dollars, tokens where the harness has no price, a dash on another machine:
+  never *$0.00* for unknown) and *PRs* when there are any.
+- **Counts, never percentages.** *1 of 1* is honest; *100%* isn't. No change since last month
+  either: with a handful of jobs it's noise that reads as a grade. No durations: a job runs in the
+  background, its length changes nothing you'd do.
+- **The strip** stacks finished (`--good`), partial, blocked or failed and stopped (`--ink`, faint) per day
+  (per week past 45 days). Quiet check-ins stay out, in the tooltip: a member checking in every half
+  hour would otherwise bury its real work in grey. Partial is `--warn` and blocked or failed `--bad`, like their pills.
+- **One suggestion at most**, advice rather than a repeat of a row, only with enough to go on and not while paused: quiet on 90% of 10+
+  check-ins (*Change schedule…*), 40% of 5+ jobs unfinished, follow-ups on half of 5+ jobs you sent,
+  approvals on half of 5+ jobs outside Full auto. Each links to Edit. No praise line.
+- **Compare crew** (one name everywhere: the About link, ⋯ and right-click, ⌘K, Settings → Usage)
+  is everyone side by side over 7, 30 or 90 days, in join order until a header sorts it; a row
+  opens the member. Under 720px each member is a block. Not on the section's rows: rows never
+  change shape.
+- Numbers paint from the last answer (kept for reload and the app), skeletons with the real shapes
+  before the first.
+
 ## Spirits
 
 A spirit is a code, `shape.color.eyes.mouth.extra`, drawn as SVG from `spirit.js`. A new member gets

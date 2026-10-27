@@ -34,6 +34,7 @@ import { slotHtml, spellProp } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
 import { importCrew, reviewChange, shareMember } from './crew-share.js';
+import { compareCrew, recordHtml } from './crew-record.js';
 import { TEMPLATES } from '../crew-templates.js';
 import { cronWords, toCron } from '../schedule.js';
 
@@ -356,6 +357,7 @@ sec.addEventListener('contextmenu', (e) => {
   memberMenu(block.dataset.crew, { x: e.clientX, y: e.clientY });
 });
 bus.on('config', () => (S.sessions.size ? renderFeed() : paintCrew()));
+bus.on('crewRecord', () => paintCrewView()); // new numbers for the open member's Track record
 bus.on('machines', () => (S.sessions.size ? renderFeed() : paintCrew())); // a member's machine: its name, once machines load
 
 // --- opening a member -----------------------------------------------------------------------------
@@ -582,6 +584,7 @@ function memberMenu(id, { x, y, anchor } = {}) {
       <button data-a="pause">${icon(m.paused ? 'play' : 'pause')}${m.paused ? 'Resume' : 'Pause'}</button>
       <button data-a="edit">${icon('pen')}Edit…</button>
       <button data-a="share">${icon('arrow')}Share…</button>
+      <button data-a="compare">${icon('stats')}Compare crew</button>
       ${m.spell ? `<button data-a="mine">${icon('wizard')}Make it mine</button>` : ''}
       <button data-a="remove" class="danger">${icon('trash')}Remove from crew</button>
     </div>`);
@@ -593,6 +596,7 @@ function memberMenu(id, { x, y, anchor } = {}) {
     if (a === 'pause') togglePause(id);
     if (a === 'edit') crewEditor({ member: m });
     if (a === 'share') shareMember(id);
+    if (a === 'compare') compareCrew({ from: id });
     if (a === 'mine') makeMine(id);
     if (a === 'remove') removeMember(id, anchor);
   };
@@ -858,6 +862,7 @@ function buildView(id) {
     if (a === 'pause') return togglePause(id);
     if (a === 'edit') return crewEditor({ member: m });
     if (a === 'share') return shareMember(id);
+    if (a === 'compare') return compareCrew({ from: id });
     if (a === 'note-edit') return notebookEditor(m);
     const clip = e.target.closest('[data-clip]')?.dataset.clip;
     if (clip) {
@@ -977,6 +982,7 @@ function paintSide(m, st, side) {
       <button class="ghost sm" data-a="edit">${icon('pen')}<span>Edit…</span></button>
       <button class="ghost sm danger" data-a="remove" title="Remove from crew" aria-label="Remove from crew">${icon('trash')}</button>
     </div>
+    ${recordHtml(m)}
     <div class="cv-sec cv-nb">
       <h5>Notebook <small class="cv-count"></small><button class="link xs" data-a="note-edit">Edit</button></h5>
       ${clipped(m.notebook, 'note', m.id, 'Empty so far. They add to it as they work; you can write in it too.')}

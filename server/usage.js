@@ -171,3 +171,97 @@ export function toolStatsText(st) {
   for (const d of st.daily.filter((d) => d.calls)) out.push(`| ${d.date} | ${d.calls} | ${kinds(d.kinds)} |`);
   return out.join('\n');
 }
+
+// How each crew member did (design/crew.md → Track record): counts of its jobs in the range, built
+// from its job sessions like usage(). A job is one session; its outcome is its last finished
+// turn's. Quiet check-ins (nothing to report) count as check-ins but not in Finished, nor do jobs
+// you stopped. A member on another machine only has summaries there: outcomes and counts, no
+// spend or questions (remote: true).
+const KIND = { checkin: 'checkin', task: 'task', mention: 'mention', delegated: 'delegated', trigger: 'trigger', event: 'trigger' };
+const quietJob = (s) => !!s.turns?.[0]?.quiet || ((s.crew?.job === 'checkin' || s.crew?.job === 'event') && !!s.archived && s.state === 'done' && !s.forLater);
+const asked = (t) => !!t?.presentation?.blocks?.some((b) => b?.type === 'question');
+function jobOf(s) {
+  const turns = s.turns || [];
+  const ended = turns.filter((t) => t.status !== 'running');
+  const last = ended.at(-1);
+  let result;
+  if (s.turns) result = turns.at(-1)?.status === 'running' || !last ? 'running' : outcome(last);
+  else result = s.state === 'running' || s.status === 'running' ? 'running' : s.status === 'partial' || s.status === 'blocked' ? s.status : 'done';
+  const acts = turns.flatMap((t) => t.activity || []).filter((a) => a?.kind === 'ask');
+  const approvals = acts.filter((a) => /^Needs your OK/.test(a.label || '')).length;
+  const j = {
+    at: s.createdAt || turns[0]?.startedAt || 0,
+    kind: KIND[s.crew?.job] || 'task',
+    result,
+    quiet: s.turns ? quietJob(s) : false,
+    later: s.forLater?.by === 'crew',
+    approvals,
+    questions: acts.length - approvals + ended.filter(asked).length,
+    // Yours, on its job: not wisp's own rounds, and not an answer to a question it asked.
+    followups: s.turns ? turns.slice(1).filter((t, i) => t.by !== 'wisp' && t.by !== 'later' && !asked(turns[i])).length : s.followups || 0,
+    pr: s.pr?.state === 'merged' ? 'merged' : s.pr?.state === 'open' ? 'open' : '',
+    cost: 0,
+    priced: false,
+    tokens: 0,
+    agent: s.agent || '',
+  };
+  for (const t of ended) {
+    const st = t.stats || {};
+    if (typeof st.costUsd === 'number') (j.cost += st.costUsd), (j.priced = true);
+    j.tokens += (st.inputTokens || 0) + (st.outputTokens || 0);
+  }
+  return j;
+}
+const tallyJobs = () => ({ jobs: 0, counted: 0, done: 0, partial: 0, blocked: 0, failed: 0, stopped: 0, running: 0, kinds: { checkin: 0, task: 0, mention: 0, delegated: 0, trigger: 0 }, checkins: 0, quiet: 0, later: 0, questions: 0, approvals: 0, followups: 0, followedUp: 0, prs: { merged: 0, open: 0 }, cost: 0, priced: 0, unpriced: 0, tokens: 0, unpricedAgents: [] });
+function addJob(b, j) {
+  b.jobs++;
+  b.kinds[j.kind]++;
+  if (j.kind === 'checkin') {
+    b.checkins++;
+    if (j.quiet) b.quiet++;
+    if (j.later) b.later++;
+  }
+  if (j.result === 'running') b.running++;
+  else if (!j.quiet && j.result !== 'stopped') {
+    b.counted++;
+    b[j.result]++;
+  } else if (j.result === 'stopped') b.stopped++;
+  b.questions += j.questions;
+  b.approvals += j.approvals;
+  b.followups += j.followups;
+  if (j.followups) b.followedUp++;
+  if (j.pr) b.prs[j.pr]++;
+  b.tokens += j.tokens;
+  if (j.priced) (b.cost += j.cost), b.priced++;
+  else if (j.result !== 'running') {
+    b.unpriced++;
+    if (j.agent && !b.unpricedAgents.includes(j.agent)) b.unpricedAgents.push(j.agent);
+  }
+}
+
+// members: [{ id, name, machine, createdAt }]; jobsOf(m) → its sessions (full records) or summaries.
+export function crewStats(members, jobsOf, { days = 30, now = Date.now() } = {}) {
+  days = Math.min(Math.max(Math.round(days) || 30, 1), 365);
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const since = start.getTime() - (days - 1) * DAY;
+  const out = members.map((m) => {
+    const b = tallyJobs();
+    const byDay = new Map();
+    for (let i = 0; i < days; i++) {
+      const t = new Date(since);
+      t.setDate(t.getDate() + i);
+      byDay.set(dayKey(t), { date: dayKey(t), done: 0, partial: 0, missed: 0, stopped: 0, quiet: 0 }); // missed: blocked or failed
+    }
+    for (const s of jobsOf(m) || []) {
+      if (s.pending) continue;
+      const j = jobOf(s);
+      if (j.at < since) continue;
+      addJob(b, j);
+      const d = byDay.get(dayKey(j.at));
+      if (d && j.result !== 'running') d[j.quiet ? 'quiet' : ['done', 'partial', 'stopped'].includes(j.result) ? j.result : 'missed']++;
+    }
+    return { id: m.id, name: m.name, remote: !!m.machine, joined: m.createdAt || 0, ...b, cost: Math.round(b.cost * 10000) / 10000, daily: [...byDay.values()] };
+  });
+  return { days, since, members: out };
+}

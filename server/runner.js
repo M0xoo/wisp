@@ -1180,6 +1180,7 @@ export class Runner extends EventEmitter {
     // answer): filed under Done, nobody is pinged.
     const quiet = ((crewOut.quiet || crewOut.filed) && !holding && !handing) || waits;
     if (quiet) Object.assign(session, { state: 'done', unread: false, ...(crewOut.quiet && { archived: true }) });
+    if (crewOut.quiet && !holding && !handing) turn.quiet = true; // for the member's track record (usage.js crewStats)
     // A crew report worth reading but not urgent: filed in For later, unread, and nobody is pinged.
     const parked = !!crewOut.later && !quiet && !holding && !handing && !crewOut.filed;
     if (parked) session.forLater = { at: Date.now(), by: 'crew' };
