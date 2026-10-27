@@ -24,6 +24,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **The phone app says a task went.** Sending from New task now shows *Sent to Claude* (or the crew member) with **Open**, and the list scrolls the new row to the middle, clear of the New task button; before, the prompt page closed onto the list with nothing to show it worked.
+- **Mark done in the phone app goes back to the list**, not to the New task page. Browsers and the desktop app still open New task.
 - **Send anyway works for replies from an answer's buttons.** Near the usage limit, a follow-up sent with an answer's button (*Commit this and open a PR*) or by a spell showed the hold row, but **Send anyway** and **Wait until …** did nothing: they sent what was in the reply box, which was empty. They now send that follow-up.
 
 ## [0.43.0] - 2026-10-27

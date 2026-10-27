@@ -14,7 +14,7 @@ import { toast, toastError } from '../ui/toast.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { openAutomations, recipeParams, runRecipe } from './automations.js';
 import { cloneById, clones } from './clones.js';
-import { renderFeed } from './feed.js';
+import { renderFeed, reveal } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { slashMenu } from './slash.js';
 import { connectMachine, offlineToast, openMachines } from './machines.js';
@@ -540,7 +540,9 @@ export function renderLauncher() {
     renderFeed();
     const ghost = S.nodes.get(pending[0])?.card;
     showLaunched(btn, ghost);
-    ta.focus();
+    // The phone's prompt page has closed onto the list: say it went (no keyboard popping back up).
+    const sent = MOBILE ? sentNote(toCrew[0]?.name || agentName(runner.agent)) : null;
+    if (!MOBILE) ta.focus();
     try {
       for (const [i, t] of targets.entries()) {
         if (!t.clone) continue;
@@ -572,6 +574,7 @@ export function renderLauncher() {
         else if (x.queued) toast(`${esc(x.crew?.name || 'Your crew member')} is busy: the job starts when one finishes (${x.queued} waiting)`, { action: x.crew && { label: 'Open', run: () => openCrew(x.crew.id) } });
       }
       keepInPlace(feedAnchor(), renderFeed);
+      sent?.landed(started);
       if (!started.length) {
         goalBack();
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
@@ -590,6 +593,7 @@ export function renderLauncher() {
     } catch (err) {
       for (const id of pending) S.sessions.delete(id);
       renderFeed();
+      sent?.landed([]);
       if (!err.shown) return goalBack(), toastError(err);
       // The clone failed (its toast says why): the task goes back in the box.
       goalBack();
@@ -1002,13 +1006,31 @@ export function dropPending(s) {
 // A new card lands in Working, below everything in "Needs you", so it's often off-screen. Scroll
 // it into view (just enough) and flash it; the flying wisp only plays when the card is already
 // on screen, since the launcher it starts from may scroll away or fold into the dock.
+// On the phone the button it flew from is gone with the prompt page, and 'nearest' leaves the
+// card under the floating New task button: it always comes to the middle of the list.
 function showLaunched(btn, card) {
   if (!card) return;
   const r = card.getBoundingClientRect();
-  if (r.top >= topInset() && r.bottom <= innerHeight) return launchedFx(btn, card);
-  card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  if (!MOBILE && r.top >= topInset() && r.bottom <= innerHeight) return launchedFx(btn, card);
+  card.scrollIntoView({ block: MOBILE ? 'center' : 'nearest', behavior: 'smooth' });
   card.classList.add('arrived');
   setTimeout(() => card.classList.remove('arrived'), 1600);
+}
+
+// Sent from the phone: a toast says so, with Open for the task once the server has it (tapped
+// before then, it opens when it lands). Nothing started (refused, failed, a busy crew member's
+// queue with its own toast): it goes, and the error or the prompt back in the box says why.
+function sentNote(who) {
+  let id = null;
+  let want = false;
+  const t = toast(`Sent to <b>${esc(who)}</b>`, { action: { label: 'Open', run: () => (id ? reveal(id) : (want = true)) }, timeout: 6000 });
+  return {
+    landed(started) {
+      id = started.flatMap((x) => x.group || [x]).find((x) => x.id)?.id || null;
+      if (!id) return t.remove();
+      if (want) reveal(id);
+    },
+  };
 }
 
 // Sent from home as a page of its own (stacked): back to the list, where the new task shows.

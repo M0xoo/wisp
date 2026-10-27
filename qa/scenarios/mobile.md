@@ -82,10 +82,12 @@ Never send builds to someone's own phone as part of QA.
 
 ### MOB-07 Start a task from New task
 - **Run:** `qa/mobile.mjs` (fake agents), Emulator (cloud wisp on a dev grid)
-- **Steps:** tap **New task**, type a prompt, tap send.
+- **Steps:** tap **New task**, type a prompt, tap send; when it finishes, open it and tap **Mark done**.
 - **Expected:** home opens as a page (Back, the prompt box focused, Needs you under it); sending
-  goes back to the list, where the task's row shows up, finishes, and opens with its presentation
-  (hero, stats, files) rendered without sideways scroll.
+  goes back to the list with a *Sent to Claude* toast (**Open** opens the task) and the new row
+  scrolled to the middle, clear of New task. It finishes, and opens with its presentation
+  (hero, stats, files) rendered without sideways scroll. **Mark done** goes back to the list, not
+  to New task.
 
 ### MOB-08 Long URLs wrap
 - **Run:** `qa/mobile.mjs`

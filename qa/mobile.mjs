@@ -173,6 +173,10 @@ try {
     ok((await overflow(page)) <= 0, 'home scrolls sideways');
     await page.locator('#launch').tap();
     await page.waitForFunction(() => !document.body.classList.contains('stack-page'), null, { timeout: 5000 });
+    // Back on the list, a toast says it went (with Open), and the new row sits clear of New task.
+    ok(await page.evaluate(() => [...document.querySelectorAll('#toasts .toast')].some((t) => /Sent to/.test(t.textContent) && t.querySelector('.t-act'))), 'no "Sent to …" toast with Open after sending');
+    await page.waitForTimeout(600); // the list scrolls to the new row
+    await shot(page, 'sent');
     // Its card shows up and finishes with the fake agent's report.
     const id = await until(async () => (await api(wisp.url, '/api/sessions')).json?.find((s) => !before.has(s.id))?.id, { what: 'the launched task' });
     await until(async () => (await api(wisp.url, `/api/sessions/${id}`)).json?.state !== 'running', { timeout: 60_000, what: 'the launched task to finish' });
@@ -182,6 +186,10 @@ try {
     await page.waitForSelector('.item.open .block, .item.open [class*="hero"]', { timeout: 15_000 });
     ok((await overflow(page)) <= 0, `the open task scrolls sideways by ${await overflow(page)}px`);
     await shot(page, 'presentation');
+    // Mark done goes back to the list, not to New task.
+    await page.locator('.item.open .it-done:visible, .item.open .c-done:visible').first().tap();
+    await page.waitForTimeout(500);
+    ok(await page.evaluate(() => !document.body.classList.contains('stack-page') && document.querySelector('#splitHome').hidden), 'Mark done opened New task instead of the list');
     await ctx.close();
   });
 

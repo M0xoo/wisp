@@ -24,7 +24,7 @@ import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
 import { crewDot, memberById, paintCrew, pinJob, underMember } from './crew.js';
-import { backToPlace, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
+import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
 const heldSub = (s) => (s.held.waiting ? `Waiting for the ${s.held.label.toLowerCase()} reset` : `${s.held.label} window at ${Math.floor(s.held.used * 100)}%`);
@@ -720,7 +720,8 @@ export function handOff(id) {
     if (had) collapse(id);
     apply(); // don't wait for the live update to drop the card
     renderFeed();
-    if (had) return goHome({ focus: !isStacked() }); // no phone keyboard popping up
+    // The phone app goes back to the list it came from; elsewhere to New task.
+    if (had) return MOBILE ? goBack() : goHome({ focus: !isStacked() }); // no phone keyboard popping up
     if (nextUp && S.nodes.has(nextUp)) setFocus(nextUp);
   };
 }

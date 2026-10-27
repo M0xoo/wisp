@@ -82,7 +82,7 @@ Every page check also fails on an uncaught page error or a `console.error`.
 
 ### WEB-10 · Mark done, archive, delete
 - **Steps:** `E` on an open task; then archive; then delete through the API.
-- **Expected:** it moves to *Done* and the main pane shows New task (no other task opens); then out
+- **Expected:** it moves to *Done* and the main pane shows New task (no other task opens; the phone app goes back to the list); then out
   of the list into *Archived*; delete removes it and its worktree.
 - **Automated**
 
