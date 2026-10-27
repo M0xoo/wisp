@@ -34,7 +34,9 @@ const STEP_DOING = { commit: 'Committing', push: 'Pushing', pr: 'Opening the PR'
 const shipping = (s) => !!(s?.shipping || (ships.has(s?.id) && !ships.get(s.id).error));
 
 // A task in several repos (also) has a PR per repo: its own first, then the others', each { repo, pr }.
-export const prsOf = (s) => [...(s?.pr ? [{ repo: s.project, pr: s.pr }] : []), ...(s?.also || []).filter((a) => a.pr).map((a) => ({ repo: a.project, pr: a.pr }))];
+const shippedPrs = (s) => [...(s?.pr ? [{ repo: s.project, pr: s.pr }] : []), ...(s?.also || []).filter((a) => a.pr).map((a) => ({ repo: a.project, pr: a.pr }))];
+// Then the PRs its agent attached (wisp_pr), shown and merged the same way.
+export const prsOf = (s) => [...shippedPrs(s), ...(s?.prs || [])];
 export const prOf = (s) => prsOf(s)[0]?.pr || null; // the one the card's pill shows
 const branches = (s) => [s?.branch, ...(s?.also || []).map((a) => a.branch)].filter(Boolean);
 const severalRepos = (s) => branches(s).length > 1;
@@ -49,7 +51,13 @@ export function shippable(s) {
   if (s.pr?.state === 'MERGED') return false;
   return !t || !!(t.dirty || (s.pr?.state === 'OPEN' ? t.unpushed : t.ahead));
 }
-export const shipLabel = (s) => (severalRepos(s) ? (prsOf(s).some((x) => x.pr.state === 'OPEN') ? 'Push to the PRs…' : 'Ship it…') : s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.number}` : 'Ship it…');
+export const shipLabel = (s) => (severalRepos(s) ? (shippedPrs(s).some((x) => x.pr.state === 'OPEN') ? 'Push to the PRs…' : 'Ship it…') : s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.number}` : 'Ship it…');
+
+// The menus' Merge item, for every open PR of the task: null when there's none.
+export function mergeLabel(s) {
+  const open = prsOf(s).filter((x) => x.pr.state === 'OPEN');
+  return !open.length ? null : open.length > 1 ? `Merge ${open.length} PRs…` : `Merge PR #${open[0].pr.number}…`;
+}
 
 export const shipPill = (s) => (s.shipping ? `<span class="pill ship-pill" title="Shipping: ${esc(STEP_DOING[s.shipping.step] || 'Starting')}${s.shipping.repo ? ` ${esc(s.shipping.repo)}` : ''}…"><i></i>Shipping</span>` : '');
 
@@ -64,9 +72,10 @@ export function renderPrStrip(id) {
   const prs = prsOf(s);
   const pr = prs[0]?.pr;
   const several = prs.length > 1;
+  const shipped = shippedPrs(s);
   $$('[data-a="ship"]', n.body).forEach((b) => {
     b.hidden = !shippable(s);
-    $('span', b).textContent = severalRepos(s) ? (prs.some((x) => x.pr.state === 'OPEN') ? 'Push to PRs' : prs.length ? 'Ship again' : 'Ship it') : pr?.state === 'OPEN' ? `Push to #${pr.number}` : pr ? 'Ship again' : 'Ship it';
+    $('span', b).textContent = severalRepos(s) ? (shipped.some((x) => x.pr.state === 'OPEN') ? 'Push to PRs' : shipped.length ? 'Ship again' : 'Ship it') : s.pr?.state === 'OPEN' ? `Push to #${s.pr.number}` : s.pr ? 'Ship again' : 'Ship it';
   });
   // Started here, or elsewhere (another tab, the API): the server's stage moves the track along.
   const run = ships.get(id) || (s.shipping && { steps: s.shipping.update ? ['push', 'pr'] : ['commit', 'push', 'pr'], step: 'push' });
@@ -170,8 +179,8 @@ function renderShipRun(node, id, run) {
 // placeholders, guessed from the card; GET /ship (git and gh, which can take a second) fills it in.
 function shipSkel(s) {
   const repos = branches(s).length || 1;
-  const open = prsOf(s).length > 0 && prsOf(s).every((x) => x.pr.state === 'OPEN');
-  const pr = prOf(s);
+  const open = shippedPrs(s).length > 0 && shippedPrs(s).every((x) => x.pr.state === 'OPEN');
+  const pr = shippedPrs(s)[0]?.pr;
   const route = (b) => `<p class="ship-route">${icon('branch')}<code>${esc(b || 'branch')}</code>${icon('arrow')}<i class="sk sk-code"></i><i class="sk sk-meta"></i></p>`;
   return `
       <header><h2>${open ? (repos > 1 ? `Push to ${repos} PRs` : `Push to PR #${pr.number}`) : repos > 1 ? `Ship it to ${repos} repos` : 'Ship it'}</h2><button class="icon-btn close">${icon('x')}</button></header>
@@ -280,12 +289,15 @@ export async function mergePr(id) {
     .concat(overlapWarning(s) || [])
     .join('\n');
   const what = several ? `these ${open.length} PRs (${open.map((x) => `${x.repo} #${x.pr.number}`).join(', ')})` : `PR #${open[0].pr.number}${open[0].pr.draft ? ' (marks it ready first)' : ''}`;
-  if (!(await ask(`Squash-merge ${what}, then fast-forward your local base branch${several ? 'es' : ''} and remove the worktree${several ? 's' : ''}?${warn ? `\n\n${warn}` : ''}`, { ok: several ? 'Merge PRs' : 'Merge PR', danger: !!warn }))) return;
+  // Only the PRs Ship it opened have a local base branch and a worktree; attached ones merge on GitHub alone.
+  const local = shippedPrs(s).filter((x) => x.pr.state === 'OPEN').length;
+  const after = local ? `, then fast-forward your local base branch${local > 1 ? 'es' : ''} and remove the worktree${local > 1 ? 's' : ''}` : '';
+  if (!(await ask(`Squash-merge ${what}${after}?${warn ? `\n\n${warn}` : ''}`, { ok: several ? 'Merge PRs' : 'Merge PR', danger: !!warn }))) return;
   toast(several ? `Merging ${open.length} PRs…` : `Merging PR #${open[0].pr.number}…`);
   try {
     const r = await api(`/sessions/${id}/merge`, { method: 'POST', body: {} });
     const merged = r.prs ? r.prs.filter((x) => x.state === 'MERGED').map((x) => `${esc(x.repo)} #${x.number}`).join(', ') : `PR #${r.pr.number}`;
-    toast(`${icon('check')} Merged <b>${merged}</b>. ${esc(r.sync.text)}`, { tone: r.sync.ok ? '' : 'bad', timeout: 10_000 });
+    toast(`${icon('check')} Merged <b>${merged}</b>.${r.sync.text ? ` ${esc(r.sync.text)}` : ''}`, { tone: r.sync.ok ? '' : 'bad', timeout: 10_000 });
   } catch (err) {
     toastError(err, { timeout: 12_000 });
   }

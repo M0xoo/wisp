@@ -291,6 +291,47 @@ test('ship it refuses an empty branch and sessions without a worktree', async ()
   await assert.rejects(api(`/sessions/${flat.id}/ship`), /worktree sessions/);
 });
 
+// wisp_pr: the agent attaches PRs to its task. One on the task's own branch becomes the PR Ship it
+// follows; any other is listed in `prs`, followed, and merged with Merge.
+test('wisp_pr: an agent attaches several PRs to its task; they are followed and merged like shipped ones', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() so it adds', cwd: repo.dir, agent: 'claude' } });
+  const done = await settled(s.id);
+  const attach = (body) =>
+    fetch(`${base}/api/internal/prs`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-wisp-token': srv.token }, body: JSON.stringify({ session: s.id, ...body }) }).then(async (r) => ({ status: r.status, ...(await r.json()) }));
+  const main = (await import('node:child_process')).execFileSync('git', ['rev-parse', 'origin/main'], { cwd: repo.dir, encoding: 'utf8' }).trim();
+  const ext = (number, name) => ({ number, url: `https://github.com/acme/${name}/pull/${number}`, title: `${name} change`, state: 'OPEN', isDraft: false, reviewDecision: '', mergeStateStatus: 'CLEAN', headRefName: `feat/${name}`, baseRefName: 'main', headRefOid: main, statusCheckRollup: [], mergedAt: null });
+  const prs = ghState().prs || {};
+  setGh({ checks: undefined, review: undefined, mergeable: undefined, prs: { ...prs, 901: ext(901, 'docs'), 902: ext(902, 'api') } });
+
+  assert.equal((await fetch(`${base}/api/internal/prs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ session: s.id, pr: '1' }) })).status, 403);
+  const one = await attach({ pr: 'https://github.com/acme/docs/pull/901' });
+  assert.match(one.text, /Attached PR #901 “docs change” \(open\)/);
+  await attach({ pr: 'https://github.com/acme/api/pull/902' });
+  await attach({ pr: 'https://github.com/acme/docs/pull/901' }); // again: no duplicate
+  const sum = async () => (await api('/sessions')).find((x) => x.id === s.id);
+  assert.deepEqual((await sum()).prs.map((x) => [x.repo, x.pr.number, x.pr.state]), [['docs', 901, 'OPEN'], ['api', 902, 'OPEN']]);
+  assert.equal((await sum()).pr, null, 'not the task’s own PR');
+  assert.match((await attach({ pr: 'nope' })).error, /gh could not read that PR/);
+
+  // The agent opened the PR of the task's own branch itself: it becomes the one Ship it pushes to.
+  fs.writeFileSync(GH_STATE, JSON.stringify({ ...ghState(), prs: { ...ghState().prs, 903: { ...ext(903, 'repo'), headRefName: done.worktree.branch } } }));
+  assert.match((await attach({ pr: '903' })).text, /own branch: Ship it pushes to it/);
+  assert.equal((await sum()).pr.number, 903);
+  assert.equal((await sum()).prs.length, 2);
+  assert.match((await attach({ pr: '903', remove: true })).error, /own branch/);
+
+  // Detach one, then Merge merges what's left on GitHub, the task's own PR first.
+  assert.match((await attach({ pr: 'https://github.com/acme/api/pull/902', remove: true })).text, /Detached PR #902/);
+  assert.deepEqual((await sum()).prs.map((x) => x.pr.number), [901]);
+  const read = await (await fetch(`${base}/api/internal/session/${s.id}?of=${s.id}`, { headers: { 'x-wisp-token': srv.token } })).json();
+  assert.match(read.text, /Attached PRs: docs #901 \(open\): https:\/\/github\.com\/acme\/docs\/pull\/901/, 'wisp_session names them');
+  const merged = await api(`/sessions/${s.id}/merge`, { body: {} });
+  assert.deepEqual(merged.prs.map((x) => [x.number, x.state]), [[903, 'MERGED'], [901, 'MERGED']]);
+  assert.equal(ghState().prs[901].state, 'MERGED');
+  assert.equal(ghState().prs[902].state, 'OPEN', 'a detached PR is left alone');
+});
+
 // One task across two repos (also): the agent gets the second as an extra dir, each repo its own
 // worktree; Ship it opens a PR in each, and Merge merges both and syncs both checkouts.
 test('one task across two repos: a worktree each, a PR each, merged together', async () => {

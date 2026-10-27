@@ -126,4 +126,5 @@ test('wisp_tag: the agent tags its task; the page gets the tags and wisp_session
 test('the protocol tells the agent to tag its task, under the harness’s name for the tool', () => {
   assert.match(systemPrompt({ askTool: 'mcp__wisp__ask_user' }), /call `wisp_tag` \(mcp__wisp__wisp_tag\)/);
   assert.doesNotMatch(systemPrompt({ askTool: null }), /wisp_tag/, 'no wisp tools, no tagging');
+  assert.match(systemPrompt({ askTool: 'mcp__wisp__ask_user' }), /attach it to this task with `wisp_pr`\s+\(mcp__wisp__wisp_pr\)/);
 });

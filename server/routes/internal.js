@@ -86,6 +86,28 @@ export function register(r, app) {
     opts,
   );
 
+  // wisp_pr: the agent attaches a GitHub PR to its task (or detaches one). It shows on the task's PR
+  // row like one Ship it opened, and wisp follows its checks and reviews (services/ship.js).
+  r.route(
+    'POST',
+    '/internal/prs',
+    guarded(async (c) => {
+      const body = await c.body();
+      const s = store.get(body.session);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const host = s.parentId ? store.get(s.parentId) : null; // a subagent's PR goes on its lead's task, where the user looks
+      const t = host && !s.crew ? host : s;
+      const pr = await app.ship.attach(t, body.pr, { remove: !!body.remove });
+      store.save(t);
+      telemetry.track('wisp_pr', { agent: s.agent, remove: !!body.remove });
+      if (body.remove) return c.send(200, { text: `Detached PR #${pr.number} (${pr.url}).` });
+      const n = app.ship.prsOf(t).length;
+      const where = pr.own ? 'It is the PR of this task’s own branch: Ship it pushes to it.' : n > 1 ? `The task has ${n} PRs now; attach each one you open or work on.` : '';
+      c.send(200, { text: `Attached PR #${pr.number} “${pr.title}” (${String(pr.state).toLowerCase()}${pr.draft ? ', draft' : ''}): ${pr.url}. It shows on the task, and wisp follows its checks and reviews. ${where}`.trim() });
+    }),
+    opts,
+  );
+
   // A live approval (the harness's permission prompt): { decision } at once, or an { id } to poll
   // like ask_user, whose answer carries the decision.
   r.route(
@@ -395,6 +417,7 @@ export function sessionText(x, store, turnArg) {
     `# ${x.title}`,
     `Task \`${x.id}\` · ${sum.archived ? 'archived · ' : ''}${x.state} · ${x.agent}${x.model ? ` (${x.model})` : ''} · project ${sum.project} · updated ${age(x.updatedAt)}`,
     `Folder: \`${x.worktree?.path || x.cwd}\`${x.worktree ? ` (worktree, branch \`${x.worktree.branch}\`)` : ''}${x.pr ? ` · PR #${x.pr.number} (${String(x.pr.state).toLowerCase()}): ${x.pr.url}` : ''}`,
+    ...(x.prs?.length ? [`Attached PRs: ${x.prs.map((y) => `${y.repo} #${y.pr.number} (${String(y.pr.state).toLowerCase()}): ${y.pr.url}`).join(' · ')}`] : []),
   ];
   const asks = x.turns.map((t, i) => `${i + 1}. ${clip(plainMentions(t.prompt).replace(/\s+/g, ' '), 300)}${t.status === 'running' ? ' _(running)_' : t.status === 'error' ? ' _(failed)_' : t.status === 'stopped' ? ' _(stopped)_' : ''}`);
   if (!turn) return [...head, '', `Turn ${turnArg} doesn't exist; this task has ${x.turns.length}.`, '', '## Requests', ...asks].join('\n');

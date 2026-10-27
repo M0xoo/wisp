@@ -22,7 +22,7 @@ export function hookMatches(cond = {}, { session, turn, summary }) {
   if (cond.testsFailed !== undefined && testsFailed(session, turn) !== !!cond.testsFailed) return false;
   if (cond.agent !== undefined && !list(cond.agent).includes(session.agent)) return false;
   if (cond.project !== undefined && !list(cond.project).some((p) => p === summary.project || p === summary.projectId)) return false;
-  if (cond.hasPr !== undefined && !!session.pr !== !!cond.hasPr) return false;
+  if (cond.hasPr !== undefined && !!(session.pr || session.prs?.length) !== !!cond.hasPr) return false;
   if (cond.mode !== undefined && !list(cond.mode).includes(session.mode)) return false;
   return true;
 }

@@ -286,6 +286,8 @@ function describeTool(name, input, cwd) {
       return { kind: 'tool', label: input?.cancel ? 'Cancelling a scheduled follow-up' : `Scheduling a follow-up${input?.minutes ? ` in ${input.minutes} min` : ''}` };
     case 'mcp__wisp__wisp_tag':
       return { kind: 'tool', label: `Tagging the task${input?.tags?.length ? `: ${clip(input.tags.map((t) => `#${t}`).join(' '), 60)}` : ''}` };
+    case 'mcp__wisp__wisp_pr':
+      return { kind: 'tool', label: input?.remove ? 'Detaching a PR' : `Attaching PR ${clip(String(input?.pr || '').replace(/^https:\/\/github\.com\//, ''), 60)}` };
     case 'mcp__wisp__wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
     case 'mcp__wisp__wisp_sessions':

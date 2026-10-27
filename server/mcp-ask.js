@@ -8,6 +8,7 @@
 // --permission-prompt-tool), answered by the user in wisp.
 // `resume_later` schedules a follow-up to this same task (server/later.js).
 // `wisp_tag` names the task's topics, the words the user finds it by in wisp's search.
+// `wisp_pr` attaches a GitHub PR to the task: it shows like one Ship it opened, and wisp follows it.
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
 // reports, e.g. a task the user mentioned in the prompt.
@@ -79,6 +80,23 @@ const TAG = {
     type: 'object',
     properties: { tags: { type: 'array', items: { type: 'string' }, description: 'e.g. ["auth", "rate-limit", "redis", "bugfix"]' } },
     required: ['tags'],
+  },
+};
+
+// wisp_pr: a PR the agent opened or worked on, shown on its task (services/ship.js, attach).
+const PR = {
+  name: 'wisp_pr',
+  description:
+    'Attach a GitHub pull request to this task, so the user sees it on the task like one opened with Ship it: its state, ' +
+    'checks and reviews, kept current, with Merge. Call it for every PR you open (gh pr create) or work on in this task, ' +
+    'one call per PR; a task can have several. remove=true detaches one.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      pr: { type: 'string', description: 'The PR’s URL (https://github.com/owner/repo/pull/123), or its number in this task’s repo.' },
+      remove: { type: 'boolean', description: 'Detach this PR from the task instead.' },
+    },
+    required: ['pr'],
   },
 };
 
@@ -389,7 +407,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, TAG, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, TAG, PR, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -399,6 +417,9 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, result: { content: [{ type: 'text', text: (await call(`/api/internal/later`, { session: WISP_SESSION, ...a })).text }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_tag') {
       const r = await call(`/api/internal/tags`, { session: WISP_SESSION, tags: params.arguments?.tags });
+      send({ id, result: { content: [{ type: 'text', text: r.text }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_pr') {
+      const r = await call(`/api/internal/prs`, { session: WISP_SESSION, pr: params.arguments?.pr, remove: !!params.arguments?.remove });
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && WISP_APPROVE && params?.name === 'approve') {
       send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });

@@ -22,7 +22,7 @@ import { openPhone } from './phone.js';
 import { openProjects, renderProjects } from './projects.js';
 import { agentName } from './runners.js';
 import { openSettings } from './settings.js';
-import { mergePr, shipDialog, shipLabel, shippable } from './ship.js';
+import { mergeLabel, mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { transcriptOn } from './transcript.js';
 import { toggleTranscript } from './turns.js';
 import { openUsage } from './usage.js';
@@ -64,7 +64,7 @@ function paletteItems() {
     items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
     if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
-    if (cur.pr?.state === 'OPEN') items.push({ group: g, label: `Merge PR #${cur.pr.number}…`, sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
+    if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
     // The goal's items, as the task's menus have them (Set goal… / Edit goal…, Pause, Resume, Drop).

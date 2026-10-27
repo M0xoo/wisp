@@ -253,6 +253,8 @@ function describeMcp(tool, input) {
       return { kind: 'agent', label: 'Waiting on subagents' };
     case 'wisp__wisp_tag':
       return { kind: 'tool', label: `Tagging the task${input?.tags?.length ? `: ${clip(input.tags.map((t) => `#${t}`).join(' '), 60)}` : ''}` };
+    case 'wisp__wisp_pr':
+      return { kind: 'tool', label: input?.remove ? 'Detaching a PR' : `Attaching PR ${clip(String(input?.pr || '').replace(/^https:\/\/github\.com\//, ''), 60)}` };
     case 'wisp__wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
     case 'wisp__wisp_sessions':

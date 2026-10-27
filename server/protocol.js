@@ -137,6 +137,8 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   turn: wisp sends your message back into this conversation at that time. Never sleep or poll for it.
 - Once you know what this task is about, call \`wisp_tag\` (${tool.replace(/ask_user$/, 'wisp_tag')}) with 3–8 short topic words
   the user would search for it by (area, feature, tech, kind of work). Once per task, again only if the topic changes.
+- If you open a GitHub pull request (gh pr create) or work on an existing one, attach it to this task with \`wisp_pr\`
+  (${tool.replace(/ask_user$/, 'wisp_pr')}), one call per PR: the user sees it on the task, with its checks, reviews and Merge.
 - If the user asks about their past wisp tasks (which tools or harnesses they use, cost, success rate),
   call \`wisp_stats\` (${tool.replace(/ask_user$/, 'wisp_stats')}) instead of digging through files.
 - If the prompt mentions another wisp task ("@Title (wisp task <id>)") or the user asks what another task
