@@ -172,14 +172,18 @@ export function toolStatsText(st) {
   return out.join('\n');
 }
 
-// How each crew member did (design/crew.md → Track record): counts of its jobs in the range, built
-// from its job sessions like usage(). A job is one session; its outcome is its last finished
-// turn's. Quiet check-ins (nothing to report) count as check-ins but not in Finished, nor do jobs
-// you stopped. A member on another machine only has summaries there: outcomes and counts, no
-// spend or questions (remote: true).
+// How each crew member did, and where its usage went (design/crew.md → Track record): its jobs
+// in the range, built from its job sessions like usage(). A job is one session; its outcome is its
+// last finished turn's. Quiet check-ins (nothing to report) count as check-ins but not in Finished,
+// nor do jobs you stopped. Usage: tokens and cost per day, per kind of job (its schedule and its
+// triggers are the repeating work), its heaviest jobs, its share of everything wisp ran, and of
+// each plan window (Claude's 5-hour and weekly, Codex's) since that window started. A member on
+// another machine only has summaries there: outcomes and counts, no usage (remote: true).
 const KIND = { checkin: 'checkin', task: 'task', mention: 'mention', delegated: 'delegated', trigger: 'trigger', event: 'trigger' };
+const KINDS = ['checkin', 'trigger', 'task', 'mention', 'delegated'];
 const quietJob = (s) => !!s.turns?.[0]?.quiet || ((s.crew?.job === 'checkin' || s.crew?.job === 'event') && !!s.archived && s.state === 'done' && !s.forLater);
 const asked = (t) => !!t?.presentation?.blocks?.some((b) => b?.type === 'question');
+const tokensOf = (t) => (t.stats?.inputTokens || 0) + (t.stats?.outputTokens || 0);
 function jobOf(s) {
   const turns = s.turns || [];
   const ended = turns.filter((t) => t.status !== 'running');
@@ -190,6 +194,8 @@ function jobOf(s) {
   const acts = turns.flatMap((t) => t.activity || []).filter((a) => a?.kind === 'ask');
   const approvals = acts.filter((a) => /^Needs your OK/.test(a.label || '')).length;
   const j = {
+    id: s.id,
+    title: s.title || '',
     at: s.createdAt || turns[0]?.startedAt || 0,
     kind: KIND[s.crew?.job] || 'task',
     result,
@@ -205,14 +211,14 @@ function jobOf(s) {
     tokens: 0,
     agent: s.agent || '',
   };
-  for (const t of ended) {
-    const st = t.stats || {};
-    if (typeof st.costUsd === 'number') (j.cost += st.costUsd), (j.priced = true);
-    j.tokens += (st.inputTokens || 0) + (st.outputTokens || 0);
+  for (const t of turns) {
+    if (typeof t.stats?.costUsd === 'number') (j.cost += t.stats.costUsd), (j.priced = true);
+    j.tokens += tokensOf(t);
   }
   return j;
 }
-const tallyJobs = () => ({ jobs: 0, counted: 0, done: 0, partial: 0, blocked: 0, failed: 0, stopped: 0, running: 0, kinds: { checkin: 0, task: 0, mention: 0, delegated: 0, trigger: 0 }, checkins: 0, quiet: 0, later: 0, questions: 0, approvals: 0, followups: 0, followedUp: 0, prs: { merged: 0, open: 0 }, cost: 0, priced: 0, unpriced: 0, tokens: 0, unpricedAgents: [] });
+const use = () => ({ runs: 0, tokens: 0, cost: 0, quiet: 0 });
+const tallyJobs = () => ({ jobs: 0, counted: 0, done: 0, partial: 0, blocked: 0, failed: 0, stopped: 0, running: 0, kinds: { checkin: 0, task: 0, mention: 0, delegated: 0, trigger: 0 }, checkins: 0, quiet: 0, later: 0, questions: 0, approvals: 0, followups: 0, followedUp: 0, prs: { merged: 0, open: 0 }, cost: 0, priced: 0, unpriced: 0, tokens: 0, unpricedAgents: [], byKind: Object.fromEntries(KINDS.map((k) => [k, use()])) });
 function addJob(b, j) {
   b.jobs++;
   b.kinds[j.kind]++;
@@ -237,10 +243,19 @@ function addJob(b, j) {
     b.unpriced++;
     if (j.agent && !b.unpricedAgents.includes(j.agent)) b.unpricedAgents.push(j.agent);
   }
+  const k = b.byKind[j.kind];
+  k.runs++;
+  k.tokens += j.tokens;
+  k.cost += j.cost;
+  if (j.quiet) k.quiet++;
 }
+const cents = (v) => Math.round(v * 10000) / 10000;
+const TOP = 8;
 
 // members: [{ id, name, machine, createdAt }]; jobsOf(m) → its sessions (full records) or summaries.
-export function crewStats(members, jobsOf, { days = 30, now = Date.now() } = {}) {
+// sessions: every session (for the crew's share of all usage and of the plan windows). budget: the
+// Budget (server/budget.js), or null.
+export function crewStats(members, jobsOf, { days = 30, now = Date.now(), sessions = [], budget = null } = {}) {
   days = Math.min(Math.max(Math.round(days) || 30, 1), 365);
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
@@ -251,17 +266,72 @@ export function crewStats(members, jobsOf, { days = 30, now = Date.now() } = {})
     for (let i = 0; i < days; i++) {
       const t = new Date(since);
       t.setDate(t.getDate() + i);
-      byDay.set(dayKey(t), { date: dayKey(t), done: 0, partial: 0, missed: 0, stopped: 0, quiet: 0 }); // missed: blocked or failed
+      byDay.set(dayKey(t), { date: dayKey(t), done: 0, partial: 0, missed: 0, stopped: 0, quiet: 0, tokens: 0, cost: 0, kinds: {} }); // missed: blocked or failed
     }
+    const list = [];
+    let first = 0;
     for (const s of jobsOf(m) || []) {
       if (s.pending) continue;
       const j = jobOf(s);
       if (j.at < since) continue;
+      first = first ? Math.min(first, j.at) : j.at;
       addJob(b, j);
+      list.push(j);
       const d = byDay.get(dayKey(j.at));
-      if (d && j.result !== 'running') d[j.quiet ? 'quiet' : ['done', 'partial', 'stopped'].includes(j.result) ? j.result : 'missed']++;
+      if (!d) continue;
+      if (j.result !== 'running') d[j.quiet ? 'quiet' : ['done', 'partial', 'stopped'].includes(j.result) ? j.result : 'missed']++;
+      d.tokens += j.tokens;
+      d.cost += j.cost;
+      d.kinds[j.kind] = (d.kinds[j.kind] || 0) + j.tokens;
     }
-    return { id: m.id, name: m.name, remote: !!m.machine, joined: m.createdAt || 0, ...b, cost: Math.round(b.cost * 10000) / 10000, daily: [...byDay.values()] };
+    for (const k of Object.values(b.byKind)) k.cost = cents(k.cost);
+    // Its heaviest jobs, to open the one that cost the most.
+    const top = list
+      .filter((j) => j.tokens || j.cost)
+      .sort((x, y) => y.tokens - x.tokens || y.cost - x.cost)
+      .slice(0, TOP)
+      .map(({ id, title, at, kind, tokens, cost, priced, result, quiet }) => ({ id, title, at, kind, tokens, cost: cents(cost), priced, result, quiet }));
+    // Days it was around in the range: for "a day" figures, a member that joined last week isn't
+    // averaged over a month.
+    const from = Math.max(since, Math.min(m.createdAt || since, first || now));
+    const span = Math.max(1, Math.ceil((now - from) / DAY));
+    return { id: m.id, name: m.name, remote: !!m.machine, joined: m.createdAt || 0, span, ...b, cost: cents(b.cost), top, daily: [...byDay.values()].map((d) => ({ ...d, cost: cents(d.cost) })) };
   });
-  return { days, since, members: out };
+
+  // Everything wisp ran in the range, for the crew's share; and each plan window since it started.
+  const crewOf = new Map();
+  for (const m of members) for (const s of jobsOf(m) || []) if (s.turns) crewOf.set(s.id, m.id);
+  const all = { tokens: 0, cost: 0 };
+  for (const s of sessions) {
+    if (s.agent === 'wisp') continue;
+    for (const t of s.turns || []) {
+      if (!t.startedAt || t.startedAt < since) continue;
+      all.tokens += tokensOf(t);
+      all.cost += t.stats?.costUsd || 0;
+    }
+  }
+  all.cost = cents(all.cost);
+  const windows = [];
+  for (const agent of Object.keys(budget?.state || {})) {
+    for (const acc of budget.view(agent)) {
+      for (const w of acc.windows) {
+        const ms = budget.state[agent]?.[acc.account]?.windows?.[w.id]?.ms;
+        if (!w.resetsAt || !ms) continue;
+        const from = w.resetsAt - ms;
+        let total = 0;
+        const by = {};
+        for (const s of sessions) {
+          for (const t of s.turns || []) {
+            if (!t.startedAt || t.startedAt < from || (t.agent || s.agent) !== agent || ((t.account ?? s.account) || 'default') !== acc.account) continue;
+            const n = tokensOf(t);
+            total += n;
+            const mid = crewOf.get(s.id);
+            if (mid) by[mid] = (by[mid] || 0) + n;
+          }
+        }
+        if (Object.keys(by).length) windows.push({ agent, account: acc.account, id: w.id, label: w.label, used: w.used, resetsAt: w.resetsAt, since: from, hitAt: w.hitAt, tokens: total, members: by });
+      }
+    }
+  }
+  return { days, since, all, windows, members: out };
 }

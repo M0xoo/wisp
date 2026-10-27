@@ -69,30 +69,35 @@ its thread; its work never mixes with your tasks.
 
 ## Track record
 
-How a member is doing, so you know what to change (`web/js/features/crew-record.js`, `crewStats` in
-`server/usage.js`). Built from its job sessions; nothing extra is stored but a `quiet` flag on a
-check-in's turn.
+Where the crew's usage went, and how its jobs did (`web/js/features/crew-record.js`, `crewStats` in
+`server/usage.js`). The question it answers first is *what made my limits go down?*: long-lived
+members run on a schedule and on triggers, so their usage builds up without anyone asking. Built
+from the job sessions and the plan windows wisp already keeps (`server/budget.js`); nothing extra is
+stored but a `quiet` flag on a check-in's turn.
 
-- **In About**, after the actions and before the notebook: the setup, what you can do, how it went,
-  then what to change. Always 30 days (*since 22 Oct* for a newer member). A strip of jobs per day,
-  then rows: *Jobs* (tooltip: by kind), *Finished* (*8 of 9*: jobs that ended, without quiet
-  check-ins or ones you stopped), *Check-ins* (*3 of 14 reported*, only with a schedule or
-  check-ins), *Needed you* (questions and approvals), *Your follow-ups* (not answers to its
-  questions), *Spend* (dollars, tokens where the harness has no price, a dash on another machine:
-  never *$0.00* for unknown) and *PRs* when there are any.
-- **Counts, never percentages.** *1 of 1* is honest; *100%* isn't. No change since last month
-  either: with a handful of jobs it's noise that reads as a grade. No durations: a job runs in the
-  background, its length changes nothing you'd do.
-- **The strip** stacks finished (`--good`), partial, blocked or failed and stopped (`--ink`, faint) per day
-  (per week past 45 days). Quiet check-ins stay out, in the tooltip: a member checking in every half
-  hour would otherwise bury its real work in grey. Partial is `--warn` and blocked or failed `--bad`, like their pills.
-- **One suggestion at most**, advice rather than a repeat of a row, only with enough to go on and not while paused: quiet on 90% of 10+
-  check-ins (*Change schedule…*), 40% of 5+ jobs unfinished, follow-ups on half of 5+ jobs you sent,
-  approvals on half of 5+ jobs outside Full auto. Each links to Edit. No praise line.
-- **Compare crew** (one name everywhere: the About link, ⋯ and right-click, ⌘K, Settings → Usage)
-  is everyone side by side over 7, 30 or 90 days, in join order until a header sorts it; a row
-  opens the member. Under 720px each member is a block. Not on the section's rows: rows never
-  change shape.
+- **A dialog, not the sidebar.** Right-click a member (or ⋯, or ⌘K *Ada’s track record*) →
+  **Track record…**. One header, pinned to the top so nothing jumps: the title is a picker (a
+  member, or **Whole crew**), then 7 / 30 / 90 days. ⌘K and Settings → Usage open *Crew track
+  record*. Not in the About column, and not on the section's rows: rows never change shape.
+- **A member, top to bottom:** the plan windows it used (*Weekly limit 62% · resets Fri 13:52 /
+  Since Fri 14:52, Scout used 14% of the tokens, the crew 36%*; the darker part of the bar is its
+  share), the total (*4.4M tokens $6.77 · 18% of all wisp usage in 30 days*), at most one insight,
+  tokens per day (repeating work solid accent, asked work faint), **Where it went** by kind (check-ins
+  with their schedule and *4 runs a day × 35k = 148k a day · 86% found nothing*, triggers, jobs you
+  sent, tagged, delegated), **Biggest jobs** (a click opens the job), and how its jobs went in one
+  line (*15 jobs · 10 of 15 finished · needed you 5 · 8 follow-ups · 5 PRs merged*).
+- **Whole crew:** the same limits line for the crew (*the crew used 36%: Quill 22%, Scout 14% ·
+  your tasks 64%*), the total, tokens per day stacked by member in their spirit's colour, members
+  ranked by tokens with their biggest kind, then *Your own tasks* for scale. A row opens that member.
+- **Words.** Never "30% of your weekly limit": a limit doesn't count tokens one for one, so it's
+  *of the tokens spent since it reset*. Usage shares are percentages; outcomes stay *x of y* counts
+  (*1 of 1* is honest, *100%* isn't). Tokens read 740 / 35k / 1.2M; rates *a day*. No price reads a
+  faint *no price*, never *$0.00*. A member on another machine: *its usage is counted there*.
+- **One insight at most**, with one action, only with enough to go on and not while paused:
+  repeating work that mostly finds nothing (*Check-ins every 30 min use 148k tokens a day; 86% found
+  nothing. Checking in a quarter as often would use about 37k. Change schedule…*), one job that took
+  most of it (*Open job*), a big share of a limit, then how its jobs went. No praise line. The
+  `crew.record` part's `tips` prop turns it off.
 - Numbers paint from the last answer (kept for reload and the app), skeletons with the real shapes
   before the first.
 

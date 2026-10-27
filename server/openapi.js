@@ -260,7 +260,7 @@ export function openapi({ version, port }) {
       },
       '/crew/stats': {
         get: {
-          summary: 'Each crew member’s track record over the last `days` and the range before (prev): jobs by kind and outcome, delivered rate (done of finished), check-ins and how many came back quiet (signalRate), questions asked, your follow-ups, PRs opened and merged, cost (priced jobs only), median time, and jobs per day. remote: a member on another machine, without cost, time or questions',
+          summary: 'Each crew member’s track record and where its usage went over the last `days`: jobs by kind and outcome, check-ins and how many came back quiet, questions, your follow-ups, PRs, tokens and cost (per day, per kind of job in byKind, its heaviest jobs in top), and span (days it was around). all: every task’s tokens and cost in the range. windows: each plan window (5-hour, weekly…) with how much is used and the tokens spent since it started, per member. remote: a member on another machine, without usage',
           parameters: [{ name: 'days', in: 'query', schema: { type: 'integer', default: 30, maximum: 365 } }],
           responses: { 200: json({ type: 'object' }) },
         },

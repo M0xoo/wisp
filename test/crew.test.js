@@ -740,3 +740,31 @@ test('crewStats: tokens when the harness has no price, summaries for a member on
   const [none] = crewStats([{ id: 'z', name: 'Zed' }], () => [], { now }).members;
   assert.equal(none.jobs, 0);
 });
+
+test('crewStats: where a member’s usage went: per kind, per day, its heaviest jobs, its share of everything and of a plan window', () => {
+  const now = new Date('2026-10-27T15:00:00').getTime();
+  const H = 3600_000;
+  const turn = (at, tokens, cost) => ({ status: 'done', startedAt: at, endedAt: at + 60_000, stats: { inputTokens: tokens - 100, outputTokens: 100, ...(cost !== undefined && { costUsd: cost }) }, presentation: { blocks: [{ type: 'hero', status: 'done' }] } });
+  const job = (id, kind, at, tokens, o = {}) => ({ id, title: id, agent: 'claude', crew: { id: 'scout', job: kind }, createdAt: at, state: o.quiet ? 'done' : 'review', archived: !!o.quiet, turns: [{ ...turn(at, tokens, 0.1), ...(o.quiet && { quiet: true }) }] });
+  const mine = [job('c1', 'checkin', now - 2 * H, 30_000, { quiet: true }), job('c2', 'checkin', now - 1 * H, 40_000), job('t1', 'task', now - 3 * 864e5, 100_000), job('w1', 'event', now - 3 * H, 5_000)];
+  const yours = { id: 'y1', agent: 'claude', createdAt: now - 4 * H, turns: [turn(now - 4 * H, 75_000, 0.5)] };
+  const budget = {
+    state: { claude: { default: { windows: { five_hour: { used: 0.4, resetsAt: now + H, ms: 5 * H }, seven_day: { used: 0.6, resetsAt: now + 2 * 864e5, ms: 7 * 864e5 } } } } },
+    view: () => [{ account: 'default', windows: [{ id: 'five_hour', label: '5-hour', used: 0.4, resetsAt: now + H }, { id: 'seven_day', label: 'Weekly', used: 0.6, resetsAt: now + 2 * 864e5 }] }],
+  };
+  const st = crewStats([{ id: 'scout', name: 'Scout', createdAt: now - 60 * 864e5 }], () => mine, { now, sessions: [...mine, yours], budget });
+  const [r] = st.members;
+  assert.equal(r.tokens, 175_000);
+  assert.deepEqual(r.byKind.checkin, { runs: 2, tokens: 70_000, cost: 0.2, quiet: 1 });
+  assert.equal(r.byKind.trigger.runs, 1);
+  assert.equal(r.byKind.task.tokens, 100_000);
+  assert.deepEqual(r.top.map((j) => j.id), ['t1', 'c2', 'c1', 'w1']);
+  assert.equal(r.daily.at(-1).tokens, 75_000);
+  assert.equal(r.span, 30);
+  assert.deepEqual(st.all, { tokens: 250_000, cost: 0.9 });
+  // The 5-hour window started 4h ago: your task (75k) and the three jobs of today (75k).
+  const five = st.windows.find((w) => w.id === 'five_hour');
+  assert.equal(five.tokens, 150_000);
+  assert.deepEqual(five.members, { scout: 75_000 });
+  assert.equal(st.windows.find((w) => w.id === 'seven_day').members.scout, 175_000);
+});

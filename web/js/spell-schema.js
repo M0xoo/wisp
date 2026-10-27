@@ -81,8 +81,9 @@ export const PARTS = {
   'crew.editor': '.crew-edit',
   // Its skills and instructions files (the section in its details), and the editor for one.
   'crew.kit': '.crew-view .cv-kit',
-  'crew.record': '.crew-view .cv-record', // Track record in a member's About: the strip, the counts, a suggestion
-  'crew.compare': '.crew-record', // Compare crew: every member's track record side by side
+  'crew.record': '.crew-record', // Track record: a member's stats (right-click → Track record…) or the whole crew's
+  'crew.record.subject': '.crew-record .rec-subject', // its title: picks a member or the whole crew
+  'crew.compare': '.crew-record .rec-compare', // the whole crew, ranked by usage
   'crew.kitEditor': '.kit-edit',
   // Its notebook, opened to read and write in full (Edit beside Notebook).
   'crew.notebookEditor': '.nb-edit',
@@ -301,7 +302,7 @@ export const PART_PROPS = {
   'split.main': { readWidth: 'px' },
   'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
-  'crew.record': { tips: 'bool' }, // the suggestion line under the counts (on)
+  'crew.record': { tips: 'bool' }, // the suggestion line under a member's numbers (on)
   'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },

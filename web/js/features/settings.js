@@ -28,7 +28,7 @@ import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupComma
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
-import { compareCrew } from './crew-record.js';
+import { crewRecord } from './crew-record.js';
 import { crewList } from './crew.js';
 import { connectorsPane } from './connectors.js';
 import { budgetHtml } from './budget.js';
@@ -192,7 +192,7 @@ export function openSettings(opts) {
         <section class="sx-pane sp-pane" data-pane="spells"></section>
         <section class="sx-pane" data-pane="usage">
           <div class="us-tiles sx-usage"><div class="it-loading"><span class="orb tiny"></span>Adding it up…</div></div>
-          <div class="sx-group">${row('Charts and breakdowns', 'Per day, per project and per harness · model', '<button class="ghost sm" id="openUsage">Open usage</button>')}${crewList().length ? row('Crew track record', 'How each member did: jobs, finished, check-ins, spend', '<button class="ghost sm" id="openRecord">Compare crew</button>') : ''}</div>
+          <div class="sx-group">${row('Charts and breakdowns', 'Per day, per project and per harness · model', '<button class="ghost sm" id="openUsage">Open usage</button>')}${crewList().length ? row('Crew track record', 'How each member did: jobs, finished, check-ins, spend', '<button class="ghost sm" id="openRecord">Open</button>') : ''}</div>
           <div class="sx-head"><div><b>Plan budget</b><small>Your plans’ usage windows, as Claude Code and Codex report them on each run</small></div></div>
           <div class="sx-group sx-budget">
             <div class="bg-list"></div>
@@ -625,7 +625,7 @@ export function openSettings(opts) {
     if (e.target.closest('[data-pane-go]')) show(e.target.closest('[data-pane-go]').dataset.paneGo), toList(false);
   });
   $('#openUsage', node).onclick = () => openUsage({ days: 7, host: host('usage') });
-  if ($('#openRecord', node)) $('#openRecord', node).onclick = () => compareCrew({ host: host('usage') });
+  if ($('#openRecord', node)) $('#openRecord', node).onclick = () => crewRecord({ host: host('usage') });
   $('#openPhone', node).onclick = () => openPhone({ host: host('notifications') });
   if (MOBILE) {
     $('#openComputers', node).onclick = () => {

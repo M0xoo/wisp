@@ -21,7 +21,7 @@ Use these, everywhere in the page, the app, the site and the CHANGELOG:
 | *Computers* (in the phone app), *Machines* (on desktop) | servers, hosts |
 | spell | plugin, theme, mod |
 | *Crew*, crew member, *job*, spirit (its avatar) | agents, assistants, bots (an agent is the harness running a task) |
-| *Track record* (a member's), *Compare crew* (everyone's) | stats, performance, score, leaderboard |
+| *Track record* (a member's), *Crew track record* (everyone's); *of the tokens spent since it reset* | stats, performance, score, leaderboard; *% of your limit* (limits don't count tokens one for one) |
 | Settings → *Section* → *Row* | the config, preferences |
 | *For later* (the list section), *Save for later* / *Unsave* (the action, everywhere; toasts *Saved for later* / *Unsaved*) | Bookmark, Pin, Park, Read later, Remove from For later |
 | *scheduled follow-up*, *scheduled task*, *reminder*; *Scheduled* (the list section), *Coming up* (split home) | wake-up, resume, timer (fine in code and in the agent's tool) |
