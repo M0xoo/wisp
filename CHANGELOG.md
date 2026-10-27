@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **The setup card names no single agent.** A signed-out harness no longer reads *Sign in to Claude Code*: the card says *Sign in to a coding agent* (Claude Code, Codex or another) and offers opencode’s free models, which need no account, as a way to start.
+
 ## [0.43.0] - 2026-10-27
 
 ### Added
