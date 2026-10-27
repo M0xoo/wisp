@@ -37,10 +37,11 @@ android/app/src/main/java/dev/trywisp/mobile/
 
 ## wisp Cloud
 
-No computer to keep on? The first screen starts with **wisp Cloud**: the address
-(`grid.trywisp.dev`, or your own grid's) is filled in, **Sign in** shows a code, you allow it in
-the browser (signed in with GitHub or Google), and your cloud computer joins the list. Tap it and
-you're in its wisp: no SSH, no tunnel.
+No computer to keep on? The first screen is **Continue with GitHub** / **Continue with Google**
+on `grid.trywisp.dev`: the app asks the grid for a device code and opens the browser at
+`/auth/<provider>/start`, returning to `/activate?code=…&app=android`, so you sign in and Allow this
+phone in one go. Your cloud computer joins the list; tap it and you're in its wisp: no SSH, no
+tunnel. *Use your own wisp Grid* takes another grid's address and shows the code to allow there.
 
 Your own computers come along: each one you added to the grid (wisp on it: Machines → *Reach this
 computer from anywhere*) is listed under the cloud one, marked *Your computer · via grid*, with
