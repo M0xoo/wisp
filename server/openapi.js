@@ -258,6 +258,13 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { skills: { type: 'array', items: { type: 'object' } }, rules: { type: 'array', items: { type: 'object' } } } }) },
         },
       },
+      '/crew/stats': {
+        get: {
+          summary: 'Each crew member’s track record over the last `days` and the range before (prev): jobs by kind and outcome, delivered rate (done of finished), check-ins and how many came back quiet (signalRate), questions asked, your follow-ups, PRs opened and merged, cost (priced jobs only), median time, and jobs per day. remote: a member on another machine, without cost, time or questions',
+          parameters: [{ name: 'days', in: 'query', schema: { type: 'integer', default: 30, maximum: 365 } }],
+          responses: { 200: json({ type: 'object' }) },
+        },
+      },
       '/crew/{cid}': {
         parameters: [{ name: 'cid', in: 'path', required: true, schema: { type: 'string' }, description: 'Crew member id or name' }],
         get: { summary: 'A crew member, with its latest jobs (jobList)', responses: { 200: json(ref('CrewMember')), 404: err[404] } },
