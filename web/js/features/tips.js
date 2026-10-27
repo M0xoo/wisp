@@ -6,7 +6,6 @@
 
 import * as bus from '../core/bus.js';
 import { $$, icon } from '../core/dom.js';
-import { esc } from '../md.js';
 import { load, MOBILE, S, save } from '../core/state.js';
 import { TIPS } from '../tips-data.js';
 import { spellProp } from './spells.js';
@@ -29,16 +28,17 @@ function start() {
 // list), so a slow start doesn't flash it.
 function setupHtml() {
   if (!S.agents.length || S.agents.some((a) => a.available && a.hasKey !== false)) return '';
-  const out = S.agents.filter((a) => a.signedIn === false);
-  const [title, line, cta] = out.length
-    ? [`Sign in to ${esc(out[0].name)}`, `It’s installed but signed out, so tasks have nowhere to run yet`, 'Sign in']
-    : S.agents.some((a) => a.available)
-      ? ['Bring your own model', 'Only opencode’s free models run here: sign in to Claude Code or Codex, or add a key', 'Set up']
-      : ['Connect a coding agent', 'wisp drives Claude Code, Codex, opencode and more: pick one to run your first task', 'Set up'];
+  // Generic on purpose: whichever harness was found signed out, any of them (or opencode's free
+  // models, which need no account) gets a first task going.
+  const [title, line] = S.agents.some((a) => a.available)
+    ? ['Bring your own model', 'opencode’s free models run here for now: sign in to Claude Code, Codex or another, or add a key']
+    : S.agents.some((a) => a.signedIn === false)
+      ? ['Sign in to a coding agent', 'Use Claude Code, Codex or another you have, or start free with opencode’s models']
+      : ['Connect a coding agent', 'wisp drives Claude Code, Codex and more. No account? Start free with opencode’s models'];
   return `<button type="button" class="tip tip-setup">
     <span class="ts-badge">${icon('agent')}</span>
     <span class="ts-text"><b>${title}</b><small>${line}</small></span>
-    <span class="ts-cta">${cta}${icon('arrow')}</span>
+    <span class="ts-cta">Set up${icon('arrow')}</span>
   </button>`;
 }
 
