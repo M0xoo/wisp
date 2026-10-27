@@ -117,9 +117,13 @@ themed icon). The store art is in `store/`: `icon.png` (512×512) and `feature-g
    keyAlias=upload
    keyPassword=…
    ```
-2. **Bump** `versionCode` (every upload needs a higher one) and `versionName` in
-   `android/app/build.gradle`.
-3. **Build the bundle:** `npm run sync && cd android && ./gradlew bundleRelease`
+2. **Build the bundle in CI:** `.github/workflows/android.yml` builds a signed
+   `wisp-android-<versionName>-<versionCode>.aab` on each push to main that touches the app (or
+   `gh workflow run android`) and keeps it as the run's artifact. It signs with the
+   `ANDROID_UPLOAD_KEYSTORE` (the `.jks`, base64) and `ANDROID_UPLOAD_KEY_PASSWORD` secrets;
+   versionCode is 1 + the run number and versionName is `package.json`'s version.
+3. **Or build it here:** `npm run sync && cd android && ./gradlew bundleRelease -PversionCode=<n>`
+   (higher than the last upload; it defaults to 1)
    → `android/app/build/outputs/bundle/release/app-release.aab`.
 4. **In the Play Console** (a developer account is a one-time $25): *Create app*, name `wisp`,
    app, free. Then *Release → Testing → Internal testing → Create release*, opt in to Play App
