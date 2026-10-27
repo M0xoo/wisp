@@ -28,7 +28,7 @@ import { collapse, expand, groups, headPills, qDot, renderFeed, reveal, setFocus
 import { barCover, stage } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
-import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView } from './crew.js';
+import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
 import { openUpcoming, upcoming, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 
@@ -410,8 +410,9 @@ function paintDetails(s, pill) {
 function paintHome() {
   $('.sh-hello', home).textContent = spellProp('split.home', 'greeting') || 'What should wisp do next?';
   // The tasks waiting on you, one click each: home doubles as the inbox. The sidebar's Needs you,
-  // plus what the crew wants from you (a question, a report you haven't read), with their faces.
-  const crew = [...S.sessions.values()].filter((s) => s.crew && memberById(s.crew.id) && !s.pending && needsYou(s));
+  // plus what the crew wants from you on other tasks' jobs (a question, a report you haven't read),
+  // with their faces; their own tasks are in Needs you already.
+  const crew = [...S.sessions.values()].filter((s) => underMember(s) && !s.pending && needsYou(s));
   const all = [...groups().needs, ...crew].sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   const needs = all.slice(0, 5);
   const html = needs.length
