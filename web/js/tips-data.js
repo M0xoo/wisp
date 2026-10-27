@@ -56,3 +56,20 @@ export const TIPS = [
   ['Have a work and a personal Claude plan? Add the other in Settings → Agents and pick one per task', G(ACCOUNTS, 'with-wisp')],
   ['At an account’s limit the task asks what to do; wisp never switches accounts for you', G(ACCOUNTS, 'limits')],
 ];
+
+// The phone app's computers screen (mobile/www/app.js; scripts/shared.mjs copies this file there):
+// what a first-time user can do from the phone, in the same shape.
+const PHONE = 'reach-your-computer-from-your-phone';
+export const PHONE_TIPS = [
+  ['<b>Cloud</b> is your wisp on a server: its agents keep working with every computer switched off', G('use-wisp-cloud', 'phone')],
+  ['<b>Your computer</b> opens while it’s awake: tasks there run on its own files, repos and tools', G(PHONE, 'phone')],
+  ['Lock the phone or switch apps: tasks run on the computer, not here, and wait for you when they ask', G(BG, 'away')],
+  ['Inside a computer, <b>New task</b> starts one; <b>Computers</b> in its top bar brings you back here', G(PHONE, 'phone')],
+  ['Questions from your agents show under <b>Needs you</b>: answer from here and the task picks up', G(BG, 'away')],
+  ['Leave the agent on <b>Auto</b> and wisp picks the agent and model per task from what worked for you', G(VS, 'let-results-pick')],
+  ['Start several tasks at once: each gets its own branch, so agents never touch the same files', G(MANY, 'why-worktrees')],
+  ['Turn on <b>Goal</b> and a task keeps going round after round until your check passes', G(GOALS, 'the-check')],
+  ['<b>Ship it</b> commits, pushes and opens the pull request, right from your phone', G(MANY, 'with-wisp')],
+  ['Signed in to Claude Code or Codex on that computer? The phone uses them as they are', `${SITE}/agents/`],
+  ['No ports to open: the grid carries the page to you, while your files and logins stay on the computer', G(PHONE, 'private')],
+];

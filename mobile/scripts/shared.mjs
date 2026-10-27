@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 const root = new URL('../../', import.meta.url);
 const out = new URL('../www/shared/', import.meta.url);
-const FILES = ['server/shq.js', 'server/machines/bootstrap.js', 'web/css/tokens.css'];
+const FILES = ['server/shq.js', 'server/machines/bootstrap.js', 'web/css/tokens.css', 'web/js/tips-data.js'];
 // Capacitor's own JS (registerPlugin), as one ES module with no imports: no bundler needed.
 const CAPACITOR = ['node_modules/@capacitor/core/dist/index.js', 'capacitor-core.js'];
 

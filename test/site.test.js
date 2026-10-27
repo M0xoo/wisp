@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, markdown, AGENTS, GUIDES } from '../scripts/site.mjs';
 import { adapters } from '../server/adapters/index.js';
-import { TIPS } from '../web/js/tips-data.js';
+import { PHONE_TIPS, TIPS } from '../web/js/tips-data.js';
 
 const DOCS = fileURLToPath(new URL('../docs/', import.meta.url));
 const ADAPTERS = fileURLToPath(new URL('../server/adapters/', import.meta.url));
@@ -132,7 +132,7 @@ test('the privacy policy has the contact and the account deletion anchor Play li
 test('every tip under the prompt box opens a real page on the site, at a heading it has', () => {
   assert.ok(TIPS.length >= 30, 'a long list to rotate through');
   const files = new Map(pages.filter((p) => p.file).map((p) => [p.path, p.file]));
-  for (const [text, href] of TIPS) {
+  for (const [text, href] of [...TIPS, ...PHONE_TIPS]) {
     assert.ok(text.length <= 130, `short enough for one line: ${text}`);
     const u = new URL(href);
     assert.equal(u.origin, SITE, href);

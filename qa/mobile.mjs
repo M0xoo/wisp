@@ -39,21 +39,22 @@ await until(async () => (await api(wisp.url, `/api/sessions/${first.json.id}`)).
 
 try {
   for (const vp of PHONES) {
-    await check(`MOB-03`, `computers screen at ${vp.width}px: wisp Cloud first, SSH folded, no overflow`, async () => {
+    await check(`MOB-03`, `computers screen at ${vp.width}px: GitHub and Google first, no address to type, SSH folded, no overflow`, async () => {
       const ctx = await phone(vp);
       const page = await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(previewUrl);
-      await page.waitForSelector('#cloudFirst', { timeout: 10_000 });
+      await page.waitForSelector('.hello [data-p="github"]', { timeout: 10_000 });
       const order = await page.evaluate(() => {
-        const cf = document.querySelector('#cloudFirst');
+        const gh = document.querySelector('[data-p="github"]');
         const ssh = document.querySelector('#sshBox');
-        return { cloudBeforeSsh: !!(cf.compareDocumentPosition(ssh) & Node.DOCUMENT_POSITION_FOLLOWING), sshOpen: ssh.open, grid: document.querySelector('#cfUrl')?.value };
+        return { cloudBeforeSsh: !!(gh.compareDocumentPosition(ssh) & Node.DOCUMENT_POSITION_FOLLOWING), sshOpen: ssh.open, google: !!document.querySelector('[data-p="google"]'), input: !!document.querySelector('#intro input') };
       });
-      ok(order.cloudBeforeSsh, 'wisp Cloud sign-in is not above Connect over SSH');
+      ok(order.cloudBeforeSsh, 'GitHub sign-in is not above Connect over SSH');
+      ok(order.google, 'no Continue with Google');
+      ok(!order.input, 'the first screen asks for a grid address');
       ok(!order.sshOpen, 'Connect over SSH is unfolded on start');
-      ok(/grid\.trywisp\.dev/.test(order.grid || ''), `grid field is "${order.grid}", expected grid.trywisp.dev`);
       ok((await overflow(page)) <= 0, `page scrolls sideways by ${await overflow(page)}px`);
       ok(!errors.length, `page errors: ${errors.join('; ')}`);
       await shot(page, `computers-${vp.name}`);

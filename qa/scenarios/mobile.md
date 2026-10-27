@@ -35,10 +35,25 @@ Never send builds to someone's own phone as part of QA.
 ### MOB-03 Computers screen on first start
 - **Run:** `qa/mobile.mjs` (390×844 and 412×915), Emulator
 - **Preconditions:** nothing saved (fresh install / empty localStorage).
-- **Steps:** open the app (or `npm run preview`).
-- **Expected:** *wisp, on your phone*; the **wisp Cloud** card comes first with
-  `grid.trywisp.dev` filled in and **Sign in**; *Connect over SSH instead* is folded at the
-  bottom; no sideways scroll; no page errors.
+- **Steps:** open the app (or `npm run preview`); tap **Continue with GitHub**; close the sheet;
+  tap **Use your own wisp Grid**.
+- **Expected:** three sample tasks (working, asking, shipped), *Your agents, in your pocket*, then
+  **Continue with GitHub** and **Continue with Google**; no address field; *Connect over SSH
+  instead* is folded at the bottom. GitHub opens the browser at
+  `grid.trywisp.dev/auth/github/start` (return `/activate?code=…&app=android`), and the sheet shows
+  the code and waits; after signing in, the browser asks to Allow that code. *Use your own wisp
+  Grid* opens the sheet with an empty address. No sideways scroll; no page errors.
+
+### MOB-03b Tips under your computers
+- **Run:** `npm run preview` (390×844 and 360 wide, light and dark), Emulator
+- **Preconditions:** signed in to wisp Cloud, nothing opened yet, notifications never asked.
+- **Steps:** look under the list; tap **More tips**; tap a line; tap each card's button.
+- **Expected:** *Tips* with *Step in to start* first (ring, solid button naming the computer),
+  then *Hear when an agent needs you* and, with no computer of your own on the grid, *Bring your
+  own computer*, quieter; then three lines. More tips shows the next three. A line opens its
+  trywisp.dev guide in the browser. Start opens the first computer; Allow asks Android once and
+  the card goes whatever the answer; How opens the guide at *Add the computer*. After a computer
+  has been opened, *Step in to start* is gone. No sideways scroll; no page errors.
 
 ### MOB-04 The app opens on the computers list, never inside the last computer
 - **Run:** `qa/mobile.mjs` (a saved computer used a moment ago), Emulator (force-stop and cold

@@ -22,6 +22,7 @@
 import { bootstrapScript, STEPS } from './shared/machines/bootstrap.js';
 // registerPlugin lives in @capacitor/core, not in the bridge Android injects (scripts/shared.mjs copies it).
 import { Capacitor, registerPlugin } from './shared/capacitor-core.js';
+import { PHONE_TIPS } from './shared/js/tips-data.js';
 
 const native = Capacitor.isNativePlatform();
 const Ssh = native ? registerPlugin('WispSsh') : (await import('./mock.js')).WispSsh;
@@ -63,6 +64,7 @@ let order = [];
 const sortOrder = () => (order = [...machines].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map((m) => m.id));
 const inOrder = () => [...machines.filter((m) => !order.includes(m.id)).reverse(), ...order.map(machine).filter(Boolean)];
 const TAILSCALE_GUIDE = 'https://trywisp.dev/guides/connect-machines-with-tailscale.html';
+const ADD_GUIDE = 'https://trywisp.dev/guides/reach-your-computer-from-your-phone.html#add';
 
 // `you@host` or `you@host:2222`.
 function parseTarget(t) {
@@ -190,43 +192,41 @@ function runHtml() {
     </div>`;
 }
 
-// First run: what this is and the three steps. After that: your computers.
+// First run: a glimpse of what this is, and one tap into wisp Cloud with GitHub or Google (the
+// hosted grid; another one is behind Use your own wisp Grid). After that: your computers, and
+// Tips under them.
+const HELLO = `<div class="hello">
+    <div class="hello-art" aria-hidden="true">
+      <div class="ha-row"><span class="ha-dot run"></span><span class="ha-t"><b>Fix the flaky login test</b><small>Claude Code · working</small></span></div>
+      <div class="ha-row"><span class="ha-dot ask"></span><span class="ha-t"><b>Add dark mode to settings</b><small>Codex · asks you something</small></span><span class="ha-pill">Answer</span></div>
+      <div class="ha-row"><span class="ha-dot done">${icon('check')}</span><span class="ha-t"><b>Bump deps and open the PR</b><small>Shipped · PR #128</small></span></div>
+    </div>
+    <h1>Your agents, in your pocket</h1>
+    <p>Start tasks, answer their questions and ship from your phone. They keep working while it sleeps.</p>
+    <div class="hello-go">
+      <button class="primary prov" data-p="github" type="button">${icon('github')}<span>Continue with GitHub</span></button>
+      <button class="ghost prov" data-p="google" type="button">${icon('google')}<span>Continue with Google</span></button>
+    </div>
+    <p class="hello-fine">Free during the preview. You get wisp Cloud, your own wisp on a server, and every computer you add to it.</p>
+    <button class="hello-alt" data-p="other" type="button">Use your own wisp Grid</button>
+  </div>`;
+
 function paintIntro() {
-  // Until you've opened one, what this is; then just the list. The tip stays while the cloud has
-  // none of your own computers yet.
-  const fresh = !machines.some((m) => m.seen || m.opened);
-  const lonely = machines.some((m) => isGrid(m) && !m.signedOut && !m.computers?.length);
-  $('#intro').innerHTML = machines.length
-    ? `<h1>Your computers</h1>${fresh ? `<p>Tap one to open its wisp. Your agents keep running there when the phone sleeps. <b>Computers</b> in wisp’s top bar brings you back here.</p>` : ''}${lonely ? `<p class="tip">${icon('laptop')}<span>Add your own computer: in wisp on it, <b>Machines</b> → <b>Reach this computer from anywhere</b> → <b>Add to grid</b>. It shows up here.</span></p>` : ''}`
-    : `<h1>wisp, on your phone</h1>
-      <p>Start tasks and answer your agents from anywhere. They keep going when the phone sleeps.</p>
-      <form class="card cloud-first" id="cloudFirst" autocomplete="off">
-        <div class="cf-head"><span class="cf-ico">${icon('cloud')}</span><div><b>wisp Cloud</b><span>Fastest: nothing to set up</span></div></div>
-        <p>Your own wisp on a server, signed in with GitHub or Google, and every computer you added to it from wisp on your desktop. Your agents keep working while they sleep.</p>
-        <div class="cf-row"><input id="cfUrl" value="${esc(localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" aria-label="Grid"><button class="primary" type="submit">Sign in</button></div>
-      </form>
-      <p class="or"><span>Your own computers, through wisp Cloud</span></p>
-      <ol class="how">
-        <li><span class="n">1</span><div><b>Open wisp on your computer</b><span>The desktop app, or <code>npx wisp-agents</code>.</span></div></li>
-        <li><span class="n">2</span><div><b>Machines → Reach this computer from anywhere → Add to grid</b><span>Sign in with the same account. No SSH, no Tailscale, no open ports.</span></div></li>
-        <li><span class="n">3</span><div><b>Sign in above</b><span>Your cloud wisp and every computer you added show up here. Tap one to open it.</span></div></li>
-      </ol>`;
-  // First run: wisp Cloud is the card at the top, so its button below would say it twice.
+  const out = machines.length ? '<h1>Your computers</h1>' : HELLO;
+  // Only when it changed: the list repaints often, and the first screen's entry would replay.
+  if ($('#intro').dataset.h !== out) ($('#intro').innerHTML = out), ($('#intro').dataset.h = out);
+  document.body.classList.toggle('first', !machines.length);
+  // First run: wisp Cloud is the buttons at the top, so its button below would say it twice.
   // Signed in: your computers come from there, so no second sign-in button.
   $('#addCloud').hidden = !machines.length || machines.some(isGrid);
   // Signed in, SSH is one more way, not the way "instead" of something.
   $('#sshBox > summary span').firstChild.textContent = machines.some(isGrid) ? 'Connect over SSH ' : 'Connect over SSH instead ';
-  const cf = $('#cloudFirst');
-  if (cf)
-    cf.onsubmit = (e) => {
-      e.preventDefault();
-      cloudSheet(null, { grid: $('#cfUrl').value.trim() });
-    };
 }
 
 function paintMachines() {
   const box = $('#machines');
   paintIntro();
+  paintTips();
   if (!machines.length) {
     box.innerHTML = '';
     return;
@@ -252,7 +252,7 @@ function paintMachines() {
                 return `<article class="card m comp ${c.online ? 'ready' : 'off'}" data-id="${esc(m.id)}" data-c="${esc(c.id)}" ${c.online ? 'data-row="open"' : ''}>
           <div class="m-row">
             <span class="m-ico">${icon('laptop')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(c.name)}</span><span class="m-sub"><span class="kind grid">Your computer</span>${c.online ? 'online' : 'offline'}</span></div>
+            <div class="m-text"><span class="m-name">${esc(c.name)}</span><span class="m-sub"><span class="kind grid">Your computer</span></span></div>
             ${cgo}<span class="m-more-gap"></span>
           </div>
         </article>`;
@@ -278,6 +278,89 @@ function paintMachines() {
         </article>`;
     })
     .join('');
+}
+
+// --- tips --------------------------------------------------------------------------------------
+// Under the list, as on wisp's own home (web/js/features/tips.js): cards pinned on top for the next
+// thing to do, each gone once it's done (open a computer, allow notifications, add your own
+// computer), then a few lines on what the phone can do, a new set each start and on More tips,
+// each opening its guide on trywisp.dev.
+
+const TIPS_AT = 'wisp.phoneTipsAt';
+const TIPS_N = 3;
+const NOTIFY_ASKED = 'wisp.tipNotifyAsked'; // asked once from here: the card's done, whatever the answer
+let tipsAt = (() => {
+  const v = localStorage.getItem(TIPS_AT);
+  const at = v === null ? 0 : (Number(v) + TIPS_N) % PHONE_TIPS.length; // first start: from the top
+  localStorage.setItem(TIPS_AT, String(at));
+  return at;
+})();
+
+// What Start opens: the first computer in the list that opens with a tap.
+const firstOpen = () => inOrder().find((m) => !isGrid(m) || !m.signedOut);
+
+const notifyAsk = () => window.wispAndroid?.permission?.() === 'default' && !localStorage.getItem(NOTIFY_ASKED);
+
+const pinnedTip = (t, ico, title, line, cta) => `<button type="button" class="tp-card" data-t="${t}">
+    <span class="tp-badge">${icon(ico)}</span>
+    <span class="tp-text"><b>${title}</b><small>${line}</small></span>
+    <span class="tp-cta"><span>${cta}</span>${icon('arrow')}</span>
+  </button>`;
+
+function tipsHtml() {
+  if (!machines.length) return ''; // the first screen explains itself
+  const fresh = !machines.some((m) => m.seen || m.opened);
+  const first = fresh && firstOpen();
+  const lonely = machines.some((m) => isGrid(m) && !m.signedOut && !m.computers?.length);
+  const pinned = [
+    first && pinnedTip('start', 'arrow', 'Step in to start', 'Tap a computer and its wisp opens here: start tasks, answer your agents, read their reports', `Start in ${esc(nameOf(first))}`),
+    notifyAsk() && pinnedTip('notify', 'bell', 'Hear when an agent needs you', 'A nudge on this phone when a task asks you something or finishes, so you can put it away', 'Allow'),
+    lonely && pinnedTip('add', 'laptop', 'Bring your own computer', 'In wisp on it: <b>Machines</b> → <i>Reach this computer from anywhere</i> → <b>Add to grid</b>. It lands here, no SSH', 'How'),
+  ].filter(Boolean);
+  const lines = Array.from({ length: Math.min(TIPS_N, PHONE_TIPS.length) }, (_, i) => PHONE_TIPS[(tipsAt + i) % PHONE_TIPS.length])
+    .map(([text, href]) => `<button type="button" class="tp" data-href="${esc(href)}">${icon('spark')}<span>${text}</span>${icon('external')}</button>`)
+    .join('');
+  // The first card is the next step: it alone gets the ring and the solid button.
+  return `<h4><span>Tips</span><button class="tp-more" type="button" data-t="more">More tips</button></h4>${pinned.join('').replace('class="tp-card"', 'class="tp-card next"')}${lines}`;
+}
+
+function paintTips() {
+  const box = $('#tips');
+  const out = tipsHtml();
+  // Only when they changed: the list repaints often (spinners, refreshes), and a new node replays its press state.
+  if (box.dataset.h !== out) (box.innerHTML = out), (box.dataset.h = out);
+  box.hidden = !out;
+}
+
+function wireTips() {
+  $('#tips').addEventListener('click', (e) => {
+    const line = e.target.closest('[data-href]');
+    if (line) {
+      Ssh.openExternal({ url: line.dataset.href }).catch((err) => toast(err.message));
+      return;
+    }
+    const t = e.target.closest('[data-t]')?.dataset.t;
+    if (t === 'more') {
+      tipsAt = (tipsAt + TIPS_N) % PHONE_TIPS.length;
+      localStorage.setItem(TIPS_AT, String(tipsAt));
+      paintTips();
+    }
+    if (t === 'start') {
+      const m = firstOpen();
+      if (m) connect(m);
+    }
+    if (t === 'add') Ssh.openExternal({ url: ADD_GUIDE }).catch((err) => toast(err.message));
+    if (t === 'notify') {
+      // At once: the card goes, Android's own question takes over.
+      localStorage.setItem(NOTIFY_ASKED, '1');
+      paintTips();
+      window.wispAndroid.requestPermission();
+    }
+  });
+  window.addEventListener('wisp-notify-permission', (e) => {
+    toast(e.detail === 'granted' ? 'Notifications on: your agents can reach you now' : 'No notifications. Turn them on any time in Android’s settings for wisp');
+    paintTips();
+  });
 }
 
 function paintKeys() {
@@ -464,9 +547,13 @@ async function openGrid(m, cid = '') {
 }
 
 // Sign in to a grid: a code to allow in the browser, then this phone is a device there.
-// start.grid: sign in to that grid right away (the first screen's card), straight to the code.
+// start.grid: sign in to that grid right away, straight to the code. start.provider (the first
+// screen's GitHub and Google buttons): the browser goes straight to that provider, then to Allow
+// for this code (/activate), with no grid page or code to type in between.
 function cloudSheet(m = null, start = null) {
   const d = $('#gSheet');
+  const via = start?.provider || '';
+  const VIA = { github: 'GitHub', google: 'Google' }[via] || '';
   const body = $('#gBody');
   let flow = null; // { grid, code, url, interval, timer }
   const stop = () => {
@@ -477,12 +564,25 @@ function cloudSheet(m = null, start = null) {
     stop();
     $('#gTitle').textContent = m ? nameOf(m) : 'wisp Cloud';
     body.innerHTML = `${m ? `<p class="muted">${esc(m.handle)} on <b>${esc(hostOf(m.grid))}</b>${m.signedOut ? ' · signed out' : ''}</p>` : '<p class="muted">Your own wisp on a server: agents keep working when your computers sleep. Sign in to a wisp Grid (yours, your team’s, or a hosted one) with Google, GitHub or what it offers.</p>'}
-      <label class="field"><span>Grid</span><input id="gUrl" placeholder="wisp.example.com" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" value="${esc(m ? m.grid.replace(/^https:\/\//, '') : localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" required></label>
+      <label class="field"><span>Grid</span><input id="gUrl" placeholder="wisp.example.com" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" value="${esc(m ? m.grid.replace(/^https:\/\//, '') : start?.own ? '' : localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" required></label>
       ${error ? `<p class="err">${esc(error)}</p>` : ''}
       <div class="sheet-actions">${m ? '<button class="ghost danger" data-g="signout" type="button">Sign out</button>' : ''}<span class="grow"></span><button class="primary" type="submit">${m ? 'Sign in again' : 'Sign in'}</button></div>`;
   };
+  // app=android: once allowed, the grid's page links back here instead of to the account page,
+  // which would open your wisp in the browser.
+  const signInUrl = () =>
+    via
+      ? `${flow.grid}/auth/${via}/start?return=${encodeURIComponent(`/activate?code=${encodeURIComponent(flow.code)}&app=android`)}`
+      : `${flow.url}${flow.url.includes('?') ? '&' : '?'}app=android`;
+  const openSignIn = () => Ssh.openExternal({ url: signInUrl() }).catch((err) => toast(err.message));
   const waiting = () => {
-    body.innerHTML = `<p><b>Allow this phone</b></p><p class="muted">Open ${esc(hostOf(flow.grid))} in your browser, sign in, and allow the device showing this code.</p>
+    if (VIA) $('#gTitle').textContent = `Continue with ${VIA}`;
+    body.innerHTML = VIA
+      ? `<p><b>Finish in your browser</b></p><p class="muted">Sign in with ${VIA}, then tap <b>Allow</b> for this phone. The code there matches this one.</p>
+      <div class="code">${esc(flow.code)}</div>
+      <div class="row"><button class="primary" data-g="open" type="button">Open ${VIA} again</button></div>
+      <p class="wait"><span class="spin"></span>Waiting for you to allow it…</p>`
+      : `<p><b>Allow this phone</b></p><p class="muted">Open ${esc(hostOf(flow.grid))} in your browser, sign in, and allow the device showing this code.</p>
       <div class="code">${esc(flow.code)}</div>
       <div class="row"><button class="primary" data-g="open" type="button">Open the sign-in page</button><button class="ghost" data-g="copy" type="button">Copy code</button></div>
       <p class="wait"><span class="spin"></span>Waiting for you to allow it…</p>`;
@@ -547,6 +647,7 @@ function cloudSheet(m = null, start = null) {
       if (r.status >= 400 || !r.body.device_code) throw new Error(r.body.error || `${hostOf(grid)} isn’t a wisp Grid.`);
       Object.assign(flow, { code: r.body.user_code, url: r.body.verification_uri_complete || r.body.verification_uri, deviceCode: r.body.device_code, interval: Number(r.body.interval) || 5 });
       waiting();
+      if (via) openSignIn(); // the tap was the choice: no second one
       flow.timer = setTimeout(poll, flow.interval * 1000);
     } catch (err) {
       ask(err.message === 'Failed to fetch' ? `Can’t reach ${hostOf(grid)}` : err.message);
@@ -554,9 +655,7 @@ function cloudSheet(m = null, start = null) {
   };
   body.onclick = async (e) => {
     const a = e.target.closest('[data-g]')?.dataset.g;
-    // app=android: once allowed, the grid's page links back here instead of to the account page,
-    // which would open your wisp in the browser.
-    if (a === 'open' && flow?.url) await Ssh.openExternal({ url: `${flow.url}${flow.url.includes('?') ? '&' : '?'}app=android` }).catch((err) => toast(err.message));
+    if (a === 'open' && flow?.deviceCode) await openSignIn();
     if (a === 'copy' && flow) copy(flow.code, 'code');
     if (a === 'signout' && m) {
       gridPost(`${m.grid}/api/device/revoke`, {}, m.token).catch(() => {});
@@ -843,6 +942,7 @@ async function boot() {
 
 function wire() {
   sortOrder();
+  wireTips();
   paint();
   $('#machines').addEventListener('click', (e) => {
     // A tap on the row itself (not one of its buttons, nor the steps under it) does what its button does.
@@ -876,6 +976,12 @@ function wire() {
   $('#addMachine').onclick = () => {
     editMachine(null);
   };
+  // The first screen: GitHub or Google on the hosted grid, or another grid's address.
+  $('#intro').addEventListener('click', (e) => {
+    const p = e.target.closest('[data-p]')?.dataset.p;
+    if (p === 'other') cloudSheet(null, { own: true });
+    else if (p) cloudSheet(null, { grid: DEFAULT_GRID, provider: p });
+  });
   $('#addCloud').onclick = () => {
     cloudSheet();
   };
