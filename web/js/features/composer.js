@@ -662,9 +662,11 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   // Near the limit (features/hold.js): it waits for a yes, with the draft still in the box.
   const holdRow = n && $('.c-hold', n.card);
   const who = { agent: run?.agent || s.agent, account: run?.account ?? s.account ?? '' };
+  // An answer's buttons and spells send text that was never in the box: the hold keeps it.
+  const typed = !!ta && ta.value.trim() === text;
   if (!answering && !confirm) {
     const h = holdNow(who.agent, who.account, 'followUp');
-    if (h) return holdReply(id, ta, holdRow, { ...who, ...h });
+    if (h) return holdReply(id, ta, holdRow, { ...who, ...h }, typed ? null : text);
   }
   hideHold(holdRow);
   // Optimistic: the composer empties and the card goes to Working before the server answers
@@ -692,20 +694,23 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     if (team && !S.replyTeams.has(id)) setReplyTeam(id, team.team, team.preset);
     n?.tray?.restore(files);
     // The server knew better (another account, a number that moved): the same row, from its answer.
-    if (err.hold && holdRow && ta?.value.trim() === text) return holdReply(id, ta, holdRow, err.hold);
+    if (err.hold && holdRow) return holdReply(id, ta, holdRow, err.hold, ta?.value.trim() === text ? null : text);
     toastError(err);
   }
 }
 
 // The hold row over the reply box: Send anyway sends what's in the box then; Wait until schedules
 // it for the reset (Later), the box empties as a scheduled send's does.
-function holdReply(id, ta, row, h) {
+// held: the follow-up when it never was in the box (an answer's button, a spell); it goes as it
+// is (Wait until leaves the box and its files alone).
+function holdReply(id, ta, row, h, held = null) {
   if (!row) return;
   showHold(row, ta, h, {
     kind: 'followUp',
-    go: () => sendReply(id, ta?.value || '', { confirm: true }),
+    go: () => sendReply(id, held ?? ta?.value ?? '', { confirm: true }),
     wait: async (at) => {
       const n = S.nodes.get(id);
+      if (held !== null) return at && scheduleFollowUp(id, { at, text: held, attachments: [] });
       const text = (ta?.value || '').trim();
       if (!text || !at) return;
       const attachments = n?.tray ? await n.tray.ids() : [];

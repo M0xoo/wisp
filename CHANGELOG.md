@@ -19,6 +19,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **The setup card names no single agent.** A signed-out harness no longer reads *Sign in to Claude Code*: the card says *Sign in to a coding agent* (Claude Code, Codex or another) and offers opencode’s free models, which need no account, as a way to start.
 
+### Fixed
+
+- **Send anyway works for replies from an answer's buttons.** Near the usage limit, a follow-up sent with an answer's button (*Commit this and open a PR*) or by a spell showed the hold row, but **Send anyway** and **Wait until …** did nothing: they sent what was in the reply box, which was empty. They now send that follow-up.
+
 ## [0.43.0] - 2026-10-27
 
 ### Added
