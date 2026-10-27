@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-27
+
 ### Added
 
 - **Automations stop at: keep part of your plan for yourself.** Settings → Usage → Plan budget has a new row, **Automations stop at** (Off, 50%, 75% or 90%). Once an account's 5-hour or weekly window passes that mark, work nobody started by hand waits for the window to reset: crew check-ins on their schedule, triggers (schedules, GitHub watchers, task watchers), a goal's next round, and follow-ups an agent or wisp scheduled. Each one says so where it lives. A goal round and an agent's follow-up move to *Scheduled* at the reset (*Goal round 4 waits for your plan*) and go on by themselves. A crew member's page says *Waits for your plan · Thu 21:00* and its next check-in comes after the reset. A trigger's row says *Skipped 4h ago for your plan*, and a GitHub item it skipped is picked up on a later poll. Anything you start or schedule yourself always runs, and so do *Check in now*, *Run now*, *Resume goal* and *Send now*. Each bar in Plan budget has a mark at the line, and a window past it reads *Automations wait · resets Thu 21:00*. wisp only holds its own work back: it never goes past a provider's limit or switches accounts. Off by default. Spells: the `autoStop` setting, and the `settings.autoStop` part.
