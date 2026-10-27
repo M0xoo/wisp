@@ -111,6 +111,13 @@ try {
     // Pick the project: the chip next to "in".
     await p.getByText('No folder', { exact: true }).first().click();
     await p.getByText(path.basename(w.repo)).last().click();
+    // Side by side at 1000px a picked project adds Worktree: the harness keeps its name, Worktree folds to its icon.
+    await p.setViewportSize({ width: 1000, height: 900 });
+    await p.locator('#wtBtn').waitFor();
+    await p.waitForTimeout(200);
+    const rb = await p.evaluate(() => { const h = document.querySelector('.runners .rb-h'); return { h: h.textContent, cut: h.scrollWidth > h.clientWidth }; });
+    ok(!rb.cut, `harness name "${rb.h}" cut off in the launcher at 1000px`);
+    await p.setViewportSize({ width: 1440, height: 900 });
     const box = p.locator('#prompt');
     await box.click();
     await box.fill('fix the add bug from the launcher');
@@ -231,6 +238,8 @@ try {
     await p.locator('.palette input').waitFor();
     await p.locator('.palette input').fill('long task');
     await p.locator('.pal-row', { hasText: 'a long task' }).first().waitFor();
+    // The overlay fades in (modals.css): shot mid-fade, the home page shows through the palette.
+    await until(async () => (await p.evaluate(() => getComputedStyle(document.querySelector('.overlay:has(.palette)')).opacity)) === '1', { timeout: 2000, what: 'palette to fade in' });
     await p.shot('palette');
     await press(p, 'Escape');
     await until(async () => !(await p.locator('.palette').isVisible()), { timeout: 2000, what: 'palette to close on Esc' });

@@ -39,6 +39,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** the prompt box clears at once; a card appears in the sidebar immediately
   (optimistic), runs (live status), then finishes with its presentation (hero, `1 file +1 −1`).
   The task's details column shows the harness, project and `wisp/…` branch.
+  At 1000px (side by side) with the project picked, the harness pill keeps its name (`Auto`, not `A…`):
+  Worktree folds to its branch icon first.
 - **Automated**
 
 ### WEB-05 · Live updates without reload
