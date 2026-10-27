@@ -4,7 +4,7 @@
 
 import fs from 'node:fs';
 import { listAgents } from '../adapters/index.js';
-import { GOALS, classify } from '../router.js';
+import { GOALS, armKey, classify } from '../router.js';
 import { createWorktree, repoRoot } from '../git.js';
 import { Pipeline, autoSettings } from '../pipeline.js';
 import { scanProject, scoutTask } from '../scout.js';
@@ -23,6 +23,7 @@ export function createAuto(app) {
     const agents = await listAgents(opts);
     if (n < detecting) return agentsHere.length ? agentsHere : agents;
     agentsHere = agents;
+    if (!backfilled) (backfilled = true), backfill();
     const added = router.sync(agents);
     if (added.length) app.broadcast('router', { added });
     return agents;
@@ -43,7 +44,8 @@ export function createAuto(app) {
 
   const opts = () => {
     const r = store.config.defaults.router || {};
-    return { explore: r.explore !== 'off', allowed: Array.isArray(r.allowed) && r.allowed.length ? r.allowed : null };
+    const list = (x) => (Array.isArray(x) ? x.filter((v) => typeof v === 'string') : []);
+    return { explore: r.explore !== 'off', allowed: Array.isArray(r.allowed) && r.allowed.length ? r.allowed : null, blocked: list(r.blocked), prefer: list(r.prefer), habits: r.habits !== 'off' };
   };
   // The allowed harnesses narrow Auto's pick wherever one of them can run. A place that has none of
   // them (a machine with other harnesses signed in) gets what it has: the list is set on this
@@ -54,8 +56,24 @@ export function createAuto(app) {
   };
   const goalOf = (model) => (GOALS[model] ? model : GOALS[store.config.defaults.models?.auto] ? store.config.defaults.models.auto : 'balanced');
 
+  // Every pick reads Settings → Auto: here, in the pipeline's hand-overs, for subagents.
+  router.prefs = () => {
+    const { explore, blocked, prefer, habits } = opts();
+    return { explore, blocked, prefer, habits, allowed: allowedAt(agentsHere) };
+  };
+  // Your launches from before Auto learned what you pick: read once, at the first look.
+  const backfill = () => {
+    try {
+      const n = router.backfill(store.all?.() || []);
+      if (n) app.broadcast('router', {});
+    } catch (err) {
+      console.warn(`wisp: router backfill: ${err.message}`);
+    }
+  };
+  let backfilled = false;
+
   // Subagents set to Auto are routed on their first task, from this computer's harnesses.
-  app.runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf(), ...opts(), allowed: allowedAt(agentsHere) });
+  app.runner.routeAuto = (prompt) => router.choose({ prompt, agents: agentsHere, goal: goalOf() });
 
   // A routed session's outcome so far, from its summary: works the same for sessions on machines.
   // Follow-ups after the first turn count as corrections; a merged or closed PR settles it, unless
@@ -71,6 +89,12 @@ export function createAuto(app) {
       closed: pr === 'CLOSED' || undefined,
       switched: sum.route?.switched || undefined,
     });
+    // Moved to another harness or model in a follow-up: that one is what you wanted, once.
+    const route = router.route(sum.id);
+    if (sum.route?.switched && !route.manual && !route.signals.switchedTo && sum.agent && sum.agent !== 'auto') {
+      router.observe({ agent: sum.agent, model: sum.model || '', effort: sum.effort || '', type: route.type, weight: 2 });
+      router.signal(sum.id, { switchedTo: armKey(sum.agent, sum.model || '', sum.effort || '') });
+    }
   };
 
   // agent 'auto' (and compare entries set to it) → a harness, model and thinking level picked by the router from
@@ -108,7 +132,9 @@ export function createAuto(app) {
     const out = want
       .map((r, i) => {
         if (r.agent !== 'auto') return r;
-        const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important || (best2 && i === 0), exclude: taken, needDelegate: i === 0 && team, scouted: scout?.by ? scout : null, ...opts(), allowed });
+        // The preview you saw is what runs, if it still can (pin).
+        const pin = i === 0 && typeof body.autoPin === 'string' ? body.autoPin : null;
+        const pick = router.choose({ prompt: body.prompt, attachments: (body.attachments || []).length, agents, goal: goalOf(r.model), important: !!body.important || (best2 && i === 0), exclude: taken, needDelegate: i === 0 && team, scouted: scout?.by ? scout : null, allowed, pin });
         if (!pick) {
           if (best2 && i === 1) return null; // only one option to pick from: a single run then
           throw bad(place ? `Auto found no harness installed and signed in on ${place}. Sign in to one there (Run with → pick it).` : 'Auto found no installed harness to run this on.');
@@ -119,6 +145,24 @@ export function createAuto(app) {
       .filter(Boolean);
     const autoStrategy = best2 && out.length === 2 ? 'best2' : out.length > 1 ? 'compare' : 'single';
     return { ...body, ...out[0], compare: out.slice(1), scout, autoStrategy };
+  };
+
+  // What Auto would run for this prompt, before you send it: the same pick every time (no dice),
+  // why, what else it weighed, and a better arm it would suggest. Cheap: no scout, no worktree.
+  const preview = async ({ prompt = '', attachments = 0, goal, team = false }, agents, { place = '' } = {}) => {
+    if (place) router.sync(agents, { more: true });
+    const pick = router.choose({ prompt, attachments, agents, goal: goalOf(goal), needDelegate: team, allowed: allowedAt(agents), preview: true });
+    if (!pick) return { pick: null, why: place ? `Nothing Auto may use is signed in on ${place}` : 'Nothing Auto may use can run right now' };
+    const { route } = pick;
+    return { pick: { agent: pick.agent, model: pick.model, effort: pick.effort, key: pick.key, label: pick.label }, goal: route.goal, type: route.type, size: route.size, chance: route.chance, usd: route.usd, minutes: route.minutes, tier: route.tier, why: route.why, alternatives: route.alternatives, suggest: route.suggest || null };
+  };
+
+  // A launch you picked yourself after Auto's preview showed something else.
+  const overrode = (body, chosen) => {
+    const o = body.autoOverride;
+    if (!o || typeof o !== 'object' || typeof o.key !== 'string' || !chosen?.agent || chosen.agent === 'auto') return;
+    router.override({ type: typeof o.type === 'string' ? o.type : classify(body.prompt).type, auto: o.key, chose: armKey(chosen.agent, chosen.model || '', chosen.effort || ''), prompt: body.prompt });
+    app.telemetry?.track('auto_override', { type: o.type, from: o.key.split(':')[0], to: chosen.agent, sameHarness: o.key.split(':')[0] === chosen.agent });
   };
 
   // Escalation: the same task again on a stronger pick, in its own worktree from the same base,
@@ -190,7 +234,7 @@ export function createAuto(app) {
       .map((p) => ({ id: p.id, name: p.name, color: p.color, testCommand: p.testCommand || '', detected: scanProject(p.path, { ...p, testCommand: '' }).tests }));
 
   // What the Auto view shows: goals, settings, and what the router learned.
-  const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { explore: opts().explore, allowed: opts().allowed, ...autoSettings(store.config.defaults) }, projects: projects(), ...router.report(await agents()) });
+  const view = async () => ({ goals: GOALS, goal: goalOf(), settings: { ...opts(), ...autoSettings(store.config.defaults) }, projects: projects(), ...router.report(await agents()) });
 
-  return { detect, agents, listed, here: () => agentsHere, opts, goalOf, signals, resolve, view };
+  return { detect, agents, listed, here: () => agentsHere, opts, goalOf, signals, resolve, preview, overrode, view };
 }

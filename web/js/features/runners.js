@@ -113,12 +113,16 @@ export function savedAccount(id) {
   return want && want !== 'auto' && accountsOf(id).some((a) => a.id === want) ? want : '';
 }
 
-// Why Auto picked what it picked, in one line.
+// Why Auto picked what it picked, in one line. The server's why (server/router.js whyOf) when the
+// route has one; "as previewed" reads as part of the pick, not one more reason.
 function routeTip(r) {
   const goal = AUTO_GOALS.find((g) => g.id === r.goal)?.label || 'Balanced';
   const record = r.n ? `${Math.round(r.chance * 100)}% on your ${r.type} tasks (${r.n})` : `${Math.round(r.chance * 100)}% expected on ${r.type} tasks`;
-  const why = r.trying ? 'new model, trying it out' : r.explored ? 'trying an alternative to learn' : record;
-  return `Auto · ${goal} → ${r.label} · ${why}${r.usd ? ` · ~$${r.usd.toFixed(2)}` : ''}`;
+  // "High thinking for Balanced" is already in the label and the goal: dropped here.
+  const parts = r.why ? r.why.split(' · ').filter((x) => x !== 'as previewed' && !/ thinking for /.test(x)) : [r.trying ? 'new model, trying it out' : r.explored ? 'trying an alternative to learn' : record];
+  const pinned = r.pinned || r.why?.includes('as previewed');
+  const sug = r.suggest?.label ? ` · worth trying ${r.suggest.label}` : '';
+  return `Auto · ${goal} → ${r.label}${pinned ? ', as previewed' : ''}${parts.length ? ` · ${parts.join(' · ')}` : ''}${r.usd ? ` · ~$${r.usd.toFixed(2)}` : ''}${sug}`;
 }
 
 // The model is remembered per harness (ids aren't portable between them).

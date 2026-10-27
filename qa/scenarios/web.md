@@ -43,6 +43,17 @@ Every page check also fails on an uncaught page error or a `console.error`.
   Worktree folds to its branch icon first.
 - **Automated**
 
+### WEB-04b · Auto shows its pick before you send
+- **Preconditions:** Auto is the harness in the launcher; at least two harnesses installed.
+- **Steps:** type a prompt; change it (`fix the crash` → `restyle the button`); click the pick next
+  to Auto; choose another option in the popover; send.
+- **Expected:** the pick (logo + *Model · Level*) shows within a moment and updates as you type,
+  without the launcher changing width or flashing empty. The popover says why, lists what else Auto
+  weighed and may suggest one. Choosing an option switches the launcher to it; the task runs on
+  exactly that, and Settings → Auto counts one more correction. Sent on Auto without choosing,
+  the task runs on what the preview showed (`route.pinned`).
+- **Suite** (`test/router.test.js`), **Manual** (the popover)
+
 ### WEB-05 · Live updates without reload
 - **Steps:** with the page open, launch a task through the API (`POST /api/sessions`).
 - **Expected:** its card appears and finishes in the open page with no reload (SSE).

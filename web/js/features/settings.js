@@ -148,6 +148,7 @@ export function openSettings(opts) {
         <section class="sx-pane" data-pane="auto">
           <div class="sx-group">
             ${row('Goal', 'What Auto optimises for. Also in the launcher, next to Auto', `<span class="pk-seg ro-goal">${AUTO_GOALS.map((g) => `<button data-goal="${g.id}" title="${esc(g.hint)}">${g.label}</button>`).join('')}</span>`)}
+            ${row('Learn from your picks', 'Auto starts from the harness, model and level you pick yourself for each kind of task', '<button class="switch" id="roHabits" role="switch"></button>')}
             ${row('Try new models', 'A new model or harness gets a few tasks that aren’t marked important before Auto relies on it', '<button class="switch" id="roExplore" role="switch"></button>')}
             ${row('Harnesses it may use', 'Leave all off to let Auto use every one you have. A computer with none of these on uses what it has', '<span class="ro-allowed"></span>')}
           </div>
@@ -602,6 +603,7 @@ export function openSettings(opts) {
     if (!r || !node.isConnected) return;
     $$('.ro-goal button', node).forEach((b) => b.classList.toggle('on', b.dataset.goal === r.goal));
     $('#roExplore', node).setAttribute('aria-checked', r.settings.explore);
+    $('#roHabits', node).setAttribute('aria-checked', r.settings.habits !== false);
     $('#roCheck', node).setAttribute('aria-checked', r.settings.check);
     $('#roEscalate', node).setAttribute('aria-checked', r.settings.escalate);
     $('#roBest2', node).setAttribute('aria-checked', r.settings.best2);
@@ -613,9 +615,9 @@ export function openSettings(opts) {
     $('.ro-allowed', node).innerHTML = [...new Map(anywhere.map((a) => [a.id, a])).values()]
       .map((a) => `<button class="chip-tog${allowed.includes(a.id) ? ' on' : ''}" data-id="${esc(a.id)}" aria-pressed="${allowed.includes(a.id)}" title="${esc(a.name)}"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}</button>`)
       .join('');
-    $('.ro-hint', node).textContent = r.learned
-      ? `${r.learned} task${r.learned === 1 ? '' : 's'} learned from · ${r.arms.filter((a) => a.state !== 'gone').length} harness · model · level options`
-      : `Nothing of yours yet · starting from wisp-bench (${r.priors.version})`;
+    const n = (x, one, many = `${one}s`) => `${x} ${x === 1 ? one : many}`;
+    const mine = [r.picks && n(r.picks, 'pick of yours', 'picks of yours'), r.corrections && n(r.corrections, 'correction'), r.learned && n(r.learned, 'run learned from', 'runs learned from')].filter(Boolean);
+    $('.ro-hint', node).textContent = mine.length ? mine.join(' · ') : 'Nothing of yours yet · starting from public benchmarks';
   };
   const patchAuto = async (body) => {
     try {
@@ -634,7 +636,7 @@ export function openSettings(opts) {
       patchAuto({ goal: b.dataset.goal });
     }
   };
-  for (const [id, key] of [['#roExplore', 'explore'], ['#roCheck', 'check'], ['#roEscalate', 'escalate'], ['#roBest2', 'best2']]) {
+  for (const [id, key] of [['#roHabits', 'habits'], ['#roExplore', 'explore'], ['#roCheck', 'check'], ['#roEscalate', 'escalate'], ['#roBest2', 'best2']]) {
     $(id, node).onclick = (e) => {
       const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
       e.currentTarget.setAttribute('aria-checked', on);

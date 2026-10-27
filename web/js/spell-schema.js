@@ -106,6 +106,15 @@ export const PARTS = {
   'launcher.where': '#whereBtn',
   'launcher.mode': '#mode',
   'launcher.harness': '#runner',
+  // Auto's preview on the harness pill (what it will run for this prompt), and its popover: the
+  // whole panel, the other picks it weighed and the one it suggests trying.
+  'launcher.autoPreview': '#autoPv',
+  'autoPreview.panel': '.auto-pop',
+  'autoPreview.alternatives': '.auto-pop .ap-alt',
+  'autoPreview.suggest': '.auto-pop .ap-sug',
+  // Settings → Auto: the benchmark sources Auto starts from, and each row's Never / Prefer toggles.
+  'router.sources': '.router-modal .ro-sources',
+  'router.rules': '.router-modal .ro-rule',
   // Accounts (a harness with more than one subscription): the account on a harness · model button
   // (launcher, follow-up box), and the Account row under Thinking in the harness picker.
   'runner.account': '.rb-a',

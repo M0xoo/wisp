@@ -7,7 +7,7 @@ export const runProps = (s, t) => ({ agent: s.agent, model: s.model || 'default'
 
 // Auto's choice, as fixed values only: never the prompt.
 const routeProps = (s) =>
-  s.route ? { routed: true, routeGoal: s.route.goal, routeType: s.route.type, routeSize: s.route.size, routeExplored: !!s.route.explored, routeTrying: !!s.route.trying, routePropensity: s.route.propensity } : {};
+  s.route ? { routed: true, routeGoal: s.route.goal, routeType: s.route.type, routeSize: s.route.size, routeExplored: !!s.route.explored, routeTrying: !!s.route.trying, routePropensity: s.route.propensity, routeTier: s.route.tier, routeTaste: s.route.taste, routePinned: !!s.route.pinned, routeSuggested: !!s.route.suggest, routeEffort: s.route.effort || 'default' } : {};
 
 export function trackTurns({ runner, telemetry }) {
   runner.on('started', ({ session, turn }) => telemetry.track('turn_started', { ...runProps(session, turn), attachments: turn.attachments.length }));

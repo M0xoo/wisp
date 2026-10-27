@@ -38,6 +38,7 @@ import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, timeMenu, whenTip } from './later.js';
 import { launcherGoal, launcherGoalHtml } from './goal.js';
 import { hideHold, holdNow, showHold } from './hold.js';
+import { autoPreview } from './auto-preview.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -128,6 +129,7 @@ export function renderLauncher() {
       <button class="mode-btn" id="mode" aria-haspopup="menu"></button>
       <div class="runners">
         <button class="runner-btn" id="runner" title="Harness and model" aria-haspopup="dialog"></button>
+        <button class="auto-pv" id="autoPv" aria-haspopup="dialog" hidden></button>
         <button class="vs-btn vs-add" id="compareBtn" aria-label="Compare">${icon('plus')}</button>
       </div>
       <button class="tog-btn team-btn" id="teamBtn" aria-haspopup="dialog"></button>
@@ -146,12 +148,13 @@ export function renderLauncher() {
 
   const ta = mentionBox($('#prompt', box));
   slashMenu(ta, ta.parentNode, HOME_SLASH); // before the Enter below: picking a command doesn't launch
-  const tray = attachTray();
+  let pv = null; // Auto's preview (auto-preview.js), once the pickers below exist
+  const tray = attachTray({ onChange: () => pv?.refresh() });
   ta.parentNode.before(tray.node); // before the mention box's wrapper
   acceptFiles(box, ta, tray);
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
-  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen()));
+  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen(), pv?.refresh()));
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
   // The phone (or any touch-only screen) has no keyboard shortcut to advertise.
   const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta || MOBILE || matchMedia('(hover: none)').matches
@@ -197,7 +200,7 @@ export function renderLauncher() {
   const runnerBtn = $('#runner', box);
   const paintRunner = () => {
     paintRunnerBtn(runnerBtn, agent?.id, curModel, curEffort, curAccount);
-    runnerBtn.title = compare.length ? runnerTip(agent?.id, curModel, curEffort, curAccount) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
+    runnerBtn.title = compare.length || agent?.id === 'auto' ? runnerTip(agent?.id, curModel, curEffort, curAccount) : `Harness, model and thinking level${curEffort ? `\nThinking: ${effortLabel(curEffort)}` : ''}`;
   };
 
   launcherGoal(box, ta);
@@ -233,6 +236,7 @@ export function renderLauncher() {
       teamPreset = preset;
       Object.assign(S.config.defaults, { subagents: team, teamPreset });
       paintTeam();
+      pv?.refresh({ now: true });
       api('/config', { method: 'PATCH', body: { defaults: { subagents: team, teamPreset } } }).catch(() => {});
     });
 
@@ -291,7 +295,15 @@ export function renderLauncher() {
     });
   });
   paintCompare();
+  // Auto's preview was on screen and you ran something else: the launch says so, once, and Auto
+  // learns from it (autoOverride). Back to Auto forgets it.
+  let override = null; // { key, type }
+  let backToAuto = null; // the goal to return to after a one-task pick from Auto's popover
   const pickRun = (id, model, effort, account = savedAccount(id)) => {
+      const shown = pv?.shown();
+      if (id === 'auto') override = null;
+      else if (shown) override = { key: shown.pick.key, type: shown.type };
+      backToAuto = null;
       agent = harnessesAt(launch.where, { auto: true }).find((a) => a.id === id);
       curModel = model;
       curEffort = effort;
@@ -305,8 +317,29 @@ export function renderLauncher() {
       // The account only once the harness has a choice of them; 'auto' keeps "let wisp pick" explicit.
       const accounts = account || d.accounts?.[id] ? { ...d.accounts, [id]: account || 'auto' } : d.accounts;
       Object.assign(d, { agent: id, model, models, effort, efforts, accounts });
+      pv?.refresh({ now: true });
       api('/config', { method: 'PATCH', body: { defaults: { agent: id, model, models, effort, efforts, ...(accounts && { accounts }) } } }).catch(() => {});
   };
+  pv = autoPreview($('#autoPv', box), {
+    read: () => ({ on: agent?.id === 'auto', prompt: ta.value, attachments: tray.count, goal: curModel || 'balanced', team: team.length > 0 && canLead('auto'), machine: launch.where[0] || '' }),
+    back: ta,
+    // One of Auto's other picks, from its popover: this task runs on it (Undo goes back), and the
+    // launcher is back on Auto for the next one, so a correction never drops you out of Auto.
+    pick: (c) => {
+      const goal = curModel;
+      pickRun(c.agent, c.model || '', c.effort || '');
+      backToAuto = goal || 'balanced';
+      toast(`This task runs on ${esc(c.label)} · Auto learns from it`, {
+        action: {
+          label: 'Undo',
+          run: () => {
+            backToAuto = null;
+            pickRun('auto', goal, '');
+          },
+        },
+      });
+    },
+  });
   runnerBtn.onclick = () => runnerPicker(runnerBtn, { agent: agent?.id, model: curModel, effort: curEffort, account: curAccount, savedModel, savedEffort, places: launch.where, auto: true, back: ta }, pickRun);
   // Spells: set the pickers (setLaunch), or launch once with other settings (launchWith).
   box.spellSet = (v) => {
@@ -485,6 +518,9 @@ export function renderLauncher() {
     const cmp = compare;
     const runner = over?.agent ? { agent: over.agent, model: over.model ?? savedModel(over.agent), effort: over.effort ?? '', account: savedAccount(over.agent) } : { agent: agent?.id || 'claude', model: curModel, effort: curEffort, account: curAccount };
     const launchMode = over?.mode || curMode;
+    // What Auto showed is what runs (autoPin); something else picked after it showed is a correction.
+    const pin = !over && runner.agent === 'auto' ? pv.shown()?.pick.key : undefined;
+    const corrected = !over && runner.agent !== 'auto' ? override : null;
     const goal = (!typedGoal && box.goal?.()) || undefined; // Done when: the task keeps going until it holds
     const goalBack = box.goalTaken?.(goal) || (() => {});
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
@@ -519,7 +555,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal, confirmLimit: confirm || undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined },
           }),
         ),
       );
@@ -544,6 +580,12 @@ export function renderLauncher() {
         if (held && ta.value.trim() === prompt) holdLaunch(held, over);
         return;
       }
+      if (corrected && override === corrected) override = null;
+      if (backToAuto) {
+        const goal = backToAuto;
+        backToAuto = null;
+        pickRun('auto', goal, '');
+      }
       askNotify();
     } catch (err) {
       for (const id of pending) S.sessions.delete(id);
@@ -562,6 +604,7 @@ export function renderLauncher() {
   // pick if one of them still has it, else move to one that's installed there.
   box.placesChanged = () => {
     renderSetup();
+    pv.refresh({ now: true });
     const here = harnessesAt(launch.where, { auto: true }); // Auto works anywhere: it picks from what's there
     // Accounts come with the harness list (and go with Settings): a pick that's gone falls back to the remembered one.
     if (!accountOf(agent?.id, curAccount)) curAccount = savedAccount(agent?.id);

@@ -219,7 +219,7 @@ export function summarize(s, store) {
         }
       : null,
     // Auto: what it picked and why, for the card's tooltip.
-    route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, effort: s.route.effort, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives, ...(s.route.switched && { switched: true }) } : null,
+    route: s.route ? { goal: s.route.goal, type: s.route.type, label: s.route.label, effort: s.route.effort, chance: s.route.chance, n: s.route.n, usd: s.route.usd, explored: s.route.explored, trying: s.route.trying, alternatives: s.route.alternatives, why: s.route.why, suggest: s.route.suggest, pinned: s.route.pinned, ...(s.route.switched && { switched: true }) } : null,
   };
 }
 

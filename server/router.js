@@ -1,20 +1,26 @@
 // Auto: wisp picks the harness, model and thinking level for a task, and learns from how it went.
 //
 // Every harness × model × thinking level the user has is an "arm" (claude:opus:high; no level is
-// the harness's default). The goal picks the band of levels: Cheap runs low, Balanced the default
-// or medium, Best high. Balanced and Best both run frontier models when you have one, so the
-// level is what tells them apart. Within the band the levels are learned like models are, and a
-// model's record at its other levels counts half. For each kind of task (bug, ui, docs, …) wisp
-// keeps a Beta(wins, losses) estimate per arm, stacked from three sources: the shipped priors
-// (./router-priors.json, from wisp-bench), the user's history on every kind of task, and the
-// history on this kind. A launch draws a chance of success from each estimate (Thompson
-// sampling: arms with little data sometimes draw high and get tried) and picks the best value
-// for the goal: value × chance − expected $ − a price on your waiting time.
+// the model's default). Before your first task, what Auto knows comes from public benchmarks
+// (./router-priors.json, built by scripts/priors.mjs from scripts/priors-sources.json), each model
+// and level placed against Claude Code's default, Opus 5.5 at medium. claude:, claude:opus and
+// claude:opus:medium are one run under three names (canon()), with one record.
+//
+// It then learns two things from you. What you pick yourself is your taste: every launch you make
+// with a harness of your choosing counts, per kind of task (bug, ui, docs, …), and Auto starts from
+// your habits instead of second-guessing them. How runs went is the record: a Beta(wins, losses)
+// per arm and kind, stacked from the benchmarks, your history on every kind of task and on this
+// kind. A launch takes each arm's chance of success (drawn, Thompson-style, unless the pick is a
+// preview, important or exploring is off), adds your taste for it, and picks the best value for
+// the goal: value × chance − expected $ − a price on your waiting time. Never pick and Prefer
+// rules from Settings come on top. A better arm that isn't your habit is offered, not run: the
+// pick carries it as a suggestion.
 //
 // What happened afterwards is the reward, strongest signal first: switched to another harness or
-// model in a follow-up (0.1), merged (1) / PR closed (0.2),
-// 👍 (1) / 👎 (0), rolled back (0.1), else the presentation's hero (done 0.6, partial 0.3,
-// blocked 0.1, error 0) less 0.1 per follow-up. A later, stronger signal replaces an earlier one.
+// model in a follow-up (0.1), merged (1) / PR closed (0.2), 👍 (1) / 👎 (0), rolled back (0.1),
+// else the presentation's hero (done 0.6, partial 0.3, blocked 0.1, error 0) less 0.1 per
+// follow-up. A later, stronger signal replaces an earlier one. Runs you picked yourself count half.
+// Changing Auto's preview before sending counts against its pick and for yours.
 //
 // State lives in ~/.wisp/router.json; nothing leaves the machine except the anonymous telemetry
 // fields the caller adds. Routes are recorded for local sessions and for sessions launched on
@@ -23,22 +29,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeJsonAtomic } from './util.js';
+import { LEVEL_COST, LEVEL_TIME } from './priors-build.js';
 
 const PRIORS = JSON.parse(fs.readFileSync(new URL('./router-priors.json', import.meta.url), 'utf8'));
+export const PRIOR_INFO = { version: PRIORS.version, source: PRIORS.source, sources: PRIORS.sources };
 
 export const GOALS = {
   cheap: { label: 'Cheap', value: 1, hint: 'Lowest cost that still gets it done' },
-  balanced: { label: 'Balanced', value: 5, hint: 'Frontier models at default or medium thinking' },
+  balanced: { label: 'Balanced', value: 5, hint: 'Frontier models as their makers ship them, a level up where it pays' },
   best: { label: 'Best', value: 50, hint: 'Frontier models at high thinking; cost only breaks ties' },
 };
 export const TYPES = ['bug', 'feature', 'ui', 'test', 'refactor', 'docs', 'release', 'question'];
 const MINUTE_USD = 0.05; // what a minute of waiting costs you, in the utility
-const PRIOR_CAP = 4; // shipped priors count as at most this many tasks, so your own soon outweigh them
+const PRIOR_CAP = 8; // benchmarks count as at most this many tasks, so your own soon outweigh them
 const ALL_WEIGHT = 0.5; // your history on other kinds of task counts half
 const HALF_LIFE_MS = 30 * 864e5; // models change: older outcomes fade
-const NEW_ARM_SHARE = 0.25; // how often a new arm on probation may take an exploring slot
+const TASTE_HALF_LIFE_MS = 60 * 864e5; // habits change slower than models do
+const TASTE = 0.25; // your habit is worth up to this much chance of success
+const PREFER = 0.1; // a Prefer rule from Settings
+const MANUAL_WEIGHT = 0.5; // a run you picked yourself teaches the record half as much
+const SUGGEST_MARGIN = 0.04; // how much better (in chance) an arm must look to be suggested
 const LEVEL_WEIGHT = 0.5; // the same model's record at its other thinking levels counts half
 const MAX_ROUTES = 2000;
+const MAX_PAIRS = 500;
 
 // --- task features ---------------------------------------------------------------------------
 
@@ -61,30 +74,42 @@ export function classify(prompt = '', { attachments = 0 } = {}) {
   return { type, size: score < 1 ? 'S' : score < 4 ? 'M' : 'L' };
 }
 
-// --- arms ------------------------------------------------------------------------------------
+// --- arms ---------------------------------------------------------------------------------
 
-// Thinking levels, by how hard they think, against the harness's default (''): a shift in the
-// chance of success and multipliers on cost and time. Only a starting guess; outcomes take over.
+// Thinking levels against medium: a shift in the chance of success and multipliers on cost and
+// time. From Anthropic's Opus 5.5 sweep (low −5 pts at 0.52× the cost, high +2.5 pts at 1.38×,
+// xhigh +4 at 3.5×); only for models the benchmarks don't cover, and outcomes take over.
 export const EFFORTS = {
-  minimal: { chance: -0.1, usd: 0.55, min: 0.65 },
-  low: { chance: -0.04, usd: 0.6, min: 0.7 },
-  medium: { chance: -0.01, usd: 0.85, min: 0.85 },
-  '': { chance: 0, usd: 1, min: 1 },
-  high: { chance: 0.02, usd: 1.3, min: 1.3 },
-  xhigh: { chance: 0.02, usd: 1.7, min: 1.6 },
-  max: { chance: 0.03, usd: 2.2, min: 2 },
+  minimal: { chance: -0.08, usd: LEVEL_COST.minimal, min: LEVEL_TIME.minimal },
+  low: { chance: -0.05, usd: LEVEL_COST.low, min: LEVEL_TIME.low },
+  medium: { chance: 0, usd: 1, min: 1 },
+  high: { chance: 0.03, usd: LEVEL_COST.high, min: LEVEL_TIME.high },
+  xhigh: { chance: 0.04, usd: LEVEL_COST.xhigh, min: LEVEL_TIME.xhigh },
+  max: { chance: 0.06, usd: LEVEL_COST.max, min: LEVEL_TIME.max },
 };
-// The levels each goal may run at, where the harness has them; none of them → the default.
-const BANDS = { cheap: ['minimal', 'low'], balanced: ['', 'medium'], best: ['high', 'xhigh'] };
-export const levelsFor = (efforts = [], goal = 'balanced') => {
-  const have = (BANDS[goal] || BANDS.balanced).filter((e) => e === '' || efforts.includes(e));
-  return have.length ? have : [''];
+const ORDER = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+// The levels each goal may run at, where the harness has them ('' is the model's own default).
+// Cheap thinks low. Balanced runs the model as its makers ship it, or one step up: Sonnet runs at
+// medium in Claude Code but scores 15 points more at high, so Balanced may take it there. Best
+// thinks hard; xhigh costs 2.5× high for a point or two, so it has to earn its place.
+export const levelsFor = (efforts = [], goal = 'balanced', def = '') => {
+  const has = (e) => efforts.includes(e);
+  let band;
+  if (goal === 'cheap') band = ['minimal', 'low'].filter(has);
+  else if (goal === 'best') band = ['high', 'xhigh'].filter(has);
+  else {
+    const up = ORDER.slice(ORDER.indexOf(def || 'medium') + 1).find(has);
+    band = ['', ...(up && up !== 'xhigh' && up !== 'max' ? [up] : [])];
+  }
+  // The default named outright is the same run as '': keep one.
+  if (def && band.includes('') && band.includes(def)) band = band.filter((e) => e !== def);
+  return band.length ? band : [''];
 };
 // Some harnesses bake the level into the model id (Antigravity's gemini-4-argon-high, no separate
 // selector): there the goal picks among a model's variants the same way.
 const SUFFIX = /-(minimal|low|medium|high|xhigh|max)$/;
 const NAMED = { cheap: ['minimal', 'low'], balanced: ['medium'], best: ['high', 'xhigh', 'max'] };
-const stemOf = (k) => baseOf(k).replace(SUFFIX, '');
+const stemOf = (k) => baseOf(canon(k)).replace(SUFFIX, '');
 function byNamedLevel(cands, goal) {
   const want = NAMED[goal] || NAMED.balanced;
   const named = (c) => !c.efforts.length && c.model.match(SUFFIX)?.[1];
@@ -113,18 +138,40 @@ export const baseOf = (k) => {
 // A level in the id is the same model too: gemini-4-argon-high starts from what -medium showed.
 const family = (k) => k.replace(SUFFIX, '').replace(/[-.]?\d+([.-]\d+)*/g, '');
 
-// How strong a model is, roughly: 1 small/fast/free, 2 everyday, 3 frontier. Best runs on tier 3
-// only, Balanced on the strongest tier that can run (frontier when you have one), and hand-overs
-// step up a tier.
-// The shipped priors come from a small pilot that flattered cheap models; tiers keep them honest.
-const FRONTIER_DEFAULTS = new Set(['codex:']); // a harness whose default model is its frontier one
+// What an arm really runs: the harness's default model named (Claude Code runs Opus) and the
+// model's default level named (Opus at medium). claude:, claude:opus and claude:opus:medium are
+// one run under three names, and share one record.
+export function canon(key) {
+  const { agent, model, effort } = splitKey(key);
+  const m = model || PRIORS.aliases?.[agent] || '';
+  const e = effort || PRIORS.defaults?.[armKey(agent, m)] || '';
+  return armKey(agent, m, e);
+}
+// The level an arm thinks at ('' when nobody knows), and the arm without it.
+const levelOf = (k) => splitKey(canon(k)).effort || splitKey(k).model.match(SUFFIX)?.[1] || '';
+const stemKey = (k) => {
+  const { agent, model } = splitKey(canon(k));
+  return armKey(agent, model.replace(SUFFIX, ''));
+};
+
+// How strong a model is: 1 small or free, 2 everyday, 3 frontier. From the benchmarks
+// (router-priors.json tiers) where they cover it, else from its name. Best runs on tier 3 only,
+// Balanced on the strongest tier that can run, and hand-overs step up a tier.
 export function tierOf(key) {
-  const { agent, model } = splitKey(key);
-  const m = model.toLowerCase();
-  // Whole name segments only: "gemini" is not "mini".
-  const seg = m.split(/[-/.:_]/);
-  if (seg.some((x) => ['haiku', 'flash', 'mini', 'nano', 'lite', 'small', 'free', 'fast', 'low'].includes(x))) return 1;
-  if (seg.some((x) => ['opus', 'argon', 'ultra', 'pro', 'xhigh', 'high', 'max'].includes(x)) || FRONTIER_DEFAULTS.has(key) || (agent === 'grok' && /^grok-\d/.test(m))) return 3;
+  const c = baseOf(canon(key));
+  const stem = c.replace(SUFFIX, '');
+  const tiers = PRIORS.tiers || {};
+  const { agent, model } = splitKey(c);
+  const seg = model.toLowerCase().split(/[-/.:_]/); // whole segments only: "gemini" is not "mini"
+  const named = (list) => seg.some((x) => list.includes(x));
+  const SMALL = ['haiku', 'flash', 'mini', 'nano', 'lite', 'small', 'free', 'fast', 'low'];
+  if (tiers[c] ?? tiers[stem]) return tiers[c] ?? tiers[stem];
+  // A variant the benchmarks don't cover: its name first (grok-4.7-build-fast is small), then its
+  // family's tier (grok-4.6 is grok-4.7's).
+  if (named(SMALL)) return 1;
+  const fam = Object.entries(tiers).find(([k]) => splitKey(k).agent === agent && family(k) === family(stem))?.[1];
+  if (fam) return fam;
+  if (named(['opus', 'argon', 'ultra', 'pro', 'xhigh', 'high', 'max'])) return 3;
   return 2;
 }
 
@@ -148,16 +195,21 @@ function resetIn(t) {
   return Math.min(6 * 3600_000, at - Date.now() + 60_000);
 }
 
+// The harness · models the benchmarks know, whatever level they were measured at.
+const PRIOR_BASES = new Set(Object.keys(PRIORS.arms).map((k) => baseOf(k).replace(SUFFIX, '')));
+const knownToPriors = (k) => PRIOR_BASES.has(baseOf(canon(k)).replace(SUFFIX, '')) || PRIOR_BASES.has(k.replace(SUFFIX, ''));
+
 // The arms wisp may route to, from listAgents(): each harness's default model, the models the
 // priors know, models with history here, and new models in a known family (on probation).
 function candidates(agents, known) {
   const out = [];
+  const fams = new Set([...known, ...PRIOR_BASES].map(family));
   for (const a of agents) {
     if (!a.available) continue;
     const models = new Set(['', ...(a.models || []).map((m) => m.id)]);
     for (const id of models) {
       const k = armKey(a.id, id);
-      if (id === '' || PRIORS.arms[k] || known.has(k) || [...known, ...Object.keys(PRIORS.arms)].some((x) => family(x) === family(k) && x !== k && x.startsWith(`${a.id}:`))) {
+      if (id === '' || knownToPriors(k) || known.has(k) || fams.has(family(k))) {
         const m = (a.models || []).find((x) => x.id === id);
         out.push({ key: k, agent: a.id, model: id, label: `${a.name}${id ? ` · ${m?.label || id}` : ''}`, efforts: m?.efforts ?? a.efforts ?? [], delegates: a.delegates !== false });
       }
@@ -166,17 +218,36 @@ function candidates(agents, known) {
   return out;
 }
 
+// A rule from Settings → Auto (never pick, prefer): 'claude' (the harness), 'claude:sonnet' (that
+// model at every level) or 'claude:sonnet:high', optionally only for one kind of task ('…@ui').
+export function ruleMatches(rule, key, type) {
+  const [what, only] = String(rule).split('@');
+  if (only && only !== type) return false;
+  if (!what.includes(':')) return splitKey(key).agent === what;
+  const r = splitKey(what);
+  const k = splitKey(key);
+  const c = splitKey(canon(key));
+  if (r.agent !== k.agent) return false;
+  const sameModel = r.model === k.model || r.model === c.model || canon(armKey(r.agent, r.model)) === canon(armKey(k.agent, k.model));
+  if (!sameModel) return false;
+  return !r.effort || r.effort === (k.effort || c.effort);
+}
+
 // --- the router ------------------------------------------------------------------------------
 
 export class Router {
   constructor(home, { now = Date.now } = {}) {
     this.file = path.join(home, 'router.json');
     this.now = now;
-    this.state = { version: 1, arms: {}, stats: {}, routes: {} };
+    this.state = { version: 2, arms: {}, stats: {}, routes: {}, taste: {}, pairs: [] };
     try {
       Object.assign(this.state, JSON.parse(fs.readFileSync(this.file, 'utf8')));
     } catch {}
+    this.state.taste ||= {};
+    this.state.pairs ||= [];
     this.synced = false;
+    // Never pick / Prefer / allowed / habits from Settings, read on every pick (services/auto.js).
+    this.prefs = () => ({});
   }
 
   save() {
@@ -210,65 +281,179 @@ export class Router {
     return added;
   }
 
+  // What the benchmarks say about an arm: its own row, else the same model at another level
+  // shifted by how hard it thinks, else its family's (a new version) at half weight.
   #prior(k) {
-    const { agent, model, effort } = splitKey(k);
-    if (effort) {
-      // A level starts from its model's record, shifted by how hard it thinks.
-      const base = this.#prior(armKey(agent, model)) || { a: 1, b: 1 };
-      const e = EFFORTS[effort];
-      const n = base.a + base.b;
-      const mean = Math.min(0.95, Math.max(0.05, base.a / n + e.chance));
-      return { ...base, a: mean * n, b: (1 - mean) * n, usd: (base.usd ?? 0.3) * e.usd, min: (base.min ?? 5) * e.min };
+    const c = canon(k);
+    if (PRIORS.arms[c]) return PRIORS.arms[c];
+    const stem = stemKey(k);
+    const lvl = levelOf(k);
+    const shift = (p, from, inherited) => {
+      const e = (x) => EFFORTS[x || 'medium'];
+      const n = p.a + p.b;
+      const s = inherited ? Math.min(1, 4 / n) : 1;
+      const mean = Math.min(0.95, Math.max(0.05, p.a / n + e(lvl).chance - e(from).chance));
+      return { a: mean * n * s, b: (1 - mean) * n * s, usd: p.usd * (e(lvl).usd / e(from).usd), min: p.min * (e(lvl).min / e(from).min), ...(inherited && { inherited: true }), from: p.from };
+    };
+    const closest = (list) => list.sort(([x], [y]) => Math.abs(ORDER.indexOf(levelOf(x)) - ORDER.indexOf(lvl)) - Math.abs(ORDER.indexOf(levelOf(y)) - ORDER.indexOf(lvl)))[0];
+    const kin = Object.entries(PRIORS.arms).filter(([x]) => stemKey(x) === stem);
+    if (kin.length) {
+      const [x, p] = closest(kin);
+      return shift(p, levelOf(x), false);
     }
-    const p = PRIORS.arms[k];
-    if (p) return p;
     // A new version inherits its family's record, with less weight.
-    const kin = Object.entries(PRIORS.arms).filter(([x]) => family(x) === family(k) && splitKey(x).agent === splitKey(k).agent);
-    if (!kin.length) return null;
-    const [, best] = kin.sort((a, b) => b[1].a + b[1].b - (a[1].a + a[1].b))[0];
-    const s = Math.min(1, 4 / (best.a + best.b));
-    return { ...best, a: best.a * s, b: best.b * s, inherited: true };
+    const fam = Object.entries(PRIORS.arms).filter(([x]) => splitKey(x).agent === splitKey(c).agent && family(stemKey(x)) === family(stem));
+    if (!fam.length) return null;
+    const [x, p] = closest(fam);
+    return shift(p, levelOf(x), true);
   }
 
-  // Decayed counts for (kind, arm) from this user's routes.
+  // Decayed counts for (kind, arm) from this user's routes; every name of the run counts.
   #counts(type, key) {
-    const s = this.state.stats[`${type}|${key}`];
-    if (!s) return { a: 0, b: 0, n: 0, usd: null, ms: null };
-    const age = this.now() - (s.at || this.now());
-    const f = Math.pow(0.5, age / HALF_LIFE_MS);
-    return { a: s.a * f, b: s.b * f, n: s.n, usd: s.usdN ? s.usd / s.usdN : null, ms: s.n ? s.ms / s.n : null };
+    const c = canon(key);
+    const out = { a: 0, b: 0, n: 0, usd: 0, usdN: 0, ms: 0 };
+    for (const [sk, s] of Object.entries(this.state.stats)) {
+      const i = sk.indexOf('|');
+      if (sk.slice(0, i) !== type || canon(sk.slice(i + 1)) !== c) continue;
+      const f = Math.pow(0.5, (this.now() - (s.at || this.now())) / HALF_LIFE_MS);
+      out.a += s.a * f;
+      out.b += s.b * f;
+      out.n += s.n;
+      out.usd += s.usd;
+      out.usdN += s.usdN;
+      out.ms += s.ms;
+    }
+    return { a: out.a, b: out.b, n: out.n, usd: out.usdN ? out.usd / out.usdN : null, ms: out.n ? out.ms / out.n : null };
   }
 
   // The same model at its other thinking levels, on this kind of task.
   #levels(type, key) {
-    const base = baseOf(key);
+    const c = canon(key);
+    const stem = stemKey(key);
     const out = { a: 0, b: 0 };
+    const seen = new Set();
     for (const sk of Object.keys(this.state.stats)) {
       const i = sk.indexOf('|');
       const k = sk.slice(i + 1);
-      if (sk.slice(0, i) !== type || k === key || baseOf(k) !== base) continue;
-      const c = this.#counts(type, k);
-      out.a += c.a;
-      out.b += c.b;
+      if (sk.slice(0, i) !== type || canon(k) === c || stemKey(k) !== stem || seen.has(canon(k))) continue;
+      seen.add(canon(k));
+      const x = this.#counts(type, k);
+      out.a += x.a;
+      out.b += x.b;
     }
     return out;
   }
 
   // Beta posterior for an arm on a kind of task, plus what it usually costs.
   estimate(type, key) {
-    const prior = this.#prior(key) || { a: 1, b: 1 };
+    const p = this.#prior(key);
+    const prior = p || { a: 1, b: 1 };
     const scale = Math.min(1, PRIOR_CAP / Math.max(1, prior.a + prior.b));
     const mine = this.#counts(type, key);
     const all = this.#counts('*', key);
     const kin = this.#levels(type, key);
-    const a = 1 + prior.a * scale + (all.a - mine.a) * ALL_WEIGHT + kin.a * LEVEL_WEIGHT + mine.a;
-    const b = 1 + prior.b * scale + (all.b - mine.b) * ALL_WEIGHT + kin.b * LEVEL_WEIGHT + mine.b;
-    // Cost and time: the prior's guess, pulled toward what this user's runs actually cost as they add up.
+    // A flat Beta(1, 1) underneath only when the benchmarks say nothing: it would pull every
+    // measured chance toward a coin flip.
+    const flat = p ? 0 : 1;
+    const a = flat + prior.a * scale + (all.a - mine.a) * ALL_WEIGHT + kin.a * LEVEL_WEIGHT + mine.a;
+    const b = flat + prior.b * scale + (all.b - mine.b) * ALL_WEIGHT + kin.b * LEVEL_WEIGHT + mine.b;
+    // Cost and time: the benchmarks' guess, pulled toward what this user's runs actually cost.
     const blend = (own, n, guess) => (own === null ? guess : (guess * 3 + own * n) / (3 + n));
     const usd = blend(all.usd, all.n, prior.usd ?? 0.3);
     const minutes = blend(all.ms === null ? null : all.ms / 60_000, all.n, prior.min ?? 5);
-    return { a, b, mean: a / (a + b), n: mine.n, nAll: all.n, usd: round(usd, 4), minutes, prior: !!PRIORS.arms[baseOf(key)], inherited: !!prior.inherited };
+    return { a, b, mean: a / (a + b), n: mine.n, nAll: all.n, usd: round(usd, 4), minutes, prior: !!p && !p.inherited, inherited: !!p?.inherited, from: p?.from || [] };
   }
+
+  // --- taste: what you pick yourself ---------------------------------------------------------
+
+  // A launch you picked yourself (or a preview you changed): weight 1, a correction counts more.
+  observe({ agent, model = '', effort = '', prompt = '', attachments = 0, type = null, at = this.now(), weight = 1 }) {
+    if (!agent || agent === 'auto' || agent === 'wisp') return null;
+    const raw = armKey(agent, model, effort);
+    const c = canon(raw);
+    const kind = type || classify(prompt, { attachments }).type;
+    for (const t of [kind, '*']) {
+      const k = `${t}|${c}`;
+      const x = this.state.taste[k];
+      const f = x ? Math.pow(0.5, Math.max(0, at - x.at) / TASTE_HALF_LIFE_MS) : 0;
+      this.state.taste[k] = { n: (x?.n || 0) * f + weight, at: Math.max(at, x?.at || 0), raw: { ...x?.raw, [raw]: (x?.raw?.[raw] || 0) + 1 } };
+    }
+    return { key: raw, canon: c, type: kind };
+  }
+
+  // Your share of picks for this run on this kind of task (other kinds count half, and the same
+  // model at another level half again). 0 when you've never picked it.
+  taste(type, key) {
+    const c = canon(key);
+    const stem = stemKey(key);
+    const sum = (t, match) => {
+      let n = 0;
+      let all = 0;
+      for (const [k, x] of Object.entries(this.state.taste)) {
+        const i = k.indexOf('|');
+        if (k.slice(0, i) !== t) continue;
+        const v = x.n * Math.pow(0.5, Math.max(0, this.now() - x.at) / TASTE_HALF_LIFE_MS);
+        all += v;
+        if (match(k.slice(i + 1))) n += v;
+      }
+      return { n, all };
+    };
+    const share = (t) => {
+      const same = sum(t, (k) => k === c);
+      const near = sum(t, (k) => k !== c && stemKey(k) === stem);
+      return same.all ? (same.n + 0.5 * near.n) / same.all : 0;
+    };
+    const mine = sum(type, () => true).all;
+    // Few picks on this kind yet: lean on your picks overall.
+    const w = Math.min(1, mine / 5);
+    return round(w * share(type) + (1 - w) * share('*'), 3);
+  }
+
+  // How many times you picked this run yourself, on this kind and overall.
+  picks(type, key) {
+    const c = canon(key);
+    return { here: Math.round(this.state.taste[`${type}|${c}`]?.n || 0), all: Math.round(this.state.taste[`*|${c}`]?.n || 0) };
+  }
+
+  // The name you launch this run by (claude: rather than claude:opus:medium).
+  #form(c, fallback) {
+    const raw = this.state.taste[`*|${c}`]?.raw;
+    if (!raw) return fallback;
+    return Object.entries(raw).sort((x, y) => y[1] - x[1])[0][0];
+  }
+
+  // Your launches from before wisp learned taste: once, oldest first.
+  backfill(sessions = []) {
+    if (this.state.backfilled) return 0;
+    let n = 0;
+    for (const s of [...sessions].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))) {
+      if (s.route || s.kind || !s.agent || s.agent === 'wisp' || s.crew || s.origin || s.parentId || s.delegated) continue;
+      const first = s.turns?.[0];
+      if (!first?.prompt) continue;
+      if (this.observe({ agent: s.agent, model: s.model || '', effort: s.effort || '', prompt: first.prompt, attachments: (first.attachments || []).length, at: s.createdAt || this.now() })) n++;
+    }
+    this.state.backfilled = this.now();
+    this.save();
+    return n;
+  }
+
+  // You changed Auto's preview before sending: a point against its pick on this kind of task, and
+  // a strong vote for yours.
+  override({ type, auto, chose, prompt = '' }) {
+    if (!auto || !chose || canon(auto) === canon(chose)) return;
+    const { agent, model, effort } = splitKey(chose);
+    this.observe({ agent, model, effort, prompt, type, weight: 2 });
+    for (const [t, w] of [[type, 0.5], ['*', 0.25]]) {
+      const s = (this.state.stats[`${t}|${canon(auto)}`] ||= { a: 0, b: 0, n: 0, usd: 0, usdN: 0, ms: 0, at: this.now() });
+      s.b += w;
+      s.at = this.now();
+    }
+    this.state.pairs.push({ type, auto: canon(auto), chose: canon(chose), at: this.now() });
+    if (this.state.pairs.length > MAX_PAIRS) this.state.pairs.splice(0, this.state.pairs.length - MAX_PAIRS);
+    this.save();
+  }
+
+  // --- picking -------------------------------------------------------------------------------
 
   // Pick an arm. agents: listAgents() of the place it runs. goal: cheap | balanced | best, which
   // also sets the band of thinking levels (levelsFor).
@@ -278,12 +463,18 @@ export class Router {
   // scouted: { type, size } from the scout, which beats the keyword guess.
   // minTier: only arms at least that strong (a hand-over steps up). Arms cooling down after a usage
   // or rate limit are skipped while any other arm can run.
+  // preview: the pick to show before sending: no dice, the same answer every time. pin: the
+  // preview you saw, kept at launch if it can still run, so what runs is what you were shown.
+  // allowed, blocked, prefer, habits: from Settings (this.prefs()), unless passed.
   // Best runs frontier models only: if any is installed and allowed, Best never steps down a tier,
   // even when they're all taken or at their limit (null then). With none installed, the strongest.
-  // Balanced runs frontier models too, whatever its record of the others (Sonnet or Haiku winning
-  // a few tasks doesn't make them the face of Auto), and steps down a tier only while every
-  // frontier model is taken or at its limit, so the task still runs.
-  choose({ prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, scouted = null, minTier = 0, rng = Math.random } = {}) {
+  // Balanced runs on the strongest tier too, and steps down only while every frontier model is
+  // taken or at its limit, so the task still runs.
+  choose(opts = {}) {
+    const p = { ...this.prefs(), ...Object.fromEntries(Object.entries(opts).filter(([, v]) => v !== undefined)) };
+    let { prompt = '', attachments = 0, agents = [], goal = 'balanced', important = false, explore = true, exclude = [], needDelegate = false, allowed = null, blocked = [], prefer = [], habits = true, scouted = null, minTier = 0, preview = false, pin = null, rng = Math.random } = p;
+    blocked ||= [];
+    prefer ||= [];
     if (!this.synced) this.sync(agents);
     if (!GOALS[goal]) goal = 'balanced';
     const guess = classify(prompt, { attachments });
@@ -295,8 +486,20 @@ export class Router {
     const frontierOnly = goal === 'best' && usable.some((c) => tierOf(c.key) >= 3);
     let arms = byNamedLevel(usable.filter((c) => !out.has(stemOf(c.key))), goal)
       .filter((c) => !frontierOnly || tierOf(c.key) >= 3)
-      .flatMap((c) => levelsFor(c.efforts, goal).map((effort) => ({ ...c, key: armKey(c.agent, c.model, effort), effort, label: `${c.label}${effort ? ` · ${effortLabel(effort)}` : ''}`, base: c.key })))
-      .map((c) => ({ ...c, est: this.estimate(type, c.key), state: this.state.arms[c.base]?.state || 'new' }));
+      .flatMap((c) => levelsFor(c.efforts, goal, PRIORS.defaults?.[baseOf(canon(c.key))] || '').map((effort) => ({ ...c, key: armKey(c.agent, c.model, effort), effort, label: `${c.label}${effort ? ` · ${effortLabel(effort)}` : ''}`, base: c.key })))
+      .filter((c) => !blocked.some((r) => ruleMatches(r, c.key, type)));
+    // One run under several names (claude: and claude:opus:medium): keep the one you launch by,
+    // else the model named outright (the harness default may not be what the benchmarks assume).
+    const byCanon = new Map();
+    for (const c of arms) {
+      const k = canon(c.key);
+      const have = byCanon.get(k);
+      const form = this.#form(k, null);
+      const named = (x) => (splitKey(x.key).model ? 1 : 0);
+      const better = !have || c.key === form || (have.key !== form && (named(c) > named(have) || (named(c) === named(have) && c.key.length < have.key.length)));
+      if (better) byCanon.set(k, c);
+    }
+    arms = [...byCanon.values()].map((c) => ({ ...c, est: this.estimate(type, c.key), state: this.state.arms[c.base]?.state || 'new', taste: habits ? this.taste(type, c.key) : 0, preferred: prefer.some((r) => ruleMatches(r, c.key, type)) }));
     if (!arms.length) return null;
     const free = arms.filter((x) => !this.cooling(x.key));
     if (!free.length) return null; // everything allowed is at its limit: nothing to route to now
@@ -315,25 +518,33 @@ export class Router {
     // Quality floor: an arm that keeps failing this kind of task here is left out.
     const floor = arms.filter((x) => !(x.est.n >= 5 && x.est.mean < 0.35));
     if (floor.length) arms = floor;
-    const utility = (x, theta) => V * theta - x.est.usd - MINUTE_USD * x.est.minutes;
+    const bonus = (x) => TASTE * x.taste + (x.preferred ? PREFER : 0);
+    const utility = (x, theta, own = true) => V * (theta + (own ? bonus(x) : 0)) - x.est.usd - MINUTE_USD * x.est.minutes;
+    const fixed = preview || important || !explore;
     const draw = (r) => {
-      const pool = arms.filter((x) => x.state !== 'new' || (explore && !important && r() < NEW_ARM_SHARE));
+      // New arms on probation aren't run behind your back: they're suggested (below).
+      const pool = arms.filter((x) => x.state !== 'new' || x.taste > 0);
       const list = pool.length ? pool : arms;
       let best = null;
       let bu = -Infinity;
       for (const x of list) {
-        const theta = important || !explore ? x.est.mean : betaSample(x.est.a, x.est.b, r);
-        const u = utility(x, theta);
+        const u = utility(x, fixed ? x.est.mean : betaSample(x.est.a, x.est.b, r));
         if (u > bu) (best = x), (bu = u);
       }
       return best;
     };
-    const pick = draw(rng);
+    const pinned = pin && arms.find((x) => x.key === pin || canon(x.key) === canon(pin));
+    const pick = pinned || draw(rng);
     // How likely this pick was: logged so the router's own choices can be corrected for later.
     let hits = 0;
     const sim = mulberry32(Math.floor(rng() * 2 ** 31));
-    for (let i = 0; i < 200; i++) if (draw(sim).key === pick.key) hits++;
+    if (fixed || pinned) hits = 200;
+    else for (let i = 0; i < 200; i++) if (draw(sim).key === pick.key) hits++;
     const byMean = [...arms].sort((p, q) => utility(q, q.est.mean) - utility(p, p.est.mean));
+    // Something that looks clearly better on the record than your habit: offered, not run.
+    const plain = [...arms].sort((p, q) => utility(q, q.est.mean, false) - utility(p, p.est.mean, false));
+    const rival = plain.find((x) => canon(x.key) !== canon(pick.key) && !x.preferred);
+    const suggest = explore && rival && clearlyBetter(rival, pick, V, utility) ? { key: rival.key, agent: rival.agent, model: rival.model, effort: rival.effort, label: rival.label, chance: round(rival.est.mean), usd: round(rival.est.usd), trying: rival.state === 'new', why: whyOf(rival, type, this.picks(type, rival.key), goal, { suggest: true }) } : null;
     return {
       agent: pick.agent,
       model: pick.model,
@@ -351,17 +562,41 @@ export class Router {
         n: pick.est.n,
         usd: round(pick.est.usd),
         minutes: round(pick.est.minutes, 1),
-        explored: byMean[0].key !== pick.key,
+        explored: !pinned && byMean[0].key !== pick.key,
         trying: pick.state === 'new',
         tier: tierOf(pick.key),
+        taste: pick.taste,
+        ...(pinned && { pinned: true }),
+        why: whyOf(pick, type, this.picks(type, pick.key), goal, { pinned: !!pinned, explored: !pinned && byMean[0].key !== pick.key }),
         propensity: round(hits / 200),
-        alternatives: byMean.filter((x) => x.key !== pick.key).slice(0, 3).map((x) => ({ key: x.key, label: x.label, chance: round(x.est.mean), usd: round(x.est.usd) })),
+        alternatives: byMean.filter((x) => x.key !== pick.key).slice(0, 4).map((x) => ({ key: x.key, agent: x.agent, model: x.model, effort: x.effort, label: x.label, chance: round(x.est.mean), usd: round(x.est.usd) })),
+        ...(suggest && { suggest }),
         at: this.now(),
       },
     };
   }
 
+  // A hand-over that keeps the model and thinks harder: a run at low or medium that failed its
+  // tests goes again at high (Anthropic: low, then failures at high, solves more than high
+  // everywhere, for less), one at high goes to x-high. null when there's no level up.
+  levelUp(route, agents = []) {
+    if (!route?.key) return null;
+    const { agent, model } = splitKey(route.key);
+    const lvl = levelOf(route.key);
+    const a = agents.find((x) => x.id === agent && x.available);
+    const m = a?.models?.find((x) => x.id === model);
+    const efforts = m?.efforts ?? a?.efforts ?? [];
+    const to = !lvl ? null : ORDER.indexOf(lvl) < ORDER.indexOf('high') ? 'high' : lvl === 'high' ? 'xhigh' : null;
+    if (!to || !efforts.includes(to)) return null;
+    const key = armKey(agent, model, to);
+    if (this.cooling(key)) return null;
+    const est = this.estimate(route.type || '*', key);
+    const label = `${route.label?.replace(/ · (Minimal|Low|Medium|High)$/, '') || key} · ${effortLabel(to)}`;
+    return { agent, model, effort: to, key, label, route: { ...route, key, effort: to, label, chance: round(est.mean), usd: round(est.usd), why: 'The same model, thinking harder', at: this.now() } };
+  }
+
   // A launch went out with this route. id: the session id (id@machine for one on a machine).
+  // manual: a run you picked yourself (no route of Auto's): it teaches the record at half weight.
   record(id, route) {
     this.state.routes[id] = { ...route, signals: {}, r: null };
     const ids = Object.keys(this.state.routes);
@@ -377,6 +612,7 @@ export class Router {
     Object.assign(route.signals, Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)));
     const r = reward(route.signals);
     if (r === null) return this.save(), route;
+    const w = route.manual ? MANUAL_WEIGHT : 1;
     for (const type of [route.type, '*']) {
       const k = `${type}|${route.key}`;
       const s = (this.state.stats[k] ||= { a: 0, b: 0, n: 0, usd: 0, usdN: 0, ms: 0, at: this.now() });
@@ -385,11 +621,11 @@ export class Router {
         if (typeof route.signals.costUsd === 'number') (s.usd += route.signals.costUsd), s.usdN++;
         s.ms += route.signals.ms || 0;
       } else {
-        s.a -= route.r;
-        s.b -= 1 - route.r;
+        s.a -= route.r * w;
+        s.b -= (1 - route.r) * w;
       }
-      s.a += r;
-      s.b += 1 - r;
+      s.a += r * w;
+      s.b += (1 - r) * w;
       s.at = this.now();
     }
     route.r = r;
@@ -421,7 +657,7 @@ export class Router {
 
   cooling(key) {
     const c = this.state.cooling || {};
-    const hit = c[key] || c[baseOf(key)] || c[`${splitKey(key).agent}:*`];
+    const hit = c[key] || c[baseOf(key)] || c[baseOf(canon(key))] || c[`${splitKey(key).agent}:*`];
     return hit && hit.until > this.now() ? hit : null;
   }
 
@@ -430,11 +666,12 @@ export class Router {
     const route = this.state.routes[id];
     if (!route) return;
     if (route.r !== null) {
+      const w = route.manual ? MANUAL_WEIGHT : 1;
       for (const type of [route.type, '*']) {
         const s = this.state.stats[`${type}|${route.key}`];
         if (!s) continue;
-        s.a -= route.r;
-        s.b -= 1 - route.r;
+        s.a -= route.r * w;
+        s.b -= (1 - route.r) * w;
         s.n = Math.max(0, s.n - 1);
       }
     }
@@ -443,38 +680,77 @@ export class Router {
     this.save();
   }
 
+  // Forget outcomes and your picks; the benchmarks stay, and your old launches aren't read again.
   reset() {
     this.state.stats = {};
     this.state.routes = {};
+    this.state.taste = {};
+    this.state.pairs = [];
+    this.state.backfilled ||= this.now();
     this.save();
   }
 
   // Settings → Auto: every harness · model, the thinking levels it has a record at, each with its
-  // record overall and per kind, and the latest routes.
+  // record overall and per kind, your picks of it, and the latest routes.
   report(agents = []) {
     const levels = Object.keys(this.state.stats).map((sk) => sk.slice(sk.indexOf('|') + 1)).filter((k) => splitKey(k).effort);
     const keys = new Set([...Object.keys(this.state.arms), ...candidates(agents, new Set(Object.keys(this.state.arms))).map((c) => c.key), ...levels]);
     const names = Object.fromEntries(candidates(agents, new Set([...keys].map(baseOf))).map((c) => [c.key, c.label]));
     const labels = Object.fromEntries([...keys].filter((k) => names[baseOf(k)]).map((k) => [k, `${names[baseOf(k)]}${splitKey(k).effort ? ` · ${effortLabel(splitKey(k).effort)}` : ''}`]));
-    const arms = [...keys]
+    const { blocked = [], prefer = [] } = this.prefs();
+    // One row per run: claude: and claude:opus:medium are the same one.
+    const rows = new Map();
+    for (const k of keys) {
+      const c = canon(k);
+      const have = rows.get(c);
+      if (!have || (labels[k] && !labels[have]) || (labels[k] && k.length < have.length)) rows.set(c, k);
+    }
+    const arms = [...rows.values()]
       .map((k) => {
         const e = this.estimate('*', k);
         const byType = Object.fromEntries(TYPES.map((t) => [t, this.#counts(t, k)]).filter(([, c]) => c.n).map(([t]) => [t, { n: this.#counts(t, k).n, chance: round(this.estimate(t, k).mean) }]));
         const state = this.state.arms[baseOf(k)]?.state || (labels[k] ? 'ready' : 'gone');
         const cool = this.cooling(k);
-        return { key: k, ...splitKey(k), label: labels[k] || k, tier: tierOf(k), ...(cool && { coolingUntil: cool.until, coolingWhy: cool.why }), state: cool && state !== 'gone' ? 'cooling' : state === 'ready' && !e.prior && !e.inherited && !e.nAll ? 'untried' : state, chance: round(e.mean), n: e.n, usd: round(e.usd), minutes: round(e.minutes, 1), prior: e.prior, byType };
+        const picks = this.picks('*', k).all;
+        return { key: k, ...splitKey(k), canon: canon(k), label: labels[k] || k, tier: tierOf(k), ...(cool && { coolingUntil: cool.until, coolingWhy: cool.why }), state: cool && state !== 'gone' ? 'cooling' : state === 'ready' && !e.prior && !e.inherited && !e.nAll && !picks ? 'untried' : state, chance: round(e.mean), n: e.n, usd: round(e.usd), minutes: round(e.minutes, 1), prior: e.prior, inherited: e.inherited, from: e.from, picks, blocked: blocked.some((r) => !r.includes('@') && ruleMatches(r, k)), preferred: prefer.some((r) => !r.includes('@') && ruleMatches(r, k)), byType };
       })
       .filter((a) => a.state !== 'gone' || a.n)
-      .sort((p, q) => q.chance - p.chance);
+      .sort((p, q) => q.picks - p.picks || q.chance - p.chance);
     const routes = Object.entries(this.state.routes).map(([id, r]) => ({ id, ...r }));
     return {
-      priors: { version: PRIORS.version, source: PRIORS.source },
+      priors: PRIOR_INFO,
       learned: routes.filter((r) => r.r !== null).length,
-      routed: routes.length,
+      routed: routes.filter((r) => !r.manual).length,
+      picks: Math.round(Object.entries(this.state.taste).reduce((s, [k, x]) => s + (k.startsWith('*|') ? x.n : 0), 0)),
+      corrections: this.state.pairs.length,
       arms,
-      recent: routes.sort((p, q) => q.at - p.at).slice(0, 30).map((r) => ({ id: r.id, key: r.key, label: r.label, type: r.type, goal: r.goal, chance: r.chance, r: r.r, explored: r.explored, trying: r.trying, at: r.at, signals: r.signals })),
+      recent: routes.filter((r) => !r.manual).sort((p, q) => q.at - p.at).slice(0, 30).map((r) => ({ id: r.id, key: r.key, label: r.label, type: r.type, goal: r.goal, chance: r.chance, r: r.r, explored: r.explored, trying: r.trying, why: r.why, at: r.at, signals: r.signals })),
     };
   }
+}
+
+// Is a beat b on the record alone, by enough to be worth mentioning?
+function clearlyBetter(a, b, V, utility) {
+  return a.est.mean >= b.est.mean + SUGGEST_MARGIN && utility(a, a.est.mean, false) > utility(b, b.est.mean, false);
+}
+
+// Why this pick, in a few words: your habit, your record, the benchmarks, or the goal.
+function whyOf(x, type, picks, goal, { pinned = false, explored = false, suggest = false } = {}) {
+  const pct = `${Math.round(x.est.mean * 100)}%`;
+  const parts = [];
+  if (suggest) parts.push(x.est.n >= 3 ? `${pct} on your ${type} tasks (${x.est.n})` : `${pct} expected from public benchmarks`);
+  else if (explored) parts.push('trying an alternative to learn');
+  else if (x.taste >= 0.2 && picks.here >= 3) parts.push(`your usual for ${type} tasks (${picks.here} of yours)`);
+  else if (x.taste >= 0.2 && picks.all >= 3) parts.push(`your usual pick (${picks.all} of yours)`);
+  else if (x.taste >= 0.2) parts.push('the model you usually run');
+  else if (x.est.n >= 3) parts.push(`${pct} on your ${type} tasks (${x.est.n})`);
+  else if (x.est.prior) parts.push(`${pct} expected from public benchmarks`);
+  else if (x.est.inherited) parts.push(`${pct} expected from its family's benchmarks`);
+  else parts.push(`${pct} expected`);
+  if (x.preferred) parts.push('you prefer it');
+  if (x.effort && !suggest) parts.push(`${effortLabel(x.effort)} thinking for ${GOALS[goal].label}`);
+  if (pinned) parts.push('as previewed');
+  return parts.join(' · ');
 }
 
 export function reward(sig) {

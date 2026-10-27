@@ -13,7 +13,7 @@
 .router-modal .hint { margin: 0 0 12px; }
 .router-modal h4 { margin: 16px 0 6px; }
 .ro-table td small.ro-types { display: block; margin: 2px 0 0 19px; font-size: 11.5px; color: var(--faint); }
-.ro-table .sx-state { justify-content: flex-end; }
+.ro-table .sx-state { justify-content: flex-end; white-space: nowrap; }
 .sx-state.ok { color: var(--good); }
 .sx-state.warn { color: var(--warn); }
 .dot.warn { background: var(--warn); }
@@ -52,3 +52,83 @@
 .router-modal .hint code { font-size: 11.5px; padding: 0 4px; border-radius: 4px; background: var(--bg-2); }
 .ro-tier { margin-left: 6px; padding: 0 5px; border-radius: 4px; font-style: normal; font-size: 11.5px; color: var(--faint); background: var(--bg-2); }
 .ro-tier.t3 { color: var(--accent-ink); background: var(--accent-soft); }
+
+/* What Auto will run, on the harness pill after Auto (auto-preview.js): the pick's logo and a short
+   label. The last answer stays while the next one loads; only the very first is a placeholder. */
+.auto-pv {
+  position: relative; display: inline-flex; align-items: center; flex: none; min-width: 0; height: 28px;
+  padding: 0 8px 0 9px; border-radius: 8px; font-size: 12.5px; color: var(--ink-2); transition: background 0.15s;
+}
+.auto-pv[hidden] { display: none; }
+.auto-pv::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 1px; background: var(--line); }
+.auto-pv:hover, .auto-pv.open { background: var(--bg-2); }
+.auto-pv:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--accent); }
+.auto-pv .rb-logo { width: 18px; height: 18px; margin-right: 5px; border-radius: 5px; }
+.auto-pv:hover .rb-logo, .auto-pv.open .rb-logo { background: var(--surface); }
+.auto-pv .rb-logo > .sk { width: 18px; height: 18px; border-radius: 5px; }
+.apv-l { min-width: 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: opacity 0.15s 0.25s; }
+.auto-pv.loading .apv-l { opacity: 0.6; }
+.apv-sk { width: 88px; height: 10px; border-radius: 99px; }
+.auto-pv .i { width: 12px; height: 12px; color: var(--warn); }
+.runners.cmp .apv-l, .runners.many .auto-pv { display: none; }
+/* With the preview on, the pick says more than the goal: the goal moves to the button's tooltip and
+   the popover, and the pill keeps its room for "Auto" and the pick. */
+.runners:has(.auto-pv:not([hidden])) .rb-m { display: none; }
+/* "Auto" keeps its word; the pick's label gives way (ellipsis) before it does */
+.runners:has(.auto-pv:not([hidden])) .rb-h { flex: none; }
+.runners .auto-pv { flex: 0 1 auto; }
+/* a narrower bar: the pick outranks the word (the spark still says Auto, its tooltip names the goal) */
+@container launcher (max-width: 640px) { .runners:has(.auto-pv:not([hidden])) .rb-h { display: none; } }
+/* a phone: the pick's logo alone, and Auto's chevron goes (the pick is the next thing to tap) */
+@container launcher (max-width: 520px) {
+  .apv-l, .apv-sk { display: none; }
+  .auto-pv { padding: 0 6px 0 7px; }
+  .auto-pv .rb-logo { margin-right: 0; }
+  .runners:has(.auto-pv:not([hidden])) .runner-btn .chev { display: none; }
+}
+body.wisp-mobile .launcher .runners .auto-pv { height: 44px; }
+@media (prefers-reduced-motion: reduce) { .auto-pv .sk { animation: none; } }
+
+/* its popover: why, the odds and cost, what's worth a try, the other picks, and a Never rule */
+.menu.auto-pop { width: 340px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto; }
+.ap-head { display: flex; align-items: center; gap: 10px; padding: 9px 10px 2px; }
+.ap-head .rb-logo { width: 28px; height: 28px; margin: 0; border-radius: 8px; flex: none; }
+.ap-head .rb-logo > * { width: 15px; height: 15px; }
+.ap-title { display: grid; gap: 1px; min-width: 0; }
+.ap-title b { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-title small { font-size: 12px; color: var(--muted); }
+.ap-why { margin: 6px 10px 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.ap-facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 4px 10px 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ap-facts b { font-weight: 600; color: var(--ink); }
+.ap-h { margin: 10px 10px 2px; font-size: 11.5px; font-weight: 500; color: var(--faint); }
+.menu :is(.ap-alt, .ap-sug) { gap: 8px; padding: 6px 8px; text-align: left; }
+:is(.ap-alt, .ap-sug) .rb-logo { flex: none; margin: 0; }
+.ap-text { flex: 1; display: grid; gap: 1px; min-width: 0; }
+.ap-text b { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-text small { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.ap-alt .ap-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-sug .ap-text b { color: var(--accent-ink); }
+.ap-n { flex: none; min-width: 32px; text-align: right; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ap-n:empty { display: none; }
+.ap-sep { height: 1px; margin: 5px 4px; background: var(--line); }
+.menu.auto-pop > button:not(.ap-alt, .ap-sug) .i { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.menu.auto-pop button:focus-visible { outline: 0; background: var(--bg-2); color: var(--ink); }
+
+/* Settings → Auto: where the starting numbers come from, each row's source, Never / Prefer */
+.router-modal h5.ro-sub { margin: 0 0 4px; font-size: 11.5px; font-weight: 500; color: var(--faint); }
+.ro-sources { list-style: none; margin: 0 0 4px; padding: 0; display: grid; gap: 2px; font-size: 12px; }
+.ro-sources li { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ro-sources a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--accent-ink); }
+.ro-sources small { flex: none; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ro-src { font-style: normal; color: var(--muted); }
+.ro-src.mine { color: var(--accent-ink); }
+.ro-scroll { overflow-x: auto; margin: 0 -2px; }
+.ro-rule { display: inline-flex; gap: 4px; }
+.ro-rule .chip-tog { padding: 2px 7px; font-size: 12px; }
+.ro-rule .chip-tog:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
+.ro-rule [data-rule="blocked"].on { border-color: var(--line-2); background: var(--bg-2); color: var(--bad); }
+.ro-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ro-kinds[hidden] { display: none; }
+.ro-kind { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; color: var(--ink-2); }
+@media (max-width: 640px) { .ro-table .ro-time { display: none; } }
+@media (pointer: coarse) { .ro-rule .chip-tog { min-height: 44px; padding-inline: 10px; } }
