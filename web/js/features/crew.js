@@ -48,6 +48,12 @@ const jobsOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m.id
 // Jobs sent that the server hasn't started yet (sendJob): a Starting up card under the member.
 const pendingOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m.id && s.pending);
 
+// A job run for another task (delegated, an @mention, a check on it) lives under its member: that
+// task shows its work. The rest (check-ins, jobs you sent, triggers) are tasks in the list like any
+// other, with the member's face. Saved for later: in that section either way.
+const FOR_TASK = new Set(['delegated', 'mention', 'event']);
+export const underMember = (s) => !!s?.crew && FOR_TASK.has(s.crew.job) && !!memberById(s.crew.id) && !isForLater(s);
+
 // When it checks in, in words. Any other cron is read out (web/js/schedule.js), or shows as itself.
 export const CADENCES = [
   ['', 'Only when asked'],
@@ -131,13 +137,12 @@ export function pinJob(id) {
   pinned.add(id);
 }
 
-// A member's jobs under it, most urgent first: asking you, working, an unread report, then the
-// finished ones, newest first. Ones you marked done or archived (quiet check-ins too) are only in
+// A member's jobs under it (the ones for another task), most urgent first: asking you, working, an
+// unread report, then the finished ones, newest first. Ones you marked done or archived are only in
 // its thread.
 function memberJobs(m, st, max = JOBS_MAX) {
   const rank = (s) => (s.pending || s.state === 'running' ? 1 : s.state === 'waiting' ? 0 : s.state === 'review' && s.unread ? 2 : 3);
-  // Saved for later: its card is in that section instead (feed.js groups).
-  const list = [...st.sent, ...st.jobs.filter((s) => !isForLater(s) && ((!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id)))];
+  const list = [...st.jobs.filter((s) => underMember(s) && ((!s.archived && s.state !== 'done') || s.state === 'running' || s.state === 'waiting' || S.open.has(s.id) || pinned.has(s.id)))];
   list.sort((a, b) => rank(a) - rank(b) || b.updatedAt - a.updatedAt);
   const open = S.crewOpen === m.id;
   const keep = list.filter((s, i) => i < max || (open && rank(s) < 3) || S.open.has(s.id) || pinned.has(s.id));

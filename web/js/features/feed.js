@@ -23,7 +23,7 @@ import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterPill, laterTip, planRows } from './later.js';
-import { crewDot, memberById, paintCrew, pinJob } from './crew.js';
+import { crewDot, memberById, paintCrew, pinJob, underMember } from './crew.js';
 import { backToPlace, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 function visible(list) {
@@ -61,7 +61,7 @@ export function groups() {
   const every = [];
   const seen = new Set();
   for (const s of visible([...S.sessions.values()])) {
-    if (s.crew && memberById(s.crew.id) && !isForLater(s)) continue; // a crew member's job: under the member (crew.js), unless saved for later
+    if (underMember(s)) continue; // a crew job for another task: under its member (crew.js)
     const t = taskOf(s);
     if (t.runs && seen.has(t.key)) continue;
     if (t.runs) seen.add(t.key);
@@ -672,8 +672,8 @@ export const sectionOf = (s) => {
 export function reveal(id) {
   const s = S.sessions.get(id);
   if (!s) return;
-  // A crew member's job opens under the member (Crew unfolded), wherever it is in its life.
-  const crew = s.crew && memberById(s.crew.id) && !isForLater(s);
+  // A crew job for another task opens under the member (Crew unfolded), wherever it is in its life.
+  const crew = underMember(s);
   if (crew) pinJob(id);
   const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', scheduled: 'secScheduled', forLater: 'secForLater', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
   if (!sectionOpen(sec)) toggleSection(sec, true);

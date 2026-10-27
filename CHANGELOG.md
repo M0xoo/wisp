@@ -24,6 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A crew member's own jobs are in the task list.** Check-ins (scheduled or asked for), jobs you send a member and trigger jobs show in *Working*, *Needs you* and *Done* like any task, with the member's face; a follow-up on one moves it back to *Working*. They used to show only under the member, so a finished check-in or a followed-up job could vanish from the sidebar. Jobs run for another task (delegated, an `@` answer, a check on a task) stay under the member.
 - **The harness keeps its name in the New task box side by side.** At about 1000px wide with a project picked, the harness pill shrank to `A…` while *Worktree* kept its label; Worktree now folds to its branch icon first (its tooltip still names it).
 - **The / menu in the prompt box.** Typing `/` on New task now lists `/goal`, `/spell` and `/feedback` (and spells' own commands), as the reply box does; it used to show nothing, so `/goal all tests pass` worked only if you knew it. A bare `/goal` opens *Done when*.
 
