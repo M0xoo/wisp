@@ -1,7 +1,7 @@
 // Small display formatters shared across the page.
 
 // The agent's own verdict. Not "Done": that's the list a task goes to when you mark it done.
-export const STATUS_LABEL = { done: 'Finished', partial: 'Partial', blocked: 'Blocked', info: 'Report' };
+export const STATUS_LABEL = { done: 'Finished', partial: 'Partial', blocked: 'Blocked', info: 'Report', held: 'Held' };
 
 export function ago(t) {
   const s = (Date.now() - t) / 1000;

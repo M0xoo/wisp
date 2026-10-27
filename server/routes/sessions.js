@@ -280,7 +280,7 @@ export function register(r, app) {
     'POST',
     '/sessions/:id/reply',
     one(async (c, s) => {
-      const { text, attachments, queue, mode, agent, model, effort, account, machine, subagents, preset } = await c.body();
+      const { text, attachments, queue, mode, agent, model, effort, account, machine, subagents, preset, confirmLimit } = await c.body();
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
       if (s.kind === 'reminder') return c.send(409, { error: 'A reminder has no agent to follow up with. Start a new task instead.' });
@@ -308,7 +308,7 @@ export function register(r, app) {
       if (typeof machine === 'string' && machine && btwQuestion(text) === null) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));
       // agent / model / effort / account: run this follow-up (and the ones after it) on another harness, model or account.
       const run = agent !== undefined || model !== undefined || effort !== undefined || account !== undefined ? await followUpRun(s, { agent, model, effort, account }) : undefined;
-      c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team));
+      c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team, { confirm: confirmLimit === true }));
     }),
   );
 
@@ -414,6 +414,30 @@ export function register(r, app) {
     'DELETE',
     '/sessions/:id/later',
     one((c, s) => (app.later.cancel(s, c.query.get('item') || '') ? c.send(200, { ok: true }) : c.send(404, { error: 'Already sent, or cancelled.' }))),
+  );
+
+  // A run held near the limit (server/guard.js): start: now, as if you'd said yes when it was sent;
+  // wait: leave it for the reset (out of Needs you); skip: it never runs.
+  r.route(
+    'POST',
+    '/sessions/:id/held',
+    one(async (c, s) => {
+      const { action } = await c.body();
+      const t = s.turns.at(-1);
+      if (t?.status !== 'held') return c.send(404, { error: 'Nothing on this task is waiting for the limit.' });
+      if (action === 'start') {
+        app.guard.confirm({ agent: t.held.agent, account: t.held.account, kind: t.held.kind, origin: s.origin, crew: s.crew, session: s });
+        for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+        runner.release(s);
+      } else if (action === 'wait') {
+        t.held.waiting = true;
+        s.state = 'done';
+        s.unread = false;
+        app.sessionChanged(s);
+      } else if (action === 'skip') runner.skipHeld(s);
+      else return c.send(400, { error: 'action must be start, wait or skip.' });
+      c.send(200, summarize(s, store));
+    }),
   );
 
   r.route(

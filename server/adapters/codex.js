@@ -225,6 +225,7 @@ export default {
           stats: {
             durationMs: Date.now() - started,
             inputTokens: usage?.input_tokens,
+            ...(usage?.cached_input_tokens && { cachedInputTokens: usage.cached_input_tokens }), // Ask near the limit counts what wasn't cached (server/guard.js)
             outputTokens: usage?.output_tokens,
           },
         });

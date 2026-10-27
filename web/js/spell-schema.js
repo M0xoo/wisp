@@ -250,11 +250,14 @@ export const PARTS = {
   'settings.connectors': '.cx-box',
   'connectors.row': '.cx-row',
   'connectors.import': '.cx-found',
-  // Settings → Usage: Plan budget, each account's 5-hour and weekly windows, and Wait for the reset.
+  // Settings → Usage: Plan budget, each account's 5-hour and weekly windows, Ask near the limit and Wait for the reset.
   'settings.budget': '.sx-budget',
   // …its Automations stop at row, and Where it went: the tasks that used most of an account's longest window.
   'settings.autoStop': '.sx-budget .sx-row:has(.us-stop)',
   'budget.where': '.sx-budget .bg-where',
+  // The harness picker: how full a window at or past your Ask near the limit line is (server/guard.js).
+  // The hold row and the held card aren't parts: they need you, like a due reminder.
+  'harness.usage': '.rp-usage',
   // The image viewer: a picture from a reply or an attachment, full screen to zoom into, and its zoom buttons.
   viewer: '.lb',
   'viewer.bar': '.lb-bar',
@@ -411,6 +414,8 @@ export const SETTINGS = {
   // Automations stop at: check-ins, triggers, goal rounds and agents' follow-ups wait once an
   // account is past this percent of a usage window, until it resets (server/budget.js).
   autoStop: ['off', '50', '75', '90'],
+  // Ask near the limit: before a run would take a 5-hour or weekly window past this share (server/guard.js).
+  limitHold: ['off', '80', '90', '95'],
 };
 
 // GET routes a `wisp` data source may read (patterns, :x = one segment).

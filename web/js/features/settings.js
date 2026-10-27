@@ -28,6 +28,7 @@ import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupComma
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
+import { HOLD_DEFAULT, HOLD_LINES } from '../limit-hold.js';
 import { crewRecord } from './crew-record.js';
 import { crewList } from './crew.js';
 import { connectorsPane } from './connectors.js';
@@ -198,6 +199,7 @@ export function openSettings(opts) {
           <div class="sx-group sx-budget">
             <div class="bg-list"></div>
             ${row('Automations stop at', 'Check-ins, triggers, goal rounds and agents’ own follow-ups wait once an account passes this much of a window, and go on after it resets. What you start always runs', `<fieldset class="pk-seg us-stop" aria-label="Automations stop at">${STOP_AT.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</fieldset>`)}
+            ${row('Ask near the limit', 'Before a task would take a 5-hour or weekly window past this, wisp asks first. Scheduled runs and crew jobs wait in Needs you', `<span class="pk-seg hold-seg">${HOLD_LINES.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</span>`)}
             ${row('Wait for the reset', 'At a usage limit, the task waits under Scheduled and carries on in the same conversation when the window resets. Off: it stops and asks you', '<button class="switch" id="limitWait" role="switch"></button>')}
           </div>
         </section>
@@ -484,6 +486,28 @@ export function openSettings(opts) {
   };
   paintStop();
   bus.on('config', paintStop, { node });
+  // Ask near the limit (features/hold.js): instant, rolled back on a refusal. The bars repaint with
+  // the line (budget.js tone), and the harness list brings the new lines on its next broadcast.
+  const holdSetting = () => (HOLD_LINES.includes(S.config.defaults.limitHold) ? S.config.defaults.limitHold : HOLD_DEFAULT);
+  const paintHold = () => $$('.hold-seg button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === holdSetting()));
+  $$('.hold-seg button', node).forEach((b) => {
+    b.onclick = async () => {
+      const was = S.config.defaults.limitHold;
+      if (b.dataset.v === holdSetting()) return;
+      S.config.defaults.limitHold = b.dataset.v;
+      paintHold();
+      paintBudget();
+      const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { limitHold: b.dataset.v } } }));
+      if (!saved) {
+        S.config.defaults.limitHold = was;
+        paintHold();
+        paintBudget();
+        return;
+      }
+      api('/agents').then((list) => (setAgents(list), bus.emit('agents')), () => {});
+    };
+  });
+  paintHold();
   const lw = $('#limitWait', node);
   const paintLw = () => lw.setAttribute('aria-checked', S.config.defaults.limitWait === 'on');
   lw.onclick = async () => {
@@ -645,7 +669,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', limitHold: '.hold-seg' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

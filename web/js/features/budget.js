@@ -10,6 +10,7 @@ import { icon } from '../core/dom.js';
 import { whenLabel } from '../core/format.js';
 import { S } from '../core/state.js';
 import { harnessLogo } from './runners.js';
+import { holdLine } from '../limit-hold.js';
 
 const REPORTS = new Set(['claude', 'codex']); // harnesses whose CLI says how much is gone
 export const STOP_AT = ['off', '50', '75', '90']; // Automations stop at (server/budget.js STOP_AT)
@@ -29,7 +30,8 @@ function windowLine(w, stop) {
   return `Resets ${whenLabel(w.resetsAt)}`;
 }
 
-const tone = (w, stop) => (w.used >= 1 ? 'full' : w.hitAt || w.used >= 0.9 || (stop && w.used >= stop) ? 'warn' : '');
+// Warn at the line you set to be asked at (Ask near the limit, else 90%) or at Automations stop at.
+const tone = (w, stop) => (w.used >= 1 ? 'full' : w.hitAt || w.used >= (holdLine(S.config?.defaults?.limitHold) ?? 0.9) || (stop && w.used >= stop) ? 'warn' : '');
 
 // Where the account's longest window went this period: its top tasks (each opens), the rest of the
 // tasks wisp traced in one row, and what it couldn't trace to a task.

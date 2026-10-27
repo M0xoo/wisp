@@ -16,11 +16,11 @@ import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
 import { BTW_SYSTEM, BTW_TIMEOUT_MS, MAX_BTW, btwAnswer, btwPrompt } from './btw.js';
 import { bad, clip, MODES, newId } from './util.js';
-import { laterNote, laterView } from './later.js';
+import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
 import { goalNote, goalView } from './goal.js';
-import { planOf } from './budget.js';
+import { planOf, unitsOf } from './budget.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -154,8 +154,10 @@ export function summarize(s, store) {
     queued: s.queue?.length || 0,
     later: laterView(s), // follow-ups and reminders scheduled on it (server/later.js)
     reminder: s.reminder ? { text: s.reminder.text, at: s.reminder.at, setAt: s.reminder.setAt, by: s.reminder.by, ...(s.reminder.from && { from: s.reminder.from }), ...(s.reminder.missed && { missed: true }) } : undefined,
-    status: last?.status === 'running' || s.auto?.busy || s.goal?.status === 'checking' ? 'running' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
+    status: last?.status === 'running' || s.auto?.busy || s.goal?.status === 'checking' ? 'running' : last?.status === 'held' ? 'held' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
     preview: hero?.summary || '',
+    // Ask near the limit (server/guard.js): it waits, held before it started or was sent.
+    ...(last?.status === 'held' && { held: (({ kind, label, used, to, line, resetsAt, until, waiting }) => ({ kind, label, used, to, line, resetsAt, until, ...(waiting && { waiting: true }) }))(last.held) }),
     ...(s.tags?.length && { tags: s.tags }), // topic words its agent set with wisp_tag, for search (web/js/tags.js)
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
@@ -270,7 +272,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, hold = null }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -311,8 +313,78 @@ export class Runner extends EventEmitter {
     if (goal && !parentId && !delegated) this.goals?.attach(session, goal);
     this.store.put(session);
     if (!parentId && !delegated) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
-    this.#startTurn(session, prompt, attachments);
+    // Ask near the limit (server/guard.js): an automation's task that would cross your line waits.
+    if (hold) this.#holdTurn(session, prompt, attachments, {}, hold);
+    else this.#startTurn(session, prompt, attachments);
     return session;
+  }
+
+  // A run that would take its account's window past your line (server/guard.js), kept as a held
+  // turn: its prompt shows, with a card (Start now, Wait until the reset, Skip this run), and the
+  // task waits in Needs you. It goes by itself at `until` (Later's tick), or when you start it.
+  // opts: what the follow-up carried (mode, run, team, by, later, goal), used when it goes.
+  #holdTurn(session, prompt, attachments = [], opts = {}, hold) {
+    const now = Date.now();
+    const kind = session.turns.length ? 'followUp' : 'first';
+    session.turns.push({
+      id: newId(),
+      prompt,
+      agent: opts.run?.agent || session.agent,
+      model: opts.run?.model ?? session.model,
+      effort: opts.run?.effort ?? (session.effort || ''),
+      ...(session.account && { account: session.account }),
+      mode: opts.mode || session.mode,
+      attachments: attachments.map(({ id, name, mime, size }) => ({ id, name, mime, size })),
+      ...(opts.by === 'wisp' && { by: 'wisp' }),
+      ...(opts.by === 'wisp' && opts.goal && { goal: opts.goal }),
+      ...(opts.by === 'later' && opts.later && { later: opts.later }),
+      startedAt: now,
+      endedAt: null,
+      status: 'held',
+      held: { kind, agent: hold.agent, account: hold.account, id: hold.id, label: hold.label, used: hold.used, to: hold.to, line: hold.line, resetsAt: hold.resetsAt, until: this.guard?.until?.(hold) || now + 3600_000, at: now },
+      run: { attachments, opts },
+      activity: [],
+      changes: [],
+      presentation: null,
+      stats: null,
+    });
+    session.state = 'review';
+    session.unread = true;
+    delete session.archived;
+    delete session.forLater;
+    this.#touch(session);
+    this.emit('held', { session });
+  }
+
+  // The held turn goes now (Start now, or its reset came). false when there's none.
+  release(session) {
+    const t = session.turns.at(-1);
+    if (t?.status !== 'held') return false;
+    session.turns.pop();
+    const { attachments = [], opts = {} } = t.run || {};
+    const next = { text: t.prompt, attachments, ...opts };
+    if (this.live.has(session.id)) {
+      session.queue.push({ id: newId(), ...next });
+      this.#touch(session);
+      return true;
+    }
+    if (next.mode) session.mode = next.mode;
+    if (next.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
+    if (next.team) setTeam(session, next.team);
+    this.#startTurn(session, next.text, next.attachments, next);
+    return true;
+  }
+
+  // Skip this run: the held turn stays, stopped, so the task says what was skipped and when.
+  skipHeld(session) {
+    const t = session.turns.at(-1);
+    if (t?.status !== 'held') return false;
+    Object.assign(t, { status: 'stopped', skipped: true, endedAt: Date.now(), presentation: { blocks: [{ type: 'hero', title: 'Skipped before it started', summary: `${t.held.label} window was near its limit.`, status: 'info' }] } });
+    delete t.run;
+    session.state = 'done';
+    session.unread = false;
+    this.#touch(session);
+    return true;
   }
 
   // mode: switch the permission mode (plan / edits / auto) from this follow-up on. A queued
@@ -324,7 +396,9 @@ export class Runner extends EventEmitter {
   // team: a new roster of subagents (normalized; [] drops them) for this follow-up and the ones after it.
   // by: 'later' for a follow-up scheduled earlier (server/later.js), with later: { by, setAt, at, late? }.
   // goal: the round a follow-up from wisp starts toward the task's goal (server/goal.js).
-  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later, goal } = {}) {
+  // hold: Ask near the limit (server/guard.js) said this follow-up would cross your line: it's kept
+  // as a held turn instead. Scheduled follow-ups and goal rounds are checked here themselves.
+  reply(session, text, attachments = [], { queue = false, mode, run, team, grants, once, by, later, goal, hold } = {}) {
     if (!MODES.has(mode) || mode === session.mode) mode = undefined;
     run = changedRun(session, run);
     if (session.parentId || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
@@ -335,7 +409,18 @@ export class Runner extends EventEmitter {
       this.answer(session, text);
       return { answered: true };
     }
+    // A held run goes first: what you send now queues behind it.
+    if (session.turns.at(-1)?.status === 'held') {
+      this.release(session);
+      queue = true;
+    }
+    // Not the carry-on after a usage limit: it's sent at the reset, for a window you already chose to wait for.
+    if (!hold && !session.parentId && !session.delegated && text !== LIMIT_CARRY_ON && (by === 'later' || (by === 'wisp' && goal))) hold = this.guard?.check?.({ agent: run?.agent || session.agent, account: run?.account ?? session.account, kind: 'followUp', session });
     const handle = this.live.get(session.id);
+    if (hold && !handle) {
+      this.#holdTurn(session, text, attachments, extra, hold);
+      return { held: true };
+    }
     if (handle) {
       const turn = session.turns.at(-1);
       // The run already produced its result and the CLI is only lingering on its way out:
@@ -413,6 +498,10 @@ export class Runner extends EventEmitter {
   // Which account a run of `agent` gets: the one asked for when the harness has it, else your last
   // pick (byHand: skipping one already at its limit, server/accounts.js pick). '' when the harness
   // has only the CLI's own.
+  accountFor(agent, want = '', byHand = true) {
+    return this.#accountFor(agent, want, byHand);
+  }
+
   #accountFor(agent, want = '', byHand = true) {
     const a = this.accounts;
     if (!a?.multi?.(agent)) return '';
@@ -1133,6 +1222,8 @@ export class Runner extends EventEmitter {
     delete turn.interim;
     delete turn.background;
     turn.stats = ev.stats || null;
+    this.guard?.changed?.(turn.agent || session.agent); // its cost counts in the next estimate
+    this.budget?.spend?.(turn.agent || session.agent, session.account || 'default', unitsOf(turn.stats));
     delete session.ask;
     if (this.stopping.delete(session.id)) ev = { ...ev, stopped: true };
     const interrupted = ev.stopped && this.interrupting.has(session.id);

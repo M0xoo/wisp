@@ -69,7 +69,7 @@ function paletteItems() {
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
     // The goal's items, as the task's menus have them (Set goal… / Edit goal…, Pause, Resume, Drop).
     for (const x of goalActions(cur)) items.push({ group: g, label: x.label, sub, icon: x.icon, keywords: 'goal done when until keep going condition', run: () => runGoalAction(x.a, id, null) });
-    for (const x of laterActions(cur)) items.push({ group: g, label: x.label, sub, icon: x.icon, keywords: 'scheduled later follow-up reminder snooze time', run: () => runLaterAction(x.a, cur, null, { x: innerWidth / 2 - 120, y: innerHeight / 3 }) });
+    for (const x of laterActions(cur)) items.push({ group: g, label: x.label, sub, icon: x.icon, keywords: 'scheduled later follow-up reminder snooze time held limit usage', run: () => runLaterAction(x.a, cur, null, { x: innerWidth / 2 - 120, y: innerHeight / 3 }) });
     const member = cur.crew && memberById(cur.crew.id);
     if (member) items.push({ group: g, label: `Open ${member.name}`, sub, icon: 'crew', keywords: 'crew agent member', run: () => openCrew(member.id) });
     else if (!cur.parentId && cur.agent !== 'wisp') items.push({ group: g, label: 'Add to crew…', sub, icon: 'crew', keywords: 'crew agent assistant persistent schedule avatar', run: () => addToCrew(id) });

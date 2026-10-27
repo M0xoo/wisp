@@ -157,7 +157,7 @@ export function openapi({ version, port }) {
           ],
           responses: { 200: json({ type: 'array', items: ref('Summary') }) },
         },
-        post: { summary: 'Launch a task. With `compare`, the response is the first session plus `group`: every session started', requestBody: body(ref('Launch')), responses: { 201: json(ref('Summary')), 400: err[400] } },
+        post: { summary: 'Launch a task. With `compare`, the response is the first session plus `group`: every session started. 409 with `hold` when it would take its account’s usage window past the Ask near the limit line (send again with `confirmLimit: true` once the user agreed)', requestBody: body(ref('Launch')), responses: { 201: json(ref('Summary')), 400: err[400], 409: json(ref('Hold'), 'Near the usage limit') } },
       },
       '/sessions/{id}': {
         parameters: [id],
@@ -421,8 +421,8 @@ export function openapi({ version, port }) {
         parameters: [id],
         post: {
           summary: 'Follow up (answers a pending ask_user question if there is one). Text starting with /btw is a side question instead (see /btw). Text starting with @Name (a crew member) goes to that member, whose answer lands on the latest turn’s btw list ({ crew: [entry] }); a member named later in the text joins the task’s delegates',
-          requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, queue: { type: 'boolean', description: 'Wait for the current run instead of interrupting it' }, mode: { enum: ['plan', 'edits', 'auto'], description: 'Switch the session to this mode from this follow-up on' }, agent: { type: 'string', description: 'Switch to this harness from this follow-up on; it is handed the turns it has not seen' }, model: { type: 'string', description: 'Switch model (empty: the harness default)' }, effort: { type: 'string', description: 'Switch thinking level (empty: the default)' }, account: { type: 'string', description: 'Switch to another of the harness’s accounts (`/agents/{aid}/accounts`) from this follow-up on' }, subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'] }, description: 'Give the lead this team from this follow-up on (same shape as a launch’s `subagents`; [] removes it). Members it already used keep their conversation' }, preset: { type: 'string', description: 'Id of a saved team (`/teams`), used when `subagents` is absent' } } }),
-          responses: { 200: json({ type: 'object', properties: { answered: { type: 'boolean' }, queued: { type: 'boolean' }, interrupted: { type: 'boolean' }, ahead: { type: 'integer' }, btw: ref('Btw') } }), 400: err[400] },
+          requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } }, queue: { type: 'boolean', description: 'Wait for the current run instead of interrupting it' }, mode: { enum: ['plan', 'edits', 'auto'], description: 'Switch the session to this mode from this follow-up on' }, agent: { type: 'string', description: 'Switch to this harness from this follow-up on; it is handed the turns it has not seen' }, model: { type: 'string', description: 'Switch model (empty: the harness default)' }, effort: { type: 'string', description: 'Switch thinking level (empty: the default)' }, account: { type: 'string', description: 'Switch to another of the harness’s accounts (`/agents/{aid}/accounts`) from this follow-up on' }, subagents: { type: 'array', maxItems: 6, items: { type: 'object', required: ['agent'] }, description: 'Give the lead this team from this follow-up on (same shape as a launch’s `subagents`; [] removes it). Members it already used keep their conversation' }, preset: { type: 'string', description: 'Id of a saved team (`/teams`), used when `subagents` is absent' }, confirmLimit: { type: 'boolean', description: 'The user agreed to send it although it would take the account’s usage window past their Ask near the limit line' } } }),
+          responses: { 200: json({ type: 'object', properties: { answered: { type: 'boolean' }, queued: { type: 'boolean' }, interrupted: { type: 'boolean' }, ahead: { type: 'integer' }, btw: ref('Btw') } }), 400: err[400], 409: json(ref('Hold'), 'Near the usage limit') },
         },
       },
       '/sessions/{id}/btw': {
@@ -497,6 +497,10 @@ export function openapi({ version, port }) {
         patch: { summary: 'Change a scheduled follow-up ({ item, at | in, text }), send it now ({ item, now: true }) or snooze a reminder that came due ({ item: "reminder", at | in })', requestBody: body({ type: 'object', properties: { item: { type: 'string' }, at: { type: ['integer', 'string'] }, in: { type: 'number' }, text: { type: 'string' }, now: { type: 'boolean' } }, required: ['item'] }), responses: { 200: json({ type: 'object' }), 400: err[400], 404: err[404] } },
         delete: { summary: 'Cancel a scheduled follow-up', parameters: [{ name: 'item', in: 'query', required: true, schema: { type: 'string' } }], responses: { 200: ok, 404: err[404] } },
       },
+      '/sessions/{id}/held': {
+        parameters: [id],
+        post: { summary: 'A run held near the usage limit (its last turn has status `held`): start it now, wait for the reset (it leaves Needs you), or skip it', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['start', 'wait', 'skip'] } } }), responses: { 200: json(ref('Summary')), 400: err[400], 404: err[404] } },
+      },
       '/sessions/{id}/queue': { parameters: [id, { name: 'item', in: 'query', required: true, schema: { type: 'string' } }], delete: { summary: 'Cancel a queued follow-up', responses: { 200: ok, 404: err[404] } } },
       '/sessions/{id}/takeover': {
         parameters: [id],
@@ -539,6 +543,14 @@ export function openapi({ version, port }) {
     components: {
       schemas: {
         Error: { type: 'object', properties: { error: { type: 'string' } } },
+        Hold: {
+          type: 'object',
+          description: 'Refused: it would take the account’s usage window past the Ask near the limit line (Settings → Usage)',
+          properties: {
+            error: { type: 'string' },
+            hold: { type: 'object', properties: { agent: { type: 'string' }, account: { type: 'string' }, id: { type: 'string', description: 'five_hour, seven_day, …' }, label: { type: 'string' }, used: { type: 'number', description: '0..1' }, to: { type: 'array', items: { type: 'number' }, description: 'Where it would likely end up, low and high (0..1)' }, resetsAt: { type: ['integer', 'null'] }, line: { type: 'number' } } },
+          },
+        },
         CloudSignin: { type: 'object', properties: { id: { type: 'string' }, grid: { type: 'string' }, state: { enum: ['waiting', 'done', 'denied', 'expired', 'failed', 'cancelled'] }, userCode: { type: 'string' }, verifyUrl: { type: 'string' }, expiresAt: { type: 'integer' }, error: { type: 'string' }, machineId: { type: ['string', 'null'] }, user: { type: ['object', 'null'] } } },
         Health: { type: 'object', properties: { ok: { type: 'boolean' }, name: { const: 'wisp' }, version: { type: 'string' }, apiVersion: { type: 'integer' }, pid: { type: 'integer' }, url: { type: 'string' } } },
         Agent: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' }, available: { type: 'boolean' }, version: { type: 'string' }, models: { type: 'array', items: { type: 'object' } }, efforts: { type: 'array', items: { type: 'string' } }, hasKey: { type: ['boolean', 'null'], description: 'opencode only: signed in to a provider or has an API key in the environment (false: its free models alone)' }, setup: { type: 'object', description: 'Only while not found: how to get it on that OS', properties: { tip: { type: 'string' }, command: { type: 'string' }, url: { type: 'string' } } }, budget: { type: 'array', description: 'How much of each account’s usage windows is gone, as its CLI last reported (Claude, Codex). hitAt: when it runs out at this pace, if before the reset', items: { type: 'object', properties: { account: { type: 'string', description: 'default: the CLI’s own' }, at: { type: 'integer' }, windows: { type: 'array', items: { type: 'object', properties: { id: { type: 'string', description: 'five_hour, seven_day, …' }, label: { type: 'string' }, used: { type: 'number', minimum: 0, maximum: 1 }, resetsAt: { type: ['integer', 'null'] }, hitAt: { type: ['integer', 'null'] } } } } } } } } },
@@ -549,6 +561,7 @@ export function openapi({ version, port }) {
           required: ['prompt'],
           properties: {
             prompt: { type: 'string' },
+            confirmLimit: { type: 'boolean', description: 'The user agreed to go ahead although it would take the account’s usage window past their Ask near the limit line (see the 409 `hold`)' },
             cwd: { type: 'string', description: 'Project folder (absolute; ~ allowed). Default: the server’s cwd' },
             also: { type: 'array', maxItems: 8, items: { type: 'string' }, description: 'More folders the same task works in (absolute; ~ allowed). The agent gets each; git repos get their own worktree, and Ship it opens a PR in each' },
             scratch: { type: 'boolean', description: 'No project folder: run in an empty scratch directory (no worktree). Overrides cwd' },

@@ -22,9 +22,13 @@ import { slotHtml } from './spells.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
-import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, planRows } from './later.js';
+import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
 import { crewDot, memberById, paintCrew, pinJob, underMember } from './crew.js';
 import { backToPlace, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
+
+// A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
+const heldSub = (s) => (s.held.waiting ? `Waiting for the ${s.held.label.toLowerCase()} reset` : `${s.held.label} window at ${Math.floor(s.held.used * 100)}%`);
+const heldTip = (s) => `${s.held.label} window at ${Math.floor(s.held.used * 100)}% · goes by itself ${aheadLabel(s.held.until)}`;
 
 function visible(list) {
   return S.filter === 'all' ? list : list.filter((s) => inProject(s, S.filter));
@@ -76,7 +80,7 @@ export function groups() {
   // Working items keep launch order so the feed doesn't reshuffle on every tool call.
   const working = all.filter((s) => s.state === 'running').sort((a, b) => b.createdAt - a.createdAt);
   // Done, with follow-ups still to come: Scheduled, soonest first (later.js).
-  const scheduled = all.filter((s) => isScheduled(s)).sort((a, b) => a.later[0].at - b.later[0].at);
+  const scheduled = all.filter((s) => isScheduled(s)).sort((a, b) => nextAt(a) - nextAt(b));
   const done = all.filter((s) => s.state === 'done' && !isScheduled(s)).sort((a, b) => b.updatedAt - a.updatedAt);
   const archived = every.filter((s) => s.archived).sort((a, b) => b.updatedAt - a.updatedAt);
   return { needs, working, scheduled, forLater, done, archived };
@@ -310,7 +314,9 @@ function renderHead(n, s) {
   const pill =
     s.state === 'waiting'
       ? `<span class="pill st-waiting"><i></i>Asking</span>`
-      : s.reminder && s.state === 'review'
+      : s.held && s.state === 'review'
+        ? `<span class="pill st-held" title="${esc(heldTip(s))}"><i></i>Held</span>`
+        : s.reminder && s.state === 'review'
         ? `<span class="pill st-reminder" title="${esc(s.reminder.text)}">${icon('bell')}Reminder</span>`
         : s.state === 'review'
           ? `<span class="pill st-${s.status}"><i></i>${STATUS_LABEL[s.status] || STATUS_LABEL.done}</span>`
@@ -323,12 +329,12 @@ function renderHead(n, s) {
     ${(s.crew && crewDot(s)) || (s.kind === 'reminder' ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s))}
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
-      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : sched ? `<span class="it-sub${s.later[0].held ? ' held' : ''}" title="${esc(laterTip(s))}">${icon(laterLine(s.later[0])[0])}${esc(laterLine(s.later[0])[1])}</span>` : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
+      ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : s.held ? `<span class="it-sub" title="${esc(heldTip(s))}">${icon('pause')}${esc(heldSub(s))}</span>` : sched ? `<span class="it-sub${s.later[0].held ? ' held' : ''}" title="${esc(laterTip(s))}">${icon(laterLine(s.later[0])[0])}${esc(laterLine(s.later[0])[1])}</span>` : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
       ${rowChoices(s, open)}
     </span>
     <span class="it-side">
       ${headPills(s, pill)}
-      ${sched ? `<span class="q-time" title="${esc(laterTip(s))}">${esc(aheadLabel(s.later[0].at))}</span>` : isForLater(s) ? `<span class="q-time" title="${esc(savedTip(s))}">${ago(s.forLater.at)}</span>` : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>`}
+      ${sched ? `<span class="q-time" title="${esc(s.later?.length ? laterTip(s) : heldTip(s))}">${esc(aheadLabel(nextAt(s)))}</span>` : isForLater(s) ? `<span class="q-time" title="${esc(savedTip(s))}">${ago(s.forLater.at)}</span>` : `<span class="q-time" ${timeAttrs(s.updatedAt)}>${ago(s.updatedAt)}</span>`}
       ${s.pending ? '' : slotHtml('card.hover', s)}
       ${quickLater(s, open)}${quickDone(s, open)}
       ${icon('chevron', 'chev')}

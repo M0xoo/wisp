@@ -144,14 +144,16 @@ export class WispClient {
   // runs the same task on more harnesses at once, each in its own worktree. subagents:
   // [{ name, agent, model, effort, use }] (or preset: a saved team's id) the lead can delegate to.
   // also: more folders the same task works in (each git repo gets its own worktree and PR).
-  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind } = {}) {
+  // confirmLimit: the user agreed to go ahead although it takes a usage window past their Ask near
+  // the limit line (refused with 409 and `hold` otherwise, server/guard.js).
+  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, confirmLimit } = {}) {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
       agent ||= defaults.agent || 'auto';
       mode ||= defaults.mode || 'auto';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }
-    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind });
+    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, confirmLimit });
   }
 
   // Ship it: commit the session's worktree, push its branch, open (or update) the PR.
@@ -169,7 +171,7 @@ export class WispClient {
   // A follow-up. If the agent is blocked on ask_user, this answers it. queue: wait for the
   // current run instead of interrupting it (default: the user's setting). agent / model / effort:
   // run it, and the follow-ups after it, on another harness, model or thinking level.
-  reply = (id, text, { attachments, queue, mode, agent, model, effort } = {}) => this.request('POST', `/sessions/${id}/reply`, { text, attachments, queue, mode, agent, model, effort });
+  reply = (id, text, { attachments, queue, mode, agent, model, effort, confirmLimit } = {}) => this.request('POST', `/sessions/${id}/reply`, { text, attachments, queue, mode, agent, model, effort, confirmLimit });
 
   // A side question (/btw): a read-only run of its own answers it while the task's run carries on.
   // Resolves with { id, question, status: done | error, answer | error } once it's answered

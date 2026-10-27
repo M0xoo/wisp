@@ -617,7 +617,7 @@ export class Machines extends EventEmitter {
     } catch {
       j = { error: text.slice(0, 200) };
     }
-    if (res.statusCode >= 400) throw bad(j.error || `${m.name}: HTTP ${res.statusCode}`, res.statusCode);
+    if (res.statusCode >= 400) throw Object.assign(bad(j.error || `${m.name}: HTTP ${res.statusCode}`, res.statusCode), j.hold && { hold: j.hold }); // hold: Ask near the limit there
     return j;
   }
 

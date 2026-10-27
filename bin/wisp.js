@@ -56,6 +56,7 @@ const HELP = `usage:
 
 launch options: --mode plan|edits|auto  --agent claude|codex|opencode|cursor|antigravity|grok|copilot  --model ID  --effort LEVEL
                 --cwd DIR  --also DIR (repeatable)  --wait  --json  --no-worktree  --compare agent[:model],…
+                --yes  go ahead although it takes a usage window past your Ask near the limit line
 options:        --port N  --browser  --no-open  --json  --version`;
 
 const COMMANDS = new Set(['add', 'ls', 'list', 'show', 'wait', 'reply', 'btw', 'stop', 'mcp', 'skill', 'ship', 'merge', 'run', 'recipes', 'usage', 'spell', 'spells', 'crew', 'grid', 'computer']);
@@ -63,7 +64,7 @@ const LS_STATES = ['running', 'waiting', 'review', 'done'];
 // grid/cli.js's GRID_COMMANDS (not imported: every command would load the grid). A test keeps them equal.
 const GRID_SUB = new Set(['dev', 'init', 'serve', 'doctor', 'rotate-key', 'backup', 'users', 'waitlist', 'help']);
 const argv = process.argv.slice(2);
-const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
+const flags = { open: true, browser: false, port: Number(process.env.WISP_PORT) || 4477, mode: null, agent: null, model: null, effort: null, cwd: null, also: [], json: false, wait: false, yes: false, queue: undefined, state: null, limit: null, project: false, worktree: undefined, compare: null, draft: false, days: null };
 const words = [];
 let literal = false;
 for (let i = 0; i < argv.length; i++) {
@@ -88,6 +89,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--limit') flags.limit = Number(argv[++i]);
   else if (a === '--json') flags.json = true;
   else if (a === '--wait' || a === '-w') flags.wait = true;
+  else if (a === '--yes' || a === '-y') flags.yes = true;
   else if (a === '--queue') flags.queue = true;
   else if (a === '--project') flags.project = true;
   else if (a === '--no-worktree') flags.worktree = false;
@@ -153,7 +155,7 @@ async function scripted(cmd, args) {
   };
   switch (cmd) {
     case 'launch': {
-      const s = await wisp.launch({ prompt: args.join(' '), cwd, also: flags.also, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree, compare: flags.compare || undefined });
+      const s = await wisp.launch({ prompt: args.join(' '), cwd, also: flags.also, agent: flags.agent || undefined, mode: flags.mode || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, worktree: flags.worktree, compare: flags.compare || undefined, confirmLimit: flags.yes || undefined });
       if (s.group && !flags.wait) return out(s, s.group.map((x) => `  ◌ launched on ${x.agent}: ${x.title}  (${x.id})`).join('\n'));
       if (!flags.wait) return out(s, `  ◌ launched: ${s.title}  (${s.id})`);
       if (!flags.json) console.error(`  ◌ launched: ${s.title}  (${s.id}) — waiting…`);
@@ -177,7 +179,7 @@ async function scripted(cmd, args) {
     }
     case 'reply': {
       const id = need(args[0], 'session id');
-      const r = await wisp.reply(id, need(args.slice(1).join(' ').trim(), 'text'), { queue: flags.queue, mode: flags.mode || undefined, agent: flags.agent || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined });
+      const r = await wisp.reply(id, need(args.slice(1).join(' ').trim(), 'text'), { queue: flags.queue, mode: flags.mode || undefined, agent: flags.agent || undefined, model: flags.model ?? undefined, effort: flags.effort ?? undefined, confirmLimit: flags.yes || undefined });
       if (r.btw) return btw(await wisp.btwAnswer(id, r.btw.id)); // "/btw …": a side question
       if (!flags.wait) return out(r, r.answered ? '  ✓ answered' : r.interrupted ? '  ✓ interrupted; resuming with your message' : r.queued ? '  ✓ queued' : '  ✓ sent');
       return show(id, await wisp.wait(id));

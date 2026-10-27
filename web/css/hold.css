@@ -1,0 +1,25 @@
+/* ---------- Ask near the limit (features/hold.js, design/hold.md) ---------- */
+/* The hold row over the reply box and the prompt box: why, Send anyway, Wait until the reset, ×.
+   It sits above the reply box's textarea (the docked box grows upward, so Send doesn't move) and
+   below the prompt box's bar, where the recipes and the time chip go. */
+.c-hold[hidden], .l-hold[hidden] { display: none; }
+.c-hold, .l-hold { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 9px 36px 10px 12px; font-size: 12.5px; animation: pop 0.25s var(--ease); }
+
+.c-hold { margin: 2px 0 6px; padding-left: 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-2); }
+.l-hold { margin: 8px -12px -10px; border-top: 1px solid var(--line); }
+.launcher.hold-on .l-recipes, .launcher.hold-on .l-when { display: none; }
+.split-home .launcher .l-hold { border-top: 0; margin-top: 2px; padding-left: 14px; }
+.hd-say { margin: 0; line-height: 1.45; color: var(--ink-2); text-wrap: pretty; }
+.hd-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.hd-acts .i { width: 13px; height: 13px; }
+.hd-x { top: 8px; translate: none; }
+@media (pointer: coarse) { .hd-acts button { min-height: 44px; } .hd-x { width: 32px; height: 32px; top: 4px; right: 4px; } }
+
+/* A run held for the reset: the card under its prompt, built like the usage-limit one. */
+.b-held .hd-say { margin-bottom: 10px; font-size: 13px; }
+.b-held.waiting { background: var(--surface-2); border-color: var(--line); }
+.pill.st-held { --tone: var(--warn); }
+
+/* The harness picker: how full a window at or past your line is (in place of the model count). */
+.pk-text small.rp-usage { color: var(--warn); font-variant-numeric: tabular-nums; }
+.pk-seg b.rp-usage { font: 600 11px var(--sans); color: var(--warn); font-variant-numeric: tabular-nums; }

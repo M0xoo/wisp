@@ -94,6 +94,8 @@ turn.
 
 ## Not yet
 
+- Asking before a run takes a window past a line: design/hold.md (Ask near the limit).
+
 - Budget of tasks on other machines (each machine keeps its own `budget.json`).
 - Auto at a limit with nothing else to run doesn't wait yet: it settles and the card asks.
 - A launch onto an account that's used up could offer *Start at the reset* (Later plan).

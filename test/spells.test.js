@@ -225,6 +225,14 @@ test('plan budget: its group in Settings → Usage is a part; Wait for the reset
   assert.ok(problems({ ...base0, settings: { limitWait: 'always' } }).some((x) => /limitWait/.test(x) && /on \| off/.test(x)));
 });
 
+test('ask near the limit: limitHold is a setting with its lines; the harness picker’s note is a part, the hold row and held card aren’t', () => {
+  assert.deepEqual(problems({ ...base0, settings: { limitHold: '95' } }), []);
+  assert.deepEqual(problems({ ...base0, settings: { limitHold: 'off' } }), []);
+  assert.ok(problems({ ...base0, settings: { limitHold: '50' } }).some((x) => /limitHold/.test(x) && /off \| 80 \| 90 \| 95/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['harness.usage'] } }), []);
+  for (const sel of Object.values(schema.PARTS)) assert.ok(!/\.(c-hold|l-hold|b-held|st-held)\b/.test(sel), `${sel} must not be a part: a held send needs you`);
+});
+
 test('Automations stop at (autoStop) is a setting; its row, Where it went and a task’s plan share are parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { autoStop: '75' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { autoStop: 'off' } }), []);
