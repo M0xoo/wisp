@@ -133,7 +133,9 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .l-bar:has(.runners.many) :is(.mode-btn span, .team-btn .tb-label) { display: none; }
 /* a narrower bar: the place goes to its icon first, so the harness keeps its name */
 @container launcher (max-width: 800px) { .l-bar .where-btn span { display: none; } }
-@container launcher (max-width: 720px) { .runners .rb-a { display: none; } }
+/* …then Worktree to its branch icon (its tooltip names it): a project picked adds it, and side by side
+   at 1000px it took the room the harness name needed */
+@container launcher (max-width: 720px) { .runners .rb-a, .l-bar #wtBtn span { display: none; } }
 /* two harnesses on a narrow bar: drop the model names, then the harness names (logos stay) */
 @container launcher (max-width: 640px) { .runners.cmp .rb-m { display: none; } }
 @container launcher (max-width: 520px) {

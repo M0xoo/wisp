@@ -23,6 +23,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **The harness keeps its name in the New task box side by side.** At about 1000px wide with a project picked, the harness pill shrank to `A…` while *Worktree* kept its label; Worktree now folds to its branch icon first (its tooltip still names it).
 - **The / menu in the prompt box.** Typing `/` on New task now lists `/goal`, `/spell` and `/feedback` (and spells' own commands), as the reply box does; it used to show nothing, so `/goal all tests pass` worked only if you knew it. A bare `/goal` opens *Done when*.
 
 - **A goal set right after a task lands gets checked.** */goal …* sent in the second or two while the agent's CLI was still exiting after its result left the goal at *working* forever: nothing checked it or sent the task back. Now it's checked at once, as on any idle task.
