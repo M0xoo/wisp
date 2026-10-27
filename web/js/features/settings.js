@@ -24,7 +24,7 @@ import { openPhone, phoneSummary } from './phone.js';
 import { paintReachable, reachableBox, reachableHtml } from './reachable.js';
 import { machinesSummary } from './places.js';
 import { AUTO_GOALS, agentsAt, harnessLogo } from './runners.js';
-import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, setupCommand, setupDocs, setupTip } from './setup.js';
+import { copySetupCommand, INSTALLABLE, installHarness, isInstalling, loadTools, setupCommand, setupDocs, setupTip, tools } from './setup.js';
 import { clearPicks } from './transcript.js';
 import { repaintViews } from './turns.js';
 import { openUsage } from './usage.js';
@@ -250,8 +250,18 @@ export function openSettings(opts) {
         return row(`<span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}`, desc, `${install}${docs}${(a.available || out) && !many ? loginControl(a.id) : ''}<span class="sx-state ${state[0]}" ${a.error ? `title="${esc(a.error)}"` : ''}><i class="dot ${state[0]}"></i>${state[1]}</span>`) + ((a.available || out) && !many ? loginPanel(a.id) : '') + accountsHtml(a);
       }).join('')
       : '<div class="sx-row"><div class="it-loading"><span class="orb tiny"></span>Looking for harnesses…</div></div>');
-    // GitHub: not a harness, but what Ship it pushes and opens pull requests with.
-    $('.sx-agents', node).insertAdjacentHTML('beforeend', row(`<span class="model-logo">${icon('github')}</span>GitHub`, 'For pushing branches and opening pull requests (the gh CLI)', loginControl('gh')) + loginPanel('gh'));
+    // git and GitHub: not harnesses, but what Ship it commits, pushes and opens pull requests with.
+    // Missing: how to get them on this OS, as for a harness that isn't found. Home's pinned tip
+    // scrolls to the first .sx-tool.
+    const notFound = '<span class="sx-state bad"><i class="dot bad"></i>Not found</span>';
+    const howTo = (name, setup) => [`${esc(setup.tip)}${setupCommand(setup.command)}`, `${setupDocs({ name, setup })}${notFound}`];
+    if (tools && !tools.git.installed) $('.sx-agents', node).insertAdjacentHTML('beforeend', row(`<span class="model-logo">${icon('branch')}</span>git`, ...howTo('git', tools.git.setup), 'sx-tool'));
+    $('.sx-agents', node).insertAdjacentHTML(
+      'beforeend',
+      tools && !tools.gh.installed
+        ? row(`<span class="model-logo">${icon('github')}</span>GitHub`, ...howTo('GitHub CLI', tools.gh.setup), 'sx-tool')
+        : row(`<span class="model-logo">${icon('github')}</span>GitHub`, 'For pushing branches and opening pull requests (the gh CLI)', loginControl('gh'), 'sx-tool') + loginPanel('gh'),
+    );
     const missing = S.agents.filter((a) => !a.available).length;
     const dot = $('.sx-nav [data-pane="agents"] .dot', node);
     if (dot && !missing) dot.remove();
@@ -265,6 +275,17 @@ export function openSettings(opts) {
   wireAccounts($('.sx-agents', node), () => paintAgents(true), signIns);
   bus.on('agents', () => paintAgents(), { node });
   bus.on('install', paintAgents, { node });
+  // gh found since (installed in a terminal): its sign-in state, for the Sign in button.
+  let ghFound = tools?.gh.installed;
+  bus.on(
+    'tools',
+    () => {
+      paintAgents();
+      if (tools.gh.installed && !ghFound) signIns.reload();
+      ghFound = tools.gh.installed;
+    },
+    { node },
+  );
   $('.sx-agents', node).onclick = (e) => {
     const c = e.target.closest('[data-copy]');
     if (c) return copySetupCommand(c);
@@ -277,7 +298,8 @@ export function openSettings(opts) {
     btn.classList.add('busy');
     const before = new Map(S.agents.map((a) => [a.id, a]));
     try {
-      setAgents(await api('/agents/recheck', { method: 'POST', body: {} }));
+      const [agents] = await Promise.all([api('/agents/recheck', { method: 'POST', body: {} }), loadTools()]);
+      setAgents(agents);
       bus.emit('agents'); // this pane, the launcher's setup strip and home's setup tip
       if (!node.isConnected) return;
       $('#launcher')?.placesChanged?.();

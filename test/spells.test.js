@@ -157,6 +157,7 @@ test('split view: sidebar and split slots, parts and pixel props', () => {
   // the tips under the prompt box: hide them, or show more or fewer
   assert.deepEqual(problems({ ...base0, ui: { hide: ['tips'] } }), []);
   assert.deepEqual(problems({ ...base0, ui: { hide: ['tips.setup'] }, parts: { 'tips.setup': { style: { borderRadius: '8px' } } } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['tips.tools', 'tips.grid'] } }), []);
   assert.ok(problems({ ...base0, parts: { tips: { props: { count: 0 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
 });
 

@@ -85,6 +85,7 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'array', items: ref('Agent') }), 400: err[400] },
         },
       },
+      '/tools': { get: { summary: 'What Ship it needs here: git installed, gh installed and signed in to GitHub (signedIn null when unknown), with setup (tip, command, url) for this OS when missing', responses: { 200: json({ type: 'object' }) } } },
       '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/feedback': {
         post: {

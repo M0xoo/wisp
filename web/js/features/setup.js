@@ -104,3 +104,32 @@ export function nudgeSetup() {
 
 bus.on('agents', renderSetup);
 bus.on('install', renderSetup);
+
+// What Ship it needs here (GET /tools): git, and gh signed in to GitHub. Null until the first
+// answer, so nothing flashes. Asked again on Re-check, and when the window comes back while
+// something is missing (installed in a terminal meanwhile), at most every 10 s.
+export let tools = null;
+let toolsAt = 0;
+export async function loadTools() {
+  toolsAt = Date.now();
+  try {
+    tools = await api('/tools');
+    bus.emit('tools');
+  } catch {}
+}
+export const toolsMissing = () => !!tools && (!tools.git.installed || !tools.gh.installed || tools.gh.signedIn === false);
+// Signed in or out of GitHub in Settings (or another window): at once, without asking gh again.
+function ghSignedIn(on) {
+  if (!tools || tools.gh.signedIn === on) return;
+  tools = { ...tools, gh: { ...tools.gh, installed: true, signedIn: on } };
+  bus.emit('tools');
+}
+bus.on('agent-login-state', (v) => {
+  if (!v.scope && v.id === 'gh' && typeof v.signedIn === 'boolean') ghSignedIn(v.signedIn);
+});
+bus.on('agent-login', (v) => {
+  if (v.agent === 'gh' && v.state === 'done') ghSignedIn(true);
+});
+window.addEventListener('focus', () => {
+  if (toolsMissing() && Date.now() - toolsAt > 10_000) loadTools();
+});

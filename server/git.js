@@ -541,3 +541,37 @@ export async function applyPatch(dir, patch) {
     fs.rmSync(file, { force: true });
   }
 }
+
+// What Ship it needs on this computer: git (worktrees, commits) and gh signed in to GitHub (push,
+// pull requests). For the pinned tips and Settings → Agents, with how to get what's missing on this
+// OS. gh: signedIn is null when its answer isn't one we know (offline, say), so nothing nags.
+const TOOL_SETUP = {
+  git: {
+    darwin: { tip: 'Install Apple’s command line tools: they include git', command: 'xcode-select --install', url: 'https://git-scm.com/downloads/mac' },
+    win32: { tip: 'Install Git for Windows, then restart wisp', command: 'winget install --id Git.Git -e --source winget', url: 'https://git-scm.com/downloads/win' },
+    linux: { tip: 'Install git with your package manager (apt, dnf, pacman…)', command: 'sudo apt install -y git', url: 'https://git-scm.com/downloads/linux' },
+  },
+  gh: {
+    darwin: { tip: 'Install the GitHub CLI, then sign in here', command: 'brew install gh', url: 'https://cli.github.com' },
+    win32: { tip: 'Install the GitHub CLI, then restart wisp and sign in here', command: 'winget install --id GitHub.cli -e --source winget', url: 'https://cli.github.com' },
+    linux: { tip: 'Install the GitHub CLI with your package manager, then sign in here', command: 'sudo apt install -y gh', url: 'https://github.com/cli/cli/blob/trunk/docs/install_linux.md' },
+  },
+};
+export const toolSetup = (id, platform = process.platform) => TOOL_SETUP[id][platform] || TOOL_SETUP[id].linux;
+
+function probe(bin, args) {
+  return new Promise((resolve) => {
+    execFile(bin, args, { timeout: 8000, env: { ...process.env, ...QUIET_ENV } }, (err, stdout, stderr) => resolve({ missing: err?.code === 'ENOENT', ok: !err, out: `${stdout}${stderr}` }));
+  });
+}
+
+export async function tools(platform = process.platform) {
+  const [g, h] = await Promise.all([probe(GIT(), ['--version']), probe(GH(), ['auth', 'status', '--hostname', 'github.com'])]);
+  // macOS ships a git that only offers to install the command line tools: it fails, not ENOENT.
+  const gitOk = g.ok && /git version/.test(g.out);
+  const signedIn = h.missing ? null : h.ok ? true : /not logged in|no longer valid|invalid|gh auth login/i.test(h.out) ? false : null;
+  return {
+    git: { installed: gitOk, ...(!gitOk && { setup: toolSetup('git', platform) }) },
+    gh: { installed: !h.missing, signedIn, ...(h.missing && { setup: toolSetup('gh', platform) }) },
+  };
+}

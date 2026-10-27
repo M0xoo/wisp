@@ -250,10 +250,12 @@ export function wireLogins(box, places) {
         of(scope).logins.set(id, { state: 'idle', signedIn: false });
         repaint(scope, id);
         markSignedIn(scope, id, false);
+        bus.emit('agent-login-state', { scope, id, account: '', signedIn: false });
         try {
           await api(path(scope, id, 'logout'), { method: 'POST', body: {} });
         } catch (err) {
           markSignedIn(scope, id, true);
+          bus.emit('agent-login-state', { scope, id, account: '', signedIn: true });
           throw err;
         }
         toast(`Signed out of <b>${esc(NAMES[id] || id)}</b>`);

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
 import { whereItWent } from '../budget.js';
+import { tools } from '../git.js';
 import { openapi } from '../openapi.js';
 import { pageEvent } from '../telemetry.js';
 import { triggerView } from '../triggers.js';
@@ -66,6 +67,8 @@ export function register(r, app) {
     const [agents] = await Promise.all([app.auto.detect({ fresh: true }), machines.recheckAgents()]);
     c.send(200, withAccounts(agents));
   });
+  // git and gh, for Ship it: installed, gh signed in to GitHub, and how to get what's missing.
+  r.route('GET', '/tools', async (c) => c.send(200, await tools()));
   // Sign in to a harness here: its own login, shown as a link, a code, and a box to paste one back.
   // ?account=<id>: one of its extra accounts (none: the CLI's own).
   const acc = (c) => c.query.get('account') || '';
