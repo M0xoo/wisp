@@ -64,7 +64,7 @@ export const PHONE_TIPS = [
   ['<b>Cloud</b> is your wisp on a server: its agents keep working with every computer switched off', G('use-wisp-cloud', 'phone')],
   ['<b>Your computer</b> opens while it’s awake: tasks there run on its own files, repos and tools', G(PHONE, 'phone')],
   ['Lock the phone or switch apps: tasks run on the computer, not here, and wait for you when they ask', G(BG, 'away')],
-  ['Inside a computer, <b>New task</b> starts one; <b>Computers</b> in its top bar brings you back here', G(PHONE, 'phone')],
+  ['Inside a computer, <b>New task</b> starts one; tap the <b>wisp logo</b> to come back here', G(PHONE, 'phone')],
   ['Questions from your agents show under <b>Needs you</b>: answer from here and the task picks up', G(BG, 'away')],
   ['Leave the agent on <b>Auto</b> and wisp picks the agent and model per task from what worked for you', G(VS, 'let-results-pick')],
   ['Start several tasks at once: each gets its own branch, so agents never touch the same files', G(MANY, 'why-worktrees')],

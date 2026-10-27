@@ -65,7 +65,7 @@ GitHub there in Settings → Agents. See [grid/README.md](../grid/README.md).
 3. **Connect.** The card shows the steps (SSH, Node.js, wisp, tunnel); a computer without Node.js
    gets it in `~/.wisp/node`, and wisp comes from `npx`. Then wisp opens. Pick a coding agent there
    (Settings → Agents: opencode installs in one click).
-4. **Switch:** **Computers** in wisp's top bar (or Settings → Computers) goes back to the list.
+4. **Switch:** the wisp logo or **Computers** in wisp's top bar (or Settings → Computers) goes back to the list.
    The app opens the last computer used each time it starts.
 
 Away from home, put the

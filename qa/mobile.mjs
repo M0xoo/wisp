@@ -150,6 +150,12 @@ try {
     await page.locator('#machinesBtn').tap();
     const req = await nav;
     ok(new URL(req.url()).searchParams.get('from') === COMPUTER, `went to ${req.url()}`);
+    // The logo goes there too (only in the app: a browser's logo stays the way home).
+    await page.goto(`${wisp.url}/?m=${COMPUTER}`);
+    await page.waitForSelector('body.wisp-mobile');
+    const viaLogo = page.waitForRequest((r) => r.url().startsWith('https://localhost/'), { timeout: 5000 });
+    await page.locator('#topbar .brand').tap();
+    ok(new URL((await viaLogo).url()).searchParams.get('from') === COMPUTER, 'the logo did not go to the computers list');
     await ctx.close();
   });
 

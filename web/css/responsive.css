@@ -123,8 +123,9 @@ body.wisp-mobile .topbar :is(.icon-btn, .auto-btn, .search-btn, .me-btn) { min-w
 /* The avatar menu's rows take a thumb. */
 body.wisp-mobile .me-menu :is(.sf-me, .me-nav .auto-btn) { min-height: 44px; }
 body.wisp-mobile .lp-chip { height: 44px; }
-/* The logo is only a mark here: its #/ link would add a history entry Back has to step over. */
-body.wisp-mobile .topbar .brand { pointer-events: none; margin-right: 6px; }
+/* The logo goes to the app's computers list (app.js): a 44px target, no #/ history entry. */
+body.wisp-mobile .topbar .brand { min-width: 44px; height: 44px; margin-right: 6px; }
+body.wisp-mobile .topbar .brand:active { opacity: 0.6; }
 /* Search, the avatar and the project pill read as one row: each 32px to the eye (30px and its 1px ring), 44px to a thumb. */
 body.wisp-mobile .topbar .me-btn .sf-av { width: 30px; height: 30px; font-size: 13px; }
 body.wisp-mobile .topbar .me-btn .sf-av.out { background: var(--surface); }
