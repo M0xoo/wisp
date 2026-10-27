@@ -2,7 +2,8 @@
 //
 //   check     wisp runs the project's tests itself (server/check.js). Only new failures count.
 //   repair    tests fail → the same session gets the failures back, up to `repairs` rounds.
-//   escalate  still failing (or the run errored) → the task goes to a stronger harness · model,
+//   escalate  still failing (or the run errored) → the same model thinking harder (a run at low or
+//             medium), else a stronger harness · model,
 //             in its own worktree, next to the first run (one task, two rows).
 //   judge     best-of-2 (goal Best): both runs are checked, then the better one is marked
 //             (server/judge.js): tests first, then a cheap model reading both diffs.
@@ -95,7 +96,9 @@ export class Pipeline {
       if (failing && s.escalate && this.#canEscalate(session)) {
         // A step up: a stronger tier than this run's (or the strongest there is, if it was already top).
         const tier = tierOf(session.route?.key || '');
-        const pick = this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: 'best', important: true, minTier: Math.min(3, tier + 1), exclude: [session.route?.key, ...(a.tried || [])].filter(Boolean), needDelegate: !!session.subagents?.length });
+        // A run that thought low or medium goes again at high on the same model first: cheaper
+        // than a stronger model, and it solves most of what the low run missed.
+        const pick = (!(a.tried || []).length && this.router.levelUp?.(session.route, this.agents())) || this.router.choose({ prompt: session.turns[0].prompt, agents: this.agents(), goal: 'best', important: true, minTier: Math.min(3, tier + 1), exclude: [session.route?.key, ...(a.tried || [])].filter(Boolean), needDelegate: !!session.subagents?.length });
         if (!pick || tierOf(pick.key) < tier) this.#note(session, turn, 'check', 'No stronger harness · model to hand it to');
         else {
           this.#stage(session, turn, 'escalating', `Handing it to ${pick.label}`);

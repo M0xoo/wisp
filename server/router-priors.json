@@ -1,54 +1,223 @@
 {
-  "version": "pilot-2026-10-18",
-  "source": "wisp-bench pilot: 121 runs on SWE-bench Verified, Harness-Bench and replayed wisp PRs, graded by hidden tests (first attempt). Thin: treat as a starting point.",
+  "version": "bench-2026-10-26",
+  "source": "Public benchmarks (7 sources, 2026-06-04 to 2026-10-26), placed against Claude Code's default (Opus 5.5 at medium). See scripts/priors-sources.json.",
+  "sources": {
+    "anthropic-cost": {
+      "name": "Anthropic · Optimizing for cost and intelligence (SWE-bench Pro subset, internal agentic coding)",
+      "url": "https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence",
+      "date": "2026-10-19"
+    },
+    "opus55-card": {
+      "name": "Claude Opus 5.5 system card §8.8 · CursorBench 4.0",
+      "url": "https://www.growthcab.com/claude-effort-level",
+      "date": "2026-09-22"
+    },
+    "benchlm-swev": {
+      "name": "BenchLM · SWE-bench Verified",
+      "url": "https://benchlm.ai/benchmarks/swe-bench-verified",
+      "date": "2026-10-26"
+    },
+    "benchlm-tb2": {
+      "name": "BenchLM · Terminal-Bench 2.0",
+      "url": "https://benchlm.ai/benchmarks/terminal-bench-2",
+      "date": "2026-10-26"
+    },
+    "vals-tb2": {
+      "name": "Vals · Terminal-Bench 2.0 (Terminus 2 harness)",
+      "url": "https://www.vals.ai/benchmarks/terminal-bench-2",
+      "date": "2026-06-04"
+    },
+    "gpt56": {
+      "name": "OpenAI GPT-5.6 launch · Terminal-Bench 2.1 (secondary reports)",
+      "url": "https://howaiworks.ai/blog/openai-gpt-5-6-sol-terra-luna-launch-2026",
+      "date": "2026-07-09"
+    },
+    "scale-swepro-v2": {
+      "name": "Scale · SWE-bench Pro v2 Hard",
+      "url": "https://www.datalearner.com/en/benchmarks/swe-bench-pro-v2-hard",
+      "date": "2026-09-22"
+    }
+  },
+  "aliases": {
+    "claude": "opus",
+    "codex": "gpt-5.6-sol"
+  },
+  "defaults": {
+    "claude:opus": "medium",
+    "claude:sonnet": "medium",
+    "claude:haiku": "medium",
+    "codex:gpt-5.6-sol": "medium",
+    "codex:gpt-5.6-terra": "medium",
+    "codex:gpt-5.6-luna": "medium"
+  },
+  "tiers": {
+    "claude:opus": 3,
+    "claude:fable": 3,
+    "claude:sonnet": 2,
+    "claude:haiku": 1,
+    "codex:gpt-5.6-sol": 3,
+    "codex:gpt-5.6-terra": 3,
+    "codex:gpt-5.6-luna": 2,
+    "cursor:gpt-5.3-codex": 2,
+    "antigravity:gemini-4-argon": 3,
+    "antigravity:gemini-3.8-flash": 2,
+    "grok:grok-4.7": 2,
+    "opencode:opencode/deepseek-v4.1-flash-free": 1
+  },
   "arms": {
-    "opencode:opencode/deepseek-v4.1-flash-free": {
-      "a": 10,
-      "b": 0,
-      "usd": 0.0,
-      "min": 3.1
+    "antigravity:gemini-3.8-flash-high": {
+      "a": 3.169,
+      "b": 0.831,
+      "usd": 0.105,
+      "min": 4.4,
+      "from": [
+        "vals-tb2"
+      ]
+    },
+    "antigravity:gemini-4-argon-high": {
+      "a": 3.169,
+      "b": 0.831,
+      "usd": 0.21,
+      "min": 4.7,
+      "from": [
+        "vals-tb2"
+      ]
     },
     "claude:haiku": {
-      "a": 18,
-      "b": 3,
-      "usd": 0.017,
-      "min": 1.5
+      "a": 2.983,
+      "b": 1.017,
+      "usd": 0.042,
+      "min": 1.5,
+      "from": [
+        "benchlm-swev"
+      ]
     },
-    "claude:sonnet": {
-      "a": 18,
-      "b": 3,
-      "usd": 0.137,
-      "min": 0.7
+    "claude:opus:high": {
+      "a": 7.118,
+      "b": 0.882,
+      "usd": 0.284,
+      "min": 1.7,
+      "from": [
+        "anthropic-cost",
+        "opus55-card"
+      ]
+    },
+    "claude:opus:low": {
+      "a": 6.404,
+      "b": 1.596,
+      "usd": 0.11,
+      "min": 0.9,
+      "from": [
+        "anthropic-cost"
+      ]
+    },
+    "claude:opus:max": {
+      "a": 7.336,
+      "b": 0.664,
+      "usd": 0.94,
+      "min": 3.9,
+      "from": [
+        "opus55-card"
+      ]
+    },
+    "claude:opus:medium": {
+      "a": 6.8,
+      "b": 1.2,
+      "usd": 0.21,
+      "min": 1.3,
+      "from": [
+        "anthropic-cost",
+        "opus55-card",
+        "benchlm-swev"
+      ]
+    },
+    "claude:opus:xhigh": {
+      "a": 7.102,
+      "b": 0.898,
+      "usd": 0.614,
+      "min": 2.6,
+      "from": [
+        "anthropic-cost",
+        "opus55-card"
+      ]
+    },
+    "claude:sonnet:high": {
+      "a": 6.283,
+      "b": 1.717,
+      "usd": 0.116,
+      "min": 0.9,
+      "from": [
+        "anthropic-cost",
+        "benchlm-swev"
+      ]
+    },
+    "claude:sonnet:medium": {
+      "a": 5.064,
+      "b": 2.936,
+      "usd": 0.084,
+      "min": 0.7,
+      "from": [
+        "anthropic-cost"
+      ]
+    },
+    "codex:gpt-5.6-luna:medium": {
+      "a": 6.5,
+      "b": 1.5,
+      "usd": 0.049,
+      "min": 0.5,
+      "from": [
+        "gpt56"
+      ]
+    },
+    "codex:gpt-5.6-sol:medium": {
+      "a": 6.814,
+      "b": 1.186,
+      "usd": 0.245,
+      "min": 0.6,
+      "from": [
+        "gpt56",
+        "benchlm-swev"
+      ]
+    },
+    "codex:gpt-5.6-terra:medium": {
+      "a": 6.707,
+      "b": 1.293,
+      "usd": 0.123,
+      "min": 0.6,
+      "from": [
+        "gpt56"
+      ]
+    },
+    "cursor:gpt-5.3-codex": {
+      "a": 6.021,
+      "b": 1.979,
+      "usd": 0.11,
+      "min": 1.5,
+      "from": [
+        "benchlm-swev",
+        "benchlm-tb2",
+        "vals-tb2"
+      ]
     },
     "grok:grok-4.7": {
-      "a": 10,
-      "b": 2,
-      "usd": 0.984,
-      "min": 5.2
+      "a": 2.396,
+      "b": 1.604,
+      "usd": 0.026,
+      "min": 5.2,
+      "from": [
+        "benchlm-swev",
+        "benchlm-tb2"
+      ]
     },
-    "claude:opus": {
-      "a": 17,
-      "b": 4,
-      "usd": 0.344,
-      "min": 1.3
-    },
-    "antigravity:gemini-3.8-flash-medium": {
-      "a": 4,
-      "b": 1,
-      "usd": 0.054,
-      "min": 4.4
-    },
-    "codex:": {
-      "a": 19,
-      "b": 5,
-      "usd": 0.129,
-      "min": 0.6
-    },
-    "antigravity:gemini-4-argon-medium": {
-      "a": 5,
-      "b": 2,
-      "usd": 0.677,
-      "min": 4.7
+    "opencode:opencode/deepseek-v4.1-flash-free": {
+      "a": 2.507,
+      "b": 1.493,
+      "usd": 0,
+      "min": 3.1,
+      "from": [
+        "benchlm-swev",
+        "benchlm-tb2"
+      ]
     }
   }
 }

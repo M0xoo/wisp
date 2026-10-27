@@ -11,10 +11,12 @@ import { toast } from '../ui/toast.js';
 const fileInput = el(`<input type="file" multiple hidden>`);
 document.body.append(fileInput);
 
-export function attachTray() {
+// onChange: runs after files come or go (the launcher's Auto preview counts them).
+export function attachTray({ onChange } = {}) {
   const items = [];
   const node = el(`<div class="tray" hidden></div>`);
   const render = () => {
+    onChange?.();
     node.hidden = !items.length;
     node.innerHTML = items
       .map(
@@ -71,6 +73,9 @@ export function attachTray() {
       if (!list?.length) return;
       items.unshift(...list);
       render();
+    },
+    get count() {
+      return items.filter((i) => i.status !== 'failed').length;
     },
     get busy() {
       return items.some((i) => i.status === 'uploading');

@@ -176,9 +176,13 @@ test('tests that passed before break: one repair round, then the task goes to a 
   assert.equal(sib.groupId, first.groupId);
   assert.equal(sib.auto.escalatedFrom, s.id);
   assert.notEqual(sib.worktree.path, first.worktree.path);
-  assert.notEqual(`${sib.agent}:${sib.model}`, `${first.agent}:${first.model}`);
+  assert.notEqual(`${sib.agent}:${sib.model}:${sib.effort}`, `${first.agent}:${first.model}:${first.effort}`);
   assert.equal(sib.auto.escalatedTo, undefined, 'escalates once');
-  assert.ok(tierOf(`${sib.agent}:${sib.model}`) > tierOf(`${first.agent}:${first.model}`) || tierOf(`${first.agent}:${first.model}`) === 3, 'a hand-over steps up a tier');
+  // The same model thinking harder first (medium → high, high → x-high); else a stronger tier.
+  const order = ['', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+  const levelUp = sib.agent === first.agent && sib.model === first.model && order.indexOf(sib.effort) > Math.max(order.indexOf(first.effort), order.indexOf('medium'));
+  assert.ok(levelUp || tierOf(`${sib.agent}:${sib.model}`) > tierOf(`${first.agent}:${first.model}`) || tierOf(`${first.agent}:${first.model}`) === 3, 'a hand-over thinks harder or steps up a tier');
+  assert.equal(sib.route.why, 'The same model, thinking harder');
   assert.equal(first.auto.reason, 'tests');
   const sums = await api('/sessions');
   assert.equal(sums.find((x) => x.id === s.id).followups, 0, "wisp's repair round isn't a follow-up of yours");

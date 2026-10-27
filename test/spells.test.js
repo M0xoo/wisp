@@ -179,6 +179,14 @@ test('accounts: the picker row, the button part, the details initial and the Set
   assert.ok(problems({ ...base0, ui: { hide: ['picker.account'] } }).some((x) => /picker\.account/.test(x)));
 });
 
+test('Auto\'s preview: the chip, its popover, the alternatives and suggestion, and Settings → Auto\'s sources and rules are parts', () => {
+  const parts = ['launcher.autoPreview', 'autoPreview.panel', 'autoPreview.alternatives', 'autoPreview.suggest', 'router.sources', 'router.rules'];
+  for (const part of parts) assert.ok(schema.PARTS[part], part);
+  assert.deepEqual(problems({ ...base0, ui: { hide: parts } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'launcher.autoPreview': { style: { borderRadius: '6px' } }, 'autoPreview.panel': { style: { fontSize: '13px' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['launcher.autopreview'] } }).some((x) => /launcher\.autopreview/.test(x)));
+});
+
 test('forks: a fork button acts on the card\'s task, its chips, turn button and start line are parts', () => {
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'fork', label: 'Try with Codex', do: { fork: { prompt: 'Try it another way', agent: 'codex', mode: 'plan' } } }] }), []);
   assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { fork: { agent: 'codex' } } }] }).some((x) => /fork needs a prompt: what the fork should try/.test(x)));

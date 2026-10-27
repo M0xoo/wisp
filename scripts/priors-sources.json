@@ -1,0 +1,334 @@
+{
+  "about": "What Auto knows before your first task: public benchmark results, normalised onto one scale by scripts/priors.mjs into server/router-priors.json. Edit this file, then run `node scripts/priors.mjs`. Every row names its source; `note` says what was assumed.",
+  "anchor": {
+    "arm": "claude:opus:medium",
+    "chance": 0.85,
+    "usd": 0.21,
+    "note": "Claude Code's default (Opus 5.5 at medium) as the yardstick: 0.85 is roughly how often it finishes a wisp task without a correction (wisp-bench pilot and the routes it learned from). Every other arm is placed against it, benchmark by benchmark."
+  },
+  "strength": 8,
+  "helpers": [
+    "claude:opus-5",
+    "codex:gpt-5.6-sol-swev",
+    "claude:fable-5-1:medium"
+  ],
+  "sources": {
+    "anthropic-cost": {
+      "name": "Anthropic \u00b7 Optimizing for cost and intelligence (SWE-bench Pro subset, internal agentic coding)",
+      "url": "https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence",
+      "date": "2026-10-19"
+    },
+    "opus55-card": {
+      "name": "Claude Opus 5.5 system card \u00a78.8 \u00b7 CursorBench 4.0",
+      "url": "https://www.growthcab.com/claude-effort-level",
+      "date": "2026-09-22"
+    },
+    "benchlm-swev": {
+      "name": "BenchLM \u00b7 SWE-bench Verified",
+      "url": "https://benchlm.ai/benchmarks/swe-bench-verified",
+      "date": "2026-10-26"
+    },
+    "benchlm-tb2": {
+      "name": "BenchLM \u00b7 Terminal-Bench 2.0",
+      "url": "https://benchlm.ai/benchmarks/terminal-bench-2",
+      "date": "2026-10-26"
+    },
+    "vals-tb2": {
+      "name": "Vals \u00b7 Terminal-Bench 2.0 (Terminus 2 harness)",
+      "url": "https://www.vals.ai/benchmarks/terminal-bench-2",
+      "date": "2026-06-04"
+    },
+    "gpt56": {
+      "name": "OpenAI GPT-5.6 launch \u00b7 Terminal-Bench 2.1 (secondary reports)",
+      "url": "https://howaiworks.ai/blog/openai-gpt-5-6-sol-terra-luna-launch-2026",
+      "date": "2026-07-09"
+    },
+    "scale-swepro-v2": {
+      "name": "Scale \u00b7 SWE-bench Pro v2 Hard",
+      "url": "https://www.datalearner.com/en/benchmarks/swe-bench-pro-v2-hard",
+      "date": "2026-09-22"
+    }
+  },
+  "same": [
+    {
+      "a": "claude:fable-5-1:medium",
+      "b": "claude:opus:medium",
+      "source": "anthropic-cost",
+      "note": "Anthropic: Opus 5.5 at its default matched Fable 5.1 at its default on SWE-bench Pro, within run-to-run noise"
+    },
+    {
+      "a": "claude:opus-5",
+      "b": "claude:opus:medium",
+      "source": "benchlm-swev",
+      "note": "Opus 5's published score stands in for Opus 5.5 at its default level"
+    },
+    {
+      "a": "codex:gpt-5.6-sol:medium",
+      "b": "codex:gpt-5.6-sol-swev",
+      "source": "benchlm-swev",
+      "note": "Sol's SWE-bench Verified score (96.2) is reported at its default level"
+    }
+  ],
+  "rows": [
+    {
+      "bench": "anthropic-swepro",
+      "source": "anthropic-cost",
+      "arm": "claude:opus:low",
+      "score": 87.4,
+      "usd": 0.11
+    },
+    {
+      "bench": "anthropic-swepro",
+      "source": "anthropic-cost",
+      "arm": "claude:opus:medium",
+      "score": 92.8,
+      "usd": 0.21
+    },
+    {
+      "bench": "anthropic-swepro",
+      "source": "anthropic-cost",
+      "arm": "claude:opus:high",
+      "score": 95.3,
+      "usd": 0.29
+    },
+    {
+      "bench": "anthropic-swepro",
+      "source": "anthropic-cost",
+      "arm": "claude:opus:xhigh",
+      "score": 96.7,
+      "usd": 0.74
+    },
+    {
+      "bench": "cursorbench4",
+      "source": "opus55-card",
+      "arm": "claude:opus:medium",
+      "score": 52.5,
+      "usd": 3.0
+    },
+    {
+      "bench": "cursorbench4",
+      "source": "opus55-card",
+      "arm": "claude:opus:high",
+      "score": 56.0,
+      "usd": 3.97
+    },
+    {
+      "bench": "cursorbench4",
+      "source": "opus55-card",
+      "arm": "claude:opus:xhigh",
+      "score": 56.0,
+      "usd": 6.98
+    },
+    {
+      "bench": "cursorbench4",
+      "source": "opus55-card",
+      "arm": "claude:opus:max",
+      "score": 57.8,
+      "usd": 13.43
+    },
+    {
+      "bench": "anthropic-agentic",
+      "source": "anthropic-cost",
+      "arm": "claude:fable-5-1:medium",
+      "score": 84.2
+    },
+    {
+      "bench": "anthropic-agentic",
+      "source": "anthropic-cost",
+      "arm": "claude:sonnet:medium",
+      "score": 62.7
+    },
+    {
+      "bench": "anthropic-agentic",
+      "source": "anthropic-cost",
+      "arm": "claude:sonnet:high",
+      "score": 77.8
+    },
+    {
+      "bench": "swe-verified",
+      "source": "benchlm-swev",
+      "arm": "claude:opus-5",
+      "score": 96.0
+    },
+    {
+      "bench": "swe-verified",
+      "source": "benchlm-swev",
+      "arm": "codex:gpt-5.6-sol-swev",
+      "score": 96.2
+    },
+    {
+      "bench": "swe-verified",
+      "source": "benchlm-swev",
+      "arm": "cursor:gpt-5.3-codex",
+      "score": 85.0
+    },
+    {
+      "bench": "swe-verified",
+      "source": "benchlm-swev",
+      "arm": "opencode:opencode/deepseek-v4.1-flash-free",
+      "score": 79.0,
+      "note": "DeepSeek V4 Flash 0731; V4.1 Flash has no public score yet"
+    },
+    {
+      "bench": "swe-verified",
+      "source": "benchlm-swev",
+      "arm": "grok:grok-4.7",
+      "score": 76.7,
+      "note": "Grok 4.20; Grok 4.7 has no public score yet"
+    },
+    {
+      "bench": "swe-verified-gen45",
+      "source": "benchlm-swev",
+      "arm": "claude:sonnet:high",
+      "score": 77.2,
+      "note": "Sonnet 4.5 vs Haiku 4.5: the gap between the two lines, carried over to 5.5"
+    },
+    {
+      "bench": "swe-verified-gen45",
+      "source": "benchlm-swev",
+      "arm": "claude:haiku",
+      "score": 73.3,
+      "note": "Haiku 4.5"
+    },
+    {
+      "bench": "tb2",
+      "source": "benchlm-tb2",
+      "arm": "cursor:gpt-5.3-codex",
+      "score": 77.3
+    },
+    {
+      "bench": "tb2",
+      "source": "benchlm-tb2",
+      "arm": "opencode:opencode/deepseek-v4.1-flash-free",
+      "score": 56.9,
+      "note": "DeepSeek V4 Flash 0731"
+    },
+    {
+      "bench": "tb2",
+      "source": "benchlm-tb2",
+      "arm": "grok:grok-4.7",
+      "score": 47.1,
+      "note": "Grok 4.20"
+    },
+    {
+      "bench": "vals-tb2",
+      "source": "vals-tb2",
+      "arm": "cursor:gpt-5.3-codex",
+      "score": 64.05
+    },
+    {
+      "bench": "vals-tb2",
+      "source": "vals-tb2",
+      "arm": "antigravity:gemini-3.8-flash-high",
+      "score": 67.42,
+      "note": "Gemini 3.5 Flash at high; 3.8 Flash is its successor"
+    },
+    {
+      "bench": "vals-tb2",
+      "source": "vals-tb2",
+      "arm": "antigravity:gemini-4-argon-high",
+      "score": 67.42,
+      "note": "Gemini 3.1 Pro at high; Gemini 4 Argon is its successor"
+    },
+    {
+      "bench": "tb21",
+      "source": "gpt56",
+      "arm": "codex:gpt-5.6-sol:medium",
+      "score": 88.8
+    },
+    {
+      "bench": "tb21",
+      "source": "gpt56",
+      "arm": "codex:gpt-5.6-terra:medium",
+      "score": 87.4
+    },
+    {
+      "bench": "tb21",
+      "source": "gpt56",
+      "arm": "codex:gpt-5.6-luna:medium",
+      "score": 84.7
+    }
+  ],
+  "prices": {
+    "note": "$ per million tokens, input / output. A task's cost is the anchor's, scaled by price (output-heavy blend) and thinking level.",
+    "claude:opus": [
+      5,
+      25
+    ],
+    "claude:sonnet": [
+      2,
+      10
+    ],
+    "claude:haiku": [
+      1,
+      5
+    ],
+    "codex:gpt-5.6-sol": [
+      5,
+      30
+    ],
+    "codex:gpt-5.6-terra": [
+      2.5,
+      15
+    ],
+    "codex:gpt-5.6-luna": [
+      1,
+      6
+    ],
+    "cursor:gpt-5.3-codex": [
+      1.75,
+      14
+    ],
+    "grok:grok-4.7": [
+      1.25,
+      2.5
+    ],
+    "opencode:opencode/deepseek-v4.1-flash-free": [
+      0,
+      0
+    ]
+  },
+  "minutes": {
+    "note": "Wall time per task at the default level, from the wisp-bench pilot (2026-10-18).",
+    "claude:opus": 1.3,
+    "claude:sonnet": 0.7,
+    "claude:haiku": 1.5,
+    "codex:gpt-5.6-sol": 0.6,
+    "codex:gpt-5.6-terra": 0.6,
+    "codex:gpt-5.6-luna": 0.5,
+    "grok:grok-4.7": 5.2,
+    "antigravity:gemini-4-argon": 4.7,
+    "antigravity:gemini-3.8-flash": 4.4,
+    "opencode:opencode/deepseek-v4.1-flash-free": 3.1,
+    "cursor:gpt-5.3-codex": 1.5
+  },
+  "aliases": {
+    "note": "What a harness runs when no model is picked. Claude Code runs Opus on Max and Team plans; Codex runs GPT-5.6 Sol.",
+    "claude": "opus",
+    "codex": "gpt-5.6-sol"
+  },
+  "defaults": {
+    "note": "The level a model runs at when none is picked, in that harness (Anthropic docs; Claude Code runs Sonnet 5.5 at medium, the API at high).",
+    "claude:opus": "medium",
+    "claude:sonnet": "medium",
+    "claude:haiku": "medium",
+    "codex:gpt-5.6-sol": "medium",
+    "codex:gpt-5.6-terra": "medium",
+    "codex:gpt-5.6-luna": "medium"
+  },
+  "tiers": {
+    "note": "1 small or free, 2 everyday, 3 frontier: from the scores above, not the model's name.",
+    "claude:opus": 3,
+    "claude:fable": 3,
+    "claude:sonnet": 2,
+    "claude:haiku": 1,
+    "codex:gpt-5.6-sol": 3,
+    "codex:gpt-5.6-terra": 3,
+    "codex:gpt-5.6-luna": 2,
+    "cursor:gpt-5.3-codex": 2,
+    "antigravity:gemini-4-argon": 3,
+    "antigravity:gemini-3.8-flash": 2,
+    "grok:grok-4.7": 2,
+    "opencode:opencode/deepseek-v4.1-flash-free": 1
+  }
+}

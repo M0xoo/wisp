@@ -174,6 +174,8 @@ export function createLaunch(app) {
   // opts: launch()'s (unattended). A machine keeps its own plan budget, so it isn't held here.
   async function launchAny(body, origin = null, opts = {}) {
     const mid = body.kind === 'spell' ? null : machineFor(body); // spells change this wisp, so they're cast here
+    // You picked a harness yourself after Auto's preview showed another: Auto learns from it.
+    if (body.agent && body.agent !== 'auto') app.auto.overrode(body, body);
     // The team as that place runs it: members on other machines are carried there from here.
     const preset = !body.subagents && body.preset && store.config.teams.find((t) => t.id === body.preset);
     if (body.subagents || preset) body = { ...body, subagents: app.relay.placeTeam(body.subagents || preset.members, mid), preset: undefined };

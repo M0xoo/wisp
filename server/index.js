@@ -229,10 +229,16 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   });
   app.installer = createInstaller(app);
   runner.on('started', ({ session }) => {
-    if (session.route && !app.router.route(session.id)) app.router.record(session.id, session.route);
+    if (app.router.route(session.id)) return;
+    if (session.route) return app.router.record(session.id, session.route);
+    // A run you picked yourself: what you pick is Auto's best clue, and how it went counts half.
+    if (session.kind || session.crew || session.origin || session.parentId || session.delegated || session.moved || !session.turns?.length) return;
+    const first = session.turns[0];
+    const seen = app.router.observe({ agent: session.agent, model: session.model || '', effort: session.effort || '', prompt: first.prompt, attachments: (first.attachments || []).length });
+    if (seen) app.router.record(session.id, { key: seen.key, type: seen.type, label: session.agent, manual: true, at: Date.now() });
   });
   runner.on('ended', ({ session, turn, interrupted }) => {
-    if (!session.route || interrupted) return;
+    if (!app.router.route(session.id) || interrupted) return;
     // A run that stopped at its account's usage limit isn't the model's fault.
     if (session.turns.indexOf(turn) === 0 && !turn.limit) app.router.signal(session.id, { error: turn.status === 'error' || undefined, costUsd: turn.stats?.costUsd, ms: turn.endedAt - turn.startedAt });
     app.auto.signals(summarize(session, store));

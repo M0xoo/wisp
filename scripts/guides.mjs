@@ -486,7 +486,7 @@ git worktree remove ../app-auth`)}
 
     <section>
       <h2 id="let-results-pick">Let your results pick</h2>
-      <p>One comparison is one data point. wisp’s <b>Auto</b> harness keeps score for you: for each kind of task (bug, feature, UI, tests, refactor, docs) it tracks how often each agent, model and thinking level worked, counting merged PRs, 👍 and 👎, rollbacks and the follow-ups you needed. Then it picks per task, now and then trying the other option so the estimate stays honest. <b>Settings → Auto</b> shows what it learned.</p>
+      <p>One comparison is one data point. wisp’s <b>Auto</b> harness keeps score for you: for each kind of task (bug, feature, UI, tests, refactor, docs) it tracks how often each agent, model and thinking level worked, counting merged PRs, 👍 and 👎, rollbacks and the follow-ups you needed. It starts from public benchmarks and from what you pick yourself, shows its pick before you send it (with why), and suggests the other option when that one looks better instead of switching behind your back. <b>Settings → Auto</b> shows what it learned.</p>
       <p>You don’t have to choose one at all: <a href="/guides/multi-agent-coding.html">a Claude Code lead can hand work to Codex</a>.</p>
     </section>
 `,
