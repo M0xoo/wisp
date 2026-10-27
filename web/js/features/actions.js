@@ -211,7 +211,7 @@ export function moreMenu(id, anchor) {
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
-    if (a?.startsWith('later-')) runLaterAction(a, sum, anchor);
+    if (a?.startsWith('later-') || a?.startsWith('held-')) runLaterAction(a, sum, anchor);
     if (a?.startsWith('goal-')) runGoalAction(a, id, anchor);
     if (a === 'copy') {
       await tryApi(async () => {
@@ -272,7 +272,7 @@ export function taskMenu(id, e) {
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
-    if (a?.startsWith('later-')) runLaterAction(a, s, null, { x: e.clientX, y: e.clientY });
+    if (a?.startsWith('later-') || a?.startsWith('held-')) runLaterAction(a, s, null, { x: e.clientX, y: e.clientY });
     if (a?.startsWith('goal-')) runGoalAction(a, id, null);
     if (a === 'done') toggleDone(id);
     if (a === 'save-later' || a === 'unsave') setForLater(id, a === 'save-later');

@@ -16,6 +16,7 @@ import { renderFeed, reveal } from './feed.js';
 import { openAutomations } from './automations.js';
 import { projectLabel } from './places.js';
 import { agentName, MODES } from './runners.js';
+import { HELD_LABEL, heldAction } from './hold.js';
 
 // A time ahead, short: 14:32 today, Mon 9:00 this week, 2 Nov 9:00 after.
 export function aheadLabel(t) {
@@ -40,7 +41,9 @@ const whoSet = (by) => (by === 'user' ? 'you' : by === 'agent' ? 'the agent' : b
 
 // A task with only follow-ups to wait for: it sits in Scheduled. One that asks you or has a report
 // to read stays in Needs you with the pill (nothing an agent schedules hides what needs you).
-export const isScheduled = (s) => !s.archived && !s.forLater && s.state === 'done' && !!s.later?.length; // saved for later: that wins
+export const isScheduled = (s) => !s.archived && !s.forLater && s.state === 'done' && (!!s.later?.length || !!s.held?.waiting); // saved for later: that wins
+// When a scheduled task's next thing happens: its follow-up, or its held run's reset (features/hold.js).
+export const nextAt = (s) => Math.min(s.later?.[0]?.at ?? Infinity, s.held?.waiting ? s.held.until : Infinity);
 
 export function laterTip(s) {
   return (s.later || []).map((l) => (l.held ? `${l.goal ? `Goal round ${l.goal}` : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), when the plan resets. Waits for your plan: ${l.held.why}` : `${l.remind ? 'Reminder' : 'Follow-up'} at ${aheadLabel(l.at)} (${inWords(l.at)}), set by ${whoSet(l.by)}: ${l.text}`)).join('\n');
@@ -443,6 +446,12 @@ export function openUpcoming(x, anchor, e) {
 export function laterActions(s) {
   if (!s) return [];
   const out = [];
+  // A run held near the limit (features/hold.js): the card's three, by the card's names.
+  if (s.held) {
+    out.push({ a: 'held-start', label: HELD_LABEL.start(s), icon: 'play' });
+    if (!s.held.waiting) out.push({ a: 'held-wait', label: HELD_LABEL.wait(s), icon: 'clock' });
+    out.push({ a: 'held-skip', label: HELD_LABEL.skip(s), icon: 'skip' });
+  }
   if (s.reminder && s.state === 'review') out.push({ a: 'later-snooze', label: 'Snooze…', icon: 'bell' });
   const l = s.later?.[0];
   if (l) {
@@ -458,6 +467,7 @@ export const laterMenuHtml = (s) => laterActions(s).map((x) => `<button data-a="
 
 // anchor / point: where Change time… and Snooze… open their menu.
 export function runLaterAction(a, s, anchor, point) {
+  if (a.startsWith('held-')) return heldAction(s.id, a.slice(5));
   const l = s.later?.[0];
   if (a === 'later-snooze') return snooze(s.id, anchor, point);
   if (!l) return;

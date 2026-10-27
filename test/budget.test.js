@@ -162,7 +162,7 @@ test('Wait for the reset on: the task waits under Scheduled and carries on in th
   process.env.FAKE_LIMITS = JSON.stringify(limited(reset));
   process.env.FAKE_LIMIT_ONCE = path.join(tmp('budget-wait'), 'hit');
   try {
-    const s = await api('/sessions', { prompt: 'fix the add bug please', cwd: makeRepo(), agent: 'claude', worktree: false });
+    const s = await api('/sessions', { prompt: 'fix the add bug please', cwd: makeRepo(), agent: 'claude', worktree: false, confirmLimit: true }); // the test before left the 5-hour window used up: Ask near the limit would ask first
     const x = await ended(s.id, 'done');
     assert.equal(x.unread, false, 'nobody is pinged');
     assert.equal(x.later.length, 1);

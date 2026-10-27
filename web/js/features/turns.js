@@ -18,6 +18,7 @@ import { expand, fetchFull, renderFeed, reveal as revealTask, scheduleRefetch, s
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
 import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUntil, modelBadge, MODES } from './runners.js';
+import { heldCard } from './hold.js';
 import { scheduleFollowUp } from './later.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { renderPrStrip, shipDialog } from './ship.js';
@@ -165,7 +166,7 @@ export function renderBody(id, { fresh }) {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
-    const key = `${t.status}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}`;
+    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
@@ -487,7 +488,12 @@ function renderTurn(s, t, isLatest, fold, tx) {
   atts.forEach((img, index) => img.addEventListener('click', () => viewImage(img.src, img.alt, { list: atts.map((i) => ({ src: i.src, alt: i.alt })), index })));
   node.append(ask);
 
-  if (t.status === 'running') {
+  if (t.status === 'held') {
+    // Held near the limit (features/hold.js): the card is all there is until it goes.
+    const card = el('<div class="blk blk-limit blk-held"></div>');
+    card.append(heldCard(s, t));
+    node.append(card);
+  } else if (t.status === 'running') {
     if (tx) node.append(renderLiveTranscript(s, t, ctxFor(s, t, isLatest)));
     node.append(renderWorking(s, t, tx));
   } else {

@@ -36,6 +36,7 @@ import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
 import { Budget, addShare, holdWhy, stopAtOf } from './budget.js';
+import { Guard } from './guard.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
@@ -117,6 +118,10 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
   });
   runner.budget = budget;
+  // Ask near the limit (server/guard.js): what a run will likely take of those windows, and whether
+  // it should wait for you or the reset.
+  const guard = new Guard({ store, budget });
+  runner.guard = guard;
   const events = eventStream();
   const app = {
     port,
@@ -244,6 +249,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   const loginStates = new Map();
   app.accounts = accounts;
   app.budget = budget;
+  app.guard = guard;
   app.agentLogin = createAgentLogin({
     accounts,
     onChange: (v) => {
@@ -286,7 +292,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
     // A member's follow-up on a task it's part of, or yours on its job: sent like any follow-up.
     // team: the task's delegates with the member added, so its agent can hand the work back.
-    followUp: (s, text, { queue = false, team } = {}) => app.launcher.replyTo(s, text, [], queue, undefined, undefined, team),
+    followUp: (s, text, { queue = false, team } = {}) => app.launcher.replyTo(s, text, [], queue, undefined, undefined, team, { auto: true }),
     onChange: () => app.broadcast('config', {}),
     exists: (dir) => fs.existsSync(dir) && fs.statSync(dir).isDirectory(),
     hold: (m) => (m.agent && m.agent !== 'auto' ? app.reserve.check(m.agent) : null),
@@ -308,7 +314,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     },
     // Another CI failure on a branch that has a task: queued on it, after the turn it's in.
     followUp: async (s, text) => {
-      await app.launcher.replyTo(s, text, [], true);
+      await app.launcher.replyTo(s, text, [], true, undefined, undefined, undefined, { auto: true });
       app.sessionChanged(s);
       return summarize(s, store);
     },
@@ -400,7 +406,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
         app.telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
       }
       if (res.gzipping) return; // the answer is already on its way
-      if (!res.headersSent) send(res, err.status || 500, { error: err.message });
+      if (!res.headersSent) send(res, err.status || 500, { error: err.message, ...(err.hold && { hold: err.hold }) }); // hold: Ask near the limit (server/guard.js)
       else res.end();
     }
   });
@@ -458,5 +464,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, budget: app.budget, token, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
 }

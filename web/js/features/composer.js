@@ -33,6 +33,7 @@ import { ask } from '../ui/confirm.js';
 import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
 import { parseWhen } from '../when.js';
 import { aheadLabel, followUpRows, scheduleFollowUp, timeMenu, whenTip } from './later.js';
+import { hideHold, holdNow, showHold } from './hold.js';
 
 export function draftInto(id, text) {
   const ta = $('.reply', S.nodes.get(id)?.card);
@@ -90,6 +91,7 @@ export function renderDock(id) {
   const comp = el(`
     <div class="composer">
       <ul class="c-queued"></ul>
+      <div class="c-hold" role="group" aria-label="Near the usage limit" aria-live="polite" hidden></div>
       <textarea class="reply" rows="1" spellcheck="false"></textarea>
       <div class="c-bar">
         <button class="icon-btn c-attach" title="Attach files">${icon('clip')}</button>
@@ -578,7 +580,8 @@ async function toggleQueue() {
   await api('/config', { method: 'PATCH', body: { defaults: { followUp } } }).catch(toastError);
 }
 
-export async function sendReply(id, text) {
+// confirm: you said yes to sending it although it takes the window past your line (Send anyway).
+export async function sendReply(id, text, { confirm = false } = {}) {
   const s = S.full.get(id);
   const n = S.nodes.get(id);
   text = (text || '').trim();
@@ -656,6 +659,14 @@ export async function sendReply(id, text) {
   if (place !== undefined) return moveWithReply(id, text, { attachments, mode, run, team, place });
   // An answer goes to the run that asked; a new mode, harness or team needs a new run, so that's a follow-up.
   const answering = !!s.ask && !attachments.length && !mode && !run && !team;
+  // Near the limit (features/hold.js): it waits for a yes, with the draft still in the box.
+  const holdRow = n && $('.c-hold', n.card);
+  const who = { agent: run?.agent || s.agent, account: run?.account ?? s.account ?? '' };
+  if (!answering && !confirm) {
+    const h = holdNow(who.agent, who.account, 'followUp');
+    if (h) return holdReply(id, ta, holdRow, { ...who, ...h });
+  }
+  hideHold(holdRow);
   // Optimistic: the composer empties and the card goes to Working before the server answers
   // (it may first have to bring back an archived worktree, or reach another machine).
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
@@ -668,7 +679,7 @@ export async function sendReply(id, text) {
   try {
     const r = answering
       ? await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
-      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }) } });
+      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(confirm && { confirmLimit: true }) } });
     if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
     if (r.queued)
       toast(r.ahead ? `Queued behind ${r.ahead} earlier follow-up${r.ahead > 1 ? 's' : ''} — they go out first, in order.` : 'Queued — it goes out as soon as the agent finishes.');
@@ -680,8 +691,33 @@ export async function sendReply(id, text) {
     if (run && !S.replyRunners.has(id)) setReplyRunner(id, run);
     if (team && !S.replyTeams.has(id)) setReplyTeam(id, team.team, team.preset);
     n?.tray?.restore(files);
+    // The server knew better (another account, a number that moved): the same row, from its answer.
+    if (err.hold && holdRow && ta?.value.trim() === text) return holdReply(id, ta, holdRow, err.hold);
     toastError(err);
   }
+}
+
+// The hold row over the reply box: Send anyway sends what's in the box then; Wait until schedules
+// it for the reset (Later), the box empties as a scheduled send's does.
+function holdReply(id, ta, row, h) {
+  if (!row) return;
+  showHold(row, ta, h, {
+    kind: 'followUp',
+    go: () => sendReply(id, ta?.value || '', { confirm: true }),
+    wait: async (at) => {
+      const n = S.nodes.get(id);
+      const text = (ta?.value || '').trim();
+      if (!text || !at) return;
+      const attachments = n?.tray ? await n.tray.ids() : [];
+      const files = n?.tray?.take() || [];
+      ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+      S.drafts.delete(id);
+      if (!(await scheduleFollowUp(id, { at, text, attachments }))) {
+        if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+        n?.tray?.restore(files);
+      }
+    },
+  });
 }
 
 // A follow-up on another computer: the task moves there and carries on as a new session (the old

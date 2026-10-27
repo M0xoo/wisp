@@ -37,6 +37,7 @@ import { addressedTo, openCrew } from './crew.js';
 import { parseWhen } from '../when.js';
 import { addPlan, aheadLabel, timeMenu, whenTip } from './later.js';
 import { launcherGoal, launcherGoalHtml } from './goal.js';
+import { hideHold, holdNow, showHold } from './hold.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -137,7 +138,8 @@ export function renderLauncher() {
       <button class="send" id="launch" title="Launch (Enter · Shift+Enter for newline)">${icon('enter')}</button>
     </div>
     <div class="l-recipes"></div>
-    <div class="l-when" hidden></div>`;
+    <div class="l-when" hidden></div>
+    <div class="l-hold" role="group" aria-label="Near the usage limit" aria-live="polite" hidden></div>`;
   renderLaunchChips();
   renderSetup();
   launcherParts(box); // what spells add to the prompt box
@@ -372,9 +374,15 @@ export function renderLauncher() {
   paintWhen();
   box.whenNow = () => armed || when; // Enter reads it (keydown below)
 
+  // Near the limit (features/hold.js): the row offers Start anyway and Wait until the reset, which
+  // is Start later at that time. The prompt stays in the box until one of them goes.
+  const holdRow = $('.l-hold', box);
+  const holdLaunch = (h, over) => showHold(holdRow, ta, h, { kind: 'first', go: () => go(over, { confirm: true }), wait: (at) => go(over, { at }) });
+
   // over: a spell's launchWith ({ agent, model, effort, mode, text }) for this one launch.
   // at: start it then instead (Start later, or the time read from the box); now: ignore that time.
-  const go = async (over = null, { at = null, now = false } = {}) => {
+  // confirm: you said yes to starting it although it takes the window past your line (Start anyway).
+  const go = async (over = null, { at = null, now = false, confirm = false } = {}) => {
     if (over && !(over instanceof Event) && over.text && !ta.value.trim().startsWith(over.text)) ta.value = `${over.text}${ta.value.trim() ? `\n\n${ta.value.trim()}` : ''}`;
     if (over instanceof Event) over = null;
     const prompt = ta.value.trim();
@@ -458,6 +466,16 @@ export function renderLauncher() {
       const missing = list && wanted.find((id) => !list.some((x) => x.id === id && x.available));
       if (missing) return toast(`${esc(agentName(missing))} isn’t installed on <b>${esc(placeName(t.k))}</b>`, { tone: 'bad' });
     }
+    if (!confirm) {
+      const first = over?.agent ? { agent: over.agent, account: savedAccount(over.agent) } : { agent: agent?.id, account: curAccount };
+      for (const t of targets) {
+        for (const r of [first, ...compare]) {
+          const h = holdNow(r.agent, r.account || '', 'first', agentsAt(t.k));
+          if (h) return holdLaunch({ agent: r.agent, account: r.account || 'default', ...h }, over);
+        }
+      }
+    }
+    hideHold(holdRow);
     const btn = $('#launch', box);
     // Optimistic: wait only for uploads, then empty the box and show the task in Working at
     // once. Fetching and making worktrees can take a few seconds; the real card replaces the
@@ -501,12 +519,14 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal, confirmLimit: confirm || undefined },
           }),
         ),
       );
+      // Near the limit there (the server knew better): the hold row, once the prompt is back.
+      const held = results.find((r) => r.status === 'rejected' && r.reason.hold)?.reason.hold;
       results.forEach((r, i) => {
-        if (r.status === 'rejected') toast(`${esc(placeName(targets[i].k))}: ${esc(r.reason.message)}`, { tone: 'bad' });
+        if (r.status === 'rejected' && !(r.reason.hold && results.length === 1)) toast(`${esc(placeName(targets[i].k))}: ${esc(r.reason.message)}`, { tone: 'bad' });
       });
       const started = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
       for (const id of pending) S.sessions.delete(id);
@@ -521,6 +541,7 @@ export function renderLauncher() {
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
         tray.restore(files);
         if (cmp.length && !compare.length) (compare = cmp), paintCompare();
+        if (held && ta.value.trim() === prompt) holdLaunch(held, over);
         return;
       }
       askNotify();

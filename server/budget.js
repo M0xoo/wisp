@@ -3,7 +3,8 @@
 // Nothing is asked of the provider: Claude prints a rate_limit_event in its stream, Codex writes
 // rate_limits into its session file. A window whose reset has passed reads as fresh.
 //
-// ~/.wisp/budget.json: { [agent]: { [account]: { at, windows: { [id]: { used, resetsAt, ms } } } } }
+// ~/.wisp/budget.json: { [agent]: { [account]: { at, windows: { [id]: { used, resetsAt, ms } },
+// learn: { [id]: { du, units } }, acks: { [id]: { resetsAt, line } } } } }
 // used: 0..1, resetsAt: ms, ms: the window's length (for the pace). account: 'default' for the CLI's own.
 //
 // Two uses on top of the numbers (design/budget.md):
@@ -12,6 +13,9 @@
 // - Where it went: each move of a window is shared out among the turns that ran on that account
 //   since the last report (by how long each ran then), and kept on the turn as turn.plan. Claude
 //   reports once per run, after its first reply, so a turn's share lands with the next report.
+//
+// learn and acks are Ask near the limit's (server/guard.js): how far the window moved while wisp's
+// runs worked, against the units of work they did, and the line you last said yes at.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -35,6 +39,9 @@ const samePeriod = (a, b) => !!a && !!b && Math.abs(a - b) < 10 * 60_000;
 const MAX_LEDGER = 100; // turns remembered per account between two reports
 const MAX_WINDOWS = 6; // a CLI that starts reporting dozens doesn't grow the file
 const clamp = (n) => Math.min(1, Math.max(0, n));
+const LEARN_GAP = 30 * 60_000; // readings further apart than this may hide use outside wisp
+const LEARN_MIN = 0.02; // two points moved before a rate counts (the CLI reports whole percents)
+const LEARN_KEEP = 0.3; // past this many points, halve: the rate follows the recent runs
 const toMs = (s) => (Number.isFinite(s) && s > 0 ? (s < 1e12 ? s * 1000 : s) : null); // seconds or ms
 
 function readJson(file) {
@@ -54,6 +61,14 @@ export function paceOf({ used, resetsAt, ms }, now = Date.now()) {
   if (used < 0.05 || spent < Math.min(ms / 10, H / 2)) return null;
   const at = Math.round(now + ((1 - used) * spent) / used);
   return at < resetsAt ? at : null;
+}
+
+// A run's units of work: its cost where the harness says it, else its tokens in millions.
+export function unitsOf(stats) {
+  if (!stats) return 0;
+  if (typeof stats.costUsd === 'number' && stats.costUsd > 0) return stats.costUsd;
+  const tokens = (stats.inputTokens || 0) - (stats.cachedInputTokens || 0) + (stats.outputTokens || 0);
+  return tokens > 0 ? tokens / 1e6 : 0;
 }
 
 // Claude's rate_limit_event.rate_limit_info → { windows, rejected? } or null.
@@ -162,11 +177,19 @@ export class Budget {
     const now = this.now();
     const share = this.#sharers(agent, account, acc.at, now);
     let moved = false;
+    // Readings close together come from runs at work: what moved in between is theirs (Ask near
+    // the limit learns its rate from it). Use outside wisp in that time counts too, which only
+    // makes wisp ask a little sooner.
+    const close = acc.at && this.now() - acc.at <= LEARN_GAP;
     for (const w of windows) {
       if (!w?.id || !Number.isFinite(w.used)) continue;
       const was = acc.windows[w.id];
       if (!was && Object.keys(acc.windows).length >= MAX_WINDOWS) continue;
       const next = { used: clamp(w.used), resetsAt: w.resetsAt || null, ms: w.ms || WINDOWS[w.id]?.ms || null };
+      if (close && was && was.resetsAt === next.resetsAt && next.used > was.used) {
+        const l = ((acc.learn ||= {})[w.id] ||= { du: 0, units: 0 });
+        l.du += next.used - was.used;
+      }
       if (!was || Math.round(was.used * 100) !== Math.round(next.used * 100) || was.resetsAt !== next.resetsAt) moved = true;
       // How far it moved since the last report: in a new period, all of what's used now.
       const d = !was ? 0 : samePeriod(was.resetsAt, next.resetsAt) ? next.used - was.used : was.resetsAt && was.resetsAt <= now ? next.used : 0;
@@ -234,6 +257,52 @@ export class Budget {
     const now = this.now();
     const full = Object.values(acc.windows || {}).filter((w) => w.used >= 0.995 && w.resetsAt > now);
     return full.length ? Math.max(...full.map((w) => w.resetsAt)) : null;
+  }
+
+  // An account's windows as they stand now: [{ id, label, used, resetsAt, ms }], fresh ones at 0.
+  windows(agent, account) {
+    const acc = this.state[agent]?.[account || 'default'];
+    const now = this.now();
+    return Object.entries(acc?.windows || {})
+      .map(([id, w]) => {
+        const fresh = w.resetsAt && w.resetsAt <= now;
+        return { id, label: WINDOWS[id]?.label || labelOf(w.ms), used: fresh ? 0 : w.used, resetsAt: fresh ? null : w.resetsAt, ms: w.ms || null };
+      })
+      .sort((a, b) => rank(a.id) - rank(b.id));
+  }
+
+  // A run on the account ended: its units of work count against what the windows moved.
+  spend(agent, account, units) {
+    const acc = this.state[agent]?.[account || 'default'];
+    if (!acc || !(units > 0)) return;
+    for (const id of Object.keys(acc.windows || {})) {
+      const l = ((acc.learn ||= {})[id] ||= { du: 0, units: 0 });
+      l.units += units;
+      if (l.du > LEARN_KEEP) (l.du /= 2), (l.units /= 2);
+    }
+    this.save();
+  }
+
+  // What a unit of work takes of the window, from the runs so far (kept across resets), or null.
+  rate(agent, account, id) {
+    const l = this.state[agent]?.[account || 'default']?.learn?.[id];
+    return l && l.du >= LEARN_MIN && l.units > 0 ? l.du / l.units : null;
+  }
+
+  // You said yes at `line` to a window: the next ask for it comes higher (web/js/limit-hold.js
+  // nextLine), until it resets.
+  ack(agent, account, id, resetsAt, line) {
+    const acc = ((this.state[agent] ||= {})[account || 'default'] ||= { windows: {} });
+    (acc.acks ||= {})[id] = { resetsAt: resetsAt || null, line };
+    this.save();
+  }
+
+  // The line you said yes at for this window, while it hasn't reset; 0 when you haven't.
+  acked(agent, account, id, resetsAt) {
+    const a = this.state[agent]?.[account || 'default']?.acks?.[id];
+    if (!a || !(a.line > 0)) return 0;
+    if (a.resetsAt !== (resetsAt || null) || (a.resetsAt && a.resetsAt <= this.now())) return 0;
+    return a.line;
   }
 
   // For the page: [{ account, at, windows: [{ id, label, used, resetsAt, hitAt }] }], most-known

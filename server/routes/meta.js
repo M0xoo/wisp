@@ -52,7 +52,7 @@ export function register(r, app) {
   // Each account's longest window also says where it went this period: the tasks that used most.
   const withAccounts = (list) =>
     list.map((a) => {
-      const budget = (app.budget?.view(a.id) || []).map((b) => {
+      const budget = (app.guard?.view(a.id) || app.budget?.view(a.id) || []).map((b) => {
         const w = b.windows.filter((x) => x.resetsAt && x.used > 0).sort((x, y) => (y.ms || 0) - (x.ms || 0))[0];
         const where = w && whereItWent(app.store.all(), a.id, b.account, w.id, w.resetsAt);
         return where ? { ...b, where: { window: w.id, label: w.label, used: w.used, ...where } } : b;

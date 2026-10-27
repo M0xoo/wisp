@@ -326,6 +326,20 @@ export class Later {
       await this.#runPlan(p).catch((err) => console.warn(`wisp: later: ${err.message}`));
     }
     for (const s of this.store.all()) {
+      // A run held near the limit (server/guard.js) goes at the window's reset (or, when wisp
+      // didn't know it, is looked at again in an hour).
+      const held = s.turns?.at(-1)?.status === 'held' && !s.archived && s.turns.at(-1).held;
+      if (held && held.until <= now && this.#free(s)) {
+        if (fired >= PER_TICK) return;
+        fired++;
+        const again = this.runner.guard?.check?.({ agent: held.agent, account: held.account, kind: held.kind, origin: s.origin, crew: s.crew, session: s });
+        if (again) {
+          // Still over a line (the weekly one after the 5-hour reset, say): wait for that reset.
+          Object.assign(held, { id: again.id, label: again.label, used: again.used, to: again.to, line: again.line, resetsAt: again.resetsAt, until: this.runner.guard.until(again) });
+          this.changed(s);
+        } else this.runner.release(s);
+        continue;
+      }
       const due = s.later?.filter((l) => l.at <= now);
       if (!due?.length) continue;
       // Archived: you put it away, so what it had scheduled lapses.

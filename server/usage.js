@@ -52,7 +52,7 @@ export function usage(sessions, { days = 30, now = Date.now(), project = () => n
     if (s.agent === 'wisp') continue; // the tour
     const p = project(s);
     for (const t of s.turns || []) {
-      if (!t.startedAt || t.startedAt < since || t.status === 'running') continue;
+      if (!t.startedAt || t.startedAt < since || t.status === 'running' || t.status === 'held' || t.skipped) continue; // held or skipped: never ran
       sessionIds.add(s.id);
       add(total, t);
       const d = byDay.get(dayKey(t.startedAt));
@@ -109,7 +109,7 @@ export function toolStats(sessions, { days = 30, now = Date.now(), project = () 
     if (s.agent === 'wisp') continue;
     const p = project(s);
     for (const t of s.turns || []) {
-      if (!t.startedAt || t.startedAt < since || t.status === 'running') continue;
+      if (!t.startedAt || t.startedAt < since || t.status === 'running' || t.status === 'held' || t.skipped) continue; // held or skipped: never ran
       const agent = t.agent || s.agent;
       const pk = p?.id || s.cwd;
       if (!byAgent.has(agent)) byAgent.set(agent, { agent, ...tally() });
@@ -186,10 +186,10 @@ const asked = (t) => !!t?.presentation?.blocks?.some((b) => b?.type === 'questio
 const tokensOf = (t) => (t.stats?.inputTokens || 0) + (t.stats?.outputTokens || 0);
 function jobOf(s) {
   const turns = s.turns || [];
-  const ended = turns.filter((t) => t.status !== 'running');
+  const ended = turns.filter((t) => t.status !== 'running' && t.status !== 'held' && !t.skipped);
   const last = ended.at(-1);
   let result;
-  if (s.turns) result = turns.at(-1)?.status === 'running' || !last ? 'running' : outcome(last);
+  if (s.turns) result = turns.at(-1)?.status === 'running' || turns.at(-1)?.status === 'held' || !last ? 'running' : outcome(last);
   else result = s.state === 'running' || s.status === 'running' ? 'running' : s.status === 'partial' || s.status === 'blocked' ? s.status : 'done';
   const acts = turns.flatMap((t) => t.activity || []).filter((a) => a?.kind === 'ask');
   const approvals = acts.filter((a) => /^Needs your OK/.test(a.label || '')).length;

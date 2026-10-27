@@ -12,6 +12,7 @@ import { summarize } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
 import { crewJobOf } from '../crew.js';
 import { goalCommand, normalizeGoal } from '../goal.js';
+import { holdMessage } from '../guard.js';
 import { bad, expand, MODES, newId } from '../util.js';
 
 export const MAX_COMPARE = 4;
@@ -100,6 +101,21 @@ export function createLaunch(app) {
     const moved = body.moved && typeof body.moved === 'object' && !comparing ? body.moved : null;
     // A delegate's run for a lead on another place (services/relay.js): hidden, and it can't ask.
     const delegated = body.delegated && typeof body.delegated === 'object' && moved ? { lead: String(body.delegated.lead || '').slice(0, 200), name: String(body.delegated.name || '').slice(0, 40) } : null;
+    // Ask near the limit (server/guard.js): a run that would take its account's window past your
+    // line doesn't go yet. Yours is refused with what it would take until you say yes
+    // (confirmLimit); a schedule's, trigger's, recipe's or crew job's starts held, in Needs you.
+    // Not a moved task, a delegate's run, or a job a lead handed a crew member (the lead went ahead).
+    let hold = null;
+    if (app.guard && !moved && !delegated && crew?.job !== 'delegated') {
+      const auto = !!(origin || crew);
+      const checks = runners.map((r) => ({ agent: r.agent, account: runner.accountFor(r.agent, r.account, !auto), kind: 'first', origin, crew }));
+      hold = checks.map((x) => app.guard.check(x)).find(Boolean) || null;
+      if (hold && !auto) {
+        if (body.confirmLimit !== true) throw Object.assign(bad(holdMessage(hold), 409), { hold });
+        for (const x of checks) app.guard.confirm(x);
+        hold = null;
+      }
+    }
     if (moved) {
       const made = await app.mover.unpack([cwd, ...also], moved.packs, { id: ids[0], title: moved.title || body.prompt });
       trees = [made[0]];
@@ -134,7 +150,7 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
   }
 
   // Where a launch runs: body.machine ('' = here), else a project folder that only exists on a
@@ -185,7 +201,9 @@ export function createLaunch(app) {
 
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
   // One that starts with /btw is a side question instead: the run carries on (see askBtw).
-  async function replyTo(s, text, attachments = [], queue, mode, run, team) {
+  // limit: Ask near the limit (server/guard.js). { confirm: true }: you said yes; { auto: true }: a
+  // trigger's or crew member's, held rather than refused.
+  async function replyTo(s, text, attachments = [], queue, mode, run, team, limit = {}) {
     const question = btwQuestion(text);
     if (question !== null) return { btw: await askBtw(s, question, attachments) };
     // /goal <condition> sets the task's goal (and goes after it); /goal drop drops it.
@@ -195,8 +213,19 @@ export function createLaunch(app) {
       for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
       return { goal: app.goals.set(s, goal) };
     }
+    let hold = null;
+    // An answer to the agent's question goes into the run already going: nothing new starts.
+    if (app.guard && !s.ask && !s.parentId && !s.delegated) {
+      const check = { agent: run?.agent || s.agent, account: run?.account ?? s.account, kind: 'followUp', session: s };
+      hold = app.guard.check(check);
+      if (hold && !limit.auto) {
+        if (limit.confirm !== true) throw Object.assign(bad(holdMessage(hold), 409), { hold });
+        app.guard.confirm(check);
+        hold = null;
+      }
+    }
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
-    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run, team });
+    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run, team, hold });
   }
 
   // /btw: answered by a read-only run of its own, next to the task's run (server/btw.js).

@@ -6,6 +6,7 @@ import { S, setAgents } from '../core/state.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { placeName } from './places.js';
+import { nearLine } from './hold.js';
 import { accountMark, AUTO, AUTO_GOALS, effortLabel, effortsFor, harnessesAt, harnessLogo, limitLine, savedAccount as rememberedAccount } from './runners.js';
 import { openSettings } from './settings.js';
 import { copySetupCommand, INSTALLABLE, installHarness, setupCommand, setupDocs, setupTip, setupTitle } from './setup.js';
@@ -32,6 +33,16 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     return a.missing?.length ? `Not on ${a.missing.map(placeName).join(', ')}` : models;
   };
   let focusAgent = agents.find((a) => a.id === agent && a.available) ? agent : agents.find((a) => a.available)?.id;
+  // Near the line you set (Ask near the limit, features/hold.js): the harness says how full, in
+  // place of its model count, so a held send never comes as a surprise.
+  const usageNote = (a) => {
+    const w = a.available && nearLine(a, a.accounts?.length > 1 ? undefined : '');
+    return w ? `<small class="warn rp-usage" title="${esc(`${w.label} window at ${Math.floor(w.used * 100)}%: wisp asks before sending more`)}">${esc(`${w.label} window at ${Math.floor(w.used * 100)}%`)}</small>` : '';
+  };
+  const accUsage = (id, acc) => {
+    const w = nearLine(agents.find((x) => x.id === id), acc);
+    return w ? `<b class="rp-usage" title="${esc(`${w.label} window at ${Math.floor(w.used * 100)}%`)}">${Math.floor(w.used * 100)}%</b>` : '';
+  };
   // Where a harness that isn't available is signed out (and wisp can sign it in): '' here, or a machine.
   function signedOut(a) {
     return CAN.has(a.id) && a.signedOut?.length ? { scope: a.signedOut[0] } : null;
@@ -52,7 +63,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
           .map(
             (a) => `<button class="pk-h${a.available ? '' : ' off'}" role="option" data-id="${esc(a.id)}" ${a.available ? '' : signedOut(a) ? 'title="Signed out: sign in to use it"' : `aria-disabled="true" title="${esc(setupTitle(a))}"`}>
               <span class="pk-logo">${harnessLogo(a.id)}</span>
-              <span class="pk-text"><b>${esc(a.name)}</b><small${a.missing?.length ? ' class="warn"' : ''}>${esc(sub(a))}</small></span>
+              <span class="pk-text"><b>${esc(a.name)}</b>${usageNote(a) || `<small${a.missing?.length ? ' class="warn"' : ''}>${esc(sub(a))}</small>`}</span>
               ${a.id === agent ? '<span class="pk-dot" title="In use"></span>' : ''}
             </button>`,
           )
@@ -92,7 +103,7 @@ export function runnerPicker(anchor, { agent, model, effort, account = '', saved
     const notes = list.filter((x) => x.state === 'limit' || x.state === 'signedOut').map((x) => `${x.label} is ${x.state === 'limit' ? limitLine(x) : 'signed out'}.`);
     acctSeg.innerHTML = `<span class="pk-ehead">Account</span><span class="pk-seg">${part('', 'Auto', { on: !current, tip: 'Your saved account; one already at its limit is skipped when you start a task' })}${list
       .map((x) =>
-        part(x.id, `${accountMark(x)}<span>${esc(x.label)}</span>${x.state === 'limit' ? icon('clock', 'acc-clock') : ''}`, {
+        part(x.id, `${accountMark(x)}<span>${esc(x.label)}</span>${x.state === 'limit' ? icon('clock', 'acc-clock') : accUsage(focusAgent, x.id)}`, {
           on: x.id === current,
           off: x.state === 'signedOut',
           cls: ' acc',
