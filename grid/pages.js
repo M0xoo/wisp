@@ -365,7 +365,12 @@ details.add>summary{display:flex;align-items:center;gap:12px;padding:14px;cursor
 details.add .w-tx b{font-size:14px}details.add .chev svg{width:16px;height:16px;color:var(--muted);transition:transform .15s}details.add[open] .chev svg{transform:rotate(90deg)}
 .steps{list-style:none;margin:0;padding:0 14px 16px 60px;display:flex;flex-direction:column;gap:14px}
 .steps li{display:flex;gap:10px}.steps .n{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:var(--bg);font-size:12px;font-weight:650}
-.steps li>div{flex:1;min-width:0}.steps b{font-size:13.5px}.steps p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}.steps a{color:var(--accent)}.steps .copy{max-width:320px}
+.steps li>div{flex:1;min-width:0}.steps b{font-size:13.5px}.steps p{margin-top:2px;color:var(--muted);font-size:12.5px;line-height:1.45}.steps a{color:var(--accent)}.steps .copy{max-width:360px}.steps code{font:11.5px var(--mono);white-space:nowrap;padding:1px 4px;border-radius:4px;background:var(--bg-2);color:var(--ink)}
+.how>input{position:absolute;opacity:0;pointer-events:none}.seg{display:inline-flex;gap:2px;margin:0 14px 14px 60px;padding:2px;border-radius:9px;border:1px solid var(--line);background:var(--bg-2)}
+.seg label{display:flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:7px;font-size:12.5px;font-weight:550;color:var(--muted);cursor:pointer;white-space:nowrap}.seg svg{width:14px;height:14px}.seg label:hover{color:var(--ink)}
+#addCli:checked~.seg [for=addCli],#addApp:checked~.seg [for=addApp]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
+#addCli:focus-visible~.seg [for=addCli],#addApp:focus-visible~.seg [for=addApp]{outline:2px solid var(--accent);outline-offset:1px}
+#addCli:checked~.p-app,#addApp:checked~.p-cli{display:none}
 h2.sec .n{font-weight:400;color:var(--faint);margin-left:6px}.hint{margin:-4px 0 10px;color:var(--muted);font-size:12.5px}
 .url{display:inline-flex;align-items:center;gap:6px;font:12.5px var(--mono);color:var(--muted)}
 h2.sec{margin:34px 0 10px;font-size:13px;font-weight:600;color:var(--muted)}
@@ -430,7 +435,7 @@ button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height
 .toast{position:fixed;left:50%;bottom:24px;z-index:100;transform:translateX(-50%);max-width:calc(100vw - 32px);padding:10px 16px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:13.5px;box-shadow:var(--shadow-2);animation:m-in .2s ease-out}.toast.bad{background:var(--bad);color:#fff}
 @media (max-width:640px){.mdlg{width:100vw;max-width:none;max-height:92dvh;margin:auto 0 0;border-radius:20px 20px 0 0;border-bottom:0}.mdlg[open]{animation:sheet .26s cubic-bezier(.2,.9,.3,1)}@keyframes sheet{from{transform:translateY(40px);opacity:.4}}.m-body{padding:18px 18px calc(22px + env(safe-area-inset-bottom))}.m-hero{padding:46px 18px 16px}button.w.add-m .chev{display:none}button.w.add-m .pill{align-self:flex-start;margin-top:2px}.rack{gap:6px}.slot{height:56px}.m-foot .primary{flex:1}}
 @media (prefers-reduced-motion:reduce){.slot,.mdlg[open],.m-ok{animation:none!important}}
-@media (max-width:640px){.tiles{grid-template-columns:1fr}.kinds{grid-template-columns:1fr}.main{padding:24px 16px 56px}.w{flex-wrap:wrap}.w-acts{width:100%;padding-left:46px}.w-acts .primary{flex:1}.steps{padding-left:14px}.top{padding:0 16px}.top .who{display:none}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
+@media (max-width:640px){.tiles{grid-template-columns:1fr}.kinds{grid-template-columns:1fr}.main{padding:24px 16px 56px}.w{flex-wrap:wrap}.w-acts{width:100%;padding-left:46px}.w-acts .primary{flex:1}.steps{padding-left:14px}.seg{margin-left:14px}.top{padding:0 16px}.top .who{display:none}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
 .wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
 
@@ -558,6 +563,8 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
         : 'Starts the first time you open it, in a few seconds.';
   const byDevice = new Map(computers.map((c) => [c.deviceId, c]));
   const online = computers.filter((c) => c.online).length;
+  // wisp computer on (bin/wisp.js) signs in to grid.trywisp.dev unless told another grid.
+  const cliAdd = `npx wisp-agents computer on${host === 'grid.trywisp.dev' ? '' : ` --grid ${host}`}`;
 
   const cloudRow = `<div class="w">
       <span class="w-ic cloud">${I.cloud}</span>
@@ -606,12 +613,20 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
       <h2 class="sec">Your computers <span class="n" data-live="online">${computers.length ? `${online} of ${computers.length} online` : ''}</span></h2>
       <div class="group" data-live="computers">${computers.map(computerRow).join('')}
         <details class="w add"${computers.length ? '' : ' open'}>
-          <summary><span class="w-ic">${I.plus}</span><div class="w-tx"><b>Add a computer</b><small>Three steps, about a minute. No SSH, no open ports.</small></div><span class="chev">${I.chev}</span></summary>
-          <ol class="steps">
-            <li><span class="n">1</span><div><b>Run wisp on that computer</b><p>The desktop app from <a href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a>, or in a terminal:</p>${copyBtn('npx wisp-agents')}</div></li>
-            <li><span class="n">2</span><div><b>Open Machines → Reach this computer from anywhere</b><p>Type this grid’s address and press <i>Sign in and add it</i>:</p>${copyBtn(host)}</div></li>
-            <li><span class="n">3</span><div><b>Allow it here</b><p>A page from this grid opens with a code. Check it matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
-          </ol>
+          <summary><span class="w-ic">${I.plus}</span><div class="w-tx"><b>Add a computer</b><small>One command in a terminal, or a few clicks in the app. No SSH, no open ports.</small></div><span class="chev">${I.chev}</span></summary>
+          <div class="how">
+            <input type="radio" name="addHow" id="addCli" checked><input type="radio" name="addHow" id="addApp">
+            <div class="seg" role="presentation"><label for="addCli">${I.code}In a terminal</label><label for="addApp">${I.laptop}With the app</label></div>
+            <ol class="steps p-cli">
+              <li><span class="n">1</span><div><b>Run this on that computer</b><p>Node 20 or later. It starts wisp in the background if it isn’t running. Have wisp already? <code>wisp computer on</code> does the same.</p>${copyBtn(cliAdd)}</div></li>
+              <li><span class="n">2</span><div><b>Allow it here</b><p>It prints a code and opens a page from this grid; on a server, open the link it prints in any browser, even your phone’s. Check the code matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
+            </ol>
+            <ol class="steps p-app">
+              <li><span class="n">1</span><div><b>Run wisp on that computer</b><p>The desktop app from <a href="https://trywisp.dev" target="_blank" rel="noopener">trywisp.dev</a>, or <code>npx wisp-agents</code> in a terminal.</p></div></li>
+              <li><span class="n">2</span><div><b>Open Machines → Reach this computer from anywhere</b><p>Type this grid’s address and press <i>Sign in and add it</i>:</p>${copyBtn(host)}</div></li>
+              <li><span class="n">3</span><div><b>Allow it here</b><p>A page from this grid opens with a code. Check it matches and press <i>Allow</i>. The computer then shows up in this list, and in the phone app.</p></div></li>
+            </ol>
+          </div>
         </details>
       </div>
 

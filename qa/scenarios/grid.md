@@ -34,7 +34,8 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
 ### GRID-04 · Account page
 *Automated: qa/grid.mjs* (`grid-account-desktop.png`, `grid-account-phone.png`)
 - **Expected:** *Cloud wisp* row with **Open** (`/go`) and its state (*Asleep* before first open,
-  **Sleep** when running); *Add a cloud machine* (Soon); *Your computers* with the three steps;
+  **Sleep** when running); *Add a cloud machine* (Soon); *Your computers* with *Add a computer*: **In a terminal** (`npx wisp-agents computer on --grid wisp.localhost:8090`,
+  copyable) and **With the app** (the three Machines steps), switching without a reload;
   *Devices*; *Delete your account*; **Sign out everywhere**. Fits 390px with no sideways scroll.
 
 ### GRID-05 · Open → your own wisp

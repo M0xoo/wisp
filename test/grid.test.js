@@ -1047,6 +1047,9 @@ test('a computer added to the grid: reached through its tunnel, signed in like t
     await devSignIn(acct, 'cara@example.com');
     const page = await acct.go(`${base}/`);
     assert.match(page.text, /Your computers[\s\S]*Cara’s MacBook Pro[\s\S]*On the grid as Cara’s MacBook Pro/);
+    // Add a computer: from a terminal (wisp computer on, pointed at this grid) or from the app.
+    assert.ok(page.text.includes(`data-copy="npx wisp-agents computer on --grid ${new URL(base).host}"`));
+    assert.match(page.text, /In a terminal[\s\S]*With the app[\s\S]*Reach this computer from anywhere/);
     const devId = new RegExp(`action="/devices/([a-f0-9]+)/revoke"`).exec(page.text.slice(page.text.indexOf('Cara’s MacBook Pro (wisp)')))?.[1];
     assert.ok(devId);
     await acct.go(`${base}/devices/${devId}/revoke`, { method: 'POST', form: { csrf: csrfOf(page.text) }, headers: { origin: base } });
