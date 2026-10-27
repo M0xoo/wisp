@@ -16,7 +16,7 @@ import { focusLauncher, renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
 import { paintGetApp } from './features/getapp.js';
-import { loadMachines, openMachines, setMachines } from './features/machines.js';
+import { loadMachines, openComputers, openMachines, setMachines } from './features/machines.js';
 import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
 import { backToTop, onScroll, stage } from './features/scroll.js';
@@ -40,12 +40,17 @@ $('#machinesBtn').onclick = () => openMachines();
 $('#autoBtn').onclick = () => openAutomations({ tab: (S.config.triggers || []).length && !(S.config.recipes || []).length ? 'triggers' : 'recipes' });
 $('#updateBtn').onclick = installUpdate;
 // The logo goes back to the prompt box: split view's home, or the top of the feed. A modified
-// click still opens the link (a new tab or window).
+// click still opens the link (a new tab or window). In the phone app it goes to your computers.
 $('#topbar .brand').onclick = (e) => {
   if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   e.preventDefault();
-  focusLauncher();
+  if (MOBILE) openComputers();
+  else focusLauncher();
 };
+if (MOBILE) {
+  $('#topbar .brand').title = 'Your computers';
+  $('#topbar .brand').setAttribute('aria-label', 'Your computers');
+}
 $('#searchBtn').title = `Search (${combo('K')})`;
 $('#searchBtn .mod-k').textContent = combo('K');
 // Section headings fold their section (a button inside one, like Crew's +, does its own thing).

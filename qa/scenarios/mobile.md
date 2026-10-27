@@ -69,14 +69,15 @@ Never send builds to someone's own phone as part of QA.
   (stacked split view) with a floating **New task** button and no New task row; no sidebar switch,
   no keyboard hints (`kbd`), no tips; no sideways scroll; no page errors.
 
-### MOB-06 Desktop-only actions are gone; Computers goes back to the list
+### MOB-06 Desktop-only actions are gone; Computers and the logo go back to the list
 - **Run:** `qa/mobile.mjs`, Emulator
 - **Steps:** open a finished task → **More**; press the phone's Back; then tap the avatar in the
-  top bar and the computer's row in its menu.
+  top bar and the computer's row in its menu; then tap the wisp logo.
 - **Expected:** the task opens as a page of its own (Back, its title, the task), not in place in the
   list. The menu has no *Open project in editor* (still has Delete task). Back closes the page
   (the menu first, if open), back on the list where it was scrolled. The computer's
-  row goes to `https://localhost/?from=<computer>`, the app's own list. Take over runs in the
+  row and the logo go to `https://localhost/?from=<computer>`, the app's own list, which has no
+  Back button of its own (the phone's Back returns). Take over runs in the
   in-page terminal (inline), never a terminal app.
 
 ### MOB-07 Start a task from New task

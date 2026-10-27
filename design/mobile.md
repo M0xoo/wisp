@@ -49,7 +49,9 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 
 ## The app
 
-- It opens on the **computers list**, never straight into the last computer.
+- It opens on the **computers list**, never straight into the last computer. The wisp logo in the
+  top bar goes back to it (a browser's logo stays the way home); the list has no Back button of its
+  own, the phone's Back returns.
 - **Back** closes the newest dialog, menu or open task, then leaves the computer. Anything that opens
   and should close on Back registers with `onBack(close)` (`web/js/ui/back.js`); `popover()` and
   overlays already do.
