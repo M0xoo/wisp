@@ -27,14 +27,15 @@ export function normalizeTeam(list, adapters) {
   const taken = new Set();
   const team = list.slice(0, MAX_SUBAGENTS).map((m) => {
     // A member of the user's crew (server/crew.js): it runs as its own job, in its own folder, on
-    // the harness it's set up with. label/role: how the lead hears of it.
+    // the harness it's set up with. label/role: how the lead hears of it. upstream: the crew is the
+    // wisp's that sent this task (this one is a machine), so that wisp starts its jobs.
     if (CREW_ID.test(m?.crew || '')) {
       let name = slug(m.name) || 'crew';
       for (let i = 2; taken.has(name); i++) name = `${slug(m.name) || 'crew'}-${i}`;
       taken.add(name);
       const agent = adapters[m.agent] && m.agent !== 'wisp' ? m.agent : 'auto';
       const text = (k, n) => String(m[k] || '').replace(/\s+/g, ' ').trim().slice(0, n);
-      return { name, crew: m.crew, label: text('label', 24) || name, role: text('role', 60), agent, model: '', effort: '', use: text('use', MAX_USE), count: 1 };
+      return { name, crew: m.crew, label: text('label', 24) || name, role: text('role', 60), agent, model: '', effort: '', use: text('use', MAX_USE), count: 1, ...(m.upstream === true && { upstream: true }) };
     }
     const agent = String(m?.agent || '');
     // auto: wisp picks the harness and model when this member gets its first task.

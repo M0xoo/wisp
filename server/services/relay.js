@@ -42,6 +42,8 @@ export function createRelay(app) {
     return list.map((m) => {
       if (!mid && m?.upstream === true) return m;
       const { upstream, place, ...rest } = m || {};
+      // The crew is this wisp's: a machine's wisp doesn't have it, so this one starts their jobs.
+      if (m?.crew) return mid ? { ...rest, upstream: true } : rest;
       const k = typeof m?.machine === 'string' ? m.machine : '';
       if (!k || k === (mid || HERE)) return { ...rest, machine: '' };
       if (k !== HERE) machines.get(k); // a machine this wisp knows, or a clear error
@@ -61,6 +63,8 @@ export function createRelay(app) {
       if (turn.status !== 'running' || turn.relay.state !== 'pending') throw bad('That delegation was already picked up.', 409);
       turn.relay.state = 'running';
       runner.relayed(child, turn, { kind: 'agent', label: `Sending to ${child.relay.place || 'the machine'}` });
+      // A crew member: it works in its own folder, so there's no work to pack.
+      if (child.relay.crew) return { crew: child.relay.crew, label: child.relay.place, prompt: turn.prompt, lead: lead.id, title: lead.title, name: child.member };
       const scratch = store.isScratch(lead.cwd);
       let pack = null;
       if (!scratch) {
@@ -146,10 +150,11 @@ export function createRelay(app) {
       if (err.status !== 409) console.warn(`wisp: delegate: ${err.message}`);
       return;
     }
+    const finish = (body) => leadCall(lead, r.child, { op: 'finish', turn: r.turn, ...body });
+    if (job.crew) return carryCrew(lead, r, job, finish).finally(() => inflight.delete(key));
     const where = r.machine === HERE ? null : r.machine;
     const there = member(where);
     let rid = null;
-    const finish = (body) => leadCall(lead, r.child, { op: 'finish', turn: r.turn, ...body });
     try {
       if (where) {
         machines.get(where);
@@ -197,6 +202,35 @@ export function createRelay(app) {
     } finally {
       inflight.delete(key);
       if (rid) there.remove(rid).catch(() => {});
+    }
+  }
+
+  // A crew member delegated to by a lead on a machine: the crew is this wisp's, so it starts the
+  // member's job here (or on the member's own machine), a task the user sees like any crew job,
+  // and hands its report to the lead. Its edits stay in the member's own folder.
+  async function carryCrew(lead, r, job, finish) {
+    try {
+      if (!runner.crewDelegate) throw bad('The crew is not available.');
+      const from = { id: lead ? `${job.lead}@${lead}` : job.lead, title: job.title };
+      const s = await runner.crewDelegate(from, { crew: job.crew, label: job.label, name: job.name }, job.prompt);
+      if (s.error) throw bad(s.error);
+      const at = splitId(s.id);
+      const there = member(at?.machine || null);
+      const rid = at ? at.id : s.id;
+      let last = '';
+      for (;;) {
+        const sum = await there.state(rid);
+        if (sum.state !== 'running' && !sum.queued) break;
+        const label = sum.live || 'Working';
+        const res = await leadCall(lead, r.child, { op: 'progress', turn: r.turn, ...(label !== last && { item: { kind: 'agent', label } }) });
+        last = label;
+        if (res.stopped) return void (await there.stop(rid).catch(() => {}));
+      }
+      const out = await there.session(rid);
+      const t = out.turns.at(-1);
+      await finish({ status: t?.status || 'error', presentation: t?.presentation || null, stats: t?.stats || null, agent: out.agent, model: out.model, effort: out.effort || '' });
+    } catch (err) {
+      await finish({ status: 'error', error: err.message }).catch(() => {});
     }
   }
 
