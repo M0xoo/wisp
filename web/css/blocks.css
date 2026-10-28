@@ -618,7 +618,8 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .rev-tag { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 5px; font: 500 11.5px var(--sans); background: var(--bg-2); color: var(--muted); border: 1px solid var(--line); }
 .t-moved { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; color: var(--faint); }
 .t-moved .i { width: 11px; height: 11px; }
-.cp-sha { font: 500 11.5px var(--mono); color: var(--faint); padding: 1px 5px; border-radius: 5px; background: var(--surface); border: 1px solid var(--line); }
+.cp-sha { display: inline-flex; align-items: center; gap: 3px; font: 500 11.5px var(--mono); color: var(--faint); padding: 1px 5px; border-radius: 5px; background: var(--surface); border: 1px solid var(--line); }
+.cp-sha .i { width: 12px; height: 12px; }
 .b-diff.is-reverted .diff-scroll { opacity: 0.55; }
 .b-diff.is-reverted .path .base, .b-files li.is-reverted .path .base { text-decoration: line-through; color: var(--muted); }
 .cp-rollback { display: inline-flex; align-items: center; gap: 5px; }
