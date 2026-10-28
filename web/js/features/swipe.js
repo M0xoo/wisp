@@ -1,5 +1,5 @@
 // Swipe a row in the phone app's list, the way a mail app does: right to mark it done, left to
-// archive it, each with Undo. The row slides over a coloured band naming what letting go will do;
+// save it for later, each with Undo. The row slides over a coloured band naming what letting go will do;
 // past a third of the row (or on a quick flick) the band fills and the phone ticks, and letting go
 // there flies the row off and closes the gap. A spell picks the actions (card: swipeRight / swipeLeft) or turns one off.
 // Only the app (MOBILE): a phone browser keeps its own sideways gestures (back, forward).
@@ -13,7 +13,7 @@ const EDGE = 24; // from either edge of the screen a swipe is Android's Back, no
 const SLOP = 10; // px before a touch counts as a swipe rather than a tap or a scroll
 const COMMIT = 0.34; // of the row's width
 const FLICK = { speed: 0.5, min: 56, window: 100 }; // px/ms over the last 100ms, at least 56px out
-const DEFAULTS = { right: 'done', left: 'archive' };
+const DEFAULTS = { right: 'done', left: 'later' };
 
 const busy = (s) => s.state === 'running' || s.state === 'waiting';
 

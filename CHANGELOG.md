@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Swiping a task left in the phone app saves it for later instead of archiving it.** The band says *Save for later* (*Unsave* on a saved task) and the row moves to *For later*, with Undo. Rows that can't be saved yet (still running, waiting on you) only give a little. A spell can bring back archive with `card.swipeLeft: "archive"`.
 - **The phone app's computers screen says which account is which.** Each wisp Cloud account is one card, headed by your picture with the GitHub or Google mark you sign in with, the handle, and that account (`@login` or the email) under it, instead of *wisp Cloud* on every row. Its computers are rows inside the card with *Online* or *Offline* under their names, where an offline one used to have a greyed-out button. The grid now tells devices how an account signs in (`identities` on `/api/me` and the device token); accounts signed in before pick it up on the next refresh.
 
 ### Fixed
