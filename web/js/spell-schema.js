@@ -204,6 +204,7 @@ export const PARTS = {
   'split.greeting': '#splitHome .sh-hello',
   'split.next': '#splitHome .sh-next:not(.sh-coming)',
   'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
+  'split.feedback': '#splitHome .sh-fb', // Hit a bug, or an idea: opens Send feedback (hidden when feedback is off)
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',
   'tips.setup': '#splitHome .sh-tips .tip-setup', // pinned on top until a harness can run here; opens Settings → Agents
@@ -359,7 +360,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork', 'bookmark'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

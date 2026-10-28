@@ -96,9 +96,10 @@ export function openapi({ version, port }) {
             properties: {
               rating: { type: ['string', 'null'], enum: ['up', 'down', null], description: 'With turnId: kept on that turn; null takes it back' },
               text: { type: 'string', maxLength: 4000 },
+              kind: { type: 'string', enum: ['bug', 'idea'], description: 'bug: a bug report (needs text). Omitted: general feedback' },
               sessionId: { type: 'string', description: 'Adds that run\'s harness, model and status (never the prompt or result)' },
               turnId: { type: 'string' },
-              source: { type: 'string', description: 'turn | command | dialog' },
+              source: { type: 'string', description: 'turn | command | dialog | home' },
             },
           }),
           responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, sent: { type: 'boolean', description: 'false: kept in ~/.wisp/feedback-outbox.json and retried' }, available: { type: 'boolean' } } }), 400: err[400] },

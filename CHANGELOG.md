@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Report bugs from home, or with `/bug`.** The foot of the New task page has *Hit a bug, or wish wisp did something? Tell us*, which opens *Send feedback*. The dialog now asks what it is: *Idea or thought* (with 👍 / 👎) or *Something broke* (a bug report, which needs a few words). `/bug …` in any prompt box sends a bug report straight away; `/bug` alone opens the dialog on *Something broke*. As before, it goes to the wisp team with your wisp version, OS and, from a task, its harness and model, never your prompts or code. A spell can restyle or hide the home line (`split.feedback`).
 - **Delete your wisp Cloud account from the phone app.** The cloud's sheet (*⋯* on it) now has *Delete your account* under *Sign out*. It opens the grid's account page at *Delete your account* in your browser, where you type your handle to confirm.
 
 ### Changed

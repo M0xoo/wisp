@@ -156,7 +156,7 @@ function paletteItems() {
     const cmds = [...(spell.commands || []), ...(spell.buttons || []).filter((b) => b.slot === 'palette')];
     for (const c of cmds) items.push({ group: 'Spells', label: c.label, sub: spell.name, icon: c.icon || 'wizard', kbd: c.key ? c.key.replace(/^shift\+/i, '⇧').toUpperCase() : undefined, keywords: `spell ${c.keywords || ''}`, run: () => runAction(spell, c.do, { session: S.focus }) });
   }
-  if (feedbackOn()) items.push({ group: a, label: 'Send feedback…', icon: 'thumb-up', keywords: 'feedback bug report idea suggestion thumbs contact team', run: () => openFeedback() });
+  if (feedbackOn()) items.push({ group: a, label: 'Send feedback…', icon: 'thumb-up', keywords: 'feedback bug report broken crash idea suggestion thumbs contact team', run: () => openFeedback() });
 
   for (const r of S.config.recipes || []) items.push({ group: 'Recipes', label: `Run: ${r.name}`, sub: r.prompt.replace(/\s+/g, ' ').slice(0, 80), icon: 'bolt', keywords: `recipe ${r.prompt}`, run: () => runRecipe({ ...r, params: recipeParams(r.prompt) }) });
 

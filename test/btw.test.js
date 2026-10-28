@@ -32,14 +32,15 @@ test('spellAsk reads "/spell …" in the launcher and follow-ups', () => {
 
 test('the / menu offers the commands a half-typed one could be', () => {
   const names = (t) => page.slashMatches(t).map((c) => c.name);
-  assert.deepEqual(names('/'), ['btw', 'goal', 'spell', 'feedback']);
+  assert.deepEqual(names('/'), ['btw', 'goal', 'spell', 'feedback', 'bug']);
   assert.deepEqual(names('/g'), ['goal']);
   assert.equal(page.goalAsk('/goal all tests pass'), 'all tests pass');
   assert.equal(page.goalAsk('/goal'), '');
   assert.equal(page.goalAsk('a /goal'), null);
   assert.ok(page.isGoalDrop('drop') && !page.isGoalDrop('drop the db'));
   assert.deepEqual(names('/s'), ['spell']);
-  assert.deepEqual(names('/b'), ['btw']);
+  assert.deepEqual(names('/b'), ['btw', 'bug']);
+  assert.deepEqual(names('/bu'), ['bug']);
   assert.deepEqual(names('/F'), ['feedback']);
   assert.deepEqual(names('/btw '), [], 'closed once the command is typed and a space follows');
   assert.deepEqual(names('/x'), []);
@@ -48,8 +49,8 @@ test('the / menu offers the commands a half-typed one could be', () => {
 
 test('the new-task box offers /goal but not /btw (no run to ask on the side yet)', () => {
   const names = (t) => page.slashMatches(t, page.HOME_SLASH).map((c) => c.name);
-  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback']);
-  assert.deepEqual(names('/b'), []);
+  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback', 'bug']);
+  assert.deepEqual(names('/b'), ['bug']);
   assert.match(page.HOME_SLASH.find((c) => c.name === 'goal').hint, /Start a task/);
 });
 

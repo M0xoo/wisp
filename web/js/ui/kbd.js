@@ -29,6 +29,7 @@ export function shortcuts() {
     ['⇧↵', 'New line'],
     ['↑ / ↓', 'Earlier prompts (in an empty prompt box)'],
     ['/feedback', 'Send feedback to the wisp team (in any prompt box)'],
+    ['/bug', 'Report a bug in wisp (in any prompt box)'],
     ['C', 'Collapse all'],
     ['U', 'Back to top'],
     ['[', 'Hide / show the task list'],

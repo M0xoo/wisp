@@ -671,6 +671,10 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 .why-foot .muted { margin-right: auto; }
 .why-foot .primary { height: 24px; padding: 0 10px; font-size: 12.5px; border-radius: 7px; }
 .fb-modal { width: min(520px, 100%); }
+.fb-kind { margin: 0 0 12px; }
+.fb-kind button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.fb-kind button .i { width: 14px; height: 14px; }
+.fb-rate.off .rate-btn { visibility: hidden; } /* a bug: thumbs step aside, the dialog keeps its height */
 .fb-rate { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
 .fb-rate span { margin-right: 6px; }
 .fb-rate .rate-btn { width: 30px; height: 28px; }

@@ -10,16 +10,18 @@ import { runProps } from './telemetry.js';
 export function createFeedback(app) {
   const { store, machines, telemetry } = app;
 
-  return async function sendFeedback({ rating, text, sessionId, turnId, source } = {}) {
+  return async function sendFeedback({ rating, text, kind, sessionId, turnId, source } = {}) {
     if (rating !== undefined && rating !== null && rating !== 'up' && rating !== 'down') throw bad('rating must be up or down');
+    if (kind !== undefined && kind !== null && kind !== 'bug' && kind !== 'idea') throw bad('kind must be bug or idea');
     text = String(text || '').trim();
+    if (kind === 'bug' && !text) throw bad('Say what happened, so the team can fix it.');
     if (rating === undefined && !text) throw bad('Write something, or pick 👍 / 👎.');
     // A session on a machine: that wisp keeps the rating on its turn and sends it.
     const at = sessionId && splitId(sessionId);
     if (sessionId && turnId && rating !== undefined) app.router.signal(sessionId, { feedback: rating });
     if (at) {
       try {
-        return await machines.json(at.machine, 'POST', '/feedback', { rating, text, sessionId: at.id, turnId, source });
+        return await machines.json(at.machine, 'POST', '/feedback', { rating, text, kind, sessionId: at.id, turnId, source });
       } catch (err) {
         if (err.status === 400) throw err; // offline, or an older wisp there: send it from here, without the run
       }
@@ -43,7 +45,7 @@ export function createFeedback(app) {
       durationMs: turn.endedAt ? turn.endedAt - turn.startedAt : undefined,
       tour: s.agent === 'wisp' || undefined,
     };
-    const props = { ...context, rating: rating || undefined, source: String(source || (turn ? 'turn' : 'app')).slice(0, 20), machine: at ? true : undefined };
+    const props = { ...context, rating: rating || undefined, kind: kind || undefined, source: String(source || (turn ? 'turn' : 'app')).slice(0, 20), machine: at ? true : undefined };
     // Thumbs on a turn count as a rating; anything written, or sent from the dialog, is 'feedback'.
     const event = text || !turnId ? 'feedback' : 'turn_rated';
     if (event === 'turn_rated' && rating === null) props.cleared = true;

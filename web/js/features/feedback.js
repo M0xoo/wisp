@@ -1,5 +1,5 @@
-// Feedback. Three ways in, none of them taking room: thumbs at the end of a turn's trail, "/feedback …"
-// in any prompt box, and "Send feedback" in ⌘K. It all goes to the wisp team (PostHog), with the
+// Feedback. Four ways in, none of them taking room: thumbs at the end of a turn's trail, "/feedback …"
+// or "/bug …" in any prompt box, "Send feedback" in ⌘K, and a quiet line at the foot of home. It all goes to the wisp team (PostHog), with the
 // run's harness, model and status but never the prompt or the result.
 
 import { api } from '../core/api.js';
@@ -9,16 +9,22 @@ import { overlay } from '../ui/overlay.js';
 import { toast, toastError } from '../ui/toast.js';
 
 export const feedbackOn = () => S.config?.feedback !== false;
-const FEEDBACK_CMD = /^\/feedback(?:\s|$)/i;
+const FEEDBACK_CMD = /^\/(feedback|bug)(?:\s|$)/i;
 export const isFeedback = (text) => FEEDBACK_CMD.test(text);
+// A bug report or anything else (an idea, praise, a gripe): the team reads them in different places.
+const KINDS = [
+  ['idea', 'spark', 'Idea or thought', 'What works, what’s missing, what you wish it did…'],
+  ['bug', 'bug', 'Something broke', 'What happened, and what did you expect? The steps to get there help most.'],
+];
 const THANKS = 'Thanks! Sent to the wisp team.';
 
 // The box is already empty; `restore` puts the text back if the server refuses it.
 export function feedbackCommand(text, { sessionId, restore } = {}) {
   if (!feedbackOn()) return (restore?.(), toast('Feedback is turned off on this install.', { tone: 'bad' }));
+  const kind = text.match(FEEDBACK_CMD)[1].toLowerCase() === 'bug' ? 'bug' : undefined;
   const note = text.replace(FEEDBACK_CMD, '').trim();
-  if (!note) return openFeedback({ sessionId });
-  postFeedback({ text: note, sessionId, source: 'command' }, { onFail: restore });
+  if (!note) return openFeedback({ sessionId, kind });
+  postFeedback({ text: note, kind, sessionId, source: 'command' }, { onFail: restore });
 }
 
 // Optimistic: thanks at once. Offline, the server keeps it and sends it later.
@@ -85,26 +91,44 @@ export function whyForm(s, t, close) {
   return f;
 }
 
-export function openFeedback({ sessionId, text = '', rating = null } = {}) {
+export function openFeedback({ sessionId, text = '', rating = null, kind = 'idea', source = 'dialog' } = {}) {
   if (!feedbackOn()) return toast('Feedback is turned off on this install.', { tone: 'bad' });
   const node = el(`
     <form class="modal fb-modal">
       <header><h2>Send feedback</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
+      <fieldset class="pk-seg fb-kind" role="radiogroup" aria-label="Kind">${KINDS.map(([k, i, label]) => `<button type="button" role="radio" data-kind="${k}">${icon(i)}${label}</button>`).join('')}</fieldset>
       <div class="fb-rate"><span>How is wisp working for you?</span>
         ${['up', 'down'].map((r) => `<button type="button" class="rate-btn" data-rate="${r}" aria-pressed="false" title="${r === 'up' ? 'Good' : 'Not good'}">${icon(`thumb-${r}`)}</button>`).join('')}
       </div>
       <textarea class="textarea" name="text" rows="5" maxlength="4000" placeholder="What works, what breaks, what you wish it did…"></textarea>
-      <div class="ship-foot"><span class="muted xs">Goes to the wisp team with your wisp version and OS. Not your code or prompts. Tip: type <code>/feedback …</code> in any prompt box.</span><button class="primary sm" data-a="send">${icon('send')}Send</button></div>
+      <div class="ship-foot"><span class="muted xs">Goes to the wisp team with your wisp version and OS. Not your code or prompts. Tip: type <code>/feedback …</code> or <code>/bug …</code> in any prompt box.</span><button class="primary sm" data-a="send">${icon('send')}Send</button></div>
     </form>`);
   const close = overlay(node);
   $('.close', node).onclick = close;
   const ta = $('textarea', node);
   const send = $('[data-a="send"]', node);
   ta.value = text;
+  // A bug needs words; thumbs say nothing about one, so they step aside (and don't go out) and
+  // a hint takes their row.
   const paint = () => {
+    const bug = kind === 'bug';
+    $$('[data-kind]', node).forEach((b) => {
+      b.classList.toggle('on', b.dataset.kind === kind);
+      b.setAttribute('aria-checked', b.dataset.kind === kind);
+    });
+    $('.fb-rate', node).classList.toggle('off', bug);
+    $('.fb-rate span', node).textContent = bug ? 'One bug per report, so each one gets fixed.' : 'How is wisp working for you?';
+    ta.placeholder = KINDS.find(([k]) => k === kind)[3];
     paintRate(node, rating);
-    send.disabled = !rating && !ta.value.trim();
+    send.disabled = (bug || !rating) && !ta.value.trim();
   };
+  $$('[data-kind]', node).forEach((b) => {
+    b.onclick = () => {
+      kind = b.dataset.kind;
+      paint();
+      ta.focus();
+    };
+  });
   $$('[data-rate]', node).forEach((b) => {
     b.onclick = () => {
       rating = rating === b.dataset.rate ? null : b.dataset.rate;
@@ -118,9 +142,11 @@ export function openFeedback({ sessionId, text = '', rating = null } = {}) {
   node.onsubmit = (e) => {
     e.preventDefault();
     const note = ta.value.trim();
-    if (!rating && !note) return;
+    const bug = kind === 'bug';
+    if ((bug || !rating) && !note) return;
     close();
-    postFeedback({ rating: rating || undefined, text: note, sessionId, source: 'dialog' }, { onFail: () => openFeedback({ sessionId, text: note, rating }) });
+    const body = { rating: (!bug && rating) || undefined, text: note, kind: bug ? 'bug' : undefined, sessionId, source };
+    postFeedback(body, { onFail: () => openFeedback({ sessionId, text: note, rating, kind, source }) });
   };
   paint();
   requestAnimationFrame(() => ta.focus());

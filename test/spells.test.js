@@ -131,8 +131,9 @@ test('split view: sidebar and split slots, parts and pixel props', () => {
       'split.details': { props: { width: 280 }, style: { fontSize: '12px' } },
       'split.pr': { style: { borderRadius: '6px' } },
       'split.back': { style: { color: 'red' } },
+      'split.feedback': { style: { color: 'red' } },
     },
-    ui: { hide: ['sidebar.new', 'topbar.view', 'sidebar.foot', 'sidebar.nav', 'sidebar.account', 'split.actions', 'topbar.account', 'account.menu'] },
+    ui: { hide: ['sidebar.new', 'topbar.view', 'sidebar.foot', 'sidebar.nav', 'sidebar.account', 'split.actions', 'topbar.account', 'account.menu', 'split.feedback'] },
     buttons: [
       { slot: 'sidebar.top', icon: 'github', do: { open: 'https://github.com/pulls' } },
       { slot: 'split.head', label: 'PR', when: { hasPr: true }, do: { open: '{pr.url}' } },
