@@ -665,6 +665,9 @@ test('interactive answers: the apps setting, the block.app parts, and app is a b
 
 test("a question's choices in a phone's card row are a part spells can restyle or hide", () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['card.choices'] }, parts: { 'card.choices': { style: { gap: '4px' } } } }), []);
+  // The row's third line (harness, model, machine) can be hidden or restyled, and takes no props.
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['card.run'] }, parts: { 'card.run': { style: { color: 'var(--muted)' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'card.run': { props: { lines: 2 } } } }).some((x) => /card\.run/.test(x)));
   assert.ok(problems({ ...base0, parts: { 'card.choices': { props: { lines: 2 } } } }).some((x) => /card\.choices/.test(x)));
 });
 

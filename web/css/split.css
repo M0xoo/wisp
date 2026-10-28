@@ -170,7 +170,9 @@ body.split #feed :is(.it-sub, .q-live) { grid-row: 2; grid-column: 2; }
 body.split #feed .it-sub { color: var(--faint); }
 /* The phone's answer buttons (feed.js rowChoices) get their own line under the summary, across the
    row: auto-placed, they'd open a fourth column and push the row past the list's edge. */
-body.split #feed .it-choices { grid-row: 3; grid-column: 2 / -1; min-width: 0; }
+body.split #feed .it-choices { grid-row: 4; grid-column: 2 / -1; min-width: 0; }
+/* The third line (harness, model, machine) across the row, under the summary and the state. */
+body.split #feed .it-run { grid-row: 3; grid-column: 2 / -1; }
 body.split #feed .item.open .it-head { border-bottom: 0; border-radius: var(--radius); }
 body.split #feed .item.open .it-title { white-space: nowrap; }
 body.split #feed .it-side { grid-row: 2; grid-column: 3; flex-wrap: wrap; justify-content: flex-end; gap: 2px 6px; min-height: 19px; }
@@ -197,6 +199,8 @@ body.split #feed .item.open.st-done .it-title { color: var(--muted); }
 body.split #feed .it-side .chev { display: none; }
 /* Rows say what needs saying (state, PR, time); details: "full" (a spell's) brings back the rest. */
 body.split:not(.side-full) #feed .it-side > :is(.model-logo, .team-stack, .q-machine, .q-proj) { display: none; }
+/* …but not the harness and machine twice: the third line says those. */
+body.split.side-full #feed .it-head:has(> .it-main > .it-run) .it-side > :is(.model-logo, .q-machine) { display: none; }
 body.split .task-item { background: transparent; border-color: var(--line); box-shadow: none; }
 body.split .task-item:has(.item.open) { box-shadow: none; }
 body.split .task-head { padding: 8px 10px 6px 12px; gap: 10px; }

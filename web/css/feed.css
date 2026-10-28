@@ -76,6 +76,20 @@
 .it-title[contenteditable='true'] { white-space: normal; background: var(--surface-2); box-shadow: 0 0 0 3px var(--accent-soft); padding: 0 4px; cursor: text; }
 .it-sub, .q-live { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .q-live.running { color: var(--ink-2); }
+/* The third line: harness, model and machine (feed.js runLine). The harness keeps its name; the model
+   and machine give way in proportion to their length, each keeping a few letters. */
+.it-run { display: flex; align-items: center; min-width: 0; font-size: 11.5px; line-height: 17px; color: var(--faint); white-space: nowrap; overflow: hidden; }
+.it-run > * { flex: none; }
+.it-run .ir-logo { display: inline-flex; width: 12px; height: 12px; margin-right: 5px; color: var(--muted); }
+.it-run .ir-logo > * { display: block; width: 100%; height: 100%; }
+.it-run .ir-logo .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
+.it-run .ir-h { color: var(--muted); }
+.it-run :is(.ir-m, .ir-w) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.it-run .ir-m { min-width: 7ch; }
+.it-run :is(.ir-m, .ir-w)::before { content: '·'; padding: 0 5px; }
+.it-run .ir-w { display: inline-flex; align-items: center; min-width: 8ch; }
+.it-run .ir-w > span { overflow: hidden; text-overflow: ellipsis; }
+.it-run .ir-w .i { flex: none; width: 11px; height: 11px; margin-right: 4px; }
 .q-live.waiting { color: var(--warn); font-weight: 500; }
 .it-side { display: flex; align-items: center; gap: 10px; }
 .it-side .chev { width: 14px; height: 14px; color: var(--faint); transition: transform 0.2s; }

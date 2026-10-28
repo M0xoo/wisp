@@ -186,6 +186,7 @@ export const PARTS = {
   'card.overlapNote': '#feed .overlap-strip',
   'card.model': '#feed .it-side .model-logo',
   'card.machine': '#feed .it-side .q-machine',
+  'card.run': '#feed .it-run', // the row's third line: harness, model and machine
   'card.project': '#feed .it-side .q-proj',
   'card.time': '#feed .it-side .q-time',
   'card.later': '#feed .it-side .later-pill', // the next scheduled follow-up's time

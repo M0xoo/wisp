@@ -3,6 +3,7 @@
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
+import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { HERE, isForLater, MOBILE, needsYou, S, save, saveOpen } from '../core/state.js';
@@ -12,7 +13,7 @@ import { carryDock } from './composer.js';
 import { renderLaunchChips } from './launcher.js';
 import { inProject, machinePill, projectLabel } from './places.js';
 import { renderProjects } from './projects.js';
-import { agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
+import { agentById, agentName, effortLabel, harnessLogo, modelBadge } from './runners.js';
 import { scrollByPx, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
 import { overlapPill } from './overlaps.js';
@@ -142,6 +143,10 @@ export function placeCards(box, list) {
   });
   while (box.children.length > list.length) box.lastElementChild.remove();
 }
+
+// The rows' third line names harnesses and models from the harness list, which can land after
+// the first paint (a cold start, the phone's cached page): repaint then, so no row keeps a raw id.
+bus.on('agents', () => renderFeed());
 
 export function renderFeed() {
   const { needs, working, scheduled, forLater, done, archived } = groups();
@@ -332,6 +337,7 @@ function renderHead(n, s) {
     <span class="it-main">
       <span class="it-title" title="${esc(s.title)}">${esc(s.title)}</span>
       ${live ? `<span class="q-live ${s.state}">${esc(s.live)}</span>` : open && !isSplit() ? '' : s.held ? `<span class="it-sub" title="${esc(heldTip(s))}">${icon('pause')}${esc(heldSub(s))}</span>` : sched ? `<span class="it-sub${s.later[0].held ? ' held' : ''}" title="${esc(laterTip(s))}">${icon(laterLine(s.later[0])[0])}${esc(laterLine(s.later[0])[1])}</span>` : `<span class="it-sub" title="${esc(s.preview || '')}">${esc(s.preview || '')}</span>`}
+      ${runLine(s)}
       ${rowChoices(s, open)}
     </span>
     <span class="it-side">
@@ -341,6 +347,16 @@ function renderHead(n, s) {
       ${quickLater(s, open)}${quickDone(s, open)}
       ${icon('chevron', 'chev')}
     </span>`);
+}
+
+// The row's third line: what ran the task and where (harness, model, machine). The machine is
+// always named, this computer too, so a list across places reads the same on every row.
+function runLine(s) {
+  if (!s.agent || s.agent === 'wisp' || s.kind === 'reminder') return '';
+  const model = (s.model && agentById(s.agent)?.models?.find((m) => m.id === s.model)?.label) || s.model || 'Default model';
+  const where = s.machine?.name || HERE;
+  const tip = [agentName(s.agent), model, s.effort && `${effortLabel(s.effort)} thinking`, `on ${where}`].filter(Boolean).join(' · ');
+  return `<span class="it-run" title="${esc(tip)}"><i class="ir-logo">${harnessLogo(s.agent)}</i><span class="ir-h">${esc(agentName(s.agent))}</span><span class="ir-m">${esc(model)}</span><span class="ir-w">${icon(s.machine ? 'server' : 'laptop')}<span>${esc(where)}</span></span></span>`;
 }
 
 // Every feed render repaints every head: rewrite one only when it would change, so an unchanged

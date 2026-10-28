@@ -187,7 +187,7 @@ button.sp-chip:hover { border-color: var(--line-2); color: var(--ink); }
 
 /* card density */
 body.sp-compact #feed .it-head { padding-top: 7px; padding-bottom: 7px; }
-body.sp-compact #feed .it-sub { display: none; }
+body.sp-compact #feed :is(.it-sub, .it-run) { display: none; }
 body.sp-compact #feed .f-list { gap: 6px; }
 body.sp-comfy #feed .it-head { padding-top: 15px; padding-bottom: 15px; }
 

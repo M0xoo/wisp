@@ -223,6 +223,7 @@ body.wisp-mobile .to-top { top: auto; left: auto; right: 12px; bottom: calc(84px
 /* Type: a phone reads at arm's length. Titles 15, lines under them 13, small print 12. */
 body.wisp-mobile .it-title { font-size: 15px; }
 body.wisp-mobile :is(.it-sub, .q-live) { font-size: 13px; }
+body.wisp-mobile .it-run { font-size: 12px; line-height: 18px; }
 body.wisp-mobile :is(.q-time, .q-proj, .pill) { font-size: 12px; }
 body.wisp-mobile .f-group h4 { font-size: 13px; }
 body.wisp-mobile .trail-bar { font-size: 13px; }
