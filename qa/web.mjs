@@ -366,6 +366,20 @@ try {
     ok(facts.pane, 'no details column on the 860px task page');
     ok(facts.right <= facts.vw, `the task's facts run off the page (${facts.right} > ${facts.vw})`);
     ok(new Set(facts.tops).size === facts.tops.length, `the task's facts share a row: ${facts.tops}`);
+    // A phone in landscape: as wide, but too short for the column, whose actions would sit below
+    // the window. The bar over the task keeps every action on screen.
+    await q.setViewportSize({ width: 860, height: 390 });
+    await q.waitForTimeout(400);
+    const low = await q.evaluate(() => ({
+      pane: document.body.classList.contains('pane-wide'),
+      acts: [...document.querySelectorAll('.item.open .it-actions > button')].filter((b) => b.offsetWidth).map((b) => Math.round(b.getBoundingClientRect().bottom)),
+      vh: innerHeight,
+    }));
+    ok(!low.pane, 'a details column on an 860×390 task page');
+    ok(low.acts.length && low.acts.every((y) => y <= low.vh), `the task's actions are off the window at 390px tall (${low.acts} > ${low.vh})`);
+    await q.shot('narrow-task-landscape');
+    await q.setViewportSize({ width: 860, height: 600 });
+    await q.waitForTimeout(300);
     await q.locator('#splitHead .sh-back').click();
     await q.waitForTimeout(300);
     const b = await st();

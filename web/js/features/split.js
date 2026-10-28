@@ -40,6 +40,9 @@ const READ_W = 860;
 const DETAILS_W = 232;
 // The main pane gets the details column from this width; narrower, they're a bar over the task.
 const DETAILS_PANE = 860;
+// …and from this height: the column is pinned to the top of the pane, so on a shorter one (a phone
+// in landscape) its actions would sit below the window, out of reach. The bar keeps them on screen.
+const DETAILS_PANE_H = 520;
 
 export const isSplit = () => document.body.classList.contains('split');
 // One pane at a time: the list, or what's open over it as a page.
@@ -479,7 +482,7 @@ function measure() {
   const m = new DOMMatrixReadOnly(getComputedStyle($('#splitMain')).transform);
   const r = { top: Math.round(box.top - m.m42), left: Math.round(box.left - m.m41), width: box.width, height: box.height };
   // The side panel takes the right-hand column: the details fold into the bar while it's open.
-  const wideNow = isSplit() && r.width >= DETAILS_PANE && !document.body.classList.contains('panel-open');
+  const wideNow = isSplit() && r.width >= DETAILS_PANE && r.height >= DETAILS_PANE_H && !document.body.classList.contains('panel-open');
   // With the list hidden the top bar's buttons float over the pane's corner: the header keeps clear.
   const bar = isSplit() && listHidden() ? $('#topbar').offsetWidth : 0;
   const key = `${r.top} ${r.left} ${r.width} ${r.height} ${wideNow} ${bar}`;
