@@ -5,7 +5,9 @@
 // One panel, for one task at a time. In split view it lies over the open task's reading area (the
 // task's header stays above it); in the feed it's a sheet; on a phone it fills the screen with a
 // row of the keys a phone keyboard lacks. Going back hides it: the agent carries on, the card says
-// "In terminal", and opening it again shows the same screen. It ends when the agent exits.
+// "In terminal", and opening it again shows the same screen. Leaving the task (another task, home,
+// a crew member) puts it away too, and coming back to the task brings it back. It ends when the
+// agent exits.
 
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
@@ -85,6 +87,7 @@ function rowHtml(r, cx) {
 let panel = null;
 let cur = null; // { id, screen, es, ... } the terminal shown
 const terms = new Map(); // id -> terminal state, kept while it runs so reopening is instant
+const shut = new Set(); // tasks whose terminal you put away with Back, until you leave the task
 
 function build() {
   panel = el(`
@@ -109,10 +112,10 @@ function build() {
     </section>`);
   document.body.append(panel);
   $('.tm-back', panel).onclick = () => {
-    hide();
+    dismiss();
   };
   $('.tm-scrim', panel).onclick = () => {
-    hide();
+    dismiss();
   };
   $('.tm-end', panel).onclick = () => {
     end();
@@ -122,12 +125,6 @@ function build() {
   // The phone keyboard covers the bottom of the page: keep the panel (and its keys) above it.
   visualViewport?.addEventListener('resize', place);
   visualViewport?.addEventListener('scroll', place);
-  // Split view: another task opened in the main pane takes the panel's place.
-  new MutationObserver(() => {
-    if (!cur || panel.hidden) return;
-    place();
-    if (isSplit() && $('#splitHead').dataset.id !== cur.id && !$('#splitHead').hidden) hide();
-  }).observe($('#splitHead'), { attributes: true, attributeFilter: ['data-id', 'hidden'] });
   bus.on('spells', () => cur && !panel.hidden && (paintHead(), fit()));
 }
 
@@ -170,6 +167,31 @@ function show(t) {
   paint();
   focus();
 }
+
+// Back: put it away while you read the task (it comes back once you leave the task and return).
+function dismiss() {
+  if (cur) shut.add(cur.id);
+  hide();
+}
+
+// Split view: the panel goes with its task. Another task, home or a crew member's thread in the
+// main pane puts it away; opening the task again while its terminal runs shows it over it again.
+let seen = null; // the task open in the main pane
+function follow() {
+  if (!isSplit()) return;
+  const h = $('#splitHead');
+  const id = (!h.hidden && h.dataset.id) || null;
+  if (id !== seen) {
+    if (seen) shut.delete(seen);
+    seen = id;
+  }
+  const shown = panel && !panel.hidden;
+  if (shown && cur.id !== id) return hide();
+  if (shown) return place();
+  const t = id && terms.get(id);
+  if (id && !shut.has(id) && S.sessions.get(id)?.term && (!t || t.code === null)) openTerm(id);
+}
+new MutationObserver(follow).observe($('#splitHead'), { attributes: true, attributeFilter: ['data-id', 'hidden'] });
 
 export function hide() {
   if (!panel || panel.hidden) return;
@@ -578,6 +600,7 @@ function pasted(text) {
 // Show task id's terminal, connecting to it if this page hasn't yet. starting: the server is still
 // opening it (the take over is on its way).
 export function openTerm(id, { starting = false } = {}) {
+  shut.delete(id);
   let t = terms.get(id);
   if (t && t.code !== null) (terms.delete(id), (t = null));
   t = termFor(id);

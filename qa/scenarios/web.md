@@ -199,8 +199,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
   **Suite** (`test/overlaps.test.js`) · **Manual** in the page
 
 ### WEB-29 · Take over in a terminal
-- **Steps:** *Take over* (`T`) on a finished Claude task.
-- **Expected:** the in-app terminal resumes `claude --resume <id>` in the worktree.
+- **Steps:** *Take over* (`T`) on a finished Claude task; open another task, then the first again.
+- **Expected:** the in-app terminal resumes `claude --resume <id>` in the worktree. Another task (or home) puts it away; back on the first task it shows again, with the same screen.
 - **Suite** (`test/terminal.test.js`, `test/pty.test.js`) · **Manual** with a real CLI
 
 ### WEB-30 · Real harnesses
