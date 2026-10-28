@@ -1,5 +1,6 @@
 // The side panel: a third column beside the open task, on the far side from the list, for doing
-// things with what the agent made without leaving wisp (design/side-panel.md). Two tabs:
+// things with what the agent made without leaving wisp (design/side-panel.md). It shows one of
+// two things, opened from the task (its Shell button, its PR row, the menus, the keys), never tabs:
 //
 //   Shell  your shell in the folder the task was built in (its worktree), on whichever computer
 //          ran it: here, a machine over SSH, a cloud computer. The server runs it on a pty
@@ -9,9 +10,9 @@
 //          threads folded), the files. Ask to fix and Send to agent fill the task's reply box.
 //
 // It goes with the task: home or a crew member's thread puts it away, and the next task opens it
-// on the tab it had. Each task keeps its own shell while you look at others. From 1180px it's a
+// on what it showed. Each task keeps its own shell while you look at others. From 1180px it's a
 // column of its own; narrower (900–1179px) it takes the list's place while open; stacked (and in
-// the phone app) it's a page over the task with Back.
+// the phone app) it's a page over the task, with Back to the task.
 
 import { esc } from '../md.js';
 import { copy } from '../blocks.js';
@@ -23,8 +24,10 @@ import { HERE, inGrid, load, MOBILE, S, save } from '../core/state.js';
 import { ask } from '../ui/confirm.js';
 import { keyHint } from '../ui/kbd.js';
 import { popover } from '../ui/popover.js';
+import { onBack } from '../ui/back.js';
 import { toast, toastError } from '../ui/toast.js';
 import { draftInto } from './composer.js';
+import { paintMini } from './turns.js';
 import { expand } from './feed.js';
 import { agentName } from './runners.js';
 import { fixPr, mergePr, prsOf, shipDialog, shippable } from './ship.js';
@@ -37,19 +40,20 @@ const MIN_W = 360;
 const TASK_MIN = 480; // the task beside it never gets narrower
 export const PANEL_WIDE = 1180; // narrower than this, the panel takes the list's place while open
 
-// Yours, in this browser: open or not, the last tab, the width you dragged it to.
+// Yours, in this browser: open or not, what it last showed (tab: shell or pr), the width you dragged it to.
 const pref = { open: false, tab: null, ...load('wisp.panel', {}) };
 const keep = () => save('wisp.panel', pref);
-// Stacked (a phone), the task page's segments pick it instead: { id, tab } while Shell or PR shows
-// on that task's page, null on Task. Not kept: a task page always opens on Task.
-let seg = null;
-const segOn = () => isStacked() && !!seg && seg.id === target();
-const tabOf = () => (segOn() ? seg.tab : pref.tab || spellProp('panel', 'tab') || 'shell');
+// Stacked (a phone), Shell or PR is a page over the task's: { id, tab } while one shows, null on
+// the task. Not kept: a task page always opens on the task. It takes a Back entry in the app.
+let page = null;
+let pageBack = null;
+const pageOn = () => isStacked() && !!page && page.id === target();
+const tabOf = () => (pageOn() ? page.tab : pref.tab || spellProp('panel', 'tab') || 'shell');
 
 const shells = new Map(); // task id -> its shell (term-view state), kept while it runs
 const spaces = new Map(); // task id -> the last workspace seen ({ dir, worktree, status, shell, … } or { error })
 const details = new Map(); // task id -> { prs, at, error } the last PR detail seen
-const picked = new Map(); // task id -> which of its PRs the PR tab shows
+const picked = new Map(); // task id -> which of its PRs the PR shows
 const folds = new Map(); // task id -> Set of folds opened (passed, bots, outdated, files)
 let shown = null; // the task the panel shows now
 
@@ -59,21 +63,19 @@ const panel = el(`
   <aside class="side-panel" id="sidePanel" hidden aria-label="Side panel">
     <div class="pn-grip" role="separator" aria-orientation="vertical" aria-label="Resize the side panel" title="Drag to resize · double-click to reset"></div>
     <header class="pn-head">
-      <div class="pn-tabs" role="tablist">
-        <button role="tab" data-tab="shell">${icon('shell')}<span>Shell</span></button>
-        <button role="tab" data-tab="pr">${icon('merge')}<span class="pn-pr-name">PR</span></button>
-      </div>
+      <button class="icon-btn pn-back" title="Back to the task" aria-label="Back to the task">${icon('back')}</button>
+      <h3 class="pn-name"></h3>
       <span class="pn-acts"></span>
       <button class="icon-btn pn-close" title="Hide side panel (])" aria-label="Hide side panel">${icon('x')}</button>
     </header>
     <div class="pn-place"></div>
     <p class="pn-note" hidden></p>
-    <section class="pn-shell" role="tabpanel" hidden>
+    <section class="pn-shell" hidden>
       ${SCREEN_HTML}
       <div class="pn-msg" hidden></div>
       <div class="pn-ended" hidden><span></span><button class="ghost xs" data-a="restart">${icon('replay')}<span>Start again</span></button></div>
     </section>
-    <section class="pn-pr" role="tabpanel" hidden></section>
+    <section class="pn-pr" hidden></section>
   </aside>`);
 $('#stage').append(panel);
 const view = new TermView($('.pn-shell', panel), { shown: () => !panel.hidden && $('.pn-shell', panel).hidden === false });
@@ -87,7 +89,7 @@ export const panelShown = () => !panel.hidden;
 
 let fresh = false; // opened by you just now: the one time it animates in
 function paint() {
-  const id = (isStacked() ? segOn() : pref.open) ? target() : null;
+  const id = (isStacked() ? pageOn() : pref.open) ? target() : null;
   const on = !!id;
   const was = !panel.hidden;
   if (on !== was || document.body.classList.contains('panel-open') !== on) {
@@ -100,11 +102,12 @@ function paint() {
   fresh = false;
   panel.classList.toggle('stacked', on && isStacked());
   panel.classList.toggle('touch', TOUCH.matches || MOBILE);
-  // The PR tab shows the PR in full: the task's own PR row would say it twice.
+  // The PR shown in full: the task's own PR row would say it twice.
   document.body.classList.toggle('panel-pr', on && tabOf() === 'pr');
   paintWidth();
   paintBtn();
-  paintSegs(on ? tabOf() : 'task');
+  paintTaskBtns(on ? tabOf() : null);
+  paintPageBack(on && isStacked());
   if (!on) {
     if (shown) view.blur();
     shown = null;
@@ -116,7 +119,7 @@ function paint() {
     panel.dataset.id = id;
     loadSpace(id);
   }
-  paintTabs();
+  paintName();
   paintPlace();
   paintBody();
 }
@@ -127,10 +130,37 @@ function paintWidth() {
   document.documentElement.style.setProperty('--panel-w', `${w}px`);
 }
 
-// Stacked: the segments under the task head (split.js draws them) show which is picked.
-function paintSegs(at) {
-  document.body.dataset.seg = at;
-  for (const b of document.querySelectorAll('#splitHead [data-seg]')) b.setAttribute('aria-selected', b.dataset.seg === at);
+// The open task's own ways in show what's open: its Shell button is pressed while the shell shows.
+function paintTaskBtns(at) {
+  const id = target();
+  const b = $('.it-shell', S.nodes.get(id)?.body || document.createElement('i'));
+  if (b) b.setAttribute('aria-pressed', at === 'shell');
+  if (id) paintDoor(id);
+}
+
+// Whether the task's shell is running (the task page's Shell row and mini row show it).
+export const shellLive = (id) => shells.get(id)?.code === null;
+
+// Stacked, the task's page has a door to its shell under the PR row (turns.js draws it): where it
+// runs, and whether yours is still running there while you read the task.
+export function paintDoor(id) {
+  const door = $('.shell-door', S.nodes.get(id)?.body || document.createElement('i'));
+  if (!door) return;
+  const live = shells.get(id)?.code === null;
+  const html = `${icon('shell')}<b>Shell</b><span class="sd-sub">${live ? '<i class="sd-live"></i>Running on ' : ''}${esc(placeOf(S.sessions.get(id)).name)}</span>${icon('chevron', 'chev')}`;
+  if (door.dataset.h !== html) (door.innerHTML = html), (door.dataset.h = html);
+  door.setAttribute('aria-label', live ? 'Shell, running' : 'Open shell');
+  paintMini(id);
+}
+
+// Stacked in the app, the page holds one Back entry: the phone's Back returns to the task.
+function paintPageBack(on) {
+  if (on && !pageBack)
+    pageBack = onBack(() => {
+      pageBack = null;
+      close();
+    });
+  else if (!on && pageBack) (pageBack(), (pageBack = null));
 }
 
 // The task head's toggle (split.js draws it): pressed while the panel is open.
@@ -143,16 +173,16 @@ function paintBtn() {
   b.setAttribute('aria-label', b.title);
 }
 
-function paintTabs() {
+// Its head names what it shows: Shell, or the PR (PR #412, PRs with several, PR before there's one).
+function paintName() {
   const s = S.sessions.get(shown);
   const prs = prsOf(s);
   const n = prs.length;
-  $('.pn-pr-name', panel).textContent = n > 1 ? 'PRs' : n ? `PR #${prs[0].pr.number}` : 'PR';
   const tab = tabOf();
-  for (const b of panel.querySelectorAll('[data-tab]')) {
-    b.setAttribute('aria-selected', b.dataset.tab === tab);
-    b.tabIndex = b.dataset.tab === tab ? 0 : -1;
-  }
+  const name = tab === 'shell' ? `${icon('shell')}<span>Shell</span>` : `${icon('merge')}<span>${n > 1 ? 'PRs' : n ? `PR #${prs[0].pr.number}` : 'PR'}</span>`;
+  const head = $('.pn-name', panel);
+  if (head.dataset.h !== name) (head.innerHTML = name), (head.dataset.h = name);
+  panel.setAttribute('aria-label', tab === 'shell' ? 'Shell' : 'Pull request');
   $('.pn-shell', panel).hidden = tab !== 'shell';
   $('.pn-pr', panel).hidden = tab !== 'pr';
   const acts = $('.pn-acts', panel);
@@ -225,8 +255,8 @@ async function startShell(id, { restart = false } = {}) {
   let t = shells.get(id);
   if (restart || !t || t.code !== null) {
     t = termState(id, `/sessions/${id}/shell`, {
-      onHello: () => shown === id && paintShell(),
-      onExit: () => shown === id && (paintShell(), paintPlace()),
+      onHello: () => (paintDoor(id), shown === id && paintShell()),
+      onExit: () => (paintDoor(id), shown === id && (paintShell(), paintPlace())),
     });
     shells.set(id, t);
   }
@@ -308,6 +338,7 @@ async function endShell() {
   t.es?.close();
   t.es = null;
   t.view?.schedule(t);
+  paintDoor(id);
   if (shown === id) (paintShell(), paintPlace());
   api(`/sessions/${id}/shell`, { method: 'DELETE' }).catch(toastError);
 }
@@ -335,7 +366,7 @@ async function loadPrs(id, { quiet = true } = {}) {
   if (shown === id && tabOf() === 'pr') paintPr();
   schedulePoll(id);
 }
-// While the PR tab shows: every 20s while a check runs, else every minute. Hidden, it doesn't poll.
+// While the PR shows: every 20s while a check runs, else every minute. Hidden, it doesn't poll.
 function schedulePoll(id) {
   clearTimeout(pollTimer);
   const d = details.get(id);
@@ -487,7 +518,7 @@ function paintPr() {
     const p = list[i];
     const v = verdict(p, s);
     const open = list.filter((x) => x.state === 'OPEN');
-    // On a phone the verdict and its button are a bar pinned at the bottom, where the reply box sits on Task.
+    // On a phone the verdict and its button are a bar pinned at the bottom, where the reply box sits on the task.
     const bar = isStacked();
     const verdictHtml = `<div class="pn-verdict ${v.tone}${bar ? ' pn-bar' : ''}">${icon(VERDICT_ICON[v.tone] || 'info')}<span>${v.text}</span>${v.btn && (list.length === 1 || v.btn[0] !== 'merge') ? `<button class="${v.btn[2]} sm" data-a="${v.btn[0]}">${v.btn[0] === 'merge' ? icon('check') : icon('merge')}${v.btn[1]}</button>` : ''}</div>`;
     html = `
@@ -536,7 +567,7 @@ function sendToAgent(id, kind, i) {
   toReply(id, `${n.author} ${n.kind === 'review' ? 'reviewed' : 'commented on'} PR #${p.number}:\n\n${quote(n.body)}\n\nAddress it and push.`);
 }
 
-// Into the task's reply box: stacked, back to the Task segment so the box is in sight.
+// Into the task's reply box: stacked, back to the task's page so the box is in sight.
 function toReply(id, text) {
   if (isStacked()) close();
   draftInto(id, text);
@@ -586,9 +617,7 @@ async function openApp(id) {
 // --- wiring ----------------------------------------------------------------------------------
 
 panel.addEventListener('click', (e) => {
-  const tab = e.target.closest('[data-tab]')?.dataset.tab;
-  if (tab) return pickTab(tab, { focus: true });
-  if (e.target.closest('.pn-close')) return close();
+  if (e.target.closest('.pn-close, .pn-back')) return close();
   if (e.target.closest('.pn-more')) return placeMenu(e.target.closest('.pn-more'));
   if (e.target.closest('.pn-end')) return void endShell();
   const pick = e.target.closest('[data-pick]');
@@ -613,23 +642,6 @@ panel.addEventListener('click', (e) => {
   if (a === 'fix-check') return void askToFix(id, b.dataset.name, b.dataset.url, b);
   if (a === 'send') return sendToAgent(id, b.dataset.kind, Number(b.dataset.i));
 });
-// The tabs, as a tablist: arrows move between them.
-$('.pn-tabs', panel).addEventListener('keydown', (e) => {
-  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-  e.preventDefault();
-  pickTab(tabOf() === 'shell' ? 'pr' : 'shell', { focus: true });
-});
-
-function pickTab(tab, { focus = false } = {}) {
-  if (tab === 'shell' && tabOf() !== 'shell' && shown) freshShell(shown);
-  if (segOn()) seg.tab = tab;
-  else (pref.tab = tab), keep();
-  paintTabs();
-  paintPlace();
-  paintBody();
-  if (tab === 'pr' && shown) loadPrs(shown);
-  if (focus) (tab === 'shell' ? view.focus() : $(`[data-tab="${tab}"]`, panel).focus());
-}
 
 // Resizing: drag the inner edge; double-click forgets the drag.
 const grip = $('.pn-grip', panel);
@@ -676,12 +688,22 @@ new MutationObserver(() => {
 addEventListener('resize', () => {
   if (!panel.hidden) (paint(), relayout()); // crossing 1180px: the list makes way, or comes back
 });
+// Stacked, the page is sized to what the keyboard leaves, so the shell's prompt and key row stay
+// above it (as Take over's).
+function fitViewport() {
+  const vv = visualViewport;
+  panel.style.setProperty('--vv-h', vv ? `${Math.round(vv.height)}px` : '100dvh');
+  panel.style.setProperty('--vv-top', vv ? `${Math.round(vv.offsetTop)}px` : '0px');
+}
+visualViewport?.addEventListener('resize', fitViewport);
+visualViewport?.addEventListener('scroll', fitViewport);
+fitViewport();
 addEventListener('focus', () => {
   if (shown && !panel.hidden && tabOf() === 'pr') loadPrs(shown);
 });
-bus.on('spells', () => !panel.hidden && (paintWidth(), paintTabs(), paintBody()));
+bus.on('spells', () => !panel.hidden && (paintWidth(), paintName(), paintBody()));
 bus.on('panel:close', () => close());
-// A task's own refresh: its PR pill moved (a check landed), so the PR tab looks again.
+// A task's own refresh: its PR pill moved (a check landed), so the PR looks again.
 let lastPr = '';
 bus.on('config', () => !panel.hidden && paintPlace());
 setInterval(() => {
@@ -691,11 +713,15 @@ setInterval(() => {
   lastPr = key;
 }, 4000);
 
-// The task head's toggle and the PR pill (in the list's rows and the details column).
+// The task head's toggle, the open task's PR row, and the PR pill (in the list's rows and the
+// details column). The row opens the PR here; its GitHub link and buttons keep their own jobs.
 document.addEventListener('click', (e) => {
   if (e.target.closest('#splitHead .sh-panel')) return toggle();
-  const segBtn = e.target.closest('#splitHead [data-seg]');
-  if (segBtn) return segBtn.dataset.seg === 'task' ? close() : openPanel(null, segBtn.dataset.seg);
+  const strip = isSplit() && e.target.closest('#feed .item.open .pr-strip:not(.ship-run)');
+  if (strip && !e.target.closest('[data-pr], a.ghost')) {
+    e.preventDefault();
+    return openPanel(strip.closest('.item[data-id]')?.dataset.id, 'pr');
+  }
   const pill = e.target.closest('.pill.pr');
   const id = pill?.closest('.item[data-id]')?.dataset.id;
   if (id && isSplit()) setTimeout(() => openPanel(id, 'pr'));
@@ -705,8 +731,10 @@ document.addEventListener('click', (e) => {
 
 export function openPanel(id, tab) {
   const go = () => {
+    // Open on the other one, it swaps in place: to the shell, a fresh one if it had ended.
+    if (!panel.hidden && tab === 'shell' && tabOf() !== 'shell' && shown) freshShell(shown);
     fresh = panel.hidden;
-    if (isStacked()) seg = { id: target(), tab: tab || (seg?.id === target() && seg.tab) || 'shell' };
+    if (isStacked()) page = { id: target(), tab: tab || (page?.id === target() && page.tab) || 'shell' };
     else {
       if (tab) pref.tab = tab;
       pref.open = true;
@@ -720,9 +748,9 @@ export function openPanel(id, tab) {
   else go();
 }
 
-// Put it away (stacked: back to the Task segment).
+// Put it away (stacked: back to the task's page).
 export function close() {
-  if (isStacked()) seg = null;
+  if (isStacked()) page = null;
   else (pref.open = false), keep();
   view.blur();
   paint();
@@ -732,6 +760,12 @@ export function close() {
 export function toggle() {
   if (panel.hidden) openPanel(null);
   else close();
+}
+
+// The task's Shell button: opens its shell, or puts it away when that's what shows.
+export function shellButton(id) {
+  if (!panel.hidden && shown === id && tabOf() === 'shell') close();
+  else openPanel(id, 'shell');
 }
 
 // ⌃`: into the shell from anywhere, and from the shell back to the reply box.

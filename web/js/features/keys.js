@@ -12,8 +12,8 @@ import { backToTop } from './scroll.js';
 import { shipDialog, shippable } from './ship.js';
 import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
-import { goBack, splitOpen, stackPage, toggleSidebar } from './split.js';
-import { openPanel, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
+import { goBack, isStacked, splitOpen, stackPage, toggleSidebar } from './split.js';
+import { close as closePanel, openPanel, panelShown, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
 const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ']', 'p', ...'123456789'.split('')]);
@@ -39,6 +39,8 @@ export function onKey(e) {
   if (e.key === 'Escape') {
     if (!$('#overlay').hidden) return $('#overlay .sx-back') ? $('#overlay .sx-back').click() : closeOverlay();
     if (typing) return e.target.blur();
+    // Stacked, Shell or PR is a page over the task: Esc goes back to the task first.
+    if (isStacked() && panelShown()) return closePanel();
     // A crew job → its member's thread → home (stacked: the list).
     if (S.crewOpen || splitOpen() || stackPage()) goBack();
     return;

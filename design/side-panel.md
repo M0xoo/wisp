@@ -1,9 +1,14 @@
 # The side panel: Shell and PR
 
 A third column in split view, on the task's far side from the list, for doing things with what an
-agent made without leaving wisp. It has two tabs: **Shell**, a real shell in the task's folder on
-whichever computer ran the task, and **PR**, the task's pull request without the noise. Code and
-CSS call it the *side panel*. On screen it has no name of its own: its tabs and its toggle label it.
+agent made without leaving wisp. It shows one of two things: **Shell**, a real shell in the task's
+folder on whichever computer ran the task, or **PR**, the task's pull request without the noise.
+Code and CSS call it the *side panel*. On screen it has no name of its own: its head says what it
+shows (*Shell*, *PR #412*).
+
+**No tabs.** The task is the main thing; Shell and PR are places you go *from* the task, so each is
+opened from it (its Shell button, its PR row, the menus, the keys) and the panel never offers a
+row of tabs to flip between them. Opening the other one while it's open swaps it in place.
 
 ## Layout
 
@@ -11,7 +16,7 @@ CSS call it the *side panel*. On screen it has no name of its own: its tabs and 
 |---|---|
 | ≥ 1180px | list · task · panel. The panel is 480px by default; drag its inner edge to resize it (360px min, max `innerWidth − list − 480`). The size is kept in this browser (`wisp.panelW`), and double-clicking the edge resets it, like the list's grip. |
 | 900–1179px | Opening the panel hides the list (`body.side-hidden`, **not saved** to `wisp.sideHidden`). `[` brings the list back and closes the panel: there's room for one of the two. Closing the panel brings the list back. |
-| < 900px, and the Android app | No third page: the task page gets segments, *Task · Shell · PR #412*, that swap its body in place. Back always returns to the list. See **Phones**. |
+| < 900px, and the Android app | Shell and PR are pages pushed over the task's, with Back to the task. See **Phones**. |
 
 - **The task never goes under 480px.** The reading column fills what's left (`--read-w` still caps it).
 - **The details column folds while the panel is open.** `body.panel-open` forces the narrow-pane bar
@@ -19,17 +24,19 @@ CSS call it the *side panel*. On screen it has no name of its own: its tabs and 
 - **The panel sits opposite the list.** If a spell puts the list on the right (`side-right`), the
   panel opens on the left.
 - **Surface:** `--bg`, a 1px `--line` border on its inner edge, no shadow (it doesn't float). The
-  tab row is 42px, the same height as `.tm-head`. The Shell screen is `--term-bg` in both themes,
+  head (`i-shell` *Shell* or `i-merge` *PR #412*, 13px semibold, then close) is 42px, the same height as `.tm-head`. The Shell screen is `--term-bg` in both themes,
   like Take over.
 - The panel goes with the task. On home or a crew member's thread it's put away, and opening a task
-  brings it back with the tab it had. It reopens after a reload without an entry animation.
+  brings it back showing what it had. It reopens after a reload without an entry animation.
 
 ## Opening it
 
 | Where | Item | Notes |
 |---|---|---|
-| Task head (`#splitHead .sh-acts`, before Close) | icon button `i-panel` (new) | `title`/`aria-label` *Show side panel (])* / *Hide side panel (])*, `aria-pressed`. Not shown when stacked: the segments replace it. |
-| PR pill (row, bar) | click | Opens the panel on PR. |
+| Task head (`#splitHead .sh-acts`, before Close) | icon button `i-panel` (new) | `title`/`aria-label` *Show side panel (])* / *Hide side panel (])*, `aria-pressed`. Reopens what it last showed. Not shown when stacked. |
+| Task's action row (`.it-actions`, after Take over) | **Shell** (`i-shell`, `.it-shell`) | Opens the shell; pressed while it shows, and a second click puts it away. Stacked, the shell's door replaces it (see **Phones**). |
+| The task's PR row (`.pr-strip`, split view) | click anywhere but its buttons and GitHub link | Opens the panel on PR. Stacked it ends in a chevron. |
+| PR pill (list rows) | click | Opens the panel on PR. |
 | Right-click, More, details/bar actions, ⌘K | **Open shell** | Key `⌃\`` (Ctrl on every OS). Hidden on a computer that can't run one (see below), never disabled without a reason. |
 | Same four | **Review PR #412** / **Review PRs** (several) | Key `P`. Only when the task has a PR. Sits beside the existing *Merge PR #412…*. |
 | ⌘K | **Show side panel** / **Hide side panel** | Key `]`. |
@@ -39,13 +46,13 @@ CSS call it the *side panel*. On screen it has no name of its own: its tabs and 
   in the shell it moves focus back to the reply box; anywhere else it opens the shell and focuses it.
 - **Esc inside a focused shell goes to the shell** (vim, less, fzf). It never closes the panel or
   the task. Click outside the shell, or press `⌃\``, to leave it.
-- What's remembered (in this browser, `wisp.panel`): whether it's open, the last tab, and the width.
+- What's remembered (in this browser, `wisp.panel`): whether it's open, what it last showed, and the width.
   Each task keeps its own shell on its computer. Switching tasks swaps the shell you see; it doesn't
   end the old one.
 
-## Shell tab
+## Shell
 
-**The place line** (one line, 32px, top of the Shell tab; the PR tab shows it too):
+**The place line** (one line, 32px, top of the Shell; the PR shows it too):
 
 `[i-laptop | i-server | i-cloud] Studio · wisp-337d37 · ↑2 · 3 changed … [⋯]`
 
@@ -92,14 +99,13 @@ and titled with the agent's name (*In terminal* pill). The Shell is *yours*, in 
 its place line. Same emulator, same dark screen; the place and the header tell them apart. Both can
 be open at once.
 
-## PR tab
+## PR
 
-The tab says **PR #412** (**PRs** with several). Without a PR it says **PR**, and it's absent if the
-project isn't a git repo with a GitHub remote. Top to bottom:
+Its head says **PR #412** (**PRs** with several), **PR** before there's one. Top to bottom:
 
 1. **Place line** (the same as Shell's).
 2. **Several PRs** (several repos): a row of chips, `repo #n` with the tone dot `prPill` already
-   uses, and **Merge all** at the end while two or more are open. The rest of the tab shows the
+   uses, and **Merge all** at the end while two or more are open. The rest shows the
    picked one.
 3. **Title:** the PR's title (14px, two lines max, `title=` for the rest), then `#412` and the state
    (*Open*, *Draft*, *Merged*, *Closed*), then `branch → main` in `--mono`.
@@ -120,7 +126,7 @@ project isn't a git repo with a GitHub remote. Top to bottom:
 
    Merge reuses `mergePr()`: `ask()` beside the button, *Squash-merge #412 into main?*, button *Merge
    PR*, `danger` with the warning when checks or reviews aren't done (*Merge anyway* then). While
-   this tab shows, the task's own `.pr-strip` is hidden, so the verdict never shows twice.
+   the PR shows, the task's own `.pr-strip` is hidden, so the verdict never shows twice.
 5. **Checks**, grouped and in this order: **Failing** (open), **Running**, then the passed and skipped
    ones folded into a single row, *12 passed · 2 skipped*, which expands. Each row: a state icon in
    its state colour (`i-x` `--bad`, `i-clock` `--warn`, `i-check` `--good`), the check's name (it
@@ -146,13 +152,13 @@ project isn't a git repo with a GitHub remote. Top to bottom:
 - An **unresolved review thread always shows**, whoever wrote it (Copilot and CodeRabbit threads
   are work to do), with *bot* in `--faint` after the author.
 
-**No PR yet:** the tab still shows the place line, then *Not shipped yet: 2 commits and 3 changed
+**No PR yet:** it still shows the place line, then *Not shipped yet: 2 commits and 3 changed
 files on wisp-337d37*, then **Ship it…** (`shipDialog`). While shipping, the steps show here
 (`renderShipRun`), not in a dialog.
 
 **Refresh:** paint the last detail we saw first (and keep it for the phone app's cache). Refetch when
-the tab opens, every 20s while a check is running and the tab is visible, every 60s otherwise while
-visible, and on window focus. A hidden tab doesn't poll (the summary's minute check still runs).
+it opens, every 20s while a check is running and it's visible, every 60s otherwise while
+visible, and on window focus. Hidden, it doesn't poll (the summary's minute check still runs).
 Rows update in place (keyed by check or comment id) and are never re-appended.
 
 **Skeleton:** the real shapes at their real heights: a title line, the verdict box, three check
@@ -165,33 +171,50 @@ Both **fill the task's reply box; they don't send**. The reply box is focused wi
   lines of the failing log (`gh run view --log-failed`) in a fenced block.
 - *Send to agent*: *lena commented on `server/pty.js:42` in PR #412:* + the quoted comment.
 
-When the task can't take a follow-up, the button isn't there. Stacked and in the app, the page switches
-to the *Task* segment with the draft in place. There's no toast: the filled box is what you see.
+When the task can't take a follow-up, the button isn't there. Stacked and in the app, the page goes
+back to the task with the draft in place. There's no toast: the filled box is what you see.
 
 ## Phones
 
 Stacked (< 900px) and always in the Android app. Checked at 390px, and 360px for the tight rows.
 
-**Getting there: segments on the task page, not a third page.**
+**Getting there: doors on the task page, then a page of its own.** No tabs or segments: the task
+page is the task, and Shell and PR are places it leads to.
 
-- Under the task head, full width: a segmented row **Task · Shell · PR #412**, styled as `.mem-tabs`
-  (equal-width buttons, the picked one on `--surface` with `--shadow-1`). The row is 44px, the pill
-  36px inside it; it stays with the head when the transcript scrolls.
-- A tap swaps the page's body **in place**. Segments take no history entry and never stack: the
-  task page keeps its one `onBack` entry, so Back (head or the phone's) always returns to the list,
-  from any segment. No swipe between segments: it would fight the shell and sideways-scrolling code.
-- Segments shown: *Task* always, *Shell* when the computer can run one, the PR one when the project
-  has a GitHub remote (*PR* before there's a PR, *PRs* with several). With only *Task*, no row.
-- Opening a task lands on *Task*. Coming from the PR pill lands on *PR*, from *Open shell* on *Shell*.
-  The segment isn't remembered per task on phones: the transcript is home.
-- The reply box shows on *Task* only. *Shell* gives the bottom to the key row, *PR* to its merge bar.
-- The head (Back, title, actions) is the same on all three. The `i-panel` toggle isn't shown.
+- Under the task's actions, two full-width rows, 44px+, 9px radius, each ending in `i-chevron`
+  (`--faint`) so it reads as *this opens a page*:
+  1. **The PR row** (`.pr-strip`), in its tone as before: `PR #412`, its state line and the chevron
+     on top; *Check now*, *GitHub* and **Merge** (or *Fix conflicts*) on a line under, Merge at the
+     right end. Tapping anywhere but those buttons opens the PR page.
+  2. **The shell's door** (`.shell-door`, `--bg-2`, 1px `--line`): `i-shell` **Shell**, then where it
+     runs (*This computer*, the machine's or cloud computer's name). While your shell is still
+     running there it says *Running on Studio* after a `--good` dot, so you know you left
+     something going. The action row's Shell icon is hidden here: beside Take over's it read as a
+     twin.
+- A tap pushes the page in from the right (`stack-in`, the task page's own slide; none with reduced
+  motion). It covers the whole screen, sized to what the keyboard leaves (`--vv-*`, like Take over).
+- **Its head is the task page's head:** the same 56px box and Back on the same spot, so the thumb
+  never hunts; then `i-shell` **Shell** or `i-merge` **PR #412**, 15px semibold. No close button.
+- **Back** (the head's, the phone's, `Esc`) returns to the task, where it was scrolled. The page
+  takes one `onBack` entry above the task's, so a second Back goes to the list.
+- Opening a task lands on the task. The page isn't remembered per task on phones: the transcript is
+  home.
+- **Reading a long task:** the bar (facts, branch, actions, the PR row, the shell's door) scrolls
+  away with the task instead of staying pinned: on a phone it was a third of the screen. Once its
+  actions are out of sight a **mini row** pins in their place, one 48px row with a 1px `--line`
+  under it: the state pill, the actions as 40px icons (Transcript, Rerun, Done, More), then at the
+  right end the PR as a chip in its tone (`● #412`, `+1` with more PRs; *Ship it* before there's
+  one) and the shell icon (a `--good` dot while yours runs). The chip and the icon open their
+  pages; the rest do what the bar's buttons do. It hangs from a sticky box of no height, so it
+  fades in (0.15s, 8px) without moving the text, and goes when you scroll back to the bar.
+- The reply box stays on the task. *Shell* gives the bottom to the key row, *PR* to its merge bar.
+- The `i-panel` toggle isn't shown.
 
 **Shell**
 
 - The screen fills down to the key row, sized to the visual viewport (`--vv-*`, as Take over).
-- **Keyboard up:** the title clamps to one line and the place line hides, so the screen keeps about
-  14 rows on a Pixel. The segment row stays: it's the way out.
+- **Keyboard up:** the page shrinks to what the keyboard leaves; the head with Back stays: it's
+  the way out.
 - **Reading without the keyboard:** dragging the screen scrolls its history and never focuses it;
   only a tap brings up the keyboard. The phone's Back puts the keyboard away first (Android does).
 - Three additions to Take over's key row, for both (Take over gets them too):
@@ -221,17 +244,18 @@ Stacked (< 900px) and always in the Android app. Checked at 390px, and 360px for
 - Files: the whole 44px row opens the diff on GitHub.
 - Several PRs: the chips row scrolls sideways, *Merge all* pinned at its end.
 - Links (*Logs*, files, *Open on GitHub*) open in the phone's browser (`Ssh.openExternal` in the app).
-- **Ask to fix / Send to agent** switch to *Task* with the draft in the reply box, focused, the
-  transcript at its end. No toast; the *PR* segment keeps its scroll for when you come back.
+- **Ask to fix / Send to agent** go back to the task with the draft in the reply box, focused, the
+  transcript at its end. No toast.
 
-**Words:** *Task*, *Shell*, *PR #412*; *^C* (*Interrupt (Ctrl+C)*); chips *Type npm test*. No
+**Words:** *Shell*, *Running on Studio*, *PR #412*; *^C* (*Interrupt (Ctrl+C)*); chips *Type npm test*. No
 keyboard hints anywhere on this page (`.key-hint`).
 
 ## Words
 
 | Thing | Text |
 |---|---|
-| Tabs | *Shell*, *PR #412* / *PRs* / *PR*; on phones *Task* first |
+| Head | *Shell*, *PR #412* / *PRs* / *PR* |
+| Task's ways in | *Shell* (action row; on phones the door, *Running on Studio*), the PR row |
 | Head toggle | *Show side panel (])* / *Hide side panel (])* |
 | Actions (all places) | *Open shell*, *Review PR #412*, *Review PRs*, *Show side panel* / *Hide side panel* |
 | Place line menu | *Copy path*, *Copy branch name*, *Open worktree in editor*, *Open in iTerm* |
@@ -247,16 +271,16 @@ place.
 - The panel appears with `fade-in` 0.15s and its content rises 6px. The task column reflows at once:
   never animate `width`, and no transition while dragging.
 - No entry animation after a reload, on a task switch or on a refresh: only when you open it.
-- Stacked, switching segments swaps the body with no slide: segments are places on one page, not
-  pages. The task page itself still slides in from the list (`.stack-in`).
+- Stacked, Shell and PR slide in over the task like the task slides in over the list (`stack-in`),
+  only when you open them: never on a refresh or a swap between the two.
 - The shimmer and the running checks' clock already have `prefers-reduced-motion` rules. Add one
   for anything new that loops.
 
 ## Spells
 
-- `SLOTS`: `panel.head`, buttons beside the tabs. It acts on the task, so it also goes in
+- `SLOTS`: `panel.head`, buttons in its head. It acts on the task, so it also goes in
   `CARD_SLOTS` and `BUTTON_SLOTS`.
-- `PARTS`: `panel`, `panel.tabs`, `panel.place`, `panel.shell`, `panel.pr`, `panel.checks`,
+- `PARTS`: `panel`, `panel.tabs` (its title now; the name is kept so spells keep working), `panel.place`, `panel.shell`, `panel.pr`, `panel.checks`,
   `panel.conversation`, `panel.files`. The verdict and Merge stay out of `PARTS`: a spell can't hide
   what decides a merge.
 - `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`shell` | `pr`), `panel.pr.bots` (`bool`: show bot
@@ -265,9 +289,9 @@ place.
 
 ## v1 / later
 
-**v1:** the layout above, Shell (one per task, local, remote and cloud), the PR tab with the
+**v1:** the layout above, Shell (one per task, local, remote and cloud), the PR with the
 noise folded, Merge / Mark ready / Fix conflicts, *Ask to fix*, *Send to agent*, the keys, the
-phone segments (with `^C` and the ran-here chips on touch), spells.
+phone doors and pages (with `^C` and the ran-here chips on touch), spells.
 
 **Later, in order:**
 1. **Ran-here chips on desktop** (touch screens get them in v1, see **Phones**).
@@ -277,4 +301,4 @@ phone segments (with `^C` and the ran-here chips on touch), spells.
 4. Check history: this check's last five runs on the branch, as dots, to tell a flaky check from a
    broken one.
 5. A review comment's `file:line` jumps to that diff in the transcript when the task touched it.
-6. Take over as a third tab of the panel, instead of covering the reading column.
+6. Take over in the panel, instead of covering the reading column.

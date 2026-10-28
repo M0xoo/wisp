@@ -26,7 +26,7 @@ import { onBack } from '../ui/back.js';
 import { popover } from '../ui/popover.js';
 import { collapse, expand, groups, headPills, qDot, renderFeed, reveal, setFocus } from './feed.js';
 import { barCover, stage } from './scroll.js';
-import { placePr, renderBody } from './turns.js';
+import { paintMini, placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
@@ -390,20 +390,10 @@ export function paintHead(s) {
       ${stacked ? backBtn(s) : crumb(s) || qDot(s)}
       <h2 class="sh-title" title="${MOBILE ? '' : 'Rename (M)'}">${esc(s.title)}</h2>
       <span class="sh-acts">${slotHtml('split.head', s)}${panelBtn()}${stacked ? '' : `<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}</span>
-    </div>${stacked && !s.pending ? segsHtml(s) : ''}`;
+    </div>`;
   if (h.dataset.h !== html) (h.innerHTML = html), (h.dataset.h = html);
   paintDetails(s, pill);
   paintGoal(s.id); // the band follows the summary: a check landing, a round starting
-}
-
-// Stacked (a phone), the side panel's tabs are segments under the head that swap the page's body
-// in place: Task, Shell, PR. Back still goes to the list. panel.js keeps the one picked.
-function segsHtml(s) {
-  const at = document.body.dataset.seg || 'task';
-  const prs = [s.pr, ...(s.also || []).map((a) => a.pr), ...(s.prs || []).map((x) => x.pr)].filter(Boolean);
-  const pr = prs.length > 1 ? 'PRs' : prs.length ? `PR #${prs[0].number}` : 'PR';
-  const seg = (k, label) => `<button role="tab" data-seg="${k}" aria-selected="${at === k}">${label}</button>`;
-  return `<div class="sh-segs" role="tablist" aria-label="Task, shell and pull request">${seg('task', 'Task')}${seg('shell', 'Shell')}${seg('pr', esc(pr))}</div>`;
 }
 
 // The side panel's toggle (panel.js keeps it pressed while the panel is open).
@@ -438,6 +428,7 @@ function paintDetails(s, pill) {
   const slot = $('.it-slot', body);
   const btns = slotHtml('split.details', s);
   if (slot.dataset.h !== btns) (slot.innerHTML = btns), (slot.dataset.h = btns);
+  paintMini(s.id); // the mini row says the state the details just painted
 }
 
 function paintHome() {
