@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-10-29
+
 ### Changed
 
 - **Task rows say what ran them and where.** Each row in the task list has a third line under the summary: the harness's logo and name, the model, and the machine (*This computer* or the machine's name), so you can tell runs apart without opening them. On a narrow list the model shortens first, then the machine. A spell can hide or restyle it as `card.run`; the compact density hides it with the summary.
