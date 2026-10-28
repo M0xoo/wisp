@@ -12,7 +12,7 @@ test('the protocol says which block to reach for, before the block list', () => 
   assert.ok(SYSTEM_PROMPT.indexOf('### Picking blocks') > 0);
   assert.ok(s.length > 0, 'comes before ### Blocks');
   assert.match(s, /"actions" block whose first item is the next\s+ship step/);
-  assert.match(s, /Changed UI[\s\S]*"image"[\s\S]*"preview"[\s\S]*not done/);
+  assert.match(s, /new feature[\s\S]*"preview"[\s\S]*"image"[\s\S]*not done/);
   assert.match(s, /"checklist" with every stage/);
   assert.match(s, /`git merge-tree --write-tree\s+<base> HEAD`/);
   assert.match(s, /"graph" with "merge":"conflict"/);
@@ -23,6 +23,7 @@ test('the protocol says which block to reach for, before the block list', () => 
 
 test('the block docs repeat the rules where agents look them up', () => {
   assert.match(SYSTEM_PROMPT, /Every UI change gets one/);
+  assert.match(SYSTEM_PROMPT, /"type":"preview"[^\n]*\n[\s\S]*?best evidence for a new feature/);
   assert.match(SYSTEM_PROMPT, /"type":"checklist"[^\n]*\n {2}Where a ship, release or deploy stands/);
   assert.match(SYSTEM_PROMPT, /the first item is the next ship step/);
   assert.match(SYSTEM_PROMPT, /the most likely next request first/);
