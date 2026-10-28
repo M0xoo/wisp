@@ -245,6 +245,7 @@ export const PARTS = {
   // wisp Grid in Machines: this computer on your grid, or signing in to one.
   'machines.cloud': '.mc-grid',
   'machines.grid.here': '.gh-row',
+  'machines.grid.previews': '.gh-pv', // Show local pages in previews, under this computer on the grid
   // The pill on each machine saying where it comes from (Over SSH, Cloud, Your computer · via grid).
   'machines.kind': '.mc-kind',
   // Settings → Cloud: your cloud computers, and signing in to a wisp Grid.

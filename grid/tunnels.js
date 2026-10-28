@@ -4,6 +4,7 @@
 // and the computer the server (server/grid-tunnel.js), so requests share it, stream (SSE) and
 // keep their own flow control. Nothing listens on the computer and no router needs opening.
 
+import http from 'node:http';
 import http2 from 'node:http2';
 
 export const TUNNEL_PROTOCOL = 'wisp-tunnel';
@@ -11,6 +12,10 @@ const PING_MS = 25_000; // keeps proxies on the way (Caddy, NAT) from dropping a
 const WINDOW = 1 << 20;
 // Hop-by-hop, or not allowed in HTTP/2.
 const HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer', 'host', 'http2-settings']);
+
+// Cookies a page may set from behind the grid: its own address only. One with Domain= would
+// reach the grid's other names (cookie tossing).
+export const hostOnly = (v) => [].concat(v ?? []).filter((c) => !/;\s*domain\s*=/i.test(String(c)));
 
 export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
   const live = new Map(); // computer id -> { session, since }
@@ -41,8 +46,9 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
   }
 
   // A request for the computer, sent through its tunnel with these headers (req's by default).
-  // False when it has none (offline).
-  function forward(id, req, res, from = req.headers) {
+  // False when it has none (offline). cookies: let it set them (a preview's page, on its own
+  // address), host-only.
+  function forward(id, req, res, from = req.headers, { cookies = false } = {}) {
     const t = live.get(id);
     if (!t || t.session.destroyed) return false;
     const headers = { ':method': req.method, ':path': req.url, ':authority': String(req.headers.host || 'computer') };
@@ -59,6 +65,7 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
     s.on('response', (h) => {
       const out = {};
       for (const [k, v] of Object.entries(h)) if (!k.startsWith(':') && !HOP.has(k) && k !== 'set-cookie') out[k] = v;
+      if (cookies && h['set-cookie']) out['set-cookie'] = hostOnly(h['set-cookie']);
       try {
         res.writeHead(h[':status'], out);
       } catch (err) {
@@ -87,9 +94,42 @@ export function createTunnels({ log = () => {}, onChange = () => {} } = {}) {
     return true;
   }
 
+  // A websocket for the computer (a preview's live reload): one stream, with the Upgrade it asked
+  // for in x-wisp-upgrade (HTTP/2 has no Upgrade header), its bytes both ways once the computer
+  // says 200 (the page's own 101 comes inside). False offline.
+  function upgrade(id, req, socket, head, from) {
+    const t = live.get(id);
+    if (!t || t.session.destroyed) return false;
+    const headers = { ':method': req.method, ':path': req.url, ':authority': String(req.headers.host || 'computer') };
+    for (const [k, v] of Object.entries(from)) if (!HOP.has(k) && !k.startsWith(':')) headers[k] = v;
+    headers['x-wisp-upgrade'] = String(req.headers.upgrade || 'websocket');
+    let s;
+    try {
+      s = t.session.request(headers, { endStream: false });
+    } catch (err) {
+      log(`grid: tunnel ${id}: ${err.message}`);
+      return false;
+    }
+    if (head?.length) s.write(head);
+    s.on('response', (h) => {
+      if (h[':status'] !== 200) {
+        socket.end(`HTTP/1.1 ${h[':status']} ${http.STATUS_CODES[h[':status']] || ''}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n`);
+        return s.close(http2.constants.NGHTTP2_CANCEL);
+      }
+      s.pipe(socket);
+      socket.pipe(s);
+    });
+    s.on('error', () => socket.destroy());
+    s.on('close', () => socket.destroy());
+    socket.on('error', () => {});
+    socket.on('close', () => s.destroyed || s.close(http2.constants.NGHTTP2_CANCEL));
+    return true;
+  }
+
   return {
     accept,
     forward,
+    upgrade,
     online: (id) => !!live.get(id) && !live.get(id).session.destroyed,
     since: (id) => live.get(id)?.since || null,
     close(id) {

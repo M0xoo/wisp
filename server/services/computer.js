@@ -30,10 +30,19 @@ export function createComputer(app) {
   const account = (grid) => accounts().find((m) => !grid || m.grid === grid) || null;
   const tokenOf = (m) => (m ? secrets.get('machines', m.id) : null);
 
+  // Where pages on this computer show through the grid ("https://p{port}--<name>--<handle>.<grid>"),
+  // while Show local pages in previews is on; '' otherwise (server/http/preview.js).
+  function previewUrl() {
+    const c = conf();
+    if (!c?.previews || !c.url) return '';
+    const u = new URL(c.url);
+    return `${u.protocol}//p{port}--${u.host}`;
+  }
+
   function view() {
     const c = conf();
     const a = account(c?.grid);
-    return { on: !!c, state: c ? live.state : 'off', error: live.error, name: c?.name || computerName(), url: c?.url || '', grid: c?.grid || a?.grid || '', account: a ? { grid: a.grid, handle: a.user?.handle || a.handle } : null, cloud: !!app.publicUrl };
+    return { on: !!c, state: c ? live.state : 'off', error: live.error, name: c?.name || computerName(), url: c?.url || '', previews: !!c?.previews, previewUrl: previewUrl(), grid: c?.grid || a?.grid || '', account: a ? { grid: a.grid, handle: a.user?.handle || a.handle } : null, cloud: !!app.publicUrl };
   }
   const changed = () => app.broadcast('computer', view());
 
@@ -48,6 +57,7 @@ export function createComputer(app) {
       id: c.id,
       token,
       port: app.port,
+      previews: () => !!conf()?.previews,
       onState: ({ state, error }) => {
         if (state === 'gone') {
           // Removed on the grid (from another device, or the account page): off here too.
@@ -103,6 +113,18 @@ export function createComputer(app) {
   return {
     view,
     sync,
+    previewUrl,
+    // Show local pages in previews: on or off, read by the tunnel on each request.
+    previews(on) {
+      const c = conf();
+      if (!c) throw bad('Add this computer to the grid first.', 409);
+      if (on) c.previews = true;
+      else delete c.previews;
+      store.saveConfig();
+      changed();
+      app.telemetry?.track?.('grid_computer', { step: on ? 'previews_on' : 'previews_off' });
+      return view();
+    },
     // Machines opened: a fresh list, unless one just came.
     fresh() {
       if (Date.now() - syncedAt > FRESH_MS) sync().catch(() => {});

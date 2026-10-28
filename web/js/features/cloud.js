@@ -136,6 +136,12 @@ const HERE_TEXT = {
   online: (h) => `Online at <span class="mono">${esc(hostOf(h.url))}</span>. Open it from the phone app or wisp on another computer.`,
 };
 
+// Where this computer's local pages show through the grid, for the preview block (preview-frame.js).
+// A box's own (grid.preview) wins: a cloud computer isn't a computer added to the grid.
+bus.on('computer', (v) => {
+  if (S.config && !S.config.grid?.preview) S.config.preview = v?.previewUrl || '';
+});
+
 export function mountGridHere(box) {
   let signin = false;
   const paint = () => {
@@ -163,11 +169,35 @@ export function mountGridHere(box) {
         <div class="gh-text"><b>This computer <span class="mc-kind grid">${h.on ? 'On your grid' : 'Not on the grid'}</span></b><small>${text}</small>${!h.on && h.error ? `<small class="bad">${esc(h.error)}</small>` : ''}</div>
         <button class="${h.on ? 'ghost' : 'primary'} sm" type="button" data-gh="toggle">${h.on ? 'Remove from grid' : `${icon('cloud')}Add to grid`}</button>
       </div>
+      ${
+        h.on
+          ? `<div class="gh-pv">
+        <div class="gh-text"><b>Show local pages in previews</b><small>When an agent here shows a page it runs on localhost, you see it from your phone or any browser too, through the grid. Only you, signed in, can open it, but that reaches anything listening on this computer’s localhost.</small></div>
+        <button class="switch" type="button" role="switch" data-gh="previews" aria-checked="${!!h.previews}" aria-label="Show local pages in previews"></button>
+      </div>`
+          : ''
+      }
       <p class="hint">Signed in as <b>${esc(h.account.handle)}</b> on ${esc(hostOf(h.account.grid))}. Your cloud computer and other computers on it are listed below.</p>`;
   };
   const $s = (sel) => box.querySelector(sel);
   box.addEventListener('click', async (e) => {
-    if (e.target.closest('[data-gh]')?.dataset.gh !== 'toggle' || !here) return;
+    const gh = e.target.closest('[data-gh]')?.dataset.gh;
+    if (gh === 'previews' && here) {
+      // At once, rolled back if the server refuses.
+      const was = here;
+      here = { ...was, previews: !was.previews };
+      paint();
+      try {
+        here = await api('/computer', { method: 'POST', body: { previews: here.previews } });
+        paint();
+      } catch (err) {
+        here = was;
+        paint();
+        toastError(err);
+      }
+      return;
+    }
+    if (gh !== 'toggle' || !here) return;
     // At once; the server's answer (and the 'computer' event) puts it right.
     const was = here;
     const on = !was.on;

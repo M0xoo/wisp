@@ -140,6 +140,16 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
   computer* note; editing a file there reloads the frame (websocket). Signed out, or as `bob`,
   `p5173--ada.<domain>` asks you to sign in or refuses. With the box asleep, it says so.
 
+### GRID-28 · A preview of a page on a computer added to the grid
+- **Preconditions:** `wisp grid dev`; a desktop wisp signed in as `ada` with *Add to grid* on.
+- **Steps:** Settings → Machines: under *This computer*, **Show local pages in previews** is off;
+  run `npx vite --port 5173` on the desktop and a task there ending with a `preview` of
+  `http://localhost:5173`; open that task from another browser through `<name>--ada.<domain>`.
+- **Expected:** off: the frame says the computer doesn't show its local pages, naming the switch.
+  Switch it on (instant, rolled back with a toast if refused): the frame loads the desktop's page
+  from `p5173--<name>--ada.<domain>`, live reload works; on the desktop itself it still loads
+  `localhost:5173`. Off again: refused at once. The row fits 390px, light and dark.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's

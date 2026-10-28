@@ -142,6 +142,46 @@ async function devSignIn(b, email) {
   return r;
 }
 
+// A page the agent left running, standing in for a dev server: what it was asked, a cookie of its
+// own and one for the whole grid (which mustn't get through), a redirect to its localhost address,
+// and a websocket that echoes.
+async function devServer() {
+  const seen = [];
+  const app = http.createServer((req, res) => {
+    seen.push(req.headers);
+    if (req.url === '/away') {
+      res.writeHead(302, { location: `http://localhost:${app.address().port}/home` });
+      return res.end();
+    }
+    res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': ['app=1; Path=/', `toss=1; Path=/; Domain=${cfg.domain}`] });
+    res.end(JSON.stringify({ host: req.headers.host, url: req.url, method: req.method }));
+  });
+  app.on('upgrade', (req, socket) => {
+    socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
+    socket.on('data', (d) => socket.write(d));
+  });
+  await listen(app);
+  return { app, seen, port: app.address().port };
+}
+
+// A websocket to a preview address with b's cookie there: the upgrade answer, then "ping" echoed.
+function wsEcho(b, at) {
+  const cookie = [...(b.jar.get(new URL(at).host) || [])].map(([k, v]) => `${k}=${v}`).join('; ');
+  return new Promise((resolve, reject) => {
+    const sock = net.connect(cfg.listen.port, '127.0.0.1', () => {
+      sock.write(`GET /hmr HTTP/1.1\r\nHost: ${new URL(at).host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nOrigin: ${at}\r\nCookie: ${cookie}\r\n\r\n`);
+    });
+    let got = '';
+    sock.on('data', (d) => {
+      got += d;
+      if (/^HTTP\/1\.1 101[^]*\r\n\r\n/.test(got) && !got.includes('ping')) sock.write('ping');
+      if (got.endsWith('ping')) (sock.end(), resolve(got));
+    });
+    sock.on('error', reject);
+    setTimeout(() => (sock.destroy(), resolve(got)), 5000);
+  });
+}
+
 // Into the user's wisp: /go → ticket → cookie on its own address. Returns its origin.
 async function openWisp(b) {
   const r = await b.follow(`${base}/go`);
@@ -774,22 +814,7 @@ test('Caddy’s on-demand TLS check: the grid and existing users only', async ()
 
 test('a page the agent left running in the box shows at p<port>--<handle>: signed in, its own cookies, websockets too', async () => {
   // The process driver shares this loopback, so a server here stands in for one in the box.
-  const seen = [];
-  const app = http.createServer((req, res) => {
-    seen.push(req.headers);
-    if (req.url === '/away') {
-      res.writeHead(302, { location: `http://localhost:${app.address().port}/home` });
-      return res.end();
-    }
-    res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'app=1; Path=/' });
-    res.end(JSON.stringify({ host: req.headers.host, url: req.url, method: req.method }));
-  });
-  app.on('upgrade', (req, socket) => {
-    socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
-    socket.on('data', (d) => socket.write(d));
-  });
-  await listen(app);
-  const port = app.address().port;
+  const { app, seen, port } = await devServer();
   try {
     const b = browser();
     await devSignIn(b, 'ada@example.com');
@@ -804,7 +829,7 @@ test('a page the agent left running in the box shows at p<port>--<handle>: signe
     const again = await b.go(`${at}/again`, { headers: { accept: 'application/json' } });
     assert.equal(again.status, 200);
     const h = seen.at(-1);
-    assert.equal(h.cookie, 'app=1', 'the page gets its own cookies, never the grid’s');
+    assert.equal(h.cookie, 'app=1', 'the page gets its own cookies, never the grid’s, and can’t set one for the whole grid');
     assert.equal(h['x-wisp-proxy-secret'], undefined);
     assert.equal(h['x-wisp-preview'], undefined);
     // A redirect to its localhost address stays on the preview's.
@@ -833,20 +858,7 @@ test('a page the agent left running in the box shows at p<port>--<handle>: signe
     assert.equal((await b.follow(`${cfg.instanceUrl(`p${own}--ada`)}/api/health`)).status, 404);
 
     // A websocket (a dev server's live reload) goes through, both ways.
-    const cookie = [...b.jar.get(new URL(at).host)].map(([k, v]) => `${k}=${v}`).join('; ');
-    const echo = await new Promise((resolve, reject) => {
-      const sock = net.connect(cfg.listen.port, '127.0.0.1', () => {
-        sock.write(`GET /hmr HTTP/1.1\r\nHost: ${new URL(at).host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nOrigin: ${at}\r\nCookie: ${cookie}\r\n\r\n`);
-      });
-      let got = '';
-      sock.on('data', (d) => {
-        got += d;
-        if (/\r\n\r\n/.test(got) && !got.includes('ping')) sock.write('ping');
-        if (got.endsWith('ping')) (sock.end(), resolve(got));
-      });
-      sock.on('error', reject);
-      setTimeout(() => (sock.destroy(), resolve(got)), 5000);
-    });
+    const echo = await wsEcho(b, at);
     assert.match(echo, /^HTTP\/1\.1 101/);
     assert.match(echo, /ping$/);
   } finally {
@@ -964,6 +976,52 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
     const health = await browser().go(`${on.json.url}/api/health`, { headers: { authorization: `Bearer ${phone}`, accept: 'application/json' } });
     assert.equal(health.status, 200, health.text);
     assert.equal(health.json.pid, process.pid, 'the desktop’s own wisp answered');
+
+    // Its local pages in previews, at p<port>--<name>--<handle>: off by default, the computer refuses.
+    const dev = await devServer();
+    try {
+      const label = new URL(on.json.url).host.split('.')[0];
+      const at = cfg.instanceUrl(`p${dev.port}--${label}`);
+      assert.equal(on.json.previews, false);
+      assert.equal((await api('/config')).json.preview, '');
+      const viewer = browser();
+      await devSignIn(viewer, 'ada@example.com');
+      const anon = await browser().go(`${at}/x`);
+      assert.match(anon.location, new RegExp(`/go\\?preview=${dev.port}&computer=[a-f0-9]+&path=`));
+      const off = await viewer.follow(`${at}/x`);
+      assert.equal(off.at, `${at}/x`, 'signed in on its own address');
+      assert.equal(off.status, 403);
+      assert.match(off.text, /<b>Local pages are private here<\/b>.*Show local pages in previews/s, 'the frame says why');
+      assert.match((await viewer.go(`${at}/x`, { headers: { accept: 'application/json' } })).json.error, /Show local pages in previews/);
+      // On (Settings → Machines): the page there, its own cookies only, redirects kept, websockets too.
+      const pv = await api('/computer', { method: 'POST', body: { previews: true } });
+      assert.equal(pv.json.previews, true);
+      assert.equal(pv.json.previewUrl, cfg.instanceUrl(`p{port}--${label}`));
+      assert.equal((await api('/config')).json.preview, pv.json.previewUrl);
+      const page = await viewer.go(`${at}/hello?x=1`);
+      assert.deepEqual(page.json, { host: `localhost:${dev.port}`, url: '/hello?x=1', method: 'GET' });
+      assert.deepEqual([...viewer.jar.get(new URL(at).host).keys()].sort(), ['app', 'wisp_grid'], 'no Domain= cookie for the whole grid');
+      await viewer.go(`${at}/again`);
+      assert.equal(dev.seen.at(-1).cookie, 'app=1');
+      assert.equal(dev.seen.at(-1)['x-wisp-preview'], undefined);
+      assert.equal((await viewer.go(`${at}/away`)).location, '/home');
+      assert.equal((await viewer.go(`${at}/form`, { method: 'POST', body: {}, headers: { origin: 'https://evil.example' } })).status, 403);
+      assert.equal((await viewer.go(`${at}/form`, { method: 'POST', body: {}, headers: { origin: at } })).json.method, 'POST');
+      // The computer's own address doesn't take a preview port from outside.
+      const sneaky = await browser().go(`${on.json.url}/api/health`, { headers: { authorization: `Bearer ${phone}`, accept: 'application/json', 'x-wisp-preview': String(dev.port) } });
+      assert.equal(sneaky.json.pid, process.pid);
+      // Never the desktop's own wisp.
+      assert.equal((await viewer.follow(`${cfg.instanceUrl(`p${port}--${label}`)}/api/health`)).status, 404);
+      const echo = await wsEcho(viewer, at);
+      assert.match(echo, /^HTTP\/1\.1 101/);
+      assert.match(echo, /ping$/);
+      // Off again: refused at once.
+      assert.equal((await api('/computer', { method: 'POST', body: { previews: false } })).json.previews, false);
+      assert.equal((await viewer.go(`${at}/hello`, { headers: { accept: 'application/json' } })).status, 403);
+      assert.match(await wsEcho(viewer, at), /^HTTP\/1\.1 403/);
+    } finally {
+      dev.app.close();
+    }
     const listed = await browser().go(`${base}/api/computers`, { headers: { authorization: `Bearer ${phone}` } });
     assert.deepEqual(listed.json.computers.map((x) => [x.url, x.online, x.mine]), [[on.json.url, true, false]]);
     // Another of ada's computers joins this desktop's Machines (and not this one itself).
