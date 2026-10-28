@@ -63,11 +63,21 @@ const nameOf = (m) => m.name || (isGrid(m) ? m.handle : parseTarget(m.target).ho
 // The cloud icon says what it is, so no Cloud pill: the handle gets the room, even at 360px.
 // Signed out shows in its red dot and Sign in, not in more words there.
 const gridTitle = (m) => (machines.some((x) => isGrid(x) && x.grid !== m.grid && nameOf(x) === nameOf(m)) ? hostOf(m.grid) : nameOf(m));
+// Who an account is, as you'd recognise it: the GitHub or Google account it signs in with (the
+// one tapped at sign-in when there are several), and its picture. Grids from before identities: none.
+const whoOf = (user, via = '') => {
+  const ids = user?.identities || [];
+  const id = ids.find((i) => i.provider === via) || ids[0];
+  const pic = /^https:\/\/[^\s"'()\\]+$/.test(user?.avatar || '') ? user.avatar : '';
+  if (!id) return { provider: via, label: user?.email || '', avatar: pic };
+  return { provider: id.provider, label: id.provider === 'github' && id.login ? `@${id.login}` : id.email || id.login || user.email || '', avatar: pic };
+};
 // The list's order: the last one used first, as it was when the screen opened. A tap doesn't
 // reorder it (the row would jump away from under the finger); one added since goes on top.
 let order = [];
 const sortOrder = () => (order = [...machines].sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)).map((m) => m.id));
 const inOrder = () => [...machines.filter((m) => !order.includes(m.id)).reverse(), ...order.map(machine).filter(Boolean)];
+const PROVIDER_ICON = { github: 'github', google: 'google' };
 const TAILSCALE_GUIDE = 'https://trywisp.dev/guides/connect-machines-with-tailscale.html';
 const ADD_GUIDE = 'https://trywisp.dev/guides/reach-your-computer-from-your-phone.html#add';
 
@@ -225,7 +235,7 @@ function paintIntro() {
   // Signed in: another account, on this grid or another one.
   const add = $('#addCloud');
   add.hidden = !machines.length;
-  const label = machines.some(isGrid) ? `${icon('plus')}<span>Add an account</span>` : `${icon('cloud')}<span>Sign in to wisp Cloud</span>`;
+  const label = machines.some(isGrid) ? `<span class="add-ico">${icon('plus')}</span><span>Add an account</span>` : `<span class="add-ico">${icon('cloud')}</span><span>Sign in to wisp Cloud</span>`;
   if (add.dataset.h !== label) (add.innerHTML = label), (add.dataset.h = label);
   // Signed in, SSH is one more way, not the way "instead" of something.
   $('#sshBox > summary span').firstChild.textContent = machines.some(isGrid) ? 'Connect over SSH ' : 'Connect over SSH instead ';
@@ -241,50 +251,59 @@ function paintMachines() {
   }
   // The whole row opens it (data-row: what a tap does); its settings are behind ⋯. "Open" is quiet:
   // the solid button is kept for the one row that needs a step from you (Connect, Try again).
+  // Where a row stands is a dot and a word under its name, never a dead button.
   const opening_ = `<button class="ghost m-go" disabled type="button"><span class="spin"></span>Opening</button>`;
   const openBtn = `<button class="ghost m-go go" data-a="open" type="button">Open ${icon('arrow')}</button>`;
   const more = (m) => `<button class="icon m-more" data-a="edit" type="button" aria-label="${esc(`${nameOf(m)}: settings`)}">${icon('dots')}</button>`;
+  // Each account its own tint of the accent, the same every time, so two "M"s still tell apart.
+  const hueOf = (h = '') => [...h].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 360, 7) - 180;
+  const sub = (text, at = '') => `<span class="m-sub"><span class="st"></span><span class="m-where">${text}</span>${at ? `<span class="m-at">${esc(at)}</span>` : ''}</span>`;
   box.innerHTML = inOrder()
     .map((m) => {
       const on = live.id === m.id && live.state !== 'idle';
       const state = on ? live.state : 'idle';
       if (isGrid(m)) {
         const go = opening === m.id ? opening_ : m.signedOut ? `<button class="primary m-go" data-a="edit" type="button">Sign in</button>` : openBtn;
-        // Its computers: open when online, the button greyed (same width) when not.
+        // Its computers, rows in the account's card: Open when online; offline says so under the name.
         const comps = m.signedOut
           ? ''
           : (m.computers || [])
               .map((c) => {
                 const key = `${m.id}:${c.id}`;
-                const cgo = opening === key ? opening_ : c.online ? openBtn : `<button class="ghost m-go" disabled type="button">Offline</button>`;
-                return `<article class="card m comp ${c.online ? 'ready' : 'off'}" data-id="${esc(m.id)}" data-c="${esc(c.id)}" ${c.online ? 'data-row="open"' : ''}>
+                const cgo = opening === key ? opening_ : c.online ? openBtn : '<span class="m-go-gap"></span>';
+                return `<article class="m comp ${c.online ? 'ready' : 'off'}" data-id="${esc(m.id)}" data-c="${esc(c.id)}" ${c.online ? 'data-row="open"' : ''}>
           <div class="m-row">
-            <span class="m-ico">${icon('laptop')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(c.name)}</span><span class="m-sub"><span class="kind grid">Your computer</span></span></div>
+            <span class="m-ico">${icon('laptop')}</span>
+            <div class="m-text"><span class="m-name">${esc(c.name)}</span>${sub(c.online ? 'Online' : 'Offline')}</div>
             ${cgo}<span class="m-more-gap"></span>
           </div>
         </article>`;
               })
               .join('');
-        // An account and its computers are one group, the computers set in under it.
-        return `<div class="m-acct"><article class="card m cloud ${m.signedOut ? 'failed' : 'ready'}" data-id="${esc(m.id)}" data-row="${m.signedOut ? 'edit' : 'open'}">
+        // The account heads its card: its picture with the GitHub or Google mark it signs in with,
+        // the handle, and that account under it. Which grid only shows when it isn't wisp Cloud.
+        const who = m.who || {};
+        const mark = PROVIDER_ICON[who.provider] ? `<span class="av-mark">${icon(PROVIDER_ICON[who.provider])}</span>` : `<span class="av-mark">${icon('cloud')}</span>`;
+        const elsewhere = gridTitle(m) !== 'wisp Cloud' ? (m.name ? gridTitle(m) : hostOf(m.grid)) : '';
+        const line = m.signedOut ? sub('Signed out', who.label) : `<span class="m-sub m-who">${who.label ? `<span class="m-at">${esc(who.label)}</span>` : ''}${elsewhere ? `<span class="m-grid">${esc(elsewhere)}</span>` : ''}${!who.label && !elsewhere ? '<span class="m-at">wisp Cloud</span>' : ''}</span>`;
+        return `<section class="card m-acct"><article class="m cloud ${m.signedOut ? 'failed' : 'ready'}" data-id="${esc(m.id)}" data-row="${m.signedOut ? 'edit' : 'open'}">
           <div class="m-row">
-            <span class="m-ico">${icon('cloud')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(gridTitle(m))}</span><span class="m-sub"><span class="m-at">${esc(m.handle)}</span></span></div>
+            <span class="m-ico av${who.avatar ? ' pic' : ''}" style="--hue: ${hueOf(m.handle)}deg${who.avatar ? `; --pic: url('${esc(who.avatar)}')` : ''}" aria-hidden="true">${esc((m.handle || '?').slice(0, 1).toUpperCase())}${mark}</span>
+            <div class="m-text"><span class="m-name">${esc(m.handle || nameOf(m))}</span>${line}</div>
             ${go}${more(m)}
           </div>
-        </article>${comps}</div>`;
+        </article>${comps}</section>`;
       }
       const go = opening === m.id ? opening_ : state === 'ready' ? openBtn : state === 'connecting' ? `<button class="ghost m-go" disabled type="button">Connecting…</button>` : `<button class="primary m-go" data-a="connect" type="button">${state === 'failed' ? 'Try again' : 'Connect'}</button>`;
       const row = state === 'ready' ? 'open' : state === 'connecting' ? '' : 'connect';
-      return `<article class="card m ${state}" data-id="${esc(m.id)}" ${row ? `data-row="${row}"` : ''}>
+      return `<section class="card m-acct"><article class="m ${state}" data-id="${esc(m.id)}" ${row ? `data-row="${row}"` : ''}>
           <div class="m-row">
-            <span class="m-ico">${icon('server')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub"><span class="kind">Over SSH</span><span class="m-at">${esc(m.target)}</span></span></div>
+            <span class="m-ico">${icon('server')}</span>
+            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span>${sub('Over SSH', m.target)}</div>
             ${go}${more(m)}
           </div>
           ${on ? runHtml() : ''}
-        </article>`;
+        </article></section>`;
     })
     .join('');
 }
@@ -330,7 +349,7 @@ function tipsHtml() {
     .map(([text, href]) => `<button type="button" class="tp" data-href="${esc(href)}">${icon('spark')}<span>${text}</span>${icon('external')}</button>`)
     .join('');
   // The first card is the next step: it alone gets the ring and the solid button.
-  return `<h4><span>Tips</span><button class="tp-more" type="button" data-t="more">More tips</button></h4>${pinned.join('').replace('class="tp-card"', 'class="tp-card next"')}${lines}`;
+  return `<h4><span>Tips</span><button class="tp-more" type="button" data-t="more">More tips</button></h4>${pinned.join('').replace('class="tp-card"', 'class="tp-card next"')}<div class="tp-list">${lines}</div>`;
 }
 
 function paintTips() {
@@ -485,7 +504,7 @@ async function gridPost(url, body, token) {
 async function refreshComputers() {
   const grids = machines.filter((m) => isGrid(m) && !m.signedOut);
   if (opening || !grids.length) return; // on its way out, a repaint would only flicker
-  const was = JSON.stringify(grids.map((m) => [m.signedOut, m.computers]));
+  const was = JSON.stringify(grids.map((m) => [m.signedOut, m.computers, m.who]));
   await Promise.all(
     grids
       .map(async (m) => {
@@ -494,11 +513,17 @@ async function refreshComputers() {
           if (r.status === 401) m.signedOut = true;
           if (!r.ok) return;
           m.computers = ((await r.json()).computers || []).map(({ id, name, online }) => ({ id, name, online }));
+          // Signed in before the list said who: ask once.
+          if (!m.who) {
+            const me = await fetch(`${m.grid}/api/me`, { headers: { authorization: `Bearer ${m.token}` }, signal: AbortSignal.timeout(8000) });
+            const u = me.ok ? (await me.json()).user : null;
+            if (u?.identities) m.who = whoOf(u); // a grid that doesn't say yet: ask again next time
+          }
         } catch {} // offline: keep the last list
       }),
   );
   // Only what changed repaints: a repaint restarts the spinners of a computer connecting.
-  if (JSON.stringify(grids.map((m) => [m.signedOut, m.computers])) === was) return;
+  if (JSON.stringify(grids.map((m) => [m.signedOut, m.computers, m.who])) === was) return;
   save();
   paintMachines();
 }
@@ -624,7 +649,7 @@ function cloudSheet(m = null, start = null) {
     // Sign in again on this one: a card of its own, and this one stays as it was.
     const same = machines.find((x) => isGrid(x) && x.grid === flow.grid && x.handle === user.handle);
     const c = same || { id: newId(), kind: 'grid' };
-    Object.assign(c, { kind: 'grid', grid: flow.grid, url: instance.url, handle: user.handle, name: same?.name || instance.name || 'wisp Cloud', token, signedOut: false });
+    Object.assign(c, { kind: 'grid', grid: flow.grid, url: instance.url, handle: user.handle, name: same?.name || instance.name || 'wisp Cloud', token, signedOut: false, who: whoOf(user, via) });
     if (!same) machines.push(c);
     save();
     paint();

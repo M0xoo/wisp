@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **The phone app's computers screen says which account is which.** Each wisp Cloud account is one card, headed by your picture with the GitHub or Google mark you sign in with, the handle, and that account (`@login` or the email) under it, instead of *wisp Cloud* on every row. Its computers are rows inside the card with *Online* or *Offline* under their names, where an offline one used to have a greyed-out button. The grid now tells devices how an account signs in (`identities` on `/api/me` and the device token); accounts signed in before pick it up on the next refresh.
+
 ### Fixed
 
 - **The side panel's shell no longer opens on a dead screen.** Coming back to a task whose shell had ended (it exited, or wisp dropped it ten minutes later or on a restart) showed the old, often blank screen with a small *Shell ended* bar, so the terminal looked like it never loaded. Opening the panel, switching to the task or to the Shell tab now starts a new shell; a shell that ends while you watch still keeps its last screen and *Start again*.
