@@ -11,14 +11,22 @@
 /* the launcher: one group of project chips per place it runs on */
 .l-projects { row-gap: 6px; }
 .lp-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+/* one group: it wraps inside, so "in" never sits alone on a line above it */
+.l-in + .lp-group:last-child { flex: 1 1 0; min-width: 0; }
 .lp-group + .lp-group { margin-left: 4px; padding-left: 10px; border-left: 1px solid var(--line); }
 .lp-gl { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+/* a machine that isn't connected: its own line under the chips, a long name ends in … */
+.lp-group > .lp-gl { flex-basis: 100%; min-width: 0; }
+.lp-gl-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lp-gl .i, .lp-gl .link { flex: none; }
 .lp-gl .i { width: 13px; height: 13px; color: var(--accent); }
 .lp-gl.off { color: var(--faint); }
 .lp-gl.off .i { color: var(--faint); }
 .lp-gl .link { margin-left: 2px; }
+/* a long computer name gives way before the bar's other buttons do */
+.where-btn span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .where-btn .chev { width: 11px; height: 11px; opacity: 0.6; transform: rotate(90deg); }
-.where-menu { min-width: 300px; }
+.where-menu { min-width: min(300px, calc(100vw - 16px)); }
 .wm-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 10px 6px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .wm-h small { font-weight: 400; color: var(--faint); }
 .where-menu .wm-row { gap: 10px; }
@@ -30,12 +38,14 @@
 .wm-icon .dot { position: absolute; right: -3px; bottom: -2px; width: 7px; height: 7px; border: 1.5px solid var(--surface); box-sizing: content-box; }
 .wm-row.on .wm-icon { color: var(--accent); }
 .wm-name { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
-.wm-name b { font-weight: 500; color: var(--ink); }
+.wm-name b { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wm-name small { font: 11.5px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wm-agents { display: inline-flex; gap: 5px; }
 .wm-only { padding: 1px 6px; border-radius: 6px; font-size: 11.5px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
 .wm-row:hover .wm-only { opacity: 1; }
 .wm-only:hover { background: var(--bg-2); color: var(--ink); }
+/* no hover on touch: "only" is always there */
+@media (hover: none) { .wm-only { opacity: 1; padding: 6px 8px; border: 1px solid var(--line); } }
 .wm-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 .wm-note { margin: 0 10px 6px; max-width: 300px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .wm-note.warn { color: var(--warn); }

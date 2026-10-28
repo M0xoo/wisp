@@ -8,7 +8,7 @@ import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { fmtDate } from '../core/format.js';
 import { S } from '../core/state.js';
-import { clampToViewport, popover } from '../ui/popover.js';
+import { clampToViewport, popover, refocus } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { parseWhen } from '../when.js';
 import { avatarHtml, crewList, openMember } from './crew.js';
@@ -86,7 +86,7 @@ const tomorrowAt9 = () => {
 // takes it, Escape goes back to the row.
 export function timeMenu(anchor, { back, at: point, pick }) {
   const open = $('.menu.later-menu');
-  if (open) return open.close(), back?.focus();
+  if (open) return open.close(), refocus(back);
   const now = Date.now();
   const choices = [
     ['In 10 min', now + 10 * 60_000],
@@ -142,7 +142,7 @@ export function timeMenu(anchor, { back, at: point, pick }) {
     }
     close();
     pick(choices[b.dataset.i][1]);
-    back?.focus();
+    refocus(back);
   };
   menu.addEventListener('keydown', (ev) => {
     if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;

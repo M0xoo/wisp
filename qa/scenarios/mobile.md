@@ -157,3 +157,14 @@ Never send builds to someone's own phone as part of QA.
 - **Run:** Manual (release only)
 - **Steps:** bump `versionCode`/`versionName`, `npm run sync && cd android && ./gradlew bundleRelease`.
 - **Expected:** a signed `app-release.aab`; the adaptive and themed icons look right on the launcher.
+
+### MOB-18 Menus with the keyboard up, and a long computer name
+- **Run:** `qa/mobile.mjs` (the keyboard as a window that shrinks while a text box has focus), Emulator
+- **Steps:** connect to a computer with a long name (`Mokhless-MacBook-Pro-Studio-Workstation`);
+  New task, type in the prompt so the keyboard is up, then tap the harness/model button, the place
+  button and the mode button in turn. Open the avatar menu.
+- **Expected:** each menu opens whole on screen: tapping its button puts the keyboard away and the
+  menu sits above or below the button, scrolling inside when it's taller than the room. Picking
+  doesn't bring the keyboard back. The place button ends the name in `…` and the bar's other
+  buttons keep their room; *Run on* ends long names in `…` with *only* shown on every row. The
+  avatar menu shows the name with the row's width.

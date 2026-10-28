@@ -9,7 +9,7 @@ import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { launch, load, MOBILE, S, save, saveLaunch } from '../core/state.js';
 import { combo } from '../ui/kbd.js';
-import { popover } from '../ui/popover.js';
+import { popover, refocus } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { openAutomations, recipeParams, runRecipe } from './automations.js';
@@ -661,7 +661,7 @@ export function renderLaunchChips() {
   const offline = launch.where
     .map(machineById)
     .filter((m) => m && m.state !== 'online')
-    .map((m) => `<span class="lp-gl off" title="${esc(`${m.target} · ${MACHINE_STATE[m.state] || ''}`)}">${icon('server')}${esc(m.name)}<button class="link xs" data-connect="${m.id}">${m.state === 'connecting' || m.state === 'reconnecting' ? 'connecting…' : 'Connect'}</button></span>`)
+    .map((m) => `<span class="lp-gl off" title="${esc(`${m.target} · ${MACHINE_STATE[m.state] || ''}`)}">${icon('server')}<span class="lp-gl-n">${esc(m.name)}</span><button class="link xs" data-connect="${m.id}">${m.state === 'connecting' || m.state === 'reconnecting' ? 'connecting…' : 'Connect'}</button></span>`)
     .join('');
   // A repo still cloning: picked, with a spinner, until the real project replaces it.
   const cloning = clones
@@ -691,7 +691,7 @@ export function renderLaunchChips() {
   // Another folder goes on the one machine picked, if that's all it runs on.
   const addOn = launch.where.length === 1 ? launch.where[0] : '';
   const add = list.length || cloning
-    ? `<button class="lp-chip add" data-add="${addOn}" title="Another folder${addOn ? ` on ${esc(placeName(addOn))}` : ''}">${icon('folder')}${list.length > CHIPS ? '' : 'Other folder…'}</button>`
+    ? `<button class="lp-chip add" data-add="${addOn}" title="Another folder${addOn ? ` on ${esc(placeName(addOn))}` : ''}">${icon('folder')}${list.length > CHIPS ? '' : '<span>Other folder…</span>'}</button>`
     : `<button class="lp-chip add" data-add="${addOn}">${icon('folder')}${addOn ? `Pick a project on ${esc(placeName(addOn))}…` : 'Choose a folder…'}</button>`;
   const none = `<button class="lp-chip none ${pick === NO_FOLDER ? 'on' : ''}" data-id="${NO_FOLDER}" title="No folder: a general ask, with no project and no worktree. The agent gets an empty scratch directory.">${icon('text')}<span>No folder</span></button>`;
   const html = `<span class="l-in">in</span><span class="lp-group">${chips}${more}${none}${add}${offline}</span>`;
@@ -791,7 +791,7 @@ function fitChips(box) {
     };
     paint();
     const wraps = () => {
-      const kids = [...g.children].filter((x) => !x.hidden && x.offsetParent);
+      const kids = [...g.children].filter((x) => !x.hidden && x.offsetParent && !x.classList.contains('lp-gl')); // a machine's state has its own line
       if (!kids.length) return false; // not laid out (a launcher painted over, or folded into the dock)
       const lin = $('.l-in', box); // "in" left alone on a line counts too
       return kids.some((x) => x.offsetTop >= kids[0].offsetTop + kids[0].offsetHeight) || (lin && kids[0].offsetTop >= lin.offsetTop + lin.offsetHeight);
@@ -831,7 +831,7 @@ function setWhere(list) {
 }
 
 function whereMenu(anchor, back) {
-  if ($('.menu.where-menu')) return $('.menu.where-menu').close(), back?.focus();
+  if ($('.menu.where-menu')) return $('.menu.where-menu').close(), refocus(back);
   const box = el(`<div class="menu where-menu" role="menu"></div>`);
   const paint = () => {
     const row = (k, m) => {

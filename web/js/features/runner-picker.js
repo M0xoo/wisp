@@ -3,7 +3,7 @@ import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S, setAgents } from '../core/state.js';
-import { popover } from '../ui/popover.js';
+import { popover, refocus } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { placeName } from './places.js';
 import { nearLine } from './hold.js';
@@ -22,7 +22,7 @@ const ACCOUNT = { claude: 'Claude', codex: 'ChatGPT', cursor: 'Cursor', grok: 'x
 // back: the prompt it's for, where the caret goes once it closes.
 export function runnerPicker(anchor, { agent, model, effort, account = '', savedModel, savedEffort, savedAccount = rememberedAccount, places, auto = false, back }, pick) {
   const open = $('.picker');
-  if (open) return open.close(), back?.focus();
+  if (open) return open.close(), refocus(back);
   const agents = places ? harnessesAt(places, { auto }) : auto ? [AUTO, ...S.agents] : S.agents;
   const remote = places?.length > 1 || !!places?.[0];
   const sub = (a) => {

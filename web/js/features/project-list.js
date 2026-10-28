@@ -13,11 +13,11 @@
 import { esc } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
 import { byScore, fuzzy, highlight, recency } from '../fuzzy.js';
-import { popover } from '../ui/popover.js';
+import { popover, refocus } from '../ui/popover.js';
 import { projectTitle } from './places.js';
 
 export function projectList(anchor, { projects, current, meta = () => '', extras = [], onPick, also = null, label = 'Projects', back }) {
-  if ($('.menu.pm')) return $('.menu.pm').close(), back?.focus();
+  if ($('.menu.pm')) return $('.menu.pm').close(), refocus(back);
   const node = el(`
     <div class="menu pm" role="dialog" aria-label="${esc(label)}">
       <label class="field pm-search">${icon('search')}<input spellcheck="false" autocomplete="off" placeholder="${projects.length === 1 ? 'Search projects' : `Search ${projects.length} projects`}" aria-label="Search projects"></label>
