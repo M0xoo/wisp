@@ -41,11 +41,19 @@
 .wm-name b { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wm-name small { font: 11.5px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wm-agents { display: inline-flex; gap: 5px; }
-.wm-only { padding: 1px 6px; border-radius: 6px; font-size: 11.5px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
-.wm-row:hover .wm-only { opacity: 1; }
-.wm-only:hover { background: var(--bg-2); color: var(--ink); }
-/* no hover on touch: "only" is always there */
-@media (hover: none) { .wm-only { opacity: 1; padding: 6px 8px; border: 1px solid var(--line); } }
+/* the also / drop pill: one fixed slot on every row, so logos never move when a row is picked */
+.wm-also { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-width: 50px; padding: 1px 7px 1px 5px; box-sizing: border-box; border: 1px solid transparent; border-radius: 6px; font-size: 11.5px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
+.wm-also .i { width: 11px; height: 11px; }
+.wm-row:hover .wm-also, .wm-row:focus-visible .wm-also { opacity: 1; }
+.wm-also:hover { background: var(--bg-2); color: var(--ink); }
+.wm-also.none { visibility: hidden; }
+/* one place picked: a radio; several: checkboxes */
+.where-menu:not(.several) .wm-check { border-radius: 50%; }
+/* no hover on touch: the pill is always there, 44px to tap */
+@media (hover: none) {
+  .wm-also { position: relative; min-width: 62px; padding: 6px 9px 6px 7px; border-color: var(--line); opacity: 1; }
+  .wm-also::before { content: ''; position: absolute; inset: -6px -4px; }
+}
 .wm-sep { height: 1px; margin: 5px 4px; background: var(--line); }
 .wm-note { margin: 0 10px 6px; max-width: 300px; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .wm-note.warn { color: var(--warn); }
