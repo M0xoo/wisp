@@ -258,7 +258,10 @@ async function startShell(id, { restart = false } = {}) {
       onHello: () => (paintDoor(id), shown === id && paintShell()),
       onExit: () => (paintDoor(id), shown === id && (paintShell(), paintPlace())),
     });
+    t.at = Date.now();
     shells.set(id, t);
+    // Nothing on screen yet a few seconds on: the line under the shimmer says why.
+    setTimeout(() => shown === id && shells.get(id) === t && !t.drawn && paintShell(), SLOW_START_MS);
   }
   view.show(t);
   if (t.es || t.starting) return;
@@ -277,6 +280,11 @@ async function startShell(id, { restart = false } = {}) {
   }
   if (shown === id) (paintShell(), paintPlace(), view.focus());
 }
+
+// A login shell runs your startup files before its first prompt: nvm, oh-my-zsh and the like can
+// take seconds there, more while agents keep the computer busy.
+const SLOW_START_MS = 4000;
+const RC = { zsh: '~/.zshrc', bash: '~/.bash_profile', fish: 'config.fish' };
 
 // Coming to a task's shell (the panel opens, another task, the Shell tab) whose shell has ended
 // (exited, or the server lost it: forgotten 10 minutes after, wisp restarted): a new one starts,
@@ -307,7 +315,9 @@ function paintShell() {
   box.classList.remove('blocked');
   const t = shells.get(id);
   // Starting: the shimmer, with what's starting where.
-  $('.tm-wait-l', box).textContent = w ? `Starting ${w.shell?.name || 'a shell'} in ${folderName(w.dir)} on ${where}` : `Finding the task’s folder on ${where}`;
+  const name = w?.shell?.name || 'a shell';
+  const slow = t && t.code === null && !t.drawn && Date.now() - t.at >= SLOW_START_MS;
+  $('.tm-wait-l', box).textContent = !w ? `Finding the task’s folder on ${where}` : slow ? `Still starting ${name}: it runs ${RC[name] ? `your ${RC[name]}` : 'your startup files'} first` : `Starting ${name} in ${folderName(w.dir)} on ${where}`;
   if (!w) {
     view.show(null);
     $('.tm-wait', box).hidden = false;
