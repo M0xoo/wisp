@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **On a phone, the prompt box names the model and nothing else.** Where it runs, the mode, Delegate and Goal are icons now (their menus and tooltips still name them), and the harness pill shows the model you picked (*Opus*) instead of only the harness's logo, or the harness's name while its model is the default. When the row doesn't fit, it scrolls sideways with Send pinned at the end.
+
 ## [0.46.0] - 2026-10-28
 
 ### Added

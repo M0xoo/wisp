@@ -141,14 +141,23 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 /* two harnesses on a narrow bar: drop the model names, then the harness names (logos stay) */
 @container launcher (max-width: 640px) { .runners.cmp .rb-m { display: none; } }
 @container launcher (max-width: 520px) {
-  .l-bar .mode-btn span, .l-bar #wtBtn span, .runners .rb-m { display: none; }
-  /* a phone: the place goes to its icon (its tooltip and menu name it), so the harness keeps its logo
-     and the send button stays inside the box */
+  .l-bar .mode-btn span, .l-bar #wtBtn span { display: none; }
+  /* a phone: the model is the pick that matters, so it alone keeps its name (the harness's when it's
+     the default); the place, mode and the rest go to their icons (their tooltips and menus name them) */
   .l-bar { gap: 2px; }
   .l-bar .where-btn span { display: none; }
-  .runners { flex: none; }
-  .runners .rb-h { display: none; }
-  .runners .rb-logo { margin-right: 2px; }
+  .runners, .runners .runner-btn { flex: none; }
+  .runners .rb-h, .runners .rb-m.def, .runners .rb-e { display: none; }
+  .runners:not(.cmp, :has(.auto-pv:not([hidden]))) .runner-btn:has(.rb-m.def) .rb-h { display: inline; }
+  .runners .rb-m { flex: none; margin-left: 0; max-width: 120px; color: var(--ink); font-weight: 500; }
+  .runners .rb-m::before { display: none; }
+  .runners .rb-logo { margin-right: 6px; }
+  .runners .runner-btn .chev { margin-left: 4px; }
+  /* the model never squeezes to "O…": on the narrowest phones the bar scrolls sideways instead, with
+     Send pinned at its end */
+  .l-bar { overflow-x: auto; scrollbar-width: none; }
+  .l-bar::-webkit-scrollbar { display: none; }
+  .l-bar > .send { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
   .runners.cmp .rb-h { display: none; }
   .runners.cmp .runner-btn .chev { margin-left: 0; }
   .runners.cmp .rb-logo { margin-right: 4px; }

@@ -160,7 +160,7 @@ export function paintRunnerBtn(btn, agentId, model, effort, account) {
   const m = (a?.models || []).find((x) => x.id === model);
   const acc = accountOf(agentId, account);
   btn.innerHTML = agentId
-    ? `<span class="rb-logo">${harnessLogo(agentId)}${acc ? accountMark(acc) : ''}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${acc ? `<span class="rb-a">${esc(acc.label)}</span>` : ''}${icon('chevron', 'chev')}`
+    ? `<span class="rb-logo">${harnessLogo(agentId)}${acc ? accountMark(acc) : ''}</span><span class="rb-h">${esc(a?.name || agentName(agentId))}</span><span class="rb-m${m && m.id ? '' : ' def'}">${esc(m && m.id ? m.label : 'Default')}</span>${effort ? `<span class="rb-e">${esc(effortLabel(effort))}</span>` : ''}${acc ? `<span class="rb-a">${esc(acc.label)}</span>` : ''}${icon('chevron', 'chev')}`
     : `<span class="rb-logo">${icon('spark')}</span><span class="rb-h">Launcher default</span>${icon('chevron', 'chev')}`;
 }
 

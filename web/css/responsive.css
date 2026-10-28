@@ -209,11 +209,10 @@ body.wisp-mobile .split-top:not(:has(> .st-row > .sp-side:not(:empty))) { displa
 body.wisp-mobile .split-new { display: none; }
 /* An empty Recipes row is an ad for a feature: not worth a phone's screen. */
 body.wisp-mobile .launcher .l-recipes:has(.lr-empty) { display: none; }
-/* Its buttons keep their names and scroll sideways; Send stays at the end, always in view. */
+/* Only the model keeps its name (launcher.css, the 520px bar); the rest are icons. If it's still too
+   wide the bar scrolls sideways; Send stays at the end, always in view. */
 body.wisp-mobile .launcher .l-bar { overflow-x: auto; scrollbar-width: none; gap: 4px; }
 body.wisp-mobile .launcher .l-bar::-webkit-scrollbar { display: none; }
-body.wisp-mobile .launcher .l-bar :is(.where-btn span, .mode-btn span, #wtBtn span, .team-btn .tb-label) { display: inline; }
-body.wisp-mobile .launcher .l-bar .where-btn span { max-width: 96px; }
 body.wisp-mobile .launcher .l-bar > .send { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
 
 /* One task open at a time (feed.js), closed with Back or its head: no Collapse button over it.
