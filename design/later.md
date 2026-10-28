@@ -78,14 +78,17 @@ backend) and Gucci (the UI); the decisions they changed are marked *(review)*.
   *(review)*.
 - **Split home, *Coming up*:** under *Needs you*, above the tips, the next 5 (spell prop `count`).
   It lists plans, follow-ups (here and on machines), crew check-ins with their face, and schedule
-  triggers with a bolt. A click opens the task, member or trigger, or the plan's menu.
+  triggers with a bolt. A click opens the task, member or trigger, or the plan's menu. With more,
+  the heading has the total and **Show all N**: the rest opens in place under a heading per day
+  (*Today*, *Tomorrow*, *Fri 31 Oct*), each row giving only its time, and the heading sticks with
+  **Show fewer** while you scroll. The choice is remembered.
 - **Due reminders:** in *Needs you* with a bell and *Reminder* where *Finished* goes. They have a
   notification and a toast, and no reply box (nothing to talk to). **Snooze…** puts them back.
 - **Same actions everywhere:** right-click, More, ⌘K: *Send follow-up now*, *Change follow-up
   time…*, *Cancel follow-up* (named by time when there are several), and *Snooze…*.
 
 ## Spells
-`section.scheduled`, `scheduled.row`, `split.upcoming` (part, slot, prop `count`), `card.later`,
+`section.scheduled`, `scheduled.row`, `split.upcoming` (part, slot, prop `count`), `split.upcoming.more`, `split.upcoming.day`, `card.later`,
 `composer.later`, `composer.sendLater`, `composer.when`, `launcher.later`, `launcher.when`, and the
 setting `readTimes`. A due reminder's pill isn't a part: it needs you.
 

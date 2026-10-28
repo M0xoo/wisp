@@ -210,7 +210,7 @@ body.split .task-runs { padding: 0 4px 4px; }
    hide it through the split.next part), then the tips. */
 .split-home {
   flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center;
-  padding: clamp(32px, 14vh, 140px) 32px 48px;
+  --home-top: clamp(32px, 14vh, 140px); padding: var(--home-top) 32px 48px;
 }
 .split-home > * { width: 100%; max-width: min(var(--read-w), 760px); }
 .sh-hello { margin: 0 0 18px; padding: 0 4px; font: 600 26px/1.2 var(--display); letter-spacing: -0.02em; color: var(--ink); }
@@ -259,6 +259,13 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-te
 .sh-up > .q-dot.auto, .sh-up > .cr-av { justify-self: center; }
 .sh-up .sh-s { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-up .q-time { font-variant-numeric: tabular-nums; }
+/* More than the next few: Show all / Show fewer on the heading, which sticks while the list is long */
+.sh-coming h4 { align-items: center; margin: -8px 0 0; padding-block: 8px 6px; } /* same place as Needs you's, room for the sticky band */
+/* Chrome sticks at the scroller's padding edge: up by home's top padding to reach the real top */
+.sh-coming:has(.sh-day) h4 { position: sticky; top: calc(-1 * var(--home-top)); z-index: 1; background: var(--bg); }
+.sh-more { margin-right: -6px; }
+.sh-day { margin: 10px 0 2px; padding: 0 13px; font-size: 11.5px; font-weight: 500; color: var(--faint); }
+.sh-day:first-of-type { margin-top: 2px; }
 .tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .sh-tips h4 { padding: 0 13px; }
 .sh-tips .tip-more { margin-right: -6px; }
@@ -509,7 +516,7 @@ body.split.stack .crew-view .cv-top .sh-back { margin-right: -2px; }
 
 /* Home as a page: Back beside the greeting, the prompt box under it; no tips or keys on a phone. */
 .sh-bar { display: contents; }
-body.split.stack .split-home { padding: 0 16px 32px; align-items: stretch; }
+body.split.stack .split-home { --home-top: 0px; padding: 0 16px 32px; align-items: stretch; }
 body.split.stack .split-home > * { max-width: none; }
 body.split.stack .sh-bar { display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 6px 0; margin-bottom: 8px; }
 body.split.stack .sh-hello { margin: 0; padding: 0; font-size: 19px; }
