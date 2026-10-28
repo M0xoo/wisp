@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **On a phone, the prompt box names the model and nothing else.** Where it runs, the mode, Delegate and Goal are icons now (their menus and tooltips still name them), and the harness pill shows the model you picked (*Opus*) instead of only the harness's logo, or the harness's name while its model is the default. When the row doesn't fit, it scrolls sideways with Send pinned at the end.
 
+### Fixed
+
+- **In the phone app, tapping your name in the avatar's menu goes to your computers.** It opened your wisp Grid account page in place of wisp, with no way back to it; now it does what the logo does. On a computer it still opens the account page.
+
 ## [0.46.0] - 2026-10-28
 
 ### Added
