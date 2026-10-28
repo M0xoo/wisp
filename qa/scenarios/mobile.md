@@ -204,15 +204,15 @@ Never send builds to someone's own phone as part of QA.
   it couldn't read (a toast that stays). With none readable, a fresh *This phone* key is made and
   the damaged files stay on disk.
 
-### MOB-23 Swipe a row to mark it done or archive it
+### MOB-23 Swipe a row to mark it done or save it for later
 - **Run:** Manual on the Pixel (debug APK); `qa/mobile.mjs`'s page can drive it with CDP touch events.
 - **Steps:** on the list, swipe a finished task right past a third of the row and let go; swipe
   another left and tap *Undo*; flick a row a short way fast; pull a row a little and let go; swipe
   from the screen's very edge; scroll the list up and down over the rows. With a spell setting
   `card.swipeLeft` to `delete`: swipe a row left and wait for the toast to go.
-- **Expected:** the band names the action (*Mark done*, *Archive*) and fills (the phone ticks) once
+- **Expected:** the band names the action (*Mark done*, *Save for later*) and fills (the phone ticks) once
   it would act; the row's time and buttons move with it. Letting go, or the flick, flies the row
-  off and the gap closes. *Marked done* and *Archived* toasts, each with Undo, which puts the row
+  off and the gap closes. *Marked done* and *Saved for later* toasts, each with Undo, which puts the row
   back. A swiped delete says *Task deleted* and reaches the computer only once its toast has gone
   (or the app goes to the background). A short pull springs back. A running
   task's row only gives a little to the right, with no band. The edge swipe is Android's Back, and

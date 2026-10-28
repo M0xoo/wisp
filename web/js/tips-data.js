@@ -66,7 +66,7 @@ export const PHONE_TIPS = [
   ['Lock the phone or switch apps: tasks run on the computer, not here, and wait for you when they ask', G(BG, 'away')],
   ['Inside a computer, <b>New task</b> starts one; tap the <b>wisp logo</b> to come back here', G(PHONE, 'phone')],
   ['Questions from your agents show under <b>Needs you</b>: answer from here and the task picks up', G(BG, 'away')],
-  ['Swipe a task right to mark it done, left to archive it; each comes with <b>Undo</b>', G(PHONE, 'phone')],
+  ['Swipe a task right to mark it done, left to save it for later; each comes with <b>Undo</b>', G(PHONE, 'phone')],
   ['Leave the agent on <b>Auto</b> and wisp picks the agent and model per task from what worked for you', G(VS, 'let-results-pick')],
   ['Start several tasks at once: each gets its own branch, so agents never touch the same files', G(MANY, 'why-worktrees')],
   ['Turn on <b>Goal</b> and a task keeps going round after round until your check passes', G(GOALS, 'the-check')],

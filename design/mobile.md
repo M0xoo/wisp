@@ -56,8 +56,8 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 ## Swiping rows
 
 - In the app only (`MOBILE`, `swipe.js`): a phone browser keeps its own sideways gestures.
-- Right is *Mark done* / *Reopen*, left is *Archive* / *Unarchive*: both undoable, so neither asks.
-  A spell may pick *Save for later* or *Delete task* (`card.swipeRight` / `swipeLeft`); a swiped
+- Right is *Mark done* / *Reopen*, left is *Save for later* / *Unsave*: both undoable, so neither
+  asks. A spell may pick *Archive* or *Delete task* (`card.swipeRight` / `swipeLeft`); a swiped
   delete has no dialog, it waits for its Undo toast instead.
 - The band under the row says the action in the same words as the menus, warms with the pull and
   fills (with a tick, `VIBRATE`) past a third of the row or on a flick. A row the action can't apply

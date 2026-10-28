@@ -339,7 +339,7 @@ export const CARD_HEAD_ORDER = { pill: '.pill:not(.pr)', pr: '.pill.pr', model: 
 export const PART_PROPS = {
   'launcher.input': { placeholder: 'string', rows: 'int', maxRows: 'int', monospace: 'bool', fontSize: 'int' },
   'composer.input': { placeholder: 'string', rows: 'int', maxRows: 'int', monospace: 'bool', fontSize: 'int' },
-  // swipeRight / swipeLeft: what swiping a row does in the phone app (done / archive unless set)
+  // swipeRight / swipeLeft: what swiping a row does in the phone app (done / later unless set)
   card: { density: ['compact', 'comfortable'], swipeRight: ['done', 'later', 'archive', 'delete', 'off'], swipeLeft: ['done', 'later', 'archive', 'delete', 'off'] },
   'card.sub': { lines: 'int' },
   sidebar: { width: 'px', side: ['left', 'right'], details: ['minimal', 'full'] }, // side: left unless set
