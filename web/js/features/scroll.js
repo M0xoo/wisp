@@ -24,7 +24,12 @@ export function topInset() {
 
 // How much of an open split-view body its sticky bar covers: on a narrow pane, its height; on a wide
 // one nothing, the bar is the details column beside the task (and has no height of its own).
-export const barCover = (body) => $('.it-bar', body)?.offsetHeight || 0;
+// Narrow and stacked, the bar scrolls away and only the mini row pins (turns.js): that row's height.
+export const barCover = (body) => {
+  const mini = $('.it-mini', body);
+  if (mini && getComputedStyle(mini).display !== 'none') return $('.im-row', mini).offsetHeight;
+  return $('.it-bar', body)?.offsetHeight || 0;
+};
 
 // Whether the user is reading a card, not just catching its edge at the top or bottom of the
 // screen: it crosses the middle of the viewport, or it's focused and a fair share of it shows.

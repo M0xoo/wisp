@@ -21,8 +21,9 @@ import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUnti
 import { heldCard } from './hold.js';
 import { scheduleFollowUp } from './later.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
-import { renderPrStrip, shipDialog } from './ship.js';
+import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
+import { openPanel, paintDoor, shellButton, shellLive } from './panel.js';
 import { paintSplit } from './split.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
@@ -86,6 +87,7 @@ export function renderBody(id, { fresh }) {
     n.turnNodes.clear();
     const body = el(`
       <div class="it-body">
+        <div class="it-mini"><div class="im-row"></div></div>
         <div class="it-bar">
           <div class="it-props"></div>
           <div class="it-meta"></div>
@@ -93,11 +95,13 @@ export function renderBody(id, { fresh }) {
             <button class="ghost xs tx-toggle" data-a="transcript" data-key="V" aria-pressed="false">${icon('transcript')}<span>Transcript</span></button>
             <button class="ghost xs" data-a="rerun" data-key="⇧R" title="Rerun: the same task again, on any harness, model or computer (⇧R)">${icon('rerun')}<i class="it-lbl">Rerun…</i></button>
             <button class="ghost xs" data-a="takeover" data-key="T" title="Take over: carry on with the agent yourself, in a terminal (T)">${icon('terminal')}<i class="it-lbl">Take over</i></button>
+            <button class="ghost xs it-shell" data-a="shell" data-key="⌃\`" aria-pressed="false" title="Shell: your terminal in this task's folder (⌃\`)">${icon('shell')}<i class="it-lbl">Shell</i></button>
             <button class="ghost xs" data-a="ship" data-key="S" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
             <button class="ghost xs it-done" data-a="done" data-key="E" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
             <button class="ghost xs" data-a="more" title="More">${icon('dots')}<i class="it-lbl">More</i></button>
           </div>
           <div class="it-slot"></div>
+          <button class="shell-door" data-a="shell"></button>
         </div>
         <div class="goal-slot" hidden></div>
         <button class="link xs earlier" hidden></button>
@@ -111,6 +115,7 @@ export function renderBody(id, { fresh }) {
       if (a === 'transcript') toggleTranscript(id);
       if (a === 'rerun') rerun(id);
       if (a === 'takeover') takeOver(id);
+      if (a === 'shell') shellButton(id);
       if (a === 'ship') shipDialog(id);
       if (a === 'done') toggleDone(id);
       if (a === 'more') moreMenu(id, e.target.closest('button'));
@@ -118,6 +123,17 @@ export function renderBody(id, { fresh }) {
       if (a === 'fork-src') revealTask(S.full.get(id)?.forkedFrom?.id);
       if (a === 'forks') forksMenu(id, e.target.closest('button'));
     });
+    // Narrow, the bar scrolls away with the task, and once its actions are gone the mini row pins
+    // in their place: one row that does what the bar's buttons do.
+    $('.im-row', body).addEventListener('click', (e) => {
+      const b = e.target.closest('[data-a]');
+      const a = b?.dataset.a;
+      if (a === 'pr') openPanel(id, 'pr');
+      else if (a === 'shell') shellButton(id);
+      else if (a === 'more') moreMenu(id, b);
+      else if (a) $(`.it-actions [data-a="${a}"]`, body)?.click();
+    });
+    new IntersectionObserver(([e]) => $('.it-mini', body).classList.toggle('on', !e.isIntersecting && e.boundingClientRect.top < (e.rootBounds?.top ?? 0) + 1), { root: body }).observe($('.it-actions', body));
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
     wireGoalSlot($('.goal-slot', body), id);
     renderDock(id);
@@ -135,6 +151,7 @@ export function renderBody(id, { fresh }) {
   renderPrStrip(id);
   renderOverlapStrip(id);
   paintDone(id);
+  paintDoor(id);
   // While it works, the session id may still be on its way: takeOver asks for it.
   $('[data-a="takeover"]', body).hidden = !s.agentSessionId && !live;
   const tx = transcriptOn(id);
@@ -142,6 +159,7 @@ export function renderBody(id, { fresh }) {
   txBtn.classList.toggle('on', tx);
   txBtn.setAttribute('aria-pressed', tx);
   txBtn.title = tx ? 'Back to the presentation (V)' : 'Full transcript: every message and step (V)';
+  paintMini(id);
 
   // Turns: keep nodes whose content hasn't changed so animations don't replay.
   const turnsEl = $('.turns', body);
@@ -206,17 +224,46 @@ export function paintDone(id) {
   if (!body) return;
   const state = S.sessions.get(id)?.state || S.full.get(id)?.state;
   const label = state === 'done' ? 'Reopen' : 'Mark done';
-  $$('[data-a="done"]', body).forEach((b) => {
+  $$('[data-a="done"]:not(.im-row *)', body).forEach((b) => {
     b.classList.toggle('on', state === 'done');
     b.hidden = state === 'running' || state === 'waiting';
     $('span', b).textContent = label;
     b.title = `${label} (E)`;
     if (b.hasAttribute('aria-label')) b.setAttribute('aria-label', label);
   });
+  paintMini(id);
 }
 
 // After an optimistic state change: the buttons and the follow-up box's hint.
 export const paintState = (id) => (paintDone(id), updateDock(id));
+
+// The mini row (narrow panes, once the bar has scrolled away), from what the bar shows now: the
+// state, its actions as icons, the PR as a chip in its tone, and the shell (a dot while yours runs).
+export function paintMini(id) {
+  const body = S.nodes.get(id)?.body;
+  const row = body && $('.im-row', body);
+  if (!row) return;
+  const bar = $('.it-bar', body);
+  const real = (a) => $(`.it-actions [data-a="${a}"]`, bar);
+  const btn = (a, ic) => {
+    const b = real(a);
+    if (!b || b.hidden) return '';
+    const label = b.getAttribute('aria-label') || $('span, .it-lbl', b)?.textContent || b.title;
+    return `<button class="icon-btn${b.classList.contains('on') ? ' on' : ''}" data-a="${a}" title="${esc(b.title || label)}" aria-label="${esc(label)}">${icon(ic)}</button>`;
+  };
+  const s = S.sessions.get(id);
+  const prs = s ? prsOf(s) : [];
+  const pr = prs[0]?.pr;
+  const tone = $('.pr-strip', body)?.className.match(/\bpr-(pass|fail|pending|merged|closed)\b/)?.[1] || 'pass';
+  const ship = real('ship');
+  const live = shellLive(id);
+  const html = `${$('.it-props > .pill[class*="st-"]', bar)?.outerHTML || ''}
+    <span class="im-acts">${btn('transcript', 'transcript')}${btn('rerun', 'rerun')}${btn('done', 'done')}${btn('more', 'dots')}</span>
+    <span class="grow"></span>
+    ${pr ? `<button class="im-pr pr-${tone}" data-a="pr" title="Open PR #${pr.number}"><i class="pr-dot"></i>#${pr.number}${prs.length > 1 ? `<small>+${prs.length - 1}</small>` : ''}</button>` : ship && !ship.hidden ? `<button class="ghost xs" data-a="ship">${icon('send')}<span>${esc($('span', ship).textContent)}</span></button>` : ''}
+    <button class="icon-btn im-shell" data-a="shell" title="${live ? 'Shell, running' : 'Open shell'}" aria-label="${live ? 'Shell, running' : 'Open shell'}">${icon('shell')}${live ? '<i class="sd-live"></i>' : ''}</button>`;
+  if (row.dataset.h !== html) (row.innerHTML = html), (row.dataset.h = html);
+}
 
 // The bar's meta: how the run was set up, and where it came from (moved, forked, launched by).
 // Repainted on its own when only the summary moved (a fork counted on the original).

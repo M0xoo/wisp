@@ -26,7 +26,7 @@ export const SLOTS = {
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
-  'panel.head': "The side panel beside the open task (Shell, PR): a button next to its tabs (acts on that task).",
+  'panel.head': "The side panel beside the open task (Shell, PR): a button in its head (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
@@ -231,6 +231,13 @@ export const PARTS = {
   // says (state, PR, harness, project, time), how it runs (branch, mode, …), its PR and its actions.
   'split.details': 'body.split #feed .item.open > .it-body > .it-bar',
   'split.pr': 'body.split #feed .item.open .it-bar > .pr-strip',
+  // The open task's ways into its shell: the action row's Shell button, and on a phone the row
+  // under the PR's that opens it as a page (where it runs, and whether yours is still running).
+  'split.shell': 'body.split #feed .item.open .it-actions > .it-shell',
+  'split.shellDoor': 'body.split #feed .item.open .it-bar > .shell-door',
+  // Narrow, the row that pins at the top once the task's bar has scrolled away: the state, the
+  // actions as icons, the PR as a chip and the shell.
+  'split.mini': 'body.split #feed .item.open .it-mini > .im-row',
   // The account a task runs on (a harness with more than one): its initial on the harness logo.
   'details.account': 'body.split #feed .item.open .it-props .model-logo .acc-i',
   // The open task's share of its plan's usage windows (4% of weekly · 18% of 5-hour).
@@ -244,11 +251,12 @@ export const PARTS = {
   'term.head': '#term .tm-head',
   'term.screen': '#term .tm-screen',
   'term.keys': '#term .tm-keys',
-  // The side panel beside the open task: its tabs, the line saying where the task's folder is
-  // (computer, branch, what's not shipped), the shell in that folder, and the PR tab's parts. The
+  // The side panel beside the open task: its title (Shell, PR #412; once its tabs, hence the
+  // name), the line saying where the task's folder is
+  // (computer, branch, what's not shipped), the shell in that folder, and the PR's parts. The
   // PR's verdict and Merge aren't parts: a spell can't hide what decides a merge.
   panel: '#sidePanel',
-  'panel.tabs': '#sidePanel .pn-tabs',
+  'panel.tabs': '#sidePanel .pn-name',
   'panel.place': '#sidePanel .pn-place',
   'panel.shell': '#sidePanel .pn-shell',
   'panel.pr': '#sidePanel .pn-pr',
@@ -353,7 +361,7 @@ export const PART_PROPS = {
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
-  panel: { width: 'px', tab: ['shell', 'pr'] }, // tab: the one a task opens on, until you pick another
+  panel: { width: 'px', tab: ['shell', 'pr'] }, // tab: what it opens on (the toggle, ]), until you open the other
   'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };
 

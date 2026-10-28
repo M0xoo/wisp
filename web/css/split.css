@@ -587,5 +587,3 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
    to x 88 (16px past the green one): Back's box starts there, not under them (its -10px margin). */
 body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top) { padding-left: 98px; }
 body.electron.mac.split.stack .sh-bar { padding-left: 82px; }
-/* …but the segments sit under them, so they span the page, 12px in on each side as elsewhere. */
-body.electron.mac.split.stack .split-head > .sh-segs { margin-left: -86px; }
