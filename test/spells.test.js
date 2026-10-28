@@ -162,6 +162,13 @@ test('split view: sidebar and split slots, parts and pixel props', () => {
   assert.ok(problems({ ...base0, parts: { tips: { props: { count: 0 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
 });
 
+test('the phone app\'s row swipes are card props, and their band is a part', () => {
+  assert.deepEqual(problems({ ...base0, parts: { card: { props: { swipeRight: 'later', swipeLeft: 'archive' } }, 'card.swipe': { style: { borderRadius: '0' } } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { card: { props: { swipeLeft: 'off' } } } }), []);
+  const p = problems({ ...base0, parts: { card: { props: { swipeLeft: 'nuke' } } } });
+  assert.ok(p.some((x) => /swipeLeft: done \| later \| archive \| delete \| off/.test(x)), p.join('\n'));
+});
+
 test('toasts, their glyph, action, timer ring and Clear all are parts', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['toast.timer', 'toast.glyph', 'toast.clear'] }, parts: { toast: { style: { borderRadius: '6px' } }, 'toast.action': { style: { fontWeight: '700' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['toast.close'] } }).length);

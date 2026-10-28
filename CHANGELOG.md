@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - **Several wisp Grids, and several accounts on one, in the phone app and on the desktop.** Once you're signed in, *Add an account* stays under your computers on the phone and in Settings → Cloud, for another grid or another account on the same one. Each account shows its handle and grid, with its computers grouped under it. The grid's *Let this device in?* page has *Use another account* when the browser is signed in as someone else, and GitHub now shows its account picker. On the desktop, two accounts on one grid each keep their own computers, and signing one out leaves the other's alone.
+- **Swipe a task in the phone app's list to mark it done or archive it.** Swipe right for *Mark done* (*Reopen* on a done task), left for *Archive*. A band under the row names the action and fills (the phone ticks) once letting go will do it; a quick flick does it too. Both come with Undo. A spell can set either direction to *Save for later* or *Delete task*, or turn it off (`card` props `swipeRight` / `swipeLeft`); a swiped delete skips the confirm dialog and is sent only once its Undo toast goes away.
 
 ### Changed
 

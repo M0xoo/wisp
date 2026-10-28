@@ -53,6 +53,18 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 - No keyboard hints on touch screens: `kbd`, `.key-hint`, the palette footer, *Press ⌘L*, the
   *Keyboard shortcuts* entry. Wrap key text you add in `.key-hint` so the existing rules hide it.
 
+## Swiping rows
+
+- In the app only (`MOBILE`, `swipe.js`): a phone browser keeps its own sideways gestures.
+- Right is *Mark done* / *Reopen*, left is *Archive* / *Unarchive*: both undoable, so neither asks.
+  A spell may pick *Save for later* or *Delete task* (`card.swipeRight` / `swipeLeft`); a swiped
+  delete has no dialog, it waits for its Undo toast instead.
+- The band under the row says the action in the same words as the menus, warms with the pull and
+  fills (with a tick, `VIBRATE`) past a third of the row or on a flick. A row the action can't apply
+  to (a running task) only gives a little, with no label.
+- Swipes starting within 24px of the screen's edge are Android's Back; a vertical drag is a scroll.
+- No nudge teaches it; a tip on the computers screen does.
+
 ## The app
 
 - The app's own screen (`mobile/www/`) and the grid's device pages (`/activate`, *Device connected*)
