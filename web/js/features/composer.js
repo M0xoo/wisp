@@ -34,6 +34,7 @@ import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team
 import { parseWhen } from '../when.js';
 import { aheadLabel, followUpRows, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 import { hideHold, holdNow, showHold } from './hold.js';
+import { commentCount, commentTray, paintCommentTray, restoreComments, takeComments, withPending } from './comments.js';
 
 export function draftInto(id, text) {
   const ta = $('.reply', S.nodes.get(id)?.card);
@@ -115,6 +116,7 @@ export function renderDock(id) {
   });
   n.tray = attachTray();
   comp.prepend(n.tray.node);
+  $('.reply', comp).before(commentTray(id)); // comments on the answer, going out with the next message
   const ta = mentionBox($('.reply', comp));
   slashMenu(ta, comp);
   autosize(ta, 260);
@@ -186,6 +188,7 @@ export function renderDock(id) {
       ta.focus();
     }
   });
+  paintCommentTray(id);
   paintCard(id); // what spells add to the box and the card
 }
 
@@ -476,6 +479,8 @@ export function updateDock(id) {
             : `Follow up with ${next}…`;
   const spellPh = spellProp('composer.input', 'placeholder');
   if (spellPh && !tour && !s.ask) ta.placeholder = spellPh;
+  const notes = commentCount(id);
+  if (notes && !tour && !s.ask) ta.placeholder = `Add a message, or send your ${notes > 1 ? `${notes} comments as they are` : 'comment as it is'}`;
   paintSide(id);
   paintReplyMode(id, $('.c-mode', n.card));
   paintReplyRunner(id, $('.c-runner', n.card));
@@ -583,7 +588,8 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   const s = S.full.get(id);
   const n = S.nodes.get(id);
   text = (text || '').trim();
-  if (!s || !text) return;
+  // Comments on the answer go out on their own too: Enter in an empty box sends them.
+  if (!s || (!text && !commentCount(id))) return;
   const ta = n && $('.reply', n.card);
   // A spell's slash command: it does its thing on this task instead of being sent.
   const slash = !isBtw(text) && spellSlash(text);
@@ -654,7 +660,10 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   const run = S.replyRunners.get(id);
   const team = S.replyTeams.get(id);
   const place = S.replyPlaces.has(id) ? S.replyPlaces.get(id) : undefined;
-  if (place !== undefined) return moveWithReply(id, text, { attachments, mode, run, team, place });
+  if (place !== undefined) {
+    const notes = takeComments(id);
+    return moveWithReply(id, notes.length ? withPending(id, text, notes) : text, { attachments, mode, run, team, place, notes, said: text });
+  }
   // An answer goes to the run that asked; a new mode, harness or team needs a new run, so that's a follow-up.
   const answering = !!s.ask && !attachments.length && !mode && !run && !team;
   // Near the limit (features/hold.js): it waits for a yes, with the draft still in the box.
@@ -667,6 +676,10 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     if (h) return holdReply(id, ta, holdRow, { ...who, ...h }, typed ? null : text);
   }
   hideHold(holdRow);
+  // Comments on the answer lead the message (comment-text.js); a refusal puts them back.
+  const said = text;
+  const notes = takeComments(id);
+  if (notes.length) text = withPending(id, said, notes);
   // Optimistic: the composer empties and the card goes to Working before the server answers
   // (it may first have to bring back an archived worktree, or reach another machine).
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
@@ -684,8 +697,9 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
   } catch (err) {
     undo?.();
+    restoreComments(id, notes);
     // Give the message back, unless the user has already started typing another one.
-    if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+    if (ta?.isConnected && !ta.value) ((ta.value = said), ta.dispatchEvent(new Event('input')));
     if (mode && !S.replyModes.has(id)) setReplyMode(id, mode);
     if (run && !S.replyRunners.has(id)) setReplyRunner(id, run);
     if (team && !S.replyTeams.has(id)) setReplyTeam(id, team.team, team.preset);
@@ -724,7 +738,7 @@ function holdReply(id, ta, row, h, held = null) {
 
 // A follow-up on another computer: the task moves there and carries on as a new session (the old
 // one is archived). The card says it's moving at once; the new card takes its place, open.
-async function moveWithReply(id, text, { attachments, mode, run, team, place }) {
+async function moveWithReply(id, text, { attachments, mode, run, team, place, notes, said = text }) {
   const n = S.nodes.get(id);
   const ta = n && $('.reply', n.card);
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
@@ -747,7 +761,8 @@ async function moveWithReply(id, text, { attachments, mode, run, team, place }) 
     toast(`Moved to <b>${esc(place ? placeName(place) : here)}</b> with its work and history`);
   } catch (err) {
     undo?.();
-    if (ta?.isConnected && !ta.value) ((ta.value = text), ta.dispatchEvent(new Event('input')));
+    restoreComments(id, notes);
+    if (ta?.isConnected && !ta.value) ((ta.value = said), ta.dispatchEvent(new Event('input')));
     if (mode && !S.replyModes.has(id)) setReplyMode(id, mode);
     if (run && !S.replyRunners.has(id)) setReplyRunner(id, run);
     if (team && !S.replyTeams.has(id)) setReplyTeam(id, team.team, team.preset);

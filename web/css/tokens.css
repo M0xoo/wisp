@@ -15,6 +15,7 @@
   --accent: #2f5bea;
   --accent-ink: #2149cc;
   --accent-soft: rgba(47, 91, 234, 0.08);
+  --on-accent: #ffffff; /* text on a solid --accent fill */
   --good: #18794e;
   --warn: #a35c00;
   --bad: #cd2b31;
@@ -71,6 +72,8 @@
     --accent: #6d8dff;
     --accent-ink: #94adff;
     --accent-soft: rgba(109, 141, 255, 0.12);
+  --on-accent: var(--bg);
+    --on-accent: var(--bg);
     --good: #4cc38a;
     --warn: #f0a33a;
     --bad: #ff6369;

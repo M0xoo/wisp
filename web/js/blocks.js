@@ -1158,6 +1158,8 @@ export function renderPresentation(presentation, ctx) {
     }
     const holder = document.createElement('div');
     holder.className = `blk blk-${b.type}`;
+    holder.dataset.i = i;
+    holder.block = b; // what a comment on it is about (features/comments.js)
     holder.style.setProperty('--d', `${delay}ms`);
     holder.append(node);
     wrap.append(holder);
