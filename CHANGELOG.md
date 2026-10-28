@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **A task in a window about 860px wide lists its details one a row again.** There the state ran into the harness and the model's name was cut off at the window's edge.
+- **A task on a phone in landscape shows its actions again.** The details column sat pinned to the top of a screen too short for it, so Mark done, Ship it and the rest were below the window. A short pane now gets the bar over the task instead.
 
 ## [0.45.0] - 2026-10-28
 

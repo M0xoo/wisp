@@ -130,7 +130,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
   click its Back; click **New task**; `Esc` twice.
 - **Expected:** the list fills the window, no horizontal scroll. The task opens as a page of its
   own (Back, the title, the task), its details column one fact a row (state, harness, project),
-  none cut off at the right edge; Back returns to the list where it was scrolled. New task opens
+  none cut off at the right edge; at 860×390 (a phone in landscape) it has the bar over the task
+  instead, every action on screen; Back returns to the list where it was scrolled. New task opens
   home as a page with the prompt focused; Esc goes back to the list.
 - **Automated**
 
