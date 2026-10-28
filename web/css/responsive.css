@@ -51,7 +51,7 @@
 
 /* A tap leaves :hover on the button until the next tap elsewhere: no grey box left behind on touch. */
 @media (hover: none) {
-  :is(.ghost, .icon-btn):hover:not(.on), .ghost.danger:hover { background: none; }
+  :is(.ghost, .icon-btn, .tb-btn, .tb-acts, .rate-btn):hover:not(.on), .ghost.danger:hover { background: none; }
 }
 
 /* Touch screens have no keys to press: drop the shortcut hints on floating buttons. */
@@ -98,6 +98,9 @@ body.wisp-mobile .topbar .p-chip.more.solo { flex: none; }
 body.wisp-mobile .topbar .machines-btn.auto-btn { position: relative; flex: 0 8 auto; min-width: 44px; height: 32px; gap: 6px; margin-left: auto; padding: 0 12px 0 10px; border-radius: 99px; border-color: var(--line-2); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 500; }
 body.wisp-mobile .machines-btn span { display: inline; min-width: 0; max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.wisp-mobile .machines-btn .i { color: var(--muted); }
+/* In the avatar's menu the computer's name has the row's width, not the top bar's 132px. */
+body.wisp-mobile .me-menu { width: min(320px, calc(100vw - 16px)); }
+body.wisp-mobile .me-menu .machines-btn span { max-width: none; }
 body.wisp-mobile .topbar :is(.p-chip, .machines-btn)::before { content: ''; position: absolute; inset: -6px -2px; }
 /* A follow-up's bar is narrow on a phone: its mode button is just the icon (coloured per mode; the menu names it). */
 body.wisp-mobile .c-bar .c-mode span { display: none; }
@@ -198,6 +201,8 @@ body.wisp-mobile .prompt-fab {
 body.wisp-mobile .prompt-fab .i { width: 20px; height: 20px; }
 /* Only on the list: a page (a task, home) has its own box at hand. */
 body.wisp-mobile.stack-page .prompt-fab { display: none; }
+/* …and not under a dialog, where it covered the dialog's last line. */
+body.wisp-mobile:has(.overlay:not([hidden])) .prompt-fab { display: none; }
 body.wisp-mobile .split-top .st-row:has(> .sp-side:empty) { display: none; }
 /* …and with nothing in that row, no empty band between the top bar and the first group. */
 body.wisp-mobile .split-top:not(:has(> .st-row > .sp-side:not(:empty))) { display: none; }
@@ -208,6 +213,7 @@ body.wisp-mobile .launcher .l-recipes:has(.lr-empty) { display: none; }
 body.wisp-mobile .launcher .l-bar { overflow-x: auto; scrollbar-width: none; gap: 4px; }
 body.wisp-mobile .launcher .l-bar::-webkit-scrollbar { display: none; }
 body.wisp-mobile .launcher .l-bar :is(.where-btn span, .mode-btn span, #wtBtn span, .team-btn .tb-label) { display: inline; }
+body.wisp-mobile .launcher .l-bar .where-btn span { max-width: 96px; }
 body.wisp-mobile .launcher .l-bar > .send { position: sticky; right: 0; box-shadow: -8px 0 8px var(--surface), -20px 0 12px var(--surface); }
 
 /* One task open at a time (feed.js), closed with Back or its head: no Collapse button over it.

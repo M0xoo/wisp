@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Menus stay on screen on phones, keyboard or not.** With the keyboard up, the harness and model picker, *Run on* and the mode menu opened off the top of the screen. Tapping their buttons now puts the keyboard away first, and every menu and popover keeps inside what's visible: above or below its button, whichever has room, scrolling inside when it's taller. It moves again when the keyboard goes up or down. Picking from one no longer brings the keyboard back up on a touch screen.
+- **Long computer names no longer push the prompt box's buttons away.** The place button ends the name in `…` (96px in the phone app, 160px elsewhere), so the mode, harness and the rest of the bar keep their room. *Run on* and a follow-up's place menu end long names in `…` and stay inside the window, *only* shows on every row on touch screens, and the avatar menu gives the computer's name the row's width. A machine that isn't connected gets its own line under the project chips, so *in* no longer sits alone on a line above them.
+- **Phone polish.** On a narrow prompt box *Other folder…* is its icon, so the project chips keep one line. The New task button hides under dialogs, where it covered their last line. A tap no longer leaves a grey box on the result's buttons or on a Settings row.
+
 ## [0.44.2] - 2026-10-28
 
 ### Fixed

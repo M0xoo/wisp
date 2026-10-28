@@ -7,7 +7,7 @@ import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
-import { popover } from '../ui/popover.js';
+import { popover, refocus } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { agentName, AUTO_GOALS, harnessLogo } from './runners.js';
 import { openSettings } from './settings.js';
@@ -95,7 +95,7 @@ export function autoPreview(btn, { read, pick, back }) {
 
 function openPop(anchor, { read, pick, back, forget, refresh }) {
   const open = $('.auto-pop');
-  if (open) return open.close(), back?.focus();
+  if (open) return open.close(), refocus(back);
   const node = el('<div class="menu auto-pop" role="dialog" aria-label="What Auto will run"></div>');
   const paint = () => {
     const r = last?.r;
@@ -140,7 +140,7 @@ function openPop(anchor, { read, pick, back, forget, refresh }) {
     if (b.dataset.a === 'never') {
       close();
       never(r, { forget, refresh });
-      back?.focus();
+      refocus(back);
       return;
     }
     const key = b.dataset.key;
@@ -148,7 +148,7 @@ function openPop(anchor, { read, pick, back, forget, refresh }) {
     if (!choice) return;
     close();
     pick(choice, r);
-    back?.focus();
+    refocus(back);
   };
   node.addEventListener('keydown', (ev) => {
     if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;

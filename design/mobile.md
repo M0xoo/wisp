@@ -37,6 +37,12 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   `responsive.css`), not only in the app: a phone browser's thumb is the same size.
 - Search (⌘K's palette) is a sheet from the top on a narrow screen, as tall as the screen allows, so
   the keyboard never covers the end of its list.
+- Menus open over the keyboard's half of the screen otherwise: `popover()` (`web/js/ui/popover.js`)
+  puts the keyboard away when a button opens one, and `fitToScreen` keeps every popover inside the
+  visual viewport (above or below its button, scrolling inside), again on every resize. Pick with
+  `refocus(back)`, not `back.focus()`, so a touch screen doesn't get the keyboard back.
+- A name the user chose (a computer, a machine) has a max-width and ends in `…` wherever it sits in
+  a bar or a menu row: `Mokhless-MacBook-Pro-Studio-Workstation` must not push buttons away.
 - A panel with a leading icon (the working panel's orb) keeps the icon beside its first line only:
   what's under it (a question, its answer box) takes the panel's whole width.
 - An icon-only button sits centred in its 44px; its pressed or hover background is a smaller square

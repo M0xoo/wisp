@@ -5,7 +5,7 @@ import { esc } from '../md.js';
 import { $, $$, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { whenLabel } from '../core/format.js';
-import { popover } from '../ui/popover.js';
+import { popover, refocus } from '../ui/popover.js';
 import { machineById, usable } from './places.js';
 
 export const MODES = [
@@ -167,7 +167,7 @@ export function paintRunnerBtn(btn, agentId, model, effort, account) {
 // back: the prompt it's for, where the caret goes once it closes.
 export function modeMenu(anchor, current, pick, back) {
   const open = $('.menu.mode');
-  if (open) return open.close(), back?.focus();
+  if (open) return open.close(), refocus(back);
   const menu = el(`
     <div class="menu mode" role="menu">
       ${MODES.map((m) => `<button role="menuitemradio" aria-checked="${m.id === current}" data-mode="${m.id}" class="m-${m.id}${m.id === current ? ' on' : ''}">
@@ -179,7 +179,7 @@ export function modeMenu(anchor, current, pick, back) {
     if (!b) return;
     close();
     pick(b.dataset.mode);
-    back?.focus();
+    refocus(back);
   };
   menu.addEventListener('keydown', (ev) => {
     const items = $$('button', menu);

@@ -323,6 +323,8 @@ button.bg-task:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px var(--acc
   .sx-nav button:first-of-type { border-radius: 12px 12px 0 0; }
   .sx-nav button:last-of-type { border-radius: 0 0 12px 12px; }
   .sx-nav button + button { border-top: 1px solid var(--line); }
+  /* a tap leaves :hover behind: the row keeps the list's colour, only a press shows */
+  .sx-nav button:hover { background: var(--surface); }
   .sx-nav button:active { background: var(--surface-2); }
   .sx-nav button > .i:first-child, .sx-nav button[aria-selected='true'] > .i:first-child { box-sizing: content-box; width: 16px; height: 16px; padding: 6px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-ink); }
   .sx-nav button .i:not(:first-child) { display: block; width: 16px; height: 16px; color: var(--faint); }

@@ -5,14 +5,14 @@ import { esc } from '../md.js';
 import * as bus from '../core/bus.js';
 import { $, el, icon } from '../core/dom.js';
 import { S } from '../core/state.js';
-import { popover } from '../ui/popover.js';
+import { popover, refocus } from '../ui/popover.js';
 import { MACHINE_STATE, machineById, placeName } from './places.js';
 
 // One place for a follow-up or a rerun: this computer or a machine. from: where the task is now.
 // locked: why it can't move right now (a running task), shown instead of a choice.
 // back: the prompt it's for, where the caret goes once it closes.
 export function placeMenu(anchor, { title, current, from, note = '', locked = '', back }, pick) {
-  if ($('.menu.place-menu')) return $('.menu.place-menu').close(), back?.focus();
+  if ($('.menu.place-menu')) return $('.menu.place-menu').close(), refocus(back);
   const box = el(`<div class="menu where-menu place-menu" role="menu"></div>`);
   const paint = () => {
     const row = (k) => {
@@ -33,7 +33,7 @@ export function placeMenu(anchor, { title, current, from, note = '', locked = ''
     if (!r) return;
     shut();
     pick(r.dataset.k);
-    back?.focus();
+    refocus(back);
   };
   paint();
   const shut = popover(box, { anchor, back, onClose: () => anchor.setAttribute('aria-expanded', 'false') });

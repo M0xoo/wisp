@@ -150,11 +150,13 @@ try {
     await page.locator('#machinesBtn').tap();
     const req = await nav;
     ok(new URL(req.url()).searchParams.get('from') === COMPUTER, `went to ${req.url()}`);
-    // The logo goes there too (only in the app: a browser's logo stays the way home).
-    await page.goto(`${wisp.url}/?m=${COMPUTER}`);
-    await page.waitForSelector('body.wisp-mobile');
-    const viaLogo = page.waitForRequest((r) => r.url().startsWith('https://localhost/'), { timeout: 5000 });
-    await page.locator('#topbar .brand').tap();
+    // The logo goes there too (only in the app: a browser's logo stays the way home). A new page:
+    // Chrome's error page for https://localhost lands late and would cut off a goto on this one.
+    const logo = await ctx.newPage();
+    await logo.goto(`${wisp.url}/?m=${COMPUTER}`);
+    await logo.waitForSelector('body.wisp-mobile');
+    const viaLogo = logo.waitForRequest((r) => r.url().startsWith('https://localhost/'), { timeout: 5000 });
+    await logo.locator('#topbar .brand').tap();
     ok(new URL((await viaLogo).url()).searchParams.get('from') === COMPUTER, 'the logo did not go to the computers list');
     await ctx.close();
   });
@@ -257,6 +259,42 @@ try {
     await ctx.setOffline(false);
     await ctx.close();
     console.log(`      offline first paint: ${titles} tasks in ${ms}ms`);
+  });
+  await check('MOB-18', 'menus open whole with the keyboard up; a long computer name gives way', async () => {
+    const LONG = 'Mokhless-MacBook-Pro-Studio-Workstation';
+    const ctx = await phone(PHONES[0]);
+    const page = await ctx.newPage();
+    // The keyboard: the window is half as tall while a text box has focus.
+    await page.exposeFunction('qaKeyboard', (up) => page.setViewportSize({ width: PHONES[0].width, height: up ? 470 : PHONES[0].height }));
+    await page.addInitScript(() => {
+      const typing = () => document.activeElement?.matches('textarea, input');
+      addEventListener('focusin', () => typing() && window.qaKeyboard(true));
+      addEventListener('focusout', () => setTimeout(() => !typing() && window.qaKeyboard(false), 50));
+    });
+    await page.goto(`${wisp.url}/?m=${LONG}`);
+    await page.waitForSelector('#promptFab');
+    await page.locator('#promptFab').tap();
+    await page.locator('#prompt').fill('check the menus');
+    const where = await page.locator('#whereBtn').boundingBox();
+    ok(where.width < 180, `the place button is ${where.width}px wide with a long name`);
+    for (const [sel, name] of [['#runner', 'picker'], ['#whereBtn', 'where'], ['#mode', 'mode']]) {
+      await page.locator('#prompt').focus();
+      await page.waitForTimeout(200);
+      await page.locator(sel).tap();
+      await page.waitForTimeout(500);
+      const r = await page.evaluate(() => {
+        const n = [...document.querySelectorAll('.picker, .menu')].find((x) => !x.matches('.me-menu') && x.getClientRects().length);
+        const b = n?.getBoundingClientRect();
+        return n && { top: b.top, bottom: b.bottom, left: b.left, right: b.right, h: visualViewport.height, w: innerWidth, typing: document.activeElement?.id === 'prompt' };
+      });
+      ok(r, `${name}: nothing opened`);
+      ok(!r.typing, `${name}: the keyboard stayed up`);
+      ok(r.top >= 0 && r.bottom <= r.h + 1 && r.left >= 0 && r.right <= r.w + 1, `${name} off screen: ${JSON.stringify(r)}`);
+      await shot(page, `keyboard-${name}`);
+      await page.evaluate(() => document.querySelectorAll('.picker, .menu').forEach((n) => n.close?.()));
+    }
+    ok((await overflow(page)) <= 0, 'home scrolls sideways');
+    await ctx.close();
   });
 } finally {
   await browser.close();
