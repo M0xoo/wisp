@@ -1,16 +1,20 @@
 name: android
 
 # Builds the Android app's Play bundle (mobile/, see mobile/README.md → Google Play): a signed
-# wisp-android-<versionName>-<versionCode>.aab, kept as the run's artifact to upload in the Play
-# Console. Runs on pushes to main and PRs that touch the app, and by hand (Actions → android → Run
-# workflow, or `gh workflow run android`).
+# wisp-android-<versionName>-<versionCode>.aab, kept as the run's artifact. On main (a push that
+# touches the app, or by hand: `gh workflow run android`) it then publishes it, as npm releases do:
+# every build goes to Play's internal testing, and a build that bumps mobile/package.json's version
+# also goes to the PLAY_PROMOTE_TRACK variable's track (production by default). Notes: scripts/play.mjs.
 #
-# versionCode is 1 + the run number, so each build can go to Play after the last (the first, built
-# by hand, was 1). versionName is mobile/package.json's version: bump it there for a release.
+# versionCode is 100 + the run number, so each build can go to Play after the last (builds made by
+# hand went up to 20). versionName is mobile/package.json's version: bump it there for a release.
 #
-# Secrets (optional; without them the bundle is unsigned and Play won't take it):
+# Secrets (optional; without the first two the bundle is unsigned, without the third nothing is
+# published):
 #   ANDROID_UPLOAD_KEYSTORE      the upload keystore (~/wisp-upload.jks), base64
 #   ANDROID_UPLOAD_KEY_PASSWORD  its password (store and key, alias `upload`)
+#   PLAY_SERVICE_ACCOUNT_JSON    a Google Cloud service account's JSON key, with release rights on
+#                                the app in Play Console → Users and permissions
 # PRs build unsigned: secrets stay out of PR runs.
 
 on:
@@ -37,6 +41,8 @@ jobs:
         working-directory: mobile
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2 # the commit before, to see a version bump
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -54,21 +60,37 @@ jobs:
           PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE" ]; then echo "::notice::No ANDROID_UPLOAD_KEYSTORE secret: the bundle is unsigned."; exit 0; fi
+          echo "SIGNED=1" >> "$GITHUB_ENV"
           echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$RUNNER_TEMP/upload.jks" "$PASSWORD" "$PASSWORD" > android/keystore.properties
       - name: Build
         id: build
         run: |
-          code=$((GITHUB_RUN_NUMBER + 1))
+          code=$((GITHUB_RUN_NUMBER + 100))
           name=$(node -p "require('./package.json').version")
           (cd android && ./gradlew bundleRelease testDebugUnitTest -PversionCode=$code -PversionName=$name --no-daemon)
           out=wisp-android-$name-$code.aab
           mv android/app/build/outputs/bundle/release/app-release.aab "$out"
           rm -f android/keystore.properties
           echo "out=$out" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "$out (versionCode $code, versionName $name)" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.build.outputs.out }}
           path: mobile/${{ steps.build.outputs.out }}
           if-no-files-found: error
+      - name: Publish to Google Play
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PROMOTE_TRACK: ${{ vars.PLAY_PROMOTE_TRACK || 'production' }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then echo "::notice::No PLAY_SERVICE_ACCOUNT_JSON secret: not published."; exit 0; fi
+          if [ -z "$SIGNED" ]; then echo "::error::The bundle is unsigned: Play won't take it."; exit 1; fi
+          before=$(git show HEAD^:mobile/package.json 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).version)}catch{}})")
+          promote=""
+          if [ -n "$before" ] && [ "$before" != "${{ steps.build.outputs.name }}" ]; then promote=$PROMOTE_TRACK; fi
+          node ../scripts/play.mjs notes >> "$GITHUB_STEP_SUMMARY"
+          node ../scripts/play.mjs upload "${{ steps.build.outputs.out }}" "${{ steps.build.outputs.code }}" "${{ steps.build.outputs.name }}" $promote | tee -a "$GITHUB_STEP_SUMMARY"
