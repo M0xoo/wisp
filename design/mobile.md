@@ -55,6 +55,15 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 
 ## The app
 
+- The app's own screen (`mobile/www/`) and the grid's device pages (`/activate`, *Device connected*)
+  use **48px** targets, Android's own size (Play's pre-launch accessibility check flags less); wisp's
+  page in the app keeps 44px.
+- Signing in to wisp Cloud is one tap everywhere in the app (*Continue with GitHub* / *Google*);
+  a grid address is only asked for behind *Use your own wisp Grid*.
+- A row's kind pill (*Cloud*, *Over SSH*) stays whole; the address after it ends in `…`.
+- Store-required destructive paths (*Delete your account*) are a quiet `--bad` underlined link
+  under *Sign out*, 48px tall, never a filled button; they open the grid's own page for it
+  (`/account#delete`), which does the confirming.
 - It opens on the **computers list**, never straight into the last computer. The wisp logo in the
   top bar goes back to it (a browser's logo stays the way home); the list has no Back button of its
   own, the phone's Back returns.

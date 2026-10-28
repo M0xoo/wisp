@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Delete your wisp Cloud account from the phone app.** The cloud's sheet (*⋯* on it) now has *Delete your account* under *Sign out*. It opens the grid's account page at *Delete your account* in your browser, where you type your handle to confirm.
+
 ### Changed
 
 - **_Run on_ picks one place, then adds more.** In the prompt box's *Run on* menu, clicking a computer or machine now picks only that one and closes the menu. To run the same task on several places in parallel, use *+ also* on a row (or ⌘/Ctrl-click it). Once several are picked, *× drop* takes one out. *also* replaces *only*, so picking one place is the default and running on several is the extra step. The check is round while one place is picked and square once there are several.
@@ -12,6 +16,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Ship it comes back for changes made after a task's PR merged.** Since agents attach the PRs they open (`wisp_pr`), a task's own PR merged on GitHub (by the agent, a spell or by hand) hid Ship it for good, so follow-up changes in the same task could only be shipped by asking the agent. It now shows again for uncommitted changes or commits made after the merged head, and opens a new PR for them. The squash-merged commit itself, and a branch GitHub deleted on merge, don't count as something to ship.
+- **Phone app: signing in to wisp Cloud survives a grid restart.** If the grid answered with an error page while the app waited for you to tap *Allow* (it restarts during an update), the app stopped asking and kept spinning. It now asks again until the grid is back, and stops asking once you close the sign-in sheet.
+- **Phone app: Connect then Disconnect at once no longer closes the app.** Disconnecting before Android had shown the *Connected to …* notification made Android 12 and later stop the app.
+- **Phone app: tapping a task's notification opens that task, even after the screen was off.** If the app had been closed or was reconnecting, the tap left you on the computers list. It now keeps the task and opens it once wisp's page has loaded.
+- **Phone app: one damaged SSH key no longer hides all of them.** The app lists the keys it can read and says which one it couldn't, instead of showing none.
+- **Signing in to wisp Cloud from the phone app is one tap.** *Sign in to wisp Cloud* under your computers now offers *Continue with GitHub* and *Continue with Google*, like the first screen, instead of asking for a grid address; another grid is still behind *Use your own wisp Grid*.
+- **The phone app's computers list fits a 360px phone.** The *Cloud*, *Your computer* and *Over SSH* pills stay whole and the address after them ends in `…`, the name gets more room, and buttons are 48px tall, Android's own size. A sheet keeps its title and × at the top while the keyboard is up, and every fold opens with the same ›. On the grid's device pages, *Allow*, *Don't allow*, *Continue* and *Back to the wisp app* are 48px on a phone, and so is *Sign out* at the top of the account page.
+- **The Crew section's *Add someone to your crew* lines up with the tasks above it.** Its + sits where a task's dot does and its text starts where task titles do.
 - **Menus stay on screen on phones, keyboard or not.** With the keyboard up, the harness and model picker, *Run on* and the mode menu opened off the top of the screen. Tapping their buttons now puts the keyboard away first, and every menu and popover keeps inside what's visible: above or below its button, whichever has room, scrolling inside when it's taller. It moves again when the keyboard goes up or down. Picking from one no longer brings the keyboard back up on a touch screen.
 - **Long computer names no longer push the prompt box's buttons away.** The place button ends the name in `…` (96px in the phone app, 160px elsewhere), so the mode, harness and the rest of the bar keep their room. *Run on* and a follow-up's place menu end long names in `…` and stay inside the window, *only* shows on every row on touch screens, and the avatar menu gives the computer's name the row's width. A machine that isn't connected gets its own line under the project chips, so *in* no longer sits alone on a line above them.
 - **The Recipes row lines up.** Its *Recipes* label sat above the recipe chips on phones, where the chips are taller; label and chips now share one centre line at every size.

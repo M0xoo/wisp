@@ -5,7 +5,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
@@ -22,7 +21,6 @@ final class Alerts {
     private Alerts() {}
 
     static void channels(Context ctx) {
-        if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager nm = ctx.getSystemService(NotificationManager.class);
         NotificationChannel tasks = new NotificationChannel(TASKS, "Tasks", NotificationManager.IMPORTANCE_HIGH);
         tasks.setDescription("A task finished, has a question or needs your approval");

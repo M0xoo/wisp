@@ -87,9 +87,11 @@ public class WispSshPlugin extends Plugin {
     public void listKeys(PluginCall call) {
         try {
             JSArray list = new JSArray();
-            for (Keys.Info k : keys().listOrCreate()) list.put(json(k));
+            java.util.List<String> unreadable = new java.util.ArrayList<>();
+            for (Keys.Info k : keys().listOrCreate(unreadable)) list.put(json(k));
             JSObject r = new JSObject();
             r.put("keys", list);
+            r.put("unreadable", new JSArray(unreadable));
             call.resolve(r);
         } catch (Exception e) {
             call.reject("Couldn’t read this phone’s keys: " + e.getMessage(), e);

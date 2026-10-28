@@ -76,8 +76,9 @@
 .cr-row.open .cr-side .chev { transform: rotate(90deg); }
 body.split .cr-side .chev, .cr-empty .chev { display: none; }
 .cr-n { display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; font-size: 11.5px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); }
-.cr-empty { color: var(--muted); border: 1px dashed var(--line-2); }
-.cr-empty > .i { width: 30px; height: 16px; color: var(--faint); }
+/* its + sits where a task row's dot does, its text where the titles start */
+.cr-empty { padding-left: 10px; column-gap: 8px; color: var(--muted); border: 1px dashed var(--line-2); }
+.cr-empty > .i { width: 14px; height: 14px; color: var(--faint); }
 .cr-empty b { font-size: 13px; font-weight: 500; color: var(--ink-2); }
 .cr-empty:hover { border-color: var(--line-2); }
 /* In the feed the rows sit on cards' surface, as a card of their own. */

@@ -30,22 +30,23 @@ button:active:not(:disabled) { transform: scale(0.97); }
 .intro p { margin: 0 0 4px; color: var(--muted); font-size: 15px; text-wrap: pretty; }
 
 button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: inherit; }
-.primary { background: var(--ink); color: var(--bg); border-radius: 12px; padding: 12px 16px; font-weight: 600; font-size: 15px; min-height: 44px; }
+/* Targets are 48px, Android's own size (Play's pre-launch accessibility check flags less). */
+.primary { background: var(--ink); color: var(--bg); border-radius: 12px; padding: 12px 16px; font-weight: 600; font-size: 15px; min-height: 48px; }
 .primary:active { opacity: 0.85; }
 .primary:disabled { opacity: 0.45; }
-.ghost { background: none; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; font-size: 15px; min-height: 44px; }
-.ghost.sm { padding: 4px 12px; min-height: 44px; font-size: 13px; }
+.ghost { background: none; color: var(--ink-2); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; font-size: 15px; min-height: 48px; }
+.ghost.sm { padding: 4px 12px; min-height: 48px; font-size: 13px; }
 .ghost.danger { color: var(--bad); border-color: transparent; padding-left: 4px; }
-.icon { background: none; width: 44px; height: 44px; border-radius: 12px; color: var(--muted); }
+.icon { background: none; width: 48px; height: 48px; border-radius: 12px; color: var(--muted); }
 
 /* --- machines ------------------------------------------------------------------------------- */
 .list { display: flex; flex-direction: column; gap: 8px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-1); }
 .m { overflow: hidden; }
-.m-row { display: grid; grid-template-columns: 36px 1fr auto 44px; gap: 8px; align-items: center; padding: 12px 0 12px 16px; }
+.m-row { display: grid; grid-template-columns: 36px 1fr auto 48px; gap: 8px; align-items: center; padding: 12px 0 12px 16px; }
 .m-row > .m-ico { margin-right: 4px; }
 /* ⋯ opens its settings; a row without any keeps its place, so every Open lines up. */
-.m-more-gap { width: 44px; }
+.m-more-gap { width: 48px; }
 .m-ico { width: 36px; height: 36px; border-radius: 12px; background: var(--bg-2); display: grid; place-items: center; color: var(--ink-2); position: relative; }
 .m-ico .st { position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); background: var(--faint); }
 .m.ready .st { background: var(--good); }
@@ -53,8 +54,17 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .m.failed .st { background: var(--bad); }
 .m-text { min-width: 0; text-align: left; display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
 .m-name { font-weight: 600; font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.m-sub { font: 12px var(--mono); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Where it is: the pill stays whole, the address after it ends in … */
+.m-sub { display: flex; align-items: center; min-width: 0; max-width: 100%; font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
+.m-sub .kind { flex: none; }
+.m-at { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .m-go { width: 120px; font-size: 15px; white-space: nowrap; } /* the same width in every state, so rows don't shift */
+/* A phone: the name gets the room, the button still fits Connecting… */
+@media (max-width: 420px) {
+  .m-row { padding-left: 12px; }
+  .m-row > .m-ico { margin-right: 0; }
+  .m-go { width: 104px; padding-left: 8px; padding-right: 8px; gap: 6px; }
+}
 .m-go.primary { padding: 8px 12px; }
 /* Open: quiet, the row's own action (a tap anywhere on it); the arrow says where it goes. */
 .m-go.go { border-color: transparent; background: var(--bg-2); color: var(--ink); font-weight: 600; }
@@ -86,7 +96,7 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 
 /* --- keys ----------------------------------------------------------------------------------- */
 .keys { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
-.sec-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.sec-head { display: flex; align-items: center; justify-content: space-between; min-height: 48px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .k { display: grid; grid-template-columns: 16px 1fr auto; gap: 12px; align-items: center; padding: 12px 16px; text-align: left; width: 100%; }
 .k .i { color: var(--muted); }
 .k-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -95,22 +105,27 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .k-used { font-size: 13px; color: var(--faint); white-space: nowrap; }
 
 /* --- sheets --------------------------------------------------------------------------------- */
-.sheet { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 560px; max-height: 92vh; border-radius: 20px 20px 0 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); }
+.sheet { border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 560px; max-height: 92dvh; border-radius: 20px 20px 0 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); }
 .sheet[open] { animation: up 0.26s var(--ease); transition: transform 0.18s var(--ease); }
 .sheet::backdrop { background: rgba(0, 0, 0, 0.32); animation: fade 0.26s var(--ease); }
 @keyframes up { from { transform: translateY(100%); } }
 @keyframes fade { from { opacity: 0; } }
 /* Dragged down by its header (app.js dragToClose), then slid away. */
-.sheet header { touch-action: none; position: relative; padding-top: 8px; }
+.sheet header { touch-action: none; }
 .sheet header::before { content: ''; position: absolute; top: -6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line-2); }
 .sheet.dragging { transition: none; }
 .sheet.closing { transform: translateY(100%) !important; }
 .sheet.closing::backdrop { opacity: 0; transition: opacity 0.18s; }
 .sheet form { display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 24px; }
 .sheet header { display: flex; align-items: center; justify-content: space-between; }
+/* With the keyboard up the sheet scrolls: its title and × stay at the top, over what scrolls. */
+.sheet header { position: sticky; top: 0; z-index: 1; margin: -16px -16px 0; padding: 16px 16px 4px; background: var(--surface); }
+.sheet header::before { top: 6px; }
 .sheet h2 { margin: 0; font: 600 17px var(--display); letter-spacing: -0.015em; }
 .sheet p { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
 .sheet-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+/* Store-required, never a button to hit by mistake: a quiet line under Sign out. */
+.sheet-del { align-self: flex-start; min-height: 48px; margin: -8px 0 -12px; padding: 0 5px; background: none; color: var(--bad); font-size: 13px; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--bad) 35%, transparent); text-underline-offset: 4px; }
 
 .field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--ink-2); font-weight: 600; }
 .field em { font-style: normal; font-weight: 400; color: var(--faint); }
@@ -147,6 +162,11 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .where code { font: 12px var(--mono); }
 details:is(.keys, .ssh) > summary { list-style: none; cursor: pointer; }
 details:is(.keys, .ssh) > summary::-webkit-details-marker { display: none; }
+/* Every fold opens the same way: a › after its words that turns down, never the browser's ▸. */
+details:is(.adv, .where, .why) > summary { list-style: none; display: flex; align-items: center; gap: 6px; min-height: 48px; padding-block: 0; }
+details:is(.adv, .where, .why) > summary::-webkit-details-marker { display: none; }
+details:is(.adv, .where, .why) > summary::after { content: '›'; font-size: 17px; line-height: 1; transition: transform 0.15s; }
+details:is(.adv, .where, .why)[open] > summary::after { transform: rotate(90deg); }
 details.ssh { display: flex; flex-direction: column; gap: 12px; margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--line); }
 /* Both folds say they open the same way. */
 details:is(.ssh, .keys) > summary::after { content: '›'; font-size: 17px; transition: transform 0.15s; }
@@ -157,7 +177,7 @@ details.keys[open] { gap: 10px; }
 .small { font-size: 13px; margin: 0; }
 .oops .row { margin-top: 2px; }
 .oops a.ghost { text-decoration: none; display: inline-flex; align-items: center; }
-.primary.sm { min-height: 44px; padding: 8px 16px; font-size: 15px; border-radius: 12px; }
+.primary.sm { min-height: 48px; padding: 8px 16px; font-size: 15px; border-radius: 12px; }
 .why summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 8px 0; }
 .why code { display: block; margin-top: 4px; font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
 @media (prefers-reduced-motion: reduce) {
@@ -169,7 +189,7 @@ details.keys[open] { gap: 10px; }
 .gbody { display: flex; flex-direction: column; gap: 12px; }
 .gbody .code { font: 600 24px/1 var(--mono, ui-monospace, monospace); letter-spacing: 0.14em; text-align: center; padding: 16px; border: 1px dashed var(--line-2); border-radius: 12px; background: var(--bg-2); }
 .gbody .wait { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
-.gbody .err { color: var(--bad, #b91c1c); font-size: 13px; margin: 0; }
+.gbody .err { color: var(--bad); font-size: 13px; margin: 0; }
 /* The sign-in page and Copy code: one above the other, full width, the same height. */
 .gbody .row { display: flex; flex-direction: column; gap: 8px; }
 .gbody .row > * { width: 100%; min-height: 48px; margin: 0; font-size: 15px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
@@ -180,14 +200,14 @@ details.keys[open] { gap: 10px; }
 .m.comp .m-go:disabled:not(.primary) { opacity: 0.6; }
 
 /* Undo on a toast (app.js toast action). */
-.toast button { flex: none; min-height: 32px; padding: 0 4px; background: none; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.toast button { flex: none; min-height: 48px; margin: -12px 0; padding: 0 4px; background: none; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
 /* Tips under the list (app.js paintTips), as on wisp's own home (web/css/split.css): a card for the
    next thing to do, then a line each on what the phone can do, opening its guide. */
 .tips[hidden] { display: none; }
 .tips { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .tips h4 { display: flex; align-items: center; justify-content: space-between; margin: 0; padding-left: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
-.tp-more { background: none; min-height: 44px; padding: 0 4px; font-size: 13px; color: var(--faint); }
+.tp-more { background: none; min-height: 48px; padding: 0 4px; font-size: 13px; color: var(--faint); }
 .tp-more:active { color: var(--ink-2); }
 .tp-card {
   display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; row-gap: 12px; align-items: start; width: 100%; margin-bottom: 4px; padding: 16px;
@@ -208,13 +228,13 @@ details.keys[open] { gap: 10px; }
 .tp-text small b { font-size: 13px; color: var(--ink-2); }
 .tp-text small i { font-style: normal; color: var(--ink-2); }
 .tp-cta {
-  grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 40px; padding: 0 14px 0 16px; border-radius: 12px;
+  grid-column: 2; justify-self: start; display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 48px; padding: 0 14px 0 16px; border-radius: 12px;
   background: var(--bg-2); color: var(--ink); font-size: 15px; font-weight: 600;
 }
 .next .tp-cta { background: var(--ink); color: var(--bg); }
 .tp-cta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp {
-  display: grid; grid-template-columns: 16px minmax(0, 1fr) 14px; gap: 12px; align-items: center; width: 100%; min-height: 44px; padding: 10px 4px 10px 8px;
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) 14px; gap: 12px; align-items: center; width: 100%; min-height: 48px; padding: 10px 4px 10px 8px;
   border-radius: 12px; background: none; text-align: left; color: var(--ink-2); font-size: 13px; line-height: 1.45;
 }
 .tp + .tp { border-top: 1px solid var(--line); border-radius: 0; }
@@ -260,4 +280,4 @@ body.first details.ssh { margin-top: auto; }
 .ghost.prov { background: var(--surface); color: var(--ink); border-color: var(--line-2); }
 .ghost.prov:active { background: var(--bg-2); }
 .hello-fine { margin: 14px 0 0 !important; max-width: 320px; font-size: 13px !important; color: var(--faint) !important; text-wrap: balance; }
-.hello-alt { margin-top: 4px; min-height: 44px; padding: 0 12px; background: none; color: var(--muted); font-size: 13px; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
+.hello-alt { margin-top: 4px; min-height: 48px; padding: 0 12px; background: none; color: var(--muted); font-size: 13px; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }

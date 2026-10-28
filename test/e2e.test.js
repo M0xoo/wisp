@@ -10,6 +10,9 @@ import { installFakeBins, makeRepo, records, tmp, until } from './helpers.js';
 
 const RECORD = tmp('e2e-record');
 process.env.FAKE_RECORD = RECORD;
+// A harness's last task run. wisp's memory (a retro, server/preferences.js) runs on the session's
+// harness 90s after a task goes quiet, so an earlier test's retro can land after this test's run.
+const lastRun = (bin) => records(RECORD, bin).filter((r) => !r.stdin.startsWith('# wisp retro')).at(-1);
 process.env.WISP_HOME = tmp('e2e-home');
 process.env.WISP_UPDATE_CHECK = '0'; // no registry calls from tests
 installFakeBins();
@@ -117,7 +120,7 @@ for (const agent of ['claude', 'codex', 'opencode', 'grok', 'copilot']) {
       return x.turns.length === 2 && x.state === 'review' && x;
     });
     assert.equal(again.turns.at(-1).status, 'done');
-    const last = records(RECORD, agent).at(-1);
+    const last = lastRun(agent);
     assert.ok(last.argv.includes(sid) || last.argv.includes(`--resume=${sid}`), 'resumed by id');
   });
 }
@@ -195,21 +198,19 @@ test('a follow-up can switch harness and model: the new harness gets the turns i
     const x = await session(s.id);
     return x.turns.length === n && x.state === 'review' && x;
   });
-  // The task's runs: a background retro (wisp's memory) may run on the same harness meanwhile.
-  const last = (bin) => records(RECORD, bin).filter((r) => !r.stdin.startsWith('# wisp retro')).at(-1);
   await turns(1);
 
   // Same harness, another model and level: the same conversation, resumed.
   await api(`/sessions/${s.id}/reply`, { text: 'try a bigger model', model: 'opus', effort: 'high' });
   let x = await turns(2);
-  assert.ok(last('claude').argv.includes('--resume') && last('claude').argv.includes('claude-session-1'), 'resumed');
+  assert.ok(lastRun('claude').argv.includes('--resume') && lastRun('claude').argv.includes('claude-session-1'), 'resumed');
   assert.deepEqual([x.model, x.effort], ['opus', 'high']);
-  assert.doesNotMatch(last('claude').stdin, /Earlier in this task/);
+  assert.doesNotMatch(lastRun('claude').stdin, /Earlier in this task/);
 
   // Another harness: a fresh conversation there, handed both earlier turns.
   await api(`/sessions/${s.id}/reply`, { text: 'codex, take it from here', agent: 'codex' });
   x = await turns(3);
-  const codex = last('codex');
+  const codex = lastRun('codex');
   assert.ok(!codex.argv.includes('resume'), 'nothing of its own to resume');
   assert.match(codex.stdin, /## Earlier in this task/);
   assert.match(codex.stdin, /taking over a task that another coding agent \(Claude Code\)/);
@@ -227,7 +228,7 @@ test('a follow-up can switch harness and model: the new harness gets the turns i
   // Back to Claude: its own conversation resumes, told only about the codex turn.
   await api(`/sessions/${s.id}/reply`, { text: 'back to you, claude', agent: 'claude', model: 'opus' });
   x = await turns(4);
-  const claude = last('claude');
+  const claude = lastRun('claude');
   assert.ok(claude.argv.includes('claude-session-1'), 'resumed its own session');
   assert.match(claude.stdin, /While you were away, this task continued on another coding agent \(Codex\)/);
   assert.match(claude.stdin, /codex, take it from here/);
@@ -237,7 +238,7 @@ test('a follow-up can switch harness and model: the new harness gets the turns i
   // No switch: no handoff.
   await api(`/sessions/${s.id}/reply`, { text: 'one more thing' });
   await turns(5);
-  assert.doesNotMatch(last('claude').stdin, /Earlier in this task/);
+  assert.doesNotMatch(lastRun('claude').stdin, /Earlier in this task/);
 
   // Queued with a switch: the run going keeps its harness; the queued one moves.
   process.env.FAKE_HANG = '1';
@@ -255,7 +256,7 @@ test('a follow-up can switch harness and model: the new harness gets the turns i
   x = await turns(8);
   assert.deepEqual(x.turns.slice(5).map((t) => t.agent), ['claude', 'claude', 'opencode']);
   assert.equal(x.agent, 'opencode');
-  assert.match(last('opencode').stdin, /Claude Code, Codex|Codex, Claude Code/);
+  assert.match(lastRun('opencode').stdin, /Claude Code, Codex|Codex, Claude Code/);
 
   const reply = (body) => fetch(`${base}/api/sessions/${s.id}/reply`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: 'x', ...body }) });
   assert.equal((await reply({ agent: 'nope' })).status, 400);
@@ -365,7 +366,7 @@ test('antigravity: runs without ask_user and still lands a presentation', async 
   assert.equal(done.turns[0].presentation.blocks[0].title, 'Fake agy finished');
   const change = done.turns[0].changes.find((c) => c.file === 'math.js');
   assert.match(change.edits[0].before, /a - b/);
-  assert.ok(records(RECORD, 'agy').at(-1).argv.includes('--dangerously-skip-permissions'), 'auto mode');
+  assert.ok(lastRun('agy').argv.includes('--dangerously-skip-permissions'), 'auto mode');
 });
 
 // The CLI ends its turn ("I'll report once it has finished") with a background task still running,
@@ -547,11 +548,11 @@ test('codex: what its sandbox refused (from its blocked block) retries in Full a
   assert.equal(again.turns[1].mode, 'auto');
   assert.equal(again.mode, 'edits', 'only that follow-up ran in Full auto');
   assert.equal(again.turns[1].presentation.blocks[0].summary, 'Published.');
-  assert.ok(records(RECORD, 'codex').at(-1).argv.includes('--dangerously-bypass-approvals-and-sandbox'));
+  assert.ok(lastRun('codex').argv.includes('--dangerously-bypass-approvals-and-sandbox'));
 
   await api(`/sessions/${s.id}/reply`, { text: 'and the changelog' });
   await settled(s.id, 3);
-  assert.ok(!records(RECORD, 'codex').at(-1).argv.includes('--dangerously-bypass-approvals-and-sandbox'));
+  assert.ok(!lastRun('codex').argv.includes('--dangerously-bypass-approvals-and-sandbox'));
 });
 
 test('opencode: a rejected permission retries with exactly that pattern allowed; deny just closes the card', async () => {
@@ -561,7 +562,7 @@ test('opencode: a rejected permission retries with exactly that pattern allowed;
   await api(`/sessions/${s.id}/approve`, { turnId: done.turns[0].id });
   const again = await settled(s.id, 2);
   assert.equal(again.turns[1].presentation.blocks[0].summary, 'Published.');
-  assert.deepEqual(JSON.parse(records(RECORD, 'opencode').at(-1).opencodeConfig).permission, { bash: { 'npm publish': 'allow' } });
+  assert.deepEqual(JSON.parse(lastRun('opencode').opencodeConfig).permission, { bash: { 'npm publish': 'allow' } });
 
   const other = await api('/sessions', { prompt: 'BLOCKED publish it', cwd: makeRepo(), agent: 'opencode', mode: 'edits' });
   const t = (await settled(other.id, 1)).turns[0];
