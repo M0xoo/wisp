@@ -165,7 +165,6 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .vs-btn:hover { color: var(--accent-ink); }
 .vs-btn .i { display: none; width: 13px; height: 13px; }
 .vs-btn:focus-visible { outline: 0; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--accent); }
-.vs-add::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 1px; background: var(--line); }
 /* a + on the harness pill adds another harness to compare ("vs" read as a word to decode) */
 .vs-add .i { display: block; width: 12px; height: 12px; }
 .runners.cmp { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }

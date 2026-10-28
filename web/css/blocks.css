@@ -628,7 +628,7 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 
 /* trail */
 .trail { margin-top: 18px; }
-.trail-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; padding: 8px 2px; border-top: 1px dashed var(--line); font-size: 12.5px; color: var(--faint); }
+.trail-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; padding: 8px 2px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--faint); }
 .tb { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 .tb .i { width: 13px; height: 13px; }
 .tb-l { display: none; } /* the phone names each count (responsive.css) */
@@ -646,6 +646,11 @@ pre.code { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background
 @media (pointer: coarse) {
   .tb-btn { opacity: 1; position: relative; }
   .tb-btn::after { content: ''; position: absolute; inset: -11px -4px; }
+}
+/* A narrow window wraps the bar: the tools take the second row on the right, under the files,
+   rather than wherever the wrap drops them. (The phone app lays it out itself: responsive.css.) */
+@media (max-width: 520px) {
+  body:not(.wisp-mobile) .trail-bar > .tb-tools:has(> *) { flex-basis: 100%; justify-content: flex-end; margin-left: 0; }
 }
 .trail-body { padding: 8px 0 0; animation: rise 0.4s var(--ease); }
 .trail-body .presentation { gap: 10px; }
