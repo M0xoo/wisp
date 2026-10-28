@@ -60,7 +60,8 @@ const flag = (f) => {
 };
 
 if (argv[0] === '--version' || argv[0] === '-v') {
-  console.log(name === 'claude' ? '9.9.9 (Fake Claude Code)' : `fake-${name} 9.9.9`);
+  // FAKE_OPENCODE_VERSION: what `opencode --version` prints (1.x by default; 2.x changed `run`'s flags).
+  console.log(name === 'claude' ? '9.9.9 (Fake Claude Code)' : name === 'opencode' ? process.env.FAKE_OPENCODE_VERSION || '1.99.0' : `fake-${name} 9.9.9`);
   process.exit(0);
 }
 // Sign-in checks (server/agent-login.js) run in wisp's own folder: say nothing rather than do the

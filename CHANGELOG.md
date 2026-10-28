@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **opencode 2 runs.** opencode 2.x (Homebrew's build, GitHub's latest release) refused every task with *invalid --log-level value ERROR*, or *You must provide a message* on early 2.0 builds. wisp now reads `opencode --version` and gives 2.x the flags it takes: a lowercase `--log-level`, and the thinking level on the model (`provider/model#high`) instead of `--variant`. opencode 1.x (npm, the install script) is unchanged.
+
 ## [0.44.0] - 2026-10-28
 
 ### Added
