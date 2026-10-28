@@ -302,11 +302,12 @@ async function endShell() {
   if (!t || t.code !== null) return;
   if (!(await ask('End the shell?\n\nWhatever runs in it stops with it.', { ok: 'End shell', danger: true }))) return;
   const id = t.id;
+  // Ended, not forgotten: dropped from shells, the repaint would start a new one at once, racing
+  // the DELETE (it came back, or attached to the old one as it went). Start again starts it.
   t.code = 0;
   t.es?.close();
   t.es = null;
-  shells.delete(id);
-  view.show(null);
+  t.view?.schedule(t);
   if (shown === id) (paintShell(), paintPlace());
   api(`/sessions/${id}/shell`, { method: 'DELETE' }).catch(toastError);
 }
