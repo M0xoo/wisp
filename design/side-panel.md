@@ -74,7 +74,9 @@ the touch key row, `--vv-*` keyboard sizing on phones). It starts `$SHELL -l` in
 
 - **One shell per task in v1.** (Several, as chips named after their foreground process, is v2.)
 - **Starting:** the `.tm-wait` shimmer rows. Above them, in the screen's dim ink: *Starting zsh in
-  wisp-337d37 on Studio*.
+  wisp-337d37 on Studio*. A login shell runs its startup files before its first prompt (nvm and oh-my-zsh
+  can take seconds, more while agents keep the computer busy): with nothing on screen after 4s the
+  line says so, *Still starting zsh: it runs your ~/.zshrc first*, so a slow start never looks hung.
 - **End:** an icon button `i-x` at the right end of the place line, *End shell*. If a process other
   than the shell is in the foreground, `ask()` first: *End the shell?* / blank line / *npm run dev
   is still running and stops with it.* / button *End shell* (`danger`). An idle shell ends at once.
