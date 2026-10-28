@@ -12,5 +12,10 @@ export function register(r, app) {
     app.computer.fresh(); // Machines is open: your other computers, looked up again
     c.send(200, app.computer.view());
   });
-  r.route('POST', '/computer', async (c) => c.send(200, (await c.body()).on === false ? await app.computer.disable() : await app.computer.enable()));
+  // { on }: on the grid or off it; { previews }: show this computer's local pages through it.
+  r.route('POST', '/computer', async (c) => {
+    const b = await c.body();
+    if (typeof b.previews === 'boolean') return c.send(200, app.computer.previews(b.previews));
+    c.send(200, b.on === false ? await app.computer.disable() : await app.computer.enable());
+  });
 }

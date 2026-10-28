@@ -19,9 +19,10 @@ export function previewBlock(b, ctx = {}) {
   const asked = previewSize(b);
   const key = `${ctx.session?.id || ''}:${ctx.turn?.id || ''}:${ctx.turn?.presentation?.blocks?.indexOf(b) ?? ''}:${url}`;
   let size = picked.get(key) || asked;
-  // On a wisp Grid, the box's localhost has an address of its own; a task on another machine
-  // (<id>@<machine>) isn't in this box.
-  const boxed = !String(ctx.session?.id || '').includes('@') && boxUrl(url, S.config?.grid?.preview);
+  // Read away from the computer it runs on (a grid box, or a computer added to the grid with Show
+  // local pages in previews on), its localhost has an address of its own there. A task on another
+  // machine (<id>@<machine>) isn't on this one.
+  const boxed = !isLoopback(location.href) && !String(ctx.session?.id || '').includes('@') && boxUrl(url, S.config?.preview || S.config?.grid?.preview);
   const src = boxed || url;
   const local = !boxed && isLoopback(url) && !isLoopback(location.href);
   const seg = [
@@ -31,7 +32,7 @@ export function previewBlock(b, ctx = {}) {
   const node = el(`
     <figure class="b-preview card">
       <div class="pv-head">
-        <span class="pv-addr" title="${esc(boxed ? `${url} on your cloud computer` : url)}">${icon(src.startsWith('https:') ? 'lock' : 'web')}<span class="pv-host">${esc(shortUrl(url))}</span></span>
+        <span class="pv-addr" title="${esc(boxed ? `${url}, shown through your grid` : url)}">${icon(src.startsWith('https:') ? 'lock' : 'web')}<span class="pv-host">${esc(shortUrl(url))}</span></span>
         <div class="pv-seg" role="group" aria-label="Screen size">${seg
           .map((d) => `<button data-d="${d.id}" title="${esc(d.label)} · ${d.w} × ${d.h}" aria-label="${esc(d.label)}">${icon(d.icon)}<span>${esc(d.label)}</span></button>`)
           .join('')}</div>

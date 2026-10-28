@@ -3,12 +3,17 @@
 // wisp here on its loopback, as if from a page on this computer: the grid has already checked
 // that it's you asking (your device or your browser, signed in to your account).
 //
+// A stream with x-wisp-preview: <port> is a preview of a page on this computer (http/preview.js),
+// passed to that port only while previews() says so; with x-wisp-upgrade it's a websocket, its
+// bytes carried both ways on the stream.
+//
 // It dials again when the connection drops (Wi-Fi, sleep, a grid restart), and gives up only when
 // the grid says this computer or device is gone.
 
 import http from 'node:http';
 import http2 from 'node:http2';
 import { target } from './grid-client.js';
+import { askLocal, connectLocal, failedPage, noticePage, previewAnswer, previewPort } from './http/preview.js';
 
 export const TUNNEL_PROTOCOL = 'wisp-tunnel';
 const RETRY_MS = [1_000, 2_000, 5_000, 15_000, 30_000];
@@ -17,7 +22,8 @@ const WINDOW = 1 << 20;
 const HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer', 'host', 'http2-settings']);
 
 // url: the grid's own address. onState({ state: 'connecting'|'online'|'retrying'|'gone', error }).
-export function dialTunnel({ url, id, token, port, onState = () => {} }) {
+// previews(): whether pages on this computer may be shown through the grid (off by default).
+export function dialTunnel({ url, id, token, port, previews = () => false, onState = () => {} }) {
   let closed = false;
   let attempt = 0;
   let timer = null;
@@ -35,6 +41,7 @@ export function dialTunnel({ url, id, token, port, onState = () => {} }) {
     s.once('remoteSettings', () => state('online'));
   });
   h2.on('stream', (stream, headers) => {
+    if (headers['x-wisp-preview'] !== undefined) return preview(stream, headers);
     const out = {};
     for (const [k, v] of Object.entries(headers)) if (!k.startsWith(':') && !HOP.has(k)) out[k] = v;
     // As a page here would: this computer's own host, and no Origin (the grid checked that one).
@@ -60,6 +67,54 @@ export function dialTunnel({ url, id, token, port, onState = () => {} }) {
     stream.on('close', () => up.destroy());
     stream.pipe(up);
   });
+
+  function preview(stream, headers) {
+    const fail = (status, body, type = 'application/json') => {
+      if (stream.destroyed) return;
+      if (!stream.headersSent) stream.respond({ ':status': status, 'content-type': type, 'cache-control': 'no-store' });
+      stream.end(body);
+    };
+    stream.on('error', () => {});
+    const p = previewPort(headers, port);
+    if (!previews()) {
+      const error = 'This computer doesn’t show its local pages through the grid. Turn on Settings → Machines → Show local pages in previews there.';
+      return /text\/html/.test(String(headers.accept || '')) ? fail(403, noticePage('Local pages are private here', error), 'text/html; charset=utf-8') : fail(403, JSON.stringify({ error }));
+    }
+    if (!p) return fail(404, JSON.stringify({ error: 'not found' }));
+    const ask = { method: headers[':method'], path: headers[':path'], headers, port: p };
+    if (headers['x-wisp-upgrade']) {
+      const up = connectLocal(
+        { ...ask, headers: { ...headers, upgrade: headers['x-wisp-upgrade'] } },
+        () => {
+          if (stream.destroyed) return up.destroy();
+          stream.respond({ ':status': 200 });
+          up.pipe(stream);
+          stream.pipe(up);
+        },
+        (err) => fail(502, JSON.stringify({ error: err.message })),
+      );
+      stream.on('close', () => up.destroy());
+      return;
+    }
+    const up = askLocal(
+      ask,
+      (r) => {
+        if (stream.destroyed) return r.destroy();
+        try {
+          stream.respond({ ':status': r.statusCode, ...previewAnswer(r.headers, p) });
+        } catch {
+          return r.destroy();
+        }
+        r.pipe(stream);
+      },
+      (err) => {
+        const f = failedPage(p, err);
+        fail(f.status, f.body, f.headers['content-type']);
+      },
+    );
+    stream.on('close', () => up.destroy());
+    stream.pipe(up);
+  }
 
   function retry(error) {
     if (closed) return;

@@ -297,6 +297,7 @@ test('Settings → Machines → This computer is a part spells can restyle or hi
   assert.ok(problems({ ...base0, parts: { 'settings.head': { props: { width: 400 } } } }).some((x) => /settings\.head/.test(x)));
   // wisp Grid in Machines: this computer's row and the where-it-comes-from pill.
   assert.deepEqual(problems({ ...base0, ui: { hide: ['machines.kind'] }, parts: { 'machines.grid.here': { style: { borderRadius: '4px' } } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'machines.grid.previews': { style: { background: 'var(--surface)' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['machines.grid.nope'] } }).length);
   assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.reachable', 'machines.howto'] }, parts: { 'settings.reachable': { style: { borderRadius: '4px' } }, 'machines.letin': { style: { background: 'var(--surface)' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'settings.reachable': { props: { width: 400 } } } }).some((x) => /settings\.reachable/.test(x)));

@@ -220,5 +220,7 @@
 .gh-text small.bad { color: var(--bad); }
 .gh-text .mono { font-family: var(--mono); font-size: 11.5px; }
 .gh-row .primary .i { width: 14px; height: 14px; }
+.gh-pv { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.gh-pv .switch { flex: none; }
 .mc-grid > .hint { margin: 0; padding: 0 14px 12px 58px; }
 @media (max-width: 520px) { .gh-row { flex-wrap: wrap; } .gh-text { flex-basis: calc(100% - 44px); } .gh-row > button { margin-left: 44px; } .mc-grid > .hint { padding-left: 14px; } }

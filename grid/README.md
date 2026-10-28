@@ -13,6 +13,9 @@ block at `p5173--<handle>.<domain>`: the edge signs its owner in there with a co
 passes requests and websockets through their wisp to that port (`server/http/preview.js`). On by
 default for the container driver (`hostd.previews`); with the process driver a box's loopback is
 the server's own, so leave it off there unless it's only you (`wisp grid dev` turns it on).
+A computer's pages show the same way at `p5173--<name>--<handle>.<domain>`, through its tunnel
+(websockets as one HTTP/2 stream each), only while that computer has **Settings → Machines → Show
+local pages in previews** on.
 
 The hosted one is [grid.trywisp.dev](https://grid.trywisp.dev) (early preview). This folder is the
 same code, for your own server.

@@ -13,6 +13,9 @@
 //                       for the preview block: its own sign-in (scope p:<user id>), then through
 //                       their wisp, which passes it on to that port (server/http/preview.js).
 //                       Boxes only (hostd.previews): a process wisp's loopback is the grid's own.
+//   p<port>--<name>--<handle>.<domain>
+//                       the same for a computer they added, through its tunnel; the computer
+//                       answers only while its Show local pages in previews is on.
 //
 // Cookies never span subdomains, so one user's wisp page can't read or set another's.
 
@@ -26,7 +29,7 @@ import { Hostd } from './hostd.js';
 import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
 import { createGridTelemetry } from './telemetry.js';
-import { TUNNEL_PROTOCOL, createTunnels } from './tunnels.js';
+import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
 
 const BODY_LIMIT = 64 * 1024;
 const ASSETS = new URL('./assets/', import.meta.url);
@@ -227,8 +230,12 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       const handle = bare.slice(0, -cfg.domain.length - 1);
       const computer = handle.includes('--') ? accounts.computerByLabel(handle) : null;
       if (computer) return { kind: 'computer', computer };
-      const pv = previews && /^p(\d{1,5})--([a-z0-9-]+)$/.exec(handle);
-      if (pv && +pv[1] >= 1 && +pv[1] <= 65535) return { kind: 'preview', port: +pv[1], handle: pv[2] };
+      const pv = /^p(\d{1,5})--([a-z0-9-]+)$/.exec(handle);
+      if (pv && +pv[1] >= 1 && +pv[1] <= 65535) {
+        const c = pv[2].includes('--') ? accounts.computerByLabel(pv[2]) : null;
+        if (c) return { kind: 'preview', port: +pv[1], label: pv[2], computer: c };
+        if (previews && !pv[2].includes('--')) return { kind: 'preview', port: +pv[1], label: pv[2], handle: pv[2] };
+      }
       if (/^[a-z0-9-]+$/.test(handle)) return { kind: 'edge', handle };
     }
     return { kind: 'unknown' };
@@ -411,14 +418,16 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       }
     }
 
-    // Into the user's own wisp (or ?computer=<id>, one of their computers, or ?preview=<port>, a
-    // page in their box): a one-time ticket to its address, which sets that address's cookie.
+    // Into the user's own wisp (or ?computer=<id>, one of their computers; with ?preview=<port>, a
+    // page in that box or on that computer): a one-time ticket to its address, which sets that
+    // address's cookie.
     if (req.method === 'GET' && p === '/go') {
       if (!s) return signInFirst(`/go${url.search}`);
       const cid = url.searchParams.get('computer');
       const c = cid ? accounts.computer(cid) : null;
-      const pport = previews && /^\d{1,5}$/.test(url.searchParams.get('preview') || '') ? Number(url.searchParams.get('preview')) : 0;
-      const to = c && c.user_id === s.user.id ? cfg.instanceUrl(c.label) : pport ? previewUrl(s.user.handle, pport) : cfg.instanceUrl(s.user.handle);
+      const label = c && c.user_id === s.user.id ? c.label : s.user.handle;
+      const pport = /^\d{1,5}$/.test(url.searchParams.get('preview') || '') && (previews || label !== s.user.handle) ? Number(url.searchParams.get('preview')) : 0;
+      const to = pport ? previewUrl(label, pport) : cfg.instanceUrl(label);
       return redirect(res, `${to}/_grid/auth?t=${accounts.ticket(s.user.id)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}`);
     }
 
@@ -610,7 +619,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if (p === '/_grid/state') return json(res, 200, { state: tunnels.online(c.id) ? 'running' : 'offline', name: c.name });
     // Like the wisp edge: the grid's own sign-in stays here; the computer only learns who asked where.
     const headers = {};
-    for (const [k, v] of Object.entries(req.headers)) if (k !== 'cookie' && k !== 'authorization' && !k.startsWith('x-wisp-proxy') && !k.startsWith('x-forwarded')) headers[k] = v;
+    for (const [k, v] of Object.entries(req.headers)) if (k !== 'cookie' && k !== 'authorization' && !k.startsWith('x-wisp-proxy') && k !== 'x-wisp-preview' && k !== 'x-wisp-upgrade' && !k.startsWith('x-forwarded')) headers[k] = v;
     Object.assign(headers, { 'x-forwarded-host': String(req.headers.host || ''), 'x-forwarded-proto': cfg.scheme, 'x-forwarded-for': clientIp(req) });
     if (tunnels.forward(c.id, req, res, headers)) return;
     const text = `wisp on ${c.name} isn’t connected to the grid right now. It comes back when that computer is on and wisp runs there.`;
@@ -618,19 +627,19 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     return json(res, 503, { error: `${c.name} is offline.`, offline: true }, { 'retry-after': '10' });
   }
 
-  // ---- a page in the user's box: its own cookie, then through their wisp to that port ----
+  // ---- a page in the user's box, or on a computer they added: its own cookie, then on to it ----
 
   // The user whose page this is, if the request carries their preview cookie. Only cookies: a
   // frame can't send a device's token, and the page there never sees one.
   function previewAuth(req, h) {
-    const user = accounts.byHandle(h.handle);
-    const s = user && accounts.session(cookies(req)[names.wisp], `p:${user.id}`);
-    return { user, ok: !!s };
+    const user = h.computer ? accounts.userById(h.computer.user_id) : accounts.byHandle(h.handle);
+    if (!user || user.disabled) return { user: null, ok: false };
+    return { user, ok: !!accounts.session(cookies(req)[names.wisp], `p:${user.id}`) };
   }
 
-  // What their wisp gets: the page's own cookies and headers, without the grid's sign-in, plus
-  // the proxy secret and the port.
-  function previewHeaders(req, user, port) {
+  // What it gets: the page's own cookies and headers without the grid's sign-in, and the port.
+  // A box's wisp also gets the proxy secret; a computer is reached through its own tunnel.
+  function previewHeaders(req, user, h) {
     const headers = {};
     for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && !k.startsWith('x-wisp-') && !k.startsWith('x-forwarded')) headers[k] = v;
     const rest = String(req.headers.cookie || '')
@@ -639,8 +648,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       .filter((c) => c && !c.startsWith(`${names.wisp}=`));
     if (rest.length) headers.cookie = rest.join('; ');
     Object.assign(headers, {
-      'x-wisp-proxy-secret': secrets.ensure(user.id, 'wisp-proxy'),
-      'x-wisp-preview': String(port),
+      ...(!h.computer && { 'x-wisp-proxy-secret': secrets.ensure(user.id, 'wisp-proxy') }),
+      'x-wisp-preview': String(h.port),
       'x-forwarded-host': req.headers.host,
       'x-forwarded-proto': cfg.scheme,
       'x-forwarded-for': clientIp(req),
@@ -649,29 +658,35 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   }
 
   async function previewEdge(req, res, url, h) {
-    const origin = previewUrl(h.handle, h.port);
+    const origin = previewUrl(h.label, h.port);
     const p = url.pathname;
     const { user, ok } = previewAuth(req, h);
     if (!user) return html(res, 404, messagePage({ cfg, title: 'No such page', text: 'Nothing answers at this address.', link: [cfg.publicUrl, 'Home'] }));
+    const back = `${cfg.publicUrl}/go?preview=${h.port}${h.computer ? `&computer=${h.computer.id}` : ''}`;
     if (p === '/_grid/auth') {
       const u = accounts.useTicket(url.searchParams.get('t'));
-      if (!u || u.id !== user.id) return redirect(res, `${cfg.publicUrl}/go?preview=${h.port}`);
+      if (!u || u.id !== user.id) return redirect(res, back);
       const t = accounts.createSession(user.id, `p:${user.id}`, req.headers['user-agent']);
       return redirect(res, safePath(url.searchParams.get('r')), { 'set-cookie': setCookie(names.wisp, t, cfg.sessionDays * 86400) });
     }
     if (!ok) {
-      if (wantsHtml(req)) return redirect(res, `${cfg.publicUrl}/go?preview=${h.port}&path=${encodeURIComponent(p + url.search)}`);
+      if (wantsHtml(req)) return redirect(res, `${back}&path=${encodeURIComponent(p + url.search)}`);
       return json(res, 401, { error: 'Sign in again.' });
     }
     // A page elsewhere can't post to it with the cookie.
     if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin && req.headers.origin !== origin) return json(res, 403, { error: 'forbidden origin' });
+    if (h.computer) {
+      if (tunnels.forward(h.computer.id, req, res, previewHeaders(req, user, h), { cookies: true })) return;
+      return html(res, 503, messagePage({ cfg, title: `${h.computer.name} is offline`, text: `Port ${h.port} is on ${h.computer.name}, which isn’t connected to the grid right now. It comes back when that computer is on and wisp runs there.`, link: [cfg.publicUrl, 'Your account'] }), { 'retry-after': '10' });
+    }
     // Its server runs in the box: asleep, there's nothing to show (waking it wouldn't start it).
     const port = hostd.port(user.id);
     if (!port) return html(res, 503, messagePage({ cfg, title: 'Your wisp is asleep', text: `Port ${h.port} lives in your wisp, which is asleep, so whatever ran there has stopped. Open your wisp and ask the agent to start it again.`, link: [cfg.instanceUrl(user.handle), 'Open your wisp'] }), { 'retry-after': '10' });
     hostd.touch(user.id);
-    const up = http.request({ host: '127.0.0.1', port, method: req.method, path: req.url, headers: previewHeaders(req, user, h.port) }, (r) => {
+    const up = http.request({ host: '127.0.0.1', port, method: req.method, path: req.url, headers: previewHeaders(req, user, h) }, (r) => {
       const out = {};
       for (const [k, v] of Object.entries(r.headers)) if (!HOP.has(k)) out[k] = v;
+      if (out['set-cookie']) out['set-cookie'] = hostOnly(out['set-cookie']);
       res.writeHead(r.statusCode, out);
       r.pipe(res);
     });
@@ -683,16 +698,20 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     req.pipe(up);
   }
 
-  // A websocket to a page in the box (a dev server's live reload): the same checks, then the
-  // socket goes through to their wisp as it is.
+  // A websocket to the page (a dev server's live reload): the same checks, then the socket goes
+  // through to the box's wisp as it is, or over the computer's tunnel.
   function previewSocket(req, socket, head, h, refuse) {
     const { user, ok } = previewAuth(req, h);
     if (!user || !ok) return refuse(401, 'Sign in again.');
-    if (req.headers.origin && req.headers.origin !== previewUrl(h.handle, h.port)) return refuse(403, 'forbidden origin');
+    if (req.headers.origin && req.headers.origin !== previewUrl(h.label, h.port)) return refuse(403, 'forbidden origin');
+    if (h.computer) {
+      if (!tunnels.upgrade(h.computer.id, req, socket, head, previewHeaders(req, user, h))) refuse(503, `${h.computer.name} is offline.`);
+      return;
+    }
     const port = hostd.port(user.id);
     if (!port) return refuse(503, 'Your wisp is asleep.');
     hostd.touch(user.id);
-    const headers = { ...previewHeaders(req, user, h.port), connection: 'Upgrade', upgrade: req.headers.upgrade };
+    const headers = { ...previewHeaders(req, user, h), connection: 'Upgrade', upgrade: req.headers.upgrade };
     const lines = [`${req.method} ${req.url} HTTP/1.1`, ...Object.entries(headers).flatMap(([k, v]) => [].concat(v).map((x) => `${k}: ${x}`))];
     const up = net.connect(port, '127.0.0.1', () => {
       up.write(`${lines.join('\r\n')}\r\n\r\n`);
@@ -745,8 +764,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (url.pathname === '/_grid/tls-ask' && LOOPBACK.test(clientIp(req))) {
         const d = String(url.searchParams.get('domain') || '').toLowerCase();
         const label = d.slice(0, -cfg.domain.length - 1);
-        const pv = previews && /^p\d{1,5}--([a-z0-9-]+)$/.exec(label);
-        const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!(accounts.byHandle(label) || accounts.computerByLabel(label) || (pv && accounts.byHandle(pv[1]))));
+        const pv = /^p\d{1,5}--([a-z0-9-]+)$/.exec(label);
+        const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!(accounts.byHandle(label) || accounts.computerByLabel(label) || (pv && ((previews && accounts.byHandle(pv[1])) || accounts.computerByLabel(pv[1])))));
         return json(res, ok ? 200 : 404, { ok });
       }
       // The grid's own images (screenshots, logos), on every address it answers.

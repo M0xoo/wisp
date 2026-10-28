@@ -395,7 +395,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     // A page the agent left running here, at its preview address on the grid (http/preview.js).
     // Never this wisp itself at a preview's address: its own port, or previews off, is a 404.
     if (viaProxy && req.headers['x-wisp-preview'] !== undefined) {
-      const p = previews && previewPort(req, port);
+      const p = previews && previewPort(req.headers, port);
       return p ? previewRequest(req, res, p) : send(res, 404, { error: 'not found' });
     }
     if (!viaProxy && !allowedHosts.has(req.headers.host)) return send(res, 403, { error: 'forbidden host' });
@@ -425,7 +425,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     }
   });
   server.on('upgrade', (req, socket, head) => {
-    const p = previews && proxy.via(req) && previewPort(req, port);
+    const p = previews && proxy.via(req) && previewPort(req.headers, port);
     if (!p) return socket.destroy();
     previewUpgrade(req, socket, head, p);
   });
