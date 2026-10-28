@@ -202,8 +202,9 @@ body.panel-pr #feed .item.open .pr-strip { display: none; }
 .sh-segs { display: none; }
 body.split.stack .split-head:has(> .sh-segs) { flex-wrap: wrap; padding-bottom: 8px; }
 body.split.stack .split-head:has(> .sh-segs) > .sh-row { flex: 1 0 100%; }
+/* -4px: the head is 16px in on the left (for Back) and 12px on the right; the segments sit even. */
 body.split.stack .sh-segs {
-  display: flex; flex: 1 0 100%; gap: 2px; margin: 4px 0 0; padding: 3px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line);
+  display: flex; flex: 1 0 100%; gap: 2px; margin: 4px 0 0 -4px; padding: 3px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line);
 }
 .sh-segs button {
   flex: 1; min-width: 0; height: 36px; border-radius: 9px; color: var(--muted); font: 500 13.5px var(--sans);
