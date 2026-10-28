@@ -158,33 +158,41 @@ h2 { font-size: clamp(32px, 4.4vw, 54px); line-height: 1.04; font-weight: 680; l
 .h-news:hover svg { translate: 2px 0; }
 h1 { font-size: clamp(40px, 6.4vw, 84px); line-height: 1; font-weight: 700; letter-spacing: -0.045em; }
 .hero h1 { text-wrap: initial; }
-/* The second line changes what the agents are doing; it keeps its own line so the page never reflows. */
+/* One promise, held still: most visitors never scroll, so the first screen has to land at once. */
 /* Soft silver, not a second colour: ink at the top fading towards the page, so it reads as the
    headline's echo. Inline with box-decoration-break, each line (a wrapped phone one too) gets its own
    fade, and the bottom padding keeps g, y and p inside what background-clip paints. */
-.h-rot { white-space: nowrap; padding: 0.04em 0.04em 0.22em; color: var(--muted);
+.h-echo { white-space: nowrap; padding: 0.04em 0.04em 0.22em; color: var(--muted);
   background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 82%, var(--bg)) 20%, color-mix(in srgb, var(--ink) 45%, var(--bg)) 100%);
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-.h-rot.out { animation: rot-out 0.35s ease-in both; }
-.h-rot.in { animation: rot-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-@keyframes rot-out { to { opacity: 0; filter: blur(8px); } }
-@keyframes rot-in { from { opacity: 0; filter: blur(8px); } }
 .lede { margin-top: 24px; font-size: 19px; line-height: 1.55; color: var(--ink-2); max-width: 58ch; }
 .fine { font-size: 13px; color: var(--muted); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-/* both ways in, side by side and the same height: the cloud (accent) and the install command (ink) */
+/* both ways in, side by side and the same height: the cloud's sign-in (accent) and the install command (ink) */
 .h-ctas { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 14px; margin-top: 34px; }
-.h-cloud { display: inline-flex; align-items: center; gap: 16px; height: 58px; padding: 0 18px 0 22px; border-radius: 13px; background: var(--accent); color: #fff; text-decoration: none; text-align: left; box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--accent) 70%, transparent); transition: transform 0.15s, box-shadow 0.15s; }
-.h-cloud:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -12px color-mix(in srgb, var(--accent) 80%, transparent); }
-.h-cloud:active { transform: translateY(0); }
-.h-cloud:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.h-cloud-txt { display: flex; flex-direction: column; line-height: 1.2; }
-.h-cloud b { font-size: 16px; font-weight: 600; }
-.h-cloud small { font-size: 12.5px; opacity: 0.8; }
-.h-cloud svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: translate 0.15s; }
-.h-cloud:hover svg { translate: 3px 0; }
+.h-cloud { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.h-go { display: flex; gap: 8px; }
+.h-go a { display: inline-flex; align-items: center; justify-content: center; gap: 10px; height: 58px; padding: 0 20px; border-radius: 13px; font: 600 16px var(--sans); text-decoration: none; white-space: nowrap; transition: transform 0.15s, box-shadow 0.15s, background 0.15s; }
+.h-go a:active { transform: scale(0.98); }
+.h-go a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.h-go svg { width: 20px; height: 20px; flex: none; }
+.h-gh { background: var(--accent); color: #fff; box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--accent) 70%, transparent); }
+.h-gh:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -12px color-mix(in srgb, var(--accent) 80%, transparent); }
+.h-gg { background: var(--surface); color: var(--ink); border: 1px solid var(--line-2); }
+.h-gg:hover { background: var(--tone); }
+.h-gg svg { width: 18px; height: 18px; }
+.h-cloud.full .h-gg { display: none; } /* seats gone: the one button leads to the waitlist */
+.h-cloud-note { margin: 0; font-size: 13px; color: var(--muted); }
+.h-cloud-note b { font-weight: 600; color: var(--ink-2); }
+/* Phones can't run npx: the install box makes way for sending the link to a computer */
+.h-send { display: none; align-items: center; justify-content: center; gap: 10px; height: 50px; margin-top: 12px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: 600 15px var(--sans); cursor: pointer; }
+.h-send:active { transform: scale(0.98); }
+.h-send:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.phone .h-install, .phone .h-fine { display: none; }
+.phone .h-send { display: flex; align-self: stretch; }
+.h-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .h-install { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .h-install .cmd { height: 58px; border-radius: 13px; padding-left: 20px; min-width: 300px; justify-content: space-between; }
 .h-install .cmd code { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -196,10 +204,10 @@ h1 { font-size: clamp(40px, 6.4vw, 84px); line-height: 1; font-weight: 700; lett
 .h-install .hero-tabs .tab { padding: 2px 0 3px; font-size: 13px; }
 .h-fine { margin-top: 14px; min-height: 1.6em; }
 .h-fine a { color: var(--ink-2); }
-@media (prefers-color-scheme: dark) { .h-cloud { background: #4767ec; } } /* white on the lighter dark-mode blue is too faint */
+@media (prefers-color-scheme: dark) { .h-gh { background: #4767ec; } } /* white on the lighter dark-mode blue is too faint */
 
 /* ---------- the night shift ---------- */
-.h-stage { margin-top: 48px; }
+.h-stage { margin-top: 40px; }
 .h-win { box-shadow: var(--shadow), 0 60px 120px -60px color-mix(in srgb, var(--accent) 45%, transparent); }
 .h-win .win-bar { height: 40px; }
 .h-clock { position: absolute; right: 14px; display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--tone); font: 600 12.5px var(--sans); font-variant-numeric: tabular-nums; color: var(--ink-2); }
@@ -280,7 +288,7 @@ h1 { font-size: clamp(40px, 6.4vw, 84px); line-height: 1; font-weight: 700; lett
 .h-toast { position: absolute; left: 16px; bottom: 16px; translate: 0 6px; display: inline-flex; align-items: center; gap: 9px; padding: 10px 16px; border-radius: 12px; background: var(--ink); color: var(--bg); font-size: 14px; font-weight: 500; white-space: nowrap; box-shadow: 0 12px 40px rgb(0 0 0 / 0.25); opacity: 0; pointer-events: none; transition: opacity 0.4s, translate 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .h-win.morning .h-toast { opacity: 1; translate: 0 0; }
 .h-caption { margin-top: 16px; text-align: center; font-size: 13.5px; color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { .h-row[data-s='live'] .h-dot { animation: none; } .h-rot.in, .h-rot.out { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .h-row[data-s='live'] .h-dot { animation: none; } }
 
 /* the no-install way in, drawn as the address bar of your own wisp in the cloud (the Machines section) */
 .cloud-cta { display: flex; flex-direction: column; gap: 10px; margin-top: 30px; max-width: 460px; text-decoration: none; color: inherit; }
@@ -1210,15 +1218,16 @@ button.sw-tb { cursor: pointer; }
   .cc-go { padding: 0 10px; }
   .cc-long, .cc-notes span:nth-child(2) { display: none; }
   .cc-short { display: inline; }
-  /* Phones can't run npx: the cloud leads, full width; the install commands follow for later */
+  /* Phones can't run npx: the cloud's sign-in leads, full width; the install section below has every command */
   .hero { padding-top: 36px; }
   .h-news { font-size: 13px; margin-bottom: 22px; }
   .hero h1 { font-size: clamp(34px, 10.4vw, 46px); }
-  .h-rot { white-space: normal; }
-  .hero h1 { min-height: 3em; } /* the longest second line takes two; the shorter ones keep the room */
+  .h-echo { white-space: normal; }
   .lede { margin-top: 20px; }
   .h-ctas { flex-direction: column; align-items: stretch; width: 100%; margin-top: 30px; }
-  .h-cloud { justify-content: space-between; }
+  .h-cloud { align-items: stretch; }
+  .h-go a { flex: 1; padding: 0 14px; }
+  .h-go .h-gh { flex: 1.6; }
   .h-install .cmd { min-width: 0; }
   .h-install [role='tabpanel'] { align-self: stretch; max-width: none; }
   .h-stage { margin-top: 44px; }

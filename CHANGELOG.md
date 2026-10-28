@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **trywisp.dev: sign in to wisp Cloud straight from the top of the page.** The hero's *Try it in the cloud* button is now *Continue with GitHub* and *Google*, which start the sign-in at once instead of opening another page first. The headline holds still (*working while you sleep.*), the intro is one sentence, and on a phone the `npx` box, which a phone can't run, makes way for *Send the link to my computer* (the share sheet, or the link copied). The page also records when the night demo is seen and replayed.
 - **_Run on_ picks one place, then adds more.** In the prompt box's *Run on* menu, clicking a computer or machine now picks only that one and closes the menu. To run the same task on several places in parallel, use *+ also* on a row (or ⌘/Ctrl-click it). Once several are picked, *× drop* takes one out. *also* replaces *only*, so picking one place is the default and running on several is the extra step. The check is round while one place is picked and square once there are several.
 
 ### Fixed

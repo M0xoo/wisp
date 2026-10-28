@@ -27,6 +27,31 @@ document.addEventListener('click', async (e) => {
   }
 });
 
+// ---------- send the link (phones) ----------
+// A phone can't run npx, so the hero offers to send this page to a computer: the share sheet
+// (mail, messages, notes), or the link copied where there's none.
+const sendBtn = $('[data-send-link]');
+if (sendBtn) {
+  const label = $('[data-send-label]', sendBtn);
+  const said = label.textContent;
+  sendBtn.addEventListener('click', async () => {
+    const url = location.href.split('#')[0];
+    let how = 'share';
+    try {
+      if (navigator.share) await navigator.share({ title: 'wisp', text: 'Try wisp on my computer', url });
+      else {
+        how = 'copy';
+        await navigator.clipboard.writeText(url);
+        label.textContent = 'Link copied';
+        setTimeout(() => {
+          label.textContent = said;
+        }, 1600);
+      }
+      window.posthog?.capture?.('send_link', { how });
+    } catch {} // closing the share sheet isn't an error
+  });
+}
+
 // ---------- wisp Cloud seats ----------
 // The preview opens seats as its server shows room for them. No count: just, once they're all
 // taken, say so and send people to the waitlist instead of a sign-in that turns them away.
@@ -49,6 +74,7 @@ if (cloudLinks.length) {
         a.setAttribute('aria-label', 'Join the wisp Cloud waitlist');
       }
       for (const n of $$('[data-seats-cta]')) n.textContent = n.dataset.seatsCta;
+      $('.h-cloud')?.classList.add('full');
     })
     .catch(() => {});
 }
@@ -246,29 +272,10 @@ $$('.h-head > *, .h-stage, .strip, .r-head, .c-head, .cmp-shot, .cli-text, .term
   io.observe(el);
 });
 
-// ---------- hero: the second line, and the night shift ----------
-// The headline's second line cycles through what the agents get up to. Under it, one night with
-// wisp plays back once it's on screen: the clock runs from midnight to 07:30, the six tasks finish
+// ---------- hero: the night shift ----------
+// Under the headline, one night with wisp plays back once it's on screen: the clock runs from midnight to 07:30, the six tasks finish
 // at their times (one stops to ask), the flaky-test report fills in, and morning says hello. The
 // markup is the morning, so without JS (or with reduced motion) that's what shows.
-const rot = $('.h-rot');
-if (rot && !calm) {
-  const lines = rot.dataset.rot.split('|');
-  let i = 0;
-  setInterval(() => {
-    if (document.hidden) return;
-    rot.classList.remove('in');
-    rot.classList.add('out');
-    setTimeout(() => {
-      i = (i + 1) % lines.length;
-      rot.textContent = lines[i];
-      rot.classList.remove('out');
-      void rot.offsetWidth;
-      rot.classList.add('in');
-    }, 340);
-  }, 3000);
-}
-
 const night = $('#night');
 if (night) {
   const rows = $$('.h-row', night);
@@ -353,6 +360,7 @@ if (night) {
   };
   replay.addEventListener('click', () => {
     play();
+    window.posthog?.capture?.('demo_replayed');
   });
   if (!calm) {
     reset();
@@ -360,6 +368,7 @@ if (night) {
       if (!e.isIntersecting) return;
       seen.disconnect();
       setTimeout(play, 500);
+      window.posthog?.capture?.('demo_seen', { scrolled: scrollY > 0 });
     }, { threshold: 0.35 });
     seen.observe(night);
   }
@@ -370,7 +379,8 @@ const nav = $('.nav');
 const heroBox = $('#deskCta [role="tabpanel"]'); // the command or the download, whichever tab shows
 function onScroll() {
   nav.classList.toggle('scrolled', scrollY > 8);
-  if (heroBox) nav.classList.toggle('cmd-away', heroBox.getBoundingClientRect().bottom < 64);
+  // On a phone the hero hides the command (nothing to run it with), so the nav doesn't offer it either.
+  if (heroBox) nav.classList.toggle('cmd-away', !!heroBox.offsetParent && heroBox.getBoundingClientRect().bottom < 64);
   if (getMenu && !nav.classList.contains('cmd-away')) openGet(false);
 }
 addEventListener('scroll', onScroll, { passive: true });
@@ -746,7 +756,7 @@ fetch('https://api.github.com/repos/M0xoo/wisp')
   const os = /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/.test(ua) ? 'android' : '';
   const APPS = [['X', /Twitter for i(Phone|Pad)|TwitterAndroid/], ['Instagram', /Instagram/], ['Facebook', /FBAN|FBAV|FB_IAB|FBIOS/], ['LinkedIn', /LinkedInApp/], ['Threads', /Barcelona/], ['TikTok', /BytedanceWebview|musical_ly|TikTok/], ['Snapchat', /Snapchat/]];
   const app = APPS.find(([, re]) => re.test(ua))?.[0] || (os === 'android' && /; wv\)/.test(ua) ? 'this app' : '');
-  const cta = $('[data-cloud-cta="hero"]');
+  const cta = $('.h-cloud');
   if (app && cta) {
     const url = location.href.split('#')[0];
     const where = os === 'android' ? 'Chrome' : os === 'ios' ? 'Safari' : 'your browser';
@@ -763,6 +773,7 @@ fetch('https://api.github.com/repos/M0xoo/wisp')
         <div><input id="iaEmail" type="email" name="email" placeholder="you@example.com" autocomplete="email" autocapitalize="off" enterkeyhint="send" required><button class="ia-btn" type="submit">Email me</button></div>
         <p class="ia-sent" role="status" hidden></p><p class="ia-err" role="alert" hidden></p></form>`;
     cta.before(box);
+    $('[data-send-link]')?.remove(); // the box already offers the link
     ph('inapp_seen');
     // Older web views refuse the clipboard API: execCommand, then the link shown selected.
     const copy = async () => {
