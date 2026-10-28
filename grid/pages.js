@@ -524,8 +524,9 @@ function machinesDialog({ machine = {}, user, hidden }) {
   </dialog>`;
 }
 
-// Opens and runs the dialog. Joining shows at once (the row too) and rolls back with a toast if
-// the grid says no; the live sync then brings the row from the server, the same.
+// Opens and runs the dialog, also from a link (#machines; #machines/bigger ticks that one, as a
+// cloud wisp that ran out of memory links it). Joining shows at once (the row too) and rolls back
+// with a toast if the grid says no; the live sync then brings the row from the server, the same.
 const MACHINES_JS = `<script>(()=>{const d=document.getElementById('machines'),f=document.getElementById('mForm');if(!d)return;
 const W=${JSON.stringify(WANTS.map(([k, ic, name]) => [k, name]))},TEXT=${JSON.stringify(Object.fromEntries([[], ['more'], ['bigger'], ['gpu'], ['more', 'bigger'], ['more', 'gpu'], ['bigger', 'gpu'], ['more', 'bigger', 'gpu']].map((w) => [w.join(','), wishLine(w)])))},ICONS={${WANTS.map(([k, ic]) => `${k}:${JSON.stringify(I[ic])}`).join(',')}};
 const boxes=[...f.querySelectorAll('input[type=checkbox]')],go=f.querySelector('[data-go]');
@@ -544,7 +545,9 @@ if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||'The grid didnâ
 catch(e){d.dataset.state=before.state;if(before.html)row()?.replaceWith(Object.assign(document.createElement('div'),{innerHTML:before.html}).firstElementChild);toast(e.message||'Youâ€™re offline. Try again.')}};
 document.addEventListener('click',(e)=>{if(e.target.closest('[data-open=machines]')){delete d.dataset.fresh;d.showModal()}});
 d.addEventListener('click',(e)=>{if(e.target===d||e.target.closest('[data-close]'))d.close();else if(e.target.closest('[data-change]'))d.dataset.state='pick';else if(e.target.closest('[data-leave]')){boxes.forEach((b)=>b.checked=false);paint();send([])}});
-f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDefault();const p=picked();if(p.length)send(p)});paint()})()</script>`;
+f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDefault();const p=picked();if(p.length)send(p)});
+const link=()=>{const h=/^#machines(?:[/](more|bigger|gpu))?$/.exec(location.hash);if(!h)return;history.replaceState(null,'',location.pathname+location.search);const b=h[1]&&f.querySelector('[name=want_'+h[1]+']');if(b&&!b.checked){b.checked=true;d.dataset.state='pick';paint()}if(!d.open)d.showModal()};
+paint();link();addEventListener('hashchange',link)})()</script>`;
 
 export function accountPage({ cfg, user, instance, machine = {}, devices, computers = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
   const st = instance.state;

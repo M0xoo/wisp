@@ -172,7 +172,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       }
     }
     notify(e.user.id);
-    if (e.event === 'started' || e.event === 'idle' || e.event === 'failed') log(`grid: ${e.user.handle} ${e.event}${e.error ? `: ${e.error}` : ''}`);
+    if (e.event === 'started' || e.event === 'idle' || e.event === 'failed' || e.event === 'out of memory') log(`grid: ${e.user.handle} ${e.event}${e.error ? `: ${e.error}` : ''}`);
   });
   // How busy the host is, every few minutes: what auth.maxUsers "auto" opens seats from, and when
   // a seat frees up the waitlist gets it.

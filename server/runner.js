@@ -107,6 +107,32 @@ function setTeam(session, team) {
   session.children ||= {};
 }
 
+// On a wisp Grid, why the runs that were going when wisp last died stopped: its box ran out of
+// memory (hostd sets WISP_OUT_OF_MEMORY to the box's limit, grid/hostd.js) or wisp restarted.
+// The grid's account page has the waitlist for bigger cloud computers (#machines/bigger).
+export function restartReason(env = process.env) {
+  // short: a paused goal's why; asked: a side question that never got its answer.
+  if (!env.WISP_OUT_OF_MEMORY) return { summary: 'wisp was restarted while this was running.', short: 'wisp was restarted', asked: 'wisp was restarted before this was answered.' };
+  const m = /^(\d+(?:\.\d+)?)([kmg])b?$/i.exec(env.WISP_OUT_OF_MEMORY);
+  const gb = m && Number(m[1]) / { k: 1048576, m: 1024, g: 1 }[m[2].toLowerCase()];
+  const limit = gb ? ` (${Math.round(gb * 10) / 10} GB)` : '';
+  const grid = String(env.WISP_GRID_URL || '').replace(/\/+$/, '');
+  return {
+    title: 'Out of memory',
+    summary: `This cloud computer ran out of memory${limit} while this was running, so it restarted. Follow up to pick it back up.`,
+    short: 'the cloud computer ran out of memory',
+    asked: 'The cloud computer ran out of memory before this was answered.',
+    blocks: [
+      {
+        type: 'callout',
+        tone: 'info',
+        title: 'Need more room?',
+        text: `Running fewer things at once (a dev server, a browser, a database) helps it fit.${grid ? ` Bigger cloud computers are on the way: [join the waitlist](${grid}/#machines/bigger) and you’ll be among the first to get one.` : ''}`,
+      },
+    ],
+  };
+}
+
 function autoTitle(prompt) {
   const line = plainMentions(prompt).trim().split('\n')[0].replace(/\s+/g, ' ');
   return line.length > 64 ? `${line.slice(0, 63)}…` : line;
@@ -254,19 +280,20 @@ export class Runner extends EventEmitter {
     this.goals = null; // goals: keep going until a condition holds (server/goal.js)
 
     // Anything that was mid-flight when wisp last died is now orphaned.
+    const died = restartReason();
     for (const s of store.all()) {
       const t = s.turns.at(-1);
       delete s.ask;
       if (s.auto?.busy) Object.assign(s.auto, { busy: false, stage: 'cancelled', label: '' }); // Auto's step died with wisp
       // A goal whose round or check died with wisp waits for you (Resume picks it up).
-      if (['working', 'checking'].includes(s.goal?.status) && (s.goal.status === 'checking' || s.state === 'running' || t?.status === 'running')) Object.assign(s.goal, { status: 'paused', why: 'wisp was restarted' });
+      if (['working', 'checking'].includes(s.goal?.status) && (s.goal.status === 'checking' || s.state === 'running' || t?.status === 'running')) Object.assign(s.goal, { status: 'paused', why: died.short });
       if (s.state === 'running' || s.state === 'waiting' || t?.status === 'running') {
-        if (t?.status === 'running') this.#finishTurn(s, t, { isError: true, stopped: true, text: '' }, 'wisp was restarted while this was running.');
+        if (t?.status === 'running') this.#finishTurn(s, t, { isError: true, stopped: true, text: '' }, died);
         s.state = 'review';
         store.save(s);
       }
       const asked = s.turns.flatMap((x) => x.btw || []).filter((b) => b.status === 'running');
-      for (const b of asked) Object.assign(b, { status: 'error', error: 'wisp was restarted before this was answered.' });
+      for (const b of asked) Object.assign(b, { status: 'error', error: died.asked });
       if (asked.length) store.save(s);
     }
   }
@@ -1217,7 +1244,9 @@ export class Runner extends EventEmitter {
     this.#onEvent(session, turn, { type: 'tool', kind: 'background', label: label.slice(0, 200) });
   }
 
+  // reason: why it stopped, a summary or { title, summary, blocks } (restartReason).
   #finishTurn(session, turn, ev, reason) {
+    const why = typeof reason === 'object' && reason ? reason : { summary: reason };
     let crewOut = {};
     turn.endedAt = Date.now();
     this.budget?.end?.(session.agent, session.account || 'default', session.id, turn.id);
@@ -1235,8 +1264,9 @@ export class Runner extends EventEmitter {
         blocks: [
           interrupted
             ? { type: 'hero', title: 'Interrupted', summary: 'You sent a follow-up while this was running, so it picked that up instead.', status: 'partial' }
-            : { type: 'hero', title: 'Stopped', summary: reason || 'You stopped this run. Follow up to pick it back up.', status: 'partial' },
+            : { type: 'hero', title: why.title || 'Stopped', summary: why.summary || 'You stopped this run. Follow up to pick it back up.', status: 'partial' },
           ...(turn.changes.length ? [{ type: 'files', items: turn.changes.map((c) => ({ path: c.file, change: c.op === 'create' ? 'added' : 'modified' })) }] : []),
+          ...(interrupted ? [] : why.blocks || []),
         ],
       };
     } else if (ev.isError) {
