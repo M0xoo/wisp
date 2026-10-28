@@ -1,0 +1,26 @@
+<!-- @card group="Components" title="Task rows" body="split" -->
+<h1>Task rows</h1>
+<p>The list's rows (<code>.item</code> in a <code>.f-group</code>). In the list (<code>body.split #feed</code>) the time sits on the title line and the status on the sub-line, in fixed columns that never move when a row is hovered, selected or opened.</p>
+<div class="feed" id="feed" style="max-width: 440px; background: var(--rail); padding: 6px 4px; border-radius: var(--radius)">
+<section class="f-group needs"><h4 class="sec-toggle" role="button" tabindex="0" aria-expanded="true"><svg class="i chev"><use href="#i-chevron"/></svg><span class="sec-name">Needs you</span><span class="n">2</span></h4>
+<div class="f-list">
+<article class="item c-violet st-review unread"><div class="it-head" role="button" tabindex="-1">
+  <span class="q-dot"></span>
+  <span class="it-main"><span class="it-title">Fix the failing test in math.js</span><span class="it-sub">The rounding test expected 0.3; it now passes.</span></span>
+  <span class="it-side"><span class="pill st-done"><i></i>Finished</span><span class="model-logo" role="img" aria-label="Claude Code"><img src="/logos/claudecode-color.svg" alt=""></span><span class="q-proj">wisp</span><span class="q-time">2m</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron"/></svg></span>
+</div></article>
+<article class="item c-teal st-waiting"><div class="it-head" role="button" tabindex="-1">
+  <span class="q-dot waiting"></span>
+  <span class="it-main"><span class="it-title">Migrate the settings pane to the form kit</span><span class="it-sub">Keep the old API for a release, or remove it now?</span></span>
+  <span class="it-side"><span class="pill st-waiting"><i></i>Needs you</span><span class="model-logo" role="img" aria-label="Codex"><img src="/logos/codex-color.svg" alt=""></span><span class="q-proj">grid</span><span class="q-time">14m</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron"/></svg></span>
+</div></article>
+</div></section>
+<section class="f-group working"><h4 class="sec-toggle" role="button" tabindex="0" aria-expanded="true"><svg class="i chev"><use href="#i-chevron"/></svg><span class="sec-name">Working</span><span class="n">1</span></h4>
+<div class="f-list">
+<article class="item c-sky st-running"><div class="it-head" role="button" tabindex="-1">
+  <span class="q-dot live"></span>
+  <span class="it-main"><span class="it-title">Add a rate limiter to /login</span><span class="it-sub">Running npm test</span></span>
+  <span class="it-side"><span class="model-logo" role="img" aria-label="Claude Code"><img src="/logos/claudecode-color.svg" alt=""></span><span class="q-proj">api</span><span class="q-time">now</span><svg class="i chev" aria-hidden="true"><use href="#i-chevron"/></svg></span>
+</div></article>
+</div></section>
+</div>

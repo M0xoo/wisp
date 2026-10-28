@@ -21,6 +21,22 @@ that matches your change:
 | [goals.md](goals.md) | Goals: a task that keeps going until a condition holds; the band, the checks, the words |
 | [checklist.md](checklist.md) | What to check before handing a UI change back |
 | [scorecard.md](scorecard.md) | A grid to measure a UI change, and wisp scored against Cursor, Codex and Claude Code |
+| [system/](system/README.md) | wisp's design system in Claude Design (claude.ai/design), for prototypes |
+
+## Prototypes and Claude Design
+
+`node scripts/design-system.mjs --screens` (`npm run design-system`) builds wisp's design system
+into `qa/out/design-system/` from the real thing: the page's stylesheets as `wisp.css`, its icon
+sprite, these guidelines, the cards in `system/cards/` (light and dark side by side) and real
+screens frozen from an isolated wisp with fake agents. That bundle is synced to wisp's design-system
+project in Claude Design, so a prototype made there uses wisp's own class names and moves into
+`web/` without translating.
+
+A prototype for a plan goes in `system/prototypes/<topic>.html`: a whole `screens/` page copied
+with its first line changed to `<!-- @card group="Prototypes" title="…" screen -->`, or a part in a
+card's format (`<!-- @card group="Prototypes" title="…" -->`, shown light and dark side by side).
+It uses tokens and existing classes only, and is looked at light and dark, at 1440 and 390px. Don't copy
+token values into a mockup: link `wisp.css` so it can't drift.
 
 ## The rules that matter most
 

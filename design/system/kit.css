@@ -1,0 +1,38 @@
+/* The Claude Design cards' own frame (design/system). Only layout for showing wisp's parts:
+   the parts themselves come from wisp.css unchanged. Tokens only, like the page. */
+body.ds { min-height: 100vh; background: var(--bg-2); }
+.ds-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); min-height: 100vh; }
+.ds-theme { padding: 28px 28px 36px; background: var(--bg); color: var(--ink); min-width: 0; }
+.ds-theme + .ds-theme { border-left: 1px solid var(--line); }
+.ds h1 { margin: 0 0 4px; font: 600 14px/1.4 var(--sans); }
+.ds h1 + p { margin: 0 0 22px; font-size: 12.5px; color: var(--muted); }
+.ds h2 { margin: 24px 0 10px; font: 500 12.5px/1.4 var(--sans); color: var(--muted); }
+.ds-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ds-col { display: grid; gap: 10px; max-width: 420px; }
+.ds-note { margin: 6px 0 0; font-size: 11.5px; color: var(--faint); }
+.ds-note code { font-size: 11.5px; }
+.ds-box { position: relative; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+
+/* swatches */
+.ds-sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 10px; }
+.ds-sw figure { margin: 0; font-size: 11.5px; color: var(--muted); }
+.ds-sw figure > span { display: block; height: 40px; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 8px; }
+.ds-sw code { display: block; color: var(--ink-2); }
+
+/* type */
+.ds-type > div { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.ds-type code { flex: none; width: 64px; font-size: 11.5px; color: var(--faint); }
+
+/* icons */
+.ds-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 4px; }
+.ds-icon { display: grid; justify-items: center; gap: 6px; margin: 0; padding: 12px 4px 8px; border-radius: 8px; color: var(--ink-2); }
+.ds-icon figcaption { font: 11.5px/1.2 var(--mono); color: var(--faint); text-align: center; overflow-wrap: anywhere; }
+
+/* Floating layers drawn in place: menus, toasts and dialogs sit in the card's flow. */
+.ds .menu { position: relative; inset: auto; animation: none; width: max-content; max-width: 100%; }
+.ds .toast { position: relative; animation: none; transform: none; }
+.ds .ds-toasts { display: grid; gap: 10px; max-width: 440px; }
+.ds .t-time circle { animation: none; stroke-dasharray: 100; stroke-dashoffset: 40; }
+
+/* Frozen screens: the page at the width it was taken, nothing replays. */
+html.ds-screen *, html.ds-screen *::before, html.ds-screen *::after { animation-play-state: paused !important; animation-delay: -10s !important; }

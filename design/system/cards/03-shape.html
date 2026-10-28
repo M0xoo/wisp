@@ -1,0 +1,20 @@
+<!-- @card group="Foundations" title="Radius, borders, shadows, motion" -->
+<h1>Radius, borders, shadows, motion</h1>
+<p>Hairlines, not boxes. Shadows only on what floats.</p>
+<div class="ds-row">
+  <div class="ds-box" style="width: 150px; box-shadow: var(--shadow-1)">Resting card<p class="ds-note">1px <code>--line</code>, radius 10, <code>--shadow-1</code></p></div>
+  <div class="ds-box" style="width: 150px; box-shadow: var(--shadow-2); border-color: var(--line-2)">Floating<p class="ds-note">menus, toasts, dialogs: <code>--shadow-2</code></p></div>
+  <div class="ds-box" style="width: 150px; border-color: color-mix(in srgb, var(--warn) 60%, var(--line))">Emphasis<p class="ds-note">state colour mixed into the full 1px border</p></div>
+</div>
+<h2>Radii</h2>
+<div class="ds-row">
+  <span class="ds-box" style="border-radius: 6px">6 pills/badges</span>
+  <span class="ds-box" style="border-radius: 9px">8–11 controls</span>
+  <span class="ds-box" style="border-radius: var(--radius)">10 cards</span>
+  <span class="ds-box" style="border-radius: 13px">13 menus</span>
+  <span class="ds-box" style="border-radius: 99px">99 chips</span>
+</div>
+<h2>Never</h2>
+<p class="ds-note">Coloured side stripes or <code>inset Npx 0 0</code> bars · borders other than 1px <code>--line</code>/<code>--line-2</code> · hard-coded <code>#fff</code>/<code>black</code> · <code>transition: all</code> · bounce or elastic easing · animating width/height/top/left · entry animations that replay on refresh.</p>
+<h2>Motion</h2>
+<p class="ds-note">0.12–0.3s on <code>var(--ease)</code>. Entrances: <code>rise</code>, <code>fade-in</code>, <code>pop</code>. Loops need a <code>prefers-reduced-motion</code> rule.</p>
