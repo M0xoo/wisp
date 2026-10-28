@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **In the phone app, tapping your name in the avatar's menu goes to your computers.** It opened your wisp Grid account page in place of wisp, with no way back to it; now it does what the logo does. On a computer it still opens the account page.
+- **The phone app notifies you about tasks on a cloud computer.** Opened through wisp Cloud (or your computer added to a grid), the app wasn't kept running once it left the screen, so Android froze it and no notification came when a task finished or asked. It now stays connected in the background as an SSH computer does, with the quiet *Connected to …* notification, until you're back on the computers list.
 
 ## [0.46.0] - 2026-10-28
 

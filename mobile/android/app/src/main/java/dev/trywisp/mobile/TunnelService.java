@@ -12,9 +12,10 @@ import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 
 /**
- * Runs while a machine is connected. Without it Android freezes the app a few seconds after it
- * leaves the screen: the tunnel drops and wisp's page can't post a notification when a task
- * finishes or asks. Its own notification (low importance, no sound) says which machine.
+ * Runs while a machine is connected, over SSH or as a cloud computer (WispSshPlugin.stayOpen).
+ * Without it Android freezes the app a few seconds after it leaves the screen: the tunnel and
+ * wisp's live stream drop, and the page can't post a notification when a task finishes or asks.
+ * Its own notification (low importance, no sound) says which machine.
  */
 public class TunnelService extends Service {
     private static final String EXTRA_NAME = "name";
@@ -63,7 +64,7 @@ public class TunnelService extends Service {
         Notification n = new NotificationCompat.Builder(this, Alerts.CONNECTION)
             .setSmallIcon(R.drawable.ic_stat_wisp)
             .setContentTitle(name == null || name.isEmpty() ? "Connected" : "Connected to " + name)
-            .setContentText("Keeps the tunnel open so wisp can tell you when a task needs you")
+            .setContentText("Stays open so wisp can tell you when a task needs you")
             .setOngoing(true)
             .setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW)

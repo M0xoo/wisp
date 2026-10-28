@@ -108,6 +108,15 @@ public class MainActivity extends BridgeActivity {
         super.onPause();
     }
 
+    // Left for good (Back from wisp's page with nothing before it) on a cloud computer: its page is
+    // gone with the WebView, so the service would only keep an empty app and its notification up.
+    // An SSH tunnel stays, so coming back opens that computer at once.
+    @Override
+    public void onDestroy() {
+        if (isFinishing() && !WispSshPlugin.hasTunnel()) TunnelService.stop(this);
+        super.onDestroy();
+    }
+
     // A tapped task notification: wisp's page reveals the task (its #/s/<id> route). On the list
     // (the tunnel is reconnecting after the screen was off, or no computer is open yet) it waits
     // for wisp's page to load instead of being dropped.

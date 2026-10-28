@@ -527,6 +527,8 @@ async function openGrid(m, cid = '') {
       paintMachines();
       return toast(`Opens ${r.body.url.split('/_grid')[0]}`);
     }
+    // Kept open in the background like an SSH computer, so its tasks' alerts still arrive.
+    await Ssh.stayOpen({ name: c ? c.name : nameOf(m) }).catch(() => {});
     location.href = r.body.url;
   } catch (err) {
     opening = '';
@@ -955,7 +957,7 @@ async function boot() {
       openOnReady = st.machineId;
       history.replaceState(null, '', location.pathname);
     }
-  }
+  } else Ssh.disconnect().catch(() => {}); // back from a cloud computer: nothing left to keep open
   // App start shows this list: you pick the computer (the one used last is at the top).
   paint();
   refreshComputers();

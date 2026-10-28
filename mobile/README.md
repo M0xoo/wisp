@@ -83,6 +83,8 @@ you get an Android notification; tapping it opens that task. The WebView has no 
 API, so `MainActivity` gives wisp's page a `wispAndroid` bridge (`web/js/features/notify.js`
 uses it). While a machine is connected, `TunnelService` (a foreground service with a quiet
 *Connected to …* notification) keeps the app, the tunnel and the page running in the background.
+A cloud computer has no tunnel but needs the same: the list starts it before opening one
+(`stayOpen`) and stops it when it's back with nothing connected.
 
 ## Build
 
