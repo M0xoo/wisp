@@ -8,6 +8,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { browser, installFakeBins, tmp, until } from './helpers.js';
@@ -46,8 +47,16 @@ const health = (port) =>
   });
 const exitOf = (child, ms = 15_000) =>
   Promise.race([new Promise((r) => child.on('exit', (code, signal) => r({ code, signal }))), new Promise((_, no) => setTimeout(() => no(new Error('the box never exited')), ms).unref())]);
-let nextPort = 47600 + Math.floor(Math.random() * 300);
-const port = () => nextPort++;
+// A port the system just handed out, like hostd's own: a fixed range clashed with other test
+// files' ephemeral ports (47600+ is inside Linux's 32768–60999) and the box never came up.
+const port = () =>
+  new Promise((resolve, reject) => {
+    const s = net.createServer().once('error', reject);
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address();
+      s.close(() => resolve(port));
+    });
+  });
 const SECRET = 'grid-proxy-secret-'.padEnd(48, 'x');
 
 test('boxd checks what a run asks for; image, network, mounts and uid stay its own', { skip, timeout: 30_000 }, () => {
@@ -80,7 +89,7 @@ test('boxd runs a box: its own settings, the home in its folder, secrets in a 06
     assert.equal(fs.statSync(socket).mode & 0o777, 0o660, 'only root and the grid’s group');
     const ping = await boxdCall(socket, { op: 'ping' });
     assert.equal(ping.boxes, boxes);
-    const p = port();
+    const p = await port();
     const logFile = path.join(root, 'u1.log');
     // A request can't pick the network or the image: boxd's own are used.
     const child = boxdRun(socket, { id: 'u1', port: p, env: { WISP_TRUSTED_PROXY_SECRET: SECRET, FAKE_DELAY: '100' }, network: 'host', image: 'alpine' }, logFile);
@@ -111,7 +120,7 @@ test('boxd runs a box: its own settings, the home in its folder, secrets in a 06
   } finally {
     await b.close();
   }
-  const gone = boxdRun(socket, { id: 'u1', port: port() }, path.join(root, 'x.log'));
+  const gone = boxdRun(socket, { id: 'u1', port: await port() }, path.join(root, 'x.log'));
   await exitOf(gone);
   assert.match(gone.error, /boxd didn’t answer/);
 });
@@ -127,7 +136,7 @@ test('boxd: a home at the old place must be migrated first; migrate moves it (no
   fs.symlinkSync('/etc', path.join(data, 'users', 'u3', 'home'));
   const b = await serveBoxd({ socket, boxes, data, group: null, log: () => {} });
   try {
-    const refused = boxdRun(socket, { id: 'u2', port: port() }, path.join(root, 'u2.log'));
+    const refused = boxdRun(socket, { id: 'u2', port: await port() }, path.join(root, 'u2.log'));
     await exitOf(refused, 3000);
     assert.match(refused.error, /still at .*boxd\.js migrate/);
     assert.ok(!fs.existsSync(path.join(boxes, 'u2', 'home')), 'no empty home in its place');
@@ -138,7 +147,7 @@ test('boxd: a home at the old place must be migrated first; migrate moves it (no
     assert.ok(!fs.existsSync(path.join(data, 'users', 'u2', 'home')));
     assert.ok(!fs.existsSync(path.join(boxes, 'u3')), 'a link is never followed');
 
-    const p = port();
+    const p = await port();
     const child = boxdRun(socket, { id: 'u2', port: p, env: { FAKE_DELAY: '100' } }, path.join(root, 'u2.log'));
     await until(() => health(p), { what: 'the migrated box', every: 150 });
     assert.throws(() => migrate({ data, boxes, log: () => {} }), /stop the grid first/);
@@ -165,7 +174,7 @@ async function gridWith(container, dataDir = tmp('grid-c')) {
   const hostd = { driver: 'container', container, idleMs: 60_000, checkMs: 500, admit: false, env: { FAKE_DELAY: '100' } };
   // The CLI reads grid.json; the running grid gets the same.
   fs.writeFileSync(path.join(dataDir, 'grid.json'), JSON.stringify({ hostd }));
-  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port: port() }, auth: { dev: true } } });
+  const cfg = loadConfig({ dataDir, env: {}, overrides: { domain: 'wisp.localhost', listen: { host: '127.0.0.1', port: await port() }, auth: { dev: true } } });
   return { cfg, grid: await startGrid(cfg, { log: () => {} }) };
 }
 
