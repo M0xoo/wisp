@@ -131,6 +131,15 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
   user's box is a `runsc` container on loopback; its home lives in `/var/lib/wisp-grid-boxes/<id>`;
   deleting the account removes it; `node grid/boxd.js migrate` moves old homes.
 
+### GRID-27 · A preview of a page in the box
+- **Preconditions:** `wisp grid dev` (previews on), signed in as `ada`, her wisp open.
+- **Steps:** start a task that runs a dev server in the box (`npx vite --port 5173`) and ends with
+  a `preview` block for `http://localhost:5173`; open the task.
+- **Expected:** the frame shows the box's page (not your own `localhost:5173`), loaded from
+  `p5173--ada.<domain>`; the address bar says `localhost:5173`, with no *points at the agent's
+  computer* note; editing a file there reloads the frame (websocket). Signed out, or as `bob`,
+  `p5173--ada.<domain>` asks you to sign in or refuses. With the box asleep, it says so.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's

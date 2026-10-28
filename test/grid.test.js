@@ -122,7 +122,7 @@ before(async () => {
       domain: 'wisp.localhost',
       listen: { host: '127.0.0.1', port },
       auth: { dev: true, providers: { 'oidc:corp': { issuer: oidc.st.base, clientId: 'oidc-client', clientSecret: 'oidc-secret', label: 'Corp SSO' }, github: { clientId: 'gh-client', clientSecret: 'gh-secret', authBase: gh.st.base, apiBase: gh.st.base } } },
-      hostd: { idleMs: 1500, checkMs: 250, path: fakeBin },
+      hostd: { idleMs: 1500, checkMs: 250, path: fakeBin, previews: true },
     },
   });
   grid = await startGrid(cfg, { log: () => {} });
@@ -168,7 +168,7 @@ test('dev sign-in, then /go opens the user’s own wisp at <handle>.<domain>, st
   assert.equal(health.url, origin, 'the wisp reports its public address (trusted-proxy mode)');
   // It knows it's a cloud computer on this grid: the page offers the grid, not SSH, to reach it.
   const conf = await b.go(`${origin}/api/config`, { headers: { accept: 'application/json' } });
-  assert.deepEqual(conf.json.grid, { url: cfg.publicUrl, address: origin });
+  assert.deepEqual(conf.json.grid, { url: cfg.publicUrl, address: origin, preview: cfg.instanceUrl('p{port}--ada') });
   const page = await b.go(`${origin}/`);
   assert.match(page.text, /<!doctype html>/i);
   assert.equal(grid.hostd.state(grid.accounts.byHandle('ada').id), 'running');
@@ -767,7 +767,91 @@ test('Caddy’s on-demand TLS check: the grid and existing users only', async ()
   assert.equal(await ask('wisp.localhost'), 200);
   assert.equal(await ask('ada.wisp.localhost'), 200);
   assert.equal(await ask('nobody.wisp.localhost'), 404);
+  assert.equal(await ask('p5173--ada.wisp.localhost'), 200);
+  assert.equal(await ask('p5173--nobody.wisp.localhost'), 404);
   assert.equal(await ask('evil.com'), 404);
+});
+
+test('a page the agent left running in the box shows at p<port>--<handle>: signed in, its own cookies, websockets too', async () => {
+  // The process driver shares this loopback, so a server here stands in for one in the box.
+  const seen = [];
+  const app = http.createServer((req, res) => {
+    seen.push(req.headers);
+    if (req.url === '/away') {
+      res.writeHead(302, { location: `http://localhost:${app.address().port}/home` });
+      return res.end();
+    }
+    res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'app=1; Path=/' });
+    res.end(JSON.stringify({ host: req.headers.host, url: req.url, method: req.method }));
+  });
+  app.on('upgrade', (req, socket) => {
+    socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
+    socket.on('data', (d) => socket.write(d));
+  });
+  await listen(app);
+  const port = app.address().port;
+  try {
+    const b = browser();
+    await devSignIn(b, 'ada@example.com');
+    const { origin } = await openWisp(b);
+    await until(async () => (await b.go(`${origin}/api/health`, { headers: { accept: 'application/json' } })).status === 200, { what: 'ada’s wisp' });
+    const at = cfg.instanceUrl(`p${port}--ada`);
+
+    // Its own cookie, from a ticket: the wisp's cookie on ada.<domain> doesn't reach it.
+    const first = await b.follow(`${at}/hello?x=1`);
+    assert.equal(first.at, `${at}/hello?x=1`);
+    assert.deepEqual(first.json, { host: `localhost:${port}`, url: '/hello?x=1', method: 'GET' });
+    const again = await b.go(`${at}/again`, { headers: { accept: 'application/json' } });
+    assert.equal(again.status, 200);
+    const h = seen.at(-1);
+    assert.equal(h.cookie, 'app=1', 'the page gets its own cookies, never the grid’s');
+    assert.equal(h['x-wisp-proxy-secret'], undefined);
+    assert.equal(h['x-wisp-preview'], undefined);
+    // A redirect to its localhost address stays on the preview's.
+    assert.equal((await b.go(`${at}/away`)).location, '/home');
+    // Posts from its own page go through; from elsewhere they don't.
+    assert.equal((await b.go(`${at}/form`, { method: 'POST', body: {}, headers: { origin: at } })).json.method, 'POST');
+    assert.equal((await b.go(`${at}/form`, { method: 'POST', body: {}, headers: { origin: 'https://evil.example' } })).status, 403);
+
+    // Not ada: sign in first; ada's wisp cookie or bob's preview cookie mean nothing here.
+    const anon = await browser().go(`${at}/`);
+    assert.equal(anon.status, 302);
+    assert.match(anon.location, new RegExp(`/go\\?preview=${port}&path=`));
+    const wispCookie = [...b.jar.get(new URL(origin).host)][0];
+    const stolen = browser();
+    stolen.jar.set(new URL(at).host, new Map([wispCookie]));
+    assert.equal((await stolen.go(`${at}/`, { headers: { accept: 'application/json' } })).status, 401);
+    const bob = browser();
+    await devSignIn(bob, 'bob@example.com');
+    const bobPage = await bob.follow(`${cfg.instanceUrl(`p${port}--bob`)}/`);
+    assert.equal(bobPage.at, `${cfg.instanceUrl(`p${port}--bob`)}/`, 'bob signs in to his own');
+    stolen.jar.set(new URL(at).host, bob.jar.get(new URL(cfg.instanceUrl(`p${port}--bob`)).host));
+    assert.equal((await stolen.go(`${at}/`, { headers: { accept: 'application/json' } })).status, 401);
+
+    // Never the wisp itself at a preview address.
+    const own = grid.hostd.port(grid.accounts.byHandle('ada').id);
+    assert.equal((await b.follow(`${cfg.instanceUrl(`p${own}--ada`)}/api/health`)).status, 404);
+
+    // A websocket (a dev server's live reload) goes through, both ways.
+    const cookie = [...b.jar.get(new URL(at).host)].map(([k, v]) => `${k}=${v}`).join('; ');
+    const echo = await new Promise((resolve, reject) => {
+      const sock = net.connect(cfg.listen.port, '127.0.0.1', () => {
+        sock.write(`GET /hmr HTTP/1.1\r\nHost: ${new URL(at).host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nOrigin: ${at}\r\nCookie: ${cookie}\r\n\r\n`);
+      });
+      let got = '';
+      sock.on('data', (d) => {
+        got += d;
+        if (/\r\n\r\n/.test(got) && !got.includes('ping')) sock.write('ping');
+        if (got.endsWith('ping')) (sock.end(), resolve(got));
+      });
+      sock.on('error', reject);
+      setTimeout(() => (sock.destroy(), resolve(got)), 5000);
+    });
+    assert.match(echo, /^HTTP\/1\.1 101/);
+    assert.match(echo, /ping$/);
+  } finally {
+    app.close();
+  }
 });
 
 test('secrets: sealed per user, bound to user and purpose, re-wrapped on key rotation, gone with the user', async () => {

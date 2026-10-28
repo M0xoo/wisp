@@ -4,7 +4,8 @@
 
 import { esc, inlineMd } from './md.js';
 import { el, icon } from './core/dom.js';
-import { DEVICES, isLoopback, previewProblem, previewSandbox, previewSize, previewUrl, shortUrl } from './preview-spec.js';
+import { S } from './core/state.js';
+import { DEVICES, boxUrl, isLoopback, previewProblem, previewSandbox, previewSize, previewUrl, shortUrl } from './preview-spec.js';
 
 const picked = new Map(); // key -> { device, w, h }, so a re-render keeps the size the user switched to
 const BEZEL = { mobile: [20, 20], tablet: [28, 28], desktop: [2, 33], custom: [2, 33] }; // px around the screen: [left + right, top + bottom]
@@ -18,7 +19,11 @@ export function previewBlock(b, ctx = {}) {
   const asked = previewSize(b);
   const key = `${ctx.session?.id || ''}:${ctx.turn?.id || ''}:${ctx.turn?.presentation?.blocks?.indexOf(b) ?? ''}:${url}`;
   let size = picked.get(key) || asked;
-  const local = isLoopback(url) && !isLoopback(location.href);
+  // On a wisp Grid, the box's localhost has an address of its own; a task on another machine
+  // (<id>@<machine>) isn't in this box.
+  const boxed = !String(ctx.session?.id || '').includes('@') && boxUrl(url, S.config?.grid?.preview);
+  const src = boxed || url;
+  const local = !boxed && isLoopback(url) && !isLoopback(location.href);
   const seg = [
     ...Object.entries(DEVICES).map(([id, d]) => ({ id, label: d.label, icon: d.icon, w: d.w, h: d.h })),
     ...(asked.device === 'custom' ? [{ id: 'custom', label: `${asked.w}×${asked.h}`, icon: 'expand', w: asked.w, h: asked.h }] : []),
@@ -26,14 +31,14 @@ export function previewBlock(b, ctx = {}) {
   const node = el(`
     <figure class="b-preview card">
       <div class="pv-head">
-        <span class="pv-addr" title="${esc(url)}">${icon(url.startsWith('https:') ? 'lock' : 'web')}<span class="pv-host">${esc(shortUrl(url))}</span></span>
+        <span class="pv-addr" title="${esc(boxed ? `${url} on your cloud computer` : url)}">${icon(src.startsWith('https:') ? 'lock' : 'web')}<span class="pv-host">${esc(shortUrl(url))}</span></span>
         <div class="pv-seg" role="group" aria-label="Screen size">${seg
           .map((d) => `<button data-d="${d.id}" title="${esc(d.label)} · ${d.w} × ${d.h}" aria-label="${esc(d.label)}">${icon(d.icon)}<span>${esc(d.label)}</span></button>`)
           .join('')}</div>
         <div class="pv-tools">
           <button class="pv-btn" data-a="rotate" title="Rotate" aria-label="Rotate">${icon('rotate')}</button>
           <button class="pv-btn" data-a="reload" title="Reload" aria-label="Reload">${icon('rerun')}</button>
-          <a class="pv-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="Open in a new tab" aria-label="Open in a new tab">${icon('external')}</a>
+          <a class="pv-btn" href="${esc(src)}" target="_blank" rel="noopener noreferrer" title="Open in a new tab" aria-label="Open in a new tab">${icon('external')}</a>
         </div>
       </div>
       <div class="pv-stage"><div class="pv-device"><div class="pv-screen"><div class="pv-wait"></div></div></div></div>
@@ -78,7 +83,7 @@ export function previewBlock(b, ctx = {}) {
 
   const mount = () => {
     frame = document.createElement('iframe');
-    frame.setAttribute('sandbox', previewSandbox(url, location.origin));
+    frame.setAttribute('sandbox', previewSandbox(src, location.origin));
     frame.setAttribute('referrerpolicy', 'no-referrer');
     frame.setAttribute('loading', 'lazy');
     frame.setAttribute('title', b.title || shortUrl(url));
@@ -86,7 +91,7 @@ export function previewBlock(b, ctx = {}) {
     screen.classList.remove('loaded');
     screen.querySelector('iframe')?.remove();
     screen.append(frame);
-    frame.src = url;
+    frame.src = src;
     paint();
   };
 

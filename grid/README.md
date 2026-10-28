@@ -8,6 +8,11 @@ from anywhere*) and from the phone app (**wisp Cloud** on its first screen). Sig
 Machines (or `wisp computer on` in a terminal) also adds that computer to the grid: it holds a tunnel open (`tunnels.js`), and their phone
 and other computers reach it at `<name>--<handle>.<domain>` with no SSH or open port. Their agents run with their
 own subscriptions or keys, signed in from **Settings → Agents** (a link and a code, no terminal).
+A page an agent leaves running in a box (a dev server on `localhost:5173`) shows in its *preview*
+block at `p5173--<handle>.<domain>`: the edge signs its owner in there with a cookie of its own and
+passes requests and websockets through their wisp to that port (`server/http/preview.js`). On by
+default for the container driver (`hostd.previews`); with the process driver a box's loopback is
+the server's own, so leave it off there unless it's only you (`wisp grid dev` turns it on).
 
 The hosted one is [grid.trywisp.dev](https://grid.trywisp.dev) (early preview). This folder is the
 same code, for your own server.

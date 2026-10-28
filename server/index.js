@@ -42,6 +42,7 @@ import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
 import { serveStatic } from './http/static.js';
 import { trustedProxy } from './http/trust.js';
+import { previewPort, previewRequest, previewUpgrade } from './http/preview.js';
 import { createAuto } from './services/auto.js';
 import { Goals } from './goal.js';
 import { scoutNote } from './scout.js';
@@ -385,11 +386,18 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   const proxy = trustedProxy();
   app.publicUrl = proxy.origin;
   app.proxy = proxy;
+  const previews = proxy.on && !!process.env.WISP_PREVIEW_URL;
 
   const server = http.createServer(async (req, res) => {
     // Agents can run with broad permissions, so only same-origin local pages may talk to us, or a
     // trusted proxy that has checked who is asking (server/http/trust.js).
     const viaProxy = proxy.via(req);
+    // A page the agent left running here, at its preview address on the grid (http/preview.js).
+    // Never this wisp itself at a preview's address: its own port, or previews off, is a 404.
+    if (viaProxy && req.headers['x-wisp-preview'] !== undefined) {
+      const p = previews && previewPort(req, port);
+      return p ? previewRequest(req, res, p) : send(res, 404, { error: 'not found' });
+    }
     if (!viaProxy && !allowedHosts.has(req.headers.host)) return send(res, 403, { error: 'forbidden host' });
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       const origin = req.headers.origin;
@@ -415,6 +423,11 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       if (!res.headersSent) send(res, err.status || 500, { error: err.message, ...(err.hold && { hold: err.hold }) }); // hold: Ask near the limit (server/guard.js)
       else res.end();
     }
+  });
+  server.on('upgrade', (req, socket, head) => {
+    const p = previews && proxy.via(req) && previewPort(req, port);
+    if (!p) return socket.destroy();
+    previewUpgrade(req, socket, head, p);
   });
   server.keepAliveTimeout = KEEP_ALIVE_MS;
   server.headersTimeout = KEEP_ALIVE_MS + 1000;
