@@ -83,7 +83,8 @@ Use what's in `web/css/tokens.css` and `web/css/base.css`; don't style a control
 ## Motion
 
 - Short and soft: 0.12–0.3s, `var(--ease)`. Entrances are a small rise or fade (`rise`, `fade-in`,
-  `pop` in `blocks.css`); nothing bounces or slides far.
+  `pop` in `blocks.css`); nothing bounces or slides far. The one exception is a row leaving the
+  list under your finger (a swipe): it flies off its own edge, then its height closes to 0 (0.2s).
 - Entry animations play **once**, when a thing first appears. Re-inserting a DOM node replays them,
   so a refresh must never re-append nodes that are already in place (#57: one 👍 replayed 60
   animations). See [ux.md](ux.md#stable-layouts).

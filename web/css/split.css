@@ -524,6 +524,37 @@ body.split.stack.stack-in :is(.split-main, #feed .item.open > .it-body) { animat
 /* The phone app: the floating New task sits over the list, with room under the last row to scroll
    it clear. */
 body.wisp-mobile.split.stack .feed-wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+/* Swiping a row (swipe.js): the head slides over a band that names what letting go does. The band
+   warms with the pull (--p, 0 to 1) and fills once it would act; then the row flies off and the gap
+   closes. The browser keeps vertical scrolling; sideways is ours.
+   The head is always what the time and the quick buttons sit in, so they move with it. */
+body.wisp-mobile #feed .it-head { position: relative; touch-action: pan-y pinch-zoom; }
+body.wisp-mobile #feed .item.swiping { overflow: hidden; border-radius: var(--radius); border-color: transparent; }
+body.wisp-mobile #feed .item.swiping > .it-head { z-index: 1; background: var(--rail); border-radius: var(--radius); }
+body.wisp-mobile #feed .item.swiping.open > .it-head { background: var(--bg-2); }
+body.wisp-mobile #feed .it-head.sw-back { transition: transform 0.24s var(--ease); }
+body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), margin 0.2s var(--ease), opacity 0.2s; margin-bottom: -2px; opacity: 0; }
+.it-swipe {
+  --tone: var(--muted); --p: 0;
+  position: absolute; inset: 0; display: flex; align-items: center; padding: 0 20px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--tone) calc(var(--p) * 16%), var(--bg-2));
+  color: var(--tone);
+}
+.it-swipe.to-left { justify-content: flex-end; }
+.it-swipe.tone-good { --tone: var(--good); }
+.it-swipe.tone-bad { --tone: var(--bad); }
+.it-swipe.tone-accent { --tone: var(--accent); }
+.it-swipe.tone-plain { --tone: var(--ink-2); }
+.it-swipe.none { background: var(--bg-2); }
+.it-swipe.armed { background: var(--tone); color: var(--surface); transition: background 0.16s var(--ease), color 0.16s var(--ease); }
+.it-swipe .sw-ic {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+  opacity: calc(0.35 + var(--p) * 0.65); transform: scale(calc(0.86 + var(--p) * 0.14));
+  transition: transform 0.18s var(--ease);
+}
+.it-swipe.to-left .sw-ic { flex-direction: row-reverse; }
+.it-swipe .sw-ic .i { width: 20px; height: 20px; }
+.it-swipe.armed .sw-ic { opacity: 1; transform: scale(1.06); }
 /* On a touch screen the row's done button is always there (no hover): its own column after the
    time and state, not over them. The task bar's buttons take a thumb, as in the app. */
 @media (hover: none) and (pointer: coarse) {

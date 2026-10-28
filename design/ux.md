@@ -17,7 +17,8 @@ stays put**, and **what needs you is easy to find**.
   (*Ship it* used to wait a second for git and gh before showing, 0.38.0). Never make a click
   wait on the network before anything visible happens.
 - Reversible actions (Mark done, Archive, rollback, revert a file) don't ask first: they act and
-  offer **Undo** on the toast. Only ask for things that can't be taken back.
+  offer **Undo** on the toast. Only ask for things that can't be taken back. A delete that waits
+  for its Undo toast to go before it's sent (a swiped row, `deleteWithUndo`) counts as undoable.
 - Something that can't run right now says why in a toast (*Still working — stop it first or let it
   finish.*); it doesn't silently do nothing.
 

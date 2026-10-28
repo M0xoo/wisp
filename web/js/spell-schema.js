@@ -184,6 +184,7 @@ export const PARTS = {
   'card.quickDone': '#feed .it-quick',
   'card.quickLater': '#feed .it-later', // Save for later / Unsave beside Mark done
   'card.choices': '#feed .it-choices',
+  'card.swipe': '#feed .it-swipe', // the band under a row being swiped in the phone app
   'card.body': '#feed .it-body',
   // Forks (Fork…): the fork's link to the task it came from, the original's count of its forks,
   // a turn's Fork from this turn button and the line where a fork's own turns start.
@@ -330,7 +331,8 @@ export const CARD_HEAD_ORDER = { pill: '.pill:not(.pr)', pr: '.pill.pr', model: 
 export const PART_PROPS = {
   'launcher.input': { placeholder: 'string', rows: 'int', maxRows: 'int', monospace: 'bool', fontSize: 'int' },
   'composer.input': { placeholder: 'string', rows: 'int', maxRows: 'int', monospace: 'bool', fontSize: 'int' },
-  card: { density: ['compact', 'comfortable'] },
+  // swipeRight / swipeLeft: what swiping a row does in the phone app (done / archive unless set)
+  card: { density: ['compact', 'comfortable'], swipeRight: ['done', 'later', 'archive', 'delete', 'off'], swipeLeft: ['done', 'later', 'archive', 'delete', 'off'] },
   'card.sub': { lines: 'int' },
   sidebar: { width: 'px', side: ['left', 'right'], details: ['minimal', 'full'] }, // side: left unless set
   'split.main': { readWidth: 'px' },

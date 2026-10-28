@@ -100,12 +100,14 @@ function layout() {
   box.classList.toggle('many', open);
 }
 
-export function toast(html, { tone = '', action, timeout = 4200, glyph: face } = {}) {
+export function toast(html, { tone = '', action, timeout = 4200, glyph: face, onClose } = {}) {
   stack();
   keepClear();
   // The same message again (a double click, a retry) brings the one showing back to the front
   // with a fresh timer instead of stacking a twin.
-  live().find((t) => t.dataset.msg === html)?.remove();
+  const twin = live().find((t) => t.dataset.msg === html);
+  twin?.onClose?.();
+  twin?.remove();
   // A face (a crew member's avatar) or the icon a message starts with becomes the glyph; otherwise
   // errors get a warning and the rest a small wisp of light.
   const lead = !face && /^\s*(<svg class="i[^"]*"[^>]*>.*?<\/svg>)\s*/s.exec(html);
@@ -117,6 +119,7 @@ export function toast(html, { tone = '', action, timeout = 4200, glyph: face } =
     <button class="t-x" aria-label="Close" title="Close">${icon('x')}<svg class="t-time" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12.5" pathLength="100"/></svg></button>
   </div></div>`);
   t.dataset.msg = html;
+  t.onClose = onClose; // once it goes, however it goes (its clock, ×, a swipe, Undo, a newer twin)
   t.style.setProperty('--t-life', `${timeout}ms`);
   const close = () => dismiss(t);
   t.querySelector('.t-x').onclick = () => {
@@ -156,6 +159,7 @@ export function toast(html, { tone = '', action, timeout = 4200, glyph: face } =
 function dismiss(t) {
   if (t.classList.contains('out')) return;
   t.classList.add('out');
+  t.onClose?.();
   t.hold?.();
   if (live().length < 2) fan(false);
   else layout();

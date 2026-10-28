@@ -61,6 +61,7 @@ export class Drafts extends Map {
 
 export const S = {
   sessions: new Map(), // id -> summary
+  deleting: new Set(), // ids swiped away whose delete waits for its Undo toast to go (actions.js)
   full: new Map(), // id -> full session, for expanded items
   open: new Set(MOBILE ? [] : load('wisp.open', [])), // expanded item ids (the phone app starts on the list)
   nodes: new Map(), // id -> { card, head, body, turnNodes, tray, showAll, unfolded, latestTurn }

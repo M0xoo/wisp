@@ -27,6 +27,7 @@ import { routeSpell } from './features/spell-ui.js';
 import { routeCrew } from './features/crew-share.js';
 import './features/spells.js';
 import './features/tips.js';
+import './features/swipe.js';
 
 document.addEventListener('keydown', onKey);
 stage.addEventListener('scroll', onScroll, { passive: true });

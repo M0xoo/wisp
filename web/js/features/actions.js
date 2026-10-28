@@ -305,6 +305,50 @@ export async function deleteSession(id) {
   });
 }
 
+// Swiped away on the phone: no dialog after a swipe, an Undo toast instead. The row goes at once
+// and the delete is sent when the toast does (or the app goes to the background, where Android
+// may close it). Until the server has answered, a live update can't bring the row back
+// (S.deleting): stopping the task sends one.
+const sendDeletes = new Map(); // id -> send it now
+export function deleteWithUndo(id) {
+  const prev = S.sessions.get(id);
+  if (!prev || S.deleting.has(id)) return;
+  S.deleting.add(id);
+  handOff(id)(() => S.sessions.delete(id));
+  const send = () => {
+    if (!sendDeletes.delete(id)) return;
+    api(`/sessions/${id}`, { method: 'DELETE' }).then(
+      () => S.deleting.delete(id),
+      (err) => {
+        S.deleting.delete(id);
+        revertSummary(id, prev);
+        toastError(err);
+      },
+    );
+  };
+  const t = toast('Task deleted', {
+    timeout: 5000,
+    onClose: send,
+    action: {
+      label: 'Undo',
+      run: () => {
+        if (!sendDeletes.delete(id)) return;
+        S.deleting.delete(id);
+        revertSummary(id, prev);
+      },
+    },
+  });
+  // Sent early: its Undo would do nothing, so the toast goes with it.
+  sendDeletes.set(id, () => (send(), t.remove()));
+}
+const sendAllDeletes = () => {
+  for (const now of [...sendDeletes.values()]) now();
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) sendAllDeletes();
+});
+addEventListener('pagehide', sendAllDeletes);
+
 // Launch the task again as a new session in the same project: same prompt and attachments,
 // optionally edited, on whichever computer, harness, model and thinking level you pick. The
 // original stays. Another computer runs it in its own checkout (cloned there if need be).

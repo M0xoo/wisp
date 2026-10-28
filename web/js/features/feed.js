@@ -324,7 +324,8 @@ function renderHead(n, s) {
   if (runsOf(s).length > 1) return renderRunHead(n, s, { open, live, pill });
   // In Scheduled, the time column is when its follow-up goes (and there's no pill for it).
   const sched = isScheduled(s);
-  n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''}`;
+  const swipe = [...n.card.classList].filter((c) => c === 'swiping' || c === 'sw-gone').join(' '); // a refresh mid-swipe (swipe.js) keeps it
+  n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''} ${swipe}`;
   paintHtml(n.head, `
     ${(s.crew && crewDot(s)) || (s.kind === 'reminder' ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s))}
     <span class="it-main">

@@ -46,6 +46,7 @@ export function connect() {
     const s = JSON.parse(e.data);
     if (s.parentId) return onChildSummary(s); // a subagent: lives inside its lead's card
     if (s.delegated) return; // a delegate's run for a lead elsewhere: its lead's card shows it
+    if (S.deleting.has(s.id)) return; // swiped away, its Undo still showing
     const prev = S.sessions.get(s.id);
     if (!prev) dropPending(s);
     const was = prev && sectionOf(prev); // before the update: a compare task's section depends on all its runs
@@ -130,7 +131,7 @@ document.addEventListener('visibilitychange', () => {
 
 export const loadSessions = shared(async () => {
   const list = await api('/sessions');
-  S.sessions = new Map(list.map((s) => [s.id, s]));
+  S.sessions = new Map(list.filter((s) => !S.deleting.has(s.id)).map((s) => [s.id, s]));
   for (const id of S.open) if (!S.sessions.has(id)) S.open.delete(id);
   saveOpen();
   keepInPlace(feedAnchor(), renderFeed);
