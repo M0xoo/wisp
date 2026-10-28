@@ -154,6 +154,9 @@ export function rename(id) {
     else title.textContent = s.title;
   };
   title.onkeydown = (e) => {
+    // The blur ends the edit, so the page's keys (keys.js) would then take Enter as "close the
+    // task" and Escape as Back: the key stops here, and the task stays open.
+    if (e.key === 'Enter' || e.key === 'Escape') e.stopPropagation();
     if (e.key === 'Enter') (e.preventDefault(), title.blur());
     if (e.key === 'Escape') ((title.textContent = S.sessions.get(id).title), title.blur());
   };

@@ -64,6 +64,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** the box clears at once, a second turn runs and renders below the first.
 - **Automated**
 
+### WEB-06b · Rename keeps the task open
+- **Steps:** open a task; click its title in the header, type a new name, **Enter**. Click it again, type, **Escape**. Do the same with **M** on a row in the list.
+- **Expected:** Enter saves the name and Escape puts the old one back; the task stays open both times (no close, no Back to home or the list).
+- **Automated** (`node qa/web.mjs`)
+
 ### WEB-07 · Agent asks a question (`ask_user`)
 - **Steps:** launch with a prompt containing `ASK`; answer in the card.
 - **Expected:** the card goes to *Needs you* with the question and options; answering sends the
