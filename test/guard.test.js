@@ -251,6 +251,26 @@ test('a scheduled task near the limit starts held in Needs you; Start now, Skip 
   assert.equal((await call(`/sessions/${waits.id}/held`, { action: 'start' })).status, 404);
 });
 
+test('a scheduled follow-up near the limit is held even while the last run’s CLI lingers after its result', async () => {
+  const repo = makeRepo();
+  process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the run is still live when it fires
+  try {
+    const s = await api('/sessions', { prompt: 'start', cwd: repo, agent: 'claude', worktree: false });
+    await settled(s.id);
+    assert.ok(srv.runner.live.has(s.id), 'the CLI is still on its way out');
+    srv.budget.record('claude', 'default', { windows: [{ id: 'five_hour', used: 0.97, resetsAt: Date.now() + 2 * H, ms: 5 * H }] });
+    const l = await api(`/sessions/${s.id}/later`, { text: 'carry on', in: 5 });
+    await api(`/sessions/${s.id}/later`, { item: l.id, now: true }, 'PATCH');
+    const held = await api(`/sessions/${s.id}`);
+    assert.equal(held.turns.at(-1).status, 'held');
+    assert.equal(srv.runner.live.has(s.id), false, 'the lingering CLI was let go');
+    await api(`/sessions/${s.id}/held`, { action: 'skip' }, 'POST');
+  } finally {
+    delete process.env.FAKE_LINGER;
+    srv.budget.record('claude', 'default', { windows: [{ id: 'five_hour', used: 0.01, resetsAt: Date.now() + 5 * H, ms: 5 * H }] });
+  }
+});
+
 test('a scheduled follow-up near the limit is held on its task; still over at the reset, it waits for the next one', async () => {
   const repo = makeRepo();
   const s = await api('/sessions', { prompt: 'start', cwd: repo, agent: 'claude', worktree: false });

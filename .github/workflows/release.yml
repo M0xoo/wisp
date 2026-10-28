@@ -117,7 +117,9 @@ jobs:
           published=false
           [ "$(gh release view "v$version" --json isDraft -q .isDraft 2>/dev/null)" = false ] && published=true
           go=false
-          if [ "$GITHUB_EVENT_NAME" = push ]; then [ $npm = true ] && go=true
+          # npm's registry can take a minute to list a version it just took, so a push right after
+          # a release also checks the GitHub release: once that's published, the version is out.
+          if [ "$GITHUB_EVENT_NAME" = push ]; then [ $npm = true ] && [ $published = false ] && go=true
           elif [ $npm = true ] || [ $published = false ]; then go=true; fi
           [ "$DRY" = true ] && go=true
           case "$version" in *-*) prerelease=true ;; *) prerelease=false ;; esac
@@ -252,6 +254,10 @@ jobs:
           if [ "$CHANNEL" = nightly ]; then
             tag=nightly
             npm version "$VERSION" --no-git-tag-version --allow-same-version
+          fi
+          # Another run may have published this version since the plan looked.
+          if npm view "wisp-agents@$VERSION" version 2>/dev/null | grep -q .; then
+            echo "wisp-agents@$VERSION is already on npm: nothing to publish."; exit 0
           fi
           npm publish --provenance --access public --tag "$tag"
 
