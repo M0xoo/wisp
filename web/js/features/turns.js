@@ -30,6 +30,7 @@ import { paintCard } from './spells.js';
 import { paintGoal, wireGoalSlot } from './goal.js';
 import { signIn } from './connectors.js';
 import { crewFace, paintOffers } from './crew.js';
+import { paintMarks, sentComments } from './comments.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -190,6 +191,7 @@ export function renderBody(id, { fresh }) {
   paintOffers(id); // so do kit files proposed for a crew member, which live on the member
 
   updateDock(id);
+  paintMarks(id); // comments waiting to go out, marked on the answers they're about
   if (fresh) paintSplit(); // split view: the header and details column fill in from the summary
   if (dock?.isConnected) scrollByPx(dock.getBoundingClientRect().top - dockTop);
   // A transcript was being read at its tail: its result lands right there, so show that, not the prompt.
@@ -333,11 +335,13 @@ function openMoved(next) {
 
 function renderFoldedTurn(t, unfold) {
   const hero = t.presentation?.blocks?.find((b) => b.type === 'hero');
+  const sent = !t.goal && sentComments(t.prompt);
+  const said = sent ? sent.rest.trim() || `${sent.count} comment${sent.count > 1 ? 's' : ''} on the answer` : t.prompt;
   const node = el(`
     <article class="turn folded" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
-        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? 'What’s still missing' : mentionHtml(esc(t.prompt.replace(/\s+/g, ' ')), { link: false })}</span>
+        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? 'What’s still missing' : `${sent ? icon('comment', 't-cm') : ''}${mentionHtml(esc(said.replace(/\s+/g, ' ')), { link: false })}`}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
@@ -442,7 +446,10 @@ function renderTurn(s, t, isLatest, fold, tx) {
   // what's next; the whole message (what the agent read) is behind Show all.
   const missing = t.goal && /^What's missing: (.*)$/m.exec(t.prompt)?.[1];
   const next = t.goal && /^Next: (.*)$/m.exec(t.prompt)?.[1];
-  const long = !!missing || t.prompt.length > 360 || t.prompt.split('\n').length > 5;
+  // Comments on the last answer (features/comments.js) show as cards over what was typed with them.
+  const sent = !t.goal && sentComments(t.prompt);
+  const said = sent ? sent.rest : t.prompt;
+  const long = !!missing || said.length > 360 || said.split('\n').length > 5;
   const cp = t.checkpoint;
   // The task's worktree branch shows once, with the task: a turn names its branch only when it ran
   // on another one (a task in the project folder, where the branch can change between turns).
@@ -454,7 +461,8 @@ function renderTurn(s, t, isLatest, fold, tx) {
       ${from ? `<div class="ask-by ask-from">${icon('crew')}${from.label}${from.open ? `<button class="link" data-from="${esc(from.id)}">“${esc(from.title)}”</button>` : `<span>“${esc(from.title)}”</span>`}</div>` : ''}
       ${t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : 'Sent by wisp after its test run'}</div>` : ''}
       ${missing ? `<div class="ask-goal"><b>Still missing</b> ${esc(missing)}${next ? `<span>Next: ${esc(next)}</span>` : ''}</div>` : ''}
-      <div class="ask-text ${long ? 'clamped' : ''}" ${missing ? 'hidden' : ''}>${mentionHtml(esc(t.prompt))}</div>
+      ${sent ? sent.html : ''}
+      <div class="ask-text ${long ? 'clamped' : ''}" ${missing || (sent && !said.trim()) ? 'hidden' : ''}>${mentionHtml(esc(said))}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
       <div class="ask-foot">

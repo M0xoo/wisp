@@ -104,6 +104,13 @@ test('the overlap pill and warning (another open task changes the same files) ar
   assert.ok(p.some((x) => /card\.overlaps/.test(x)), p.join('\n'));
 });
 
+test('comments on an answer (the tray, the block button, the bubble, the card, the marks, the sent ones) are parts', () => {
+  const parts = { 'composer.comments': { hide: true }, 'answer.comment': { hide: true }, 'answer.commentBubble': { style: { borderRadius: '4px' } }, 'answer.commentCard': { style: { color: 'red' } }, 'answer.commentMark': { style: { color: 'red' } }, 'turn.comments': { hide: true } };
+  assert.deepEqual(problems({ ...base0, parts }), []);
+  assert.ok(problems({ ...base0, parts: { 'answer.comments': { hide: true } } }).some((x) => /answer\.comments: not a part/.test(x)));
+  assert.ok(schema.ICONS.includes('comment'));
+});
+
 test('the follow-up box’s Delegate button and the Delegate popover are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'composer.team': { hide: true } } }), []);
   // The Delegate popover: its lead strip and the delegates' place chips can be restyled or hidden.

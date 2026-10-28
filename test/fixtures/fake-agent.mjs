@@ -324,6 +324,14 @@ const final = (answer) => {
   if (stdin.includes('FAILTESTS') && !stdin.includes('Fix them')) blocks.push({ type: 'tests', command: 'npm test', passed: 3, failed: 1 });
   // DEPLOYBLOCK: a block type a spell added.
   if (stdin.includes('DEPLOYBLOCK')) blocks.push({ type: 'deploy', env: 'staging', url: 'https://staging.example.com', status: 'ok', checks: [{ label: 'health', ok: true }] });
+  // SHOWCASE: text, code and a picture (shot.png in the task's folder) to read and comment on (screenshots).
+  if (stdin.includes('SHOWCASE') && !stdin.includes('<comments>'))
+    blocks.push(
+      { type: 'markdown', text: 'The login form now **rate-limits** by IP: five tries a minute, then a 60 second cool-down. Sessions refresh on every request, so an active user is never signed out mid-task.' },
+      { type: 'code', language: 'js', file: 'server/limit.js', code: 'const WINDOW_MS = 60_000;\nconst MAX_TRIES = 5;\n\nexport function allow(ip) {\n  const hits = recent(ip, WINDOW_MS);\n  return hits.length < MAX_TRIES;\n}' },
+      { type: 'image', path: 'shot.png', caption: 'The login page after five wrong tries' },
+      { type: 'next', items: ['Make the limit configurable', 'Add the limiter to /reset-password'] },
+    );
   // CAST: a Cast a spell task hands its spell back.
   if (stdin.includes('CAST')) blocks.push({ type: 'spell', spell: FAKE_SPELL });
   // A crew member's job (its brief is in the system prompt): CREWQUIET makes a check-in say it

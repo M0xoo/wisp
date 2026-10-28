@@ -1,0 +1,127 @@
+/* Comments on an answer (features/comments.js): the bubble over selected words, the button on a
+   block, pinning a spot, the marks, the note card, the tray over the follow-up box and the sent
+   ones on a prompt. */
+
+.presentation > .blk { position: relative; scroll-margin-top: 24px; }
+
+/* Selected words, and the ones a comment is about. */
+::highlight(wisp-comment) { background-color: color-mix(in srgb, var(--accent) 16%, transparent); }
+::highlight(wisp-comment-draft) { background-color: color-mix(in srgb, var(--accent) 26%, transparent); }
+
+/* The bubble over a selection. */
+.cmt-bubble {
+  position: fixed; z-index: 45; display: flex; padding: 3px; border-radius: 10px;
+  background: var(--ink); box-shadow: var(--shadow-2); animation: cmt-in 0.16s var(--ease);
+}
+.cmt-bubble[hidden] { display: none; }
+.cmt-bubble button { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 8px; border-radius: 7px; color: var(--bg); font-size: 12.5px; font-weight: 500; }
+.cmt-bubble button:hover { background: color-mix(in srgb, var(--bg) 14%, transparent); }
+.cmt-bubble .i { width: 15px; height: 15px; }
+@keyframes cmt-in { from { opacity: 0; transform: translateY(3px) scale(0.96); } }
+.cmt-bubble.under { animation-name: cmt-in-under; }
+@keyframes cmt-in-under { from { opacity: 0; transform: translateY(-3px) scale(0.96); } }
+
+/* The button on a block under the pointer: top right, half over its edge. */
+.cmt-add {
+  position: absolute; z-index: 3; top: -10px; right: -10px; display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-2);
+  opacity: 0; transform: scale(0.85); transition: opacity 0.14s, transform 0.14s var(--ease), color 0.14s; pointer-events: none;
+}
+.cmt-add .i { width: 15px; height: 15px; }
+.cmt-add:hover { color: var(--accent-ink); }
+.blk:hover > .cmt-add, .blk.cmt-touch > .cmt-add, .cmt-add:focus-visible, .blk.cmt-pinning > .cmt-add { opacity: 1; transform: none; pointer-events: auto; }
+/* A phone's finger needs more room than a pointer. */
+@media (hover: none) { :is(.blk-image, .blk-video, .blk-preview, .blk-app) > .cmt-add { opacity: 1; transform: none; pointer-events: auto; }
+  .cmt-add { width: 34px; height: 34px; top: -20px; right: -8px; }
+  /* One block's button at a time: the one the finger is on. */
+  .presentation:has(> .blk.cmt-touch) > .blk:not(.cmt-touch) > .cmt-add { opacity: 0; pointer-events: none; }
+  .cmt-add::before { content: ''; position: absolute; inset: -5px; }
+  .cmt-row .cmt-x { width: 44px; height: 44px; top: 0; right: 0; }
+  .cmt-foot button { min-height: 44px; } }
+
+/* Pinning: the picture takes one click. */
+/* Its own tools step aside while it waits for the spot. */
+.blk.cmt-pinning :is(.img-box, .pv-head) .img-tools, .blk.cmt-pinning .pv-tools { opacity: 0; pointer-events: none; }
+.cmt-layer { position: absolute; inset: 0; z-index: 4; cursor: crosshair; background: color-mix(in srgb, var(--ink) 8%, transparent); outline: none; }
+.cmt-aim {
+  position: absolute; top: 10px; left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 8px;
+  max-width: calc(100% - 20px); padding: 5px 6px 5px 10px; border-radius: 999px; white-space: nowrap; cursor: default;
+  background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2); font-size: 12.5px; color: var(--ink-2);
+  animation: cmt-in 0.16s var(--ease);
+}
+.cmt-aim .i { width: 14px; height: 14px; color: var(--accent); flex: none; }
+.cmt-aim span { overflow: hidden; text-overflow: ellipsis; }
+/* Esc is a hint, not a button; a touch screen gets Cancel instead. */
+.cmt-aim kbd { pointer-events: none; }
+.cmt-aim .cmt-cancel { display: none; }
+@media (hover: none) { .cmt-aim kbd { display: none; } .cmt-aim .cmt-cancel { display: inline; } }
+
+/* Marks: a number at the end of the words, a pin on the spot, a tag on a whole block. */
+.cmt-mark {
+  position: absolute; z-index: 2; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; line-height: 1;
+  box-shadow: 0 0 0 2px var(--surface); cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.cmt-mark:hover { background: var(--accent-ink); }
+.cmt-tag { min-width: 16px; height: 16px; font-size: 10.5px; }
+.cmt-pin { min-width: 24px; height: 24px; border-radius: 12px 12px 12px 3px; translate: -3px -21px; font-size: 12px; box-shadow: 0 0 0 2px var(--surface), var(--shadow-2); }
+.cmt-pin.cmt-draft { animation: cmt-drop 0.28s var(--ease) both !important; }
+@keyframes cmt-drop { from { opacity: 0; translate: -3px -36px; } }
+.cmt-corner { top: -9px; left: -9px; }
+.blk.cmt-whole > :first-child { box-shadow: 0 0 0 1px var(--accent); }
+.cmt-mark.cmt-flash { animation: cmt-flash 0.9s var(--ease) !important; }
+@keyframes cmt-flash { 30% { box-shadow: 0 0 0 2px var(--surface), 0 0 0 8px color-mix(in srgb, var(--accent) 35%, transparent); } }
+
+/* The note card. */
+.cmt-card {
+  position: fixed; z-index: 46; width: 340px; max-width: calc(100vw - 16px); padding: 12px;
+  border-radius: 13px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-2);
+  display: flex; flex-direction: column; gap: 8px; animation: pop 0.2s var(--ease);
+}
+.cmt-head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.cmt-n {
+  flex: none; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.cmt-on, .cmt-on q { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink-2); }
+.cmt-on i { font-style: normal; font-weight: 400; color: var(--faint); }
+.cmt-at { margin-left: auto; flex: none; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
+/* A text comment is named by its words. */
+.cmt-head q { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-style: italic; }
+.cmt-note.textarea { height: auto; min-height: 54px; max-height: 180px; padding: 8px 10px; resize: vertical; font-size: 14px; }
+@media (pointer: coarse) { .cmt-note.textarea { font-size: 16px; } }
+.cmt-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cmt-foot .grow { flex: 1; }
+.cmt-keep kbd { margin-left: 6px; }
+.cmt-del:hover { color: var(--bad); }
+/* On a phone it's a sheet at the bottom, over the keyboard. */
+.cmt-card.cmt-sheet { inset: auto 0 0 0; max-height: 70vh; width: auto; max-width: none; border-radius: 16px 16px 0 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+
+/* The tray over the follow-up box. */
+.cmt-tray { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 116px; overflow-y: auto; }
+.cmt-tray[hidden] { display: none; }
+.cmt-row { position: relative; flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 30px 0 8px; border-radius: 8px; background: var(--bg-2); }
+/* Only a row just added comes in; the others stay as they are. */
+.cmt-row.cmt-new { animation: cmt-in 0.18s var(--ease); }
+.cmt-body { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; height: 100%; align-items: center; text-align: left; font-size: 13px; color: var(--ink); white-space: nowrap; }
+.cmt-body .cmt-say { flex: 0 1 auto; }
+.cmt-body .cmt-on { flex: 1 1 0; min-width: 40px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.cmt-body .cmt-on::before { content: '· '; color: var(--faint); }
+@media (pointer: coarse) { .cmt-row { height: 44px; } .cmt-tray { max-height: 140px; } }
+.cmt-body q, .ask-note q, .cmt-on q { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-style: italic; }
+.cmt-say { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmt-say i { color: var(--faint); }
+.cmt-body:hover .cmt-say { color: var(--accent-ink); }
+.cmt-row .cmt-x { top: 50%; }
+.cmt-row .cmt-x:hover { color: var(--bad); }
+
+/* The sent ones, on the prompt they went out with. */
+.ask-notes { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ask-notes:last-child { margin-bottom: 0; }
+.ask-note { display: flex; align-items: flex-start; gap: 8px; }
+.ask-note .cmt-n { margin-top: 1px; }
+.an-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; min-width: 0; flex: 1; font-size: 13px; }
+.an-body .cmt-on { font-size: 12px; color: var(--muted); }
+.an-body .cmt-say { flex-basis: 100%; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+.t-prompt .t-cm { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; color: var(--accent); }
