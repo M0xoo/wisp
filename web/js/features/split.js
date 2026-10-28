@@ -176,10 +176,14 @@ export function paintMe() {
   const saved = {
     av: circle,
     html: `${circle}<span class="sf-who"><b>${esc(who || 'wisp Grid')}</b><small>${esc(sub)}</small></span>`,
-    href: !out && host ? `https://${host}/account` : '',
-    title: out
-      ? `Not connected to a wisp Grid${host ? ` (last: ${me.handle} on ${host})` : ''}: sign in`
-      : `Signed in as ${me.handle} on ${host}${me.state === 'on' ? '' : ' (not connected right now)'}: open your account`,
+    // In the phone app the account page would replace wisp in its one window, with no way back:
+    // there it goes to your computers, like the logo.
+    href: !out && host && !MOBILE ? `https://${host}/account` : '',
+    title: MOBILE
+      ? `${out ? 'Not connected to a wisp Grid' : `Signed in as ${me.handle} on ${host}`}: your computers`
+      : out
+        ? `Not connected to a wisp Grid${host ? ` (last: ${me.handle} on ${host})` : ''}: sign in`
+        : `Signed in as ${me.handle} on ${host}${me.state === 'on' ? '' : ' (not connected right now)'}: open your account`,
   };
   const key = JSON.stringify(saved);
   if (key === lastMe) return;
