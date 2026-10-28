@@ -43,7 +43,7 @@ export function createCloud(app) {
     Object.assign(f, { machineId: m.id, user });
     // Signed in from Machines: this computer joins the grid as well. Either way, your other
     // computers there show up.
-    if (f.addComputer) await app.computer.enable().catch((err) => console.warn(`wisp: grid: ${err.message}`));
+    if (f.addComputer) await app.computer.enable(m.id).catch((err) => console.warn(`wisp: grid: ${err.message}`));
     finish(f, 'done');
     app.machines.connect(m.id).catch(() => {});
     app.computer.sync().catch(() => {});

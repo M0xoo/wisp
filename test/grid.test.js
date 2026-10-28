@@ -359,6 +359,25 @@ test('device flow from the phone app: Allow links back to the app, not the accou
   assert.doesNotMatch(allowed.text, />Your account</);
 });
 
+test('device flow: Use another account signs the browser out and comes back to the same code', async () => {
+  const code = await browser().go(`${base}/api/device/code`, { method: 'POST', body: { name: 'Phone (wisp app)' } });
+  const b = browser();
+  await devSignIn(b, 'quin@example.com');
+  const page = await b.go(`${code.json.verification_uri_complete}&app=android`);
+  assert.match(page.text, /Not quin\?/);
+  const action = /action="(\/signout\?return=[^"]+)"/.exec(page.text)[1];
+  const out = await b.go(`${base}${action.replace(/&amp;/g, '&')}`, { method: 'POST', form: { csrf: csrfOf(page.text) }, headers: { origin: base } });
+  assert.equal(out.status, 302);
+  assert.equal(out.location, `/signin?return=${encodeURIComponent(`/activate?code=${code.json.user_code}&app=android`)}`);
+  assert.equal((await b.go(`${base}/activate?code=${code.json.user_code}`)).status, 302, 'signed out');
+  // An address elsewhere is never where it sends you.
+  const b2 = browser();
+  await devSignIn(b2, 'quin@example.com');
+  const p2 = await b2.go(`${base}/`);
+  const evil = await b2.go(`${base}/signout?return=${encodeURIComponent('//evil.example')}`, { method: 'POST', form: { csrf: csrfOf(p2.text) }, headers: { origin: base } });
+  assert.equal(evil.location, '/signin');
+});
+
 test('device flow: code → approve in the browser → bearer token opens the wisp; slow_down; revoke', async () => {
   const code = await browser().go(`${base}/api/device/code`, { method: 'POST', body: { name: 'Test laptop' } });
   assert.equal(code.status, 200);
@@ -1031,6 +1050,32 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
     const ms = (await api('/machines')).json.filter((x) => x.computer);
     assert.deepEqual(ms.map((x) => [x.name, x.url, x.state]), [['Studio', studio.json.url, 'asleep']], 'offline until its tunnel is up');
     assert.equal((await api('/sessions', { method: 'POST', body: { prompt: 'hi', agent: 'claude', machine: ms[0].id } })).status, 503);
+    // A second account on the same grid: its computers sit next to ada's, and neither clobbers the other.
+    const s2 = await api('/cloud/signin', { method: 'POST', body: { url: base.replace('http://', '') } });
+    const b2 = browser();
+    await devSignIn(b2, 'bea@example.com');
+    const page2 = await b2.go(s2.json.verifyUrl);
+    await b2.go(`${base}/activate`, { method: 'POST', form: { csrf: csrfOf(page2.text), code: s2.json.userCode, answer: 'allow' }, headers: { origin: base } });
+    const done2 = await until(async () => {
+      const r = await api(`/cloud/signin/${s2.json.id}`);
+      return r.json.state !== 'waiting' && r.json;
+    }, { what: 'the second sign-in' });
+    assert.equal(done2.state, 'done', done2.error);
+    assert.notEqual(done2.machineId, mid, 'a cloud computer of its own');
+    const cloud2 = (await api('/machines')).json.find((x) => x.id === done2.machineId);
+    assert.notEqual(cloud2.name, (await api('/machines')).json.find((x) => x.id === mid).name, 'two cloud computers never share a name');
+    const beaBox = await deviceToken('bea@example.com', 'Bea box (wisp)');
+    await browser().go(`${base}/api/computers`, { method: 'POST', body: { name: 'Bea box' }, headers: { authorization: `Bearer ${beaBox}` } });
+    await desk.computer.sync();
+    const both = (await api('/machines')).json.filter((x) => x.computer);
+    assert.deepEqual(both.map((x) => [x.name, x.handle]).sort(), [['Bea box', 'bea'], ['Studio', 'ada']]);
+    const view = (await api('/computer')).json;
+    assert.equal(view.account.handle, 'ada', 'still on the grid as ada');
+    assert.deepEqual(view.accounts.map((a) => a.handle), ['ada', 'bea']);
+    // Signing bea out takes only bea's computers, and this computer stays on as ada.
+    assert.equal((await api(`/machines/${done2.machineId}`, { method: 'DELETE' })).status, 200);
+    assert.deepEqual((await api('/machines')).json.filter((x) => x.computer).map((x) => x.name), ['Studio']);
+    assert.equal((await api('/computer')).json.on, true);
     // Removing it here takes it off the grid; off, this computer leaves the grid too.
     assert.equal((await api(`/machines/${ms[0].id}`, { method: 'DELETE' })).status, 200);
     assert.equal((await api('/computer', { method: 'POST', body: { on: false } })).json.on, false);

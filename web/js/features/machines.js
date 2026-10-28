@@ -199,7 +199,9 @@ export function openMachines({ host, focusAdd = false, focusGrid = false } = {})
   // Where a machine comes from, said on its card: a cloud computer the grid runs, one of your
   // computers reached through the grid, or one this computer reaches over SSH.
   const kind = (m) => (m.kind !== 'grid' ? ['ssh', 'Over SSH', 'server'] : m.computer ? ['grid', 'Your computer · via grid', 'laptop'] : ['cloud', 'Cloud · on grid', 'cloud']);
-  const where = (m) => (m.kind === 'grid' ? `${m.computer ? 'through' : 'on'} ${gridHost(m)}` : `${m.target}${m.port !== 4477 ? ` · port ${m.port}` : ''}`);
+  // Two accounts on one grid: which one this is reached as.
+  const as = (m) => (S.machines.some((x) => x.kind === 'grid' && x.grid === m.grid && x.handle !== m.handle) && m.handle && !m.name.endsWith(`(${m.handle})`) ? ` as ${m.handle}` : '');
+  const where = (m) => (m.kind === 'grid' ? `${m.computer ? 'through' : 'on'} ${gridHost(m)}${as(m)}` : `${m.target}${m.port !== 4477 ? ` · port ${m.port}` : ''}`);
   const stateText = (m) => (m.computer && m.state === 'asleep' ? 'Offline' : MACHINE_STATE[m.state] || m.state);
   const card = (m) => {
     const st = m.state;

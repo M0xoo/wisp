@@ -289,7 +289,7 @@ test('take over in wisp: the terminal setting, its parts, font size and header s
 });
 
 test('Settings → Cloud is parts spells can restyle or hide', () => {
-  assert.deepEqual(problems({ ...base0, parts: { 'machines.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud.computer': { style: { background: 'var(--surface)' } }, 'settings.connect': { style: { borderRadius: '4px' } }, 'getapp.card': { style: { borderRadius: '4px' } } }, ui: { hide: ['settings.cloud.signin', 'topbar.getapp'] } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'machines.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud': { style: { borderRadius: '4px' } }, 'settings.cloud.computer': { style: { background: 'var(--surface)' } }, 'settings.connect': { style: { borderRadius: '4px' } }, 'getapp.card': { style: { borderRadius: '4px' } } }, ui: { hide: ['settings.cloud.signin', 'settings.cloud.add', 'topbar.getapp'] } }), []);
   assert.ok(problems({ ...base0, parts: { 'settings.cloud': { props: { width: 400 } } } }).some((x) => /settings\.cloud/.test(x)));
 });
 

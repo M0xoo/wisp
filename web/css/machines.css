@@ -116,7 +116,8 @@
 .mc-edit { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .mc-add { margin-top: 12px; }
 .mc-add h4 { margin-top: 18px; }
-.mc-new { height: 32px; }
+.mc-new, .cl-add { height: 32px; }
+.sx-cloud .cl-add { margin-top: 12px; }
 .mc-found { margin-bottom: 14px; }
 .mc-found h4 { margin: 0 0 8px; }
 .mc-found-list { display: flex; flex-wrap: wrap; gap: 6px; }

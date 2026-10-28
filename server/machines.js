@@ -166,7 +166,11 @@ export class Machines extends EventEmitter {
     let m = this.list.find((x) => isGrid(x) && x.url === u.origin);
     if (m) Object.assign(m, { grid, handle, user });
     else {
-      m = { id: randomBytes(3).toString('hex'), kind: 'grid', name: String(name || handle || u.hostname).slice(0, 40), url: u.origin, grid, handle, user, target: u.host, port: Number(u.port) || (u.protocol === 'https:' ? 443 : 80), command: '', autoConnect: true, addedAt: Date.now() };
+      // A second account whose cloud computer has the same name (two 'wisp Cloud's): its handle
+      // tells them apart in Run on, Machines and every toast.
+      let label = String(name || handle || u.hostname);
+      if (handle && this.list.some((x) => x.name === label.slice(0, 40))) label = `${label} (${handle})`;
+      m = { id: randomBytes(3).toString('hex'), kind: 'grid', name: label.slice(0, 40), url: u.origin, grid, handle, user, target: u.host, port: Number(u.port) || (u.protocol === 'https:' ? 443 : 80), command: '', autoConnect: true, addedAt: Date.now() };
       this.list.push(m);
     }
     this.secrets?.set('machines', m.id, token);
