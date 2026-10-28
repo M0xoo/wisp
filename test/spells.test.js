@@ -227,7 +227,8 @@ test('for later: the section and the row button are parts; forLater is a button 
 });
 
 test('later: Scheduled, Coming up, the follow-up rows, Send later and the time chip are parts; Coming up takes buttons and a count; readTimes is a setting', () => {
-  assert.deepEqual(problems({ ...base0, ui: { hide: ['section.scheduled', 'split.upcoming', 'card.later', 'composer.sendLater', 'launcher.later'] }, parts: { 'composer.later': { style: { fontSize: '12px' } }, 'scheduled.row': { style: { opacity: '0.8' } }, 'split.upcoming': { props: { count: 8 } } } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['section.scheduled', 'split.upcoming', 'card.later', 'composer.sendLater', 'launcher.later'] }, parts: { 'composer.later': { style: { fontSize: '12px' } }, 'scheduled.row': { style: { opacity: '0.8' } }, 'split.upcoming': { props: { count: 8 } }, 'split.upcoming.day': { style: { color: 'var(--accent)' } } } }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['split.upcoming.more'] } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.upcoming', label: 'All', do: { open: 'https://example.com' } }] }), []);
   assert.ok(problems({ ...base0, parts: { 'split.upcoming': { props: { count: 41 } } } }).some((x) => /count: int from 1 to 40/.test(x)));
   // The crew's folded row and how many full rows it keeps.

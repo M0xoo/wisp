@@ -214,6 +214,8 @@ export const PARTS = {
   'split.greeting': '#splitHome .sh-hello',
   'split.next': '#splitHome .sh-next:not(.sh-coming)',
   'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
+  'split.upcoming.more': '#splitHome .sh-coming .sh-more', // Show all / Show fewer, past the first `count`
+  'split.upcoming.day': '#splitHome .sh-coming .sh-day', // a day's heading in the full list (Today, Tomorrow, Fri 31 Oct)
   'split.feedback': '#splitHome .sh-fb', // Hit a bug, or an idea: opens Send feedback (hidden when feedback is off)
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',

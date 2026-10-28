@@ -423,13 +423,35 @@ export function upcoming() {
   return out.filter((x) => x.at > Date.now() - 60_000).sort((a, b) => a.at - b.at);
 }
 
-export function upcomingRow(x, i) {
+// A day's heading in the full list: Today, Tomorrow, Fri 31 Oct.
+export function dayLabel(t, now = new Date()) {
+  const d = new Date(t);
+  const days = Math.round((new Date(d).setHours(0, 0, 0, 0) - new Date(now).setHours(0, 0, 0, 0)) / 86400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return fmtDate(t, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+// The full list, a heading per day: under it each row says only its time.
+export function upcomingByDay(list) {
+  let day = '';
+  return list
+    .map((x, i) => {
+      const d = dayLabel(x.at);
+      const head = d === day ? '' : `<div class="sh-day">${esc(d)}</div>`;
+      day = d;
+      return head + upcomingRow(x, i, fmtDate(x.at, { hour: '2-digit', minute: '2-digit' }));
+    })
+    .join('');
+}
+
+export function upcomingRow(x, i, time = aheadLabel(x.at)) {
   const glyph = x.kind === 'checkin' ? avatarHtml(x.member, { size: 18, dot: false }) : `<span class="q-dot auto">${icon(x.kind === 'trigger' ? 'bolt' : x.kind === 'reminder' ? 'bell' : 'clock')}</span>`;
   return `<button class="sh-task sh-up${x.held ? ' held' : ''}" data-up="${i}" title="${esc(`${x.title}: ${x.sub}`)}">
     ${glyph}
     <span class="sh-t">${esc(x.title)}</span>
     <span class="sh-s">${esc(x.sub)}</span>
-    <span class="q-time" title="${esc(whenTip(x.at))}">${esc(aheadLabel(x.at))}</span>
+    <span class="q-time" title="${esc(whenTip(x.at))}">${esc(time)}</span>
   </button>`;
 }
 

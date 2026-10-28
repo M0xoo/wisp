@@ -29,7 +29,7 @@ import { barCover, stage } from './scroll.js';
 import { placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
-import { openUpcoming, upcoming, upcomingRow } from './later.js';
+import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 import { planLine } from './budget.js';
 import { feedbackOn, openFeedback } from './feedback.js';
@@ -464,10 +464,15 @@ function paintHome() {
   if (next.dataset.h !== html) (next.innerHTML = html), (next.dataset.h = html);
   next.hidden = !html;
   // What's coming up: scheduled tasks, reminders, follow-ups, crew check-ins and schedules (later.js).
+  // Past the first few, Show all opens the rest in place, a heading per day; the heading sticks
+  // so Show fewer stays in reach down a long list.
   const ahead = upcoming();
-  shown = ahead.slice(0, spellProp('split.upcoming', 'count') || 5);
+  const few = spellProp('split.upcoming', 'count') || 5;
+  const open = upAll && ahead.length > few;
+  shown = open ? ahead : ahead.slice(0, few);
+  const more = ahead.length > few ? `<button class="tip-more sh-more" aria-expanded="${open}">${open ? 'Show fewer' : `Show all ${ahead.length}`}</button>` : '';
   const up = shown.length
-    ? `<h4>Coming up<span class="n">${ahead.length > shown.length ? `${shown.length} of ${ahead.length}` : ahead.length}</span>${slotHtml('split.upcoming')}</h4>${shown.map(upcomingRow).join('')}`
+    ? `<h4>Coming up<span class="n">${ahead.length}</span>${more}${slotHtml('split.upcoming')}</h4>${open ? upcomingByDay(shown) : shown.map((x, i) => upcomingRow(x, i)).join('')}`
     : '';
   const coming = $('.sh-coming', home);
   if (coming.dataset.h !== up) (coming.innerHTML = up), (coming.dataset.h = up);
@@ -548,8 +553,20 @@ $('#splitHead').addEventListener('dblclick', (e) => {
   if (e.target.closest('.sh-title') && id) import('./actions.js').then((m) => m.rename(id));
 });
 let shown = []; // Coming up's rows, as painted
+let upAll = load('wisp.upAll', false); // Coming up shows everything, not only the next few
 home.addEventListener('click', (e) => {
   if (e.target.closest('.sh-back')) return goBack();
+  if (e.target.closest('.sh-more')) {
+    upAll = !upAll;
+    save('wisp.upAll', upAll);
+    const head = $('.sh-coming h4', home);
+    const top = head.getBoundingClientRect().top;
+    paintHome();
+    // Show fewer from far down a long list: back to the heading, not into the tips below.
+    if (!upAll && top < 0) head.scrollIntoView({ block: 'start' });
+    $('.sh-coming .sh-more', home)?.focus();
+    return;
+  }
   if (e.target.closest('.sh-fb')) return openFeedback({ source: 'home' });
   const up = e.target.closest('.sh-up');
   if (up) return openUpcoming(shown[up.dataset.up], up, e);
