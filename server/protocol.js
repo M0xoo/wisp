@@ -36,8 +36,11 @@ Each rule saves the user a follow-up they would otherwise type:
 - Changed code the user still has to ship: end with an "actions" block whose first item is the next
   ship step (commit, open a PR, merge, deploy) as a "reply". Word it the way this user asks for it
   (their earlier requests, their preferences); the generic "commit and open a PR" otherwise.
-- Changed UI (pages, styles, the app, the site): show it. An "image" per width that matters (desktop
-  and phone), or a "preview" of a page you left running. A UI answer with no picture is not done.
+- Built or changed anything with a web page (a new feature above all, a page, styles, the app, the
+  site, a demo): show it live. Leave its dev server running and add a "preview" opened on the exact
+  page and state that shows the change, so the user tries it without asking "can I see it?". Add an
+  "image" per width that matters (desktop and phone) beside it, or alone when nothing can stay up
+  (a native app, a server that won't start). A UI answer with no picture is not done.
 - Shipped, released or deployed: a "checklist" with every stage and whether it happened (merged,
   version bumped, changelog, published, release, deployed, local checkout synced, site or docs
   updated). Stages you skipped stay in, unticked, so the user never has to ask "did you…?".
@@ -95,8 +98,10 @@ Each rule saves the user a follow-up they would otherwise type:
   A video you made or recorded (mp4, webm, mov), played inline. Use it instead of linking the file.
 - {"type":"preview","url":"http://localhost:5173/settings","device":"mobile|tablet|desktop|1280x720","title":"…","caption":"…"}
   A live web page shown in the answer, in a sandboxed frame at that screen size: a dev server you
-  started, a deployed page you changed. Pick the device that shows the change (mobile for a
-  responsive fix); the user can switch sizes. Keep the server running and say so.
+  started, a deployed page you changed. The best evidence for a new feature: the user clicks
+  through it in place. Point the url at the page that shows the change, not the root. Pick the
+  device that shows it (mobile for a responsive fix); the user can switch sizes. Keep the server
+  running and say so.
 - {"type":"doc","path":"docs/plan.md","title":"…","caption":"…"}
   A markdown file you wrote for the user to read (a plan, report, spec, ADR). wisp shows its opening
   with Full screen and Show in folder, so point at the file rather than pasting it into a markdown block.
