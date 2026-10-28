@@ -146,3 +146,5 @@ is New task). Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, 
   setting (`server/update.js`, `CHANNELS`). Download names carry
   no version (`wisp-mac-arm64.dmg`): the site, README and the app's updater (`server/update.js`,
   method `app`) link `releases/latest/download/<name>`, so don't rename them.
+  The Android app ships the same way from `.github/workflows/android.yml`: each main build goes to
+  Play's internal testing, and bumping `mobile/package.json`'s version promotes it (`scripts/play.mjs`).

@@ -120,11 +120,20 @@ themed icon). The store art is in `store/`: `icon.png` (512×512) and `feature-g
    keyAlias=upload
    keyPassword=…
    ```
-2. **Build the bundle in CI:** `.github/workflows/android.yml` builds a signed
+2. **Build and publish in CI:** `.github/workflows/android.yml` builds a signed
    `wisp-android-<versionName>-<versionCode>.aab` on each push to main that touches the app (or
    `gh workflow run android`) and keeps it as the run's artifact. It signs with the
    `ANDROID_UPLOAD_KEYSTORE` (the `.jks`, base64) and `ANDROID_UPLOAD_KEY_PASSWORD` secrets;
-   versionCode is 1 + the run number and versionName is `package.json`'s version.
+   versionCode is 100 + the run number and versionName is `package.json`'s version.
+   With a `PLAY_SERVICE_ACCOUNT_JSON` secret it then publishes (`scripts/play.mjs`), as npm
+   releases do: every build goes to *Internal testing*, and the build that bumps `package.json`'s
+   version also goes to *Production* (or the track in the `PLAY_PROMOTE_TRACK` repo variable, e.g.
+   `alpha` for closed testing while production is locked). *What's new* is `whatsnew.txt` when it
+   has text, else the CHANGELOG headlines about the phone app (`node scripts/play.mjs notes`).
+   The key, once: in Google Cloud turn on the *Google Play Android Developer API*, make a service
+   account and a JSON key for it, then in Play Console → *Users and permissions* invite its email
+   with *Release to testing tracks* and *Release to production* on wisp;
+   `gh secret set PLAY_SERVICE_ACCOUNT_JSON < key.json`.
 3. **Or build it here:** `npm run sync && cd android && ./gradlew bundleRelease -PversionCode=<n>`
    (higher than the last upload; it defaults to 1)
    → `android/app/build/outputs/bundle/release/app-release.aab`.
