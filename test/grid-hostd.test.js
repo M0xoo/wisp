@@ -157,3 +157,22 @@ test('admit is on by default for containers on Linux only', () => {
   assert.deepEqual(c.admit, fs.existsSync('/proc/meminfo') ? { boxMb: 1024, reserveMb: 1024 } : false);
   assert.equal(off.admit, false);
 });
+
+test('a box killed when nobody asked ran out of memory: its next start tells its wisp, once', async () => {
+  const h = hostd();
+  const a = user('ada');
+  const oom = async () => (await seen(h, a), h.inst.get(a.id).status.oom);
+  await h.ensure(a);
+  assert.equal(await oom(), '');
+  h.inst.get(a.id).child.kill('SIGKILL'); // what the kernel's OOM killer does (docker: exit 137)
+  await until(() => h.stops.some(([, e]) => e === 'out of memory'), { what: 'the out-of-memory stop' });
+  h.inst.get(a.id).status = null;
+  await h.ensure(a);
+  assert.equal(await oom(), '1');
+  // Stopped on purpose (even hard), it's not memory; and the next start is a plain one again.
+  await h.stop(a.id, 'put to sleep');
+  h.inst.get(a.id).status = null;
+  await h.ensure(a);
+  assert.equal(await oom(), '');
+  assert.deepEqual(h.stops, [['ada', 'out of memory'], ['ada', 'put to sleep']]);
+});

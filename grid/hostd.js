@@ -304,7 +304,10 @@ export class Hostd extends EventEmitter {
     const dirs = this.boxd ? [d.root] : this.driver === 'container' ? [d.home] : [d.wisp, d.home];
     for (const x of dirs) fs.mkdirSync(x, { recursive: true });
     i.port = await freePort();
-    const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), WISP_UPDATE_CHECK: '0', ...(!this.telemetry && { WISP_TELEMETRY: '0' }), WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
+    // WISP_OUT_OF_MEMORY: the last run was killed for memory (its limit, with containers).
+    const oom = i.oom && { WISP_OUT_OF_MEMORY: this.driver === 'container' ? String(c.memory) : '1' };
+    i.oom = false;
+    const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), ...oom, WISP_UPDATE_CHECK: '0', ...(!this.telemetry && { WISP_TELEMETRY: '0' }), WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
     let child;
     if (this.boxd) {
       child = boxdRun(this.boxd, { id: i.user.id, port: i.port, env: { ...this.env, ...wisp }, limits: { memory: c.memory, memorySwap: c.memorySwap, cpus: c.cpus, pids: c.pids }, dns: c.dns }, d.log);
@@ -344,6 +347,10 @@ export class Hostd extends EventEmitter {
         dropEnv();
         const was = i.state;
         Object.assign(i, { state: 'stopped', child: null, port: null, stoppedAt: Date.now() });
+        // Killed when nobody asked: the kernel's OOM killer (docker says 137 for a box over its
+        // --memory). Its next start tells its wisp, so the task that was running says why.
+        i.oom = was === 'running' && !i.stopReason && (code === 137 || signal === 'SIGKILL');
+        if (i.oom) i.stopReason = 'out of memory';
         if (was === 'running' && !i.stopReason) i.stopReason = `exited (${signal || code})`;
         this.#changed(i, i.stopReason || 'exited');
         i.stopReason = null;
