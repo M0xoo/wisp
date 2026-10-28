@@ -492,6 +492,25 @@ test('connect, add a project, launch, follow up, delegate and stop wisp over the
   await until(async () => !fs.existsSync(boxer.cwd));
   assert.ok(!(await call('GET', '/sessions')).some((x) => x.delegated || x.title === 'Check math.js for boxer'));
 
+  // A lead on the machine with a crew member in its team: the crew is this wisp's, not the
+  // machine's, so this wisp starts the member's job and the lead gets its report.
+  const gucci = await call('POST', '/crew', { name: 'Gucci', role: 'UI', cwd: local.dir, agent: 'claude', brief: 'UI work.' });
+  const far = await call('POST', '/sessions', { prompt: 'DELEGATE the notes', cwd: repo, machine: m.id, agent: 'claude', subagents: [{ name: 'mate', agent: 'codex', machine: m.id }, { crew: gucci.id, name: 'Gucci', label: 'Gucci', role: 'UI', agent: 'claude' }] });
+  const farLed = await until(
+    async () => {
+      const x = await call('GET', `/sessions/${far.id}`);
+      return x.state === 'review' && x;
+    },
+    { timeout: 60_000 },
+  );
+  assert.deepEqual(farLed.subagents.map((x) => [x.name, !!x.upstream]), [['mate', false], ['gucci', true]]);
+  assert.deepEqual(farLed.turns[0].delegations.map((d) => d.name), ['mate', 'gucci']);
+  assert.match(farLed.turns[0].presentation.blocks[0].summary, /### mate[\s\S]*### gucci/);
+  const gucciJob = (await call('GET', '/sessions')).find((x) => x.crew?.id === gucci.id);
+  assert.ok(gucciJob && !gucciJob.id.includes('@'), 'its job is a task here, where the crew is');
+  assert.equal(gucciJob.crew.from.id, far.id);
+  await call('DELETE', `/crew/${gucci.id}`);
+
   // A crew member on the machine: its jobs run there with the note we write from its memory, and
   // what a job remembers comes back here (server/crew.js).
   await assert.rejects(call('POST', '/crew', { name: 'Nope', machine: 'zzzzzz' }), /isn’t one of yours/);

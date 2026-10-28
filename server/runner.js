@@ -783,8 +783,9 @@ export class Runner extends EventEmitter {
         continue;
       }
       claimed.add(slot);
-      // A crew member: the crew starts a job for it, in its own folder, that the user sees.
-      if (m.crew) {
+      // A crew member: the crew starts a job for it, in its own folder, that the user sees. One of
+      // the wisp that sent this task (upstream) is started by that wisp, through the relay below.
+      if (m.crew && !m.upstream) {
         const job = await Promise.resolve(this.crewDelegate?.(lead, m, prompt) ?? { error: 'The crew is not available.' }).catch((err) => ({ error: err.message }));
         if (job.error) {
           out.push({ subagent: want, error: job.error });
@@ -797,7 +798,7 @@ export class Runner extends EventEmitter {
       }
       let child = this.store.get(lead.children?.[slot]);
       // A member on another machine: the wisp that reaches it runs it there (services/relay.js).
-      const relay = m.machine ? { machine: m.machine, place: m.place || '', ...(m.upstream && { upstream: true }) } : null;
+      const relay = m.crew ? { machine: 'here', crew: m.crew, place: m.label || m.name, upstream: true } : m.machine ? { machine: m.machine, place: m.place || '', ...(m.upstream && { upstream: true }) } : null;
       if (child && (relay || adapters[child.agent])) {
         child.cwd = workdir(lead); // follows the lead if its worktree moved
         child.mode = lead.mode; // and its mode, if a follow-up switched it
@@ -816,7 +817,7 @@ export class Runner extends EventEmitter {
         child = this.create({ prompt, cwd: workdir(lead), ...run, mode: lead.mode, parentId: lead.id, member: slot, relay });
         (lead.children ||= {})[slot] = child.id;
       }
-      const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, ...(relay && { place: relay.place }), sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now(), owed: true }; // owed until the lead has its report
+      const d = { id: newId(), name: slot, member: m.name, agent: child.agent, model: child.model, effort: child.effort, ...(m.crew ? { crew: m.crew } : relay && { place: relay.place }), sessionId: child.id, turnId: child.turns.at(-1).id, prompt, startedAt: Date.now(), owed: true }; // owed until the lead has its report
       (turn.delegations ||= []).push(d);
       out.push(d);
     }
