@@ -168,3 +168,36 @@ Never send builds to someone's own phone as part of QA.
   doesn't bring the keyboard back. The place button ends the name in `…` and the bar's other
   buttons keep their room; *Run on* ends long names in `…` with *only* shown on every row. The
   avatar menu shows the name with the row's width.
+
+### MOB-19 Grid sign-in through a grid restart, and Connect then Disconnect at once
+- **Run:** `qa/mobile.mjs` (a fake grid through Playwright routes), Emulator
+- **Steps:** sign in to a grid; while the app waits for **Allow**, the grid answers `/api/device/token`
+  with a 502 (a deploy restarting it), then with the token. Sign in again and close the sheet.
+  On the emulator: Connect to an SSH computer and Disconnect at once, 20 times
+  (`Capacitor.Plugins.WispSsh.connect(…)` then `disconnect()` over the WebView's DevTools).
+- **Expected:** the app keeps asking through the 502 and signs in when the grid is back; once the
+  sheet is closed it stops asking. Connect then Disconnect never closes the app (Android kills an
+  app that stops its foreground service before `startForeground`).
+
+### MOB-20 Delete your account from the app
+- **Run:** `npm run preview` in `mobile/` (the mock opens links in a new tab), Emulator
+- **Steps:** signed in to a grid, tap *⋯* on its cloud row; tap *Delete your account* under *Sign out*.
+- **Expected:** a quiet red link, 48px tall, never a filled button; it opens `<grid>/account#delete`
+  in the browser, scrolled to *Delete your account* below the sticky header. Not shown before
+  sign-in.
+
+### MOB-21 A notification tap opens its task after the screen was off
+- **Run:** Emulator (a stub page on `adb reverse tcp:4599` that sets `window.wispOpen`, driven over
+  the WebView's DevTools)
+- **Steps:** post a task notification (`wispAndroid.notify`). (a) On the computers list, tap it,
+  then open wisp's page. (b) On wisp's page, tap it. (c) Home, `adb shell am kill dev.trywisp.mobile`,
+  tap it, then open wisp's page. Reload wisp's page once after each.
+- **Expected:** (a) and (c) land on the list and open the task as soon as wisp's page has loaded;
+  (b) opens it at once. A reload doesn't open it again.
+
+### MOB-22 One unreadable key doesn't hide the others
+- **Run:** `./gradlew testDebugUnitTest` (`KeysTest.skipsAKeyThatDoesNotLoad`)
+- **Steps:** three keys; truncate one's `.pub`, give another an unknown `alg`; list them.
+- **Expected:** the good key lists; the other two are named in `unreadable` and the app says which
+  it couldn't read (a toast that stays). With none readable, a fresh *This phone* key is made and
+  the damaged files stay on disk.

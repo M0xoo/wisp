@@ -296,6 +296,63 @@ try {
     ok((await overflow(page)) <= 0, 'home scrolls sideways');
     await ctx.close();
   });
+  await check('MOB-19', 'grid sign-in survives a 502 while polling, and stops asking once the sheet is closed', async () => {
+    const GRID = 'https://grid.qa.test';
+    const ctx = await phone(PHONES[0]);
+    let page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    let polls = 0;
+    let answer = 'pending'; // pending | bad-gateway | token
+    const json = (route, status, body) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
+    await ctx.route(`${GRID}/**`, (route) => {
+      const p = new URL(route.request().url()).pathname;
+      if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type' } });
+      if (p === '/api/device/code') return json(route, 200, { device_code: 'dc', user_code: 'QAQA-QAQA', verification_uri: `${GRID}/activate`, interval: 1 });
+      if (p === '/api/device/token') {
+        polls++;
+        if (answer === 'bad-gateway') return route.fulfill({ status: 502, contentType: 'text/html', body: '<html>502 Bad Gateway</html>' });
+        if (answer === 'token') return json(route, 200, { token: 't', user: { handle: 'ada' }, instance: { url: 'https://ada.qa.test', name: 'wisp Cloud' } });
+        return json(route, 400, { error: 'authorization_pending' });
+      }
+      if (p === '/api/computers') return json(route, 200, { computers: [{ id: 'c1', name: 'Studio', online: true }] });
+      return json(route, 404, { error: 'not found' });
+    });
+    const signIn = async () => {
+      await page.locator('[data-p="other"]').tap();
+      await page.locator('#gUrl').fill('grid.qa.test');
+      await page.locator('#gForm [type="submit"]').tap();
+      await page.waitForFunction(() => /^[A-Z]{4}-/.test(document.querySelector('#gBody .code')?.textContent || ''));
+    };
+    await page.goto(previewUrl);
+    await page.waitForSelector('[data-p="other"]');
+
+    // The grid restarts (a deploy) while the phone waits: it keeps asking, then signs in.
+    await signIn();
+    answer = 'bad-gateway';
+    await until(() => polls >= 2, { timeout: 10_000, what: 'polls through the 502' });
+    answer = 'token';
+    await until(() => page.evaluate(() => !document.querySelector('#gSheet').open), { timeout: 10_000, what: 'signed in after the 502' });
+    ok(await page.evaluate(() => JSON.parse(localStorage.getItem('wisp.machines') || '[]').some((m) => m.kind === 'grid' && m.token === 't')), 'the grid was not saved after the 502');
+
+    // Closing the sheet ends that code's polling.
+    await page.close();
+    page = await ctx.newPage();
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(`${previewUrl}?qa=fresh`);
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForSelector('[data-p="other"]');
+    answer = 'pending';
+    await signIn();
+    await page.evaluate(() => document.querySelector('#gSheet').close());
+    await page.waitForTimeout(1200); // an answer in flight lands, and must not ask again
+    const after = polls;
+    await page.waitForTimeout(2500);
+    ok(polls === after, `still polling after the sheet closed (${polls - after} more)`);
+    ok(!errors.length, `page errors: ${errors.join('; ')}`);
+    await ctx.close();
+  });
 } finally {
   await browser.close();
   wisp.stop();

@@ -55,23 +55,41 @@ public final class Keys {
         dir.mkdirs();
     }
 
-    public synchronized List<Info> list() throws GeneralSecurityException, IOException {
+    public synchronized List<Info> list() throws IOException {
+        return list(null);
+    }
+
+    /**
+     * Every key that loads. One that doesn't (a damaged file, an algorithm this phone's provider
+     * lacks) is left on disk and skipped, its name added to `unreadable`, so the others still list.
+     */
+    public synchronized List<Info> list(List<String> unreadable) throws IOException {
         List<Info> out = new ArrayList<>();
         File[] files = dir.listFiles((d, n) -> n.endsWith(".properties"));
         if (files != null) {
             java.util.Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
             for (File f : files) {
                 String id = f.getName().replace(".properties", "");
-                Properties p = props(id);
-                out.add(new Info(id, p.getProperty("name", "Key"), p.getProperty("source", "phone"), load(id).getPublic()));
+                String name = id;
+                try {
+                    Properties p = props(id);
+                    name = p.getProperty("name", "Key");
+                    out.add(new Info(id, name, p.getProperty("source", "phone"), load(id).getPublic()));
+                } catch (GeneralSecurityException | IOException | RuntimeException e) {
+                    if (unreadable != null) unreadable.add(name);
+                }
             }
         }
         return out;
     }
 
-    /** The phone's first key, made the first time the app needs one. */
+    /** The phone's first key, made the first time the app needs one (or when none of them loads). */
     public synchronized List<Info> listOrCreate() throws GeneralSecurityException, IOException {
-        List<Info> l = list();
+        return listOrCreate(null);
+    }
+
+    public synchronized List<Info> listOrCreate(List<String> unreadable) throws GeneralSecurityException, IOException {
+        List<Info> l = list(unreadable);
         if (l.isEmpty()) {
             create("This phone");
             l = list();

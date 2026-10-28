@@ -23,6 +23,7 @@ public class MainActivity extends BridgeActivity {
     private ActivityResultLauncher<String> askPermission;
     private volatile boolean resumed;
     private boolean clearHistory; // after falling back to the list: Back mustn't return to the error
+    private String openTask; // a tapped notification's task, opened once wisp's page has loaded
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -45,6 +46,9 @@ public class MainActivity extends BridgeActivity {
         boolean night = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         web.setBackgroundColor(night ? 0xFF111111 : 0xFFFFFFFF);
         web.getSettings().setOffscreenPreRaster(true);
+        // Tapped with the app gone (closed, or killed while the screen was off): the intent comes
+        // here, not to onNewIntent. Not on a re-create, which would open it again.
+        if (savedInstanceState == null) openTask = taskOf(getIntent());
         // wisp's page comes from the computer through the tunnel. SSH can be up while wisp isn't
         // (it was quit or crashed there), and with nothing cached the WebView would show its own
         // error page. Instead: back to the computers list, which says what's happening, while the
@@ -68,6 +72,10 @@ public class MainActivity extends BridgeActivity {
                 if (clearHistory && url != null && url.startsWith(getBridge().getLocalUrl())) {
                     clearHistory = false;
                     view.clearHistory();
+                }
+                if (openTask != null && wispPage(url)) {
+                    open(openTask);
+                    openTask = null;
                 }
             }
         });
@@ -100,19 +108,30 @@ public class MainActivity extends BridgeActivity {
         super.onPause();
     }
 
-    // A tapped task notification: wisp's page reveals the task (its #/s/<id> route).
+    // A tapped task notification: wisp's page reveals the task (its #/s/<id> route). On the list
+    // (the tunnel is reconnecting after the screen was off, or no computer is open yet) it waits
+    // for wisp's page to load instead of being dropped.
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        String task = intent == null ? null : intent.getStringExtra(Alerts.EXTRA_TASK);
+        String task = taskOf(intent);
         if (task == null || getBridge() == null) return;
-        WebView web = getBridge().getWebView();
-        String url = web.getUrl();
-        if (url != null && (url.startsWith("http://127.0.0.1:") || Grid.allowed(this, android.net.Uri.parse(url).getHost()))) {
-            // wisp's page opens it without a history entry (window.wispOpen); an older wisp only has the route.
-            String id = JSONObject.quote(task);
-            js("window.wispOpen ? wispOpen(" + id + ") : (location.hash = " + JSONObject.quote("#/s/" + task) + ")");
-        }
+        if (wispPage(getBridge().getWebView().getUrl())) open(task);
+        else openTask = task;
+    }
+
+    private static String taskOf(Intent intent) {
+        String task = intent == null ? null : intent.getStringExtra(Alerts.EXTRA_TASK);
+        return task == null || task.isEmpty() ? null : task;
+    }
+
+    private boolean wispPage(String url) {
+        return url != null && (url.startsWith("http://127.0.0.1:") || Grid.allowed(this, android.net.Uri.parse(url).getHost()));
+    }
+
+    // wisp's page opens it without a history entry (window.wispOpen); an older wisp only has the route.
+    private void open(String task) {
+        js("window.wispOpen ? wispOpen(" + JSONObject.quote(task) + ") : (location.hash = " + JSONObject.quote("#/s/" + task) + ")");
     }
 
     private SharedPreferences prefs() {

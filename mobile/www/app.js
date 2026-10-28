@@ -261,7 +261,7 @@ function paintMachines() {
         return `<article class="card m cloud ${m.signedOut ? 'failed' : 'ready'}" data-id="${esc(m.id)}" data-row="${m.signedOut ? 'edit' : 'open'}">
           <div class="m-row">
             <span class="m-ico">${icon('cloud')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub">${m.signedOut ? 'Signed out' : `<span class="kind cloud">Cloud</span>${esc(hostOf(m.grid))}`}</span></div>
+            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub">${m.signedOut ? 'Signed out' : `<span class="kind cloud">Cloud</span><span class="m-at">${esc(hostOf(m.grid))}</span>`}</span></div>
             ${go}${more(m)}
           </div>
         </article>${comps}`;
@@ -271,7 +271,7 @@ function paintMachines() {
       return `<article class="card m ${state}" data-id="${esc(m.id)}" ${row ? `data-row="${row}"` : ''}>
           <div class="m-row">
             <span class="m-ico">${icon('server')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub"><span class="kind">Over SSH</span>${esc(m.target)}</span></div>
+            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub"><span class="kind">Over SSH</span><span class="m-at">${esc(m.target)}</span></span></div>
             ${go}${more(m)}
           </div>
           ${on ? runHtml() : ''}
@@ -541,13 +541,26 @@ async function openGrid(m, cid = '') {
 // for this code (/activate), with no grid page or code to type in between.
 function cloudSheet(m = null, start = null) {
   const d = $('#gSheet');
-  const via = start?.provider || '';
-  const VIA = { github: 'GitHub', google: 'Google' }[via] || '';
+  let via = start?.provider || '';
+  let VIA = { github: 'GitHub', google: 'Google' }[via] || '';
   const body = $('#gBody');
   let flow = null; // { grid, code, url, interval, timer }
+  let closed = false;
   const stop = () => {
     clearTimeout(flow?.timer);
     if (flow) flow.timer = null;
+  };
+  // Signing in from the list: the same one tap as the first screen (GitHub, Google), never a grid
+  // address to type; another grid is behind Use your own wisp Grid.
+  const pick = () => {
+    $('#gTitle').textContent = 'wisp Cloud';
+    body.innerHTML = `<p class="muted">Your own wisp on a server: agents keep working when your computers sleep, and every computer you add to it shows here.</p>
+      <input id="gUrl" type="hidden" value="${esc(DEFAULT_GRID)}">
+      <div class="hello-go">
+        <button class="primary prov" data-g="github" type="button">${icon('github')}<span>Continue with GitHub</span></button>
+        <button class="ghost prov" data-g="google" type="button">${icon('google')}<span>Continue with Google</span></button>
+      </div>
+      <button class="hello-alt" data-g="other" type="button">Use your own wisp Grid</button>`;
   };
   const ask = (error = '') => {
     stop();
@@ -555,7 +568,8 @@ function cloudSheet(m = null, start = null) {
     body.innerHTML = `${m ? `<p class="muted">${esc(m.handle)} on <b>${esc(hostOf(m.grid))}</b>${m.signedOut ? ' · signed out' : ''}</p>` : '<p class="muted">Your own wisp on a server: agents keep working when your computers sleep. Sign in to a wisp Grid (yours, your team’s, or a hosted one) with Google, GitHub or what it offers.</p>'}
       <label class="field"><span>Grid</span><input id="gUrl" placeholder="wisp.example.com" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" value="${esc(m ? m.grid.replace(/^https:\/\//, '') : start?.own ? '' : localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" required></label>
       ${error ? `<p class="err">${esc(error)}</p>` : ''}
-      <div class="sheet-actions">${m ? '<button class="ghost danger" data-g="signout" type="button">Sign out</button>' : ''}<span class="grow"></span><button class="primary" type="submit">${m ? 'Sign in again' : 'Sign in'}</button></div>`;
+      <div class="sheet-actions">${m ? '<button class="ghost danger" data-g="signout" type="button">Sign out</button>' : ''}<span class="grow"></span><button class="primary" type="submit">${m ? 'Sign in again' : 'Sign in'}</button></div>
+      ${m ? '<button class="sheet-del" data-g="delete" type="button">Delete your account</button>' : ''}`;
   };
   // app=android: once allowed, the grid's page links back here instead of to the account page,
   // which would open your wisp in the browser.
@@ -577,12 +591,17 @@ function cloudSheet(m = null, start = null) {
       <p class="wait"><span class="spin"></span>Waiting for you to allow it…</p>`;
   };
   const poll = async () => {
-    flow.timer = null; // one poll at a time: back() only asks while one is scheduled
-    const r = await gridPost(`${flow.grid}/api/device/token`, { device_code: flow.deviceCode }).catch(() => ({ body: { error: 'authorization_pending' } }));
-    const e = r.body.error;
-    if (e === 'authorization_pending' || e === 'slow_down') {
-      if (e === 'slow_down') flow.interval += 5;
-      flow.timer = setTimeout(poll, flow.interval * 1000);
+    const f = flow;
+    f.timer = null; // one poll at a time: back() only asks while one is scheduled
+    const r = await gridPost(`${f.grid}/api/device/token`, { device_code: f.deviceCode }).catch(() => null);
+    // Closed, or signed in again with a new code meanwhile: this answer is for nobody.
+    if (closed || f !== flow) return;
+    const e = r?.body.error;
+    // Offline, or not the grid's answer (a 502 while it restarts, a rate limit): ask again later.
+    const busy = !r || r.status === 429 || r.status >= 500 || (!e && !r.body.token);
+    if (busy || e === 'authorization_pending' || e === 'slow_down') {
+      if (e === 'slow_down') f.interval += 5;
+      f.timer = setTimeout(poll, f.interval * 1000);
       return;
     }
     if (e) return ask(e === 'access_denied' ? 'Sign-in was declined in the browser.' : e === 'expired_token' ? 'The code expired. Sign in again.' : r.body.error_description || e);
@@ -614,6 +633,7 @@ function cloudSheet(m = null, start = null) {
   d.addEventListener(
     'close',
     () => {
+      closed = true;
       stop();
       document.removeEventListener('visibilitychange', back);
     },
@@ -644,8 +664,21 @@ function cloudSheet(m = null, start = null) {
   };
   body.onclick = async (e) => {
     const a = e.target.closest('[data-g]')?.dataset.g;
+    if (a === 'github' || a === 'google') {
+      via = a;
+      VIA = { github: 'GitHub', google: 'Google' }[a];
+      $('#gForm').requestSubmit();
+    }
+    if (a === 'other') {
+      ask();
+      $('#gUrl').value = '';
+      $('#gUrl').focus();
+    }
     if (a === 'open' && flow?.deviceCode) await openSignIn();
     if (a === 'copy' && flow) copy(flow.code, 'code');
+    // Deleting lives on the grid's account page (typed handle to confirm): the browser that
+    // allowed this phone is still signed in there.
+    if (a === 'delete' && m) Ssh.openExternal({ url: `${m.grid}/account#delete` }).catch((err) => toast(err.message));
     if (a === 'signout' && m) {
       gridPost(`${m.grid}/api/device/revoke`, {}, m.token).catch(() => {});
       machines = machines.filter((x) => x.id !== m.id);
@@ -655,8 +688,10 @@ function cloudSheet(m = null, start = null) {
       toast(`Signed out of ${nameOf(m)}`);
     }
   };
-  ask();
+  if (start?.pick) pick();
+  else ask();
   present(d);
+  if (start?.pick) return;
   if (start?.grid) {
     $('#gUrl').value = start.grid;
     $('#gForm').requestSubmit();
@@ -895,6 +930,8 @@ async function boot() {
     Ssh.status(),
   ]);
   if (listed) keys = listed.keys;
+  // A damaged key file is skipped (Keys.list), not the whole list: say which one.
+  if (listed?.unreadable?.length) toast(`Couldn’t read the key ${listed.unreadable.join(', ')}, so it’s left out.${keys[0] ? ` Computers that used it now try ${keys[0].name}.` : ''}`, { stay: true });
 
   Ssh.addListener('line', ({ text }) => {
     const opens = apply(text);
@@ -972,7 +1009,7 @@ function wire() {
     else if (p) cloudSheet(null, { grid: DEFAULT_GRID, provider: p });
   });
   $('#addCloud').onclick = () => {
-    cloudSheet();
+    cloudSheet(null, { pick: true });
   };
   $('#newKey').onclick = () => {
     newKey(`Key ${keys.length + 1}`);

@@ -8,6 +8,7 @@ import android.webkit.WebView;
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeWebViewClient;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -25,13 +26,13 @@ final class Grid {
     static void allow(Context c, String domain) {
         if (domain == null || domain.isEmpty()) return;
         Set<String> s = new HashSet<>(prefs(c).getStringSet("domains", new HashSet<>()));
-        s.add(domain.toLowerCase());
+        s.add(domain.toLowerCase(Locale.ROOT));
         prefs(c).edit().putStringSet("domains", s).apply();
     }
 
     static boolean allowed(Context c, String host) {
         if (host == null) return false;
-        String h = host.toLowerCase();
+        String h = host.toLowerCase(Locale.ROOT);
         for (String d : prefs(c).getStringSet("domains", new HashSet<>())) {
             if (h.equals(d) || h.endsWith("." + d)) return true;
         }

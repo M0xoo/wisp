@@ -6,6 +6,7 @@ import static org.junit.Assert.fail;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.security.Security;
 import java.util.List;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -51,6 +52,30 @@ public class KeysTest {
         } catch (IllegalArgumentException expected) {
             // ids never leave the keys folder
         }
+    }
+
+    // One damaged key (a truncated file, an unknown algorithm) is skipped and named; the rest list.
+    @Test
+    public void skipsAKeyThatDoesNotLoad() throws Exception {
+        File dir = Files.createTempDirectory("wisp-keys").toFile();
+        Keys k = new Keys(dir);
+        Keys.Info good = k.create("Good");
+        Keys.Info cut = k.create("Cut");
+        Keys.Info odd = k.create("Odd");
+        Files.write(new File(dir, cut.id + ".pub").toPath(), new byte[] { 1, 2, 3 });
+        File props = new File(dir, odd.id + ".properties");
+        Files.write(props.toPath(), new String(Files.readAllBytes(props.toPath())).replace("alg=Ed25519", "alg=Nope").getBytes());
+        List<String> unreadable = new ArrayList<>();
+        List<Keys.Info> l = k.list(unreadable);
+        assertEquals(1, l.size());
+        assertEquals(good.id, l.get(0).id);
+        assertEquals(List.of("Cut", "Odd"), unreadable.stream().sorted().toList());
+        // Nothing usable left: a fresh key is made; the damaged files stay on disk.
+        k.delete(good.id);
+        List<Keys.Info> fresh = k.listOrCreate();
+        assertEquals(1, fresh.size());
+        assertEquals("This phone", fresh.get(0).name);
+        assertTrue(new File(dir, cut.id + ".key").exists());
     }
 
     // ssh-keygen output, plain and with a passphrase: the same fingerprint ssh-keygen -lf prints.

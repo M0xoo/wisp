@@ -435,7 +435,12 @@ button.w.add-m .w-tx b{font-size:14px}button.w.add-m .chev svg{width:16px;height
 .toast{position:fixed;left:50%;bottom:24px;z-index:100;transform:translateX(-50%);max-width:calc(100vw - 32px);padding:10px 16px;border-radius:12px;background:var(--ink);color:var(--bg);font-size:13.5px;box-shadow:var(--shadow-2);animation:m-in .2s ease-out}.toast.bad{background:var(--bad);color:#fff}
 @media (max-width:640px){.mdlg{width:100vw;max-width:none;max-height:92dvh;margin:auto 0 0;border-radius:20px 20px 0 0;border-bottom:0}.mdlg[open]{animation:sheet .26s cubic-bezier(.2,.9,.3,1)}@keyframes sheet{from{transform:translateY(40px);opacity:.4}}.m-body{padding:18px 18px calc(22px + env(safe-area-inset-bottom))}.m-hero{padding:46px 18px 16px}button.w.add-m .chev{display:none}button.w.add-m .pill{align-self:flex-start;margin-top:2px}.rack{gap:6px}.slot{height:56px}.m-foot .primary{flex:1}}
 @media (prefers-reduced-motion:reduce){.slot,.mdlg[open],.m-ok{animation:none!important}}
-@media (max-width:640px){.tiles{grid-template-columns:1fr}.kinds{grid-template-columns:1fr}.main{padding:24px 16px 56px}.w{flex-wrap:wrap}.w-acts{width:100%;padding-left:46px}.w-acts .primary{flex:1}.steps{padding-left:14px}.seg{margin-left:14px}.top{padding:0 16px}.top .who{display:none}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
+/* The phone app's Delete your account opens /account#delete: clear of the sticky header. */
+#delete{scroll-margin-top:72px}
+/* Device pages' answers (Allow, Continue, Back to the app): 40px here, 48px on a phone's thumb. */
+.tall{height:40px}
+@media (max-width:640px){.tall,.narrow .input{height:48px}.narrow .input{font-size:16px}}
+@media (max-width:640px){.tiles{grid-template-columns:1fr}.kinds{grid-template-columns:1fr}.main{padding:24px 16px 56px}.w{flex-wrap:wrap}.w-acts{width:100%;padding-left:46px}.w-acts .primary{flex:1}.steps{padding-left:14px}.seg{margin-left:14px}.top{padding:0 16px}.top .who{display:none}.top .me .ghost{height:48px}.r.del{flex-wrap:wrap}.r.del .tx{flex-basis:calc(100% - 44px)}.r.del .input{flex:1;width:auto}}
 .wait{pointer-events:none;opacity:.75}.wait::after{content:'';width:12px;height:12px;flex:none;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:wait-spin .7s linear infinite}@keyframes wait-spin{to{transform:rotate(360deg)}}
 `;
 
@@ -666,7 +671,7 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
         .join('')}
         ${canLink.map((p) => `<div class="r"><span class="ic">${logo(p.id)}</span><div class="tx"><b>${esc(p.label)}</b><small>Connect it too, and either one signs you in</small></div><a class="ghost line" href="/auth/${encodeURIComponent(p.id)}/start?link=1">Connect</a></div>`).join('')}
       </div>
-      <h2 class="sec">Delete your account</h2>
+      <h2 class="sec" id="delete">Delete your account</h2>
       <div class="group"><form class="r del" method="post" action="/account/delete"><span class="ic">${I.trash}</span><div class="tx"><b>Delete your account and your cloud wisp</b><small>Your cloud wisp, its files and your agents’ sign-ins there are deleted for good. Your computers keep their own wisp.</small></div>
         ${hidden}<input class="input" name="confirm" placeholder="Type ${esc(user.handle)}" aria-label="Type ${esc(user.handle)} to confirm" autocomplete="off" autocapitalize="none" spellcheck="false" required pattern="${esc(user.handle)}"><button class="ghost line danger">Delete</button></form></div>
       <div class="foot"><form class="inline" method="post" action="/signout?all=1">${hidden}<button class="ghost">Sign out everywhere</button></form></div>
@@ -702,7 +707,7 @@ export function activatePage({ cfg, user, code = '', device = null, app = false,
       narrow: true,
       body: `<h1 class="h1">Connect a device</h1><p class="sub">Type the code wisp shows on your computer or phone.</p>${error ? `<div class="flash bad">${esc(error)}</div>` : ''}
         <form method="get" action="/activate" style="margin-top:20px;display:flex;flex-direction:column;gap:10px"><input class="input" name="code" value="${esc(code)}" placeholder="ABCD-EFGH" autocomplete="off" autocapitalize="characters" autofocus required>${app ? '<input type="hidden" name="app" value="android">' : ''}
-        <button class="primary" style="height:40px">Continue</button></form>`,
+        <button class="primary tall">Continue</button></form>`,
     });
   return appPage({
     cfg,
@@ -715,8 +720,8 @@ export function activatePage({ cfg, user, code = '', device = null, app = false,
       <div class="code">${esc(device.user_code)}</div>
       <form method="post" action="/activate" style="display:flex;gap:10px">
         <input type="hidden" name="csrf" value="${esc(csrf)}"><input type="hidden" name="code" value="${esc(device.user_code)}">${app ? '<input type="hidden" name="app" value="android">' : ''}
-        <button class="ghost line" style="flex:1;justify-content:center;height:40px" name="answer" value="deny">Don’t allow</button>
-        <button class="primary" style="flex:1;height:40px" name="answer" value="allow">Allow</button>
+        <button class="ghost line tall" style="flex:1;justify-content:center" name="answer" value="deny">Don’t allow</button>
+        <button class="primary tall" style="flex:1" name="answer" value="allow">Allow</button>
       </form>`,
   });
 }
@@ -726,7 +731,7 @@ export function messagePage({ cfg, title, text, link = null, tone = '' }) {
     cfg,
     title,
     narrow: true,
-    body: `<h1 class="h1">${esc(title)}</h1>${tone ? `<div class="flash ${tone}">${esc(text)}</div>` : `<p class="sub">${esc(text)}</p>`}${link ? `<p style="margin-top:20px"><a class="primary" href="${esc(link[0])}">${esc(link[1])}</a></p>` : ''}`,
+    body: `<h1 class="h1">${esc(title)}</h1>${tone ? `<div class="flash ${tone}">${esc(text)}</div>` : `<p class="sub">${esc(text)}</p>`}${link ? `<p style="margin-top:20px"><a class="primary tall" href="${esc(link[0])}">${esc(link[1])}</a></p>` : ''}`,
   });
 }
 
