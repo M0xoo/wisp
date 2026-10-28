@@ -445,7 +445,12 @@ export class Runner extends EventEmitter {
     }
     // Not the carry-on after a usage limit: it's sent at the reset, for a window you already chose to wait for.
     if (!hold && !session.parentId && !session.delegated && text !== LIMIT_CARRY_ON && (by === 'later' || (by === 'wisp' && goal))) hold = this.guard?.check?.({ agent: run?.agent || session.agent, account: run?.account ?? session.account, kind: 'followUp', session });
-    const handle = this.live.get(session.id);
+    let handle = this.live.get(session.id);
+    // A CLI only lingering after its result has nothing left to wait for: let it go, so the hold holds.
+    if (hold && handle && session.turns.at(-1)?.status !== 'running' && !session.queue.length) {
+      handle.release();
+      handle = null;
+    }
     if (hold && !handle) {
       this.#holdTurn(session, text, attachments, extra, hold);
       return { held: true };
