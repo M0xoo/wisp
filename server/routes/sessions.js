@@ -119,9 +119,10 @@ export function register(r, app) {
     const q = Object.fromEntries(c.query);
     const cwd = q.cwd && expand(q.cwd);
     // Subagent sessions belong to their lead; ?children=1 lists them too.
-    // Sessions on machines too (the last ones seen, for a machine that's offline).
+    // Sessions on machines too (the last ones seen, for a machine that's offline), unless another
+    // wisp asks (?here=1): it wants this one's own, or two that list each other would ask in circles.
     const here = store.all().filter((x) => (!x.parentId && !x.delegated) || q.children).map((x) => summarize(x, store));
-    let list = [...here, ...(await machines.sessions(q))].sort((a, b) => b.updatedAt - a.updatedAt);
+    let list = [...here, ...(q.here ? [] : await machines.sessions(q))].sort((a, b) => b.updatedAt - a.updatedAt);
     if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
     if (q.agent) list = list.filter((x) => x.agent === q.agent);
     // A task in several folders (also) shows under each of their projects.

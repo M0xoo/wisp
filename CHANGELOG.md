@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **opencode 2 runs.** opencode 2.x (Homebrew's build, GitHub's latest release) refused every task with *invalid --log-level value ERROR*, or *You must provide a message* on early 2.0 builds. wisp now reads `opencode --version` and gives 2.x the flags it takes: a lowercase `--log-level`, and the thinking level on the model (`provider/model#high`) instead of `--variant`. opencode 1.x (npm, the install script) is unchanged.
+- **One message no longer turns into endless tasks between two computers on a grid.** Two computers on the same wisp Grid each list the other under Machines, so each relayed the other's tasks back to it, one `@machine` longer on every lap (`x@b@a@b…`). A single message filled both task lists until wisp ran out of memory. A wisp now shows only a machine's own tasks and never passes a machine's events on to another wisp; one updated computer is enough to stop the loop. `GET /api/sessions` takes `here=1` (this wisp's own sessions only).
 
 ## [0.44.0] - 2026-10-28
 

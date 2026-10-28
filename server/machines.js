@@ -57,6 +57,10 @@ export function splitId(id) {
   const i = String(id || '').lastIndexOf('@');
   return i > 0 ? { id: id.slice(0, i), machine: id.slice(i + 1) } : null;
 }
+// A machine's own session, not one it shows from its own machines. Two wisps that list each
+// other (two computers on one grid always do) would otherwise pass each task back and forth
+// forever, one "@machine" longer on each lap, until both run out of memory.
+const ownId = (id) => typeof id === 'string' && !!id && !id.includes('@');
 
 // The version an older wisp on the machine would become on Restart wisp there: this one, unless a
 // custom start command decides what runs there.
@@ -673,6 +677,7 @@ export class Machines extends EventEmitter {
   #relay(m, event, d) {
     const q = (id) => qualify(id, m.id);
     const cache = this.#cacheOf(m.id);
+    if (!ownId(event === 'finished' ? d.session?.id : event === 'activity' || event === 'turn' ? d.sessionId : d.id)) return;
     if (event === 'summary') {
       if (d.agent === 'wisp' || d.delegated) return; // its own welcome tour, a delegate's run (services/relay.js)
       cache.set(d.id, d);
@@ -751,9 +756,10 @@ export class Machines extends EventEmitter {
           const cache = this.#cacheOf(m.id);
           if (this.isOnline(m.id)) {
             try {
-              const list = await this.json(m.id, 'GET', `/sessions${qs ? `?${qs}` : ''}`, undefined, { timeout: LIST_TIMEOUT_MS });
+              // here=1: its own sessions only (an older wisp there sends its machines' too: dropped).
+              const list = await this.json(m.id, 'GET', `/sessions?${qs ? `${qs}&` : ''}here=1`, undefined, { timeout: LIST_TIMEOUT_MS });
               cache.clear();
-              for (const s of list) if (s.agent !== 'wisp' && !s.delegated) cache.set(s.id, s);
+              for (const s of list) if (s.agent !== 'wisp' && !s.delegated && ownId(s.id)) cache.set(s.id, s);
             } catch {}
           }
           return [...cache.values()].map((s) => this.summary(m.id, s));

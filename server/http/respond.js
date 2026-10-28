@@ -72,9 +72,11 @@ export function eventStream() {
       clients.add(res);
       req.on('close', () => clients.delete(res));
     },
-    broadcast(event, data) {
+    // fromMachine: an event relayed from one of this wisp's machines. Not sent on to another wisp:
+    // when that wisp is the machine it came from (two that list each other), it would come back.
+    broadcast(event, data, { fromMachine = false } = {}) {
       const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-      for (const res of clients) res.write(frame);
+      for (const res of clients) if (!(fromMachine && res.relay)) res.write(frame);
     },
   };
 }
