@@ -129,7 +129,7 @@ body.split.side-right .split-grip { left: auto; right: calc(var(--side-w) - 4px)
 .split-top[hidden] { display: none; }
 .st-row { display: flex; align-items: center; gap: 6px; }
 .split-new {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 8px 0 11px;
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 8px 0 8px;
   border: 1px solid var(--line-2); border-radius: 11px; background: var(--surface); box-shadow: var(--shadow-1);
   color: var(--muted); font-size: 13px; transition: color 0.15s, border-color 0.15s;
 }
@@ -146,7 +146,7 @@ body.split .f-group { margin-bottom: 14px; }
 body.split .f-group.collapsed { margin-bottom: 2px; }
 /* Headings are full-width rows that fold their section, like the cards below them. */
 body.split .f-group h4 { margin: 0 0 4px; padding: 0 6px; font-size: 11.5px; letter-spacing: 0.02em; }
-body.split .f-group h4.sec-toggle { margin-left: 0; min-height: 28px; }
+body.split .f-group h4.sec-toggle { margin-left: 0; min-height: 28px; padding-left: 10.5px; } /* its chevron on the rows' dot column */
 body.split .f-group h4.sec-toggle:hover { background: var(--bg-2); }
 body.split .f-group.collapsed h4 { margin: 0; }
 body.split .f-list { gap: 2px; }
@@ -179,10 +179,10 @@ body.split #feed .it-side .pill { height: 19px; padding: 0; background: none; fo
 body.split #feed .it-side .pill i { width: 5px; height: 5px; }
 /* The done button shows beside the time, over the end of the title, so the time stays put and readable
    (28px is the widest time, "365d"). */
-body.split #feed .it-quick { position: absolute; top: 6px; right: 40px; margin: 0; background: var(--bg-2); }
+body.split #feed .it-quick { position: absolute; top: 7px; right: 40px; margin: 0; background: var(--bg-2); }
 body.split #feed .it-quick-gap { display: none; }
 /* Save for later to its left; on a row without Mark done (a done task in For later) it takes that place. */
-body.split #feed .it-later { position: absolute; top: 6px; right: 68px; margin: 0; background: var(--bg-2); }
+body.split #feed .it-later { position: absolute; top: 7px; right: 68px; margin: 0; background: var(--bg-2); }
 body.split #feed .it-later:not(:has(+ .it-quick)) { right: 40px; }
 body.split #feed .it-later-gap { display: none; }
 body.split #feed .item.open:not(.unread):not(.st-waiting) .it-title { color: var(--ink-2); font-weight: 500; }
@@ -211,7 +211,7 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-launch .sp-feedtop { margin-top: 18px; }
 .sh-next { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-next[hidden] { display: none; }
-.sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 8px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 8px 0 13px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .sh-next h4 .n { color: var(--faint); }
 .sh-task {
   display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; width: 100%;
@@ -224,7 +224,7 @@ body.split .task-runs { padding: 0 4px 4px; }
 /* Side by side, the sidebar's Needs you already says each task's state (and its dot says it here):
    home lists them to open, without saying it again. Stacked or with the list hidden, it does. */
 body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
-.sh-keys { margin: 18px 0 0; padding: 0 8px; font-size: 12.5px; color: var(--faint); line-height: 2; }
+.sh-keys { margin: 18px 0 0; padding: 0 8px 0 13px; font-size: 12.5px; color: var(--faint); line-height: 2; }
 /* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */
 .split-home .launcher .lp-chip:not(.add) { border-color: transparent; }
 .split-home .launcher .lp-chip.on { background: var(--bg-2); }
@@ -245,11 +245,11 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
 .sh-up .sh-s { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-up .q-time { font-variant-numeric: tabular-nums; }
 .tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
-.sh-tips h4 { padding: 0 8px; }
+.sh-tips h4 { padding: 0 8px 0 13px; }
 .tip-more { margin-left: auto; padding: 2px 6px; border-radius: 6px; font-size: 12.5px; color: var(--faint); }
 .tip-more:hover { color: var(--ink-2); background: var(--bg-2); }
 .tip {
-  display: grid; grid-template-columns: 14px minmax(0, 1fr) 13px; gap: 10px; align-items: center;
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) 13px; gap: 12px; align-items: center;
   padding: 7px 8px; border-radius: 8px; border: 1px solid transparent; color: var(--ink-2); font-size: 13px; line-height: 1.45; text-decoration: none;
   transition: background 0.15s, border-color 0.15s;
 }
