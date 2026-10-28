@@ -89,13 +89,24 @@ ${rows}
 
 Hand them work with the \`delegate\` tool (${tool}): pass one or more tasks, \`{ "subagent": "<name>", "prompt": "…" }\`. Tasks in one call run in parallel and the call returns when all of them finish, with each subagent's report and the files it changed. With \`wait: false\` it returns at once; collect the reports later with \`subagent_results\`. Delegating to the same subagent again continues its conversation, so it remembers earlier tasks.
 
-${multi ? `- A subagent with ×N has N identical copies that run at once. Put several tasks for \`${multi.name}\` in one delegate call and each goes to a free copy; name a copy (\`${copies(multi)[1]}\`) to continue that copy's conversation.\n` : ''}- Subagents work in your folder and see each other's edits. Give parallel subagents separate files or concerns.${team.some((m) => m.machine) ? `\n- A subagent "on" another machine works there, on a copy of your folder as it is when you delegate. Its changes are applied to your folder when it finishes (the report says if they didn't apply cleanly). It doesn't see edits made meanwhile, so give it work that doesn't overlap.` : ''}
+${multi ? `- A subagent with ×N has N identical copies that run at once. Put several tasks for \`${multi.name}\` in one delegate call and each goes to a free copy; name a copy (\`${copies(multi)[1]}\`) to continue that copy's conversation.\n` : ''}- Subagents work in your folder and see each other's edits. Give parallel subagents separate files or concerns.${team.some((m) => m.machine) ? `\n${AWAY_LEAD}` : ''}
 - Brief them like a colleague: goal, files, constraints, how to verify. They cannot see your conversation or ask the user.
 - Follow the user's "use it for" notes when you pick a subagent: send each kind of work to the one meant for it.
 - These are your subagents for this session. Whenever you would spawn a subagent, sub-task or helper agent (your harness's built-in Task/Agent tool included), use \`delegate\` instead: don't use built-in subagents.
 - Delegate when the user's request calls for it or when the work splits cleanly; you stay responsible for the result. Review what they changed before you report.
 - Your presentation covers the whole task; wisp shows each subagent's report next to it, so don't repeat them in full.`;
 }
+
+// For a lead with delegates on other machines: what reaches them and what doesn't.
+export const AWAY_LEAD = `- A subagent "on" another machine works there, on a copy of your folder as it is when you delegate. Its changes are applied to your folder when it finishes (the report says if they didn't apply cleanly). It doesn't see edits made meanwhile, so give it work that doesn't overlap.
+- wisp carries your folder over itself: its commits, uncommitted edits and new files. Don't commit or push to hand it work. What stays behind: git-ignored files (\`.env\`, \`node_modules\`, build output), anything outside your folder, attachments and your local servers. If your folder isn't a git repo, none of it goes.
+- Its folder has another path there. Name files by their path inside your folder (\`src/app.ts\`), never by absolute paths of this computer, and paste in the prompt anything it needs that stays behind (a config value, a log excerpt, a file from elsewhere).`;
+
+// Added for a delegate running on another computer than its lead (services/relay.js).
+export const AWAY_SUBAGENT = `
+- You run on another computer than the lead, in a copy of its folder. An absolute path from the
+  lead's computer may not exist here: find the file by its path inside the folder. Your changes
+  go back to the lead as a patch when you finish, so don't commit or push them.`;
 
 // Replaces the ask_user guidance for a subagent's own system prompt.
 export const SUBAGENT_ASK = `- You are a subagent: a lead agent delegated this task to you and will read your presentation.

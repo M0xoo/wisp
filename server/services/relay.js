@@ -27,6 +27,15 @@ const WAIT_S = 5; // each long-poll on the member's run
 const MAX_PATCH = 50 * 1024 * 1024;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// The lead's folder named in a delegate's prompt as a path inside it: the copy over there has
+// another path. `/repo/src/a.ts` → `src/a.ts`, `/repo` alone → `.`.
+export function inFolder(text, dir) {
+  const root = String(dir || '').replace(/[\\/]+$/, '');
+  if (!root) return text;
+  const esc = root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(text).replace(new RegExp(`${esc}(?:[\\\\/]+|(?![\\w-]|\\.\\w))`, 'g'), (m) => (m.length > root.length ? '' : '.'));
+}
+
 export function createRelay(app) {
   const { store, runner, machines } = app;
   const inflight = new Set(); // `${lead place}:${child}:${turn}` being carried over
@@ -75,7 +84,7 @@ export function createRelay(app) {
         if (out) pack = { ...out, branch: '', upload: u.add().id }; // a branch of its own over there
       }
       const history = child.turns.filter((t) => t !== turn && t.status !== 'running').map(({ checkpoint, delegations, attachments, relay, ...t }) => ({ ...t, checkpoint: null }));
-      return { prompt: turn.prompt, agent: child.agent, model: child.model, effort: child.effort || '', mode: child.mode, cwd: lead.cwd, scratch, title: lead.title, name: child.member, history, pack };
+      return { prompt: scratch ? turn.prompt : [workdir(lead), lead.cwd].reduce(inFolder, turn.prompt), agent: child.agent, model: child.model, effort: child.effort || '', mode: child.mode, cwd: lead.cwd, scratch, title: lead.title, name: child.member, history, pack };
     }
     if (body.op === 'progress') {
       if (turn.status === 'running' && body.item?.label) runner.relayed(child, turn, body.item);

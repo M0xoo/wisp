@@ -237,3 +237,17 @@ test('stopping a lead stops its delegates and sends nothing back', async () => {
   assert.equal(Object.values(done.childSessions)[0].turns[0].status, 'stopped');
   assert.ok(!after.turns[0].delegations.some((d) => d.owed));
 });
+
+test('a lead with a delegate on another machine hears what travels; its paths are made relative', async () => {
+  const { teamNote } = await import('../server/subagents.js');
+  const { inFolder } = await import('../server/services/relay.js');
+  const adapters = { codex: { name: 'Codex' } };
+  const away = teamNote([{ name: 'boxer', agent: 'codex', count: 1, machine: 'm1', place: 'devbox' }], adapters, 'delegate');
+  assert.match(away, /on devbox/);
+  assert.match(away, /Don't commit or push/);
+  assert.match(away, /never by absolute paths/);
+  assert.doesNotMatch(teamNote([{ name: 'mate', agent: 'codex', count: 1 }], adapters, 'delegate'), /commit or push/);
+  assert.equal(inFolder('Fix /work/repo/src/a.ts, run tests in /work/repo.', '/work/repo/'), 'Fix src/a.ts, run tests in ..');
+  assert.equal(inFolder('Not /work/repo2/x nor /work/repo.git', '/work/repo'), 'Not /work/repo2/x nor /work/repo.git');
+  assert.equal(inFolder('C:\\w\\repo\\src\\b.js', 'C:\\w\\repo'), 'src\\b.js');
+});

@@ -10,7 +10,7 @@ import { adapters } from './adapters/index.js';
 import { systemPrompt, parsePresentation, heroOf } from './protocol.js';
 import { spellGuide } from './spell-guide.js';
 import { captureCheckpoint, freshCheckpoint, readGitFile } from './checkpoint.js';
-import { teamNote, copies, SUBAGENT_ASK, delegationReport, stillWorkingNote, REPORTS_BACK } from './subagents.js';
+import { teamNote, copies, SUBAGENT_ASK, AWAY_SUBAGENT, delegationReport, stillWorkingNote, REPORTS_BACK } from './subagents.js';
 import { handoffNote } from './handoff.js';
 import { openTerms } from './pty.js';
 import { agentPrompt, plainMentions } from './mentions.js';
@@ -791,7 +791,7 @@ export class Runner extends EventEmitter {
           out.push({ subagent: want, error: job.error });
           continue;
         }
-        const d = { id: newId(), name: slot, member: m.name, crew: m.crew, agent: job.agent, model: job.model, effort: job.effort, sessionId: job.id, turnId: job.turns.at(-1).id, prompt, startedAt: Date.now() };
+        const d = { id: newId(), name: slot, member: m.name, crew: m.crew, agent: job.agent, model: job.model, effort: job.effort, ...(job.machine?.name && { place: job.machine.name }), sessionId: job.id, turnId: job.turns.at(-1).id, prompt, startedAt: Date.now() };
         (turn.delegations ||= []).push(d);
         out.push(d);
         continue;
@@ -994,7 +994,7 @@ export class Runner extends EventEmitter {
     const sub = session.parentId || session.delegated; // a delegate here, or one for a lead on another wisp
     const extraBlocks = sub ? [] : this.spellBlocks(session);
     const base = sub
-      ? systemPrompt({ ask: SUBAGENT_ASK })
+      ? systemPrompt({ ask: SUBAGENT_ASK + (session.delegated ? AWAY_SUBAGENT : '') })
       : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
     const crew = session.crew ? this.crewNote(session) : '';
