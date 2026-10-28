@@ -129,7 +129,8 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** resize to 860×600 (under `SPLIT_MIN_WIDTH`); scroll the list a little; open a task;
   click its Back; click **New task**; `Esc` twice.
 - **Expected:** the list fills the window, no horizontal scroll. The task opens as a page of its
-  own (Back, the title, the task); Back returns to the list where it was scrolled. New task opens
+  own (Back, the title, the task), its details column one fact a row (state, harness, project),
+  none cut off at the right edge; Back returns to the list where it was scrolled. New task opens
   home as a page with the prompt focused; Esc goes back to the list.
 - **Automated**
 
