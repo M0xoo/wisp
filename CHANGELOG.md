@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **_Run on_ picks one place, then adds more.** In the prompt box's *Run on* menu, clicking a computer or machine now picks only that one and closes the menu. To run the same task on several places in parallel, use *+ also* on a row (or ⌘/Ctrl-click it). Once several are picked, *× drop* takes one out. *also* replaces *only*, so picking one place is the default and running on several is the extra step. The check is round while one place is picked and square once there are several.
+
 ### Fixed
 
 - **Menus stay on screen on phones, keyboard or not.** With the keyboard up, the harness and model picker, *Run on* and the mode menu opened off the top of the screen. Tapping their buttons now puts the keyboard away first, and every menu and popover keeps inside what's visible: above or below its button, whichever has room, scrolling inside when it's taller. It moves again when the keyboard goes up or down. Picking from one no longer brings the keyboard back up on a touch screen.

@@ -838,15 +838,18 @@ function whereMenu(anchor, back) {
       const on = launch.where.includes(k);
       const st = m ? m.state : 'online';
       const ready = m ? (m.remote?.agents || []).filter((a) => a.available) : [];
-      return `<button class="wm-row ${on ? 'on' : ''}" data-k="${k}" role="menuitemcheckbox" aria-checked="${on}">
+      return `<button class="wm-row ${on ? 'on' : ''}" data-k="${k}" role="${several ? 'menuitemcheckbox' : 'menuitemradio'}" aria-checked="${on}">
         <span class="wm-check">${icon('check')}</span>
         <span class="wm-icon">${icon(k ? 'server' : 'laptop')}${m ? `<i class="dot ${st === 'online' ? 'ok' : st === 'error' ? 'bad' : ''}"></i>` : ''}</span>
         <span class="wm-name"><b>${esc(placeName(k))}</b><small>${m ? esc(st === 'online' ? m.target : `${m.target} · ${MACHINE_STATE[st]}`) : 'Where wisp runs'}</small></span>
         ${m && st === 'online' && ready.length ? `<span class="wm-agents">${ready.map((a) => `<span class="model-logo">${harnessLogo(a.id)}</span>`).join('')}</span>` : ''}
-        <span class="wm-only" data-only="${k}" title="Only here">only</span>
+        ${several || !on ? `<span class="wm-also" data-also="${k}" title="${on ? `Leave ${esc(placeName(k))} out of this task` : `Also run on ${esc(placeName(k))} (${MOD}-click)`}">${icon(on ? 'x' : 'plus')}${on ? 'drop' : 'also'}</span>` : '<span class="wm-also none" aria-hidden="true"></span>'}
       </button>`;
     };
-    box.innerHTML = `<div class="wm-h">Run on <small>pick several to run in parallel · any project runs anywhere</small></div>
+    const several = launch.where.length > 1;
+    // One place reads as a radio, several as checkboxes.
+    box.classList.toggle('several', several);
+    box.innerHTML = `<div class="wm-h">Run on <small>${several ? `in parallel on ${launch.where.length} places` : 'one, or several in parallel'} · any project runs anywhere</small></div>
       ${row('', null)}${S.machines.map((m) => row(m.id, m)).join('')}
       <div class="wm-sep"></div>
       <button data-a="add">${icon('plus')}${S.machines.length ? 'Add a machine…' : 'Add a machine to run on another computer…'}</button>
@@ -857,12 +860,18 @@ function whereMenu(anchor, back) {
     paint();
   };
   box.onclick = (e) => {
-    const only = e.target.closest('[data-only]');
-    if (only) return set([only.dataset.only]);
+    // A click picks that one place; "also" (or ⌘/Ctrl/Shift-click) adds it, or drops it from several.
     const r = e.target.closest('.wm-row');
     if (r) {
       const k = r.dataset.k;
-      return set(launch.where.includes(k) ? launch.where.filter((x) => x !== k) : [...launch.where, k]);
+      if (e.target.closest('[data-also]') || e.metaKey || e.ctrlKey || e.shiftKey) {
+        const on = launch.where.includes(k);
+        if (on && launch.where.length === 1) return; // the last place stays: there's nowhere else to run
+        return set(on ? launch.where.filter((x) => x !== k) : [...launch.where, k]);
+      }
+      set([k]);
+      shut();
+      return refocus(back);
     }
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (!a) return;
