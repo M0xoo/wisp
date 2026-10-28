@@ -198,6 +198,11 @@ details.keys[open] { gap: 10px; }
 .kind { display: inline-block; margin-right: 8px; padding: 0 8px; border-radius: 99px; border: 1px solid var(--line-2); font: 400 12px/1.6 var(--sans); color: var(--muted); vertical-align: 1px; }
 .kind.cloud, .kind.grid { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .m.comp .m-go:disabled:not(.primary) { opacity: 0.6; }
+/* Several accounts: each one's computers sit close under it (set in when there's room for their
+   pill), and a gap before the next. */
+.m-acct { display: flex; flex-direction: column; gap: 4px; }
+@media (min-width: 421px) { .m-acct .m.comp { margin-left: 24px; } }
+.m-acct + .m-acct, .m-acct + .card, .card + .m-acct { margin-top: 4px; }
 
 /* Undo on a toast (app.js toast action). */
 .toast button { flex: none; min-height: 48px; margin: -12px 0; padding: 0 4px; background: none; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }

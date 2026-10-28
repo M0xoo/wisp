@@ -71,7 +71,7 @@ function github(cfg) {
     async start({ redirectUri, state, verifier }) {
       const scope = ['read:user', 'user:email', ...(cfg.wantOrgs ? ['read:org'] : [])].join(' ');
       const u = new URL(`${authBase}/login/oauth/authorize`);
-      u.search = new URLSearchParams({ client_id: cfg.clientId, redirect_uri: redirectUri, scope, state, code_challenge: challenge(verifier), code_challenge_method: 'S256', allow_signup: 'true' }).toString();
+      u.search = new URLSearchParams({ client_id: cfg.clientId, redirect_uri: redirectUri, scope, state, code_challenge: challenge(verifier), code_challenge_method: 'S256', allow_signup: 'true', prompt: 'select_account' }).toString();
       return u.toString();
     },
     async finish({ code, redirectUri, verifier }) {

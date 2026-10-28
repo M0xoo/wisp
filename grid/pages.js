@@ -722,6 +722,9 @@ export function activatePage({ cfg, user, code = '', device = null, app = false,
         <input type="hidden" name="csrf" value="${esc(csrf)}"><input type="hidden" name="code" value="${esc(device.user_code)}">${app ? '<input type="hidden" name="app" value="android">' : ''}
         <button class="ghost line tall" style="flex:1;justify-content:center" name="answer" value="deny">Don’t allow</button>
         <button class="primary tall" style="flex:1" name="answer" value="allow">Allow</button>
+      </form>
+      <form method="post" action="/signout?return=${encodeURIComponent(`/activate?code=${device.user_code}${app ? '&app=android' : ''}`)}" style="margin-top:16px;text-align:center">
+        <input type="hidden" name="csrf" value="${esc(csrf)}"><span class="sub">Not ${esc(user.handle)}?</span> <button class="ghost">Use another account</button>
       </form>`,
   });
 }

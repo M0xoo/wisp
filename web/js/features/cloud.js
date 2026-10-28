@@ -23,6 +23,7 @@ const signable = (m) => [...(m.remote?.agents || []).filter((a) => CAN.has(a.id)
 const agentName = (m, id) => (id === 'gh' ? 'GitHub' : m.remote?.agents?.find((a) => a.id === id)?.name || id);
 
 let flow = null; // the sign-in in progress: { id, grid, state, userCode, verifyUrl, … }
+let adding = false; // Settings → Cloud with an account already: Add an account opened the form
 const LAST = 'wisp.cloud.grid';
 // The hosted grid; yours, or your team's, is one edit away.
 export const DEFAULT_GRID = 'grid.trywisp.dev';
@@ -36,11 +37,16 @@ const hostOf = (u) => {
     return u;
   }
 };
+// Which account: two on one grid have the same name and grid, never the same handle.
+const handleOf = (m) => m.user?.handle || m.handle || '';
+// A second account's cloud computer is named with its handle ('wisp Cloud (bea)'): not said twice.
+const named = (m) => !!handleOf(m) && m.name.endsWith(`(${handleOf(m)})`);
 
 // --- signing in: one flow at a time, shown wherever a sign-in box is (Settings → Cloud, Machines)
 
 const setFlow = (f) => {
   flow = f;
+  if (!f) adding = false; // done or cancelled: back to the list and its Add an account
   bus.emit('cloud-flow');
 };
 
@@ -54,20 +60,22 @@ bus.on('cloud', (f) => {
   loadMachines().finally(() => flow?.id === f.id && setFlow(null));
 });
 
-function signinHtml({ title, lede, button }) {
+function signinHtml(text) {
+  const { title, lede, button } = text;
   if (flow?.state === 'waiting')
     return `<div class="cl-signin cl-code">
-        <p><b>Allow this computer in the browser</b><small>Open ${esc(hostOf(flow.grid))}, sign in with Google, GitHub or what it offers, and allow the device showing this code.</small></p>
+        <p><b>Allow this computer in the browser</b><small>Open ${esc(hostOf(flow.grid))}, sign in with Google, GitHub or what it offers, and allow the device showing this code.${gridMachines().some((m) => hostOf(m.grid) === hostOf(flow.grid)) ? ' Signed in there as someone else? Choose <i>Use another account</i>.' : ''}</small></p>
         <div class="cl-codebox"><span class="mono">${esc(flow.userCode)}</span><button class="icon-btn" type="button" data-cl="copy" title="Copy the code">${icon('copy')}</button></div>
         <div class="cl-row"><button class="primary sm" type="button" data-cl="open">${icon('external')}Open the sign-in page</button><button class="ghost sm" type="button" data-cl="cancel">Cancel</button><span class="cl-wait"><i class="spin"></i>Waiting for you to allow it…</span></div>
       </div>`;
   if (flow?.state === 'joining')
     return `<div class="cl-signin cl-code"><p><b>Signed in${flow.user?.handle ? ` as ${esc(flow.user.handle)}` : ''}</b><small>Adding your cloud computer from ${esc(hostOf(flow.grid))}.</small></p><span class="cl-wait"><i class="spin"></i>Adding it to Machines…</span></div>`;
   const failed = flow && ['denied', 'expired', 'failed'].includes(flow.state) ? `<p class="cl-err">${esc(flow.error || 'That didn’t work.')}</p>` : '';
+  const close = text.collapsible && gridMachines().length ? '<button class="ghost sm" type="button" data-cl="close">Cancel</button>' : '';
   return `<form class="cl-signin cl-form">
       <p><b>${title || (gridMachines().length ? 'Sign in to another grid' : 'Sign in to a wisp Grid')}</b><small>${lede || 'Your own wisp on a server: tasks keep going when this computer sleeps, and you reach them from any browser or the phone app. A grid is yours (<code>wisp grid serve</code>), your team’s, or a hosted one.'}</small></p>
       <div class="cl-row"><input class="input mono" name="grid" placeholder="wisp.example.com" value="${esc(localStorage.getItem(LAST) || DEFAULT_GRID)}" spellcheck="false" autocapitalize="off" autocomplete="url" required>
-      <button class="primary sm" type="submit">${icon('lock')}${button || 'Sign in'}</button></div>${failed}
+      <button class="primary sm" type="submit">${icon('lock')}${button || 'Sign in'}</button>${close}</div>${failed}
     </form>`;
 }
 
@@ -103,6 +111,10 @@ export function mountCloudSignin(el, text = {}) {
     }
     // Opening the page is the user's click; nothing opens by itself.
     if (a === 'open' && flow?.verifyUrl) window.open(flow.verifyUrl, '_blank', 'noopener');
+    if (a === 'close') {
+      adding = false;
+      bus.emit('cloud-flow');
+    }
     if (a === 'cancel' && flow) {
       const id = flow.id;
       setFlow(null);
@@ -236,17 +248,18 @@ export function cloudSummary() {
   const list = gridMachines();
   if (!list.length) return 'Not signed in';
   const m = list[0];
-  return `${m.user?.handle || m.handle} on ${hostOf(m.grid)} · ${(MACHINE_STATE[m.state] || m.state).replace('…', '')}`;
+  if (list.length === 1) return `${handleOf(m)} on ${hostOf(m.grid)} · ${(MACHINE_STATE[m.state] || m.state).replace('…', '')}`;
+  return `${list.length} accounts · ${[...new Set(list.map((x) => hostOf(x.grid)))].join(', ')}`;
 }
 
 export function cloudPane(box) {
   const card = (m) => {
     const st = m.state || 'off';
     const busy = st === 'connecting' || st === 'reconnecting';
-    const who = m.user?.email || m.user?.handle || m.handle;
+    // The account (handle, its email on hover) and its grid: what tells two cards apart.
     return `<div class="cl-card st-${esc(st)}" data-id="${esc(m.id)}">
         <span class="cl-ico">${icon('server')}<i class="mc-dot"></i></span>
-        <div class="cl-text"><b>${esc(m.name)}</b><small>${esc(who)} · <span class="mono">${esc(hostOf(m.url))}</span></small></div>
+        <div class="cl-text"><b>${esc(m.name)}</b><small title="${esc(m.user?.email || '')}">${named(m) ? '' : `<span class="cl-who">${esc(handleOf(m))}</span> · `}<span class="mono">${esc(hostOf(m.grid))}</span></small></div>
         <span class="cl-state">${esc(MACHINE_STATE[st] || st)}</span>
         <div class="cl-acts">
           <a class="ghost sm btn-link" href="${esc(m.grid)}/go" target="_blank" rel="noopener" title="Open your cloud wisp in the browser">${icon('external')}Open</a>
@@ -260,7 +273,8 @@ export function cloudPane(box) {
 
   // Its agents, signed in to from here: the login runs on the cloud computer and stays there.
   const agents = (m) => {
-    if (m.state === 'asleep') return `<p class="cl-ah cl-agents">Wake it to sign in to Claude Code, Codex or GitHub on it.</p>`;
+    // Asleep: said once, on the first asleep one; the same line under each would repeat itself.
+    if (m.state === 'asleep') return gridMachines().find((x) => x.state === 'asleep') === m ? `<p class="cl-ah cl-agents">Wake it to sign in to Claude Code, Codex or GitHub on it.</p>` : '';
     if (m.state !== 'online') return '';
     return `<div class="cl-agents"><p class="cl-ah">Agents on it <span>sign in once; the login stays on the cloud computer</span></p>${signable(m)
       .map((id) => `<div class="cl-agent"><span class="model-logo">${id === 'gh' ? icon('github') : harnessLogo(id)}</span><span class="cl-an">${esc(agentName(m, id))}</span>${loginControl(id, m.id)}</div>${loginPanel(id, m.id)}`)
@@ -270,16 +284,42 @@ export function cloudPane(box) {
   const paint = () => {
     if (!box.isConnected || typingLogin(box)) return;
     const list = gridMachines();
-    if (document.activeElement?.closest?.('.cl-form') && box.contains(document.activeElement)) return; // an address being typed
-    box.innerHTML = `${list.length ? `<div class="sx-group cl-list">${list.map(card).join('')}</div>` : ''}<div class="sx-group cl-slot"></div>
+    if (document.activeElement?.matches?.('.cl-form input') && box.contains(document.activeElement)) return; // an address being typed
+    // As Machines does it: the form is open while there's no account, else behind Add an account.
+    open = !list.length || adding || !!flow;
+    box.innerHTML = `${list.length ? `<div class="sx-group cl-list">${list.map(card).join('')}</div>` : ''}<div class="${open ? 'sx-group ' : ''}cl-slot"></div>
       <p class="hint">A cloud computer shows up under Machines and in Run on, like any other computer. It sleeps when nothing’s going on (watching it from here doesn’t keep it up), and wakes when you send it something or a schedule is due.</p>`;
-    mountCloudSignin(box.querySelector('.cl-slot'));
+    const slot = box.querySelector('.cl-slot');
+    if (!open) slot.innerHTML = `<button class="lp-chip add cl-add" type="button" data-a="add">${icon('plus')}Add an account</button>`;
+    else if (!list.length) mountCloudSignin(slot);
+    else
+      mountCloudSignin(slot, {
+        title: 'Add an account',
+        lede: 'Another grid, or another account on one you already use. You choose the account in the browser: if it signs you in as someone else, pick <i>Use another account</i> there.',
+        collapsible: true,
+      });
   };
+  let open = false;
+  adding = false;
+  // Cancel, or a sign-in that ended: the form folds back into Add an account.
+  bus.on(
+    'cloud-flow',
+    () => {
+      if (open !== (!gridMachines().length || adding || !!flow)) paint();
+    },
+    { node: box },
+  );
 
   box.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-a]');
     if (!b) return;
     const a = b.dataset.a;
+    if (a === 'add') {
+      adding = true;
+      paint();
+      box.querySelector('.cl-form input')?.focus();
+      return;
+    }
     const m = gridMachines().find((x) => x.id === b.closest('.cl-card')?.dataset.id);
     if (!m) return;
     // At once: the card says what's happening; the server's list puts it right if it refuses.
@@ -296,10 +336,10 @@ export function cloudPane(box) {
         toast(`<b>${esc(m.name)}</b> is asleep. Sending it a task wakes it.`);
       }
       if (a === 'signout') {
-        if (!(await ask(`Sign out of ${m.name} here?\n\nIts tasks stay on the grid; sign in again to see them.`, { ok: 'Sign out', anchor: b }))) return;
+        if (!(await ask(`Sign out of ${handleOf(m)} on ${hostOf(m.grid)} here?\n\nIts tasks stay on the grid; sign in again to see them.`, { ok: 'Sign out', anchor: b }))) return;
         setMachines(S.machines.filter((x) => x.id !== m.id));
         await api(`/machines/${m.id}`, { method: 'DELETE' });
-        toast(`Signed out of <b>${esc(m.name)}</b>`);
+        toast(`Signed out of <b>${esc(handleOf(m))}</b> on ${esc(hostOf(m.grid))}`);
       }
     } catch (err) {
       toastError(err);

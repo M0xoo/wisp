@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Several wisp Grids, and several accounts on one, in the phone app and on the desktop.** Once you're signed in, *Add an account* stays under your computers on the phone and in Settings → Cloud, for another grid or another account on the same one. Each account shows its handle and grid, with its computers grouped under it. The grid's *Let this device in?* page has *Use another account* when the browser is signed in as someone else, and GitHub now shows its account picker. On the desktop, two accounts on one grid each keep their own computers, and signing one out leaves the other's alone.
+
 ### Changed
 
 - **On a phone, the prompt box names the model and nothing else.** Where it runs, the mode, Delegate and Goal are icons now (their menus and tooltips still name them), and the harness pill shows the model you picked (*Opus*) instead of only the harness's logo, or the harness's name while its model is the default. When the row doesn't fit, it scrolls sideways with Send pinned at the end.

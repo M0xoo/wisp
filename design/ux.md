@@ -130,3 +130,13 @@ A task's actions are offered in several places: the right-click menu, the open t
 - Floating things (toasts, the FAB, popovers) never cover the reply box, Send or the open card's
   buttons. If a floating button would sit on content, drop it on that width (the phone's floating
   *Collapse*, #269).
+
+## Several accounts on wisp Grids
+
+- An account is named by its grid and its handle: the grid's name (its address when two grids share
+  a name) on top, the handle under it. Two accounts on one grid differ only by handle, so it's never cut.
+- The first sign-in form is open while there's no account; after that it sits behind **Add an
+  account** (as Machines does with Add a machine), on the phone and in Settings → Cloud.
+- You pick the account in the browser. Adding one says so once (*Use another account* on the grid's
+  page), on the sheet or form that starts it, not on every card.
+- A computer added to a grid is listed under its account, set in on screens wider than 420px.

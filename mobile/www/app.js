@@ -58,6 +58,11 @@ const machine = (id) => machines.find((m) => m.id === id);
 const keyOf = (m) => (m?.kind === 'grid' ? null : keys.find((k) => k.id === m?.keyId) || keys[0]);
 const isGrid = (m) => m?.kind === 'grid';
 const nameOf = (m) => m.name || (isGrid(m) ? m.handle : parseTarget(m.target).host);
+// A grid account's card: the grid's name, or its address when another grid goes by the same name
+// (two own grids are both 'wisp Grid'); the handle under it tells two accounts on one grid apart.
+// The cloud icon says what it is, so no Cloud pill: the handle gets the room, even at 360px.
+// Signed out shows in its red dot and Sign in, not in more words there.
+const gridTitle = (m) => (machines.some((x) => isGrid(x) && x.grid !== m.grid && nameOf(x) === nameOf(m)) ? hostOf(m.grid) : nameOf(m));
 // The list's order: the last one used first, as it was when the screen opened. A tap doesn't
 // reorder it (the row would jump away from under the finger); one added since goes on top.
 let order = [];
@@ -217,8 +222,11 @@ function paintIntro() {
   if ($('#intro').dataset.h !== out) ($('#intro').innerHTML = out), ($('#intro').dataset.h = out);
   document.body.classList.toggle('first', !machines.length);
   // First run: wisp Cloud is the buttons at the top, so its button below would say it twice.
-  // Signed in: your computers come from there, so no second sign-in button.
-  $('#addCloud').hidden = !machines.length || machines.some(isGrid);
+  // Signed in: another account, on this grid or another one.
+  const add = $('#addCloud');
+  add.hidden = !machines.length;
+  const label = machines.some(isGrid) ? `${icon('plus')}<span>Add an account</span>` : `${icon('cloud')}<span>Sign in to wisp Cloud</span>`;
+  if (add.dataset.h !== label) (add.innerHTML = label), (add.dataset.h = label);
   // Signed in, SSH is one more way, not the way "instead" of something.
   $('#sshBox > summary span').firstChild.textContent = machines.some(isGrid) ? 'Connect over SSH ' : 'Connect over SSH instead ';
 }
@@ -258,13 +266,14 @@ function paintMachines() {
         </article>`;
               })
               .join('');
-        return `<article class="card m cloud ${m.signedOut ? 'failed' : 'ready'}" data-id="${esc(m.id)}" data-row="${m.signedOut ? 'edit' : 'open'}">
+        // An account and its computers are one group, the computers set in under it.
+        return `<div class="m-acct"><article class="card m cloud ${m.signedOut ? 'failed' : 'ready'}" data-id="${esc(m.id)}" data-row="${m.signedOut ? 'edit' : 'open'}">
           <div class="m-row">
             <span class="m-ico">${icon('cloud')}<span class="st"></span></span>
-            <div class="m-text"><span class="m-name">${esc(nameOf(m))}</span><span class="m-sub">${m.signedOut ? 'Signed out' : `<span class="kind cloud">Cloud</span><span class="m-at">${esc(hostOf(m.grid))}</span>`}</span></div>
+            <div class="m-text"><span class="m-name">${esc(gridTitle(m))}</span><span class="m-sub"><span class="m-at">${esc(m.handle)}</span></span></div>
             ${go}${more(m)}
           </div>
-        </article>${comps}`;
+        </article>${comps}</div>`;
       }
       const go = opening === m.id ? opening_ : state === 'ready' ? openBtn : state === 'connecting' ? `<button class="ghost m-go" disabled type="button">Connecting…</button>` : `<button class="primary m-go" data-a="connect" type="button">${state === 'failed' ? 'Try again' : 'Connect'}</button>`;
       const row = state === 'ready' ? 'open' : state === 'connecting' ? '' : 'connect';
@@ -554,9 +563,10 @@ function cloudSheet(m = null, start = null) {
   };
   // Signing in from the list: the same one tap as the first screen (GitHub, Google), never a grid
   // address to type; another grid is behind Use your own wisp Grid.
+  const more = machines.some(isGrid); // adding a second account: say how to get a different one
   const pick = () => {
-    $('#gTitle').textContent = 'wisp Cloud';
-    body.innerHTML = `<p class="muted">Your own wisp on a server: agents keep working when your computers sleep, and every computer you add to it shows here.</p>
+    $('#gTitle').textContent = more ? 'Add an account' : 'wisp Cloud';
+    body.innerHTML = `<p class="muted">${more ? 'Another grid, or another account on one you use. You choose the account in your browser: if it signs you in as someone else, pick <b>Use another account</b> there.' : 'Your own wisp on a server: agents keep working when your computers sleep, and every computer you add to it shows here.'}</p>
       <input id="gUrl" type="hidden" value="${esc(DEFAULT_GRID)}">
       <div class="hello-go">
         <button class="primary prov" data-g="github" type="button">${icon('github')}<span>Continue with GitHub</span></button>
@@ -566,8 +576,8 @@ function cloudSheet(m = null, start = null) {
   };
   const ask = (error = '') => {
     stop();
-    $('#gTitle').textContent = m ? nameOf(m) : 'wisp Cloud';
-    body.innerHTML = `${m ? `<p class="muted">${esc(m.handle)} on <b>${esc(hostOf(m.grid))}</b>${m.signedOut ? ' · signed out' : ''}</p>` : '<p class="muted">Your own wisp on a server: agents keep working when your computers sleep. Sign in to a wisp Grid (yours, your team’s, or a hosted one) with Google, GitHub or what it offers.</p>'}
+    $('#gTitle').textContent = m ? m.handle : more ? 'Add an account' : 'wisp Cloud';
+    body.innerHTML = `${m ? `<p class="muted">Your account on ${esc(nameOf(m))}${m.signedOut ? ', signed out on this phone' : ''}.</p>` : '<p class="muted">Your own wisp on a server: agents keep working when your computers sleep. Sign in to a wisp Grid (yours, your team’s, or a hosted one) with Google, GitHub or what it offers.</p>'}
       <label class="field"><span>Grid</span><input id="gUrl" placeholder="wisp.example.com" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url" value="${esc(m ? m.grid.replace(/^https:\/\//, '') : start?.own ? '' : localStorage.getItem('wisp.grid') || DEFAULT_GRID)}" required></label>
       ${error ? `<p class="err">${esc(error)}</p>` : ''}
       <div class="sheet-actions">${m ? '<button class="ghost danger" data-g="signout" type="button">Sign out</button>' : ''}<span class="grow"></span><button class="primary" type="submit">${m ? 'Sign in again' : 'Sign in'}</button></div>
@@ -579,15 +589,17 @@ function cloudSheet(m = null, start = null) {
     via
       ? `${flow.grid}/auth/${via}/start?return=${encodeURIComponent(`/activate?code=${encodeURIComponent(flow.code)}&app=android`)}`
       : `${flow.url}${flow.url.includes('?') ? '&' : '?'}app=android`;
+  // Already signed in to this grid: the browser may be too, as that account.
+  const other = () => (machines.some((x) => isGrid(x) && x !== m && x.grid === flow.grid) ? ' Signed in there as someone else? Pick <b>Use another account</b>.' : '');
   const openSignIn = () => Ssh.openExternal({ url: signInUrl() }).catch((err) => toast(err.message));
   const waiting = () => {
     if (VIA) $('#gTitle').textContent = `Continue with ${VIA}`;
     body.innerHTML = VIA
-      ? `<p><b>Finish in your browser</b></p><p class="muted">Sign in with ${VIA}, then tap <b>Allow</b> for this phone. The code there matches this one.</p>
+      ? `<p><b>Finish in your browser</b></p><p class="muted">Sign in with ${VIA}, then tap <b>Allow</b> for this phone. The code there matches this one.${other()}</p>
       <div class="code">${esc(flow.code)}</div>
       <div class="row"><button class="primary" data-g="open" type="button">Open ${VIA} again</button></div>
       <p class="wait"><span class="spin"></span>Waiting for you to allow it…</p>`
-      : `<p><b>Allow this phone</b></p><p class="muted">Open ${esc(hostOf(flow.grid))} in your browser, sign in, and allow the device showing this code.</p>
+      : `<p><b>Allow this phone</b></p><p class="muted">Open ${esc(hostOf(flow.grid))} in your browser, sign in, and allow the device showing this code.${other()}</p>
       <div class="code">${esc(flow.code)}</div>
       <div class="row"><button class="primary" data-g="open" type="button">Open the sign-in page</button><button class="ghost" data-g="copy" type="button">Copy code</button></div>
       <p class="wait"><span class="spin"></span>Waiting for you to allow it…</p>`;
@@ -608,9 +620,12 @@ function cloudSheet(m = null, start = null) {
     }
     if (e) return ask(e === 'access_denied' ? 'Sign-in was declined in the browser.' : e === 'expired_token' ? 'The code expired. Sign in again.' : r.body.error_description || e);
     const { token, user, instance } = r.body;
-    const c = m || { id: newId(), kind: 'grid' };
-    Object.assign(c, { kind: 'grid', grid: flow.grid, url: instance.url, handle: user.handle, name: m?.name || instance.name || 'wisp Cloud', token, signedOut: false });
-    if (!m) machines.push(c);
+    // The same account again (Sign in again, or added twice): its card. Another account, even from
+    // Sign in again on this one: a card of its own, and this one stays as it was.
+    const same = machines.find((x) => isGrid(x) && x.grid === flow.grid && x.handle === user.handle);
+    const c = same || { id: newId(), kind: 'grid' };
+    Object.assign(c, { kind: 'grid', grid: flow.grid, url: instance.url, handle: user.handle, name: same?.name || instance.name || 'wisp Cloud', token, signedOut: false });
+    if (!same) machines.push(c);
     save();
     paint();
     dismiss(d);
@@ -687,7 +702,7 @@ function cloudSheet(m = null, start = null) {
       save();
       paint();
       dismiss(d);
-      toast(`Signed out of ${nameOf(m)}`);
+      toast(`Signed out of ${m.handle} on ${hostOf(m.grid)}`);
     }
   };
   if (start?.pick) pick();

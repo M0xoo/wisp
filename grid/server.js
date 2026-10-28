@@ -496,7 +496,9 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         await needCsrf();
         if (url.searchParams.get('all')) accounts.endAll(s.user.id);
         else accounts.endSession(c[names.grid]);
-        return redirect(res, '/signin', { 'set-cookie': setCookie(names.grid, '', 0) });
+        // Use another account (the device approval page): back to sign-in, then to that same code.
+        const ret = safePath(url.searchParams.get('return'), '');
+        return redirect(res, ret ? `/signin?return=${encodeURIComponent(ret)}` : '/signin', { 'set-cookie': setCookie(names.grid, '', 0) });
       }
     }
     return page(messagePage({ cfg, title: 'Not found', text: 'There’s nothing here.', link: ['/', 'Home'] }), 404);
