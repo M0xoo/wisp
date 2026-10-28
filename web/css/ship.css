@@ -28,8 +28,8 @@
 .task-item:hover .it-quick, .task-head .it-quick:focus-visible { opacity: 1; }
 .task-runs { display: flex; flex-direction: column; }
 .item.run { border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
-.item.run.focused { box-shadow: inset 2px 0 0 var(--line-2); background: var(--surface-2); }
-.item.run.open { box-shadow: inset 2px 0 0 var(--accent); }
+.item.run:is(.focused, .open) { box-shadow: none; background: var(--surface-2); }
+.item.run.open .it-title { color: var(--ink); } /* ink, not weight: a bolder title would reflow the row */
 .item.run .it-head { grid-template-columns: 18px 1fr auto; padding: 8px 12px 8px 26px; border-radius: 0; }
 .item.run.open .it-head { border-radius: 0; }
 .item.run .it-title { font-size: 13px; font-weight: 400; color: var(--ink-2); white-space: nowrap; }
@@ -193,9 +193,9 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 .pill.overlap.clash { --tone: var(--warn); color: var(--warn); }
 .overlap-strip {
   --tone: var(--faint); display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; padding: 5px 6px 5px 10px; border-radius: 9px;
-  font-size: 12.5px; background: color-mix(in srgb, var(--tone) 7%, transparent); border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
+  font-size: 12.5px; background: color-mix(in srgb, var(--tone) 7%, transparent); border: 1px solid var(--line);
 }
-.overlap-strip.clash { --tone: var(--warn); }
+.overlap-strip.clash { --tone: var(--warn); border-color: color-mix(in srgb, var(--tone) 18%, transparent); }
 .overlap-strip[hidden] { display: none; }
 .ov-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ov-row > .i { width: 13px; height: 13px; flex: none; color: var(--tone); }

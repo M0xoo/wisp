@@ -211,11 +211,11 @@ body.split .task-runs { padding: 0 4px 4px; }
 .sh-launch .sp-feedtop { margin-top: 18px; }
 .sh-next { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-next[hidden] { display: none; }
-.sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 8px 0 13px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.sh-next h4 { display: flex; gap: 6px; margin: 0 0 6px; padding: 0 13px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
 .sh-next h4 .n { color: var(--faint); }
 .sh-task {
   display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; width: 100%;
-  padding: 9px 10px 9px 12px; border-radius: 9px; border: 1px solid transparent; text-align: left; transition: background 0.15s, border-color 0.15s;
+  padding: 9px 12px; border-radius: 9px; border: 1px solid transparent; text-align: left; transition: background 0.15s, border-color 0.15s;
 }
 .sh-task:hover { background: var(--surface); border-color: var(--line); }
 .sh-t { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -224,6 +224,8 @@ body.split .task-runs { padding: 0 4px 4px; }
 /* Side by side, the sidebar's Needs you already says each task's state (and its dot says it here):
    home lists them to open, without saying it again. Stacked or with the list hidden, it does. */
 body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
+/* ...and drops its column, or the empty track's gap pulls the times in from the right edge */
+body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-template-columns: 10px minmax(0, 1fr) auto; }
 .sh-keys { margin: 18px 0 0; padding: 0 8px 0 13px; font-size: 12.5px; color: var(--faint); line-height: 2; }
 /* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */
 .split-home .launcher .lp-chip:not(.add) { border-color: transparent; }
@@ -245,7 +247,8 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
 .sh-up .sh-s { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-up .q-time { font-variant-numeric: tabular-nums; }
 .tips h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 0 4px; font-size: 12.5px; font-weight: 500; color: var(--muted); }
-.sh-tips h4 { padding: 0 8px 0 13px; }
+.sh-tips h4 { padding: 0 13px; }
+.sh-tips .tip-more { margin-right: -6px; }
 .tip-more { margin-left: auto; padding: 2px 6px; border-radius: 6px; font-size: 12.5px; color: var(--faint); }
 .tip-more:hover { color: var(--ink-2); background: var(--bg-2); }
 .tip {
@@ -264,7 +267,7 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
 /* Pinned until a harness can run here: a card, not a line, so it reads as the first thing to do */
 .tip.tip-setup {
   grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; margin: 0 0 6px; padding: 12px 12px 12px 10px; width: 100%;
-  border-color: var(--line); border-radius: 12px; text-align: left; cursor: pointer;
+  border-color: var(--line); border-radius: var(--radius); text-align: left; cursor: pointer;
   background: linear-gradient(120deg, var(--accent-soft), var(--surface) 70%);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
@@ -395,7 +398,7 @@ body.split.pane-wide .it-props > .plan-used { flex: 1 0 100%; order: 3; display:
 body.split.pane-wide .it-props > .plan-used > .i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--faint); }
 body.split.pane-wide .it-props > .q-proj::before { content: ''; position: absolute; left: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--pc); }
 body.split.pane-wide .it-bar > .it-meta { flex: none; flex-direction: column; align-items: stretch; gap: 8px; margin-top: -6px; overflow: visible; font-size: 12.5px; }
-body.split.pane-wide .it-meta .m { display: flex; align-items: center; max-width: 100%; min-width: 0; }
+body.split.pane-wide .it-meta .m { display: flex; align-items: center; gap: 0; max-width: 100%; min-width: 0; }
 body.split.pane-wide .it-meta .m > .i { width: 13px; height: 13px; flex: none; margin: 0 9px 0 0; color: var(--faint); }
 body.split.pane-wide .it-meta .m.branch { overflow: hidden; white-space: nowrap; color: var(--muted); }
 body.split.pane-wide .it-meta .m.branch > .i { margin-right: 9px; }
@@ -417,7 +420,8 @@ body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-track li + li::before { 
 body.split.pane-wide .it-bar > .pr-strip.ship-run .ship-acts { order: 3; }
 /* the actions: a list with their names and keys */
 body.split.pane-wide .it-bar > .it-actions { flex-direction: column; align-items: stretch; gap: 1px; padding-top: 12px; border-top: 1px solid var(--line); }
-body.split.pane-wide .it-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 8px; gap: 10px; font-size: 13px; color: var(--muted); }
+/* the hover fill bleeds out by the padding so the icons line up with the facts above (13px + 9px) */
+body.split.pane-wide .it-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 8px; margin-inline: -8px; gap: 7px; font-size: 13px; color: var(--muted); }
 body.split.pane-wide .it-actions .ghost:hover { color: var(--ink); }
 body.split.pane-wide .it-actions :is(.ghost.on, .it-done) { color: var(--good); }
 body.split.pane-wide .it-actions .ghost .i { width: 15px; height: 15px; }
@@ -458,6 +462,8 @@ body.split.stack #feed .it-title { display: -webkit-box; -webkit-box-orient: ver
 body.split.stack #feed .item.open .it-title { white-space: normal; }
 /* The task's bar on a narrow page, two rows: its facts, then the actions with how it runs (the
    branch, cut in the middle) in the room left beside them. */
+/* 12px under the header's line, the same as between its two rows: one rhythm, not 8 then 12 */
+body.split.stack #feed .item.open > .it-body > .it-bar { padding-top: 12px; }
 body.split.stack .it-bar > .it-props { flex: 1 0 100%; flex-wrap: nowrap; min-width: 0; }
 body.split.stack .it-bar > .it-props > * { flex: none; }
 body.split:not(.pane-wide) .it-bar > .it-props > .q-proj { flex: 0 1 auto; min-width: 6ch; max-width: none; } /* whole while there's room */

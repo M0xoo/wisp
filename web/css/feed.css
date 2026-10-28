@@ -203,6 +203,8 @@ body.split.pane-wide .fork-line .fl-narrow, body.split:not(.pane-wide) .fork-lin
   animation: rise 0.4s var(--ease) both; position: relative; overflow: hidden;
 }
 .w-panel.waiting { border-color: color-mix(in srgb, var(--warn) 35%, var(--line)); }
+/* The card inside carries the warn frame; two nested orange boxes read as one shouting. */
+.w-panel.waiting:has(.ask-slot > *) { border-color: var(--line); }
 .w-orb { padding-top: 2px; }
 .w-body { flex: 1; min-width: 0; position: relative; }
 /* One line at any width or text size: what doesn't fit wraps onto a second line the box clips, the
