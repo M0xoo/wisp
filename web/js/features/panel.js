@@ -110,6 +110,7 @@ function paint() {
     shown = null;
     return;
   }
+  if (!was || shown !== id) freshShell(id);
   if (shown !== id) {
     shown = id;
     panel.dataset.id = id;
@@ -245,6 +246,13 @@ async function startShell(id, { restart = false } = {}) {
     t.starting = false;
   }
   if (shown === id) (paintShell(), paintPlace(), view.focus());
+}
+
+// Coming to a task's shell (the panel opens, another task, the Shell tab) whose shell has ended
+// (exited, or the server lost it: forgotten 10 minutes after, wisp restarted): a new one starts,
+// never the dead screen. Watching it end, its last screen and Start again stay.
+function freshShell(id) {
+  if (shells.get(id)?.code !== null) shells.delete(id);
 }
 
 function paintShell() {
@@ -612,6 +620,7 @@ $('.pn-tabs', panel).addEventListener('keydown', (e) => {
 });
 
 function pickTab(tab, { focus = false } = {}) {
+  if (tab === 'shell' && tabOf() !== 'shell' && shown) freshShell(shown);
   if (segOn()) seg.tab = tab;
   else (pref.tab = tab), keep();
   paintTabs();
