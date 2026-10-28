@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-28
+
 ### Added
 
 - **A side panel beside the task: a shell in its worktree, and its PR without the noise.** The panel button in the task's header (or `]`) opens a third column with two tabs. **Shell** is your own shell in the folder the task was built in, on whichever computer ran it: this one, a machine over SSH, or a cloud computer (no terminal app needed there). Each task keeps its shell while you look at others; `⌃\`` goes into it from anywhere and back to the reply box. A line on top says where you are (computer, branch, commits ahead, files changed), and its *⋯* copies the path or branch, or opens the folder in your editor or terminal app. **PR #n** (or `P`) shows the PR in full: one verdict with its next step (*Merge*, *Fix conflicts*), each check with failing ones first and the rest folded, where each reviewer stands, the review threads and comments (bots' and outdated ones folded), and the files. *Ask to fix* on a failing check and *Send to agent* on a comment put it in the reply box, with the end of the failing log, for you to send. On a phone the task page gets *Task · Shell · PR* segments instead, with the key row's new *^C* and the verdict pinned at the bottom. *Open shell* and *Review PR #n* are in the right-click and More menus and ⌘K. A spell can reach it all (`panel.head` slot, `panel.*` parts, `width`, `tab`, `bots`).
