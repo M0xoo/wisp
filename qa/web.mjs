@@ -167,6 +167,26 @@ try {
     p.clean();
   });
 
+  await check('WEB-06b', 'rename keeps the task open', async () => {
+    const head = p.locator(`#splitHead:not([hidden])[data-id="${first.id}"]`);
+    const title = head.locator('.sh-title');
+    // Enter saves the name; Escape cancels the next one. Neither may close the task or go back.
+    await title.dblclick();
+    await p.locator(`#splitHead[data-id="${first.id}"] .sh-title[contenteditable="true"]`).waitFor({ timeout: 3000 });
+    await p.keyboard.type('renamed from its header');
+    await p.keyboard.press('Enter');
+    await until(async () => (await session(first.id)).title === 'renamed from its header', { timeout: 5000, what: 'title saved' });
+    ok(await head.isVisible(), 'Enter after a rename closed the task');
+    await title.dblclick();
+    await p.locator(`#splitHead[data-id="${first.id}"] .sh-title[contenteditable="true"]`).waitFor({ timeout: 3000 });
+    await p.keyboard.type('never saved');
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(300);
+    ok(await head.isVisible(), 'Escape after a rename left the task');
+    ok((await title.textContent()) === 'renamed from its header', `Escape kept "${await title.textContent()}"`);
+    p.clean();
+  });
+
   await check('WEB-07', 'agent asks a question (ask_user)', async () => {
     const s = await launch({ prompt: 'ASK before you fix it' });
     await until(async () => (await session(s.id)).state === 'waiting', { timeout: 20000, what: 'waiting state' });

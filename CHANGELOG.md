@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Renaming a task keeps you on it.** Pressing Enter to save a new name closed the task, and Escape to cancel it went back to the list; both now just end the rename.
 - **Ship it comes back for changes made after a task's PR merged.** Since agents attach the PRs they open (`wisp_pr`), a task's own PR merged on GitHub (by the agent, a spell or by hand) hid Ship it for good, so follow-up changes in the same task could only be shipped by asking the agent. It now shows again for uncommitted changes or commits made after the merged head, and opens a new PR for them. The squash-merged commit itself, and a branch GitHub deleted on merge, don't count as something to ship.
 - **Phone app: signing in to wisp Cloud survives a grid restart.** If the grid answered with an error page while the app waited for you to tap *Allow* (it restarts during an update), the app stopped asking and kept spinning. It now asks again until the grid is back, and stops asking once you close the sign-in sheet.
 - **Phone app: Connect then Disconnect at once no longer closes the app.** Disconnecting before Android had shown the *Connected to …* notification made Android 12 and later stop the app.
