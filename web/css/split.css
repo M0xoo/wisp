@@ -539,3 +539,5 @@ body.wisp-mobile.split.stack .feed-wrap { padding-bottom: calc(96px + env(safe-a
 /* The Mac window buttons sit over the page's top-left corner: Back starts to their right. */
 body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top) { padding-left: 88px; }
 body.electron.mac.split.stack .sh-bar { padding-left: 72px; }
+/* …but the segments sit under them, so they span the page, 12px in on each side as elsewhere. */
+body.electron.mac.split.stack .split-head > .sh-segs { margin-left: -76px; }
