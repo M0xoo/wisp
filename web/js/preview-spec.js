@@ -74,5 +74,14 @@ export const isLoopback = (url) => {
   }
 };
 
+// On a wisp Grid, localhost in the box shows at its preview address (server/http/preview.js):
+// "http://localhost:5173/a?b" with "https://p{port}--ada.grid.example" → "https://p5173--ada.grid.example/a?b".
+// null when it isn't a loopback page or there's nowhere to show it.
+export function boxUrl(url, template) {
+  if (!template || !isLoopback(url)) return null;
+  const u = new URL(url);
+  return `${String(template).replace('{port}', u.port || '80').replace(/\/+$/, '')}${u.pathname}${u.search}${u.hash}`;
+}
+
 // "localhost:3000/settings" for the address bar: no scheme, no trailing slash.
 export const shortUrl = (url) => String(url).replace(/^https?:\/\//, '').replace(/\/$/, '');

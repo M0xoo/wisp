@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEVICES, PREVIEW_SIZE, isLoopback, previewProblem, previewSandbox, previewSize, previewUrl, shortUrl } from '../web/js/preview-spec.js';
+import { DEVICES, PREVIEW_SIZE, boxUrl, isLoopback, previewProblem, previewSandbox, previewSize, previewUrl, shortUrl } from '../web/js/preview-spec.js';
 import { SYSTEM_PROMPT } from '../server/protocol.js';
 import { blocksToMarkdown } from '../server/render.js';
 import * as schema from '../web/js/spell-schema.js';
@@ -58,4 +58,14 @@ test('the preview and its pieces are spell parts, its icons are in ICONS, and pr
   for (const p of ['preview', 'preview.head', 'preview.stage', 'preview.foot']) assert.ok(schema.PARTS[p], p);
   for (const i of ['phone', 'tablet', 'rotate']) assert.ok(schema.ICONS.includes(i), i);
   assert.ok(schema.BUILTIN_BLOCKS.includes('preview'));
+});
+
+test('on a wisp Grid, the box’s localhost shows at its preview address; other pages stay as they are', () => {
+  const t = 'https://p{port}--ada.grid.example';
+  assert.equal(boxUrl('http://localhost:5173/settings?tab=1#top', t), 'https://p5173--ada.grid.example/settings?tab=1#top');
+  assert.equal(boxUrl('http://127.0.0.1:3000/', t), 'https://p3000--ada.grid.example/');
+  assert.equal(boxUrl('http://localhost/', t), 'https://p80--ada.grid.example/');
+  assert.equal(boxUrl('https://example.com/', t), null);
+  assert.equal(boxUrl('http://localhost:5173/', ''), null);
+  assert.equal(boxUrl('http://localhost:5173/', undefined), null);
 });

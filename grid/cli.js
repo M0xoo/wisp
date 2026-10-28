@@ -87,7 +87,8 @@ export async function gridCli(args) {
   if (cmd === 'dev') {
     const dir = path.resolve(dataDir || path.join(os.homedir(), '.wisp-grid-dev'));
     const port = Number(o.port) || 8080;
-    const hostd = { idleMs: (Number(o.idle) || 120) * 1000 };
+    // Previews too: its loopback is this computer's, and it's only you.
+    const hostd = { idleMs: (Number(o.idle) || 120) * 1000, previews: true };
     if (o.fakeAgents) Object.assign(hostd, { path: fakeBins(dir), env: { FAKE_DELAY: o.fakeDelay || '1500' } });
     const cfg = loadConfig({ dataDir: dir, overrides: { domain: o.domain || 'wisp.localhost', scheme: 'http', listen: { host: o.host || 'loopback', port }, auth: { dev: true }, hostd, name: 'wisp Grid (dev)' } });
     ensureMaster(dir);

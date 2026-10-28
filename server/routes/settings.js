@@ -17,10 +17,11 @@ import { expand } from '../util.js';
 import { triggerView } from '../triggers.js';
 
 // On a wisp Grid (its hostd sets WISP_GRID_URL): the grid, and this wisp's own address there, so
-// the page offers connecting through the grid instead of SSH.
+// the page offers connecting through the grid instead of SSH. preview: where a page the agent
+// left running on this box shows ("https://p{port}--ada.grid.example"; server/http/preview.js).
 // A cloud computer has no terminal app: take over is always in the page there.
 const terminals = () => (process.env.WISP_GRID_URL ? TERMINALS.filter((t) => t.id === 'wisp') : TERMINALS);
-const gridInfo = (app) => (process.env.WISP_GRID_URL && app.publicUrl ? { url: process.env.WISP_GRID_URL.replace(/\/+$/, ''), address: app.publicUrl } : null);
+const gridInfo = (app) => (process.env.WISP_GRID_URL && app.publicUrl ? { url: process.env.WISP_GRID_URL.replace(/\/+$/, ''), address: app.publicUrl, ...(process.env.WISP_PREVIEW_URL && { preview: process.env.WISP_PREVIEW_URL }) } : null);
 
 export { cloneRoot };
 

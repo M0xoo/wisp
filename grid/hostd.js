@@ -104,15 +104,16 @@ export async function deleteBox({ dataDir, driver, container = {}, user }) {
 
 export class Hostd extends EventEmitter {
   // user: { id, handle }. secretFor(user) → the trusted-proxy secret; urlFor(user) → its public URL;
+  // previewFor(user) → where its box's pages show ("…p{port}--handle…", '' for none);
   // exists(user): still has an account (a scheduled wake doesn't start a deleted user's box).
   // admit: { boxMb, reserveMb } (false: count boxes only); memory() → MiB available (tests).
-  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, admit, evictAfterMs = 120_000, queueMs = 120_000, memory = availableMb, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, exists = () => true, gridUrl = '', telemetry = false, wispBin = WISP_BIN, log = () => {} }) {
+  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, admit, evictAfterMs = 120_000, queueMs = 120_000, memory = availableMb, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, previewFor = () => '', exists = () => true, gridUrl = '', telemetry = false, wispBin = WISP_BIN, log = () => {} }) {
     super();
     if (driver !== 'process' && driver !== 'container') throw new Error(`hostd driver "${driver}" isn’t built yet: use "process" or "container" (see grid/README.md).`);
     // By default only where MemAvailable says what's really free (Linux): elsewhere free memory
     // leaves out the cache the system would hand back, and would keep boxes from starting.
     admit = admit === undefined ? driver === 'container' && fs.existsSync('/proc/meminfo') && ADMIT : admit && { ...ADMIT, ...admit };
-    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, admit, evictAfterMs, queueMs, memory, env, extraPath, secretFor, urlFor, exists, gridUrl, telemetry, wispBin, log, container: { ...CONTAINER, ...container } });
+    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, admit, evictAfterMs, queueMs, memory, env, extraPath, secretFor, urlFor, previewFor, exists, gridUrl, telemetry, wispBin, log, container: { ...CONTAINER, ...container } });
     this.setMaxListeners(0); // every start waiting in line listens for 'room'
     this.gate = Promise.resolve(); // one admission at a time
     this.peak = 0; // most boxes up at once since takePeak()
@@ -307,7 +308,7 @@ export class Hostd extends EventEmitter {
     // WISP_OUT_OF_MEMORY: the last run was killed for memory (its limit, with containers).
     const oom = i.oom && { WISP_OUT_OF_MEMORY: this.driver === 'container' ? String(c.memory) : '1' };
     i.oom = false;
-    const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), ...oom, WISP_UPDATE_CHECK: '0', ...(!this.telemetry && { WISP_TELEMETRY: '0' }), WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
+    const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.previewFor(i.user) && { WISP_PREVIEW_URL: this.previewFor(i.user) }), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), ...oom, WISP_UPDATE_CHECK: '0', ...(!this.telemetry && { WISP_TELEMETRY: '0' }), WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
     let child;
     if (this.boxd) {
       child = boxdRun(this.boxd, { id: i.user.id, port: i.port, env: { ...this.env, ...wisp }, limits: { memory: c.memory, memorySwap: c.memorySwap, cpus: c.cpus, pids: c.pids }, dns: c.dns }, d.log);

@@ -103,6 +103,7 @@ export function loadConfig({ dataDir, overrides = {}, env = process.env } = {}) 
   if (!(typeof st.holdDays === 'number' && st.holdDays >= 0)) throw new Error('auth.seats.holdDays: days a seat stays held for an invited person on the waitlist, 0 or more.');
   const ad = cfg.hostd.admit;
   if (ad != null && ad !== false && !(isObj(ad) && ['boxMb', 'reserveMb'].every((k) => ad[k] == null || whole(ad[k], 0)))) throw new Error('hostd.admit: false, or { boxMb, reserveMb } in MiB (the memory one more box needs, and what the host keeps for itself).');
+  if (cfg.hostd.previews != null && typeof cfg.hostd.previews !== 'boolean') throw new Error('hostd.previews: true or false (pages the agent runs in a box, at p<port>--<handle>; on by default for containers).');
   for (const k of ['evictAfterMs', 'queueMs']) if (cfg.hostd[k] != null && !whole(cfg.hostd[k], 0)) throw new Error(`hostd.${k}: milliseconds, a whole number.`);
   return cfg;
 }
