@@ -124,6 +124,18 @@ test('/api/feedback: /feedback text and the dialog rating stay off the turn', as
   assert.equal((await call(`/sessions/${tour.id}`)).body.turns.at(-1).feedback, undefined);
 });
 
+test('/api/feedback: a bug report goes out as feedback with kind bug, and needs words', async () => {
+  const sent = [];
+  srv.telemetry.post = async (b) => (sent.push(...b), true);
+  await withFeedback(() => call('/feedback', { kind: 'bug', text: 'the list jumps when a task opens', source: 'home' }));
+  assert.equal(sent.at(-1).event, 'feedback');
+  assert.equal(sent.at(-1).properties.kind, 'bug');
+  assert.equal(sent.at(-1).properties.source, 'home');
+  assert.equal((await call('/feedback', { kind: 'bug' })).status, 400);
+  assert.equal((await call('/feedback', { kind: 'bug', rating: 'down' })).status, 400, 'thumbs alone are no bug report');
+  assert.equal((await call('/feedback', { kind: 'rant', text: 'x' })).status, 400);
+});
+
 test('/api/feedback: refuses empty notes and bad ratings; reports when feedback is off', async () => {
   assert.equal((await call('/feedback', {})).status, 400);
   assert.equal((await call('/feedback', { rating: 'meh' })).status, 400);

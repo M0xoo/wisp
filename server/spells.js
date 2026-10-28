@@ -324,7 +324,7 @@ export function normalizeSpell(raw) {
     const where = `slash[${i}]`;
     const name = String(x.name || '').replace(/^\//, '').toLowerCase();
     if (!/^[a-z][a-z0-9-]{1,20}$/.test(name)) p.at_(where, 'name: lowercase letters, digits and dashes');
-    if (['btw', 'feedback', 'spell'].includes(name)) p.at_(where, `/${name} is built in`);
+    if (['btw', 'feedback', 'bug', 'spell'].includes(name)) p.at_(where, `/${name} is built in`);
     return { name, args: str(x.args, 40), hint: str(x.hint, 80), do: checkAction(x.do, where, p, ctx) };
   });
 

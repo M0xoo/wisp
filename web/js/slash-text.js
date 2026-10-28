@@ -5,7 +5,8 @@ export const SLASH = [
   { name: 'btw', args: 'question', hint: 'Ask on the side. The agent keeps working' },
   { name: 'goal', args: 'what has to be true', hint: 'Keep going until it holds. /goal drop stops', bare: true }, // alone: opens the goal's popover
   { name: 'spell', args: 'what to change', hint: 'Cast a spell: change wisp itself' },
-  { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or breaks', bare: true }, // alone: opens the dialog
+  { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or what you wish it did', bare: true }, // alone: opens the dialog
+  { name: 'bug', args: 'what happened', hint: 'Report a bug in wisp to the wisp team', bare: true }, // alone: opens the dialog on Something broke
 ];
 // The new-task box: there's no run to ask on the side yet, and a goal starts a task.
 export const HOME_SLASH = SLASH.filter((c) => c.name !== 'btw').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c));

@@ -234,6 +234,12 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-te
 .split-home .launcher .l-recipes .lp-chip.rc { background: none; color: var(--muted); }
 .split-home .launcher .runners:not(:hover):not(:has(.open)) { border-color: transparent; }
 .sh-keys kbd { margin-right: 2px; }
+/* Bugs and ideas for the team: a quiet line at the foot of home (on phones too, where the keys hide) */
+.sh-foot { margin: 6px 0 0; padding: 0 8px 0 13px; }
+.sh-fb { display: inline-flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 12.5px; color: var(--faint); text-decoration: none; transition: color 0.15s; }
+.sh-fb[hidden] { display: none; }
+.sh-fb:hover { color: var(--ink-2); }
+.sh-fb .i { width: 13px; height: 13px; }
 
 /* Tips (features/tips.js): split view's home only, a line each, opening their guide on trywisp.dev. */
 .tips[hidden] { display: none; }

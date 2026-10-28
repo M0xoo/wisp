@@ -160,6 +160,14 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Expected:** an answer appears without interrupting or adding a turn to the main run.
 - **Automated** (API), **Suite** (`test/btw.test.js`)
 
+### WEB-22b · Feedback and bug reports
+- **Steps:** on home, click *Hit a bug, or wish wisp did something? Tell us* at the foot; switch the dialog to
+  *Something broke*. Then type `/bug the list jumps` in the prompt box and press Enter.
+- **Expected:** the dialog opens on *Idea or thought* with 👍 / 👎; *Something broke* hides the thumbs without
+  the dialog changing height and keeps *Send* disabled until there's text. `/bug …` clears the box and thanks
+  you at once; `/bug` alone opens the dialog on *Something broke*. The home line shows on phones too.
+- **Manual** (page), **Suite** (`test/feedback.test.js`, `test/btw.test.js`)
+
 ### WEB-23 · Machines, Automations, Get the app dialogs
 - **Steps:** open the avatar's menu and click *Machines*; again for *Automations* and *Get the app*.
 - **Expected:** the menu closes and each opens its panel/dialog, which closes with Esc.

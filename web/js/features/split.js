@@ -32,6 +32,7 @@ import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, pa
 import { openUpcoming, upcoming, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 import { planLine } from './budget.js';
+import { feedbackOn, openFeedback } from './feedback.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const SIDE_W = 340;
@@ -441,6 +442,7 @@ function paintHome() {
   const coming = $('.sh-coming', home);
   if (coming.dataset.h !== up) (coming.innerHTML = up), (coming.dataset.h = up);
   coming.hidden = !up;
+  $('.sh-fb', home).hidden = !feedbackOn();
   $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list';
 }
 
@@ -511,6 +513,7 @@ $('#splitHead').addEventListener('dblclick', (e) => {
 let shown = []; // Coming up's rows, as painted
 home.addEventListener('click', (e) => {
   if (e.target.closest('.sh-back')) return goBack();
+  if (e.target.closest('.sh-fb')) return openFeedback({ source: 'home' });
   const up = e.target.closest('.sh-up');
   if (up) return openUpcoming(shown[up.dataset.up], up, e);
   const id = e.target.closest('.sh-task')?.dataset.id;
