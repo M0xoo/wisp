@@ -72,7 +72,11 @@ narrow browser's under the media query (the reply box's mode button is icon-only
   page in the app keeps 44px.
 - Signing in to wisp Cloud is one tap everywhere in the app (*Continue with GitHub* / *Google*);
   a grid address is only asked for behind *Use your own wisp Grid*.
-- A row's kind pill (*Cloud*, *Over SSH*) stays whole; the address after it ends in `…`.
+- Each wisp Cloud account is one card: its picture with the GitHub or Google mark it signs in with,
+  the handle, and that account (`@login` or the email) under it; never *wisp Cloud* on every row
+  (a grid's name shows only when it isn't wisp Cloud). Its computers are rows in the same card.
+- Where a row stands is a dot and a word under its name (*Online*, *Offline*, *Over SSH*), never a
+  disabled button. *Over SSH* stays whole; the address after it ends in `…`.
 - Store-required destructive paths (*Delete your account*) are a quiet `--bad` underlined link
   under *Sign out*, 48px tall, never a filled button; they open the grid's own page for it
   (`/account#delete`), which does the confirming.

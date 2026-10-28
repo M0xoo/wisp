@@ -410,6 +410,9 @@ test('device flow: code → approve in the browser → bearer token opens the wi
   const auth = { authorization: `Bearer ${done.json.token}`, accept: 'application/json' };
   const me = await browser().go(`${base}/api/me`, { headers: auth });
   assert.equal(me.json.user.handle, 'dee');
+  // How they signed in, for the phone app's list (which account is which).
+  assert.equal(me.json.user.identities[0].email, 'dee@example.com');
+  assert.equal(typeof me.json.user.identities[0].provider, 'string');
   const health = await browser().go(`${cfg.instanceUrl('dee')}/api/health`, { headers: auth });
   assert.equal(health.status, 200, health.text);
   // Someone else's wisp: the token is for dee only.

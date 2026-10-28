@@ -12,8 +12,6 @@ b, strong { font-weight: 600; }
 :is(button, summary, .brand, .intro h1) { -webkit-user-select: none; user-select: none; }
 button { transition: transform 0.12s var(--ease), opacity 0.12s, background-color 0.15s; }
 button:active:not(:disabled) { transform: scale(0.97); }
-.card.m[data-row] { cursor: pointer; }
-.card.m[data-row]:has(.m-row:active):not(:has(button:active)) { background: var(--bg-2); }
 .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: spin 0.8s linear infinite; }
 .m-go.primary:disabled { opacity: 0.9; }
 .wrap { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 12px; }
@@ -40,34 +38,68 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .icon { background: none; width: 48px; height: 48px; border-radius: 12px; color: var(--muted); }
 
 /* --- machines ------------------------------------------------------------------------------- */
-.list { display: flex; flex-direction: column; gap: 8px; }
+/* Grouped like a phone's own settings: each account is one card, headed by who you are on it, with
+   its computers as rows under a hairline; an SSH computer is a card of its own. */
+.list { display: flex; flex-direction: column; gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-1); }
-.m { overflow: hidden; }
-.m-row { display: grid; grid-template-columns: 36px 1fr auto 48px; gap: 8px; align-items: center; padding: 12px 0 12px 16px; }
-.m-row > .m-ico { margin-right: 4px; }
+.m-acct { overflow: hidden; display: flex; flex-direction: column; }
+.m-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto 48px; column-gap: 12px; align-items: center; min-height: 68px; padding: 10px 0 10px 14px; }
 /* ⋯ opens its settings; a row without any keeps its place, so every Open lines up. */
 .m-more-gap { width: 48px; }
-.m-ico { width: 36px; height: 36px; border-radius: 12px; background: var(--bg-2); display: grid; place-items: center; color: var(--ink-2); position: relative; }
-.m-ico .st { position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); background: var(--faint); }
-.m.ready .st { background: var(--good); }
+.m-go-gap { width: 0; }
+.m-ico { width: 40px; height: 40px; border-radius: 12px; background: var(--bg-2); display: grid; place-items: center; color: var(--ink-2); position: relative; }
+.m-ico .i { width: 18px; height: 18px; }
+/* The account: its first letter on the accent, a small cloud on its corner says where it lives. */
+.m-ico.av { background: none; color: var(--on-accent); font: 600 17px/1 var(--display); letter-spacing: -0.01em; isolation: isolate; }
+.m-ico.av::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--ink))); filter: hue-rotate(var(--hue, 0deg)); }
+.m-ico.av.pic { color: transparent; }
+.m-ico.av.pic::before { background: var(--pic) center / cover, linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--ink))); filter: none; }
+/* The mark of the account it signs in with (GitHub, Google), on its corner. */
+.av-mark { position: absolute; right: -5px; bottom: -5px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.m-ico.av .av-mark .i { width: 12px; height: 12px; }
+.m.failed .m-ico.av { color: var(--muted); }
+.m.failed .m-ico.av::before { background: var(--bg-2); filter: none; }
+.m-text { min-width: 0; text-align: left; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.m-name { font-weight: 600; font-size: 15px; line-height: 1.3; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Where it stands, in a dot and a word; an address after it ends in … */
+.m-sub { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; font-size: 13px; color: var(--muted); white-space: nowrap; }
+.m-where { flex: none; }
+.m-at { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 12px var(--mono); }
+.m-at::before { content: '·'; margin-right: 6px; font-family: var(--sans); }
+/* An account's line: the GitHub or Google account, in words you'd type; another grid after it. */
+.m-who { gap: 0; }
+.m-who .m-at { font: inherit; }
+.m-who .m-at::before { content: none; }
+.m-grid { flex: none; }
+.m-at + .m-grid::before { content: '·'; margin: 0 6px; }
+.st { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.m.ready .st { background: var(--good); box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 20%, transparent); }
 .m.connecting .st { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
 .m.failed .st { background: var(--bad); }
-.m-text { min-width: 0; text-align: left; display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
-.m-name { font-weight: 600; font-size: 15px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Where it is: the pill stays whole, the address after it ends in … */
-.m-sub { display: flex; align-items: center; min-width: 0; max-width: 100%; font: 12px var(--mono); color: var(--muted); white-space: nowrap; }
-.m-sub .kind { flex: none; }
-.m-at { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.m-go { width: 120px; font-size: 15px; white-space: nowrap; } /* the same width in every state, so rows don't shift */
+.m.failed .m-where { color: var(--bad); }
+/* Its computers: a hairline from the text's edge, as in a grouped list. */
+.m.comp { position: relative; }
+.m.comp::before { content: ''; position: absolute; top: 0; left: 66px; right: 0; border-top: 1px solid var(--line); }
+.m.comp.off .m-ico { color: var(--faint); }
+.m.comp.off .m-name { color: var(--ink-2); font-weight: 400; }
+.m[data-row] { cursor: pointer; }
+.m[data-row]:has(> .m-row:active):not(:has(button:active)) { background: var(--bg-2); }
+.m-go { width: 96px; font-size: 15px; white-space: nowrap; gap: 6px; } /* the same width in every state, so rows don't shift */
+.m-go .i { width: 15px; height: 15px; }
 /* A phone: the name gets the room, the button still fits Connecting… */
 @media (max-width: 420px) {
-  .m-row { padding-left: 12px; }
-  .m-row > .m-ico { margin-right: 0; }
-  .m-go { width: 104px; padding-left: 8px; padding-right: 8px; gap: 6px; }
+  .m-row { padding-left: 12px; column-gap: 10px; }
+  .m.comp::before { left: 62px; }
+  .m-go { width: 92px; padding-left: 8px; padding-right: 8px; }
 }
 .m-go.primary { padding: 8px 12px; }
 /* Open: quiet, the row's own action (a tap anywhere on it); the arrow says where it goes. */
-.m-go.go { border-color: transparent; background: var(--bg-2); color: var(--ink); font-weight: 600; }
+.m-go.go { color: var(--ink); }
+/* Every state of the row's button is one shape: 12px corners like the tiles beside it, filled, no
+   outline, so Open, Opening, Connecting and Connect swap without the edge changing. */
+.m-go { border-radius: 12px; font-weight: 600; }
+.m-go.ghost { border-color: transparent; background: var(--bg-2); }
+.m-go.ghost:disabled { color: var(--muted); }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 .runbox { border-top: 1px solid var(--line); padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
@@ -91,6 +123,12 @@ button { font: inherit; cursor: pointer; border: 0; display: inline-flex; align-
 .oops.lost strong { color: var(--accent-ink); }
 
 .add { width: 100%; background: none; border: 1px dashed var(--line-2); border-radius: 16px; min-height: 52px; color: var(--muted); font-size: 15px; }
+/* Add an account: a row like the ones above it, waiting to be filled. */
+.add.cloud { justify-content: flex-start; gap: 12px; min-height: 64px; padding: 0 14px; color: var(--ink-2); font-weight: 600; }
+.add.cloud:active { background: var(--bg-2); }
+.add-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-ink); }
+.add-ico .i { width: 18px; height: 18px; }
+@media (max-width: 420px) { .add.cloud { padding: 0 12px; gap: 10px; } }
 .empty { padding: 24px 16px; text-align: center; color: var(--muted); font-size: 15px; display: flex; flex-direction: column; gap: 4px; align-items: center; }
 .empty strong { color: var(--ink); font-size: 15px; }
 
@@ -185,7 +223,7 @@ details.keys[open] { gap: 10px; }
 }
 
 /* wisp Cloud (a wisp Grid): sign in with a code, then it's a computer like the others. */
-.add.cloud { margin-top: 8px; }
+.add.cloud { margin-top: 0; }
 .gbody { display: flex; flex-direction: column; gap: 12px; }
 .gbody .code { font: 600 24px/1 var(--mono, ui-monospace, monospace); letter-spacing: 0.14em; text-align: center; padding: 16px; border: 1px dashed var(--line-2); border-radius: 12px; background: var(--bg-2); }
 .gbody .wait { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
@@ -193,16 +231,6 @@ details.keys[open] { gap: 10px; }
 /* The sign-in page and Copy code: one above the other, full width, the same height. */
 .gbody .row { display: flex; flex-direction: column; gap: 8px; }
 .gbody .row > * { width: 100%; min-height: 48px; margin: 0; font-size: 15px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
-
-/* Where each computer is: a cloud one on the grid, yours through the grid, or over SSH. */
-.kind { display: inline-block; margin-right: 8px; padding: 0 8px; border-radius: 99px; border: 1px solid var(--line-2); font: 400 12px/1.6 var(--sans); color: var(--muted); vertical-align: 1px; }
-.kind.cloud, .kind.grid { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
-.m.comp .m-go:disabled:not(.primary) { opacity: 0.6; }
-/* Several accounts: each one's computers sit close under it (set in when there's room for their
-   pill), and a gap before the next. */
-.m-acct { display: flex; flex-direction: column; gap: 4px; }
-@media (min-width: 421px) { .m-acct .m.comp { margin-left: 24px; } }
-.m-acct + .m-acct, .m-acct + .card, .card + .m-acct { margin-top: 4px; }
 
 /* Undo on a toast (app.js toast action). */
 .toast button { flex: none; min-height: 48px; margin: -12px 0; padding: 0 4px; background: none; color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
@@ -242,6 +270,8 @@ details.keys[open] { gap: 10px; }
   display: grid; grid-template-columns: 16px minmax(0, 1fr) 14px; gap: 12px; align-items: center; width: 100%; min-height: 48px; padding: 10px 4px 10px 8px;
   border-radius: 12px; background: none; text-align: left; color: var(--ink-2); font-size: 13px; line-height: 1.45;
 }
+.tp-list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.tp-list .tp { border-radius: 0; padding: 12px 12px 12px 14px; }
 .tp + .tp { border-top: 1px solid var(--line); border-radius: 0; }
 .tp:active { background: var(--bg-2); }
 .tp > .i:first-child { color: var(--accent); }

@@ -206,7 +206,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   const names = { grid: cfg.secure ? '__Host-grid' : 'grid', wisp: cfg.secure ? '__Host-wisp' : 'wisp_grid', oauth: cfg.secure ? '__Host-grid_oauth' : 'grid_oauth' };
   const setCookie = (name, value, maxAge) => cookie(name, value, { secure: cfg.secure, maxAge });
   const csrfFor = (s) => secrets.sign(`csrf|${s.hash}`);
-  const userView = (u) => ({ id: u.id, handle: u.handle, name: u.name || '', email: u.email || '', avatar: u.avatar || '' });
+  // identities: how they sign in (GitHub, Google…), so the phone app can say which account each one is.
+  const userView = (u) => ({ id: u.id, handle: u.handle, name: u.name || '', email: u.email || '', avatar: u.avatar || '', identities: accounts.identities(u.id).map(({ provider, email, login }) => ({ provider, email: email || '', login: login || '' })) });
   const instanceView = (u) => {
     const row = accounts.instance(u.id);
     return { url: cfg.instanceUrl(u.handle), name: cfg.name, state: hostd.state(u.id), startedAt: row.started_at || null, stoppedAt: row.stopped_at || null, nextWakeAt: row.next_wake_at || null };
