@@ -2,8 +2,7 @@
 // commit, push, open or update the PR. Then follow it (pr) and squash-merge it (merge). A task in
 // several repos (also) ships, follows and merges a PR in each (services/ship.js).
 
-import { worktreeStatus } from '../git.js';
-import { reposOf } from '../services/ship.js';
+import { repoStatus, reposOf } from '../services/ship.js';
 
 export function register(r, app) {
   const { store, runner, telemetry } = app;
@@ -21,7 +20,7 @@ export function register(r, app) {
     one(async (c, s) => {
       if (!hasTrees(s)) return c.send(400, { error: NO_TREE });
       app.ship.recheck(s);
-      const repos = await Promise.all(reposOf(s, store).map(async (r) => ({ repo: r.name, branch: r.wt.branch, base: r.wt.base, remote: r.wt.remote, ...(await worktreeStatus(r.wt)), pr: r.at.pr || null })));
+      const repos = await Promise.all(reposOf(s, store).map(async (r) => ({ repo: r.name, branch: r.wt.branch, base: r.wt.base, remote: r.wt.remote, ...(await repoStatus(r)), pr: r.at.pr || null })));
       // The first repo's fields at the top level (as before one task could span repos), each in `repos`.
       const sum = (k) => repos.reduce((n, r) => n + r[k], 0);
       c.send(200, { ...repos[0], ...(repos.length > 1 && { dirty: sum('dirty'), ahead: sum('ahead'), repos }), ...app.ship.draft(s) });

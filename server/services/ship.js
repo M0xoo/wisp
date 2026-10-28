@@ -39,8 +39,10 @@ export function reposOf(s, store) {
   const name = (dir) => store?.projectFor?.(dir)?.name || path.basename(dir || '');
   return [s.worktree && { name: name(s.cwd), wt: s.worktree, at: s }, ...(s.also || []).map((a) => a.worktree && { name: name(a.cwd), wt: a.worktree, at: a })].filter(Boolean);
 }
-// Something new for this repo's PR: uncommitted changes, or commits its open PR (or a new one) lacks.
-const pending = (st, pr) => !!(st.dirty || (pr?.state === 'OPEN' ? st.unpushed : st.ahead));
+// A repo's worktree status; after its PR merged, only what came since counts (worktreeStatus).
+export const repoStatus = (r) => worktreeStatus(r.wt, { merged: r.at.pr?.state === 'MERGED' && r.at.pr.head });
+// Something new for this repo's PR: uncommitted changes, or commits its open (or merged) PR, or a new one, lacks.
+const pending = (st, pr) => !!(st.dirty || (['OPEN', 'MERGED'].includes(pr?.state) ? st.unpushed : st.ahead));
 const hasTrees = (s) => !!(s?.worktree || s?.also?.some((a) => a.worktree));
 const MAX_ATTACHED = 20;
 // Where to run `gh` for a PR given by URL: any folder will do, the task's own if it's still there.
@@ -57,7 +59,7 @@ export function createShip(app) {
     if (!hasTrees(s) || s.parentId) return;
     app.overlaps?.touch(s); // other open tasks changing the same files
     const repos = reposOf(s, store);
-    const all = await Promise.all(repos.map((r) => worktreeStatus(r.wt)));
+    const all = await Promise.all(repos.map(repoStatus));
     const sum = (k) => all.reduce((n, st) => n + st[k], 0);
     const next = { dirty: sum('dirty'), ahead: sum('ahead'), unpushed: sum('unpushed'), ...(repos.length > 1 && { repos: all.filter((st, i) => pending(st, repos[i].at.pr)).length }) };
     if (JSON.stringify(next) === JSON.stringify(s.toShip)) return;
@@ -186,7 +188,7 @@ export function createShip(app) {
     const repos = reposOf(s, store);
     let todo = repos;
     if (repos.length > 1) {
-      const st = await Promise.all(repos.map((r) => worktreeStatus(r.wt)));
+      const st = await Promise.all(repos.map(repoStatus));
       todo = repos.filter((r, i) => pending(st[i], r.at.pr));
       if (!todo.length) throw bad('Nothing to ship: none of the task’s repos have new changes.');
     }

@@ -332,6 +332,40 @@ test('wisp_pr: an agent attaches several PRs to its task; they are followed and 
   assert.equal(ghState().prs[902].state, 'OPEN', 'a detached PR is left alone');
 });
 
+// The PR got merged on GitHub (an agent's `gh pr merge`, a spell): the worktree stays, and what
+// the task changes after that ships again. The squashed commit itself doesn't count.
+test('after its PR merged elsewhere, new changes on the task show Ship it again', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() so it adds', cwd: repo.dir, agent: 'claude' } });
+  const { worktree: wt } = await settled(s.id);
+  const pr = await api(`/sessions/${s.id}/ship`, { body: { title: 'fix: add adds' } });
+  // Squash-merged and its branch deleted on GitHub: main doesn't have the branch's commit.
+  const { prs } = ghState();
+  prs[pr.number] = { ...prs[pr.number], state: 'MERGED', mergedAt: new Date().toISOString() };
+  setGh({ prs });
+  repo.git('push', '-q', 'origin', '--delete', wt.branch);
+  assert.equal((await api(`/sessions/${s.id}/pr`, { body: {} })).state, 'MERGED');
+  // GET /ship rechecks the worktree; the card's toShip follows.
+  const toShip = async () => (await api(`/sessions/${s.id}/ship`)) && (await summaryOf(s.id)).toShip;
+  await until(async () => (await toShip())?.ahead === 1);
+  assert.deepEqual(await toShip(), { dirty: 0, ahead: 1, unpushed: 0 }, 'the merged commit is not new');
+
+  fs.writeFileSync(path.join(wt.path, 'notes.md'), 'a follow-up\n');
+  await until(async () => (await toShip())?.dirty === 1);
+  const { execFileSync } = await import('node:child_process');
+  const g = (...a) => execFileSync('git', a, { cwd: wt.path });
+  g('add', '-A');
+  g('commit', '-qm', 'follow-up');
+  await until(async () => (await toShip())?.ahead === 2);
+  assert.deepEqual(await toShip(), { dirty: 0, ahead: 2, unpushed: 1 }, 'only the commit after the merge');
+
+  // Ship it opens a new PR for it.
+  const again = await api(`/sessions/${s.id}/ship`, { body: { title: 'docs: follow-up' } });
+  assert.notEqual(again.number, pr.number);
+  assert.equal(again.state, 'OPEN');
+  await closePrs(s.id);
+});
+
 // One task across two repos (also): the agent gets the second as an extra dir, each repo its own
 // worktree; Ship it opens a PR in each, and Merge merges both and syncs both checkouts.
 test('one task across two repos: a worktree each, a PR each, merged together', async () => {
