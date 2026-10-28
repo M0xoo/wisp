@@ -175,7 +175,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     apiVersion: API_VERSION,
     onChange: () => app.broadcast('machines', app.machines.view()),
     onEvent: (event, data) => {
-      app.broadcast(event, data);
+      app.broadcast(event, data, { fromMachine: true });
       if ((event === 'finished' || event === 'summary') && data?.session) app.auto.signals(data.session);
       else if (event === 'summary' && data?.id) app.auto.signals(data);
       if (event === 'summary' && data?.relays) app.relay.notice(data); // a lead there delegating to another place

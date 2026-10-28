@@ -156,6 +156,7 @@ export function openapi({ version, port }) {
             { name: 'cwd', in: 'query', schema: { type: 'string' }, description: 'Sessions in this folder or below' },
             { name: 'archived', in: 'query', schema: { type: 'boolean' } },
             { name: 'limit', in: 'query', schema: { type: 'integer' } },
+            { name: 'here', in: 'query', schema: { type: 'boolean' }, description: "This wisp's own sessions only, not its machines' (what another wisp asks for)" },
           ],
           responses: { 200: json({ type: 'array', items: ref('Summary') }) },
         },
