@@ -185,6 +185,13 @@ body.split #feed .it-quick-gap { display: none; }
 body.split #feed .it-later { position: absolute; top: 7px; right: 68px; margin: 0; background: var(--bg-2); }
 body.split #feed .it-later:not(:has(+ .it-quick)) { right: 40px; }
 body.split #feed .it-later-gap { display: none; }
+/* While they show, the title ends before them (an ellipsis, not letters peeking around the icons).
+   Touch screens give the check its own column instead (below). */
+@media (hover: hover) {
+  body.split #feed .item:is(:hover, .focused) > .it-head:has(.it-quick) .it-title { padding-right: 64px; }
+  body.split #feed .item:is(:hover, .focused) > .it-head:has(.it-later) .it-title { padding-right: 92px; }
+  body.split #feed .item:is(:hover, .focused) > .it-head:has(.it-later):not(:has(.it-quick)) .it-title { padding-right: 64px; }
+}
 body.split #feed .item.open:not(.unread):not(.st-waiting) .it-title { color: var(--ink-2); font-weight: 500; }
 body.split #feed .item.open.st-done .it-title { color: var(--muted); }
 body.split #feed .it-side .chev { display: none; }
