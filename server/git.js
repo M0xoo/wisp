@@ -118,12 +118,15 @@ export async function ensureWorktree(wt) {
 }
 
 // { dirty: changed paths, ahead: commits past the base, unpushed: commits not on the remote branch, exists }
-export async function worktreeStatus(wt) {
+// merged: the head commit of the branch's merged PR. A squash merge leaves the branch ahead of the
+// base for good, so only commits after that one are new (its remote branch is often deleted).
+export async function worktreeStatus(wt, { merged } = {}) {
   if (!wt || !fs.existsSync(wt.path)) return { exists: false, dirty: 0, ahead: 0, unpushed: 0 };
   const porcelain = await quiet(git(wt.path, ['status', '--porcelain']));
   const ahead = Number(await quiet(git(wt.path, ['rev-list', '--count', `${wt.baseRef}..HEAD`]))) || 0;
-  const pushed = wt.remote && `refs/remotes/${wt.remote}/${wt.branch}`;
-  const tracked = pushed && (await quiet(git(wt.path, ['rev-parse', '--verify', '--quiet', pushed])));
+  const known = (ref) => quiet(git(wt.path, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]));
+  const pushed = merged && (await known(merged)) ? merged : wt.remote && `refs/remotes/${wt.remote}/${wt.branch}`;
+  const tracked = pushed && (await known(pushed));
   const unpushed = tracked ? Number(await quiet(git(wt.path, ['rev-list', '--count', `${pushed}..HEAD`]))) || 0 : ahead;
   return { exists: true, dirty: porcelain ? porcelain.split('\n').length : 0, ahead, unpushed };
 }

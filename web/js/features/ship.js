@@ -43,12 +43,13 @@ const severalRepos = (s) => branches(s).length > 1;
 
 // Ship it only makes sense on a finished worktree task with something to ship: uncommitted
 // changes, or commits its open PR (or a new one) doesn't have yet. Unchecked yet: assume it might.
+// After its PR merged, only work since then (the server counts commits after the merged head).
 // Several repos: the server counts the ones with something new (toShip.repos).
 export function shippable(s) {
   if (!branches(s).length || s.agent === 'wisp' || s.state === 'running' || s.state === 'waiting' || shipping(s)) return false;
   const t = s.toShip;
   if (t?.repos !== undefined) return t.repos > 0;
-  if (s.pr?.state === 'MERGED') return false;
+  if (s.pr?.state === 'MERGED') return !!(t?.dirty || t?.unpushed);
   return !t || !!(t.dirty || (s.pr?.state === 'OPEN' ? t.unpushed : t.ahead));
 }
 export const shipLabel = (s) => (severalRepos(s) ? (shippedPrs(s).some((x) => x.pr.state === 'OPEN') ? 'Push to the PRs…' : 'Ship it…') : s.pr?.state === 'OPEN' ? `Push to PR #${s.pr.number}` : 'Ship it…');
