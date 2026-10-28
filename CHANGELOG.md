@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-28
+
 ### Added
 
 - **On a cloud computer, previews show the cloud computer's page.** A *preview* block for `localhost:5173` used to load `localhost` on your own device: a blank frame, or whatever you were running yourself. In a wisp Grid box it now loads that port in the box, at `p5173--<handle>.<domain>`. It signs you in on its own, sends its own cookies, follows redirects and keeps websockets working, so a dev server's live reload still runs. The address bar still says `localhost:5173`. Grid operators: on by default for the container driver, `hostd.previews` turns it on or off. Every new port is a new name for Caddy's on-demand TLS.
