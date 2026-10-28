@@ -17,6 +17,9 @@ const DEFAULTS = { right: 'done', left: 'archive' };
 
 const busy = (s) => s.state === 'running' || s.state === 'waiting';
 
+// Whether a swipe marks a row done, in which case the row needs no done check of its own.
+export const swipesDone = () => MOBILE && ['swipeRight', 'swipeLeft'].some((k) => (spellProp('card', k) || DEFAULTS[k === 'swipeRight' ? 'right' : 'left']) === 'done');
+
 // What letting go does, for a task, or null when that action can't apply to it (a running task
 // can't be done yet): the row then only gives a little, with nothing under it.
 function actionFor(s, side) {

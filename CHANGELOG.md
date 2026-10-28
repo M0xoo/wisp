@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **No done check or empty strip on the right of rows on phones.** In the phone app a swipe already marks a task done, so its rows no longer show the round check, and no row keeps a column for it: times and pills reach the edge. (A spell that sets neither swipe to done keeps the check.) In a phone browser, which has no swipe, the column is kept only while some row has the check.
 - **The side panel's shell no longer opens on a dead screen.** Coming back to a task whose shell had ended (it exited, or wisp dropped it ten minutes later or on a restart) showed the old, often blank screen with a small *Shell ended* bar, so the terminal looked like it never loaded. Opening the panel, switching to the task or to the Shell tab now starts a new shell; a shell that ends while you watch still keeps its last screen and *Start again*.
 
 ## [0.47.0] - 2026-10-28
