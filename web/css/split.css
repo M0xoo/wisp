@@ -467,19 +467,20 @@ body.split.stack .split-top { margin: 0 -8px; padding: 8px 8px 10px; }
 body.split.stack #feed .it-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
 body.split.stack #feed .item.open .it-title { white-space: normal; }
 /* The task's bar on a narrow page, two rows: its facts, then the actions with how it runs (the
-   branch, cut in the middle) in the room left beside them. */
+   branch, cut in the middle) in the room left beside them. A stacked page wide enough for the
+   details column (860px) keeps that column's one fact a row instead. */
 /* 12px under the header's line, the same as between its two rows: one rhythm, not 8 then 12 */
-body.split.stack #feed .item.open > .it-body > .it-bar { padding-top: 12px; }
-body.split.stack .it-bar > .it-props { flex: 1 0 100%; flex-wrap: nowrap; min-width: 0; }
-body.split.stack .it-bar > .it-props > * { flex: none; }
+body.split.stack:not(.pane-wide) #feed .item.open > .it-body > .it-bar { padding-top: 12px; }
+body.split.stack:not(.pane-wide) .it-bar > .it-props { flex: 1 0 100%; flex-wrap: nowrap; min-width: 0; }
+body.split.stack:not(.pane-wide) .it-bar > .it-props > * { flex: none; }
 body.split:not(.pane-wide) .it-bar > .it-props > .q-proj { flex: 0 1 auto; min-width: 6ch; max-width: none; } /* whole while there's room */
-body.split.stack .it-bar > .it-actions { order: 1; }
-body.split.stack .it-bar > .it-meta { order: 2; flex: 1 1 0; justify-content: flex-end; }
+body.split.stack:not(.pane-wide) .it-bar > .it-actions { order: 1; }
+body.split.stack:not(.pane-wide) .it-bar > .it-meta { order: 2; flex: 1 1 0; justify-content: flex-end; }
 /* A touch screen's 44px actions leave a branch too little room to say anything: there it gets its
    own line, under the facts, rather than "wi…". */
-@media (pointer: coarse) { body.split.stack .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; } }
-body.wisp-mobile.split.stack .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; }
-body.split.stack .it-bar > .it-slot { order: 3; }
+@media (pointer: coarse) { body.split.stack:not(.pane-wide) .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; } }
+body.wisp-mobile.split.stack:not(.pane-wide) .it-bar > .it-meta:has(.m.branch) { flex: 1 0 100%; order: 0; justify-content: flex-start; }
+body.split.stack:not(.pane-wide) .it-bar > .it-slot { order: 3; }
 /* A pane too narrow for the details column but wide enough for one row: the facts keep room for a
    branch that says something, and the actions go under them rather than squeeze it. */
 body.split:not(.stack):not(.pane-wide) .it-bar > .it-meta:has(.m.branch) { min-width: min(100%, 260px); }

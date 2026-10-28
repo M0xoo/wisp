@@ -356,6 +356,16 @@ try {
     ok((await st()).page, 'opening a task did not open its page');
     ok(await q.locator('#splitHead .sh-back').isVisible(), 'no Back on the task page');
     await q.shot('narrow-task');
+    // Wide enough for the details column: one fact a row, none running off the page (#352's
+    // phone bar used to put the state, harness and project on one clipped line here).
+    const facts = await q.evaluate(() => {
+      const props = document.querySelector('.item.open .it-props');
+      const rows = [...props.children].filter((c) => c.offsetWidth && !c.matches('.q-time')).map((c) => c.getBoundingClientRect());
+      return { pane: document.body.classList.contains('pane-wide'), right: Math.max(...rows.map((r) => r.right)), tops: rows.map((r) => Math.round(r.top)), vw: innerWidth };
+    });
+    ok(facts.pane, 'no details column on the 860px task page');
+    ok(facts.right <= facts.vw, `the task's facts run off the page (${facts.right} > ${facts.vw})`);
+    ok(new Set(facts.tops).size === facts.tops.length, `the task's facts share a row: ${facts.tops}`);
     await q.locator('#splitHead .sh-back').click();
     await q.waitForTimeout(300);
     const b = await st();
