@@ -19,6 +19,7 @@ import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
 import { renderBody } from './turns.js';
 import { slotHtml } from './spells.js';
+import { swipesDone } from './swipe.js';
 import { toastError } from '../ui/toast.js';
 import { termPill } from './term.js';
 import { goalPill } from './goal.js';
@@ -384,8 +385,10 @@ export function qDot(s, { ring = true } = {}) {
 }
 
 // One-click done on review rows. A sidebar row keeps it while open, and rows without one keep its
-// space, so every row's pills and time line up and opening a row doesn't move anything.
+// space, so every row's pills and time line up and opening a row doesn't move anything. In the app
+// a swipe marks done, so rows there keep neither the check nor its space.
 function quickDone(s, open) {
+  if (swipesDone()) return '';
   if (s.state === 'review' && !s.archived && (!open || isSplit())) return `<span class="it-quick" data-a="quick-done" title="Mark done (E)" aria-hidden="true">${icon('done')}</span>`; // a pointer shortcut inside the row's button: keys have E, the task's bar has Mark done
   return '<span class="it-quick-gap" aria-hidden="true"></span>';
 }

@@ -556,16 +556,18 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
 .it-swipe .sw-ic .i { width: 20px; height: 20px; }
 .it-swipe.armed .sw-ic { opacity: 1; transform: scale(1.06); }
 /* On a touch screen the row's done button is always there (no hover): its own column after the
-   time and state, not over them. The task bar's buttons take a thumb, as in the app. */
+   time and state, not over them. The column is kept only while some row has the button, so a list
+   with nothing to review doesn't keep an empty strip on the right. The task bar's buttons take a
+   thumb, as in the app. */
 @media (hover: none) and (pointer: coarse) {
   body.split.stack .it-bar .ghost.xs { min-width: 44px; height: 44px; }
 }
 @media (hover: none) {
-  body.split.stack #feed .it-head { grid-template-columns: 10px minmax(0, 1fr) auto 36px; }
+  body.split.stack #feed:has(.it-quick) .it-head { grid-template-columns: 10px minmax(0, 1fr) auto 36px; }
   body.split.stack #feed .it-quick { top: 50%; right: 8px; width: 36px; height: 36px; margin: -18px 0 0; background: none; }
-  body.split.stack #feed .it-side .q-time { right: 48px; }
-  body.split.stack #feed .it-title { padding-right: 84px; }
-  body.split.stack #feed .f-group.scheduled .it-title { padding-right: 136px; }
+  body.split.stack #feed:has(.it-quick) .it-side .q-time { right: 48px; }
+  body.split.stack #feed:has(.it-quick) .it-title { padding-right: 84px; }
+  body.split.stack #feed:has(.it-quick) .f-group.scheduled .it-title { padding-right: 136px; }
 }
 /* The Mac window buttons sit over the page's top-left corner, and their hover area takes clicks out
    to x 88 (16px past the green one): Back's box starts there, not under them (its -10px margin). */
