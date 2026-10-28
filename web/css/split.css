@@ -536,8 +536,9 @@ body.wisp-mobile.split.stack .feed-wrap { padding-bottom: calc(96px + env(safe-a
   body.split.stack #feed .it-title { padding-right: 84px; }
   body.split.stack #feed .f-group.scheduled .it-title { padding-right: 136px; }
 }
-/* The Mac window buttons sit over the page's top-left corner: Back starts to their right. */
-body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top) { padding-left: 88px; }
-body.electron.mac.split.stack .sh-bar { padding-left: 72px; }
+/* The Mac window buttons sit over the page's top-left corner, and their hover area takes clicks out
+   to x 88 (16px past the green one): Back's box starts there, not under them (its -10px margin). */
+body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top) { padding-left: 98px; }
+body.electron.mac.split.stack .sh-bar { padding-left: 82px; }
 /* …but the segments sit under them, so they span the page, 12px in on each side as elsewhere. */
-body.electron.mac.split.stack .split-head > .sh-segs { margin-left: -76px; }
+body.electron.mac.split.stack .split-head > .sh-segs { margin-left: -86px; }
