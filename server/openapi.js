@@ -525,6 +525,23 @@ export function openapi({ version, port }) {
         },
         delete: { summary: 'Close the terminal (ends what runs in it)', responses: { 200: ok } },
       },
+      '/sessions/{id}/workspace': {
+        parameters: [id],
+        get: { summary: 'The panel beside the task: the folder it was built in (worktree or project), its branch, what is uncommitted or unpushed, and the shell there', responses: { 200: json({ type: 'object', properties: { dir: { type: 'string' }, gone: { type: 'boolean', description: 'The worktree is gone (merged): the shell opens in the project folder' }, worktree: { type: 'object', nullable: true }, status: { type: 'object', nullable: true }, host: { type: 'string' }, machine: { type: 'string' }, shell: { type: 'object', properties: { supported: { type: 'boolean' }, open: { type: 'boolean' }, app: { type: 'boolean', description: 'A terminal app can open the folder for this page' } } } } }), 404: err[404] } },
+      },
+      '/sessions/{id}/shell': {
+        parameters: [id],
+        get: { summary: 'Server-sent events from the shell in the task’s folder: hello, data (output, a JSON string), exit ({ code }), gone', responses: { 200: { description: 'text/event-stream', content: { 'text/event-stream': { schema: { type: 'string' } } } } } },
+        post: {
+          summary: 'Start the shell in the task’s folder (cols, rows; restart for a fresh one), type into it (data) or resize it',
+          requestBody: body({ type: 'object', properties: { data: { type: 'string' }, cols: { type: 'integer' }, rows: { type: 'integer' }, restart: { type: 'boolean' } } }),
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, started: { type: 'boolean' }, dir: { type: 'string' }, gone: { type: 'boolean' } } }), 400: err[400], 404: err[404] },
+        },
+        delete: { summary: 'End the shell', responses: { 200: ok } },
+      },
+      '/sessions/{id}/open-shell': { parameters: [id], post: { summary: 'Open the task’s folder in the terminal app from Settings (on a machine: signed in over SSH)', responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, dir: { type: 'string' } } }), 409: json(ref('Error')) } } },
+      '/sessions/{id}/check-log': { parameters: [id, { name: 'url', in: 'query', required: true, schema: { type: 'string' } }], get: { summary: 'The last lines of a failing GitHub Actions job’s log (the check’s details URL), for asking the agent to fix it', responses: { 200: json({ type: 'object', properties: { log: { type: 'string' } } }) } } },
+      '/sessions/{id}/prs': { parameters: [id], get: { summary: 'Every PR of the task in full: each check, reviewers, comments and reviews (bots marked), inline threads, files changed', responses: { 200: json({ type: 'object', properties: { prs: { type: 'array', items: { type: 'object' } } } }), 404: err[404] } } },
       '/uploads': {
         post: {
           summary: 'Upload an attachment (raw body). Pass the returned id in attachments',

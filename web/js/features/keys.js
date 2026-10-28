@@ -13,9 +13,10 @@ import { shipDialog, shippable } from './ship.js';
 import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
 import { goBack, splitOpen, stackPage, toggleSidebar } from './split.js';
+import { openPanel, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
-const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ...'123456789'.split('')]);
+const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ']', 'p', ...'123456789'.split('')]);
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -28,6 +29,11 @@ export function onKey(e) {
     e.preventDefault();
     if (!$('#overlay').hidden) closeOverlay();
     return focusLauncher();
+  }
+  // ⌃` (Ctrl on every computer): into the task's shell from anywhere, and from it back to the reply box.
+  if (e.ctrlKey && !e.metaKey && !e.altKey && (e.key === '`' || e.code === 'Backquote')) {
+    e.preventDefault();
+    return shellKey();
   }
   const typing = e.target.closest('input, textarea, select, [contenteditable="true"]');
   if (e.key === 'Escape') {
@@ -96,6 +102,8 @@ export function onKey(e) {
     else expand(id).then(focusReply);
   } else if (k === '?') shortcuts();
   else if (k === '[') toggleSidebar();
+  else if (k === ']' && (splitOpen() || id)) togglePanel();
+  else if (k === 'p' && id && reviewLabel(S.sessions.get(id))) openPanel(id, 'pr');
   else if (/^[1-9]$/.test(k) && id && S.open.has(id)) {
     const card = S.nodes.get(id).card;
     const opts = $$('.ask-card .opt', card).length ? $$('.ask-card .opt', card) : $$('.turn:last-child .b-question:not(.answered) .opt:not(.own)', card);

@@ -2,7 +2,7 @@
 // issue list, gist create). Pull requests live in a JSON file; merging really pushes the PR head to the base
 // branch of the repo's origin, so the "sync your local main" step has something to fetch.
 //
-//   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [], review, mergeable } (created if missing)
+//   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [], review, mergeable, reviewComments } (created if missing)
 //   FAKE_RECORD    directory; each call appends { argv, cwd } to gh.jsonl
 
 import { execFileSync } from 'node:child_process';
@@ -85,6 +85,13 @@ if (a === 'pr' && b === 'create') {
   save();
   process.stderr.write('- Creating gist\n');
   console.log(`https://gist.github.com/acme/${id}`);
+} else if (a === 'run' && b === 'view') {
+  // A failing job's log (the panel's Ask to fix).
+  if (!state.runLog) fail('no log');
+  console.log(state.runLog);
+} else if (a === 'api' && /^repos\/[^/]+\/[^/]+\/pulls\/\d+\/comments/.test(b || '')) {
+  // A PR's inline review comments (the panel's threads).
+  console.log(JSON.stringify(state.reviewComments || []));
 } else {
   fail(`fake gh: unsupported: ${argv.join(' ')}`);
 }

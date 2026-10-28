@@ -106,11 +106,13 @@ export function ptyCommand(argv, { cols = 100, rows = 30, platform = process.pla
 const clampSize = (n, lo, hi, d) => (Number.isFinite(Number(n)) ? Math.min(hi, Math.max(lo, Math.round(Number(n)))) : d);
 
 export class Terms {
-  // onChange(id): a terminal opened or ended (its session's summary changed).
-  constructor({ spawnFn = spawn, env = process.env, onChange = () => {} } = {}) {
+  // onChange(id): a terminal opened or ended (its session's summary changed). track: the set that
+  // marks its session "In terminal" (a take over); null for a shell beside the task (app.shells).
+  constructor({ spawnFn = spawn, env = process.env, onChange = () => {}, track = openTerms } = {}) {
     this.spawnFn = spawnFn;
     this.env = env;
     this.onChange = onChange;
+    this.track = track;
     this.map = new Map(); // session id -> terminal
   }
 
@@ -145,7 +147,7 @@ export class Terms {
       if (t.code !== null) return;
       emit(dec.end());
       t.code = code ?? 1;
-      openTerms.delete(id);
+      this.track?.delete(id);
       this.onChange(id);
       for (const res of t.clients) res.write(`event: exit\ndata: ${JSON.stringify({ code: t.code })}\n\n`);
       t.timer = setTimeout(() => this.map.get(id) === t && this.#forget(id), GONE_MS);
@@ -154,7 +156,7 @@ export class Terms {
     child.on('error', (e) => (emit(`wisp: couldn’t start a terminal (${e.message})\r\n`), end(127)));
     child.on('exit', (code, signal) => end(code ?? (signal ? 129 : 1)));
     this.map.set(id, t);
-    openTerms.add(id);
+    this.track?.add(id);
     this.onChange(id);
     return t;
   }
@@ -215,6 +217,6 @@ export class Terms {
     clearTimeout(t.timer);
     for (const res of t.clients) res.end(`event: gone\ndata: {}\n\n`);
     this.map.delete(id);
-    if (openTerms.delete(id)) this.onChange(id);
+    if (this.track?.delete(id)) this.onChange(id);
   }
 }

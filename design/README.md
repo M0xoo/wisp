@@ -19,6 +19,7 @@ that matches your change:
 | [later.md](later.md) | Later: scheduled follow-ups, tasks and reminders |
 | [for-later.md](for-later.md) | For later: finished tasks (and crew reports) parked to look at again |
 | [goals.md](goals.md) | Goals: a task that keeps going until a condition holds; the band, the checks, the words |
+| [side-panel.md](side-panel.md) | The side panel: a shell in the task's folder and its PR, beside the task; segments on phones |
 | [checklist.md](checklist.md) | What to check before handing a UI change back |
 | [scorecard.md](scorecard.md) | A grid to measure a UI change, and wisp scored against Cursor, Codex and Claude Code |
 

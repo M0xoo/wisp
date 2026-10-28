@@ -661,3 +661,19 @@ test('goals: the band, its parts, the row pill and the launcher line are parts; 
   for (const goalRounds of ['3', '5', '10', '20']) assert.deepEqual(problems({ ...base0, settings: { goalRounds } }), []);
   assert.ok(problems({ ...base0, settings: { goalRounds: '7' } }).some((x) => /goalRounds/.test(x) && /3, 5, 10, 20|3/.test(x)));
 });
+
+test('the side panel: its parts, width, opening tab and bot comments as props, a head slot; the verdict is not a part', () => {
+  const ok = {
+    ...base0,
+    parts: { panel: { props: { width: 560, tab: 'pr' }, style: { background: 'var(--surface)' } }, 'panel.pr': { props: { bots: true } }, 'panel.place': { style: { fontSize: '13px' } } },
+    ui: { hide: ['panel.files', 'panel.conversation'] },
+    buttons: [{ slot: 'panel.head', icon: 'shell', label: 'Logs', do: { copy: '{branch}' } }],
+  };
+  assert.deepEqual(problems(ok), []);
+  assert.ok(schema.CARD_SLOTS.has('panel.head'));
+  assert.ok(schema.ICONS.includes('panel') && schema.ICONS.includes('shell'));
+  const p = problems({ ...base0, parts: { panel: { props: { width: 40, tab: 'files' } }, 'panel.verdict': { hide: true } } });
+  assert.ok(p.some((x) => /width/.test(x) && /160/.test(x)), p.join('\n'));
+  assert.ok(p.some((x) => /tab/.test(x) && /shell/.test(x)), p.join('\n'));
+  assert.ok(p.some((x) => /panel\.verdict/.test(x)), p.join('\n'));
+});

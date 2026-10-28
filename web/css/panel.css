@@ -1,0 +1,236 @@
+/* ---------- the side panel (features/panel.js): Shell and PR beside the open task ----------
+   A third column of split view's grid, opposite the list. 900–1179px it takes the list's place
+   while open (split.js hides the list); stacked (narrow windows, the phone app) it's a page over
+   the task. design/side-panel.md has the why. */
+:root { --panel-w: 480px; }
+
+body.split.panel-open:not(.stack) .stage { grid-template-columns: var(--side-w) minmax(0, 1fr) var(--panel-w); }
+body.split.panel-open.side-right:not(.stack) .stage { grid-template-columns: var(--panel-w) minmax(0, 1fr) var(--side-w); }
+body.split.panel-open.side-hidden:not(.stack) .stage { grid-template-columns: 0 minmax(0, 1fr) var(--panel-w); }
+body.split.panel-open.side-hidden.side-right:not(.stack) .stage { grid-template-columns: var(--panel-w) minmax(0, 1fr) 0; }
+body.split.panel-open.side-right:not(.stack) :is(.topbar, .feed-wrap) { grid-column: 3; }
+body.split.panel-open.side-right:not(.stack) .split-main { grid-column: 2; }
+
+.side-panel {
+  grid-row: 1 / -1; grid-column: 3; position: relative; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column; background: var(--bg); border-left: 1px solid var(--line);
+}
+.side-panel[hidden] { display: none; }
+body.side-right .side-panel { grid-column: 1; border-left: 0; border-right: 1px solid var(--line); }
+.side-panel.pn-in > :not(.pn-grip) { animation: pn-in 0.15s var(--ease); }
+@keyframes pn-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .side-panel.pn-in > * { animation: none; } }
+
+.pn-grip { position: absolute; z-index: 2; top: 0; bottom: 0; left: -4px; width: 7px; cursor: col-resize; }
+body.side-right .pn-grip { left: auto; right: -4px; }
+.pn-grip:hover, body.resizing .pn-grip { background: linear-gradient(90deg, transparent 3px, var(--line-2) 3px, var(--line-2) 4px, transparent 4px); }
+
+/* The head: the tabs, a spell's buttons, close. 42px like the terminal's. */
+.pn-head { flex: none; display: flex; align-items: center; gap: 4px; height: 42px; padding: 0 6px 0 8px; border-bottom: 1px solid var(--line); }
+.pn-back { display: none; }
+.pn-tabs { display: flex; gap: 2px; min-width: 0; flex: 1; }
+.pn-tabs [role='tab'] {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px;
+  color: var(--muted); font: 500 13px var(--sans); white-space: nowrap;
+}
+.pn-tabs [role='tab'] .i { width: 14px; height: 14px; }
+.pn-tabs [role='tab']:hover { color: var(--ink); background: var(--bg-2); }
+.pn-tabs [aria-selected='true'] { color: var(--ink); background: var(--bg-2); }
+.pn-acts { display: flex; gap: 2px; flex: none; }
+
+/* The place line: which computer, the branch, what's not shipped. */
+.pn-place {
+  flex: none; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 6px 0 12px; min-width: 0;
+  border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; white-space: nowrap;
+}
+.pn-place > i { color: var(--faint); font-style: normal; }
+.pn-where { display: inline-flex; align-items: center; gap: 5px; flex: none; color: var(--ink-2); }
+.pn-where .i { width: 13px; height: 13px; }
+.pn-branch { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 12px var(--mono); color: var(--ink-2); }
+.pn-counts { display: inline-flex; gap: 6px; flex: none; color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.pn-counts i { font-style: normal; }
+.pn-place .grow { flex: 1; }
+.pn-place .icon-btn { width: 24px; height: 24px; border-radius: 7px; flex: none; }
+.pn-place .icon-btn .i { width: 14px; height: 14px; }
+.pn-end:hover { color: var(--bad); background: var(--del-bg); }
+.pn-sk-branch { width: 120px; height: 10px; border-radius: 4px; }
+.pn-note { flex: none; display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.pn-note .i { width: 13px; height: 13px; flex: none; color: var(--warn); }
+
+/* Shell: the take over's screen, in the panel. */
+.pn-shell { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--term-bg); }
+.pn-shell[hidden] { display: none; }
+.pn-shell .tm-screen { padding: 8px 10px; }
+.pn-shell.blocked > :is(.tm-screen, .tm-keys) { display: none; }
+.pn-msg {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 24px;
+  text-align: center; color: color-mix(in srgb, var(--term-ink) 70%, transparent); font-size: 13px;
+}
+.pn-msg[hidden] { display: none; }
+.pn-msg > .i { width: 22px; height: 22px; opacity: 0.7; }
+.pn-msg p { max-width: 34ch; margin: 0; line-height: 1.5; }
+.pn-msg .ghost { color: var(--term-ink); border: 1px solid var(--term-line, #333); }
+.pn-msg .ghost:hover { background: var(--term-soft, #222); color: var(--term-ink); }
+.pn-ended {
+  flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-top: 1px solid var(--term-line, #333);
+  color: color-mix(in srgb, var(--term-ink) 65%, transparent); font: 12.5px var(--mono);
+}
+.pn-ended[hidden] { display: none; }
+.pn-ended .ghost { color: var(--term-ink); }
+.pn-ended .ghost:hover { background: var(--term-soft, #222); color: var(--term-ink); }
+
+/* PR: one PR without the noise. */
+.pn-pr { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 14px 10px; font-size: 13px; }
+.pn-pr[hidden] { display: none; }
+.pn-pr h4 { display: flex; align-items: baseline; gap: 8px; margin: 18px 0 6px; color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+.pn-pr h4 .n { color: var(--faint); font-weight: 500; text-transform: none; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.pn-pr ul { list-style: none; margin: 0; padding: 0; }
+.pn-pr code { font: 12px var(--mono); }
+.pn-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.pn-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink-2); font-size: 12.5px; }
+.pn-chip.on { border-color: var(--line-2); background: var(--bg-2); color: var(--ink); }
+.pn-chips .ghost { margin-left: auto; }
+.pn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.pn-dot.pass { background: var(--good); }
+.pn-dot.fail { background: var(--bad); }
+.pn-dot.pending { background: var(--warn); }
+.pn-dot.merged { background: var(--accent); }
+.pn-title a { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 600; line-height: 1.35; }
+.pn-title a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pn-meta { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+
+/* The verdict: one sentence and its one next step. The state shows in its border and icon only. */
+.pn-verdict {
+  --tone: var(--muted);
+  display: flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 12px; padding: 8px 8px 8px 12px; border-radius: var(--radius, 10px);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, var(--line)); background: color-mix(in srgb, var(--tone) 5%, var(--bg)); color: var(--ink); font-weight: 500;
+}
+.pn-verdict > .i { width: 16px; height: 16px; flex: none; color: var(--tone); }
+.pn-verdict > span { flex: 1; min-width: 0; }
+.pn-verdict.pass { --tone: var(--good); }
+.pn-verdict.fail { --tone: var(--bad); }
+.pn-verdict.pending { --tone: var(--warn); }
+.pn-verdict.merged { --tone: var(--accent); }
+.pn-verdict button { flex: none; }
+.pn-err { display: flex; gap: 6px; align-items: center; margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+.pn-err .i { width: 13px; height: 13px; color: var(--warn); }
+
+.pn-check { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 2px 0; }
+.pn-check > .i { width: 14px; height: 14px; flex: none; color: var(--good); }
+.pn-check.fail > .i { color: var(--bad); }
+.pn-check.pending > .i { color: var(--warn); }
+.pn-check.skip > .i { color: var(--faint); }
+.pn-cname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.pn-check.fail .pn-cname { color: var(--ink); }
+.pn-dur { flex: none; color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.pn-check .icon-btn { width: 24px; height: 24px; border-radius: 7px; }
+.pn-check .icon-btn .i { width: 13px; height: 13px; }
+.pn-none { margin: 0; color: var(--faint); font-size: 12.5px; }
+.pn-fold { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; color: var(--muted); font-size: 12.5px; }
+.pn-fold:hover { color: var(--ink); }
+.pn-fold .i { width: 13px; height: 13px; }
+.pn-fold:not(.shut) .i { transform: rotate(180deg); }
+.pn-fold.shut .chev { transform: rotate(-90deg); }
+.pn-fold.shut > .i:first-child:not(.chev) { color: var(--good); }
+
+.pn-reviews li { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.pn-rv { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; }
+.pn-rv .i { width: 13px; height: 13px; }
+.rv-approved .pn-rv { color: var(--good); }
+.rv-changes_requested .pn-rv { color: var(--bad); }
+.pn-reviews .grow { flex: 1; }
+
+.pn-av {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; border-radius: 50%;
+  background: var(--bg-2); color: var(--ink-2); font-size: 10px; font-weight: 600;
+}
+.pn-talk ul + ul, .pn-talk ul + .pn-fold { margin-top: 4px; }
+.pn-thread, .pn-comment { padding: 10px 0; border-top: 1px solid var(--line); }
+.pn-talk ul:first-of-type > li:first-child { border-top: 0; padding-top: 2px; }
+.pn-where-line { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; color: var(--muted); overflow: hidden; }
+.pn-where-line code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.pn-where-line small, .pn-note-h small { color: var(--faint); font-size: 11.5px; }
+.pn-note-h { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.pn-note-h b { font-weight: 600; }
+.pn-ago { margin-left: auto; color: var(--faint); font-size: 11.5px; }
+.pn-text { margin-top: 4px; color: var(--ink-2); line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pn-reply { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; padding-left: 10px; border-left: 1px solid var(--line-2); font-size: 12.5px; }
+.pn-reply .pn-text { flex: 1 0 100%; margin: 0; }
+.pn-send { margin-top: 6px; margin-left: -6px; color: var(--muted); }
+.pn-faded { opacity: 0.75; }
+
+.pn-files li { display: flex; align-items: center; gap: 8px; min-height: 26px; font-size: 12.5px; }
+.pn-files a { flex: 1; min-width: 0; color: var(--ink-2); }
+.pn-files a:hover { color: var(--ink); }
+.pn-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font: 12px var(--mono); }
+.pn-files .add, .pn-files .del { flex: none; font: 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+.pn-files .add { color: var(--add); }
+.pn-files .del { color: var(--del); }
+
+.pn-foot { display: flex; align-items: center; gap: 6px; margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--line); }
+.pn-foot .grow { flex: 1; }
+.pn-upd { color: var(--faint); font-size: 11.5px; }
+.pn-refresh.busy .i { animation: spin 0.8s linear infinite reverse; }
+@media (prefers-reduced-motion: reduce) { .pn-refresh.busy .i { animation: none; } }
+
+.pn-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 16px; text-align: center; color: var(--muted); }
+.pn-empty > .i { width: 22px; height: 22px; color: var(--faint); }
+.pn-empty p { max-width: 36ch; margin: 0; line-height: 1.5; }
+
+.pn-skel { display: flex; flex-direction: column; gap: 10px; }
+.pn-skel .sk { display: block; border-radius: 6px; }
+.pn-skel .sk-t1 { width: 80%; height: 14px; }
+.pn-skel .sk-t2 { width: 50%; height: 10px; }
+.pn-skel .sk-verdict { width: 100%; height: 44px; margin-top: 4px; border-radius: var(--radius, 10px); }
+.pn-skel .sk-h { width: 64px; height: 9px; margin-top: 12px; }
+.pn-skel .sk-row { width: 100%; height: 22px; }
+.pn-skel .sk-note { width: 100%; height: 52px; }
+
+/* The task head's toggle. */
+.sh-panel[aria-pressed='true'] { color: var(--ink); background: var(--bg-2); }
+
+/* The PR tab says it all: the task's own PR row would say it twice. */
+body.panel-pr #feed .item.open .pr-strip { display: none; }
+
+.pn-fold.shut .chev { transform: rotate(90deg); }
+.pn-fold:not(.shut) .i { transform: rotate(-90deg); }
+
+/* ---------- stacked: narrow windows and the phone app ----------
+   No third page. The task page's head gets segments, Task · Shell · PR, that swap its body in
+   place (split.js draws them, panel.js picks); Back still goes to the list. The panel lies over the
+   task's body, in #splitStage's box (--sb-*), so the head and its segments stay put. */
+.sh-segs { display: none; }
+body.split.stack .split-head:has(> .sh-segs) { flex-wrap: wrap; padding-bottom: 8px; }
+body.split.stack .split-head:has(> .sh-segs) > .sh-row { flex: 1 0 100%; }
+body.split.stack .sh-segs {
+  display: flex; flex: 1 0 100%; gap: 2px; margin: 4px 0 0; padding: 3px; border-radius: 12px; background: var(--bg-2); border: 1px solid var(--line);
+}
+.sh-segs button {
+  flex: 1; min-width: 0; height: 36px; border-radius: 9px; color: var(--muted); font: 500 13.5px var(--sans);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; touch-action: manipulation;
+}
+.sh-segs button[aria-selected='true'] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+body.split.stack .sh-panel { display: none; }
+
+.side-panel.stacked {
+  position: fixed; z-index: 4; top: var(--sb-top); left: var(--sb-left); width: var(--sb-w); height: var(--sb-h);
+  border: 0; animation: none;
+}
+.side-panel.stacked :is(.pn-grip, .pn-head) { display: none; }
+.side-panel.stacked .pn-place { height: 36px; padding-left: 14px; }
+.side-panel.stacked .pn-place .icon-btn { width: 36px; height: 36px; }
+.side-panel.stacked .pn-pr { padding: 12px 14px 0; }
+
+/* Touch: every row a 44px target, no hover-only affordances. */
+.side-panel.touch :is(.pn-check, .pn-reviews li, .pn-files li) { min-height: 44px; }
+.side-panel.touch .pn-fold { min-height: 44px; }
+.side-panel.touch :is(.pn-check .icon-btn, .pn-check .ghost.xs, .pn-send, .pn-foot .ghost.xs) { min-height: 36px; }
+.side-panel.touch .pn-check .icon-btn { width: 36px; }
+.side-panel.touch .pn-chip { height: 36px; }
+
+/* The verdict as a bar pinned at the bottom (where the reply box sits on Task), its button in reach. */
+.pn-verdict.pn-bar {
+  position: sticky; bottom: 0; z-index: 1; min-height: 56px; margin: 12px -14px 0; padding: 8px 14px calc(8px + env(safe-area-inset-bottom));
+  border-radius: 0; border: 0; border-top: 1px solid color-mix(in srgb, var(--tone) 35%, var(--line)); background: color-mix(in srgb, var(--tone) 6%, var(--bg));
+}
+.pn-verdict.pn-bar button { height: 40px; padding: 0 16px; }

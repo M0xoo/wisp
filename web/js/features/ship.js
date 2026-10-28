@@ -128,7 +128,7 @@ function refreshPr(id, btn) {
 }
 
 // Fix conflicts: the row flips to "Fixing merge conflicts" at once; a refusal puts it back.
-function fixPr(id) {
+export function fixPr(id) {
   const s = S.sessions.get(id);
   if (!s) return;
   const was = s.conflictFix;

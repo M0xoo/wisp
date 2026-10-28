@@ -27,7 +27,7 @@ export function register(r, app) {
     const next = [...(store.config.triggers || []).map((t) => triggerView(t).nextAt), app.crew?.nextWake(), app.later?.nextAt()] // crew check-ins and scheduled follow-ups wake it too
       .filter(Boolean)
       .sort((a, b) => a - b)[0];
-    c.send(200, { live: runner.live.size, sides: runner.sides.size, terms: app.terms?.active() || 0, clients: [...app.events.clients].filter((x) => !x.relay).length, lastActivityAt: app.lastActivityAt || null, nextWakeAt: next || null, version: VERSION });
+    c.send(200, { live: runner.live.size, sides: runner.sides.size, terms: (app.terms?.active() || 0) + (app.shells?.active() || 0), clients: [...app.events.clients].filter((x) => !x.relay).length, lastActivityAt: app.lastActivityAt || null, nextWakeAt: next || null, version: VERSION });
   });
 
   // New wisp-agents on npm? POST installs it and relaunches; running agents are stopped, so the

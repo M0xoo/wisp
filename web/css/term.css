@@ -44,7 +44,7 @@
 .tm-rows .s { text-decoration: line-through; }
 .tm-rows .w2 { display: inline-block; width: 2ch; }
 .tm-rows .cur { background: var(--term-ink); color: var(--term-bg); }
-.term:not(.focused) .tm-rows .cur { background: transparent; color: inherit; outline: 1px solid color-mix(in srgb, var(--term-ink) 60%, transparent); outline-offset: -1px; }
+:is(.term, .pn-shell):not(.focused) .tm-rows .cur { background: transparent; color: inherit; outline: 1px solid color-mix(in srgb, var(--term-ink) 60%, transparent); outline-offset: -1px; }
 /* Until the agent draws its first screen (a second or more to resume, longer on a cloud computer):
    the shape of a terminal filling in, not a black box. */
 .tm-wait { position: absolute; inset: 10px 12px auto; display: flex; flex-direction: column; gap: 9px; pointer-events: none; font: 13px var(--mono); color: color-mix(in srgb, var(--term-ink) 55%, transparent); }
@@ -65,7 +65,7 @@
 }
 
 .tm-keys { display: none; flex: none; gap: 6px; overflow-x: auto; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); scrollbar-width: none; }
-.term.touch .tm-keys { display: flex; }
+:is(.term, .side-panel).touch .tm-keys { display: flex; }
 .tm-keys button {
   flex: none; min-width: 44px; height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line);
   background: var(--bg-2); color: var(--ink); font: 500 13px var(--mono); touch-action: manipulation; -webkit-user-select: none; user-select: none;
