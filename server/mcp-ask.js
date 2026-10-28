@@ -299,7 +299,9 @@ const TEAM_TOOLS = [
       'Hand tasks to your subagents (separate coding agents the user picked, each on its own harness and model). ' +
       'Tasks in one call run in parallel in your working folder. By default the call waits until every task finishes and ' +
       'returns each report plus the files it changed; wait=false returns delegation ids at once. Delegating to a subagent ' +
-      'again continues its conversation. Use this instead of any built-in subagent or task tool.\n\nThe team:\n' + roster,
+      'again continues its conversation. Use this instead of any built-in subagent or task tool.' +
+      (TEAM.some((m) => m.place) ? ' A subagent on another machine gets a copy of your folder (wisp carries it: no commit or push needed): name files by their path in the folder, not absolute paths, and paste in what stays behind (git-ignored files, files outside the folder).' : '') +
+      '\n\nThe team:\n' + roster,
     inputSchema: {
       type: 'object',
       properties: {

@@ -285,7 +285,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.crew = new Crew({
     store,
     runner,
-    launch: (body, origin, opts) => app.launcher.launch(body, origin, opts),
+    // A job's delegates on other machines get their place's name, as any launch's (relay.placeTeam).
+    launch: (body, origin, opts) => app.launcher.launch(body.subagents ? { ...body, subagents: app.relay.placeTeam(body.subagents) } : body, origin, opts),
     // Members on machines: their jobs run there (as summaries and sessions with qualified ids).
     remote: {
       ok: (mid) => store.config.machines.some((m) => m.id === mid),
