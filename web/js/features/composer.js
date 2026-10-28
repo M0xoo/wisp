@@ -515,9 +515,7 @@ function paintSide(id) {
       ? `<span class="when-chip${passed(id) ? ' passed' : ''}" title="${esc(whenTip(w.at))}">${icon('clock')}<span>${passed(id) ? `${esc(aheadLabel(w.at))} has passed` : `Sends at ${esc(aheadLabel(w.at))}`}</span><button type="button" class="att-x c-when-clear" aria-label="Clear the time" title="Clear the time">${icon('x')}</button></span>`
       : w
         ? `<span class="when-chip" title="${esc(whenTip(w.at))}">${icon(w.reminder ? 'bell' : 'clock')}<span>${w.reminder ? `Reminds you at ${esc(aheadLabel(w.at))}` : `Sends at ${esc(aheadLabel(w.at))}`}</span>${w.reminder ? '' : '<button type="button" class="link c-when-now">Send now</button>'}<button type="button" class="att-x c-when-x" aria-label="Not a time" title="Not a time">${icon('x')}</button></span>`
-        : s.queue?.length
-          ? `${s.queue.length} queued`
-          : '';
+        : '';
   const hint = $('.c-hint', comp);
   if (hint.dataset.h !== html) (hint.innerHTML = html), (hint.dataset.h = html);
 }
@@ -679,12 +677,11 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   const files = n?.tray?.take();
   const undo = startOptimistic(id, text, files, { answering, mode, run, team: team?.team });
   try {
-    const r = answering
-      ? await api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
-      : await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(confirm && { confirmLimit: true }) } });
+    await (answering
+      ? api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
+      : api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(confirm && { confirmLimit: true }) } }));
+    // A queued follow-up shows in the list above the box (renderQueued): no toast, no count.
     if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
-    if (r.queued)
-      toast(r.ahead ? `Queued behind ${r.ahead} earlier follow-up${r.ahead > 1 ? 's' : ''} — they go out first, in order.` : 'Queued — it goes out as soon as the agent finishes.');
   } catch (err) {
     undo?.();
     // Give the message back, unless the user has already started typing another one.
