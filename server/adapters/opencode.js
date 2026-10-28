@@ -13,6 +13,11 @@ const exe = process.platform === 'win32' ? 'opencode.cmd' : 'opencode';
 export const fallbackBins = () => [path.join(toolsDir(), 'node_modules', '.bin', exe), path.join(os.homedir(), '.opencode', 'bin', process.platform === 'win32' ? 'opencode.exe' : 'opencode')];
 const DEFAULT_BIN = process.env.WISP_OPENCODE_BIN || 'opencode';
 let BIN = DEFAULT_BIN;
+// opencode 2 (Homebrew's build, GitHub's latest) changed `run`: --log-level only takes lowercase
+// names, and --variant is gone (the effort rides on the model: provider/model#high). npm and the
+// install script still ship 1.x. Set by detect() from `opencode --version`.
+let V2 = false;
+export const majorVersion = (version) => Number(/(?:^|\s)v?(\d+)\.\d+/.exec(version || '')?.[1]) || 0;
 // Rate-limited (the free models, mostly), `opencode run` keeps retrying and prints nothing, so
 // the task would sit at "Starting up" for good. Its error log says so: give it this long to get
 // through, then stop and tell the user what to do.
@@ -53,9 +58,11 @@ export default {
   async detect() {
     const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_OPENCODE_BIN);
     BIN = bin;
+    V2 = majorVersion(found.version) >= 2;
     if (!found.available) return found;
     // `opencode models --verbose` prints each provider/model id followed by its JSON metadata;
-    // the metadata's `variants` are the reasoning efforts `run --variant` accepts for that model.
+    // the metadata's `variants` are the reasoning efforts `run --variant` accepts for that model
+    // (opencode 2 has no --verbose: plain ids below, no efforts).
     const out = await quietOutput(BIN, ['models', '--verbose']);
     const models = [];
     for (const [, id, json] of out.matchAll(/^([\w.-]+\/\S+)\n(\{[\s\S]*?\n\})$/gm)) {
@@ -79,11 +86,11 @@ export default {
   run({ prompt, attachments = [], cwd, resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], onEvent }) {
     // The prompt goes on stdin; `run` appends piped stdin to the (empty) message.
     // Errors to stderr: the only place a rate limit shows up (see RATE_LIMITED).
-    const args = ['run', '--format', 'json', '--print-logs', '--log-level', 'ERROR'];
+    const args = ['run', '--format', 'json', '--print-logs', '--log-level', V2 ? 'error' : 'ERROR'];
     if (mode === 'plan') args.push('--agent', 'plan');
     if (mode === 'auto') args.push('--auto');
-    if (model) args.push('--model', model);
-    if (model && effort) args.push('--variant', effort);
+    if (model) args.push('--model', V2 && effort ? `${model}#${effort}` : model);
+    if (model && effort && !V2) args.push('--variant', effort);
     if (resumeId) args.push('--session', resumeId);
     if (resumeId && fork) args.push('--fork');
     for (const a of attachments) args.push('--file', a.path);

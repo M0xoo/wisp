@@ -72,7 +72,7 @@ for (const id of Object.keys(BIN)) {
   test(`${id}: detect() finds the CLI on PATH and reads its models`, async () => {
     const found = await adapters[id].detect();
     assert.equal(found.available, true, found.error);
-    assert.match(found.version, /9\.9\.9/);
+    assert.match(found.version, id === 'opencode' ? /^1\.99\.0$/ : /9\.9\.9/); // opencode's fake is 1.x: 2.x takes other flags
     const models = (found.models || adapters[id].models).map((m) => m.id);
     assert.equal(models[0], '', 'Default comes first');
     if (id === 'opencode') {
@@ -342,6 +342,28 @@ test('opencode: a rate limit that never clears ends the turn with what to do, no
   assert.ok(!results[0].stopped, 'not shown as stopped by the user');
   assert.match(results[0].text, /`opencode\/big-pickle` is rate-limited right now.*opencode auth login/);
   assert.ok(records(RECORD, 'opencode').at(-1).argv.join(' ').includes('--print-logs --log-level ERROR'), 'errors are logged to stderr');
+});
+
+// opencode 2 refuses `--log-level ERROR` ("invalid --log-level value") and has no --variant.
+test('opencode: 2.x gets lowercase --log-level and the effort on the model', async () => {
+  const { majorVersion } = await import('../server/adapters/opencode.js');
+  assert.equal(majorVersion('1.18.35'), 1);
+  assert.equal(majorVersion('opencode v2.2.0'), 2);
+  assert.equal(majorVersion(''), 0);
+  try {
+    process.env.FAKE_OPENCODE_VERSION = 'opencode v2.2.0';
+    await adapters.opencode.detect();
+    await run('opencode', { model: 'fake/model-a', effort: 'high' }).done;
+    const argv = records(RECORD, 'opencode').at(-1).argv;
+    assert.ok(hasSeq(argv, ['--log-level', 'error']), argv.join(' '));
+    assert.ok(hasSeq(argv, ['--model', 'fake/model-a#high']), argv.join(' '));
+    assert.ok(!argv.includes('--variant'));
+  } finally {
+    delete process.env.FAKE_OPENCODE_VERSION;
+    await adapters.opencode.detect();
+  }
+  await run('opencode', { model: 'fake/model-a', effort: 'high' }).done;
+  assert.ok(hasSeq(records(RECORD, 'opencode').at(-1).argv, ['--log-level', 'ERROR', '--model', 'fake/model-a', '--variant', 'high']), '1.x keeps its flags');
 });
 
 test('opencode: a rate limit that clears on a retry lets the turn finish', async () => {
