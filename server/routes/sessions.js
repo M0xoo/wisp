@@ -194,6 +194,7 @@ export function register(r, app) {
       if (s.state === 'done' || s.archived) app.retro.schedule(s, 0); // finished with it: learn now
       // Archived: a clean worktree goes (its branch stays, a follow-up brings it back).
       // discardWorktree: a compare run you didn't keep; its changes go too.
+      if (s.archived) app.shells?.close(s.id); // its shell in the side panel goes with it
       if (!runner.live.has(s.id) && (s.archived || body.discardWorktree))
         for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !x.pr && 'force' });
       app.sessionChanged(s);
@@ -218,6 +219,7 @@ export function register(r, app) {
         // Its worktree goes with it; the branch only if it holds nothing beyond its base.
         for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: s.delegated ? 'force' : true }).catch(() => {}); // a delegate's branch only held the lead's work
         app.terms.close(s.id);
+        app.shells?.close(s.id);
         store.delete(s.id);
         app.overlaps?.dropped(s);
         app.broadcast('removed', { id: s.id });

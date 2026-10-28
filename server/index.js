@@ -71,6 +71,7 @@ import * as cloudRoutes from './routes/cloud.js';
 import * as proxyRoutes from './routes/proxy.js';
 import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
+import * as workspaceRoutes from './routes/workspace.js';
 import * as spellRoutes from './routes/spells.js';
 import * as crewRoutes from './routes/crew.js';
 import * as connectorRoutes from './routes/connectors.js';
@@ -78,7 +79,7 @@ import * as connectorRoutes from './routes/connectors.js';
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, spellRoutes, crewRoutes, connectorRoutes];
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, spellRoutes, crewRoutes, connectorRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -277,6 +278,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       if (s) app.broadcast('summary', summarize(s, store));
     },
   });
+  // A shell in the task's folder, in the panel beside it: one per task, apart from a take over's.
+  app.shells = new Terms({ track: null });
   app.sendFeedback = createFeedback(app);
   // The crew: long-lived agents with a schedule and memory, whose jobs are tasks (server/crew.js).
   app.crew = new Crew({
@@ -450,6 +453,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.computer.stop();
     app.agentLogin.stop();
     app.terms.closeAll();
+    app.shells.closeAll();
     for (const s of store.all()) runner.stop(s);
     store.flush();
     app.telemetry.persist();

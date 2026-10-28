@@ -186,6 +186,89 @@ export async function prView(cwd, ref) {
   return prSummary(JSON.parse(await gh(cwd, ['pr', 'view', String(ref), '--json', PR_FIELDS])));
 }
 
+// --- The PR panel: one PR in full, without the noise ----------------------------------------
+
+const DETAIL_FIELDS = `${PR_FIELDS},body,author,additions,deletions,changedFiles,files,reviews,comments,updatedAt`;
+// Bots that comment on every PR (deploy previews, coverage, CI summaries): folded away, not dropped.
+const BOTS = /\[bot\]$|^(github-actions|vercel|netlify|codecov|coveralls|sonarcloud|dependabot|renovate|changeset-bot|linear|railway-app|cloudflare-pages|socket-security)$/i;
+export const isBot = (login, type) => type === 'Bot' || BOTS.test(String(login || ''));
+const login = (a) => a?.login || a?.name || '';
+const checkState = (v) => (PASS.has(v) ? (v === 'SUCCESS' ? 'pass' : 'skip') : FAIL.has(v) ? 'fail' : 'pending');
+
+// A check run or status, as the panel lists it: failing first, then running, then passed.
+function checkOf(c) {
+  const run = c.__typename !== 'StatusContext' && 'name' in c;
+  const v = String(c.conclusion || c.state || c.status || '').toUpperCase();
+  const start = Date.parse(c.startedAt) || null;
+  const end = Date.parse(c.completedAt) || null;
+  return {
+    name: run ? c.name : c.context || c.name || 'check',
+    workflow: run ? c.workflowName || '' : '',
+    state: checkState(v),
+    url: c.detailsUrl || c.targetUrl || '',
+    ms: start && end && end >= start ? end - start : null,
+    startedAt: start,
+  };
+}
+const CHECK_ORDER = { fail: 0, pending: 1, pass: 2, skip: 3 };
+
+// Inline review comments grouped into threads (REST: the GraphQL fields gh --json lacks), newest
+// thread last. outdated: the line it was on has changed since.
+export function threadsOf(list) {
+  const byId = new Map();
+  const threads = [];
+  for (const c of list || []) {
+    const note = { author: login(c.user), bot: isBot(login(c.user), c.user?.type), body: String(c.body || ''), at: Date.parse(c.created_at) || null, url: c.html_url || '' };
+    const root = c.in_reply_to_id && byId.get(c.in_reply_to_id);
+    if (root) {
+      root.notes.push(note);
+      byId.set(c.id, root);
+      continue;
+    }
+    const t = { path: c.path || '', line: c.line ?? c.original_line ?? null, outdated: c.position === null && c.line == null, notes: [note] };
+    byId.set(c.id, t);
+    threads.push(t);
+  }
+  return threads;
+}
+
+export function prDetailOf(j, threads = []) {
+  const reviews = (j.reviews || []).filter((r) => r.state !== 'PENDING');
+  // Everything people said, in order: comments, and reviews with words (an approval alone is a chip).
+  const notes = [
+    ...(j.comments || []).map((c) => ({ kind: 'comment', author: login(c.author), bot: isBot(login(c.author)), body: String(c.body || ''), at: Date.parse(c.createdAt) || null, url: c.url || '' })),
+    ...reviews.filter((r) => String(r.body || '').trim()).map((r) => ({ kind: 'review', state: r.state, author: login(r.author), bot: isBot(login(r.author)), body: String(r.body || ''), at: Date.parse(r.submittedAt) || null, url: '' })),
+  ].sort((a, b) => (a.at || 0) - (b.at || 0));
+  // Where each reviewer stands now: their latest approval or change request.
+  const verdicts = new Map();
+  for (const r of reviews) if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(r.state)) verdicts.set(login(r.author), r.state);
+  const summary = prSummary(j);
+  return {
+    ...summary,
+    summary, // what the card keeps (session.pr)
+    author: login(j.author),
+    body: String(j.body || ''),
+    additions: j.additions || 0,
+    deletions: j.deletions || 0,
+    changedFiles: j.changedFiles ?? (j.files || []).length,
+    files: (j.files || []).slice(0, 300).map((f) => ({ path: f.path, additions: f.additions || 0, deletions: f.deletions || 0 })),
+    checkList: (j.statusCheckRollup || []).map(checkOf).sort((a, b) => CHECK_ORDER[a.state] - CHECK_ORDER[b.state] || a.name.localeCompare(b.name)),
+    reviewers: [...verdicts].filter(([, v]) => v !== 'DISMISSED').map(([author, state]) => ({ author, state })),
+    notes,
+    threads,
+    updatedAt: Date.parse(j.updatedAt) || null,
+  };
+}
+
+// The PR in full for the panel. Its inline threads are a second call that may fail (an old gh, no
+// access): the rest still shows.
+export async function prDetail(cwd, ref) {
+  const j = JSON.parse(await gh(cwd, ['pr', 'view', String(ref), '--json', DETAIL_FIELDS]));
+  const m = String(j.url || '').match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+  const raw = m ? await gh(cwd, ['api', `repos/${m[1]}/${m[2]}/pulls/${m[3]}/comments?per_page=100`]).then(JSON.parse, () => []) : [];
+  return prDetailOf(j, threadsOf(Array.isArray(raw) ? raw : []));
+}
+
 // Commit whatever the session left uncommitted, push its branch and open (or update) its PR.
 // `onStep` hears each stage as it starts ('commit', 'push', 'pr'), so the card can follow along.
 export async function ship(wt, { title, body = '', draft = false, pr, onStep = () => {} }) {

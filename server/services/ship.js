@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { worktreeStatus, prView, ship, merge, mergeUrl, baseMerged, conflictsWithBase } from '../git.js';
+import { worktreeStatus, prView, prDetail, ship, merge, mergeUrl, baseMerged, conflictsWithBase } from '../git.js';
 import { blocksToMarkdown } from '../render.js';
 import { summarize } from '../runner.js';
 import { bad } from '../util.js';
@@ -216,6 +216,28 @@ export function createShip(app) {
   const allPrs = (s) => [...reposOf(s, store).filter((r) => r.at.pr), ...(s.prs || []).map((x) => ({ name: x.repo, at: x }))];
   const prsOf = (s) => allPrs(s).map((r) => ({ repo: r.name, number: r.at.pr.number, url: r.at.pr.url, state: r.at.pr.state }));
 
+  // The PR panel: every PR of the task in full (each check, reviews, comments, files), its own
+  // first. Reading them refreshes what the card says too. A PR gh can't read says why on its own.
+  const details = async (s) => {
+    const dirOf = (r) => (r.wt ? (fs.existsSync(r.wt.path) ? r.wt.path : r.wt.root) : ghDir(s));
+    let changed = false;
+    const out = await Promise.all(
+      allPrs(s).map(async (r) => {
+        const head = { repo: r.name, number: r.at.pr.number, url: r.at.pr.url };
+        try {
+          const { summary, ...d } = await prDetail(dirOf(r), r.wt ? r.at.pr.number : r.at.pr.url);
+          if (JSON.stringify({ ...summary, checkedAt: 0 }) !== JSON.stringify({ ...r.at.pr, checkedAt: 0 })) changed = true;
+          r.at.pr = summary;
+          return { ...head, ...d };
+        } catch (err) {
+          return { ...head, ...r.at.pr, error: err.message };
+        }
+      }),
+    );
+    if (changed) app.sessionChanged(s);
+    return out;
+  };
+
   // Merge: squash-merge each open PR of the task, its own first. Stops at the first that fails.
   // An attached PR has no worktree of wisp's: it's merged on GitHub, nothing to sync.
   const mergeAll = async (s) => {
@@ -317,5 +339,5 @@ export function createShip(app) {
   }, PR_TICK_MS);
   timer.unref();
 
-  return { recheck, refreshPr, fixConflicts, draft, shipAll, mergeAll, prsOf, attach, stop: () => clearInterval(timer) };
+  return { recheck, refreshPr, fixConflicts, draft, shipAll, mergeAll, prsOf, details, attach, stop: () => clearInterval(timer) };
 }

@@ -26,12 +26,13 @@ export const SLOTS = {
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
+  'panel.head': "The side panel beside the open task (Shell, PR): a button next to its tabs (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
 };
 
-export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head', 'goal.band']);
+export const CARD_SLOTS = new Set(['composer.bar', 'composer.chips', 'card.head', 'card.hover', 'card.menu', 'card.top', 'card.bottom', 'split.head', 'split.details', 'term.head', 'panel.head', 'goal.band']);
 
 // Light or dark: system follows the OS (the page's `prefers-color-scheme`).
 export const THEMES = ['system', 'light', 'dark'];
@@ -232,6 +233,17 @@ export const PARTS = {
   'term.head': '#term .tm-head',
   'term.screen': '#term .tm-screen',
   'term.keys': '#term .tm-keys',
+  // The side panel beside the open task: its tabs, the line saying where the task's folder is
+  // (computer, branch, what's not shipped), the shell in that folder, and the PR tab's parts. The
+  // PR's verdict and Merge aren't parts: a spell can't hide what decides a merge.
+  panel: '#sidePanel',
+  'panel.tabs': '#sidePanel .pn-tabs',
+  'panel.place': '#sidePanel .pn-place',
+  'panel.shell': '#sidePanel .pn-shell',
+  'panel.pr': '#sidePanel .pn-pr',
+  'panel.checks': '#sidePanel .pn-checks',
+  'panel.conversation': '#sidePanel .pn-talk',
+  'panel.files': '#sidePanel .pn-files',
   // Settings: the dialog, its list of sections, and the head with the pane's name and close button.
   'settings': '.modal.sx',
   'settings.nav': '.sx-nav',
@@ -328,6 +340,8 @@ export const PART_PROPS = {
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
+  panel: { width: 'px', tab: ['shell', 'pr'] }, // tab: the one a task opens on, until you pick another
+  'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };
 
 // What a prop type accepts: int is 1–40, px is a size in pixels.
@@ -360,7 +374,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

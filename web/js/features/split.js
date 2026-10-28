@@ -66,10 +66,16 @@ export function applyView() {
 // The task list hidden beside the open task ([). Yours alone (kept in this browser), like the
 // list's width. Stacked, the list is already out of the way while something's open.
 let sideHidden = load('wisp.sideHidden', false);
-const listHidden = () => sideHidden && !isStacked();
+// The side panel (panel.js) open in a window too narrow for the list as well: the list makes way
+// while it's open, without forgetting your choice.
+const PANEL_WIDE = 1180;
+const panelSqueeze = () => document.body.classList.contains('panel-open') && innerWidth < PANEL_WIDE;
+const listHidden = () => (sideHidden || panelSqueeze()) && !isStacked();
 export const sideShown = () => isSplit() && !listHidden();
 export function toggleSidebar() {
   if (!isSplit() || isStacked()) return;
+  // [ brings the list back by putting the panel away: there's room for one of the two.
+  if (panelSqueeze() && !sideHidden) return bus.emit('panel:close');
   sideHidden = !sideHidden;
   save('wisp.sideHidden', sideHidden);
   paintProps();
@@ -376,11 +382,28 @@ export function paintHead(s) {
     <div class="sh-row">
       ${stacked ? backBtn(s) : crumb(s) || qDot(s)}
       <h2 class="sh-title" title="${MOBILE ? '' : 'Rename (M)'}">${esc(s.title)}</h2>
-      <span class="sh-acts">${slotHtml('split.head', s)}${stacked ? '' : `<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}</span>
-    </div>`;
+      <span class="sh-acts">${slotHtml('split.head', s)}${panelBtn()}${stacked ? '' : `<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}</span>
+    </div>${stacked && !s.pending ? segsHtml(s) : ''}`;
   if (h.dataset.h !== html) (h.innerHTML = html), (h.dataset.h = html);
   paintDetails(s, pill);
   paintGoal(s.id); // the band follows the summary: a check landing, a round starting
+}
+
+// Stacked (a phone), the side panel's tabs are segments under the head that swap the page's body
+// in place: Task, Shell, PR. Back still goes to the list. panel.js keeps the one picked.
+function segsHtml(s) {
+  const at = document.body.dataset.seg || 'task';
+  const prs = [s.pr, ...(s.also || []).map((a) => a.pr), ...(s.prs || []).map((x) => x.pr)].filter(Boolean);
+  const pr = prs.length > 1 ? 'PRs' : prs.length ? `PR #${prs[0].number}` : 'PR';
+  const seg = (k, label) => `<button role="tab" data-seg="${k}" aria-selected="${at === k}">${label}</button>`;
+  return `<div class="sh-segs" role="tablist" aria-label="Task, shell and pull request">${seg('task', 'Task')}${seg('shell', 'Shell')}${seg('pr', esc(pr))}</div>`;
+}
+
+// The side panel's toggle (panel.js keeps it pressed while the panel is open).
+function panelBtn() {
+  const on = document.body.classList.contains('panel-open');
+  const label = `${on ? 'Hide' : 'Show'} side panel (])`;
+  return `<button class="icon-btn sh-panel" title="${label}" aria-label="${label}" aria-pressed="${on}">${icon('panel')}</button>`;
 }
 
 function backBtn(s) {
@@ -455,7 +478,8 @@ function measure() {
   // Without the page's slide in (stacked): the body slides with it, from where it'll rest.
   const m = new DOMMatrixReadOnly(getComputedStyle($('#splitMain')).transform);
   const r = { top: Math.round(box.top - m.m42), left: Math.round(box.left - m.m41), width: box.width, height: box.height };
-  const wideNow = isSplit() && r.width >= DETAILS_PANE;
+  // The side panel takes the right-hand column: the details fold into the bar while it's open.
+  const wideNow = isSplit() && r.width >= DETAILS_PANE && !document.body.classList.contains('panel-open');
   // With the list hidden the top bar's buttons float over the pane's corner: the header keeps clear.
   const bar = isSplit() && listHidden() ? $('#topbar').offsetWidth : 0;
   const key = `${r.top} ${r.left} ${r.width} ${r.height} ${wideNow} ${bar}`;
@@ -488,11 +512,17 @@ function paintProps() {
   beforePaint(measure);
 }
 
+// The side panel opened, closed or resized: the columns, the list and the head's buttons follow.
+export function relayout() {
+  paintProps();
+  paintViewBtn();
+}
+
 // The sidebar button hides and shows the task list (not there when stacked).
 const viewBtn = $('#viewBtn');
 function paintViewBtn() {
   viewBtn.setAttribute('aria-pressed', sideShown());
-  viewBtn.title = `${sideHidden ? 'Show' : 'Hide'} the task list ([)`;
+  viewBtn.title = `${listHidden() ? 'Show' : 'Hide'} the task list ([)`;
   viewBtn.setAttribute('aria-label', viewBtn.title);
 }
 

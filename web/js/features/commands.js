@@ -28,7 +28,8 @@ import { toggleTranscript } from './turns.js';
 import { openUsage } from './usage.js';
 import { activeSpells, runAction } from './spells.js';
 import { openCast } from './spell-ui.js';
-import { isSplit, isStacked, sideShown, toggleSidebar } from './split.js';
+import { isSplit, isStacked, sideShown, splitOpen, toggleSidebar } from './split.js';
+import { openPanel, panelLabel, reviewLabel, toggle as togglePanel } from './panel.js';
 import { setTheme, themePref } from './theme.js';
 import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } from './crew.js';
 import { importCrew, shareMember } from './crew-share.js';
@@ -65,6 +66,8 @@ function paletteItems() {
     if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
+    if (reviewLabel(cur)) items.push({ group: g, label: reviewLabel(cur), sub, icon: 'merge', kbd: 'P', keywords: 'pull request checks ci reviews comments github side panel', run: () => openPanel(id, 'pr') });
+    if (!cur.pending) items.push({ group: g, label: 'Open shell', sub, icon: 'shell', kbd: '⌃`', keywords: 'terminal worktree folder command run console bash zsh side panel', run: () => openPanel(id, 'shell') });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
     // The goal's items, as the task's menus have them (Set goal… / Edit goal…, Pause, Resume, Drop).
@@ -141,6 +144,7 @@ function paletteItems() {
   // The phone has no keyboard: no shortcuts list. Stacked, the list is already its own screen.
   if (!MOBILE) items.push(
     ...(isSplit() && !isStacked() ? [{ group: a, label: sideShown() ? 'Hide the task list' : 'Show the task list', icon: 'split', kbd: '[', keywords: 'sidebar collapse expand toggle focus full width', run: toggleSidebar }] : []),
+    ...(splitOpen() ? [{ group: a, label: panelLabel(), icon: 'panel', kbd: ']', keywords: 'side panel shell terminal pr pull request checks right column', run: togglePanel }] : []),
     { group: a, label: 'Keyboard shortcuts', icon: 'info', kbd: '?', keywords: 'keys help hotkeys', run: shortcuts },
   );
   // Theme: the two you're not on.

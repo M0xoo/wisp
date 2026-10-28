@@ -21,8 +21,8 @@ export function register(r, app) {
     const mid = at.machine;
     const sub = `/sessions/${at.id}${action ? `/${action}` : ''}${c.url.search}`;
     if ((action === 'file' && m === 'GET') || (action === 'presentation' && c.query.get('format') === 'markdown')) return pipeFrom(c.res, await machines.stream(mid, 'GET', sub));
-    // The terminal of a take over in the page, streamed from over there.
-    if (action === 'term' && m === 'GET') {
+    // The terminal of a take over in the page, or the shell beside the task, streamed from over there.
+    if ((action === 'term' || action === 'shell') && m === 'GET') {
       const r = await machines.stream(mid, 'GET', sub);
       c.res.on('close', () => r.destroy()); // the page went away: so does the stream over there
       return pipeFrom(c.res, r);
@@ -49,6 +49,21 @@ export function register(r, app) {
         telemetry.track('takeover', { agent: s.agent, terminal: d.terminal || defaultTerminal(), machine: true });
       }
       return c.send(200, { command: argv.map(shq).join(' ') });
+    }
+    // The panel's folder: the shell runs over there, but a terminal app opens here, signed in over
+    // SSH (a cloud computer has none to sign in to).
+    const appHere = () => machines.get(mid)?.kind !== 'grid' && !app.proxy?.via(c.req) && (process.platform === 'win32' || !inWisp('auto'));
+    if (action === 'workspace' && m === 'GET') {
+      const out = await machines.json(mid, 'GET', sub);
+      return c.send(200, { ...out, machine: machines.get(mid)?.name || mid, shell: { ...out.shell, app: appHere() } });
+    }
+    if (action === 'open-shell' && m === 'POST') {
+      const { dir } = await machines.json(mid, 'GET', `/sessions/${at.id}/workspace`);
+      if (!appHere()) return c.send(409, { error: 'There’s no terminal app to sign in there with: use the one in the panel.', dir });
+      const d = store.config.defaults;
+      const argv = machines.terminalArgv(mid, `cd ${shq(dir)} && exec "\${SHELL:-sh}" -l`);
+      if (process.env.WISP_NO_OPEN !== '1') openInTerminal({ cwd: os.homedir(), argv, terminal: d.terminal === 'wisp' || !d.terminal ? 'auto' : d.terminal, custom: d.terminalCommand });
+      return c.send(200, { ok: true, dir });
     }
     const body = m === 'GET' ? undefined : await c.body();
     // A follow-up that moves the task here or to another machine (services/move.js).

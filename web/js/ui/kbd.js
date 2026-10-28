@@ -19,7 +19,9 @@ export function shortcuts() {
     ['L', 'Save for later / unsave'],
     ['M', 'Rename item'],
     ['⌫', 'Delete item'],
-    ['T', 'Take over in terminal'],
+    ['T', 'Take over in a terminal'],
+    ['⌃`', 'Open shell in the task’s folder (again: back to the reply box)'],
+    ['P', 'Review PR: checks, reviews and comments in the side panel'],
     ['V', 'Full transcript / presentation'],
     ['⇧R', 'Rerun with another harness, model or thinking level'],
     ['⇧F', 'Fork: a new task that carries on from here, on its own branch'],
@@ -33,6 +35,7 @@ export function shortcuts() {
     ['C', 'Collapse all'],
     ['U', 'Back to top'],
     ['[', 'Hide / show the task list'],
+    [']', 'Show / hide side panel'],
     ['Esc', 'Close / collapse'],
   ];
   const node = el(`<div class="modal keys-modal"><header><h2>Shortcuts</h2></header>${rows.map(([k, l]) => `<div class="krow"><kbd>${k}</kbd><span>${l}</span></div>`).join('')}</div>`);
