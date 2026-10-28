@@ -151,7 +151,9 @@ Never send builds to someone's own phone as part of QA.
 ### MOB-16 Notifications in the background over time
 - **Run:** Manual
 - **Expected:** while connected over SSH the *Connected to …* foreground notification stays and task
-  notifications keep arriving with the screen off. Swiping the app away disconnects (documented).
+  notifications keep arriving with the screen off. The same for a cloud computer (wisp Cloud, or
+  your computer through a grid): *Connected to <name>* shows once it opens, and goes when Back
+  returns to the computers list. Swiping the app away disconnects (documented).
 
 ### MOB-17 Play bundle
 - **Run:** Manual (release only)

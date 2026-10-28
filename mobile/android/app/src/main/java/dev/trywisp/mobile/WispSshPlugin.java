@@ -69,6 +69,16 @@ public class WispSshPlugin extends Plugin {
         call.resolve();
     }
 
+    // Into a cloud computer (no SSH): the app must still stay up in the background, or Android
+    // freezes it once it's off screen and wisp's page never hears that a task finished or asks.
+    // Called before leaving the list, while the app is on screen (a foreground service can't start
+    // from the background). The list stops it again when it's back with no tunnel (disconnect).
+    @PluginMethod
+    public void stayOpen(PluginCall call) {
+        TunnelService.start(getContext(), call.getString("name", ""));
+        call.resolve();
+    }
+
     // The grid's sign-in page goes to the browser: Google and others refuse embedded WebViews.
     @PluginMethod
     public void openExternal(PluginCall call) {
@@ -170,6 +180,10 @@ public class WispSshPlugin extends Plugin {
             if (url == null || !url.startsWith("http://127.0.0.1:")) return;
             web.evaluateJavascript("window.dispatchEvent(new CustomEvent('wisp-tunnel', { detail: " + JSONObject.quote(text) + " }))", null);
         });
+    }
+
+    static boolean hasTunnel() {
+        return tunnel != null;
     }
 
     /** wisp's page failed to load: check the tunnel now (a reconnect starts wisp again). */

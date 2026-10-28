@@ -22,6 +22,7 @@ const keys = [fakeKey('This phone')];
 
 export const WispSsh = {
   async allowGrid() {},
+  async stayOpen() {},
   async openExternal({ url }) {
     window.open(url, '_blank', 'noopener');
   },
