@@ -29,7 +29,7 @@ import readline from 'node:readline';
 import { CREW_TOOLS } from './crew-tools.js';
 import { blockDocs } from './protocol.js';
 
-const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS } = process.env;
+const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS, WISP_WATCH } = process.env;
 let TEAM = [];
 try {
   TEAM = JSON.parse(process.env.WISP_TEAM || '[]');
@@ -101,6 +101,42 @@ const PR = {
       remove: { type: 'boolean', description: 'Detach this PR from the task instead.' },
     },
     required: ['pr'],
+  },
+};
+
+// wisp_watch: a page beside the task the agent keeps updating while it works (server/watch.js).
+const WATCH = {
+  name: 'wisp_watch',
+  description:
+    'Let the user watch your work while you do it, instead of waiting for your answer: put up a page beside this task in wisp and keep it ' +
+    'current as you go. Worth it for long or many-step work the user would like to follow (a migration across many files, a test or ' +
+    'benchmark run, a crawl, a data job, a design taking shape); not for quick tasks or plain questions. You decide what the page shows ' +
+    'and how: a progress bar and a checklist, a table filling in, a chart, a diagram growing. ' +
+    'action "open": html (one self-contained page: inline CSS and JS; scripts, styles and fonts from https CDNs are fine; no fetch, no ' +
+    'relative files) or path (an .html file you wrote, read again on "reload"), a title, and optionally run: { command, cwd, note }, ' +
+    'how the user runs or checks the thing themselves (shown under the page). The page uses wisp\'s theme as CSS variables ' +
+    '(var(--ink), var(--muted), var(--line), var(--accent), var(--good), var(--bad), var(--surface), var(--sans), var(--mono)) and gets ' +
+    'your data with wisp.on(\'state\', (s) => draw(s)) (called with the last state at once, then on every update; wisp.state is the last one). ' +
+    'action "state": state (JSON, up to 64 KB: what the page draws now; merge: true merges it into the last one), caption optional. ' +
+    'Send it after each meaningful step, not on every keystroke. action "caption": one line on what you are doing now. ' +
+    'action "reload": after you edited the page. action "close": when the work is done (the page stays, with its last state).',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: ['open', 'state', 'caption', 'reload', 'close'] },
+      title: { type: 'string', description: 'open: a few words, e.g. "TypeScript migration".' },
+      html: { type: 'string', description: 'open: the page (up to 1 MB).' },
+      path: { type: 'string', description: 'open: or an .html file you wrote: absolute, or relative to your working directory.' },
+      state: { description: 'open / state: the data the page draws, any JSON.' },
+      merge: { type: 'boolean', description: 'state: merge into the last state (top-level keys) instead of replacing it.' },
+      caption: { type: 'string', description: 'What you are doing now, one line: "Converting auth/ (12 of 40)".' },
+      run: {
+        type: 'object',
+        description: 'open / reload: how the user can run or check it themselves, e.g. { "command": "npm test -- --watch", "cwd": ".", "note": "re-runs on save" }.',
+        properties: { command: { type: 'string' }, cwd: { type: 'string' }, note: { type: 'string' } },
+      },
+    },
+    required: ['action'],
   },
 };
 
@@ -486,7 +522,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, TAG, PR, SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, TAG, PR, ...(WISP_WATCH ? [WATCH] : []), SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -499,6 +535,9 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_pr') {
       const r = await call(`/api/internal/prs`, { session: WISP_SESSION, pr: params.arguments?.pr, remove: !!params.arguments?.remove });
+      send({ id, result: { content: [{ type: 'text', text: r.text }] } });
+    } else if (method === 'tools/call' && WISP_WATCH && params?.name === 'wisp_watch') {
+      const r = await call(`/api/internal/watch`, { session: WISP_SESSION, ...(params.arguments || {}) });
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_save') {
       const r = await call(`/api/internal/stuff`, { session: WISP_SESSION, ...(params.arguments || {}) });

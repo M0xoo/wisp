@@ -70,6 +70,7 @@ function paletteItems() {
     if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (reviewLabel(cur)) items.push({ group: g, label: reviewLabel(cur), sub, icon: 'merge', kbd: 'P', keywords: 'pull request checks ci reviews comments github side panel', run: () => openPanel(id, 'pr') });
     if (!cur.pending) items.push({ group: g, label: 'Open shell', sub, icon: 'shell', kbd: '⌃`', keywords: 'terminal worktree folder command run console bash zsh side panel', run: () => openPanel(id, 'shell') });
+    if (cur.watch) items.push({ group: g, label: 'Watch', sub, icon: 'eye', keywords: 'live progress page agent working side panel', run: () => openPanel(id, 'watch') });
     if (cur.groupId) items.push({ group: g, label: 'Compare runs', sub, icon: 'agent', keywords: 'vs side by side harness', run: () => compareView(id) });
     items.push({ group: g, label: 'Save as recipe…', sub, icon: 'bolt', keywords: 'template reuse automation', run: () => saveAsRecipe(id) });
     // The goal's items, as the task's menus have them (Set goal… / Edit goal…, Pause, Resume, Drop).

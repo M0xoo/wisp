@@ -23,7 +23,7 @@ import { scheduleFollowUp } from './later.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
-import { openPanel, paintDoor, shellButton, shellLive } from './panel.js';
+import { openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
 import { paintSplit } from './split.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
@@ -99,6 +99,7 @@ export function renderBody(id, { fresh }) {
             <button class="ghost xs" data-a="rerun" data-key="⇧R" title="Rerun: the same task again, on any harness, model or computer (⇧R)">${icon('rerun')}<i class="it-lbl">Rerun…</i></button>
             <button class="ghost xs" data-a="takeover" data-key="T" title="Take over: carry on with the agent yourself, in a terminal (T)">${icon('terminal')}<i class="it-lbl">Take over</i></button>
             <button class="ghost xs it-shell" data-a="shell" data-key="⌃\`" aria-pressed="false" title="Shell: your terminal in this task's folder (⌃\`)">${icon('shell')}<i class="it-lbl">Shell</i></button>
+            <button class="ghost xs it-watch" data-a="watch" aria-pressed="false" title="Watch: the page the agent keeps up to date while it works" hidden>${icon('eye')}<i class="it-lbl">Watch</i></button>
             <button class="ghost xs" data-a="ship" data-key="S" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
             <button class="ghost xs it-done" data-a="done" data-key="E" title="Mark done (E)" hidden>${icon('done')}<span>Mark done</span></button>
             <button class="ghost xs" data-a="more" title="More">${icon('dots')}<i class="it-lbl">More</i></button>
@@ -119,6 +120,7 @@ export function renderBody(id, { fresh }) {
       if (a === 'rerun') rerun(id);
       if (a === 'takeover') takeOver(id);
       if (a === 'shell') shellButton(id);
+      if (a === 'watch') watchButton(id);
       if (a === 'ship') shipDialog(id);
       if (a === 'done') toggleDone(id);
       if (a === 'more') moreMenu(id, e.target.closest('button'));
@@ -133,6 +135,7 @@ export function renderBody(id, { fresh }) {
       const a = b?.dataset.a;
       if (a === 'pr') openPanel(id, 'pr');
       else if (a === 'shell') shellButton(id);
+      else if (a === 'watch') watchButton(id);
       else if (a === 'more') moreMenu(id, b);
       else if (a) $(`.it-actions [data-a="${a}"]`, body)?.click();
     });
@@ -157,6 +160,7 @@ export function renderBody(id, { fresh }) {
   paintDoor(id);
   // While it works, the session id may still be on its way: takeOver asks for it.
   $('[data-a="takeover"]', body).hidden = !s.agentSessionId && !live;
+  $('.it-watch', body).hidden = !summary.watch; // only once its agent put a page up (wisp_watch)
   const tx = transcriptOn(id);
   const txBtn = $('.it-actions [data-a="transcript"]', body);
   txBtn.classList.toggle('on', tx);
@@ -188,7 +192,7 @@ export function renderBody(id, { fresh }) {
     const isLatest = t.id === latestId;
     const folded = !isLatest && !n.unfolded.has(t.id);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
-    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}`;
+    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
@@ -261,7 +265,7 @@ export function paintMini(id) {
   const ship = real('ship');
   const live = shellLive(id);
   const html = `${$('.it-props > .pill[class*="st-"]', bar)?.outerHTML || ''}
-    <span class="im-acts">${btn('transcript', 'transcript')}${btn('rerun', 'rerun')}${btn('done', 'done')}${btn('more', 'dots')}</span>
+    <span class="im-acts">${btn('transcript', 'transcript')}${btn('rerun', 'rerun')}${btn('watch', 'eye')}${btn('done', 'done')}${btn('more', 'dots')}</span>
     <span class="grow"></span>
     ${pr ? `<button class="im-pr pr-${tone}" data-a="pr" title="Open PR #${pr.number}"><i class="pr-dot"></i>#${pr.number}${prs.length > 1 ? `<small>+${prs.length - 1}</small>` : ''}</button>` : ship && !ship.hidden ? `<button class="ghost xs" data-a="ship">${icon('send')}<span>${esc($('span', ship).textContent)}</span></button>` : ''}
     <button class="icon-btn im-shell" data-a="shell" title="${live ? 'Shell, running' : 'Open shell'}" aria-label="${live ? 'Shell, running' : 'Open shell'}">${icon('shell')}${live ? '<i class="sd-live"></i>' : ''}</button>`;
@@ -621,6 +625,7 @@ function renderWorking(s, t, tx) {
           ${tx ? '' : '<button class="link xs peek">Show all activity</button>'}
           ${s.queue?.length ? `<span class="w-queued">${s.queue.length} follow-up${s.queue.length > 1 ? 's' : ''} queued</span>` : ''}
           <span class="grow"></span>
+          ${S.sessions.get(s.id)?.watch ? `<button class="ghost sm w-watch">${icon('eye')}Watch</button>` : ''}
           <button class="ghost sm danger stop"${s.queue?.length ? ' title="Stop: your queued follow-ups stay, held until you send one"' : ''}>${icon('stop')}Stop</button>
         </div>
         <ul class="log" hidden></ul>
@@ -637,6 +642,12 @@ function renderWorking(s, t, tx) {
       .filter((a) => a.kind !== 'text')
       .slice(-5)
       .forEach((a) => ticker.prepend(actItem(a)));
+  // The page its agent keeps up to date (wisp_watch): the way in on a phone, where it doesn't open by itself.
+  const watch = $('.w-watch', node);
+  if (watch)
+    watch.onclick = () => {
+      openPanel(s.id, 'watch');
+    };
   $('.stop', node).onclick = async (e) => {
     // Shows at once; the run winds down and the live update replaces this panel.
     const btn = e.currentTarget;

@@ -483,6 +483,16 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { command: { type: 'string' }, output: { type: 'string' }, exitCode: { type: 'integer' }, durationMs: { type: 'integer' } } }), 400: err[400] },
         },
       },
+      '/sessions/{id}/watch': {
+        parameters: [id],
+        get: {
+          summary: 'The page its agent keeps beside the task while it works (wisp_watch), with its last state',
+          responses: {
+            200: json({ type: 'object', properties: { title: { type: 'string' }, caption: { type: 'string' }, state: {}, run: { type: 'object', nullable: true }, seq: { type: 'integer' }, rev: { type: 'integer' }, at: { type: 'integer' }, closed: { type: 'boolean' }, html: { type: 'string' }, problem: { type: 'string' } } }),
+            404: err[404],
+          },
+        },
+      },
       '/sessions/{id}/app-state': {
         parameters: [id],
         post: {

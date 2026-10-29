@@ -746,3 +746,12 @@ test('the side panel: its parts, width, opening tab and bot comments as props, a
   assert.ok(p.some((x) => /tab/.test(x) && /shell/.test(x)), p.join('\n'));
   assert.ok(p.some((x) => /panel\.verdict/.test(x)), p.join('\n'));
 });
+
+test('watch: the setting, the panel opening on it, its parts and the eye icon', () => {
+  for (const watch of ['on', 'off']) assert.deepEqual(problems({ ...base0, settings: { watch } }), []);
+  const bad = problems({ ...base0, settings: { watch: 'sometimes' } });
+  assert.ok(bad.some((x) => /settings\.watch/.test(x) && /on \| off/.test(x)), bad.join('\n'));
+  assert.deepEqual(problems({ ...base0, parts: { panel: { props: { tab: 'watch' } }, 'panel.watch': { style: { background: 'var(--surface)' } }, 'watch.caption': { style: { fontSize: '13px' } } }, ui: { hide: ['watch.run', 'split.watch'] } }), []);
+  assert.ok(problems({ ...base0, parts: { 'watch.caption': { props: { lines: 2 } } } }).some((x) => /watch\.caption/.test(x)));
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.head', icon: 'eye', label: 'Look', do: { copy: '{id}' } }] }), []);
+});

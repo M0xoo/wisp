@@ -152,6 +152,11 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   \`publish: true\`: it goes on their wisp Grid at a public link; send them that link and show its "stuff" block.
 - For the user's wisp usage, crew or connectors, use wisp's tools for them (\`wisp_stats\`, \`wisp_crew*\`,
   \`wisp_connector*\`) when the user asks. Never ask the user to paste a key into the chat.`;
+// wisp_watch, unless Settings → Watch agents work is off (defaults.watch: 'off').
+const WATCH_TOOL = (tool) => `
+- For long or many-step work the user would like to follow (a migration across many files, a test or benchmark
+  run, a data job), let them watch it: \`wisp_watch\` (${tool.replace(/ask_user$/, 'wisp_watch')}) puts a page you write
+  beside the task, and you send it your progress as you go. You decide what it shows. Skip it for quick tasks.`;
 const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
   two very different approaches), stop before acting on it and end with a "question" block (2–4 options).
   The user's answer comes back as a follow-up in this same session.`;
@@ -186,11 +191,11 @@ const APP_BLOCK = `- {"type":"app","title":"…","html":"<style>…</style><div>
 // askTool: how the harness names wisp's injected ask_user tool, or null if it can't take one.
 // ask: replaces the ask guidance outright (subagents, who have nobody to ask).
 // extraBlocks: block types spells add ({ type, doc, spell }), listed with the built-in ones.
-// apps: offer the `app` block.
+// apps: offer the `app` block. watch: offer wisp_watch (where wisp's tools are).
 // Long block docs are stubs where wisp's tools are there to read them (not for subagents, who get `ask`).
-export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask, extraBlocks = [], apps = false } = {}) => {
+export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask, extraBlocks = [], apps = false, watch = false } = {}) => {
   const tools = askTool && !ask;
-  const out = PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) : ASK_BLOCK)).replace('{{GRAPH}}', tools ? GRAPH_STUB(askTool) : GRAPH_BLOCK);
+  const out = PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) + (watch ? WATCH_TOOL(askTool) : '') : ASK_BLOCK)).replace('{{GRAPH}}', tools ? GRAPH_STUB(askTool) : GRAPH_BLOCK);
   const docs = [
     ...(apps ? [tools ? APP_STUB(askTool) : APP_BLOCK] : []),
     ...extraBlocks.map((b) => `- ${b.doc.trim().startsWith('{') ? b.doc.trim().replace(/\}\s+(?=\S)/, '}\n  ') : `{"type":"${b.type}"} ${b.doc}`}\n  (From the user's spell ${b.spell}.)`),

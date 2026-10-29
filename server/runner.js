@@ -21,6 +21,7 @@ import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
 import { goalNote, goalView } from './goal.js';
 import { planOf, unitsOf } from './budget.js';
+import { watchView } from './watch.js';
 
 const MAX_ACTIVITY = 400;
 const MAX_TEXT = 20_000; // an agent message, kept whole for the transcript up to this
@@ -185,6 +186,7 @@ export function summarize(s, store) {
     preview: hero?.summary || '',
     // Ask near the limit (server/guard.js): it waits, held before it started or was sent.
     ...(last?.status === 'held' && { held: (({ kind, label, used, to, line, resetsAt, until, waiting }) => ({ kind, label, used, to, line, resetsAt, until, ...(waiting && { waiting: true }) }))(last.held) }),
+    ...(s.watch && { watch: watchView(s) }), // a page its agent keeps updating beside it (server/watch.js)
     ...(s.tags?.length && { tags: s.tags }), // topic words its agent set with wisp_tag, for search (web/js/tags.js)
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
@@ -1089,7 +1091,7 @@ export class Runner extends EventEmitter {
     const extraBlocks = sub ? [] : this.spellBlocks(session);
     const base = sub
       ? systemPrompt({ ask: SUBAGENT_ASK + (session.delegated ? AWAY_SUBAGENT : '') })
-      : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
+      : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off', watch: this.store.config?.defaults?.watch !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
     const crew = session.crew ? this.crewNote(session) : '';
     return base + spell + crew + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
@@ -1116,6 +1118,7 @@ export class Runner extends EventEmitter {
           WISP_TURN: session.turns.at(-1)?.id || '', // so a run's leftover helper can tell its turn is over
           ...(adapter.approveTool && { WISP_APPROVE: '1' }),
           ...(session.kind === 'spell' && { WISP_SPELLS: '1' }),
+          ...(this.store.config?.defaults?.watch !== 'off' && { WISP_WATCH: '1' }),
           ...(team.length && { WISP_TEAM: JSON.stringify(team.map((m) => ({ name: m.name, agent: m.crew ? `${m.label || m.name} of the user's crew${m.role ? `, ${m.role}` : ''}` : adapters[m.agent]?.name || m.agent, model: m.crew ? 'own folder and memory' : m.model, effort: m.effort, use: m.use, count: m.count || 1, copies: copies(m), ...(m.machine && { place: m.place || 'another machine' }) }))) }),
         },
       },

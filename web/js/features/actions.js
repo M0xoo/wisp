@@ -27,7 +27,7 @@ import { feedAnchor, keepInPlace } from './scroll.js';
 import { mergeLabel, mergePr, shipDialog, shipLabel, shippable } from './ship.js';
 import { slotHtml } from './spells.js';
 import { openTerm, termFailed, termSize, termStarted } from './term.js';
-import { openPanel, reviewLabel, shellItem } from './panel.js';
+import { openPanel, reviewLabel, shellItem, watchItem } from './panel.js';
 import { ask } from '../ui/confirm.js';
 import { goalMenuHtml, runGoalAction } from './goal.js';
 import { DAY_TIME, fmtDate } from '../core/format.js';
@@ -195,6 +195,7 @@ export function moreMenu(id, anchor) {
       ${mergeLabel(sum) ? `<button data-a="merge">${icon('check')}${mergeLabel(sum)}</button>` : ''}
       ${reviewLabel(sum) ? `<button data-a="review">${icon('merge')}${reviewLabel(sum)}${keyHint('P')}</button>` : ''}
       ${shellItem(id)}
+      ${watchItem(sum)}
       ${sum.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(sum)}
@@ -216,6 +217,7 @@ export function moreMenu(id, anchor) {
     if (a === 'merge') mergePr(id);
     if (a === 'review') openPanel(id, 'pr');
     if (a === 'shell') openPanel(id, 'shell');
+    if (a === 'watch') openPanel(id, 'watch');
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);
@@ -256,6 +258,7 @@ export function taskMenu(id, e) {
       ${mergeLabel(s) ? `<button data-a="merge">${icon('check')}${mergeLabel(s)}</button>` : ''}
       ${reviewLabel(s) ? `<button data-a="review">${icon('merge')}${reviewLabel(s)}${keyHint('P')}</button>` : ''}
       ${s.pending ? '' : shellItem(s.id)}
+      ${watchItem(s)}
       ${s.groupId ? `<button data-a="compare"><b class="vs-mark">vs</b>Compare runs</button>` : ''}
       <button data-a="recipe">${icon('bolt')}Save as recipe…</button>
       ${crewItem(s)}
@@ -281,6 +284,7 @@ export function taskMenu(id, e) {
     if (a === 'merge') mergePr(id);
     if (a === 'review') openPanel(id, 'pr');
     if (a === 'shell') openPanel(id, 'shell');
+    if (a === 'watch') openPanel(id, 'watch');
     if (a === 'compare') compareView(id);
     if (a === 'recipe') saveAsRecipe(id);
     if (a === 'crew') crewAction(id);

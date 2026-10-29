@@ -12,6 +12,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Apps can keep data.** An app whose `wisp-app.json` says `"db": true` (or `"db": "seed.sql"`, made from that file the first time) gets its own SQLite database, used from its pages with `import { sql } from '/_wisp/db.js'`. Launched in wisp it lives beside the app and survives updates (**⋯ → Reset data** starts it over); published, the grid keeps one for everyone who opens the link (10 MB). Queries run in a separate process that's stopped after 5 s, without ATTACH or PRAGMA. Needs Node 22.13+.
 - **Launch My Stuff apps in the phone app.** Connected through wisp Cloud (your cloud computer, or one of your computers via the grid), **Launch** opens the app inside the app, as on desktop, instead of saying apps need a browser. Over SSH it still can't reach the app's port and says so.
 
+- **Watch agents work.** On long tasks (a migration across many files, a test or benchmark run, a data job) the agent can put a page beside the task with the new `wisp_watch` tool and keep it current as it goes, so you follow the work instead of waiting for the answer. The agent decides what it shows (a progress bar and checklist, a table filling in, a chart) and sends its progress as it works; the page updates in place without reloading. It opens by itself in the side panel when you're looking at the task, under a caption line saying what the agent is doing now, with **Run it yourself** under it (the command to run or check it, copied with its folder). Elsewhere, the task's **Watch** button, its working card, *More*, the right-click menu and ⌘K open it; on a phone it's a page with Back. The page runs sealed (no network, no wisp API; scripts and styles from https CDNs load) and stays on the task with its last state once the agent is done. Settings → **Watch agents work** turns it off. New `GET /api/sessions/{id}/watch`; spells reach it through the `split.watch`, `panel.watch`, `watch.caption` and `watch.run` parts, `panel.tab: "watch"`, the `watch` setting and the `eye` icon.
+
 ### Grid
 
 - `POST /_grid/preview?port=&path=` on a wisp's or computer's address: a one-time link into its `p<port>--` preview, for a page signed in there but not to the grid (the phone app's).
@@ -19,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Interactive answers follow your computer's light or dark switch** while they're open, with the theme on *System*; they kept the colours they opened with until a reload.
 - **Removing an app from My Stuff on Windows** no longer fails with *directory not empty* right after the app was running: wisp retries while Windows lets go of the files it just served, without holding them open itself.
 - **Removing an app that keeps data** (`"db"` in its `wisp-app.json`) no longer fails on Windows with *resource busy or locked*: its database is closed before its file goes.
 

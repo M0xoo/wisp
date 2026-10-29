@@ -26,7 +26,7 @@ export const SLOTS = {
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
-  'panel.head': "The side panel beside the open task (Shell, PR): a button in its head (acts on that task).",
+  'panel.head': "The side panel beside the open task (Shell, PR, Watch): a button in its head (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
   'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
@@ -261,6 +261,7 @@ export const PARTS = {
   // under the PR's that opens it as a page (where it runs, and whether yours is still running).
   'split.shell': 'body.split #feed .item.open .it-actions > .it-shell',
   'split.shellDoor': 'body.split #feed .item.open .it-bar > .shell-door',
+  'split.watch': 'body.split #feed .item.open .it-actions > .it-watch',
   // Narrow, the row that pins at the top once the task's bar has scrolled away: the state, the
   // actions as icons, the PR as a chip and the shell.
   'split.mini': 'body.split #feed .item.open .it-mini > .im-row',
@@ -289,6 +290,9 @@ export const PARTS = {
   'panel.checks': '#sidePanel .pn-checks',
   'panel.conversation': '#sidePanel .pn-talk',
   'panel.files': '#sidePanel .pn-files',
+  'panel.watch': '#sidePanel .pn-watch',
+  'watch.caption': '#sidePanel .wt-cap',
+  'watch.run': '#sidePanel .wt-run',
   // Settings: the dialog, its list of sections, and the head with the pane's name and close button.
   'settings': '.modal.sx',
   'settings.nav': '.sx-nav',
@@ -394,7 +398,7 @@ export const PART_PROPS = {
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
-  panel: { width: 'px', tab: ['shell', 'pr'] }, // tab: what it opens on (the toggle, ]), until you open the other
+  panel: { width: 'px', tab: ['shell', 'pr', 'watch'] }, // tab: what it opens on (the toggle, ]), until you open the other
   'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };
 
@@ -428,7 +432,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click
@@ -486,6 +490,8 @@ export const SETTINGS = {
   notify: ['on', 'off'],
   // Interactive answers: agents may answer with an `app` block (a small sandboxed page).
   apps: ['on', 'off'],
+  // Watch agents work: agents may put a page beside their task and keep it current (wisp_watch).
+  watch: ['on', 'off'],
   // "in 5 min …" / "remind me … in 1 h" in a prompt schedules it (web/js/when.js).
   readTimes: ['on', 'off'],
   // At a usage limit: wait for the window's reset and carry on in the same conversation, or ask.

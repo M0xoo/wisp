@@ -75,6 +75,42 @@ body.side-right .pn-grip { left: auto; right: -4px; }
 .pn-ended .ghost { color: var(--term-ink); }
 .pn-ended .ghost:hover { background: var(--term-soft, #222); color: var(--term-ink); }
 
+/* Watch: the page the agent keeps up to date (features/watch.js). No place line: it's about the
+   page, not the folder. The caption says what the agent is doing; the run strip how to do it yourself. */
+.side-panel.on-watch :is(.pn-place, .pn-note) { display: none; }
+.pn-watch { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pn-watch[hidden] { display: none; }
+.wt-cap {
+  flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; min-width: 0;
+  border-bottom: 1px solid var(--line); color: var(--ink-2); font-size: 12.5px; white-space: nowrap;
+}
+.wt-cap > .i { width: 13px; height: 13px; flex: none; color: var(--muted); }
+.wt-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wt-live { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--good); animation: wt-pulse 1.6s ease-in-out infinite; }
+@keyframes wt-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .wt-live { animation: none; } }
+.wt-sk-cap { width: 180px; height: 10px; border-radius: 4px; }
+.wt-box { position: relative; flex: 1; min-height: 0; background: var(--bg); }
+.wt-frame { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); }
+.wt-sk { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.wt-sk-line { width: 55%; height: 12px; border-radius: 99px; }
+.wt-sk-line.short { width: 30%; }
+.wt-sk-bar { width: 100%; height: 10px; border-radius: 99px; }
+.wt-sk-box { width: 100%; height: 160px; }
+.wt-msg { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 24px; color: var(--muted); text-align: center; font-size: 13px; }
+.wt-msg .i { width: 20px; height: 20px; color: var(--warn); }
+.wt-msg p { max-width: 34ch; margin: 0; }
+.wt-run { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 12px 10px; border-top: 1px solid var(--line); background: var(--bg-2); }
+.wt-run[hidden] { display: none; }
+.wt-lbl { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.wt-lbl .i { width: 13px; height: 13px; }
+.wt-cmd { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.wt-cmd code { flex: 1; min-width: 0; overflow-x: auto; padding: 5px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font: 12px var(--mono); white-space: nowrap; }
+.wt-cmd .icon-btn { flex: none; width: 28px; height: 28px; }
+.wt-note { margin: 0; color: var(--muted); font-size: 12px; }
+.side-panel.stacked .wt-run { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+.side-panel.stacked .wt-cmd .icon-btn { width: 40px; height: 40px; }
+
 /* PR: one PR without the noise. */
 .pn-pr { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 14px 10px; font-size: 13px; }
 .pn-pr[hidden] { display: none; }

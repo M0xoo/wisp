@@ -39,3 +39,9 @@ export async function setTheme(t) {
     bus.emit('theme');
   }
 }
+
+// System: the OS switching light or dark repaints the page through CSS alone, but sealed frames
+// (Watch, app blocks) get the theme as a message: tell them.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (themePref() === 'system') bus.emit('theme');
+});

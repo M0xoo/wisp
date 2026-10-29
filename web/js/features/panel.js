@@ -1,6 +1,6 @@
 // The side panel: a third column beside the open task, on the far side from the list, for doing
 // things with what the agent made without leaving wisp (design/side-panel.md). It shows one of
-// two things, opened from the task (its Shell button, its PR row, the menus, the keys), never tabs:
+// three things, opened from the task (its Shell button, its PR row, the menus, the keys), never tabs:
 //
 //   Shell  your shell in the folder the task was built in (its worktree), on whichever computer
 //          ran it: here, a machine over SSH, a cloud computer. The server runs it on a pty
@@ -8,6 +8,8 @@
 //   PR     the task's pull request without the noise: the verdict and its one next step, each
 //          check (failing first), where reviewers stand, the conversation (bots and outdated
 //          threads folded), the files. Ask to fix and Send to agent fill the task's reply box.
+//   Watch  the page the agent keeps beside the task while it works (watch.js): it opens by itself
+//          when the agent puts one up on the task you're looking at.
 //
 // It goes with the task: home or a crew member's thread puts it away, and the next task opens it
 // on what it showed. Each task keeps its own shell while you look at others. From 1180px it's a
@@ -34,13 +36,14 @@ import { fixPr, mergePr, prsOf, shipDialog, shippable } from './ship.js';
 import { slotHtml, spellProp } from './spells.js';
 import { isSplit, isStacked, relayout, splitOpen } from './split.js';
 import { connect, SCREEN_HTML, termState, TermView, TOUCH } from './term-view.js';
+import { forgetWatch, loadWatch, paintWatch, WATCH_HTML, watchClick, watchTitle } from './watch.js';
 
 const PANEL_W = 480;
 const MIN_W = 360;
 const TASK_MIN = 480; // the task beside it never gets narrower
 export const PANEL_WIDE = 1180; // narrower than this, the panel takes the list's place while open
 
-// Yours, in this browser: open or not, what it last showed (tab: shell or pr), the width you dragged it to.
+// Yours, in this browser: open or not, what it last showed (tab: shell, pr or watch), the width you dragged it to.
 const pref = { open: false, tab: null, ...load('wisp.panel', {}) };
 const keep = () => save('wisp.panel', pref);
 // Stacked (a phone), Shell or PR is a page over the task's: { id, tab } while one shows, null on
@@ -48,7 +51,11 @@ const keep = () => save('wisp.panel', pref);
 let page = null;
 let pageBack = null;
 const pageOn = () => isStacked() && !!page && page.id === target();
-const tabOf = () => (pageOn() ? page.tab : pref.tab || spellProp('panel', 'tab') || 'shell');
+// Watch on a task with nothing to watch shows its shell.
+const tabOf = () => {
+  const tab = pageOn() ? page.tab : pref.tab || spellProp('panel', 'tab') || 'shell';
+  return tab === 'watch' && !S.sessions.get(target())?.watch ? 'shell' : tab;
+};
 
 const shells = new Map(); // task id -> its shell (term-view state), kept while it runs
 const spaces = new Map(); // task id -> the last workspace seen ({ dir, worktree, status, shell, … } or { error })
@@ -76,6 +83,7 @@ const panel = el(`
       <div class="pn-ended" hidden><span></span><button class="ghost xs" data-a="restart">${icon('replay')}<span>Start again</span></button></div>
     </section>
     <section class="pn-pr" hidden></section>
+    ${WATCH_HTML}
   </aside>`);
 $('#stage').append(panel);
 const view = new TermView($('.pn-shell', panel), { shown: () => !panel.hidden && $('.pn-shell', panel).hidden === false });
@@ -135,6 +143,8 @@ function paintTaskBtns(at) {
   const id = target();
   const b = $('.it-shell', S.nodes.get(id)?.body || document.createElement('i'));
   if (b) b.setAttribute('aria-pressed', at === 'shell');
+  const w = $('.it-watch', S.nodes.get(id)?.body || document.createElement('i'));
+  if (w) w.setAttribute('aria-pressed', at === 'watch');
   if (id) paintDoor(id);
 }
 
@@ -179,19 +189,24 @@ function paintName() {
   const prs = prsOf(s);
   const n = prs.length;
   const tab = tabOf();
-  const name = tab === 'shell' ? `${icon('shell')}<span>Shell</span>` : `${icon('merge')}<span>${n > 1 ? 'PRs' : n ? `PR #${prs[0].pr.number}` : 'PR'}</span>`;
+  const name = tab === 'shell' ? `${icon('shell')}<span>Shell</span>` : tab === 'watch' ? `${icon('eye')}<span>${esc(watchTitle(shown))}</span>` : `${icon('merge')}<span>${n > 1 ? 'PRs' : n ? `PR #${prs[0].pr.number}` : 'PR'}</span>`;
   const head = $('.pn-name', panel);
   if (head.dataset.h !== name) (head.innerHTML = name), (head.dataset.h = name);
-  panel.setAttribute('aria-label', tab === 'shell' ? 'Shell' : 'Pull request');
+  panel.setAttribute('aria-label', tab === 'shell' ? 'Shell' : tab === 'watch' ? 'Watch' : 'Pull request');
   $('.pn-shell', panel).hidden = tab !== 'shell';
   $('.pn-pr', panel).hidden = tab !== 'pr';
+  $('.pn-watch', panel).hidden = tab !== 'watch';
+  // Watch is about the page, not the folder: no place line.
+  panel.classList.toggle('on-watch', tab === 'watch');
   const acts = $('.pn-acts', panel);
   const html = slotHtml('panel.head', s);
   if (acts.dataset.h !== html) (acts.innerHTML = html), (acts.dataset.h = html);
 }
 
 function paintBody() {
-  if (tabOf() === 'shell') paintShell();
+  const tab = tabOf();
+  if (tab === 'shell') paintShell();
+  else if (tab === 'watch') paintWatch($('.pn-watch', panel), shown);
   else paintPr();
 }
 
@@ -630,6 +645,7 @@ panel.addEventListener('click', (e) => {
   if (e.target.closest('.pn-close, .pn-back')) return close();
   if (e.target.closest('.pn-more')) return placeMenu(e.target.closest('.pn-more'));
   if (e.target.closest('.pn-end')) return void endShell();
+  if (watchClick(e, shown)) return;
   const pick = e.target.closest('[data-pick]');
   if (pick) return (picked.set(shown, Number(pick.dataset.pick)), paintPr());
   const f = e.target.closest('[data-fold]')?.dataset.fold;
@@ -713,6 +729,21 @@ addEventListener('focus', () => {
 });
 bus.on('spells', () => !panel.hidden && (paintWidth(), paintName(), paintBody()));
 bus.on('panel:close', () => close());
+// Watch: the agent moved its page, or its task started or stopped (the caption's dot). Shown, it
+// fetches it now; else the next look does. A page just
+// put up on the task you're looking at opens here by itself, unless you're in its shell (never
+// pushed over a phone's task page: its Watch button is the way in there).
+bus.on('watch', ({ id, opened }) => {
+  const on = !panel.hidden && shown === id && tabOf() === 'watch';
+  if (on) loadWatch(id);
+  else forgetWatch(id);
+  if (opened && !on && !isStacked() && target() === id && (panel.hidden || tabOf() !== 'shell')) openPanel(id, 'watch');
+});
+bus.on('watch:doc', (id) => {
+  if (panel.hidden || shown !== id || tabOf() !== 'watch') return;
+  paintName();
+  paintWatch($('.pn-watch', panel), id);
+});
 // A task's own refresh: its PR pill moved (a check landed), so the PR looks again.
 let lastPr = '';
 bus.on('config', () => !panel.hidden && paintPlace());
@@ -778,6 +809,12 @@ export function shellButton(id) {
   else openPanel(id, 'shell');
 }
 
+// The task's Watch button: opens its page, or puts it away when that's what shows.
+export function watchButton(id) {
+  if (!panel.hidden && shown === id && tabOf() === 'watch') close();
+  else openPanel(id, 'watch');
+}
+
 // ⌃`: into the shell from anywhere, and from the shell back to the reply box.
 export function shellKey() {
   const id = shown || target() || S.focus;
@@ -792,6 +829,7 @@ export const reviewLabel = (s) => {
   return !prs.length ? null : prs.length > 1 ? 'Review PRs' : `Review PR #${prs[0].pr.number}`;
 };
 export const shellItem = (id) => `<button data-a="shell">${icon('shell')}Open shell${keyHint('⌃`')}</button>`;
+export const watchItem = (s) => (s?.watch ? `<button data-a="watch">${icon('eye')}Watch</button>` : '');
 export const panelLabel = () => `${panel.hidden ? 'Show' : 'Hide'} side panel`;
 
 queueMicrotask(paint);
