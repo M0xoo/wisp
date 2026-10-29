@@ -298,6 +298,10 @@ function describeTool(name, input, cwd) {
       return { kind: 'tool', label: `Tagging the task${input?.tags?.length ? `: ${clip(input.tags.map((t) => `#${t}`).join(' '), 60)}` : ''}` };
     case 'mcp__wisp__wisp_pr':
       return { kind: 'tool', label: input?.remove ? 'Detaching a PR' : `Attaching PR ${clip(String(input?.pr || '').replace(/^https:\/\/github\.com\//, ''), 60)}` };
+    case 'mcp__wisp__wisp_save':
+      return { kind: 'tool', label: `${input?.id ? 'Updating' : 'Saving'} ${clip(String(input?.title || input?.name || String(input?.app || input?.path || input?.url || '').split(/[\\/]/).pop() || 'it'), 50)} ${input?.id ? 'in' : 'to'} My Stuff` };
+    case 'mcp__wisp__wisp_stuff':
+      return { kind: 'tool', label: 'Looking in My Stuff' };
     case 'mcp__wisp__wisp_blocks':
       return { kind: 'tool', label: 'Reading block formats' };
     case 'mcp__wisp__wisp_stats':

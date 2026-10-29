@@ -9,6 +9,8 @@
 // `resume_later` schedules a follow-up to this same task (server/later.js).
 // `wisp_tag` names the task's topics, the words the user finds it by in wisp's search.
 // `wisp_pr` attaches a GitHub PR to the task: it shows like one Ship it opened, and wisp follows it.
+// `wisp_save` keeps a file, text or link in the user's My Stuff (server/services/stuff.js); `wisp_stuff`
+// finds what's there, with each file's path.
 // `wisp_blocks` answers the full docs of the long answer blocks the protocol only names (graph, app).
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
@@ -99,6 +101,52 @@ const PR = {
       remove: { type: 'boolean', description: 'Detach this PR from the task instead.' },
     },
     required: ['pr'],
+  },
+};
+
+// My Stuff: the user's own shelf of things kept from tasks (services/stuff.js).
+const SAVE = {
+  name: 'wisp_save',
+  description:
+    'Save something to the user\'s My Stuff in wisp: their shelf of things kept from tasks (pictures, videos, documents, code, ' +
+    'any file, links), where they browse and search them later. wisp keeps a copy, so it stays when the task or its folder goes. ' +
+    'Call it when the user asks you to save or keep something for them ("save that to my stuff", "keep the logo"), ' +
+    'not on your own for everything you make. One item per call; give exactly one of path, text, url or app. ' +
+    'For a bigger thing (slides, a demo, a small tool), build it as a static web app (index.html with its JS, CSS and assets; ' +
+    'no server, no install step; bundle dependencies in or load them from a CDN) and save its folder as app: wisp serves and ' +
+    'launches it for the user. With id, it updates an item they already have (a mentioned one, or from wisp_stuff) instead ' +
+    'of adding one; the version before is kept.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'A file you made or found: absolute, or relative to your working directory.' },
+      text: { type: 'string', description: 'Or text to save as a file: a note, a doc (markdown) or a snippet. Give it a name with an extension.' },
+      url: { type: 'string', description: 'Or a link (http/https).' },
+      app: { type: 'string', description: 'Or an app: a folder with index.html (or wisp-app.json naming { name, entry, description }). node_modules and .git are left out.' },
+      cover: { type: 'string', description: 'With app: a screenshot of it (png/jpg), for its card.' },
+      id: { type: 'string', description: 'Update this item instead of adding one: new content (path, text, url or app) and/or title, note, tags.' },
+      name: { type: 'string', description: 'File name to keep it under, e.g. "launch-plan.md". Default: the file\'s own name.' },
+      title: { type: 'string', description: 'What the user sees on its card, a few words. Default: from the file name.' },
+      note: { type: 'string', description: 'Optional: one or two sentences on what it is, to find it by later.' },
+      tags: { type: 'array', items: { type: 'string' }, description: 'Optional: 1–5 short words to find it by, e.g. ["logo", "brand"].' },
+    },
+  },
+};
+
+const STUFF = {
+  name: 'wisp_stuff',
+  description:
+    'List or search the user\'s My Stuff in wisp: what they (or agents) saved from tasks, newest first, each with its title, kind, ' +
+    'note, tags and the path of its file (or its url). Read-only. Use it when the user refers to something they saved ' +
+    '("use the logo from my stuff"): read or copy the file from its path.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      query: { type: 'string', description: 'Only items whose title, name, note, tags or task have all these words.' },
+      id: { type: 'string', description: 'One item in full: a doc\'s or snippet\'s text, an app\'s files, and how to update it.' },
+      kind: { type: 'string', enum: ['image', 'video', 'doc', 'code', 'file', 'link', 'app'] },
+      limit: { type: 'number', description: 'Default 30, at most 100.' },
+    },
   },
 };
 
@@ -423,7 +471,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, TAG, PR, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, TAG, PR, SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -437,6 +485,13 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     } else if (method === 'tools/call' && params?.name === 'wisp_pr') {
       const r = await call(`/api/internal/prs`, { session: WISP_SESSION, pr: params.arguments?.pr, remove: !!params.arguments?.remove });
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_save') {
+      const r = await call(`/api/internal/stuff`, { session: WISP_SESSION, ...(params.arguments || {}) });
+      send({ id, result: { content: [{ type: 'text', text: r.text }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_stuff') {
+      const a = params.arguments || {};
+      const q = new URLSearchParams(Object.entries({ id: a.id, query: a.query, kind: a.kind, limit: a.limit }).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]));
+      send({ id, result: { content: [{ type: 'text', text: (await call(`/api/internal/stuff/${WISP_SESSION}?${q}`)).text }] } });
     } else if (method === 'tools/call' && WISP_APPROVE && params?.name === 'approve') {
       send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_blocks') {

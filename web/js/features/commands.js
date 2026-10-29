@@ -19,6 +19,7 @@ import { inBrowser, openGetApp } from './getapp.js';
 import { openMachines } from './machines.js';
 import { openMemory } from './memory.js';
 import { openOrg } from './org.js';
+import { openStuff, stuffPalette } from './stuff.js';
 import { openPhone } from './phone.js';
 import { openProjects, renderProjects } from './projects.js';
 import { agentName } from './runners.js';
@@ -129,6 +130,7 @@ function paletteItems() {
   items.push(
     { group: a, label: 'Add project…', icon: 'folder', keywords: 'folder repo directory', run: () => openProjects({ focusAdd: true }) },
     { group: a, label: 'Manage projects', icon: 'folder', keywords: 'rename color remove', run: () => openProjects() },
+    { group: a, label: 'My Stuff', icon: 'stuff', keywords: 'saved kept files images pictures videos docs code links artifacts library collection', run: () => openStuff() },
     { group: a, label: 'Memory', icon: 'spark', keywords: 'learned preferences lessons retro', run: () => openMemory() },
     { group: a, label: 'Recipes', icon: 'bolt', keywords: 'automations saved prompts templates', run: () => openAutomations({ tab: 'recipes' }) },
     { group: a, label: 'Triggers', icon: 'replay', keywords: 'automations schedule cron ci issues github', run: () => openAutomations({ tab: 'triggers' }) },
@@ -164,6 +166,8 @@ function paletteItems() {
     for (const c of cmds) items.push({ group: 'Spells', label: c.label, sub: spell.name, icon: c.icon || 'wizard', kbd: c.key ? c.key.replace(/^shift\+/i, '⇧').toUpperCase() : undefined, keywords: `spell ${c.keywords || ''}`, run: () => runAction(spell, c.do, { session: S.focus }) });
   }
   if (feedbackOn()) items.push({ group: a, label: 'Send feedback…', icon: 'thumb-up', keywords: 'feedback bug report broken crash idea suggestion thumbs contact team', run: () => openFeedback() });
+
+  items.push(...stuffPalette()); // what's in My Stuff, to open from here
 
   for (const r of S.config.recipes || []) items.push({ group: 'Recipes', label: `Run: ${r.name}`, sub: r.prompt.replace(/\s+/g, ' ').slice(0, 80), icon: 'bolt', keywords: `recipe ${r.prompt}`, run: () => runRecipe({ ...r, params: recipeParams(r.prompt) }) });
 

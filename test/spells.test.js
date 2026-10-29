@@ -281,6 +281,21 @@ test('Org: its button, page, chart, cards and details are parts; its header take
   assert.ok(problems({ ...base0, parts: { 'org.nope': { hide: true } } }).some((x) => /org\.nope/.test(x)));
 });
 
+test('My Stuff: its box, page, filters, cards and Save buttons are parts; its header takes buttons; view, group and cardWidth are props', () => {
+  const ok = {
+    ...base0,
+    parts: { 'stuff.button': { hide: true }, 'stuff.launch': { style: { borderRadius: '6px' } }, 'stuff.page': { style: { background: 'var(--surface)' } }, 'stuff.filters': { hide: true }, 'stuff.card': { style: { borderRadius: '6px' } }, 'stuff.save': { hide: true } },
+    buttons: [{ slot: 'stuff.head', icon: 'stuff', label: 'Moodboard', do: { open: 'https://example.com' } }],
+  };
+  assert.deepEqual(problems(ok), []);
+  assert.ok(schema.SLOTS['stuff.head'] && !schema.CARD_SLOTS.has('stuff.head'));
+  for (const i of ['stuff', 'star', 'image', 'grid', 'app']) assert.ok(schema.ICONS.includes(i), i);
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'stuff.head', panel: 'x' }] }).length);
+  assert.deepEqual(problems({ ...base0, parts: { 'stuff.page': { props: { view: 'list', group: 'task', cardWidth: 280 } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'stuff.page': { props: { view: 'tiles' } } } }).some((x) => /view/.test(x)));
+  assert.ok(problems({ ...base0, parts: { 'stuff.page': { props: { cardWidth: 40 } } } }).some((x) => /cardWidth/.test(x)));
+});
+
 test('Org: moving cards by hand can be turned off, and Reset layout is a part', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'org.chart': { props: { movable: false } }, 'org.reset': { hide: true } } }), []);
   assert.ok(problems({ ...base0, parts: { 'org.chart': { props: { movable: 'no' } } } }).some((x) => /movable/.test(x)));

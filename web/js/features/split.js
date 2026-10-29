@@ -31,6 +31,7 @@ import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
 import { leaveOrg, orgShown, paintOrg } from './org.js';
 import { leavePlan, paintPlan, planShown } from './plan-view.js';
+import { leaveStuff, paintStuff, stuffShown } from './stuff.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 import { planLine } from './budget.js';
@@ -97,6 +98,7 @@ export function goHome({ focus = true } = {}) {
   leaveCrew(); // a crew member's thread too
   leaveOrg(); // and the Org page
   leavePlan(); // and a scheduled task's page
+  leaveStuff(); // and My Stuff
   for (const id of [...S.open]) collapse(id);
   homeAsked = isStacked();
   paintSplit();
@@ -111,6 +113,7 @@ export function goBack({ focus = false } = {}) {
   leaveCrew();
   leaveOrg();
   leavePlan();
+  leaveStuff();
   for (const id of [...S.open]) collapse(id);
   homeAsked = false;
   paintSplit();
@@ -328,7 +331,8 @@ export function paintSplit() {
   paintCrewView(); // a crew member's thread fills the pane while no task is open (crew.js)
   paintOrg(); // …and so does the Org page (org.js)
   paintPlan(); // …and a scheduled task's page (plan-view.js)
-  const crew = crewViewShown() || orgShown() || planShown();
+  paintStuff(); // …and My Stuff (stuff.js)
+  const crew = crewViewShown() || orgShown() || planShown() || stuffShown();
   const stacked = isStacked();
   if (s || crew) homeAsked = false;
   paintPage(stacked && (!!s || crew || homeAsked));

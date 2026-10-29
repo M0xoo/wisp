@@ -165,7 +165,7 @@ export function normalizeSpell(raw) {
     else if (allowed && !allowed.includes(slot)) p.at_(where, `this goes in ${allowed.join(', ')}`);
   };
 
-  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu', 'sidebar.top', 'split.head', 'split.details', 'term.head', 'panel.head', 'crew.page', 'org.head', 'plan.head', 'split.upcoming', 'goal.band'];
+  const BUTTON_SLOTS = ['topbar', 'float', 'palette', 'launcher.bar', 'launcher.chips', 'composer.bar', 'composer.chips', 'card.hover', 'card.menu', 'sidebar.top', 'split.head', 'split.details', 'term.head', 'panel.head', 'crew.page', 'org.head', 'plan.head', 'stuff.head', 'split.upcoming', 'goal.band'];
   const buttons = arr(j.buttons).slice(0, MAX_ITEMS).map((b, i) => {
     const where = `buttons[${i}]`;
     const x = obj(b) || {};
@@ -456,7 +456,7 @@ export function describeSpell(s) {
     }[k];
     return what ? what() : k;
   };
-  const WHERE = { topbar: 'A top bar button', float: 'A floating button', palette: 'A ⌘K item', 'launcher.bar': 'A prompt box button', 'launcher.chips': 'A chip under the prompt box', 'composer.bar': 'A follow-up box button', 'composer.chips': 'A quick reply above the follow-up box', 'card.head': "A chip in each card's head", 'card.hover': 'A card button (on hover)', 'card.menu': "An item in each card's menu", 'term.head': "A button in a task's terminal", 'panel.head': "A button in the side panel's head", 'crew.page': "A button on each crew member's page", 'org.head': 'A button on the Org page', 'plan.head': "A button on a scheduled task's page" };
+  const WHERE = { topbar: 'A top bar button', float: 'A floating button', palette: 'A ⌘K item', 'launcher.bar': 'A prompt box button', 'launcher.chips': 'A chip under the prompt box', 'composer.bar': 'A follow-up box button', 'composer.chips': 'A quick reply above the follow-up box', 'card.head': "A chip in each card's head", 'card.hover': 'A card button (on hover)', 'card.menu': "An item in each card's menu", 'term.head': "A button in a task's terminal", 'panel.head': "A button in the side panel's head", 'crew.page': "A button on each crew member's page", 'org.head': 'A button on the Org page', 'plan.head': "A button on a scheduled task's page", 'stuff.head': 'A button on My Stuff' };
   const cards = (w) => (w ? ` (cards ${Object.entries(w).map(([k, v]) => `${k}: ${v}`).join(', ')})` : '');
   for (const b of s.buttons || []) lines.push(`${WHERE[b.slot] || b.slot} “${b.label || b.icon}”${cards(b.when)} that ${act(b.do)}`);
   for (const c of s.chips || []) lines.push(`${WHERE[c.slot] || c.slot}${c.text ? ` showing “${c.text}”` : ''}${cards(c.when)}${c.do ? ` that ${act(c.do)}` : ''}`);

@@ -1,11 +1,13 @@
 // Task mentions in prompts, without the DOM. A prompt stores one as `@[Title](wisp:<id>)`; the
 // prompt box shows `@Title` and keeps the ids aside (mentions = [{ id, title }]). The server reads
 // the same form (server/mentions.js). A crew member is `@[Name](crew:<id>)` (kind: 'crew'), which
-// sends them the message (server/crew.js).
+// sends them the message (server/crew.js). Something in My Stuff is `@[Title](stuff:<id>)` (kind:
+// 'stuff'): the agent gets its file (server/mentions.js).
 
 export const MENTION = /@\[([^\]\n]{1,200})\]\(wisp:([a-z0-9]{6,40})\)/g;
 export const CREW_MENTION = /@\[([^\]\n]{1,200})\]\(crew:([a-z0-9]{6,40})\)/g;
-const ANY = /@\[([^\]\n]{1,200})\]\((wisp|crew):([a-z0-9]{6,40})\)/g;
+export const STUFF_MENTION = /@\[([^\]\n]{1,200})\]\(stuff:([a-z0-9]{6,40})\)/g;
+const ANY = /@\[([^\]\n]{1,200})\]\((wisp|crew|stuff):([a-z0-9]{6,40})\)/g;
 
 // Titles go inside [...], so no ] or newlines.
 export const cleanTitle = (t) => String(t || 'Untitled task').replace(/[\]\n\r]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Untitled task';
@@ -14,7 +16,7 @@ export const cleanTitle = (t) => String(t || 'Untitled task').replace(/[\]\n\r]+
 export function decode(text = '') {
   const mentions = [];
   const shown = String(text).replace(ANY, (_, title, scheme, id) => {
-    if (!mentions.some((m) => m.id === id)) mentions.push({ id, title, ...(scheme === 'crew' && { kind: 'crew' }) });
+    if (!mentions.some((m) => m.id === id)) mentions.push({ id, title, ...(scheme !== 'wisp' && { kind: scheme }) });
     return `@${title}`;
   });
   return { text: shown, mentions };
@@ -39,7 +41,7 @@ export function encode(text = '', mentions = []) {
   let out = '';
   let at = 0;
   for (const s of spans(text, mentions)) {
-    out += text.slice(at, s.start) + `@[${s.title}](${s.kind === 'crew' ? 'crew' : 'wisp'}:${s.id})`;
+    out += text.slice(at, s.start) + `@[${s.title}](${s.kind === 'crew' || s.kind === 'stuff' ? s.kind : 'wisp'}:${s.id})`;
     at = s.end;
   }
   return out + text.slice(at);
@@ -53,7 +55,8 @@ export const plain = (text = '') => String(text).replace(ANY, '@$1');
 export const mentionHtml = (html, { link = true } = {}) =>
   html
     .replace(MENTION, (_, title, id) => (link ? `<a class="mn" href="#/s/${id}" title="Open this task">@${title}</a>` : `<span class="mn">@${title}</span>`))
-    .replace(CREW_MENTION, (_, title, id) => (link ? `<button type="button" class="mn crew" data-crew="${id}" title="Open ${title}">@${title}</button>` : `<span class="mn crew">@${title}</span>`));
+    .replace(CREW_MENTION, (_, title, id) => (link ? `<button type="button" class="mn crew" data-crew="${id}" title="Open ${title}">@${title}</button>` : `<span class="mn crew">@${title}</span>`))
+    .replace(STUFF_MENTION, (_, title, id) => (link ? `<button type="button" class="mn stuff" data-stuff="${id}" title="Open it from My Stuff">@${title}</button>` : `<span class="mn stuff">@${title}</span>`));
 
 // Pasted text that is only task references (ids, `wisp:<id>`, `#/s/<id>` links), each a task
 // `known(id)` finds → those ids; anything else → null (pasted as ordinary text).

@@ -327,6 +327,8 @@ function describeMcp(item) {
   if (item.server === 'wisp' && (item.tool === 'delegate' || item.tool === 'subagent_results')) return { kind: 'agent', label: 'Waiting on subagents' };
   if (item.server === 'wisp' && item.tool === 'wisp_tag') return { kind: 'tool', label: 'Tagging the task' };
   if (item.server === 'wisp' && item.tool === 'wisp_pr') return { kind: 'tool', label: 'Attaching a PR' };
+  if (item.server === 'wisp' && item.tool === 'wisp_save') return { kind: 'tool', label: 'Saving to My Stuff' };
+  if (item.server === 'wisp' && item.tool === 'wisp_stuff') return { kind: 'tool', label: 'Looking in My Stuff' };
   if (item.server === 'wisp' && item.tool === 'wisp_blocks') return { kind: 'tool', label: 'Reading block formats' };
   if (item.server === 'wisp' && item.tool === 'wisp_stats') return { kind: 'tool', label: 'Reading wisp stats' };
   if (item.server === 'wisp' && item.tool === 'wisp_sessions') return { kind: 'tool', label: 'Listing wisp tasks' };

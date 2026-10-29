@@ -9,7 +9,7 @@
 
 import { aheadLabel } from './later.js';
 import { esc, md } from '../md.js';
-import { plain } from '../mention-text.js';
+import { cleanTitle, plain } from '../mention-text.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
 import { $, $$, el, icon } from '../core/dom.js';
@@ -36,6 +36,7 @@ import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
 import { importCrew, reviewChange, shareMember } from './crew-share.js';
 import { trackRecord } from './crew-record.js';
+import { stuffCount, stuffMatches, stuffSub, stuffThumbHtml } from './stuff.js';
 import { TEMPLATES } from '../crew-templates.js';
 import { cronWords, toCron } from '../schedule.js';
 
@@ -1543,26 +1544,29 @@ export function addressedTo(text) {
 
 // --- @ in a prompt box ---------------------------------------------------------------------------------
 
-// Typing @ and a few letters in any prompt or follow-up box offers the crew; picking one puts them in
-// as a mention (`@[Ada](crew:<id>)` in what's sent; the box shows @Ada). A message that starts with
-// them is theirs; a mention further in lets the task's agent hand them work.
+// Typing @ and a few letters in any prompt or follow-up box offers the crew, then what's in My Stuff
+// (stuff.js); picking one puts it in as a mention (`@[Ada](crew:<id>)` or `@[Logo](stuff:<id>)` in
+// what's sent; the box shows @Ada). A message that starts with a member is theirs; a member further
+// in lets the task's agent hand them work; a thing from My Stuff hands the agent its file.
 let picker = null; // { ta, close, list, act, start }
 const NATIVE = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
 
 function pickerFor(ta) {
-  if (!ta?.mentions || !crewList().length) return closePicker();
+  if (!ta?.mentions || (!crewList().length && !stuffCount())) return closePicker();
   const caret = ta.selectionStart;
   if (caret !== ta.selectionEnd) return closePicker();
   const before = NATIVE.get.call(ta).slice(0, caret); // what the box shows, not the stored form
   const m = before.match(/(^|[\s(])@([\p{L}\p{N}._-]{0,24})$/u);
   if (!m) return closePicker();
   const q = m[2].toLowerCase();
-  const list = rankCrew(crewList().filter((x) => x.id !== ta.dataset.crew && (!q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q)))).slice(0, 6);
+  const crew = rankCrew(crewList().filter((x) => x.id !== ta.dataset.crew && (!q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q)))).slice(0, 6);
+  const stuff = stuffMatches(q, crew.length ? 5 : 8);
+  const list = [...crew.map((m) => ({ kind: 'crew', id: m.id, title: m.name, m })), ...stuff.map((it) => ({ kind: 'stuff', id: it.id, title: cleanTitle(it.title), it }))];
   if (!list.length) return closePicker();
   const start = caret - m[2].length - 1;
   if (!picker || picker.ta !== ta) {
     closePicker();
-    const node = el(`<div class="menu cr-pick" role="listbox" aria-label="Crew"></div>`);
+    const node = el(`<div class="menu cr-pick" role="listbox" aria-label="Mention"></div>`);
     node.addEventListener('mousedown', (e) => {
       e.preventDefault(); // keep the box focused
       const b = e.target.closest('[data-i]');
@@ -1571,9 +1575,14 @@ function pickerFor(ta) {
     picker = { ta, node, close: popover(node, { anchor: ta, back: ta, onClose: () => (picker = null) }), act: 0 };
   }
   Object.assign(picker, { list, start, act: Math.min(picker.act, list.length - 1) });
-  picker.node.innerHTML = `<div class="wm-h">Crew <small>↵ to tag · a message that starts with them is theirs</small></div>${list
-    .map((x, i) => `<button type="button" class="cr-pick-row${i === picker.act ? ' act' : ''}" data-i="${i}" role="option">${avatarHtml(x, { size: 24, dot: false })}<span class="cr-main"><b>${esc(x.name)}</b>${x.role ? `<small>${esc(x.role)}</small>` : ''}</span></button>`)
-    .join('')}`;
+  const row = (x, i) =>
+    x.kind === 'crew'
+      ? `<button type="button" class="cr-pick-row${i === picker.act ? ' act' : ''}" data-i="${i}" role="option">${avatarHtml(x.m, { size: 24, dot: false })}<span class="cr-main"><b>${esc(x.m.name)}</b>${x.m.role ? `<small>${esc(x.m.role)}</small>` : ''}</span></button>`
+      : `<button type="button" class="cr-pick-row st-pick${i === picker.act ? ' act' : ''}" data-i="${i}" role="option">${stuffThumbHtml(x.it)}<span class="cr-main"><b>${esc(x.it.title)}</b><small>${esc(stuffSub(x.it))}</small></span></button>`;
+  picker.node.innerHTML = [
+    crew.length ? `<div class="wm-h">Crew <small>↵ to tag · a message that starts with them is theirs</small></div>${crew.map((x, i) => row(list[i], i)).join('')}` : '',
+    stuff.length ? `<div class="wm-h">My Stuff <small>the agent gets the file</small></div>${stuff.map((x, i) => row(list[crew.length + i], crew.length + i)).join('')}` : '',
+  ].join('');
   // Under the box where there's room, else over it.
   const r = ta.getBoundingClientRect();
   const h = picker.node.offsetHeight;
@@ -1591,12 +1600,12 @@ function choose(i) {
   const m = p?.list[i];
   if (!m) return;
   const { ta } = p;
-  if (!ta.mentions.some((x) => x.id === m.id)) ta.mentions.push({ id: m.id, title: m.name, kind: 'crew' });
+  if (!ta.mentions.some((x) => x.id === m.id)) ta.mentions.push({ id: m.id, title: m.title, kind: m.kind });
   ta.focus();
   ta.setSelectionRange(p.start, ta.selectionStart);
   closePicker();
-  if (!document.execCommand('insertText', false, `@${m.name} `)) {
-    ta.setRangeText(`@${m.name} `, ta.selectionStart, ta.selectionEnd, 'end');
+  if (!document.execCommand('insertText', false, `@${m.title} `)) {
+    ta.setRangeText(`@${m.title} `, ta.selectionStart, ta.selectionEnd, 'end');
     ta.dispatchEvent(new Event('input', { bubbles: true }));
   }
 }
