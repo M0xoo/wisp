@@ -38,6 +38,8 @@ export function kindOf(name) {
 }
 
 const safeName = (name, fallback = 'file') => path.basename(String(name || '')).replace(/[^\w.\- ]+/g, '_').replace(/^\.+/, '').slice(-120) || fallback;
+// Windows can still hold a file an app's server just sent when its folder goes: retry, don't fail.
+const rmTree = (p) => fs.rmSync(p, { recursive: true, force: true, maxRetries: 5 });
 const titleFrom = (name) => name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || name;
 // The opening of a doc or snippet, for its card. Docs lose their front matter.
 // Unlike clip(), it keeps the lines.
@@ -179,7 +181,7 @@ export class Stuff {
   // note and tags, and the content before it kept as the one previous version (restore swaps).
   #keep(old, it) {
     if (!old) return it;
-    if (old.prev?.path && old.prev.path !== old.path) fs.rmSync(old.prev.path, { recursive: true, force: true });
+    if (old.prev?.path && old.prev.path !== old.path) rmTree(old.prev.path);
     if (old.cover && it.cover && old.cover !== it.cover) fs.rmSync(old.cover, { force: true });
     // A title from the file's name doesn't replace the one it has (yours, or the agent's).
     const title = it.titled ? it.title : old.title;
@@ -285,7 +287,7 @@ export class Stuff {
     const it = this.byId.get(id);
     if (!it) return false;
     this.byId.delete(id);
-    for (const p of [it.path, it.prev?.path, it.cover]) if (p) fs.rmSync(p, { recursive: true, force: true });
+    for (const p of [it.path, it.prev?.path, it.cover]) if (p) rmTree(p);
     fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
     this.onChange();
     return true;
@@ -324,7 +326,7 @@ export class Stuff {
     try {
       copy(src, dest);
     } catch (err) {
-      fs.rmSync(dest, { recursive: true, force: true });
+      rmTree(dest);
       throw err;
     }
     const it = {
