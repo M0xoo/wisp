@@ -307,6 +307,69 @@ test('a follow-up can switch the mode: plan → edits → auto, and a queued one
   assert.equal(bad.status, 400);
 });
 
+test('queued follow-ups can be changed and reordered before they go out', async () => {
+  const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await until(async () => (await session(s.id)).state === 'review');
+  const patch = (body) => fetch(`${base}/api/sessions/${s.id}/queue`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  process.env.FAKE_HANG = '1';
+  try {
+    await api(`/sessions/${s.id}/reply`, { text: 'long one' });
+    await until(async () => (await session(s.id)).turns[1]?.activity.length > 0);
+    for (const text of ['first', 'second', 'third']) await api(`/sessions/${s.id}/reply`, { text, queue: true });
+    let q = (await session(s.id)).queue;
+    assert.deepEqual(q.map((x) => x.text), ['first', 'second', 'third']);
+    assert.equal((await patch({ item: q[1].id, text: '  second, changed  ' })).status, 200);
+    assert.equal((await patch({ order: [q[2].id, q[0].id] })).status, 200); // the one left out keeps its place at the end
+    assert.deepEqual((await session(s.id)).queue.map((x) => x.text), ['third', 'first', 'second, changed']);
+    assert.equal((await patch({ item: q[0].id, text: '  ' })).status, 400);
+    assert.equal((await patch({ item: 'nope', text: 'x' })).status, 404);
+    // Stop keeps them, held: nothing goes out by itself.
+    await api(`/sessions/${s.id}/stop`, {});
+    await until(async () => (await session(s.id)).state !== 'running');
+  } finally {
+    delete process.env.FAKE_HANG;
+  }
+  let x = await session(s.id);
+  assert.deepEqual(x.queue.map((q) => q.text), ['third', 'first', 'second, changed']);
+  assert.equal(x.queueHeld, true);
+  assert.equal((await api('/sessions')).find((y) => y.id === s.id).queueHeld, true);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal((await session(s.id)).turns.length, 2, 'a held queue sends nothing');
+  // Combine two into one, in the queue's order, where the first was.
+  assert.equal((await patch({ merge: [x.queue[1].id, x.queue[0].id] })).status, 200);
+  assert.equal((await patch({ merge: [x.queue[2].id] })).status, 404, 'one is nothing to combine');
+  x = await session(s.id);
+  assert.deepEqual(x.queue.map((q) => q.text), ['third\n\nfirst', 'second, changed']);
+  // Send now: it goes at once, and the rest of the queue carries on after it.
+  assert.equal((await patch({ item: x.queue[0].id, now: true })).status, 200);
+  await until(async () => (await session(s.id)).turns.length === 4 && (await session(s.id)).state === 'review');
+  x = await session(s.id);
+  assert.deepEqual(x.turns.slice(2).map((t) => t.prompt), ['third\n\nfirst', 'second, changed']);
+  assert.equal(x.queue.length, 0);
+  assert.equal(x.queueHeld, undefined);
+  assert.equal((await patch({ item: 'gone', now: true })).status, 404);
+});
+
+test('Send now on a queued follow-up interrupts the run with it', async () => {
+  const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await until(async () => (await session(s.id)).state === 'review');
+  process.env.FAKE_HANG = '1';
+  try {
+    await api(`/sessions/${s.id}/reply`, { text: 'long one' });
+    await until(async () => (await session(s.id)).turns[1]?.activity.length > 0);
+    for (const text of ['later one', 'urgent one']) await api(`/sessions/${s.id}/reply`, { text, queue: true });
+  } finally {
+    delete process.env.FAKE_HANG;
+  }
+  const q = (await session(s.id)).queue;
+  const r = await fetch(`${base}/api/sessions/${s.id}/queue`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ item: q[1].id, now: true }) });
+  assert.equal(r.status, 200);
+  await until(async () => (await session(s.id)).turns.length === 4 && (await session(s.id)).state === 'review');
+  const x = await session(s.id);
+  assert.equal(x.turns[1].status, 'stopped', 'the run it interrupted');
+  assert.deepEqual(x.turns.slice(2).map((t) => t.prompt), ['urgent one', 'later one']);
+});
+
 test('an interrupting follow-up keeps the task in Working: no flash through Needs you, no notification', async () => {
   const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', worktree: false });
   await until(async () => (await session(s.id)).state === 'review');

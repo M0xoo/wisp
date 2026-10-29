@@ -64,8 +64,9 @@ function revealInFolder(file) {
 }
 
 // A session "needs you" once it stops running: finished, or blocked on ask_user. A finished run
-// with follow-ups still queued is about to start the next one, so it doesn't count yet.
-const settled = (s) => s.state === 'waiting' || (s.state !== 'running' && !s.queue?.length);
+// with follow-ups still queued is about to start the next one, so it doesn't count yet (unless a
+// Stop held them: then nothing goes until you say).
+const settled = (s) => s.state === 'waiting' || (s.state !== 'running' && (!s.queue?.length || !!s.queueHeld));
 
 export function register(r, app) {
   const { store, runner, machines, telemetry, launcher } = app;
@@ -449,6 +450,24 @@ export function register(r, app) {
     one((c, s) => {
       const ok = runner.unqueue(s, c.query.get('item') || '');
       return ok ? c.send(200, { ok }) : c.send(404, { error: 'Already sent.' });
+    }),
+  );
+  // { item, text }: change a queued follow-up. { order: [ids] }: the order they go out in.
+  // { merge: [ids] }: combine them into one. { item, now: true }: send it now, interrupting the run.
+  r.route(
+    'PATCH',
+    '/sessions/:id/queue',
+    one(async (c, s) => {
+      const { item, text, order, merge, now } = await c.body();
+      if (Array.isArray(order)) return runner.reorderQueue(s, order.map(String)) ? c.send(200, { ok: true }) : c.send(404, { error: 'Already sent.' });
+      if (Array.isArray(merge)) return runner.mergeQueued(s, merge.map(String)) ? c.send(200, { ok: true }) : c.send(404, { error: 'Pick two or more of your follow-ups still waiting.' });
+      if (now === true) {
+        notTour(s, 'follow up');
+        if (app.terms.get(s.id)?.code === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
+        return runner.sendQueued(s, String(item || '')) ? c.send(200, { ok: true }) : c.send(404, { error: 'Already sent.' });
+      }
+      if (typeof text !== 'string' || !text.trim()) return c.send(400, { error: 'text required: what the follow-up says.' });
+      return runner.editQueued(s, String(item || ''), text.trim()) ? c.send(200, { ok: true }) : c.send(404, { error: 'Already sent.' });
     }),
   );
 

@@ -188,7 +188,7 @@ export function createRelay(app) {
       let last = '';
       for (;;) {
         const sum = await there.state(rid);
-        const settled = sum.state !== 'running' && !sum.queued;
+        const settled = sum.state !== 'running' && (!sum.queued || sum.queueHeld);
         if (settled) break;
         const label = sum.live || 'Working';
         const res = await leadCall(lead, r.child, { op: 'progress', turn: r.turn, ...(label !== last && { item: { kind: 'agent', label } }) });
@@ -229,7 +229,7 @@ export function createRelay(app) {
       let last = '';
       for (;;) {
         const sum = await there.state(rid);
-        if (sum.state !== 'running' && !sum.queued) break;
+        if (sum.state !== 'running' && (!sum.queued || sum.queueHeld)) break;
         const label = sum.live || 'Working';
         const res = await leadCall(lead, r.child, { op: 'progress', turn: r.turn, ...(label !== last && { item: { kind: 'agent', label } }) });
         last = label;
