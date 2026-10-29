@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Removing an app from My Stuff on Windows** no longer fails with *directory not empty* right after the app was running: wisp retries while Windows lets go of the files it just served.
+
 ## [0.49.0] - 2026-10-29
 
 ### Added
