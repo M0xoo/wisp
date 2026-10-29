@@ -12,6 +12,7 @@ import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpo
 import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree } from '../git.js';
 import { MIME } from '../http/static.js';
+import { sendFile } from '../http/respond.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
 import { alsoDirs, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
@@ -30,7 +31,7 @@ const MEDIA_BLOCKS = new Set(['image', 'video']);
 // A picture or video the agent pointed at: the file on disk, if it's inside the session's project
 // or the agent named that exact path in a block (screenshots often land in /tmp). `source` is
 // where the agent saved it, when wisp shows a copy (store.keepImages).
-function mediaFile(s, asked) {
+export function mediaFile(s, asked) {
   const dir = workdir(s);
   let p = path.resolve(dir, asked || '');
   const media = s.turns.flatMap((t) => (t.presentation?.blocks || []).filter((b) => MEDIA_BLOCKS.has(b?.type)));
@@ -45,7 +46,7 @@ function mediaFile(s, asked) {
 }
 
 // A markdown file a doc block showed (Store.keepDocs): inside the project, or the path it named.
-function docFile(s, asked) {
+export function docFile(s, asked) {
   if (!asked) return null;
   const dir = workdir(s);
   const p = path.resolve(dir, asked);
@@ -55,7 +56,7 @@ function docFile(s, asked) {
 }
 
 // Shows a file selected in Finder / Explorer; other systems open its folder.
-function revealInFolder(file) {
+export function revealInFolder(file) {
   if (process.env.WISP_NO_OPEN === '1') return; // tests
   const [cmd, args] = process.platform === 'darwin' ? ['open', ['-R', file]] : process.platform === 'win32' ? ['explorer', [`/select,${file}`]] : ['xdg-open', [path.dirname(file)]];
   try {
@@ -651,21 +652,7 @@ export function register(r, app) {
     one((c, s) => {
       const f = mediaFile(s, c.query.get('path'));
       if (!f) return c.send(404, { error: 'not found' });
-      const type = MIME[path.extname(f.path).toLowerCase()] || 'application/octet-stream';
-      const { size } = fs.statSync(f.path);
-      const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.headers.range || '');
-      if (range && (range[1] || range[2])) {
-        const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
-        const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
-        if (start >= size || start > end) {
-          c.res.writeHead(416, { 'content-range': `bytes */${size}` });
-          return c.res.end();
-        }
-        c.res.writeHead(206, { 'content-type': type, 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${size}`, 'content-length': end - start + 1 });
-        return fs.createReadStream(f.path, { start, end }).pipe(c.res);
-      }
-      c.res.writeHead(200, { 'content-type': type, 'accept-ranges': 'bytes', 'content-length': size });
-      fs.createReadStream(f.path).pipe(c.res);
+      sendFile(c.req, c.res, f.path, MIME[path.extname(f.path).toLowerCase()] || 'application/octet-stream');
     }),
     { doc: false },
   );

@@ -675,7 +675,7 @@ export class Runner extends EventEmitter {
   #sideRun(session, turn, entry, attachments, forked) {
     const adapter = adapters[entry.agent];
     const name = (t) => adapters[t.agent || session.agent]?.name || t.agent || session.agent;
-    const question = agentPrompt(entry.question, this.store, { tool: null, self: session.id });
+    const question = agentPrompt(entry.question, this.store, { tool: null, self: session.id, stuff: this.stuff });
     entry.forked = forked;
     let reply = null;
     let handle;
@@ -1163,7 +1163,7 @@ export class Runner extends EventEmitter {
     const handoff = session.parentId ? '' : handoffNote(session, session.agent, session.agentSessionId, (t) => adapters[t.agent]?.name || t.agent, mine);
     // Mentioned tasks: a lead reads them with wisp_session; a run without wisp's tools gets their reports.
     const tools = !session.parentId && !session.delegated && adapter.askTool !== null && this.bridge;
-    const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id });
+    const text = agentPrompt(prompt, this.store, { tool: tools ? (adapter.askTool ?? 'mcp__wisp__ask_user').replace(/ask_user$/, 'wisp_session') : null, self: session.id, stuff: this.stuff });
     const still = owed.length && team.length && this.bridge ? stillWorkingNote(owed) : '';
     const handle = adapter.run({
       prompt: [handoff, still, turn.later ? laterNote(turn.later) : '', text].filter(Boolean).join('\n\n'),

@@ -30,6 +30,7 @@ export const SLOTS = {
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
   'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
+  'stuff.head': 'My Stuff (what you and your agents kept from tasks): a button in its header, before Add files.',
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
 };
@@ -110,6 +111,13 @@ export const PARTS = {
   'org.card': '.org-view .org-card', // a member in the chart
   'org.details': '.org-view .org-side', // the column beside the chart: the selected member's delegates
   'org.reset': '.org-view .org-reset', // Reset layout, once cards were moved by hand
+  // My Stuff (stuff.js): what you and your agents kept, opened from the box beside New task.
+  'stuff.button': '#splitStuff', // the box beside New task that opens it
+  'stuff.page': '.stuff-view',
+  'stuff.filters': '.stuff-view .sf-bar', // search, the kinds, Starred, By time / By task, grid or list
+  'stuff.card': '.stuff-view .st-card', // one thing kept
+  'stuff.save': '.stuff-save', // Save to My Stuff on a reply's picture, video, doc or code
+  'stuff.launch': '.stuff-view .st-launch', // Launch on an app's card
   'crew.share': '.crew-share',
   'crew.import': '.crew-import',
   'section.archived': '#secArchived',
@@ -376,6 +384,7 @@ export const PART_PROPS = {
   'crew.record': { tips: 'bool' }, // the suggestion line under a member's numbers (on)
   'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold
   'org.chart': { movable: 'bool' }, // cards can be moved by hand (on); off keeps the automatic tiers
+  'stuff.page': { view: ['grid', 'list'], group: ['time', 'task'], cardWidth: 'px' }, // until you pick one there; cardWidth: a card's least width in the grid
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
@@ -413,7 +422,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

@@ -58,12 +58,15 @@ import { createShip } from './services/ship.js';
 import { createOverlaps } from './services/overlaps.js';
 import { trackTurns } from './services/telemetry.js';
 import { Uploads } from './services/uploads.js';
+import { Stuff } from './services/stuff.js';
+import { Apps } from './services/apps.js';
 import { notifyWebhooks } from './services/webhooks.js';
 import { API_VERSION } from './routes/meta.js';
 import * as metaRoutes from './routes/meta.js';
 import * as autoRoutes from './routes/auto.js';
 import * as internalRoutes from './routes/internal.js';
 import * as uploadRoutes from './routes/uploads.js';
+import * as stuffRoutes from './routes/stuff.js';
 import * as settingsRoutes from './routes/settings.js';
 import * as automationRoutes from './routes/automations.js';
 import * as machineRoutes from './routes/machines.js';
@@ -79,7 +82,7 @@ import * as connectorRoutes from './routes/connectors.js';
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, spellRoutes, crewRoutes, connectorRoutes];
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, stuffRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, spellRoutes, crewRoutes, connectorRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -133,6 +136,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     events,
     broadcast: events.broadcast,
     uploads: new Uploads(path.join(store.home, 'uploads')),
+    // My Stuff: what you and your agents kept (services/stuff.js). Every page repaints its list.
+    stuff: new Stuff(path.join(store.home, 'stuff'), { onChange: () => events.broadcast('stuff', {}) }),
     // After any change to the config: persist it, and tell the open pages to reload it.
     configChanged() {
       store.saveConfig();
@@ -145,6 +150,10 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       events.broadcast('summary', summarize(s, store));
     },
   };
+
+  // Apps in My Stuff, each on a port of its own while launched (services/apps.js).
+  app.apps = new Apps({ stuff: app.stuff, onChange: () => events.broadcast('stuff', {}) });
+  runner.stuff = app.stuff; // @-mentions of My Stuff in prompts (mentions.js)
 
   if (store.all().length === 0) store.put(welcomeSession());
 
@@ -407,7 +416,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       const origin = req.headers.origin;
       if (viaProxy ? !proxy.originOk(req) : origin && !allowedHosts.has(origin.replace(/^https?:\/\//, ''))) return send(res, 403, { error: 'forbidden origin' });
       const ct = String(req.headers['content-type'] || '');
-      const isUpload = req.url.startsWith('/api/uploads') && ct.startsWith('application/octet-stream');
+      const isUpload = (req.url.startsWith('/api/uploads') || req.url.startsWith('/api/stuff/upload')) && ct.startsWith('application/octet-stream');
       if (!ct.startsWith('application/json') && !isUpload) return send(res, 415, { error: 'json only' });
     }
 
@@ -443,6 +452,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       if (JSON.parse(fs.readFileSync(serverFile, 'utf8')).pid === process.pid) fs.rmSync(serverFile, { force: true });
     } catch {}
     app.retro.stop();
+    app.apps.stopAll();
     app.triggers.stop();
     app.crew.stop();
     app.later.stop();
@@ -488,5 +498,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
 }

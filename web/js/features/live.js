@@ -104,6 +104,7 @@ export function connect() {
     bus.emit('agents');
   });
   es.addEventListener('preferences', () => bus.emit('preferences'));
+  es.addEventListener('stuff', () => bus.emit('stuff'));
   // Also after sleep or a reconnect: everything may have changed meanwhile.
   // The first one: boot asked for the lists right after opening the stream, so those answers
   // already have everything since; it waits for them instead of asking again.
@@ -114,6 +115,7 @@ export function connect() {
       .catch(() => {});
     if (helloed) loadConfig().then(() => bus.emit('config'), () => {});
     else loadConfig.since(firstStream).catch(() => {});
+    if (helloed) bus.emit('stuff'); // My Stuff may have changed while the stream was down
     helloed = true;
     checkBuild();
     loadUpdate();

@@ -2,10 +2,14 @@
 // wisp_sessions, wisp_session, wisp_crew*). Every call
 // carries the per-run token wisp handed the agent; nothing else may use these.
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { adapters } from '../adapters/index.js';
 import { plainMentions } from '../mentions.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
-import { summarize } from '../runner.js';
+import { summarize, workdir } from '../runner.js';
+import { fromTask } from './stuff.js';
+import { stuffDetail, stuffLine } from '../services/stuff.js';
 import { delegationReport } from '../subagents.js';
 import { toolStats, toolStatsText } from '../usage.js';
 import { clip } from '../util.js';
@@ -16,6 +20,9 @@ import { describeSpell, normalizeSpell } from '../spells.js';
 import { spellReference } from '../spell-guide.js';
 import { ghProblem, wispPathProblem } from '../../web/js/spell-schema.js';
 import { MAX_TAGS, normalizeTags } from '../../web/js/tags.js';
+
+// 1536 → 1.5 KB, for the agent.
+const size = (n) => (n < 1024 ? `${n} B` : n < 1024 ** 2 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 ** 2).toFixed(1)} MB`);
 
 export function register(r, app) {
   const { store, runner, telemetry } = app;
@@ -104,6 +111,56 @@ export function register(r, app) {
       const n = app.ship.prsOf(t).length;
       const where = pr.own ? 'It is the PR of this task’s own branch: Ship it pushes to it.' : n > 1 ? `The task has ${n} PRs now; attach each one you open or work on.` : '';
       c.send(200, { text: `Attached PR #${pr.number} “${pr.title}” (${String(pr.state).toLowerCase()}${pr.draft ? ', draft' : ''}): ${pr.url}. It shows on the task, and wisp follows its checks and reviews. ${where}`.trim() });
+    }),
+    opts,
+  );
+
+  // wisp_save: the agent keeps something in the user's My Stuff (services/stuff.js): a file it made,
+  // text, or a link. wisp_stuff: what's there, with each file's path so the agent can use it.
+  r.route(
+    'POST',
+    '/internal/stuff',
+    guarded(async (c) => {
+      const body = await c.body();
+      const s = store.get(body.session);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const lead = (s.parentId && store.get(s.parentId)) || s; // a subagent saves for its lead's task, where the user looks
+      const replace = typeof body.id === 'string' && body.id.trim() ? body.id.trim() : undefined;
+      const meta = { title: body.title, note: body.note, tags: body.tags, from: fromTask(lead), by: 'agent', replace };
+      const given = [body.path, body.text, body.url, body.app].filter((v) => typeof v === 'string' && v.trim()).length;
+      const local = (p) => path.resolve(workdir(s), String(p));
+      if (given > 1 || (!given && !replace)) return c.send(400, { error: 'Give exactly one of path (a file), text (with a name like notes.md), url, or app (a folder); with id, it updates that item.' });
+      let it;
+      if (!given) it = app.stuff.update(replace, body); // only its title, note or tags
+      else if (body.url) it = app.stuff.addLink(body.url, meta);
+      else if (body.text) it = app.stuff.addText(body.text, { ...meta, name: body.name || body.title });
+      else {
+        const file = local(body.app || body.path);
+        if (!fs.existsSync(file)) return c.send(404, { error: `Nothing at ${file}.` });
+        if (body.cover && !fs.existsSync(local(body.cover))) return c.send(404, { error: `No picture at ${local(body.cover)}.` });
+        it = body.app ? app.stuff.addApp(file, { ...meta, cover: body.cover && local(body.cover) }) : app.stuff.addFile(file, { ...meta, name: body.name });
+      }
+      telemetry.track('stuff_save', { kind: it.kind, by: 'agent', update: !!replace });
+      const what = `“${it.title}” (${it.kind}${it.size ? `, ${size(it.size)}` : ''})`;
+      const launch = it.kind === 'app' ? ' The user launches it from My Stuff: wisp serves it on a port of its own.' : '';
+      c.send(200, { text: replace ? `Updated ${what} in the user's My Stuff, now v${it.rev || 1}; the version before is kept and the user can restore it.${launch}` : `Saved ${what} to the user's My Stuff, id ${it.id}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).${launch} Say in a word that it's in My Stuff.` });
+    }),
+    opts,
+  );
+  r.route(
+    'GET',
+    '/internal/stuff/:id',
+    guarded((c) => {
+      if (!store.get(c.params.id)) return c.send(404, { error: 'no such session' });
+      const one = c.query.get('id');
+      if (one) {
+        const it = app.stuff.get(one);
+        return c.send(200, { text: it ? stuffDetail(it) : `No item ${one} in My Stuff.` });
+      }
+      const kind = c.query.get('kind') || '';
+      const all = app.stuff.search(c.query.get('query') || '', kind);
+      const limit = Math.min(100, Number(c.query.get('limit')) || 30);
+      c.send(200, { text: all.length ? `${all.length} item${all.length > 1 ? 's' : ''} in My Stuff${all.length > limit ? ` (the newest ${limit})` : ''}:\n${all.slice(0, limit).map(stuffLine).join('\n')}\n\nRead or copy a file from its path; don't change it there. wisp_stuff with an id gives one in full (a doc's text, an app's files); wisp_save with an id updates it.` : app.stuff.list().length ? 'Nothing in My Stuff matches that.' : 'My Stuff is empty.' });
     }),
     opts,
   );

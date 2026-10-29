@@ -5,6 +5,7 @@
 const ref = (name) => ({ $ref: `#/components/schemas/${name}` });
 const json = (schema, description = 'OK') => ({ description, content: { 'application/json': { schema } } });
 const id = { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Session id' };
+const stuffId = { name: 'sid', in: 'path', required: true, schema: { type: 'string' }, description: 'My Stuff item id' };
 const body = (schema) => ({ required: true, content: { 'application/json': { schema } } });
 const spellId = { name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Spell id' };
 const err = { 400: json(ref('Error'), 'Bad request'), 404: json(ref('Error'), 'Not found') };
@@ -562,9 +563,42 @@ export function openapi({ version, port }) {
         parameters: [{ name: 'uid', in: 'path', required: true, schema: { type: 'string' }, description: 'Upload id (<id>@<machine> for one on a machine)' }],
         get: { summary: 'The uploaded file, with its MIME type', responses: { 200: { description: 'The file' }, 404: err[404] } },
       },
+      '/stuff': {
+        get: { summary: 'My Stuff: what you and your agents kept from tasks (pictures, videos, docs, code, files, links), newest first', responses: { 200: json({ type: 'object', properties: { items: { type: 'array', items: ref('StuffItem') } } }) } },
+        post: {
+          summary: 'Save to My Stuff: a link (url), text (text, with name or lang for a snippet), or a file from a task (session, path). The same key again answers the item already saved',
+          requestBody: body({ type: 'object', properties: { url: { type: 'string' }, text: { type: 'string' }, name: { type: 'string' }, lang: { type: 'string' }, session: { type: 'string' }, path: { type: 'string' }, turn: { type: 'string' }, key: { type: 'string' }, title: { type: 'string' }, note: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } } }),
+          responses: { 200: json(ref('StuffItem'), 'Already saved'), 201: json(ref('StuffItem'), 'Saved'), 400: err[400], 404: err[404] },
+        },
+      },
+      '/stuff/upload': {
+        post: {
+          summary: 'Save a file to My Stuff from its raw body',
+          parameters: ['name', 'type', 'title', 'session', 'turn', 'key', 'from'].map((name) => ({ name, in: 'query', schema: { type: 'string' } })),
+          requestBody: { required: true, content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } },
+          responses: { 200: json(ref('StuffItem'), 'Already saved'), 201: json(ref('StuffItem'), 'Saved'), 400: err[400] },
+        },
+      },
+      '/stuff/{sid}': {
+        parameters: [stuffId],
+        patch: { summary: 'Rename, note, tag or star an item', requestBody: body({ type: 'object', properties: { title: { type: 'string' }, note: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, starred: { type: 'boolean' } } }), responses: { 200: json(ref('StuffItem')), 404: err[404] } },
+        delete: { summary: 'Remove an item and its file', responses: { 200: ok, 404: err[404] } },
+      },
+      '/stuff/{sid}/file': {
+        parameters: [stuffId, { name: 'download', in: 'query', schema: { type: 'string' }, description: 'Any value: saved as a download' }],
+        get: { summary: 'The item’s file, with byte ranges', responses: { 200: { description: 'The file' }, 404: err[404] } },
+      },
+      '/stuff/{sid}/cover': { parameters: [stuffId], get: { summary: 'An app’s picture, for its card', responses: { 200: { description: 'The picture' }, 404: err[404] } } },
+      '/stuff/{sid}/launch': {
+        parameters: [stuffId],
+        post: { summary: 'Launch an app: wisp serves its folder on a loopback port of its own (the same one each time) until it is stopped or idle for 30 minutes', responses: { 200: json({ type: 'object', properties: { port: { type: 'integer' }, url: { type: 'string' } } }), 404: err[404] } },
+        delete: { summary: 'Stop an app', responses: { 200: ok, 404: err[404] } },
+      },
+      '/stuff/{sid}/restore': { parameters: [stuffId], post: { summary: 'Swap an item with its previous version (before its last update)', responses: { 200: json(ref('StuffItem')), 404: err[404] } } },
+      '/stuff/{sid}/reveal': { parameters: [stuffId], post: { summary: 'Show the item’s file in its folder (on the computer running wisp)', responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, path: { type: 'string' } } }), 404: err[404], 409: json(ref('Error'), 'Through a proxy: the path, to copy') } } },
       '/events': {
         get: {
-          summary: 'Server-sent events: summary, activity, turn, finished, removed, config, preferences, agents, ping',
+          summary: 'Server-sent events: summary, activity, turn, finished, removed, config, preferences, agents, stuff, ping',
           responses: { 200: { description: 'text/event-stream', content: { 'text/event-stream': { schema: { type: 'string' } } } } },
         },
       },
@@ -572,6 +606,11 @@ export function openapi({ version, port }) {
     components: {
       schemas: {
         Error: { type: 'object', properties: { error: { type: 'string' } } },
+        StuffItem: {
+          type: 'object',
+          description: 'Something kept in My Stuff. Docs and code carry their opening (excerpt); links their url; apps their entry, file count and whether they run',
+          properties: { id: { type: 'string' }, kind: { type: 'string', enum: ['image', 'video', 'doc', 'code', 'file', 'link', 'app'] }, entry: { type: 'string' }, files: { type: 'integer' }, cover: { type: 'boolean' }, rev: { type: 'integer' }, updatedAt: { type: 'integer' }, prev: { type: 'object', properties: { at: { type: 'integer' }, size: { type: 'integer' }, by: { type: 'string' } } }, running: { type: 'object', properties: { port: { type: 'integer' } } }, name: { type: 'string' }, title: { type: 'string' }, mime: { type: 'string' }, size: { type: 'integer' }, at: { type: 'integer' }, by: { type: 'string', enum: ['you', 'agent'] }, url: { type: 'string' }, lang: { type: 'string' }, excerpt: { type: 'string' }, note: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, starred: { type: 'boolean' }, from: { type: 'object', properties: { session: { type: 'string' }, title: { type: 'string' }, turn: { type: 'string' }, key: { type: 'string' } } } },
+        },
         Hold: {
           type: 'object',
           description: 'Refused: it would take the account’s usage window past the Ask near the limit line (Settings → Usage)',

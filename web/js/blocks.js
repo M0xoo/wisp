@@ -1,5 +1,5 @@
 // Presentation blocks. Each renderer gets (block, ctx) and returns an element.
-// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line), fileUrl(path), reveal(path), openTask(id) }
+// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line), fileUrl(path), reveal(path), openTask(id), keep (Save to My Stuff) }
 
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
@@ -276,15 +276,18 @@ R.code = (b, ctx) => {
   const hl = new Set(b.highlight || []);
   const start = Number(b.line) || 1;
   const lang = b.language || langOf(b.file || '');
+  const codeWhat = `code:${b.file || ''}:${hashText(String(b.code || ''))}`;
   const node = el(`
     <div class="b-code card">
-      <div class="code-head">${b.file ? `<button class="link file">${pathHtml(b.file)}${b.line ? `<span class="lineno">:${b.line}</span>` : ''}</button>` : `<span class="lang">${esc(lang)}</span>`}<button class="ghost xs copy" title="Copy">${icon('copy')}</button></div>
+      <div class="code-head">${b.file ? `<button class="link file">${pathHtml(b.file)}${b.line ? `<span class="lineno">:${b.line}</span>` : ''}</button>` : `<span class="lang">${esc(lang)}</span>`}<span class="code-tools">${ctx.keep?.html(codeWhat, 'ghost xs') || ''}<button class="ghost xs copy" title="Copy">${icon('copy')}</button></span></div>
       <div class="code-scroll"><table><tbody>${lines
         .map((l, i) => `<tr class="${hl.has(i + 1) ? 'hl' : ''}"><td class="no">${start + i}</td><td class="src">${highlight(l, lang) || ' '}</td></tr>`)
         .join('')}</tbody></table></div>
       ${b.caption ? `<p class="caption">${inlineMd(b.caption)}</p>` : ''}
     </div>`);
   node.querySelector('.copy').addEventListener('click', (e) => copy(b.code, e.currentTarget));
+  const fileName = String(b.file || '').split(/[\\/]/).pop();
+  ctx.keep?.bind(node, codeWhat, { text: String(b.code || ''), lang: lang || 'text', name: fileName || undefined, title: plainTitle(b.caption) || fileName || `${lang || 'Code'} snippet` });
   node.querySelector('.file')?.addEventListener('click', () => ctx.openFile(b.file, b.line));
   return node;
 };
@@ -783,6 +786,15 @@ R.callout = (b) => {
   return el(`<div class="b-callout tone-${tone}"><span class="ic">${icon(ic)}</span><div>${b.title ? `<b>${esc(b.title)}</b>` : ''}<div class="prose">${md(b.text || '')}</div></div></div>`);
 };
 
+// Save to My Stuff (features/stuff.js, through ctx.keep): a card's title from a caption, and a short
+// stable name for a snippet, so saving it twice finds the one already kept.
+const plainTitle = (t) => String(t || '').replace(/[*_`#>[\]()]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80) || undefined;
+function hashText(t) {
+  let h = 5381;
+  for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+
 // Full screen goes through the reply's other pictures and videos too, in order (ui/viewer.js).
 function zoomInSet(media, ctx) {
   const all = [...(media.closest('.presentation') || media.parentNode).querySelectorAll('.b-image:not(.broken) img, .b-video:not(.broken) video')];
@@ -805,10 +817,12 @@ function bindFolder(node, b, ctx) {
 
 R.image = (b, ctx) => {
   const src = /^https?:/.test(b.src || '') ? b.src : ctx.fileUrl(b.path || b.src || '');
-  const node = el(`<figure class="b-image card"><div class="img-box"><img loading="lazy" alt="${esc(b.caption || b.path || '')}"><div class="img-tools">${imageButtons()}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
+  const what = `media:${b.source || b.path || b.src}`;
+  const node = el(`<figure class="b-image card"><div class="img-box"><img loading="lazy" alt="${esc(b.caption || b.path || '')}"><div class="img-tools">${imageButtons()}${ctx.keep?.html(what) || ''}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
   const img = node.querySelector('img');
   img.src = src;
   bindImageButtons(node, src, b.path || b.caption || '');
+  ctx.keep?.bind(node, what, { path: b.path || b.src, src, title: plainTitle(b.caption) });
   bindFolder(node, b, ctx);
   img.dataset.src = src;
   img.addEventListener('click', () => zoomInSet(img, ctx));
@@ -823,7 +837,8 @@ R.video = (b, ctx) => {
   // Full screen is wisp's viewer, with the reply's other pictures and videos: the button here, and
   // the player's own (or a double-click), which hands over to it.
   const full = `<button class="img-full" title="Full screen" aria-label="Full screen">${icon('expand')}</button>`;
-  const node = el(`<figure class="b-video card"><div class="img-box"><video controls playsinline preload="metadata"></video><div class="img-tools">${full}${dl}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
+  const what = `media:${b.source || b.path || b.src}`;
+  const node = el(`<figure class="b-video card"><div class="img-box"><video controls playsinline preload="metadata"></video><div class="img-tools">${full}${dl}${ctx.keep?.html(what) || ''}${folderButton(b, ctx)}</div></div>${b.caption ? `<figcaption>${inlineMd(b.caption)}</figcaption>` : ''}</figure>`);
   const video = node.querySelector('video');
   video.src = src;
   video.dataset.src = src;
@@ -848,6 +863,7 @@ R.video = (b, ctx) => {
       saveImage(src, imageName(src, b.caption || 'video'));
     };
   }
+  ctx.keep?.bind(node, what, { path: b.path || b.src, src, title: plainTitle(b.caption) });
   bindFolder(node, b, ctx);
   video.addEventListener('error', () => node.classList.add('broken'));
   return node;
@@ -881,6 +897,7 @@ R.doc = (b, ctx) => {
         </div>
         <div class="doc-tools">
           ${has ? `<button class="ghost xs doc-copy" title="Copy the markdown">${icon('copy')}</button>` : ''}
+          ${has ? ctx.keep?.html(`doc:${b.path || title}`, 'ghost xs') || '' : ''}
           ${has && where && ctx.reveal && !MOBILE ? `<button class="ghost xs doc-reveal" title="Show the file in its folder">${icon('folder')}<span>Show in folder</span></button>` : ''}
           ${has ? `<button class="ghost xs doc-full" title="Read it full screen">${icon('expand')}<span>Full screen</span></button>` : ''}
         </div>
@@ -896,6 +913,7 @@ R.doc = (b, ctx) => {
   const reveal = where && ctx.reveal ? () => ctx.reveal(where) : null;
   const open = () => readDoc(b, { copy: copyMd, reveal });
   node.querySelector('.doc-copy')?.addEventListener('click', (e) => copyMd(e.currentTarget));
+  if (has) ctx.keep?.bind(node, `doc:${b.path || title}`, { text: b.text, name: String(b.path || '').split(/[\\/]/).pop() || undefined, title });
   node.querySelector('.doc-reveal')?.addEventListener('click', () => reveal());
   node.querySelector('.doc-full')?.addEventListener('click', open);
   node.querySelector('.doc-more')?.addEventListener('click', open);
