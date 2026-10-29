@@ -1,4 +1,4 @@
-// wisp site: the hero's night shift, the transcript/report switch, the terminal, and small things.
+// wisp site: the hero, the transcript/report switch, the terminal, and small things.
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -272,106 +272,16 @@ $$('.h-head > *, .h-stage, .strip, .r-head, .c-head, .cmp-shot, .cli-text, .term
   io.observe(el);
 });
 
-// ---------- hero: the night shift ----------
-// Under the headline, one night with wisp plays back once it's on screen: the clock runs from midnight to 07:30, the six tasks finish
-// at their times (one stops to ask), the flaky-test report fills in, and morning says hello. The
-// markup is the morning, so without JS (or with reduced motion) that's what shows.
-const night = $('#night');
-if (night) {
-  const rows = $$('.h-row', night);
-  const clock = $('[data-hclock]', night);
-  const count = $('[data-count]', night);
-  const report = $('.h-report', night);
-  const replay = $('[data-replay]', night);
-  const MOOD = { live: 'live', asks: 'asks', done: 'idle' };
-  // The faces are the app's spirits (spirit.js, copied in by scripts/site.mjs); until it loads a
-  // face is its tinted circle, the same size, so the row doesn't change shape when it arrives.
-  let spirits = null;
-  const face = (row) => {
-    const f = $('[data-face]', row);
-    if (f && spirits) f.innerHTML = spirits.spiritSvg(f.dataset.face, { state: MOOD[row.dataset.s], small: true });
-  };
-  import('./spirit.js')
-    .then((m) => {
-      spirits = m;
-      rows.forEach(face);
-    })
-    .catch(() => {});
-
-  const mins = (t) => t.split(':').reduce((h, m) => h * 60 + Number(m));
-  const fmt = (m) => {
-    m = Math.floor((m + 1440) % 1440);
-    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-  };
-  const START = -12;
-  const END = mins('07:30');
-  const RUN = 9000;
-  for (const r of rows) r.dataset.final = r.dataset.s;
-
-  const tally = () => {
-    const n = (s) => rows.filter((r) => r.dataset.s === s).length;
-    count.textContent = [[n('live'), 'working'], [n('done'), 'done'], [n('asks'), 'needs you']]
-      .filter(([k]) => k)
-      .map(([k, w]) => `${k} ${w}`)
-      .join(' · ');
-  };
-  const set = (row, s, swap) => {
-    row.dataset.s = s;
-    const sub = $('small', row);
-    sub.textContent = s === 'live' ? sub.dataset.live : sub.dataset.done;
-    if (swap) {
-      for (const el of [sub, row]) el.classList.remove(el === sub ? 'swap' : 'pop');
-      void row.offsetWidth;
-      sub.classList.add('swap');
-      row.classList.add('pop');
-    }
-    face(row);
-  };
-  const reset = () => {
-    for (const r of rows) set(r, 'live');
-    report.dataset.show = '0';
-    night.classList.remove('morning');
-    clock.textContent = fmt(START);
-    replay.hidden = true;
-    tally();
-  };
-  let raf = 0;
-  const play = () => {
-    cancelAnimationFrame(raf);
-    reset();
-    const t0 = performance.now();
-    const tick = (now) => {
-      const p = Math.min(1, (now - t0) / RUN);
-      const m = START + (END - START) * p;
-      clock.textContent = fmt(m);
-      for (const r of rows) {
-        if (r.dataset.s !== 'live' || mins(r.dataset.at) > m) continue;
-        set(r, r.dataset.final, true);
-        if (r.hasAttribute('data-report')) report.dataset.show = '1';
-        tally();
-      }
-      if (p < 1) raf = requestAnimationFrame(tick);
-      else {
-        night.classList.add('morning');
-        replay.hidden = false;
-      }
-    };
-    raf = requestAnimationFrame(tick);
-  };
-  replay.addEventListener('click', () => {
-    play();
-    window.posthog?.capture?.('demo_replayed');
-  });
-  if (!calm) {
-    reset();
-    const seen = new IntersectionObserver(([e]) => {
-      if (!e.isIntersecting) return;
-      seen.disconnect();
-      setTimeout(play, 500);
-      window.posthog?.capture?.('demo_seen', { scrolled: scrollY > 0 });
-    }, { threshold: 0.35 });
-    seen.observe(night);
-  }
+// ---------- hero: the real app ----------
+// Tell analytics when the app capture under the headline comes into view (it used to be a demo, hence the name).
+const shot = $('.h-stage');
+if (shot) {
+  const seen = new IntersectionObserver(([e]) => {
+    if (!e.isIntersecting) return;
+    seen.disconnect();
+    window.posthog?.capture?.('demo_seen', { scrolled: scrollY > 0 });
+  }, { threshold: 0.35 });
+  seen.observe(shot);
 }
 
 // ---------- scroll-driven bits ----------
