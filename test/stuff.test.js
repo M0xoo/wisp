@@ -29,7 +29,7 @@ test('kindOf: pictures, videos, docs, code and the rest by their extension', () 
   assert.equal(kindOf('build.zip'), 'file');
 });
 
-test('Stuff: files, text and links are kept, found by words, edited and removed; it reloads from disk', () => {
+test('Stuff: files, text and links are kept, found by words, edited and removed; it reloads from disk', async () => {
   const dir = tmp('stuff-dir');
   let changes = 0;
   const st = new Stuff(dir, { onChange: () => changes++ });
@@ -70,7 +70,7 @@ test('Stuff: files, text and links are kept, found by words, edited and removed;
   const again = new Stuff(dir);
   assert.equal(again.list().length, 4);
   assert.equal(again.get(img.id).title, 'Logo, final');
-  assert.ok(st.remove(code.id));
+  assert.ok(await st.remove(code.id));
   assert.ok(!fs.existsSync(code.path));
   assert.equal(new Stuff(dir).list().length, 3);
   assert.ok(changes >= 6);

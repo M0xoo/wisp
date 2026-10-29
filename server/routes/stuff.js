@@ -133,11 +133,13 @@ export function register(r, app) {
   r.route(
     'DELETE',
     '/stuff/:id',
-    one((c, it) => {
+    one(async (c, it) => {
       app.apps?.stop(it.id, { quiet: true });
       // Gone from My Stuff: its public link goes too (best effort; the grid's account page lists it).
       if (it.published) app.publish?.unpublish(it.id).catch(() => {});
-      c.send(200, { ok: stuff.remove(it.id) });
+      // The database worker lets go of its file first (Windows won't delete an open one).
+      if (it.db) await app.apps?.releaseData(it.id);
+      c.send(200, { ok: await stuff.remove(it.id) });
     }),
   );
 
