@@ -798,7 +798,7 @@ function hashText(t) {
 // Full screen goes through the reply's other pictures and videos too, in order (ui/viewer.js).
 function zoomInSet(media, ctx) {
   const all = [...(media.closest('.presentation') || media.parentNode).querySelectorAll('.b-image:not(.broken) img, .b-video:not(.broken) video')];
-  const list = all.map((m) => ({ src: m.dataset.src, alt: m.tagName === 'VIDEO' ? m.getAttribute('aria-label') : m.alt, video: m.tagName === 'VIDEO' }));
+  const list = all.map((m) => ({ src: m.dataset.src, alt: m.tagName === 'VIDEO' ? m.getAttribute('aria-label') : m.alt, video: m.tagName === 'VIDEO', keep: m.closest('figure')?.querySelector('.stuff-save') }));
   const at = Math.max(0, all.indexOf(media));
   ctx.zoom(list[at]?.src || media.dataset.src, list[at]?.alt || '', { list, index: at });
 }

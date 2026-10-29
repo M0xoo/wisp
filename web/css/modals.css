@@ -62,6 +62,8 @@
   color: rgb(255 255 255 / 0.75); font: 500 12.5px/1 var(--sans); font-variant-numeric: tabular-nums; transition: background 0.15s, color 0.15s;
 }
 .lb-bar :is(button, a):hover { background: rgb(255 255 255 / 0.1); color: #fff; }
+/* Save to My Stuff, lit once it's in (the bar is dark in both themes: the dark theme's accent) */
+.lb-bar .lb-keep.on { color: #94adff; background: rgb(148 173 255 / 0.14); }
 .lb-bar .i { width: 16px; height: 16px; }
 .lb-pct { min-width: 56px; }
 .lb-sep { width: 1px; height: 20px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }

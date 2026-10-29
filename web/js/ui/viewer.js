@@ -9,7 +9,8 @@ import { imageButtons, bindImageButtons, copyImage } from './image.js';
 // WebView has no pinch zoom of its own, so this is the only way to read a screenshot there.
 // Given the other pictures and videos of the reply (`set`: { list: [{ src, alt, video }], index }),
 // the arrows, ← / → and a sideways swipe go through them. A video plays here with its own
-// controls; it doesn't zoom or copy.
+// controls; it doesn't zoom or copy. An item from a reply carries its Save to My Stuff button (`keep`):
+// the bar shows one for it, the same key, so it lights up and goes out with the reply's own.
 
 const MAX = 8;
 
@@ -28,6 +29,7 @@ export function viewImage(src, alt = '', set = null) {
         <button class="lb-in" title="Zoom in" aria-label="Zoom in">${icon('plus')}</button>
         <span class="lb-sep lb-zsep"></span>
         ${imageButtons()}
+        <button class="lb-keep stuff-save" hidden>${icon('stuff')}</button>
         <a class="lb-open" href="${esc(src)}" target="_blank" rel="noopener" title="Open the original" aria-label="Open the original">${icon('external')}</a>
         <button class="lb-close" title="Close" aria-label="Close">${icon('x')}</button>
       </div>
@@ -198,6 +200,25 @@ export function viewImage(src, alt = '', set = null) {
     }
     if (open) open.href = src;
     bindImageButtons(node, src, alt);
+    paintKeep(it.keep);
+  };
+  // Save to My Stuff: the reply's own button does the work (stuff.js keeps every button with the key
+  // in step); this one copies how it stands now.
+  const keepBtn = node.querySelector('.lb-keep');
+  let keepFor = null;
+  const paintKeep = (from) => {
+    keepFor = from?.isConnected ? from : null;
+    keepBtn.hidden = !keepFor;
+    if (!keepFor) return delete keepBtn.dataset.key;
+    keepBtn.dataset.key = keepFor.dataset.key;
+    keepBtn.classList.toggle('on', keepFor.classList.contains('on'));
+    keepBtn.title = keepFor.title;
+    keepBtn.setAttribute('aria-label', keepFor.title);
+    keepBtn.setAttribute('aria-pressed', keepFor.classList.contains('on'));
+  };
+  keepBtn.onclick = (e) => {
+    e.stopPropagation();
+    keepFor?.click();
   };
   // Shows the one `d` steps along the set. False at either end.
   const go = (d) => {
@@ -256,7 +277,7 @@ export function viewImage(src, alt = '', set = null) {
   addEventListener('keydown', onKey);
   addEventListener('resize', onResize);
   img.addEventListener('load', () => paint());
-  load(list ? list[at] : { src, alt, video: set?.video });
+  load(list ? list[at] : { src, alt, video: set?.video, keep: set?.list?.[0]?.keep });
   const close = overlay(node, { onClose: cleanup });
   node.querySelector('.lb-close').onclick = () => {
     close();
