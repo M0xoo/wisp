@@ -241,7 +241,7 @@ export function launcherGoal(box, ta) {
   const btn = $('#goalBtn', box);
   const line = $('.l-goal', box);
   const input = $('input', line);
-  let on = load('wisp.goalOn', false);
+  let on = false; // every prompt starts without a goal: the user turns it on for this one
   input.value = S.drafts.get('home-goal') || '';
   const paint = () => {
     btn.classList.toggle('on', on);
@@ -253,7 +253,6 @@ export function launcherGoal(box, ta) {
   paint();
   btn.onclick = () => {
     on = !on;
-    save('wisp.goalOn', on);
     paint();
     (on ? input : ta).focus();
   };
@@ -267,7 +266,8 @@ export function launcherGoal(box, ta) {
     if (on) return input.focus();
     btn.click();
   };
-  // What the launch sends: { text }, or nothing. Taking it clears the line (back on failure).
+  // What the launch sends: { text }, or nothing. Taking it clears the line and turns Goal off for
+  // the next prompt (both back on failure).
   box.goal = () => {
     if (!on) return null;
     const text = input.value.trim();
@@ -281,7 +281,14 @@ export function launcherGoal(box, ta) {
     if (!goal) return () => {};
     input.value = '';
     S.drafts.delete('home-goal');
-    return () => ((input.value = goal.text), S.drafts.set('home-goal', goal.text));
+    on = false;
+    paint();
+    return () => {
+      input.value = goal.text;
+      S.drafts.set('home-goal', goal.text);
+      on = true;
+      paint();
+    };
   };
 }
 

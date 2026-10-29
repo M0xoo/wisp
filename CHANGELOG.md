@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Goal in the prompt box shows when it's on, and starts off every time.** The Goal button lights up while the prompt carries a goal, and it no longer stays on for the next prompt: each one starts without a goal until you pick Goal (it comes back on if the launch fails).
 - **A /btw question scrolls into view when you send it.** Side questions sit at the end of the turn they were asked during, so on a long task the one you'd just sent could land under the follow-up box or below the fold. The task now scrolls just enough to show it, clear of the box, and stays put if it already shows. The same goes for an `@Name` question to a crew member and a reply in their thread.
 - **Typing on home no longer lags a frame.** The pulsing ring on home's *Reach this wisp from anywhere* tip animated a shadow, which repainted the page every frame and kept each keystroke in the launcher about two frames (32 ms) from the screen. The ring now runs on the compositor and rests while you type, so a keystroke shows within a frame (8 ms at the median).
 - **The Transcript button shows when it's on again.** Since the compact row that pins on long tasks, switching to the full transcript lit up that row's copy of the button and left the task's own Transcript button looking off.
