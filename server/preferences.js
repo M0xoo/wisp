@@ -12,7 +12,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { adapters } from './adapters/index.js';
+import { adapters, listAgents } from './adapters/index.js';
+import { tierOf } from './router.js';
 import { heroOf } from './protocol.js';
 import { sideEnv } from './accounts.js';
 import { clip, writeJsonAtomic } from './util.js';
@@ -101,7 +102,7 @@ export class Preferences {
   }
 }
 
-const RETRO_SYSTEM = `
+export const RETRO_SYSTEM = `
 # wisp retro
 
 You are wisp's retro agent, not a coding agent. Do not run tools, read files or edit anything.
@@ -162,6 +163,28 @@ export function digest(session, from = 0) {
   return out.trim();
 }
 
+// Whether turns[from..] can teach anything: a follow-up (the user steering or correcting), a
+// failure, a question, or a run that stopped or failed. A one-shot task that just worked has neither
+// a preference nor a lesson in it, and each retro costs a whole agent run.
+export function worthRetro(session, from = 0) {
+  const turns = session.turns.slice(from);
+  if (from > 0 || turns.length !== 1) return turns.length > 0;
+  const [t] = turns;
+  return t.status !== 'done' || (t.activity || []).some((a) => ['error', 'ask', 'answer'].includes(a.kind));
+}
+
+// The model and effort a retro runs on: Haiku for Claude; for Codex its smallest model (the router's
+// tiers, codex's own order between equals) at low effort; elsewhere what the session used.
+export async function retroModel(session) {
+  if (session.agent === 'claude') return { model: 'haiku', effort: '' };
+  if (session.agent !== 'codex') return { model: session.model, effort: '' };
+  const found = (await listAgents().catch(() => [])).find((a) => a.id === 'codex');
+  const models = (found?.models || []).filter((m) => m.id);
+  const cheap = models.reduce((best, m) => (!best || tierOf(`codex:${m.id}`) < tierOf(`codex:${best.id}`) ? m : best), null);
+  if (!cheap || (session.model && tierOf(`codex:${session.model}`) <= tierOf(`codex:${cheap.id}`))) return { model: session.model, effort: '' };
+  return { model: cheap.id, effort: !cheap.efforts || cheap.efforts.includes('low') ? 'low' : '' };
+}
+
 // The retro agent's JSON reply, from a bare object or a fenced block, with prose around it.
 // A list it left out stays as it was (null).
 export function parseRetro(text = '') {
@@ -220,6 +243,10 @@ export class Retro {
     const from = Math.min(session.retroTurns || 0, session.turns.length);
     const upTo = session.turns.length;
     if (from >= upTo) return;
+    if (!worthRetro(session, from)) {
+      session.retroTurns = upTo;
+      return this.store.save(session);
+    }
 
     const project = this.projectOf(session.cwd);
     const snapshot = {};
@@ -234,15 +261,16 @@ export class Retro {
     this.onStart?.(this.running);
     let text = '';
     let failed = false;
+    const { model, effort } = await retroModel(session);
     const handle = adapters[session.agent].run({
       prompt,
       cwd: session.cwd,
       mode: 'plan',
-      // Cheapest capable model where we know one; otherwise whatever the session used.
-      model: session.agent === 'claude' ? 'haiku' : session.model,
-      effort: '',
+      model,
+      effort,
       systemPrompt: RETRO_SYSTEM,
       mcpServers: {},
+      lean: true,
       accountEnv: sideEnv(session.agent, session.account),
       onEvent: (ev) => {
         if (ev.type !== 'result') return;

@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { detectTests } from './check.js';
 import { askJson } from './quick.js';
+import { gitBin } from './git.js';
 import { TYPES } from './router.js';
 
 const scans = new Map(); // dir -> { at, value }
@@ -18,7 +19,7 @@ export function scanProject(dir, project = null) {
   if (hit && Date.now() - hit.at < SCAN_TTL_MS) return hit.value;
   let files = [];
   try {
-    files = execFileSync('git', ['ls-files'], { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20, timeout: 5000 }).toString().split('\n').filter(Boolean);
+    files = execFileSync(gitBin(), ['ls-files'], { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20, timeout: 5000 }).toString().split('\n').filter(Boolean);
   } catch {}
   const ext = {};
   for (const f of files) {

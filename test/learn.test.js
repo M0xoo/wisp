@@ -13,7 +13,7 @@ process.env.WISP_RETRO_IDLE_MS = '50';
 installFakeBins();
 
 const { startServer } = await import('../server/index.js');
-const { clean, merge, parseRetro, digest, Preferences, MAX_ITEMS, MAX_LEN } = await import('../server/preferences.js');
+const { clean, merge, parseRetro, digest, worthRetro, retroModel, Preferences, MAX_ITEMS, MAX_LEN } = await import('../server/preferences.js');
 
 test('clean dedupes, trims and caps', () => {
   const many = Array.from({ length: MAX_ITEMS + 5 }, (_, i) => `item ${i}`);
@@ -60,6 +60,26 @@ test('digest carries corrections, failures and commands, not the whole transcrip
   assert.match(d, /Follow-up 2\nUser: no, never commit without asking\n\(The user stopped/);
   assert.doesNotMatch(d, /Reading a\.js/);
   assert.match(digest(s, 1), /^### Follow-up 2/, 'only turns after the last retro');
+});
+
+test('a one-shot task that just worked is not worth a retro', () => {
+  const done = { prompt: 'what is 1+1', status: 'done', activity: [{ kind: 'text', label: '2' }, { kind: 'run', label: 'ls' }] };
+  assert.equal(worthRetro({ turns: [done] }), false);
+  assert.equal(worthRetro({ turns: [{ ...done, activity: [{ kind: 'error', label: 'Bash failed' }] }] }), true, 'a failure can teach a lesson');
+  assert.equal(worthRetro({ turns: [{ ...done, activity: [{ kind: 'ask', label: 'Which DB?' }] }] }), true, 'so can a question');
+  assert.equal(worthRetro({ turns: [{ ...done, status: 'stopped' }] }), true, 'a run the user stopped');
+  assert.equal(worthRetro({ turns: [done, { prompt: 'no, use pnpm', status: 'done', activity: [] }] }), true, 'a follow-up steers');
+  assert.equal(worthRetro({ turns: [done, done] }, 1), true, 'a follow-up read on its own');
+  assert.equal(worthRetro({ turns: [done] }, 1), false, 'nothing new');
+});
+
+test('the retro runs on the cheapest model it knows', async () => {
+  assert.deepEqual(await retroModel({ agent: 'claude', model: 'opus' }), { model: 'haiku', effort: '' });
+  assert.deepEqual(await retroModel({ agent: 'opencode', model: 'x/y' }), { model: 'x/y', effort: '' }, 'elsewhere: what the session used');
+  // The fake codex lists gpt-10 and gpt-10-mini (test/fixtures/fake-agent.mjs).
+  assert.deepEqual(await retroModel({ agent: 'codex', model: 'gpt-10' }), { model: 'gpt-10-mini', effort: 'low' });
+  assert.deepEqual(await retroModel({ agent: 'codex', model: '' }), { model: 'gpt-10-mini', effort: 'low' }, 'Default may be the big one');
+  assert.deepEqual(await retroModel({ agent: 'codex', model: 'gpt-10-mini' }), { model: 'gpt-10-mini', effort: '' }, 'already the small one');
 });
 
 test('prompt section is empty until something is learned', () => {
@@ -136,6 +156,11 @@ test('a finished session is retro’d, and the next session starts with what was
   assert.equal(retro.argv[retro.argv.indexOf('--permission-mode') + 1], 'plan');
   assert.equal(retro.argv[retro.argv.indexOf('--model') + 1], 'haiku');
   assert.ok(!retro.argv.includes('--mcp-config'), 'no ask_user in a retro');
+  // Lean: its own system prompt instead of Claude Code's, no tools, MCP servers, skills or saved session.
+  assert.match(retro.argv[retro.argv.indexOf('--system-prompt') + 1], /# wisp retro/);
+  assert.ok(!retro.argv.includes('--append-system-prompt'));
+  assert.equal(retro.argv[retro.argv.indexOf('--tools') + 1], '');
+  for (const f of ['--strict-mcp-config', '--disable-slash-commands', '--no-session-persistence']) assert.ok(retro.argv.includes(f), f);
 
   // A new session in the same project gets both lists.
   const s2 = await api('/sessions', { body: { prompt: 'another task', cwd, agent: 'claude' } });

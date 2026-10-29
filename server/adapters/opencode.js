@@ -257,6 +257,8 @@ function describeTool(name, input, cwd) {
       return { kind: 'tool', label: `Tagging the task${input?.tags?.length ? `: ${clip(input.tags.map((t) => `#${t}`).join(' '), 60)}` : ''}` };
     case 'wisp_wisp_pr':
       return { kind: 'tool', label: input?.remove ? 'Detaching a PR' : `Attaching PR ${clip(String(input?.pr || '').replace(/^https:\/\/github\.com\//, ''), 60)}` };
+    case 'wisp_wisp_blocks':
+      return { kind: 'tool', label: 'Reading block formats' };
     case 'wisp_wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
     case 'wisp_wisp_sessions':

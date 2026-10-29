@@ -9,6 +9,18 @@ import { codexLimits, codexRollout } from '../budget.js';
 
 const DEFAULT_BIN = process.env.WISP_CODEX_BIN || 'codex';
 let BIN = DEFAULT_BIN;
+let VERSION = []; // [major, minor, patch] of the codex detect() found
+const atLeast = (want) => VERSION.length === 3 && want.reduce((d, n, i) => d || VERSION[i] - n, 0) >= 0;
+// codex 0.53 takes developer instructions from config. They go in front of its environment context,
+// which names the task's folder, so wisp's protocol can be cached from one task to the next; as a
+// prompt prefix it came after the folder, and a new task's folder missed the cache on all of it.
+// The prefix stays on Windows (its command line stops at 32k characters) and where the user set
+// developer_instructions in config.toml (-c would replace theirs).
+const developerInstructions = (home) => process.platform !== 'win32' && atLeast([0, 53, 0]) && !ownDeveloperInstructions(home);
+// A lean run (the retro) only reads its prompt and answers: none of codex's plugins, apps, subagents
+// or browser, and a one-line base prompt instead of the coding agent's. Unknown keys only warn.
+const LEAN_FEATURES = ['plugins', 'apps', 'multi_agent', 'skill_search', 'browser_use', 'computer_use', 'goals', 'code_mode_host'];
+const LEAN_BASE = 'You answer in one message. Do not run tools, read files or edit anything.';
 // Where codex lives when it isn't on PATH: the standalone installer's own copy (its ~/.local/bin
 // link may not be on an app's PATH; on Windows it also keeps one in Programs\OpenAI\Codex), then
 // the CLI the ChatGPT desktop app ships: in its bundle on macOS (the older Codex.app kept it at
@@ -66,6 +78,7 @@ export default {
   async detect() {
     const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_CODEX_BIN);
     BIN = bin;
+    VERSION = (String(found.version || '').match(/(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
     if (!found.available) return found;
     // `codex debug models` prints the catalog (older builds lack it: then the copy codex caches).
     // Keep what its own /model picker shows ("list"), best first, each with the levels it takes.
@@ -85,8 +98,23 @@ export default {
   // dirs: the task's other folders, writable like cwd.
   // fork: `exec fork` a copy of resumeId's conversation instead of resuming it (/btw).
   // accountEnv: the account it runs on (CODEX_HOME, server/accounts.js), {} for the default.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, onEvent }) {
+  // lean: a side run that only answers (the retro), with codex's extras off.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, accountEnv = {}, lean = false, onEvent }) {
     const args = ['exec', '--json', '--skip-git-repo-check'];
+    let base = null;
+    if (lean) {
+      for (const f of LEAN_FEATURES) args.push('-c', `features.${f}=false`);
+      base = path.join(os.tmpdir(), `wisp-codex-${process.pid}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.md`);
+      try {
+        fs.writeFileSync(base, LEAN_BASE);
+        args.push('-c', `model_instructions_file=${toml(base)}`);
+      } catch {
+        base = null;
+      }
+    }
+    // Resumed and forked threads have the protocol in their history already.
+    const developer = !resumeId && !!systemPrompt?.trim() && developerInstructions(accountEnv.CODEX_HOME || codexHome());
+    if (developer) args.push('-c', `developer_instructions=${toml(systemPrompt.trim())}`);
     // `resume` doesn't take --sandbox, so set it through config for both paths.
     if (mode === 'auto') args.push('--dangerously-bypass-approvals-and-sandbox');
     else args.push('-c', `sandbox_mode=${toml(SANDBOX[mode] || 'workspace-write')}`);
@@ -112,7 +140,7 @@ export default {
     if (resumeId) args.push(fork ? 'fork' : 'resume', resumeId);
     // No prompt argument: codex reads it from stdin.
 
-    let input = withProtocol(prompt, systemPrompt, resumeId);
+    let input = developer ? prompt : withProtocol(prompt, systemPrompt, resumeId);
     input += attachmentNote(attachments.filter((a) => !images.includes(a)), 'Read text files and PDFs from disk');
     if (images.length) input += `\n\n(${images.length} image${images.length > 1 ? 's are' : ' is'} attached to this message.)`;
 
@@ -124,6 +152,28 @@ export default {
     let completed = false;
     let thread = resumeId && !fork ? resumeId : '';
     const started = Date.now();
+
+    const readLimits = () => thread && codexLimits(codexRollout(thread, { home: accountEnv.CODEX_HOME || process.env.CODEX_HOME || undefined }));
+    // The turn's one result: at turn.completed, or when the process ends without one.
+    let reported = false;
+    const report = ({ ok, stopped = false, text = '' }) => {
+      reported = true;
+      // codex exec doesn't print its usage windows; its session file has them (server/budget.js).
+      const limits = readLimits();
+      if (limits) onEvent({ type: 'limits', ...limits });
+      onEvent({
+        type: 'result',
+        isError: !ok,
+        stopped,
+        text: ok ? lastMessage : text,
+        stats: {
+          durationMs: Date.now() - started,
+          inputTokens: usage?.input_tokens,
+          ...(usage?.cached_input_tokens && { cachedInputTokens: usage.cached_input_tokens }), // Ask near the limit counts what wasn't cached (server/guard.js)
+          outputTokens: usage?.output_tokens,
+        },
+      });
+    };
 
     const onItem = (item, phase) => {
       const type = item.type || item.item_type;
@@ -202,6 +252,9 @@ export default {
           case 'turn.completed':
             completed = true;
             usage = msg.usage || null;
+            // The answer is in: show it now. codex then takes ~0.4 s to stop its MCP servers and
+            // exit, which every task used to wait for (the runner lets the process wind down).
+            if (!failure) report({ ok: true });
             break;
           case 'turn.failed':
             failure = msg.error?.message || 'The turn failed.';
@@ -213,22 +266,11 @@ export default {
         }
       },
       onClose({ code, signal, stderr, stopped }) {
-        const ok = completed && !failure && code === 0;
-        // codex exec doesn't print its usage windows; its session file has them (server/budget.js).
-        const limits = thread && codexLimits(codexRollout(thread, { home: accountEnv.CODEX_HOME || process.env.CODEX_HOME || undefined }));
+        if (base) fs.rmSync(base, { force: true });
+        if (!reported) return report({ ok: completed && !failure && code === 0, stopped, text: failure || lastError || stderr || exitText('codex', code, signal) });
+        // Reported at turn.completed: the session file is complete now, so read the windows again.
+        const limits = readLimits();
         if (limits) onEvent({ type: 'limits', ...limits });
-        onEvent({
-          type: 'result',
-          isError: !ok,
-          stopped,
-          text: ok ? lastMessage : failure || lastError || stderr || exitText('codex', code, signal),
-          stats: {
-            durationMs: Date.now() - started,
-            inputTokens: usage?.input_tokens,
-            ...(usage?.cached_input_tokens && { cachedInputTokens: usage.cached_input_tokens }), // Ask near the limit counts what wasn't cached (server/guard.js)
-            outputTokens: usage?.output_tokens,
-          },
-        });
       },
     });
   },
@@ -262,6 +304,14 @@ async function catalog() {
   return [];
 }
 
+function ownDeveloperInstructions(home) {
+  try {
+    return /^\s*developer_instructions\s*=/m.test(fs.readFileSync(path.join(home, 'config.toml'), 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
 // The top-level `model = "…"` in config.toml (before any [table]), or ''.
 function configuredModel() {
   try {
@@ -277,6 +327,7 @@ function describeMcp(item) {
   if (item.server === 'wisp' && (item.tool === 'delegate' || item.tool === 'subagent_results')) return { kind: 'agent', label: 'Waiting on subagents' };
   if (item.server === 'wisp' && item.tool === 'wisp_tag') return { kind: 'tool', label: 'Tagging the task' };
   if (item.server === 'wisp' && item.tool === 'wisp_pr') return { kind: 'tool', label: 'Attaching a PR' };
+  if (item.server === 'wisp' && item.tool === 'wisp_blocks') return { kind: 'tool', label: 'Reading block formats' };
   if (item.server === 'wisp' && item.tool === 'wisp_stats') return { kind: 'tool', label: 'Reading wisp stats' };
   if (item.server === 'wisp' && item.tool === 'wisp_sessions') return { kind: 'tool', label: 'Listing wisp tasks' };
   if (item.server === 'wisp' && item.tool === 'wisp_session') return { kind: 'tool', label: 'Reading a wisp task' };

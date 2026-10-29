@@ -107,6 +107,17 @@ for (const id of Object.keys(BIN)) {
   });
 
   if (id === 'codex')
+    test('codex: a lean run (the retro) turns codex\'s extras off and swaps its base prompt for one line', async () => {
+      await run(id, { lean: true, mode: 'plan', systemPrompt: '# wisp retro\nReply with JSON.' }).done;
+      const argv = records(RECORD, BIN[id]).at(-1).argv;
+      for (const f of ['plugins', 'apps', 'multi_agent']) assert.ok(argv.includes(`features.${f}=false`), f);
+      const file = argv.find((a) => a.startsWith('model_instructions_file='));
+      assert.ok(file, 'a base prompt file');
+      assert.equal(fs.existsSync(JSON.parse(file.slice(file.indexOf('=') + 1))), false, 'removed once the run ends');
+      if (process.platform !== 'win32') assert.ok(argv.includes('developer_instructions="# wisp retro\\nReply with JSON."'));
+    });
+
+  if (id === 'codex')
     test('codex: without `debug models`, detect() reads the cached catalog; Default takes config.toml’s model', async () => {
       process.env.FAKE_CODEX_NO_DEBUG = '1';
       try {
@@ -127,10 +138,15 @@ for (const id of Object.keys(BIN)) {
     assert.ok(same(rec.cwd, cwd), `ran in ${rec.cwd}, expected ${cwd}`);
     if (id !== 'claude') assert.ok(same(rec.pwd, cwd), `PWD was ${rec.pwd}`);
 
-    // wisp's protocol reaches the agent: as a system prompt flag, or in front of the prompt.
+    // wisp's protocol reaches the agent: as a system prompt flag, or in front of the prompt. Codex
+    // (0.53+, not on Windows) takes it as developer instructions, ahead of the task's folder, so it's cached.
     const PROMPT_FLAG = { claude: '--append-system-prompt', grok: '--rules' };
+    const developer = id === 'codex' && process.platform !== 'win32' && rec.argv.find((a) => a.startsWith('developer_instructions='));
     if (PROMPT_FLAG[id]) assert.match(rec.argv[rec.argv.indexOf(PROMPT_FLAG[id]) + 1], /running inside wisp/);
-    else assert.match(promptOf(id, rec.stdin), /running inside wisp[\s\S]*# Task\n\nfix the add bug/);
+    else if (id === 'codex' && process.platform !== 'win32') {
+      assert.match(developer || '', /^developer_instructions="# You are running inside wisp/);
+      assert.equal(promptOf(id, rec.stdin).trim(), 'fix the add bug', 'the prompt alone on stdin');
+    } else assert.match(promptOf(id, rec.stdin), /running inside wisp[\s\S]*# Task\n\nfix the add bug/);
 
     // copilot is handed a fresh session id rather than making one up.
     const sid = id === 'copilot' ? rec.argv[rec.argv.indexOf('--session-id') + 1] : `${BIN[id]}-session-1`;

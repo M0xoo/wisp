@@ -596,7 +596,7 @@ The machine runs macOS or Linux (on Windows, use WSL). It only needs **SSH turne
 
 ## Learning
 
-After a session has been quiet for 90 seconds (or right away when you mark it done or archive it), wisp runs a short **retro**: the same harness, read-only and without tools (Claude Code runs it on Haiku), reads a digest of the turns it hasn't seen yet. The digest holds your requests and follow-ups, questions and answers, failed tool calls and the commands run around them, and how each run ended. The retro then updates four small lists:
+After a session has been quiet for 90 seconds (or right away when you mark it done or archive it), wisp runs a short **retro**: the same harness, read-only and without tools, on its smallest model and without the harness's own prompt, tools or plugins (Haiku for Claude Code; for Codex its smallest model at low effort), reads a digest of the turns it hasn't seen yet. A one-shot task that just worked (no follow-up, no failure, no question) has nothing to teach, so it gets no retro. The digest holds your requests and follow-ups, questions and answers, failed tool calls and the commands run around them, and how each run ended. The retro then updates four small lists:
 
 | | Everywhere | This project |
 |---|---|---|

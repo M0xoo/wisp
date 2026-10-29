@@ -12,7 +12,7 @@ process.env.FAKE_RECORD = RECORD;
 process.env.WISP_UPDATE_CHECK = '0';
 installFakeBins();
 const { APP_MAX_HTML, APP_MAX_STATE, appDoc, appKey, appProblem, themeCss } = await import('../web/js/app-doc.js');
-const { systemPrompt } = await import('../server/protocol.js');
+const { systemPrompt, blockDocs } = await import('../server/protocol.js');
 const { blocksToMarkdown } = await import('../server/render.js');
 const { SPELL_EXAMPLES } = await import('../server/spell-guide.js');
 const { startServer } = await import('../server/index.js');
@@ -46,10 +46,15 @@ test('appProblem: html is required and capped; appKey is the block\'s place, els
 
 test('the protocol offers app blocks only when Interactive answers is on', () => {
   assert.doesNotMatch(systemPrompt(), /"type":"app"/);
+  // With wisp's tools the catalogue names it and wisp_blocks has its fields; without them it's in full.
   const p = systemPrompt({ apps: true });
-  assert.match(p, /- \{"type":"app","title":"…","html":/);
-  assert.match(p, /wisp\.send\(text\)/);
-  assert.match(p, /320px/);
+  assert.match(p, /- \{"type":"app",…\} A small interactive page[^\n]*`wisp_blocks` \(mcp__wisp__wisp_blocks\)/);
+  assert.doesNotMatch(p, /wisp\.send\(text\)/);
+  for (const full of [systemPrompt({ apps: true, askTool: null }), blockDocs(['app'])]) {
+    assert.match(full, /- \{"type":"app","title":"…","html":/);
+    assert.match(full, /wisp\.send\(text\)/);
+    assert.match(full, /320px/);
+  }
   assert.ok(p.indexOf('"type":"app"') < p.indexOf('Strings must be valid JSON'));
   const both = systemPrompt({ apps: true, extraBlocks: [{ type: 'deploy', doc: 'After you deploy.', spell: 'Deploy' }] });
   assert.ok(both.indexOf('"type":"app"') < both.indexOf('"type":"deploy"'));
