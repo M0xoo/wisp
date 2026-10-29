@@ -87,7 +87,8 @@
           "Per-turn checkpoints with one-click rollback",
           "Compare: one task on Claude Code and Codex side by side, keep the better run",
           "Goals: a task keeps going until wisp's own check (tests and the diff) finds its Done when condition holds",
-          "Recipes and triggers",
+          "Crew: named long-lived agents with a brief, a schedule and a memory, and an Org chart of who hands work to whom",
+          "My Stuff: keep what agents make (pictures, docs, code, web apps), launch apps inside wisp and publish them to a public link",
           "MCP server, CLI, JS SDK, HTTP API and webhooks"
         ]
       },
@@ -163,6 +164,11 @@
           },
           {
             "@type": "Question",
+            "name": "Can I share an app my agent built?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. Agents save what they make to My Stuff, including small static web apps, which you launch inside wisp. Signed in to a wisp Grid, or in your cloud wisp, Publish on the app (or asking the agent to publish it) puts it at a public link anyone can open without signing in, and it stays up while your computer sleeps." }
+          },
+          {
+            "@type": "Question",
             "name": "Is wisp free?",
             "acceptedAnswer": {
               "@type": "Answer",
@@ -218,6 +224,7 @@
         <a href="#crew">Crew</a>
         <a href="#machines">Machines</a>
         <a href="#delegate">Delegate</a>
+        <a href="#stuff">My Stuff</a>
         <a href="#spells">Spells</a>
         <a href="#control">Control</a>
         <a href="#cli">CLI</a>
@@ -238,7 +245,7 @@
     <section class="hero">
       <div class="h-glow" aria-hidden="true"></div>
       <div class="wrap h-head">
-        <a class="h-news" href="#crew"><span class="h-news-tag">New</span>Hire a crew of agents<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></a>
+        <a class="h-news" href="#stuff"><span class="h-news-tag">New</span>Share what your agents build<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></a>
         <h1>Your coding agents,<br /> <span class="h-echo">working while you sleep.</span></h1>
         <p class="lede">Give Claude Code, Codex and five more tonight's tasks. Wake up to one report from each. Free and open source.</p>
 
@@ -369,10 +376,10 @@
       </div>
       <dl class="relay-facts spells-facts">
         <div><dt>Fresh context, real memory</dt><dd>Every job is a task of its own, so several run side by side. What carries over is small: your brief, their notebook, and a one-line log per job.</dd></div>
-        <div><dt>One thread each</dt><dd>Their work never mixes with your tasks. Open a member and every job is there, oldest first; answer a question right in it.</dd></div>
+        <div><dt>An org chart</dt><dd><b>Org</b> on the Crew heading shows who hands work to whom. Click <b>+</b> on a card, or drag one onto another, to give a member a delegate.</dd></div>
         <div><dt>@Name anywhere</dt><dd>Tag them in any prompt or follow-up, put them on a team as a delegate, send them a trigger, or run them on another machine.</dd></div>
       </dl>
-      <p class="relay-links"><a href="https://github.com/M0xoo/wisp#crew">How the crew works →</a><a href="guides/run-coding-agents-in-the-background.html">Agents in the background →</a></p>
+      <p class="relay-links"><a href="https://github.com/M0xoo/wisp#crew">How the crew works →</a><a href="guides/organize-your-ai-agent-crew.html">Organize your crew →</a><a href="guides/run-coding-agents-in-the-background.html">Agents in the background →</a></p>
     </section>
 
     <!-- ───────── goals: keep going until it holds (server/goal.js) ───────── -->
@@ -456,6 +463,29 @@
         <div><dt>Changes come home</dt><dd>As a patch into the lead’s worktree, merged three ways if the lead moved on. A clash is named in the report, never lost.</dd></div>
       </dl>
       <p class="relay-links"><a href="guides/multi-agent-coding.html#other-machines">Delegate to another machine →</a><a href="guides/run-coding-agents-on-multiple-machines.html#split-a-task">Split one task across machines →</a><a href="guides/multi-agent-coding.html">Multi-agent coding →</a></p>
+    </section>
+
+    <!-- ───────── my stuff: what agents make, kept, launched and published ───────── -->
+    <section class="control stuff wrap" id="stuff">
+      <div class="spells-head">
+        <h2>Keep what they make. Share it with a link.</h2>
+        <p>Pictures, docs, code and small web apps your agents build land in <b>My Stuff</b>, as copies that stay when the worktree goes. Launch an app inside wisp, <code>@</code> it in your next prompt to change it, and <b>Publish</b> puts it at a public link on your wisp Grid that works while your laptop sleeps.</p>
+      </div>
+      <div class="spells-grid">
+        <div class="window" data-ui>
+          <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">My Stuff</span></div>
+          <picture>
+            <source srcset="assets/shots/dark-stuff.webp" media="(prefers-color-scheme: dark)" />
+            <img src="assets/shots/light-stuff.webp" width="1280" height="560" loading="lazy" alt="wisp's My Stuff page: a pricing page app marked Public with a Launch button, a phone screenshot, a launch plan and a code snippet, each with the task it came from." />
+          </picture>
+        </div>
+      </div>
+      <dl class="relay-facts spells-facts">
+        <div><dt>Saved by asking</dt><dd>Say <i>save that to my stuff</i> and the agent does. Every picture, doc and code block in a reply has a Save button too.</dd></div>
+        <div><dt>Apps that run</dt><dd>An agent builds a static app and saves its folder. <b>Launch</b> opens it inside wisp; it can keep data in a SQLite database of its own.</dd></div>
+        <div><dt>One link to send</dt><dd>Ask <i>publish it</i>, or click <b>Publish</b>. Anyone with the link opens it, no sign-in. After a change, <b>Update link</b> keeps the address.</dd></div>
+      </dl>
+      <p class="relay-links"><a href="guides/keep-what-your-coding-agents-make.html">Keep what your agents make →</a><a href="guides/publish-an-app-your-agent-built.html">Publish an app your agent built →</a></p>
     </section>
 
     <!-- ───────── spells: change wisp itself by asking (spells.js) ───────── -->
@@ -564,6 +594,7 @@
         <details><summary>Can my agents keep working when my laptop is closed?</summary><p>Yes, if they run on a computer that stays on. Connect a desktop or VM through <b>Machines</b>, or use <a href="cloud.html">wisp Cloud</a>: your own wisp on a server, free during the preview. Sign in with GitHub or Google, sign in to Claude Code or Codex with a code, give it a task and close the laptop; the report waits on your phone. <a href="guides/run-claude-code-24-7-without-a-vps.html">Run Claude Code 24/7 without a VPS →</a></p></details>
         <details><summary>Can I move a task to another computer or agent mid-way?</summary><p>Yes. Pick another computer with the <b>Runs on</b> button next to the follow-up box, and your next follow-up moves the task there: the branch and uncommitted changes travel as a git bundle into a worktree on the same branch, and the agent gets the earlier turns. The harness button next to it switches agents, say from Claude Code to Codex, in the same follow-up. <a href="guides/move-a-task-to-another-machine-or-agent.html">Guide →</a></p></details>
         <details><summary>Can I use my work and personal Claude Code accounts?</summary><p>Yes, for Claude Code and Codex. Add the second account in Settings → Agents and pick which one each task runs on; settings, skills and MCP servers are shared, the login isn't. Each account keeps its own limits: when one runs out, the task asks you what to do, and wisp never switches accounts on its own. Only add accounts that are yours. <a href="guides/use-work-and-personal-claude-code-accounts.html">Guide →</a></p></details>
+        <details><summary>Can I share an app my agent built?</summary><p>Yes. Agents save what they make to <b>My Stuff</b>, including small static web apps, which you launch inside wisp. Signed in to a wisp Grid (Settings → Cloud), or in your cloud wisp, <b>Publish</b> on the app (or asking the agent to <i>publish it</i>) puts it at a public link like <code>pricing-demo--app--you.grid.trywisp.dev</code>. Anyone with the link opens it without signing in, and it stays up while your computer sleeps. <a href="guides/publish-an-app-your-agent-built.html">Guide →</a></p></details>
         <details><summary>Is wisp free?</summary><p>Yes. wisp is MIT-licensed and free. You use your existing Claude Code, Codex, opencode, Cursor, Antigravity, Grok or GitHub Copilot account, and those providers bill as usual.</p></details>
         <details><summary>Does my code leave my machine?</summary><p>wisp itself is a local server. Sessions and state are plain JSON in <code>~/.wisp</code>. Your code only goes to the agent provider you choose, same as running that CLI directly. wisp sends anonymous usage stats with no prompts, paths or agent output. Turn them off with <code>WISP_TELEMETRY=0</code> or <code>DO_NOT_TRACK=1</code>.</p></details>
         <details><summary>Can I take over a session in my terminal?</summary><p>Yes. Press <kbd>T</kbd> and wisp opens your terminal in the project with the agent's resume command, for example <code>claude --resume &lt;id&gt;</code>. It works with Terminal, iTerm, Ghostty, Warp, kitty, WezTerm, Windows Terminal and more.</p></details>
