@@ -23,20 +23,31 @@ jobs:
           node-version: 22
       - name: Install Claude Code, Codex and opencode
         run: npm install -g @anthropic-ai/claude-code @openai/codex opencode-ai
+      # cursor.com's installer is sometimes down (a 500) or leaves a CLI that doesn't start: each
+      # step checks the CLI answers --version, and the smoke test only requires Cursor if it did.
       - name: Install Cursor CLI (Unix)
+        id: cursor-unix
         if: runner.os != 'Windows'
         continue-on-error: true
+        shell: bash
         run: |
           curl https://cursor.com/install -fsS | bash
+          "$HOME/.local/bin/cursor-agent" --version
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install Cursor CLI (Windows)
+        id: cursor-win
         if: runner.os == 'Windows'
         continue-on-error: true
         shell: pwsh
         run: |
           irm 'https://cursor.com/install?win32=true' | iex
+          & "$env:LOCALAPPDATA\cursor-agent\cursor-agent.cmd" --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           # The installer edits the user's PATH in the registry; this session needs it too.
           "$env:LOCALAPPDATA\cursor-agent" >> $env:GITHUB_PATH
+      - name: Cursor CLI unavailable
+        if: steps.cursor-unix.outcome == 'failure' || steps.cursor-win.outcome == 'failure'
+        run: echo "::warning::Cursor's installer failed on ${{ runner.os }}; the smoke test skips Cursor this run."
       # Not in WISP_REAL_REQUIRE yet: the agy installer hasn't been exercised on CI runners.
       - name: Install Antigravity CLI (Unix)
         if: runner.os != 'Windows'
@@ -52,5 +63,5 @@ jobs:
       - name: Smoke test
         run: npm run test:real
         env:
-          WISP_REAL_REQUIRE: claude,codex,opencode,cursor
+          WISP_REAL_REQUIRE: claude,codex,opencode${{ (steps.cursor-unix.outcome == 'success' || steps.cursor-win.outcome == 'success') && ',cursor' || '' }}
           WISP_REAL_TIMEOUT: '180000'
