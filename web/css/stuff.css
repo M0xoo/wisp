@@ -373,3 +373,10 @@ button.mn.stuff:hover { background: color-mix(in srgb, var(--accent) 20%, transp
 .sb-go { flex: none; gap: 6px; }
 .sb-go .i { width: 13px; height: 13px; }
 @media (max-width: 520px) { .sb-pic { width: 72px; } .b-stuff { gap: 10px; } }
+/* The Mac app's window buttons sit over the top-left corner (electron/main.js trafficLightPosition):
+   full-window views start under them, and a full-bleed one makes room in its bar. */
+body.electron.mac :is(.ap, .dr) { top: 46px; }
+@media (max-width: 700px) {
+  body.electron.mac .ap { top: 0; }
+  body.electron.mac .ap-top { padding-left: 84px; }
+}
