@@ -101,6 +101,30 @@ const TAKES = [
     await open(p, w.ids.spell);
     return { clip: pad(await p.locator('.item.open .presentation', { hasText: 'Task board' }).first().boundingBox(), 2) };
   }],
+  // My Stuff (stage.mjs seeds it): the published pricing app first, then what else agents kept.
+  ['stuff', 1280, 560, async (p) => {
+    await p.click('#splitStuff');
+    await p.waitForSelector('.stuff-view, .stuff-page, [class*="stuff"] .st-card', { timeout: 10000 }).catch(() => {});
+    await p.mouse.move(2, 2);
+    await p.waitForTimeout(1500);
+    return {};
+  }],
+  // Org: a tech lead handing work to Scout, Quill and three Codex copies; Quill to Echo.
+  ['org', 1280, 640, async (p) => {
+    let ada = (await api(w.url, '/api/crew')).json.find((m) => m.name === 'Ada');
+    ada ||= (await api(w.url, '/api/crew', { name: 'Ada', role: 'Tech lead', avatar: 'flame.amber.happy.smile.crown', color: 'amber', brief: 'Plan the week’s work and hand it out.', cwd: w.repos['api-server'], agent: 'claude' })).json;
+    const { Scout, Quill, Echo } = w.crew;
+    await api(w.url, `/api/crew/${ada.id}`, { team: [{ crew: Scout.id, name: 'Scout' }, { crew: Quill.id, name: 'Quill' }, { agent: 'codex', name: 'codex', count: 3, use: 'tests' }] }, 'PATCH');
+    await api(w.url, `/api/crew/${Quill.id}`, { team: [{ crew: Echo.id, name: 'Echo' }] }, 'PATCH');
+    await p.reload();
+    await p.addStyleTag({ content: CSS });
+    await p.waitForSelector('#secCrew .cr-org');
+    await p.click('#secCrew .cr-org');
+    await p.waitForSelector('.org-view .org-chart');
+    await p.mouse.move(2, 2);
+    await p.waitForTimeout(1500);
+    return {};
+  }],
   ['compare', 1240, 900, async (p) => {
     await p.click('.task-item [data-a="compare"]');
     await p.waitForSelector('.compare-modal');

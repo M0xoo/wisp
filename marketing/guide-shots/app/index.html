@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Cloud · Pricing</title>
+<style>
+  :root { --ink: #17171c; --mut: #6b6b76; --line: #e6e6ea; --acc: #4f46e5; --bg: #fafafb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; color: var(--ink); background: var(--bg); }
+  nav { display: flex; align-items: center; gap: 28px; padding: 18px 48px; border-bottom: 1px solid var(--line); background: #fff; }
+  nav b { font-size: 17px; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+  nav b i { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, #6366f1, #22d3ee); }
+  nav span { color: var(--mut); font-size: 14px; }
+  nav .cta { margin-left: auto; padding: 7px 14px; border-radius: 8px; background: var(--ink); color: #fff; font-size: 13px; }
+  header { text-align: center; padding: 44px 20px 22px; }
+  h1 { margin: 0; font-size: 36px; letter-spacing: -.025em; }
+  header p { margin: 8px 0 22px; color: var(--mut); font-size: 16px; }
+  .toggle { display: inline-flex; padding: 4px; border: 1px solid var(--line); border-radius: 999px; background: #fff; gap: 2px; }
+  .toggle button { border: 0; background: none; padding: 7px 16px; border-radius: 999px; font: inherit; font-size: 14px; color: var(--mut); cursor: pointer; display: flex; gap: 6px; align-items: center; }
+  .toggle button.on { background: var(--ink); color: #fff; }
+  .toggle em { font-style: normal; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #dcfce7; color: #166534; }
+  .plans { display: grid; grid-template-columns: repeat(3, 250px); gap: 18px; justify-content: center; padding: 10px 20px 48px; }
+  .plan { position: relative; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+  .plan.pop { border-color: var(--acc); box-shadow: 0 10px 30px rgba(79,70,229,.12); }
+  .plan .badge { position: absolute; top: -11px; left: 22px; font-size: 11px; padding: 3px 9px; border-radius: 999px; background: var(--acc); color: #fff; }
+  .plan h3 { margin: 0 0 4px; font-size: 15px; }
+  .plan .sub { color: var(--mut); font-size: 13px; }
+  .price { margin: 16px 0 4px; font-size: 38px; font-weight: 700; letter-spacing: -.03em; transition: opacity .2s; }
+  .price small { font-size: 14px; font-weight: 500; color: var(--mut); letter-spacing: 0; }
+  .billed { color: var(--mut); font-size: 12.5px; min-height: 18px; }
+  .plan ul { list-style: none; padding: 0; margin: 16px 0 20px; display: grid; gap: 7px; font-size: 13.5px; }
+  .plan li::before { content: '✓'; color: var(--acc); margin-right: 8px; font-weight: 700; }
+  .plan a { display: block; text-align: center; padding: 9px; border-radius: 9px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 14px; }
+  .plan.pop a { background: var(--acc); border-color: var(--acc); color: #fff; }
+</style>
+</head>
+<body>
+<nav><b><i></i>Acme Cloud</b><span>Product</span><span>Docs</span><span>Pricing</span><span class="cta">Start free</span></nav>
+<header>
+  <h1>Pricing that scales with you</h1>
+  <p>Start free. Upgrade when your team does.</p>
+  <div class="toggle" role="group"><button data-p="month">Monthly</button><button data-p="year">Yearly <em>Save 20%</em></button></div>
+</header>
+<section class="plans">
+  <div class="plan"><h3>Hobby</h3><span class="sub">For side projects</span><div class="price" data-m="0" data-y="0"></div><div class="billed"></div><ul><li>3 projects</li><li>1 GB storage</li><li>Community support</li></ul><a href="#">Start free</a></div>
+  <div class="plan pop"><span class="badge">Most popular</span><h3>Team</h3><span class="sub">For growing teams</span><div class="price" data-m="24" data-y="19"></div><div class="billed"></div><ul><li>Unlimited projects</li><li>100 GB storage</li><li>Preview deploys</li></ul><a href="#">Try Team free</a></div>
+  <div class="plan"><h3>Scale</h3><span class="sub">For serious traffic</span><div class="price" data-m="99" data-y="79"></div><div class="billed"></div><ul><li>SSO and audit log</li><li>1 TB storage</li><li>99.99% uptime SLA</li></ul><a href="#">Talk to us</a></div>
+</section>
+<script>
+  const DEFAULT = 'month';
+  const set = (p) => {
+    document.querySelectorAll('.toggle button').forEach((b) => b.classList.toggle('on', b.dataset.p === p));
+    document.querySelectorAll('.price').forEach((el) => {
+      const v = p === 'year' ? el.dataset.y : el.dataset.m;
+      el.innerHTML = `$${v}<small> / seat / mo</small>`;
+      el.nextElementSibling.textContent = v === '0' ? 'Free forever' : p === 'year' ? `$${v * 12} billed yearly` : 'Billed monthly';
+    });
+    localStorage.setItem('period', p);
+  };
+  document.querySelectorAll('.toggle button').forEach((b) => (b.onclick = () => set(b.dataset.p)));
+  set(DEFAULT);
+</script>
+</body>
+</html>

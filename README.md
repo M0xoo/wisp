@@ -15,7 +15,7 @@ Launch coding agents in the background, skip the transcript, and read the presen
 [![Zero runtime deps](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
 [![Harnesses](https://img.shields.io/badge/harness-Claude%20Code%20·%20Codex%20·%20opencode%20·%20Cursor%20·%20Antigravity%20·%20Grok%20·%20Copilot-d97757)](#adding-a-harness)
 
-[Website](https://trywisp.dev/) · [wisp Cloud](#wisp-cloud) · [Quick start](#quick-start) · [Features](#features) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
+[Website](https://trywisp.dev/) · [wisp Cloud](#wisp-cloud) · [Quick start](#quick-start) · [Features](#features) · [My Stuff](#my-stuff) · [CLI](#cli) · [Integrations](#integrations) · [Shortcuts](#keyboard-shortcuts) · [Architecture](#architecture) · [Adding a harness](#adding-a-harness) · [Roadmap](#roadmap)
 
 <img src="https://raw.githubusercontent.com/M0xoo/wisp/main/docs/assets/demo.gif" alt="wisp: send a task off, answer the agent's question in one click, read the report, then a crew member checks in and another takes a job by @mention" width="880" />
 
@@ -47,7 +47,8 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **A queue** | Sessions sort into *Needs you*, *Working* (with a live one-line status), and *Done*. Archive what you don't need to see. |
 | **Follow-ups that interrupt** | A follow-up sent mid-run interrupts the agent and resumes it with your message. Turn on **Queue** to wait for the run to finish instead; queued messages can be cancelled. To ask without interrupting, start with `/btw` (`/btw did you update the docs too?`): a separate read-only run answers on a copy of the conversation, and the agent keeps working. |
 | **Command palette** | `⌘K` / `Ctrl+K` fuzzy-searches sessions, projects, and actions. |
-| **Crew** | Named agents with a face, a role, a schedule and a memory that keep working for you: they check in, report when something changed, take jobs in parallel and answer to `@Name` in any prompt. See [Crew](#crew). |
+| **Crew** | Named agents with a face, a role, a schedule and a memory that keep working for you: they check in, report when something changed, take jobs in parallel and answer to `@Name` in any prompt. **Org** charts who hands work to whom, and you change it there. See [Crew](#crew). |
+| **My Stuff** | A shelf for what agents make: pictures, docs, code, links and small web apps, kept when the worktree goes. Ask *“save that to my stuff”*, `@` a thing in any prompt, launch apps inside wisp, and **Publish** one to a public link on your wisp Grid. See [My Stuff](#my-stuff). |
 | **Goals** | Say what *done* means and wisp checks it after every round, sending the task back until it holds. See [Goals](#goals). |
 | **Auto** | The default harness: wisp picks the harness, model and thinking level per task from what worked before, and learns from merges, 👍 / 👎 and follow-ups. See [Auto](#auto). |
 | **Any harness** | Claude Code, Codex, opencode, Cursor CLI, Antigravity CLI, Grok Build, or GitHub Copilot CLI. Pick the harness, model and thinking level together in the launcher; both are remembered per harness. Each card shows the harness it ran on. |
@@ -453,6 +454,13 @@ A check-in that found nothing marks itself `quiet`: it's logged and archived (it
 - `fix the bug, then have @Ada review it`: Ada joins the task's delegates, and its agent hands Ada the review. The Delegate popover lists your crew under **Add delegate** too.
 - A trigger's **Send to** (Automations): a schedule, failed CI or a labelled issue goes to them.
 
+**Org: who hands work to whom.** **Org** on the *Crew* heading (or *Org* in ⌘K) opens your crew as a chart in the main pane: a card per member, an arrow to each of their delegates, and agents on other harnesses as logos on the card. Select a member and the chart becomes their picker: **+** on a card makes that member their delegate, **✓** takes them off, or drag from a card's handle onto another. The column beside it lists who they hand work to and get work from, each with a ×, and **Add a delegate…** adds a member or an agent on any harness. Drag cards to arrange the chart; the layout is saved on your wisp, the same on your other devices, and **Reset layout** goes back to the automatic tiers. **Delegates…** in a member's menu opens Org with them selected.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/shots/dark-org.webp" />
+  <img src="docs/assets/shots/light-org.webp" alt="wisp's Org page: Ada, a tech lead, hands work to Scout, Quill and three Codex copies; Quill hands work to Echo" width="880" />
+</picture>
+
 **Ask any task to change the crew.** *Add a crew member who reviews new PRs every hour*, *pause Ada*, *remove Quill*: every agent wisp runs has `wisp_crew`, `wisp_crew_add`, `wisp_crew_edit` and `wisp_crew_remove`, and writes the brief from what you asked. A subagent or a member's own job can't change the crew. `wisp mcp` has the same tools, so Claude Code, Codex or any MCP client outside wisp can manage it too.
 
 **They follow up by themselves.** A member tagged in a task, or delegated to by one, can send that task's agent a follow-up of its own when it finds something that agent should act on (`followUp` in its block). It shows in the task as *@Ada (your crew’s CI watcher): …*, Ada's thread there moves along with it, and Ada's job says where it followed up. Ada also joins that task's delegates, so its agent can hand the work back for her to check; that delegated job reports to the agent rather than following up again, so they can't loop.
@@ -470,6 +478,23 @@ wisp crew import scout.crew.json       # or gist:<id>, https://…; paused, in t
 **From a spell.** A spell can bring crew members (`crew` in the spell, [Spells](#spells)). They join paused; the first **Resume** shows what they'll do and asks for their project. The spell owns who they are (name, brief, schedule, events, mode, kit, delegates) and keeps them up to date; their project, harness and notebook are yours. When an update changes what they do (brief, kit, schedule, events or mode), wisp pauses them and **Resume** shows what changed. Turned off, the spell's members leave the crew, and come back as they were when it's on again. **Make it mine** lets a member go from its spell; removing the spell asks whether to keep its members as yours.
 
 API: `GET`/`POST /crew`, `GET`/`PATCH`/`DELETE /crew/:id` (id or name), `POST /crew/:id/jobs`, `POST /crew/:id/checkin`, `POST /sessions/:id/crew` (a task joins), `POST /sessions/:id/crew-reply` (reply in a thread), `crew` on a trigger, `{ crew: id }` in `subagents`. A follow-up starting with `@Name` returns `{ crew: [entry] }`. `machine` on a member puts them on a machine, `team` gives them delegates, `kit` their skills and instructions files; `GET /crew-kit` lists the ones on this computer. `POST /crew/export` (`ids`, `kit`, `notebook`, `team`, `gist`) and `POST /crew/import` (`text` | `url`, `dryRun`, `choices`) share them; `POST /crew/:id/detach` is Make it mine. `POST /crew/:id/jobs` with `kit: true` has them build their kit; what they propose is in `offers` on the member (settle one with `PATCH /crew/:id` and `offers: [{ id, state, names }]`).
+
+## My Stuff
+
+A shelf for what your agents make, on one page in the main pane: the tray beside **New task**, or *My Stuff* in ⌘K (a page with Back on phones).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/shots/dark-stuff.webp" />
+  <img src="docs/assets/shots/light-stuff.webp" alt="wisp's My Stuff page: a pricing page app marked Public with Launch, a phone screenshot, a launch plan and a code snippet, each with the task it came from" width="880" />
+</picture>
+
+- **Keep it.** Every picture, video, doc and code block in a reply has **Save to My Stuff** beside Copy and Download. Agents keep things too: ask *“save that to my stuff”* and they call `wisp_save`. Each thing is a copy, so it stays when the task, its worktree or `/tmp` goes. Drop or paste files on the page to add your own.
+- **Find it.** Cards preview the thing itself, with the task it came from. Search titles, notes, #tags, tasks and a doc's text; filter by kind or star; group by time or by task.
+- **Use it.** Type `@` in any prompt and pick a thing: the agent gets its file, a doc's text, and how to update it (*“use the logo from my stuff”*). An agent that updates one saves a new version in place (*v2*), and **⋯ → Restore** puts the one before back.
+- **Apps.** For a demo, slides or a small tool, agents build a static web app and save its folder (`wisp_save` `app`, with a screenshot as its cover). **Launch** serves it on a port of its own and opens it inside wisp, with Reload, New tab, Stop and Close. An app whose `wisp-app.json` says `"db": true` gets its own SQLite database (`import { sql } from '/_wisp/db.js'`; needs Node 22.13+).
+- **Publish.** Signed in to a wisp Grid (Settings → Cloud), or in your cloud wisp, **Publish** on an app (its **⋯** menu, or its bar while it runs) puts it at `<app>--app--<you>.<grid>`, for example `pricing-demo--app--you.grid.trywisp.dev`. Anyone with the link opens it, no sign-in, while your computer or cloud wisp sleeps; search engines are kept out. Or ask the agent: *“publish it”* (`wisp_save` `publish: true`) and it answers with the link. After an agent changes the app, **Update public link** puts the new version at the same address; **Unpublish** takes it down. A published app with a database gets one on the grid, shared by everyone who opens the link.
+
+API: `GET`/`POST /stuff`, `PATCH`/`DELETE /stuff/:id`, `POST`/`DELETE /stuff/:id/launch`, `POST`/`DELETE /stuff/:id/publish`. Agents use `wisp_save` and `wisp_stuff`.
 
 ## Checkpoints and rollback
 
@@ -558,6 +583,7 @@ Your own wisp on a server, so the agents keep working when your laptop is closed
 - **Use it from anywhere.** In the browser, from wisp on your computer (**Machines** → *Reach this computer from anywhere*, or Settings → **Cloud**: the address is filled in, you allow a code in the browser and it joins **Run on** like any machine; from a terminal, `wisp computer on`), or from the phone app (**wisp Cloud** on its first screen).
 - **Add your own computers.** Signed in from Machines, the computer joins the grid too (**Add to grid**). It holds a tunnel open to the grid, so your phone and your other computers open it at `<name>--<handle>.<grid>` with no SSH, Tailscale or open port. They show up in each other's Machines and in the phone app's list; the grid's account page lists them all, with how to add one.
 - **Connect your agents.** In the cloud wisp, Settings → **Agents** → **Sign in**: Claude Code (`claude auth login`), Codex (`codex login --device-auth`) and GitHub (`gh auth login`, then git pushes with it) show a link and a code, no terminal; opencode Zen and Go take the API key from opencode.ai/auth. From the desktop, Settings → Cloud lists the same Sign in buttons for each cloud computer. The logins stay in your own folder on the server; wisp never sees a password, and the model picker only offers what you've signed in to.
+- **Publish apps from My Stuff.** An app an agent built goes up to the grid and opens at `<app>--app--<you>.grid.trywisp.dev` for anyone with the link, while your wisp sleeps. See [My Stuff](#my-stuff).
 - **It sleeps when nothing's going on** and wakes in seconds when you open it, send it a task, or a schedule is due. Watching it from the desktop doesn't keep it awake: the card says *Asleep*, its tasks still show, and anything you send wakes it.
 - **Your account page** at grid.trywisp.dev lists your cloud wisp and your computers (each with its state and **Open**), the three steps to add a computer, the devices signed in (remove any of them; a computer's device takes it off the grid too) and how you sign in. It works on a phone.
 - **What passes through the grid.** Opening one of your computers goes over HTTPS to the grid, which checks it's you, then down the tunnel the computer holds open. The grid forwards it and keeps nothing of it. If you'd rather it never leaves your network, use Machines over SSH or Tailscale.

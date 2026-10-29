@@ -68,12 +68,46 @@ const MEMBERS = [
   { name: 'Echo', role: 'Release notes', avatar: 'drop.rose.happy.cat.halo', color: 'rose', cron: '0 9 * * 1-5', brief: 'Draft release notes from what merged.' },
 ];
 
+// My Stuff as agents leave it: the pricing demo app in app/ (published to a grid), a phone shot of
+// it, a launch plan and a snippet. Written with wisp's own Stuff before it starts; the covers are
+// the app itself in Chrome.
+async function stuff(home) {
+  const { Stuff } = await import('../../server/services/stuff.js');
+  const { CHROME, playwright } = await import('../../qa/lib.mjs');
+  const dir = tmp('made');
+  const html = fs.readFileSync(path.join(HERE, 'app/index.html'), 'utf8');
+  const browser = await playwright().chromium.launch({ executablePath: CHROME });
+  const snap = async (src, file, width, height) => {
+    const p = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1.5 });
+    await p.setContent(src);
+    await p.screenshot({ path: path.join(dir, file) });
+    await p.close();
+  };
+  await snap(html, 'cover.png', 1100, 690);
+  await snap(html.replace('repeat(3, 250px)', '1fr'), 'pricing-on-a-phone.png', 390, 844);
+  await browser.close();
+  const app = path.join(dir, 'pricing-demo');
+  fs.mkdirSync(app);
+  fs.writeFileSync(path.join(app, 'index.html'), html);
+  fs.writeFileSync(path.join(app, 'wisp-app.json'), JSON.stringify({ name: 'Pricing page demo', description: 'Three plans with a monthly/yearly toggle.' }));
+  fs.writeFileSync(path.join(dir, 'launch-plan.md'), '# Pricing launch plan\n\n**Ship date:** Tuesday, after the yearly plans are live.\n\n1. Turn on yearly billing in Stripe\n2. Swap the pricing page\n3. Email the 40 teams on the old plan\n');
+  fs.writeFileSync(path.join(dir, 'limiter.ts'), '// Sliding window per key\nexport function limiter({ max = 5, windowMs = 60_000 } = {}) {\n  const hits = new Map();\n  return (key) => {\n    const now = Date.now();\n    const recent = (hits.get(key) || []).filter((t) => now - t < windowMs);\n    hits.set(key, [...recent, now]);\n    return recent.length < max;\n  };\n}\n');
+  const s = new Stuff(path.join(home, 'stuff'));
+  const by = (title) => ({ by: 'agent', from: { title } });
+  s.addFile(path.join(dir, 'limiter.ts'), { ...by('Rate-limit /login'), title: 'Login limiter', tags: ['auth'] });
+  s.addFile(path.join(dir, 'launch-plan.md'), { ...by('Plan the pricing launch'), title: 'Pricing launch plan', tags: ['pricing'] });
+  s.addFile(path.join(dir, 'pricing-on-a-phone.png'), { ...by('Check pricing on phones'), title: 'Pricing on a phone', tags: ['pricing', 'mobile'] });
+  const demo = s.addApp(app, { ...by('Build a pricing page demo'), cover: path.join(dir, 'cover.png'), tags: ['pricing', 'demo'], starred: true });
+  s.setPublished(demo.id, { url: 'https://pricing-demo--app--dana.grid.trywisp.dev/', account: 'grid', host: 'grid.trywisp.dev', handle: 'dana', rev: 1, at: Date.now() });
+}
+
 export async function start({ port = 4511, machinePort = 4521, gpuPort = 4522 } = {}) {
   const parent = tmp('repos');
   const repos = Object.fromEntries(Object.keys(FILES).map((n) => [n, repo(parent, n)]));
   const b = bin();
   const home = tmp('home');
   fs.writeFileSync(path.join(home, 'accounts.json'), JSON.stringify({ claude: [{ id: 'default', label: 'Work' }, { id: 'pers', label: 'Personal', kind: 'personal' }] }));
+  await stuff(home);
   const w = await startWisp({
     port,
     extraEnv: { WISP_HOME: home, PATH: `${b.dir}:${process.env.PATH}`, FAKE_AGENTS: b.fakes, WISP_SSH: path.join(b.dir, 'ssh'), FAKE_SSH_HOME: tmp('there'), WISP_UPDATE_CHECK: '0', FAKE_DELAY: '300', FAKE_GOAL_SCRIPT: JSON.stringify(GOAL_CHECKS) },

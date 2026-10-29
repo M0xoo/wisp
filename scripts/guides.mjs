@@ -1400,5 +1400,144 @@ CLAUDE_CONFIG_DIR=~/.claude-personal claude   # the other one`)}
       ],
       related: ['customize-wisp-with-spells', 'run-coding-agents-in-the-background', 'multi-agent-coding'],
     },
+
+    {
+      slug: 'keep-what-your-coding-agents-make',
+      topic: 'yours',
+      title: 'Keep the screenshots, docs and demos your coding agents make — wisp',
+      h1: 'Keep what your coding agents make',
+      card: 'Pictures, docs, code and small web apps from your agents, on one shelf that stays when the worktree goes.',
+      description: 'Save the screenshots, docs, snippets and web apps Claude Code or Codex make to My Stuff in wisp: copies that outlive the worktree and /tmp, that you @ in your next prompt.',
+      lede: 'Coding agents leave useful things behind: a screenshot of the fix, a plan, a snippet, a demo page in <code>/tmp</code>. Most of it is gone once the task’s worktree is cleaned up. In wisp, every picture, doc and code block in a reply has <b>Save to My Stuff</b>, agents save things when you ask, and each is a copy that stays.',
+      shot: ['stuff', 'wisp’s My Stuff page: a pricing page app marked Public with Launch, a phone screenshot, a launch plan and a code snippet, each with the task it came from'],
+      body: `
+    <section>
+      <h2 id="manual">The manual way</h2>
+      ${sh(`# copy it out before the worktree goes
+mkdir -p ~/agent-output
+cp /tmp/pricing-demo/index.html ~/agent-output/pricing-demo.html
+cp .wisp/shots/phone.png ~/agent-output/`)}
+      <p>Then remember which folder holds what, and paste the path into the next prompt that needs it.</p>
+    </section>
+
+    <section>
+      <h2 id="save">Save it</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp.</b> ${install()}</li>
+        <li><b>From a reply.</b> Pictures, videos, docs and code blocks have <b>Save to My Stuff</b> beside Copy and Download. It lights up once saved; click it again to take it out.</li>
+        <li><b>By asking.</b> <i>Save that to my stuff</i>: the agent calls <code>wisp_save</code>, and its answer shows a card for what it saved.</li>
+        <li><b>By hand.</b> Drop or paste files on the My Stuff page (the tray beside <b>New task</b>, or ⌘K → <i>My Stuff</i>).</li>
+      </ol>
+      <p>Each thing is a copy in <code>~/.wisp/stuff</code>, so it stays when the task, its worktree or <code>/tmp</code> goes. Cards preview the thing itself and say which task it came from. Search titles, notes, #tags and a doc’s text, filter by kind or star, and group by time or by task.</p>
+    </section>
+
+    <section>
+      <h2 id="use">Use it in the next task</h2>
+      <p>Type <code>@</code> in any prompt or follow-up and pick a thing: the agent gets its file (or folder, or link), a doc’s text, and how to update it. Agents can also look for it themselves with <code>wisp_stuff</code> (<i>use the logo from my stuff</i>).</p>
+      <p>When an agent updates something you kept, it saves a new version in place: same card, title, star and tags, a <i>v2</i> on it, and <b>⋯ → Restore</b> brings back the one before.</p>
+    </section>
+
+    <section>
+      <h2 id="apps">Apps</h2>
+      <p>For a demo, slides or a small tool, agents build a static web app and save its folder with a screenshot as its cover. <b>Launch</b> serves it on a port of its own and opens it inside wisp, with Reload, New tab, Stop and Close. It stops after 30 minutes idle. An app whose <code>wisp-app.json</code> says <code>"db": true</code> gets its own SQLite database that survives updates. To share one, see <a href="/guides/publish-an-app-your-agent-built.html">publish an app your agent built</a>.</p>
+    </section>
+`,
+      faq: [
+        ['Where does My Stuff keep things?', 'In ~/.wisp/stuff on the computer wisp runs on, as copies. Removing a task or its worktree doesn’t touch them.'],
+        ['Can an agent find something I saved last week?', 'Yes. Agents have a wisp_stuff tool to list and read what you kept, and you can @ a thing in any prompt to hand it over directly.'],
+        ['What happens when an agent changes something I kept?', 'It saves a new version in place, marked v2, and keeps the version before so ⋯ → Restore can put it back.'],
+        ['Which harnesses can save to My Stuff?', 'Every agent wisp runs gets the wisp_save and wisp_stuff tools, so Claude Code, Codex and the other harnesses can.'],
+      ],
+      related: ['publish-an-app-your-agent-built', 'run-coding-agents-in-the-background', 'customize-wisp-with-spells'],
+    },
+
+    {
+      slug: 'publish-an-app-your-agent-built',
+      topic: 'cloud',
+      cloud: true,
+      title: 'Deploy a web app your coding agent built, in one click — wisp',
+      h1: 'Publish an app your agent built',
+      card: 'Ask Claude Code or Codex for a demo, then send a link: Publish puts it on your wisp Grid while your laptop sleeps.',
+      description: 'Your coding agent built a demo or a small tool. Publish it from wisp’s My Stuff to a public link on your wisp Grid: no hosting setup, no sign-in for whoever opens it.',
+      lede: 'To share a demo your agent built, you usually need hosting: a Vercel or Netlify project, a build, a domain. In wisp, the agent saves the app to <b>My Stuff</b>, and <b>Publish</b> puts it on your wisp Grid at a link anyone can open, no sign-in. Or just ask the agent to <i>publish it</i>.',
+      shot: ['stuff', 'wisp’s My Stuff page: the pricing page demo, marked Public, with Launch'],
+      body: `
+    <section>
+      <h2 id="manual">The manual way</h2>
+      ${sh(`npm i -g vercel
+cd /tmp/pricing-demo
+vercel login
+vercel --prod`)}
+      <p>That’s an account, a project per demo, and a deploy each time the agent changes it.</p>
+    </section>
+
+    <section>
+      <h2 id="with-wisp">With wisp</h2>
+      <ol class="doc-steps">
+        <li><b>Sign in to a grid.</b> Use your cloud wisp at <a href="https://grid.trywisp.dev">grid.trywisp.dev</a>, or sign wisp on your computer in to it from Settings → <b>Cloud</b>.</li>
+        <li><b>Have the agent build it.</b> <i>Build a pricing page demo with a monthly/yearly toggle and save it to my stuff.</i> The agent writes a static app (HTML, JS, CSS) and saves the folder; its card in the reply has <b>Launch</b> to try it inside wisp.</li>
+        <li><b>Publish.</b> On the app’s <b>⋯</b> menu, or its bar while it runs: <b>Publish to grid.trywisp.dev</b>. Or ask: <i>publish it</i>. The link is copied, and the card shows <b>Public</b>.</li>
+      </ol>
+      <p>The link looks like <code>https://pricing-demo--app--you.grid.trywisp.dev/</code>. Anyone with the link opens it without signing in, while your computer or cloud wisp sleeps. Published apps are kept out of search engines.</p>
+    </section>
+
+    <section>
+      <h2 id="update">Change it, keep the link</h2>
+      <p><i>@Pricing page demo make yearly the default</i>: the agent saves a new version in place, and <b>Update public link</b> puts it at the same address. <b>Unpublish</b> takes it down, as does removing the app from My Stuff. Your grid account page lists everything you published, with Unpublish.</p>
+      <aside class="g-note"><b>Good to know</b><p>Apps are static: no server code of their own. One whose <code>wisp-app.json</code> says <code>"db": true</code> gets a SQLite database, used from its pages with <code>import { sql } from '/_wisp/db.js'</code>; published, the grid keeps one database for everyone who opens the link.</p></aside>
+    </section>
+
+    <section>
+      <h2 id="own-grid">On your own grid</h2>
+      <p>wisp Grid is MIT and in the repo. On your own server, <code>grid.json</code>’s <code>"sites"</code> sets the limits; by default 50 MB per app, 20 apps per person and 10 MB of data per app. See <a href="/guides/self-host-wisp-grid.html">self-host wisp Grid</a>.</p>
+    </section>
+`,
+      faq: [
+        ['Does whoever opens the link need a wisp account?', 'No. A published app opens for anyone with the link, without signing in.'],
+        ['Does my computer need to stay on?', 'No. The app’s files go up to the grid, which serves them while your computer or cloud wisp sleeps.'],
+        ['Can I publish a Next.js or server app?', 'Not as it is. Published apps are static files (HTML, JS, CSS), optionally with a SQLite database the grid keeps. Build a static export first.'],
+        ['How do I take an app down?', 'Unpublish on the app in My Stuff, remove it from My Stuff, or Unpublish on your grid account page.'],
+      ],
+      related: ['keep-what-your-coding-agents-make', 'use-wisp-cloud', 'self-host-wisp-grid'],
+    },
+
+    {
+      slug: 'organize-your-ai-agent-crew',
+      topic: 'agents',
+      title: 'Organize a team of AI coding agents: who delegates to whom — wisp',
+      h1: 'Organize your crew of agents',
+      card: 'A chart of which agent hands work to which, with + or a drag to change it.',
+      description: 'See your wisp crew as an org chart: which long-lived agent hands work to which, and to Codex or Claude Code on other harnesses. Add a delegate with + or a drag.',
+      lede: 'Once you have a few crew members in wisp (a CI watcher, a PR reviewer, a tech lead who plans the week), you need to see who hands work to whom. <b>Org</b> on the Crew heading opens them as a chart: a card per member, an arrow to each delegate, and a click or a drag to change it.',
+      shot: ['org', 'wisp’s Org page: Ada, a tech lead, hands work to Scout and Quill and three Codex copies; Quill hands work to Echo'],
+      body: `
+    <section>
+      <h2 id="open">Open the chart</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp</b> and add a few crew members (<b>+</b> on the Crew heading). ${install()}</li>
+        <li>Click <b>Org</b> on the Crew heading, or ⌘K → <i>Org</i>. Each member is a card with their schedule; agents on other harnesses (Codex ×3) show as logos on the card that delegates to them.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2 id="change">Change who hands work to whom</h2>
+      <p>Select a member and the rest of the chart becomes their picker: <b>+</b> on a card makes that member their delegate, <b>✓</b> takes them off. With a mouse you can also drag from a card’s handle onto another. The column beside the chart lists who they hand work to and get work from, each with a ×, and <b>Add a delegate…</b> adds another member or an agent on any harness and model. Changes save at once.</p>
+      <p>From a member’s page, <b>Delegates…</b> opens Org with them selected; <b>Open thread</b> goes back to their jobs.</p>
+      <aside class="g-note"><b>Good to know</b><p>A job that was itself delegated works alone: it can’t pass the work on to another crew member, so members never hand work round in circles.</p></aside>
+    </section>
+
+    <section>
+      <h2 id="arrange">Arrange it</h2>
+      <p>Drag a card anywhere (on a phone, select it, then drag; with the keyboard, arrow keys, Shift for bigger steps). The arrows follow, and the layout is saved on your wisp, so it’s the same after a reload and on your other devices. <b>Reset layout</b> goes back to the automatic tiers.</p>
+    </section>
+`,
+      faq: [
+        ['What is a delegate in wisp?', 'Someone a member’s jobs can hand work to: another crew member, or an agent on any harness and model, like three Codex copies. The member’s agent hands out work through a delegate tool.'],
+        ['Can two members delegate to each other?', 'They can both be set up that way, but a job that was itself delegated can’t pass work on to another crew member, so work never loops.'],
+        ['Does the layout follow me to my phone?', 'Yes. Where you put the cards is saved on your wisp, so every device that opens it sees the same chart.'],
+        ['Can I keep the automatic layout?', 'Yes. Reset layout goes back to it, and a spell can lock it with org.chart movable: false.'],
+      ],
+      related: ['multi-agent-coding', 'share-crew-members', 'run-coding-agents-in-the-background'],
+    },
   ];
 }
