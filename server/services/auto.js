@@ -84,7 +84,6 @@ export function createAuto(app) {
     router.signal(sum.id, {
       hero: ['done', 'partial', 'blocked', 'info'].includes(sum.status) ? sum.status : undefined,
       followups: sum.followups ?? Math.max(0, (sum.turnCount || 1) - 1),
-      check: sum.auto?.check?.verdict && sum.auto.check.verdict !== 'skip' ? sum.auto.check.verdict : undefined,
       merged: pr === 'MERGED' || undefined,
       closed: pr === 'CLOSED' || undefined,
       switched: sum.route?.switched || undefined,
@@ -207,22 +206,20 @@ export function createAuto(app) {
     return sib;
   };
 
-  // Auto's steps after a run: check with the tests, repair, hand over, judge best-of-2.
+  // Auto's steps after a run: hand over, move on at a limit, judge best-of-2.
   const pipeline = new Pipeline({
     store,
     runner: app.runner,
     router,
     settings: () => autoSettings(store.config.defaults),
     agents: () => agentsHere,
-    projectOf: (s) => store.projectFor(s.cwd),
     launchSibling,
     broadcast: (e, d) => app.broadcast(e, d),
     summarize: (s) => summarize(s, store),
     onSettled: (s) => {
       signals(summarize(s, store));
       const a = s.auto;
-      const c = a.checks.at(-1);
-      app.telemetry.track('auto_settled', { strategy: a.strategy, verdict: c?.verdict || 'none', repairs: a.repairs, escalated: !!a.escalatedTo, escalation: !!a.escalatedFrom, checkMs: c?.durationMs, routeType: s.route?.type });
+      app.telemetry.track('auto_settled', { strategy: a.strategy, escalated: !!a.escalatedTo, escalation: !!a.escalatedFrom, routeType: s.route?.type });
     },
   });
   app.runner.pipeline = pipeline;

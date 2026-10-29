@@ -65,7 +65,7 @@ export function scoutNote(scout) {
   const lines = [];
   if (scout.files?.length) lines.push(`Likely relevant files: ${scout.files.map((f) => `\`${f}\``).join(', ')}.`);
   const tests = scout.tests || scout.testCommand;
-  if (tests) lines.push(`Tests: \`${tests}\`. When you finish, wisp runs the project's tests itself and sends any new failures back to you.`);
+  if (tests) lines.push(`Tests: \`${tests}\`. Run them before you finish.`);
   if (scout.notes) lines.push(scout.notes);
   return lines.length ? `\n\n## Scouted by wisp\n\n${lines.join('\n')}` : '';
 }

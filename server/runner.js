@@ -232,14 +232,12 @@ export function summarize(s, store) {
     // The condition it keeps going for (server/goal.js): its state, round and checks.
     ...(s.goal && { goal: goalView(s.goal) }),
     followups: s.turns.slice(1).filter((t) => t.by !== 'wisp').length, // yours, not Auto's repair rounds
-    // Auto's steps after the run: the last test check, repairs, a hand-over, the best-of-2 pick.
+    // Auto's steps after the run: a hand-over, the best-of-2 pick.
     auto: s.auto
       ? {
           strategy: s.auto.strategy,
           busy: !!s.auto.busy,
           stage: s.auto.stage,
-          repairs: s.auto.repairs,
-          check: s.auto.checks.at(-1) ? (({ verdict, command, passed, failed, newFailures, note }) => ({ verdict, command, passed, failed, newFailures: newFailures?.length || 0, note }))(s.auto.checks.at(-1)) : null,
           escalatedTo: s.auto.escalatedTo || null,
           escalatedFrom: s.auto.escalatedFrom || null,
           reason: s.auto.reason || null, // why it moved on: tests | error | limit
@@ -274,7 +272,7 @@ export class Runner extends EventEmitter {
     this.crewTurn = () => ({});
     this.crewDelegate = null;
     this.crewChild = () => null; // a member's job on another machine, as last fetched (id → session)
-    this.pipeline = null; // Auto's check / repair / hand-over steps (server/pipeline.js)
+    this.pipeline = null; // Auto's hand-over / best-of-2 steps (server/pipeline.js)
     this.accounts = null; // a harness's several accounts (server/accounts.js); null: only the CLI's own
     this.accountPref = () => ''; // (agent) => the account you last picked for it
     this.goals = null; // goals: keep going until a condition holds (server/goal.js)
@@ -331,7 +329,7 @@ export class Runner extends EventEmitter {
       ...(groupId && { groupId }),
       ...(origin && { origin }),
       ...(subagents.length && { subagents, children: {} }),
-      ...(auto && { auto: { strategy: 'single', busy: false, stage: '', label: '', repairs: 0, checks: [], ...auto } }), // server/pipeline.js
+      ...(auto && { auto: { strategy: 'single', busy: false, stage: '', label: '', ...auto } }), // server/pipeline.js
       ...(scout && { scout }), // what the scout found before it started (server/scout.js)
       ...(parentId && { parentId, member }),
       ...(relay && { relay }), // a member on another machine: { machine, place, upstream? } (services/relay.js)

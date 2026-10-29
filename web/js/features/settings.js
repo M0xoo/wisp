@@ -153,9 +153,7 @@ export function openSettings(opts) {
             ${row('Harnesses it may use', 'Leave all off to let Auto use every one you have. A computer with none of these on uses what it has', '<span class="ro-allowed"></span>')}
           </div>
           <div class="sx-group">
-            ${row('Check with the tests', 'When the agent says it’s done, wisp runs the project’s tests itself. Only failures that are new count', '<button class="switch" id="roCheck" role="switch"></button>')}
-            ${row('Repair rounds', 'Failing tests go back to the same agent this many times', `<span class="pk-seg ro-repairs">${[0, 1, 2].map((n) => `<button data-n="${n}">${n}</button>`).join('')}</span>`)}
-            ${row('Hand over when it still fails', 'The task runs again on a stronger pick, next to the first run', '<button class="switch" id="roEscalate" role="switch"></button>')}
+            ${row('Hand over when the run errors', 'The task runs again on a stronger pick, next to the first run', '<button class="switch" id="roEscalate" role="switch"></button>')}
             ${row('Best of two', 'Off by default. With the Best goal, two picks work side by side and wisp marks the better one', '<button class="switch" id="roBest2" role="switch"></button>')}
             ${row('Scout first', 'A cheap model looks around the repo and tells the agent where to start', `<span class="pk-seg ro-scout">${[['off', 'Off'], ['big', 'Bigger tasks'], ['all', 'Every task']].map(([v, l]) => `<button data-v="${v}">${l}</button>`).join('')}</span>`)}
           </div>
@@ -604,10 +602,8 @@ export function openSettings(opts) {
     $$('.ro-goal button', node).forEach((b) => b.classList.toggle('on', b.dataset.goal === r.goal));
     $('#roExplore', node).setAttribute('aria-checked', r.settings.explore);
     $('#roHabits', node).setAttribute('aria-checked', r.settings.habits !== false);
-    $('#roCheck', node).setAttribute('aria-checked', r.settings.check);
     $('#roEscalate', node).setAttribute('aria-checked', r.settings.escalate);
     $('#roBest2', node).setAttribute('aria-checked', r.settings.best2);
-    $$('.ro-repairs button', node).forEach((b) => b.classList.toggle('on', Number(b.dataset.n) === r.settings.repairs));
     $$('.ro-scout button', node).forEach((b) => b.classList.toggle('on', b.dataset.v === r.settings.scout));
     const allowed = r.settings.allowed || [];
     // Installed here or on a machine that's online: Auto runs on machines too.
@@ -636,19 +632,13 @@ export function openSettings(opts) {
       patchAuto({ goal: b.dataset.goal });
     }
   };
-  for (const [id, key] of [['#roHabits', 'habits'], ['#roExplore', 'explore'], ['#roCheck', 'check'], ['#roEscalate', 'escalate'], ['#roBest2', 'best2']]) {
+  for (const [id, key] of [['#roHabits', 'habits'], ['#roExplore', 'explore'], ['#roEscalate', 'escalate'], ['#roBest2', 'best2']]) {
     $(id, node).onclick = (e) => {
       const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
       e.currentTarget.setAttribute('aria-checked', on);
       patchAuto({ [key]: on });
     };
   }
-  $('.ro-repairs', node).onclick = (e) => {
-    const b = e.target.closest('[data-n]');
-    if (!b) return;
-    $$('.ro-repairs button', node).forEach((x) => x.classList.toggle('on', x === b));
-    patchAuto({ repairs: Number(b.dataset.n) });
-  };
   $('.ro-scout', node).onclick = (e) => {
     const b = e.target.closest('[data-v]');
     if (!b) return;

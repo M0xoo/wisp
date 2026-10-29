@@ -21,7 +21,7 @@ export function register(r, app) {
     d.router = { ...d.router };
     if (body.explore !== undefined) d.router.explore = body.explore ? 'on' : 'off';
     if (body.allowed !== undefined) d.router.allowed = Array.isArray(body.allowed) ? body.allowed.filter((a) => adapters[a]) : null;
-    for (const k of ['check', 'escalate', 'best2', 'habits']) if (body[k] !== undefined) d.router[k] = body[k] ? 'on' : 'off';
+    for (const k of ['escalate', 'best2', 'habits']) if (body[k] !== undefined) d.router[k] = body[k] ? 'on' : 'off';
     // Never pick / Prefer: 'claude', 'claude:sonnet', 'claude:sonnet:high', optionally '…@ui'.
     for (const k of ['blocked', 'prefer']) {
       if (body[k] === undefined) continue;
@@ -30,7 +30,6 @@ export function register(r, app) {
       if (bad !== undefined) return c.send(400, { error: `${k}: "${bad}" isn't a harness, harness:model or harness:model:level (optionally @kind, one of ${TYPES.join(', ')})` });
       d.router[k] = [...new Set(body[k])].slice(0, 60);
     }
-    if (body.repairs !== undefined) d.router.repairs = Math.max(0, Math.min(2, Math.round(Number(body.repairs)) || 0));
     if (body.scout !== undefined) {
       if (!['off', 'big', 'all'].includes(body.scout)) return c.send(400, { error: 'scout must be off, big or all' });
       d.router.scout = body.scout;

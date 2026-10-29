@@ -1,5 +1,5 @@
-// Auto's steps after a run (server/pipeline.js): wisp's own test check (server/check.js), the
-// repair round, escalation to a stronger pick, best-of-2 with a judge, and the scout.
+// Auto's steps around a run (server/pipeline.js): escalation to a stronger pick, moving on at a
+// limit, best-of-2 with a judge, and the scout. server/check.js is what a goal check runs.
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -137,70 +137,38 @@ after(() => {
   srv.server.close();
 });
 
-test('the agent fixes it: wisp checks, adds its own tests block, and the task lands in review', async () => {
-  const cwd = testRepo();
-  const s = await api('/sessions', { prompt: 'fix the add bug', cwd, agent: 'auto', mode: 'edits' });
-  const [done] = await settledAll([s.id]);
-  assert.equal(done.turns.length, 1, 'no repair needed');
-  assert.equal(done.auto.checks[0].verdict, 'pass');
-  const blocks = done.turns[0].presentation.blocks;
-  const tests = blocks.find((b) => b.type === 'tests' && b.by === 'wisp');
-  assert.equal(tests.command, 'npm test');
-  assert.equal(tests.failed, 0);
-  assert.equal(blocks.indexOf(tests), 1, 'right under the hero');
-  assert.ok(done.turns[0].activity.some((a) => a.by === 'wisp' && /Tests pass/.test(a.label)));
-  const sum = (await api('/sessions')).find((x) => x.id === s.id);
-  assert.equal(sum.auto.check.verdict, 'pass');
-  assert.equal((await api('/router')).recent.find((x) => x.id === s.id).r, 0.8);
-});
-
-test('tests that passed before break: one repair round, then the task goes to a stronger pick', async () => {
+test('the agent finishes: wisp runs no tests of its own, and the task lands in review', async () => {
   const cwd = testRepo({ keepsBug: true });
   const s = await api('/sessions', { prompt: 'fix the add bug', cwd, agent: 'auto', mode: 'edits' });
-  const first = await until(async () => {
-    const x = await api(`/sessions/${s.id}`);
-    return x.auto?.escalatedTo && x.state === 'review' && !x.auto.busy && x;
-  }, { timeout: 60_000 });
-  // Repair: wisp sent the failures back to the same session.
-  assert.equal(first.turns.length, 2);
-  assert.equal(first.turns[1].by, 'wisp');
-  assert.match(first.turns[1].prompt, /stays negative/);
-  assert.deepEqual(first.auto.checks.map((c) => c.verdict), ['fail', 'fail']);
-  assert.equal(first.auto.repairs, 1);
-  // The agent's "done" is called out, and the hero no longer says done.
-  const blocks = first.turns[0].presentation.blocks;
-  assert.ok(blocks.some((b) => b.type === 'callout' && b.by === 'wisp' && /disagrees/.test(b.title)));
-  assert.equal(blocks.find((b) => b.type === 'hero').status, 'partial');
-  // Escalated: a second run of the same task, same group, its own worktree.
-  const [sib] = await settledAll([first.auto.escalatedTo]);
-  assert.equal(sib.groupId, first.groupId);
-  assert.equal(sib.auto.escalatedFrom, s.id);
-  assert.notEqual(sib.worktree.path, first.worktree.path);
-  assert.notEqual(`${sib.agent}:${sib.model}:${sib.effort}`, `${first.agent}:${first.model}:${first.effort}`);
-  assert.equal(sib.auto.escalatedTo, undefined, 'escalates once');
-  // The same model thinking harder first (medium → high, high → x-high); else a stronger tier.
-  const order = ['', 'minimal', 'low', 'medium', 'high', 'xhigh'];
-  const levelUp = sib.agent === first.agent && sib.model === first.model && order.indexOf(sib.effort) > Math.max(order.indexOf(first.effort), order.indexOf('medium'));
-  assert.ok(levelUp || tierOf(`${sib.agent}:${sib.model}`) > tierOf(`${first.agent}:${first.model}`) || tierOf(`${first.agent}:${first.model}`) === 3, 'a hand-over thinks harder or steps up a tier');
-  assert.equal(sib.route.why, 'The same model, thinking harder');
-  assert.equal(first.auto.reason, 'tests');
-  const sums = await api('/sessions');
-  assert.equal(sums.find((x) => x.id === s.id).followups, 0, "wisp's repair round isn't a follow-up of yours");
-  assert.equal((await api('/router')).recent.find((x) => x.id === s.id).r, 0.1);
+  const [done] = await settledAll([s.id]);
+  assert.equal(done.turns.length, 1, 'no repair round');
+  assert.equal(done.auto.escalatedTo, undefined, 'failing tests are not a hand-over');
+  assert.equal(done.auto.checks, undefined);
+  assert.ok(!done.turns[0].presentation.blocks.some((b) => b.by === 'wisp'), 'no tests block or callout from wisp');
+  assert.ok(!done.turns[0].activity.some((a) => a.by === 'wisp'));
+  const sum = (await api('/sessions')).find((x) => x.id === s.id);
+  assert.equal(sum.auto.check, undefined);
+  assert.equal(sum.auto.repairs, undefined);
 });
 
-test('your follow-up cancels what Auto was about to do', async () => {
-  await api('/router', { repairs: 2, escalate: false }, 'PATCH');
+test('a run that errors goes to a stronger pick, next to the first run', async () => {
+  process.env.FAKE_FAIL = '1';
   try {
-    const cwd = testRepo({ keepsBug: true });
-    const s = await api('/sessions', { prompt: 'fix the add bug', cwd, agent: 'auto', mode: 'edits' });
-    await until(async () => (await api(`/sessions/${s.id}`)).turns.length === 2);
-    await api(`/sessions/${s.id}/reply`, { text: 'never mind, leave it' });
-    const [done] = await settledAll([s.id]);
-    assert.equal(done.turns.at(-1).by, undefined, 'the last turn is yours');
-    assert.ok(done.turns.filter((t) => t.by === 'wisp').length <= 1);
+    const s = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', mode: 'edits' });
+    const first = await until(async () => {
+      const x = await api(`/sessions/${s.id}`);
+      return x.auto?.escalatedTo && x.state === 'review' && !x.auto.busy && x;
+    }, { timeout: 60_000 });
+    assert.equal(first.auto.reason, 'error');
+    const [sib] = await settledAll([first.auto.escalatedTo]);
+    assert.equal(sib.groupId, first.groupId);
+    assert.equal(sib.auto.escalatedFrom, s.id);
+    assert.notEqual(sib.worktree.path, first.worktree.path);
+    assert.notEqual(`${sib.agent}:${sib.model}:${sib.effort}`, `${first.agent}:${first.model}:${first.effort}`);
+    assert.equal(sib.auto.escalatedTo, undefined, 'escalates once');
+    assert.equal((await api('/router')).recent.find((x) => x.id === s.id).r, 0);
   } finally {
-    await api('/router', { repairs: 1, escalate: true }, 'PATCH');
+    delete process.env.FAKE_FAIL;
   }
 });
 
@@ -211,7 +179,7 @@ test('Best of two is off by default: the Best goal runs once', async () => {
   await settledAll([s.id]);
 });
 
-test('Best goal: two frontier picks side by side, both checked, and wisp marks the better one', async () => {
+test('Best goal: two frontier picks side by side, and wisp marks the better one', async () => {
   await api('/router', { best2: true }, 'PATCH');
   // Claude alone has one frontier model (Opus): Best runs it alone rather than add Sonnet.
   const solo = await api('/sessions', { prompt: 'fix the add bug', cwd: testRepo(), agent: 'auto', model: 'best', mode: 'edits' });
@@ -239,9 +207,9 @@ test('Best goal: two frontier picks side by side, both checked, and wisp marks t
 });
 
 test('the scout: the project scan reaches the agent, and settings round-trip', async () => {
-  const r = await api('/router', { scout: 'big', check: true }, 'PATCH');
+  const r = await api('/router', { scout: 'big' }, 'PATCH');
   assert.equal(r.settings.scout, 'big');
-  assert.equal(r.settings.repairs, 1);
+  assert.equal(r.settings.check, undefined);
   const cwd = testRepo();
   await api('/projects', { path: cwd });
   const p = (await api('/router')).projects.find((x) => x.name === path.basename(cwd));
@@ -252,8 +220,7 @@ test('the scout: the project scan reaches the agent, and settings round-trip', a
   const [done] = await settledAll([s.id]);
   assert.equal(done.scout.testCommand, 'npm test -- --test-name-pattern=adds');
   const sys = records(RECORD, 'claude').map((x) => x.argv[x.argv.indexOf('--append-system-prompt') + 1]).filter(Boolean);
-  assert.ok(sys.some((x) => /Scouted by wisp[\s\S]*test-name-pattern=adds/.test(x)), 'the agent is told how wisp will test');
-  assert.equal(done.auto.checks[0].command, 'npm test -- --test-name-pattern=adds');
+  assert.ok(sys.some((x) => /Scouted by wisp[\s\S]*test-name-pattern=adds/.test(x)), 'the agent is told how to test');
 });
 
 test('a usage limit moves the task: the harness cools down, the run is not held against it', async () => {
@@ -271,7 +238,6 @@ test('a usage limit moves the task: the harness cools down, the run is not held 
     const [moved] = await settledAll([first.auto.escalatedTo]);
     assert.notEqual(moved.agent, first.agent, 'the whole harness is at its limit, not just one model');
     assert.equal(moved.auto.reason, 'limit');
-    assert.equal(moved.auto.checks[0].verdict, 'pass');
     const r = await api('/router');
     assert.equal(r.recent.find((x) => x.id === s.id).r, null, 'not counted as a failure');
     assert.ok(r.arms.filter((a) => a.agent === first.agent).every((a) => a.state === 'cooling'));

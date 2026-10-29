@@ -301,12 +301,11 @@ export class Goals {
   }
 
   // { verdict, why, next, progress, tests } or null when nothing could check it. The project's
-  // tests run first (Auto's run of this turn counts): a "met" they contradict is "not yet".
+  // tests run first: a "met" they contradict is "not yet".
   async check(session, turn) {
     const g = session.goal;
     const dir = workdir(session);
-    const auto = session.auto?.checks?.findLast((c) => c.turnId === turn.id);
-    const tests = auto || (await runCheck({ dir, project: this.projectOf?.(session), worktree: session.worktree }).catch(() => null));
+    const tests = await runCheck({ dir, project: this.projectOf?.(session), worktree: session.worktree }).catch(() => null);
     if (this.tokens.get(session.id) === undefined) return null; // cancelled while the tests ran
     const base = (g.from && session.turns.find((t) => t.id === g.from)?.checkpoint?.commit) || session.worktree?.head || 'HEAD';
     const diff = diffOf(dir, base);
