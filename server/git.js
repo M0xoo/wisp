@@ -9,7 +9,30 @@ import { pathToFileURL } from 'node:url';
 import { execFile } from './proc.js';
 import { bad } from './util.js';
 
-const GIT = () => process.env.WISP_GIT_BIN || 'git';
+// git by its full path, found once: a bare `git` makes every spawn walk PATH (about 50 ms a call on
+// macOS, against 3 ms), and macOS's /usr/bin/git is a shim that asks xcrun on every call.
+let found = null;
+export const gitBin = () => process.env.WISP_GIT_BIN || (found ??= findGit()) || 'git';
+const GIT = gitBin;
+function findGit() {
+  if (process.platform === 'win32') return null; // PATHEXT and App Execution Aliases: leave it to the OS
+  for (const dir of (process.env.PATH || '').split(path.delimiter).filter(Boolean)) {
+    const bin = path.join(dir, 'git');
+    try {
+      fs.accessSync(bin, fs.constants.X_OK);
+      if (!fs.statSync(bin).isFile()) continue;
+    } catch {
+      continue;
+    }
+    if (process.platform !== 'darwin' || bin !== '/usr/bin/git') return bin;
+    try {
+      const real = execFileSync('/usr/bin/xcrun', ['--find', 'git'], { stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString().trim();
+      if (real && fs.existsSync(real)) return real;
+    } catch {}
+    return bin;
+  }
+  return null; // not installed (yet): look again next time
+}
 const GH = () => process.env.WISP_GH_BIN || 'gh';
 // Never wait on a credential or confirmation prompt nobody can see. No optional locks: a `git status`
 // polled for a card would otherwise take index.lock to refresh the index, and Ship it's `git add`
@@ -53,10 +76,22 @@ export async function repoRoot(cwd) {
 }
 
 // What a worktree session branches from: the remote's default branch, freshly fetched, else HEAD.
+// A fetch is good for a minute: tasks launched back to back (a batch, a compare, a team) share one
+// instead of each waiting on the network again (about half a second to GitHub).
+const FETCH_FRESH_MS = 60_000;
+const fetches = new Map(); // repo root -> { at, done }
+function fetchOrigin(root) {
+  const last = fetches.get(root);
+  if (last && Date.now() - last.at < FETCH_FRESH_MS) return last.done;
+  const done = quiet(git(root, ['fetch', '--quiet', 'origin'], { timeout: 20_000 })); // offline: use what we have
+  fetches.set(root, { at: Date.now(), done });
+  return done;
+}
+
 export async function baseRef(root) {
   const remotes = (await quiet(git(root, ['remote']))).split('\n');
   if (remotes.includes('origin')) {
-    await quiet(git(root, ['fetch', '--quiet', 'origin'], { timeout: 20_000 })); // offline: use what we have
+    await fetchOrigin(root);
     const head = await quiet(git(root, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']));
     for (const ref of [head, 'origin/main', 'origin/master']) {
       if (ref && (await quiet(git(root, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])))) return { ref, branch: ref.replace(/^origin\//, ''), remote: 'origin' };

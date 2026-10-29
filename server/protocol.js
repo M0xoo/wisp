@@ -28,6 +28,8 @@ End your final message with exactly ONE fenced code block tagged \`wisp\` contai
 description for a busy reviewer: technical, precise, skimmable. Name files, functions, commands and
 numbers. No filler, no praise, no restating the task. Usually 4–8 blocks. Lead with evidence — the
 diff, the test run, the command output — over prose. Use file paths relative to the project root.
+A quick answer with nothing to show (a fact, a number, a yes or no, a sentence or two, nothing
+changed or run) is plain text with no wisp block: wisp shows it as it is.
 
 ### Picking blocks
 
@@ -72,13 +74,7 @@ Each rule saves the user a follow-up they would otherwise type:
   A test/lint/type-check run you actually executed. Prefer this over "terminal" for test runs.
 - {"type":"commits","items":[{"hash":"a1b2c3d","message":"feat(auth): add rate limiter","files":3,"additions":120,"deletions":8}],"branch":"feat/limit"}
   Commits you created, if any.
-- {"type":"graph","title":"Refresh sessions in auth","ref":"#128","state":"open|draft|merged|closed","into":"main","merge":"conflict|ready|merged|blocked|pending",
-   "commits":[{"hash":"d29f50","message":"Add refresh tests","branch":"feat/refresh","author":"You","when":"now"},{"hash":"5be27d","message":"Rotate keys","branch":"main","author":"Lena","when":"6m","conflict":true}],
-   "conflicts":[{"file":"src/auth.ts","line":42,"commit":"5be27d","detail":"Both sides rewrote getSession()","ours":"refresh(token)","theirs":"rotate(key)","resolution":"Rotate first, then refresh"}],
-   "checks":[{"label":"Tests","value":"42 passed","status":"pass|fail|pending"}],"action":{"label":"Resolve conflicts","reply":"Merge main in and resolve the conflicts"}}
-  Branch graph, newest commit first; each commit's "branch" gives its lane ("into" is the base lane).
-  Use it to explain merge conflicts, a rebase, or where branches diverged. Mark the base commits that
-  conflict with "conflict":true; optional "parents":[hash,…] for merge commits.
+{{GRAPH}}
 - {"type":"tree","title":"…","items":[{"path":"src/auth/limiter.ts","change":"added","note":"…"}]}
   A file tree; use for new modules/scaffolding where structure matters.
 - {"type":"code","language":"ts","code":"…","caption":"…","file":"src/a.ts","line":10,"highlight":[3,4]}
@@ -144,21 +140,28 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   the user would search for it by (area, feature, tech, kind of work). Once per task, again only if the topic changes.
 - If you open a GitHub pull request (gh pr create) or work on an existing one, attach it to this task with \`wisp_pr\`
   (${tool.replace(/ask_user$/, 'wisp_pr')}), one call per PR: the user sees it on the task, with its checks, reviews and Merge.
-- If the user asks about their past wisp tasks (which tools or harnesses they use, cost, success rate),
-  call \`wisp_stats\` (${tool.replace(/ask_user$/, 'wisp_stats')}) instead of digging through files.
 - If the prompt mentions another wisp task ("@Title (wisp task <id>)") or the user asks what another task
   did, read it with \`wisp_session\` (${tool.replace(/ask_user$/, 'wisp_session')}); \`wisp_sessions\` lists them.
   Show each task you name in the answer as a "task" block so the user can open it.
-- If the user asks to add, change or remove a member of their crew (wisp's long-lived agents), do it with
-  \`wisp_crew_add\`, \`wisp_crew_edit\` or \`wisp_crew_remove\` (${tool.replace(/ask_user$/, 'wisp_crew_add')}, …); \`wisp_crew\` lists them.
-  Their notebook is set with \`wisp_crew_edit\`; skills and instructions files are proposed with \`wisp_crew_kit\`
-  (the user picks what to add); \`wisp_crew\` with \`member\` reads one in full first.
-- If the user asks to add or connect an MCP server or a service's tools ("add PostHog"), add it to their connectors
-  with \`wisp_connector_add\` (${tool.replace(/ask_user$/, 'wisp_connector_add')}), then \`wisp_connector_signin\` if it needs a
-  sign-in or keys; \`wisp_connectors\` lists them. Never ask the user to paste a key into the chat.`;
+- For the user's wisp usage, crew or connectors, use wisp's tools for them (\`wisp_stats\`, \`wisp_crew*\`,
+  \`wisp_connector*\`) when the user asks. Never ask the user to paste a key into the chat.`;
 const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
   two very different approaches), stop before acting on it and end with a "question" block (2–4 options).
   The user's answer comes back as a follow-up in this same session.`;
+
+// The longest block docs. Where wisp's tools are injected the catalogue lists them in one line and
+// the agent reads the rest with `wisp_blocks` (server/mcp-ask.js) when it uses one: most answers
+// never do, and every task paid for them.
+const GRAPH_BLOCK = `- {"type":"graph","title":"Refresh sessions in auth","ref":"#128","state":"open|draft|merged|closed","into":"main","merge":"conflict|ready|merged|blocked|pending",
+   "commits":[{"hash":"d29f50","message":"Add refresh tests","branch":"feat/refresh","author":"You","when":"now"},{"hash":"5be27d","message":"Rotate keys","branch":"main","author":"Lena","when":"6m","conflict":true}],
+   "conflicts":[{"file":"src/auth.ts","line":42,"commit":"5be27d","detail":"Both sides rewrote getSession()","ours":"refresh(token)","theirs":"rotate(key)","resolution":"Rotate first, then refresh"}],
+   "checks":[{"label":"Tests","value":"42 passed","status":"pass|fail|pending"}],"action":{"label":"Resolve conflicts","reply":"Merge main in and resolve the conflicts"}}
+  Branch graph, newest commit first; each commit's "branch" gives its lane ("into" is the base lane).
+  Use it to explain merge conflicts, a rebase, or where branches diverged. Mark the base commits that
+  conflict with "conflict":true; optional "parents":[hash,…] for merge commits.`;
+const stub = (type, what, tool) => `- {"type":"${type}",…} ${what} Read its fields with \`wisp_blocks\` (${tool.replace(/ask_user$/, 'wisp_blocks')}) before you use it.`;
+const GRAPH_STUB = (tool) => stub('graph', 'Branch graph: merge conflicts, a rebase, where branches diverged.', tool);
+const APP_STUB = (tool) => stub('app', 'A small interactive page in your answer, for when the user has to try, tune, pick several or explore.', tool);
 
 // The `app` block, offered unless Settings → Interactive answers is off (defaults.apps: 'off').
 const APP_BLOCK = `- {"type":"app","title":"…","html":"<style>…</style><div>…</div><script>…</script>","height":320,"fallback":[…blocks…]}
@@ -177,16 +180,29 @@ const APP_BLOCK = `- {"type":"app","title":"…","html":"<style>…</style><div>
 // ask: replaces the ask guidance outright (subagents, who have nobody to ask).
 // extraBlocks: block types spells add ({ type, doc, spell }), listed with the built-in ones.
 // apps: offer the `app` block.
+// Long block docs are stubs where wisp's tools are there to read them (not for subagents, who get `ask`).
 export const systemPrompt = ({ askTool = 'mcp__wisp__ask_user', ask, extraBlocks = [], apps = false } = {}) => {
-  const out = PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) : ASK_BLOCK));
+  const tools = askTool && !ask;
+  const out = PROTOCOL.replace('{{ASK}}', ask || (askTool ? ASK_TOOL(askTool) : ASK_BLOCK)).replace('{{GRAPH}}', tools ? GRAPH_STUB(askTool) : GRAPH_BLOCK);
   const docs = [
-    ...(apps ? [APP_BLOCK] : []),
+    ...(apps ? [tools ? APP_STUB(askTool) : APP_BLOCK] : []),
     ...extraBlocks.map((b) => `- ${b.doc.trim().startsWith('{') ? b.doc.trim().replace(/\}\s+(?=\S)/, '}\n  ') : `{"type":"${b.type}"} ${b.doc}`}\n  (From the user's spell ${b.spell}.)`),
   ].join('\n');
   if (!docs) return out;
   return out.replace('\nStrings must be valid JSON', `\n${docs}\n\nStrings must be valid JSON`);
 };
 export const SYSTEM_PROMPT = systemPrompt();
+
+// What `wisp_blocks` answers: the full docs of the block types asked for.
+const BLOCK_DOCS = { graph: GRAPH_BLOCK, app: APP_BLOCK };
+export function blockDocs(types = []) {
+  const want = [...new Set((Array.isArray(types) ? types : [types]).map((t) => String(t).trim().toLowerCase()))];
+  const known = want.filter((t) => BLOCK_DOCS[t]);
+  const docs = known.map((t) => BLOCK_DOCS[t]);
+  const rest = want.filter((t) => !BLOCK_DOCS[t]);
+  if (rest.length) docs.push(`No long docs for ${rest.map((t) => `"${t}"`).join(', ')}: ${Object.keys(BLOCK_DOCS).join(' and ')} have them; the others are described in full in your instructions.`);
+  return docs.join('\n\n');
+}
 
 // Only the opener is matched by regex. The closing fence can't be: the JSON itself often
 // contains ``` (a markdown block with a code sample), and a lazy match would cut it there.

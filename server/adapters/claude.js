@@ -9,6 +9,12 @@ import { claudeLimits } from '../budget.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 let BIN = DEFAULT_BIN;
+let VERSION = []; // [major, minor, patch] of the claude detect() found
+// A lean run (the retro) only reads its prompt and answers: its own system prompt instead of Claude
+// Code's, no tools, MCP servers, skills or saved session. A real retro went from 28k input tokens
+// to 3k with the same reply. Claude Code 2.1 has all of these flags.
+const LEAN = ['--tools', '', '--strict-mcp-config', '--disable-slash-commands', '--no-session-persistence'];
+const leanOk = () => VERSION.length === 3 && (VERSION[0] > 2 || (VERSION[0] === 2 && VERSION[1] >= 1));
 // Where claude lives when it isn't on PATH: the native installer's folders (an app started from
 // the Dock never reads the shell profile that adds them), then the copies the Claude desktop app
 // downloads for its Code tab into <userData>/claude-code/<version>/<sha12>/ (older builds: straight
@@ -95,6 +101,7 @@ export default {
   async detect() {
     const { bin, ...found } = await detectFirst(DEFAULT_BIN, fallbackBins, !!process.env.WISP_CLAUDE_BIN);
     BIN = bin;
+    VERSION = (String(found.version || '').match(/(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
     if (!found.available) return found;
     const efforts = helpEfforts(await helpText(BIN));
     return efforts.length ? { ...found, efforts } : found;
@@ -110,13 +117,16 @@ export default {
   // dirs: the task's other folders, which it may read and edit like cwd.
   // fork: resume a throwaway copy of resumeId's conversation, leaving the original as it is.
   // accountEnv: the account it runs on (CLAUDE_CONFIG_DIR, server/accounts.js), {} for the default.
-  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, onEvent }) {
+  // lean: a side run that only answers (the retro), without Claude Code's prompt and tools.
+  run({ prompt, attachments = [], cwd, dirs: extra = [], resumeId, fork = false, mode, model, effort, systemPrompt, mcpServers = {}, delegating = false, grants = [], accountEnv = {}, lean = false, onEvent }) {
+    lean = lean && leanOk();
     const args = [
       '-p',
       '--output-format', 'stream-json',
-      '--append-system-prompt', systemPrompt,
+      lean ? '--system-prompt' : '--append-system-prompt', systemPrompt,
       '--permission-mode', PERMISSION_MODES[mode] || 'acceptEdits',
     ];
+    if (lean) args.push(...LEAN);
     if (model) args.push('--model', model);
     if (effort) args.push('--effort', effort);
     if (chromeEnabled({ ...process.env, ...accountEnv })) args.push('--chrome');
@@ -288,6 +298,8 @@ function describeTool(name, input, cwd) {
       return { kind: 'tool', label: `Tagging the task${input?.tags?.length ? `: ${clip(input.tags.map((t) => `#${t}`).join(' '), 60)}` : ''}` };
     case 'mcp__wisp__wisp_pr':
       return { kind: 'tool', label: input?.remove ? 'Detaching a PR' : `Attaching PR ${clip(String(input?.pr || '').replace(/^https:\/\/github\.com\//, ''), 60)}` };
+    case 'mcp__wisp__wisp_blocks':
+      return { kind: 'tool', label: 'Reading block formats' };
     case 'mcp__wisp__wisp_stats':
       return { kind: 'tool', label: 'Reading wisp stats' };
     case 'mcp__wisp__wisp_sessions':

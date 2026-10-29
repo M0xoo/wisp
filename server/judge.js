@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { askJson } from './quick.js';
+import { gitBin } from './git.js';
 
 const MAX_DIFF = 24_000;
 
@@ -13,7 +14,7 @@ const MAX_DIFF = 24_000;
 export function diffOf(dir, base = 'HEAD') {
   const run = (args) => {
     try {
-      return execFileSync('git', args, { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20, timeout: 15_000 }).toString();
+      return execFileSync(gitBin(), args, { cwd: dir, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 << 20, timeout: 15_000 }).toString();
     } catch {
       return '';
     }

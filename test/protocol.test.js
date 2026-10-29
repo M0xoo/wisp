@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { systemPrompt, SYSTEM_PROMPT } from '../server/protocol.js';
+import { systemPrompt, SYSTEM_PROMPT, blockDocs, parsePresentation } from '../server/protocol.js';
 
 const section = (p) => p.slice(p.indexOf('### Picking blocks'), p.indexOf('### Blocks'));
 
@@ -45,4 +45,51 @@ test('the rules stay in every variant of the prompt', () => {
     assert.match(section(p), /Changed code the user still has to ship/);
   }
   assert.ok(systemPrompt({ apps: true }).indexOf('"type":"app"') > systemPrompt({ apps: true }).indexOf('### Picking blocks'));
+});
+
+test('long block docs are read on demand where wisp\'s tools are, and in full where they are not', () => {
+  const withTools = systemPrompt({ askTool: 'mcp__wisp__ask_user', apps: true });
+  assert.match(withTools, /- \{"type":"graph",…\} Branch graph[^\n]*`wisp_blocks` \(mcp__wisp__wisp_blocks\)/);
+  assert.doesNotMatch(withTools, /"conflicts":\[/);
+  // No tools to read them with: a harness without MCP, or a subagent.
+  for (const p of [systemPrompt({ askTool: null }), systemPrompt({ ask: '- Nobody to ask.' })]) {
+    assert.match(p, /"type":"graph","title"[\s\S]*"conflicts":\[/);
+    assert.doesNotMatch(p, /wisp_blocks/);
+  }
+  assert.ok(withTools.length < systemPrompt({ askTool: null, apps: true }).length);
+  // The tools' own descriptions carry stats, crew and connectors; the protocol keeps the key rule.
+  assert.match(withTools, /Never ask the user to paste a key into the chat/);
+  assert.doesNotMatch(withTools, /wisp_crew_kit/);
+
+  assert.match(blockDocs(['graph']), /"merge":"conflict\|ready/);
+  assert.match(blockDocs(['App', 'graph']), /wisp\.send[\s\S]*"type":"graph"/);
+  assert.match(blockDocs(['hero']), /No long docs for "hero"/);
+  assert.match(blockDocs('graph'), /"type":"graph"/, 'a bare string works too');
+});
+
+test('wisp_blocks answers from wisp\'s MCP server without calling wisp', async () => {
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const srv = spawn(process.execPath, [fileURLToPath(new URL('../server/mcp-ask.js', import.meta.url))], { env: { ...process.env, WISP_URL: 'http://127.0.0.1:1', WISP_TOKEN: 't', WISP_SESSION: 's' } });
+  const replies = [];
+  let buf = '';
+  srv.stdout.on('data', (d) => {
+    buf += d;
+    for (let i; (i = buf.indexOf('\n')) >= 0; buf = buf.slice(i + 1)) if (buf.slice(0, i).trim()) replies.push(JSON.parse(buf.slice(0, i)));
+  });
+  const send = (id, method, params) => srv.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`);
+  send(1, 'tools/list', {});
+  send(2, 'tools/call', { name: 'wisp_blocks', arguments: { types: ['graph'] } });
+  for (let i = 0; replies.length < 2 && i < 100; i++) await new Promise((r) => setTimeout(r, 20));
+  srv.kill();
+  assert.ok(replies.find((r) => r.id === 1).result.tools.some((t) => t.name === 'wisp_blocks'));
+  assert.match(replies.find((r) => r.id === 2).result.content[0].text, /"type":"graph","title"/);
+});
+
+test('a quick answer may be plain text: the agent does not wrap "13" in a report', () => {
+  assert.match(SYSTEM_PROMPT, /A quick answer with nothing to show[^]*is plain text with no wisp block/);
+  // wisp shows it as it is: plain text parses as markdown.
+  const { blocks } = parsePresentation('13');
+  assert.equal(blocks[0].type, 'markdown');
+  assert.equal(blocks[0].text, '13');
 });

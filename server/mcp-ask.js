@@ -9,6 +9,7 @@
 // `resume_later` schedules a follow-up to this same task (server/later.js).
 // `wisp_tag` names the task's topics, the words the user finds it by in wisp's search.
 // `wisp_pr` attaches a GitHub PR to the task: it shows like one Ship it opened, and wisp follows it.
+// `wisp_blocks` answers the full docs of the long answer blocks the protocol only names (graph, app).
 // `wisp_stats` is read-only: tool counts, spend and success rate across the user's wisp sessions.
 // `wisp_sessions` and `wisp_session` are read-only too: list the user's other tasks and read one's
 // reports, e.g. a task the user mentioned in the prompt.
@@ -24,6 +25,7 @@
 
 import readline from 'node:readline';
 import { CREW_TOOLS } from './crew-tools.js';
+import { blockDocs } from './protocol.js';
 
 const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS } = process.env;
 let TEAM = [];
@@ -109,6 +111,18 @@ const APPROVE = {
     type: 'object',
     properties: { tool_name: { type: 'string' }, input: { type: 'object' }, tool_use_id: { type: 'string' } },
     required: ['tool_name'],
+  },
+};
+
+const BLOCKS = {
+  name: 'wisp_blocks',
+  description:
+    'The fields of answer blocks your instructions only name (graph, app), with an example. Read one before you put it in ' +
+    'your final message. Read-only and answered at once.',
+  inputSchema: {
+    type: 'object',
+    properties: { types: { type: 'array', items: { type: 'string' }, description: 'e.g. ["graph"]' } },
+    required: ['types'],
   },
 };
 
@@ -409,7 +423,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, TAG, PR, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, TAG, PR, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -425,6 +439,8 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, result: { content: [{ type: 'text', text: r.text }] } });
     } else if (method === 'tools/call' && WISP_APPROVE && params?.name === 'approve') {
       send({ id, result: { content: [{ type: 'text', text: JSON.stringify(await approve(params.arguments || {})) }] } });
+    } else if (method === 'tools/call' && params?.name === 'wisp_blocks') {
+      send({ id, result: { content: [{ type: 'text', text: blockDocs(params.arguments?.types) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_stats') {
       send({ id, result: { content: [{ type: 'text', text: await stats(params.arguments || {}) }] } });
     } else if (method === 'tools/call' && params?.name === 'wisp_sessions') {

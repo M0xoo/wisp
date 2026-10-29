@@ -157,7 +157,7 @@ const stdin =
       });
 
 // A retro run (wisp's learner): recorded on its own, no tools, just the JSON reply.
-const retro = name === 'claude' && !!flag('--append-system-prompt')?.includes('# wisp retro');
+const retro = name === 'claude' && !!(flag('--append-system-prompt') || flag('--system-prompt'))?.includes('# wisp retro');
 // A /btw side question (server/btw.js): recorded on its own too, answered in plain text.
 const btw = stdin.includes('# wisp btw');
 
