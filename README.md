@@ -375,14 +375,14 @@ The benchmark behind the priors is in [`bench/`](bench/README.md).
 
 ## Goals
 
-Give a task a *Done when* line and wisp checks the work after every round: it runs the project's tests, then a cheap read-only model reads the diff. Until the goal holds, the task goes back to the agent with what's missing and the next step. You hear about it once, when it's met, can't be met, runs out of rounds or stalls.
+Give a task a *Done when* line and wisp checks the work after every round: it runs the project's tests, then a cheap read-only model reads the diff. Until the goal holds, the task goes back to the agent with what's missing and the next step. There's no cap on rounds: you hear about it once, when it's met, can't be met or stalls.
 
-- **Set one**: turn on **Goal** in the prompt box and write the condition (*all tests pass and the login page works on a phone*), with 3, 5, 10 or 20 rounds. On a running or finished task, type `/goal <condition>` in the reply box (`/goal` alone opens it, `/goal drop` drops it), or use **Set goal…** in More, the right-click menu or ⌘K.
+- **Set one**: turn on **Goal** in the prompt box and write the condition (*all tests pass and the login page works on a phone*). On a running or finished task, type `/goal <condition>` in the reply box (`/goal` alone opens it, `/goal drop` drops it), or use **Set goal…** in More, the right-click menu or ⌘K.
 - **The check**: the agent's own report counts as a claim, not evidence. A *met* needs passing tests and evidence from the diff, and the checker can also rule the goal impossible (missing access, a contradiction, a decision only you can make). Two rounds in a row that change nothing, or get the same next step with no progress, pause it as stalled.
-- **What you see**: a band on top of the task with the goal, a progress bar and how much the last round moved it, the round (*Round 3 of 10*) and the last check in the checker's words. The row shows a ring and *3/10*. The task stays in Working through every round and notifies you once, at the end. **Pause goal**, **Resume goal** (with a fresh set of rounds) and **Drop goal** are in the band and the menus.
-- **Any harness**: the agent is told its goal every turn. A task Auto hands to a stronger model takes the goal, and the rounds it has left, along. Stop pauses it; a follow-up of yours keeps it and it's checked again after your turn.
+- **What you see**: a band on top of the task with the goal, a progress bar and how much the last round moved it, the round (*Round 3*) and the last check in the checker's words. The row shows a ring and the round. The task stays in Working through every round and notifies you once, at the end. **Pause goal**, **Resume goal** and **Drop goal** are in the band and the menus.
+- **Any harness**: the agent is told its goal every turn. A task Auto hands to a stronger model takes the goal along. Stop pauses it; a follow-up of yours keeps it and it's checked again after your turn.
 
-API: `goal: { text, max }` on `POST /sessions` (a prompt that is just `/goal …` works too), `PUT /sessions/:id/goal`, `PATCH /sessions/:id/goal` with `{ "action": "pause" | "resume" }`, `DELETE /sessions/:id/goal`. The default number of rounds is the `goalRounds` setting.
+API: `goal: { text }` on `POST /sessions` (a prompt that is just `/goal …` works too), `PUT /sessions/:id/goal`, `PATCH /sessions/:id/goal` with `{ "action": "pause" | "resume" }`, `DELETE /sessions/:id/goal`.
 
 ## Your agent accounts
 

@@ -456,8 +456,6 @@ export const SETTINGS = {
   apps: ['on', 'off'],
   // "in 5 min …" / "remind me … in 1 h" in a prompt schedules it (web/js/when.js).
   readTimes: ['on', 'off'],
-  // Goals: how many rounds a new goal gets before it stops (server/goal.js).
-  goalRounds: ['3', '5', '10', '20'],
   // At a usage limit: wait for the window's reset and carry on in the same conversation, or ask.
   limitWait: ['on', 'off'],
   // Automations stop at: check-ins, triggers, goal rounds and agents' follow-ups wait once an

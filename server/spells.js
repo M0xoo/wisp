@@ -313,6 +313,11 @@ export function normalizeSpell(raw) {
       warnings.push('settings.view: split view is the only layout now, ignored');
       continue;
     }
+    // Goals have no cap on rounds any more: they go on until the check says met, can't or stalled.
+    if (k === 'goalRounds') {
+      warnings.push('settings.goalRounds: goals keep going until they are met, ignored');
+      continue;
+    }
     const t = SETTINGS[k];
     if (!t) p.at_(`settings.${k}`, `not a setting spells can change (${Object.keys(SETTINGS).join(', ')})`);
     else if (Array.isArray(t) ? !t.includes(v) : typeof v !== 'string') p.at_(`settings.${k}`, Array.isArray(t) ? t.join(' | ') : 'a string');

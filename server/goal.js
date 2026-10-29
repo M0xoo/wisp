@@ -1,10 +1,12 @@
 // Goals: a task that keeps going until a condition holds. After each round (a turn) wisp checks
 // the work against the goal with a read-only run of a cheap model in the task's folder; while it
-// isn't met, the task goes back to its agent with what's missing. It lands in your queue once the
-// goal is met, can't be met, or ran out of rounds (design/goals.md).
+// isn't met, the task goes back to its agent with what's missing. There's no cap on rounds: it lands in
+// your queue once the goal is met, can't be met, or goes in circles (design/goals.md).
 //
-// State lives on the session as `goal`: { text, max, round, status, setAt, endedAt?, why?, checks[] }
-// status: working (the agent is on a round) · checking · met · impossible · out (of rounds) · paused
+// State lives on the session as `goal`: { text, round, status, setAt, endedAt?, why?, checks[], fresh? }
+// fresh: where the checks start that count toward a stall (set on Resume)
+// status: working (the agent is on a round) · checking · met · impossible · paused
+//         · out (goals from before rounds were unlimited: ran out of them; Resume carries on)
 //         · handed (Auto moved the task to another run, which carries the goal on)
 // held: the reset a paused goal's next round waits for (Automations stop at, server/budget.js). The
 //       round itself is a scheduled follow-up by wisp with `goal` (server/later.js), under Scheduled.
@@ -16,8 +18,6 @@ import { heroOf } from './protocol.js';
 import { bad, clip } from './util.js';
 import { workdir } from './runner.js';
 
-export const GOAL_ROUNDS = [3, 5, 10, 20];
-export const DEFAULT_ROUNDS = 10;
 const MAX_TEXT = 1000;
 const CHECK_MS = 180_000;
 // This many rounds in a row that changed nothing, or were told the same next step: it's stuck.
@@ -34,29 +34,27 @@ export function goalCommand(text) {
   return GOAL_CMD.test(t) ? t.replace(GOAL_CMD, '').trim() : null;
 }
 
-// { text, max } from a request body, or null for none. Throws on a bad one.
-export function normalizeGoal(g, fallbackMax = DEFAULT_ROUNDS) {
+// { text } from a request body, or null for none. Throws on a bad one. An old client's `max` is ignored.
+export function normalizeGoal(g) {
   if (g == null || g === false) return null;
   const text = String(typeof g === 'string' ? g : g.text ?? '').trim();
   if (!text) return null;
   if (text.length > MAX_TEXT) throw bad(`A goal is at most ${MAX_TEXT} characters.`);
-  const max = Number(typeof g === 'object' ? g.max ?? fallbackMax : fallbackMax);
-  if (!Number.isInteger(max) || max < 1 || max > 20) throw bad('goal.max must be a whole number of rounds from 1 to 20.');
-  return { text, max };
+  return { text };
 }
 
 // What the agent hears about its goal, every turn.
 export function goalNote(s) {
   const g = s.goal;
   if (!g || ENDED.has(g.status)) return '';
-  return `\n\n## Goal\n\nThis task has a goal. It is done only when this is true:\n\n> ${g.text.replace(/\n/g, '\n> ')}\n\nAfter each of your turns wisp checks your work against it, independently, by reading the files (it doesn't take your word for it). While it isn't met, the task comes back to you with what's missing (round ${g.round} of ${g.max} now). Work until it is met, and verify it yourself before you finish. If it can't be met (it needs access you don't have, contradicts itself, or only the user can do part of it), stop trying and say exactly why in your report, with the hero's status "blocked".`;
+  return `\n\n## Goal\n\nThis task has a goal. It is done only when this is true:\n\n> ${g.text.replace(/\n/g, '\n> ')}\n\nAfter each of your turns wisp checks your work against it, independently, by reading the files (it doesn't take your word for it). While it isn't met, the task comes back to you with what's missing (round ${g.round} now). Work until it is met, and verify it yourself before you finish. If it can't be met (it needs access you don't have, contradicts itself, or only the user can do part of it), stop trying and say exactly why in your report, with the hero's status "blocked".`;
 }
 
 // The goal on a summary: what the row, the band and the details need.
 export function goalView(g) {
   if (!g) return undefined;
   const last = g.checks.at(-1);
-  return { text: g.text, status: g.status, round: g.round, max: g.max, ...(g.budget && { budget: g.budget }), ...(g.why && { why: g.why }), ...(g.held && { held: g.held }), setAt: g.setAt, ...(g.endedAt && { endedAt: g.endedAt }), checks: g.checks.slice(-50).map(({ round, verdict, why, next, progress, at, tests }) => ({ round, verdict, why, ...(next && { next }), ...(progress != null && { progress }), ...(tests && { tests }), at })), ...(last && { last: { verdict: last.verdict, why: last.why } }) };
+  return { text: g.text, status: g.status, round: g.round, ...(g.why && { why: g.why }), ...(g.held && { held: g.held }), setAt: g.setAt, ...(g.endedAt && { endedAt: g.endedAt }), checks: g.checks.slice(-50).map(({ round, verdict, why, next, progress, at, tests }) => ({ round, verdict, why, ...(next && { next }), ...(progress != null && { progress }), ...(tests && { tests }), at })), ...(last && { last: { verdict: last.verdict, why: last.why } }) };
 }
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -71,15 +69,10 @@ export class Goals {
 
   // A fresh goal on a session (at launch, or set later). Doesn't start anything.
   attach(session, goal, { by = 'user' } = {}) {
-    const g = normalizeGoal(goal, this.rounds());
+    const g = normalizeGoal(goal);
     if (!g) return null;
-    session.goal = { ...g, budget: g.max, round: 1, status: 'working', setAt: Date.now(), by, checks: [] }; // from: the first turn, set as it starts
+    session.goal = { ...g, round: 1, status: 'working', setAt: Date.now(), by, checks: [] }; // from: the first turn, set as it starts
     return session.goal;
-  }
-
-  rounds() {
-    const n = Number(this.defaults?.().goalRounds);
-    return GOAL_ROUNDS.includes(n) ? n : DEFAULT_ROUNDS;
   }
 
   // Set or replace the goal from the task (PUT, or /goal in a follow-up). An idle task is checked
@@ -87,19 +80,19 @@ export class Goals {
   set(session, goal) {
     if (session.parentId || session.delegated || session.agent === 'wisp') throw bad('Only a task of your own can have a goal.', 409);
     const prev = session.goal;
-    const g = normalizeGoal(goal, prev?.max || this.rounds());
+    const g = normalizeGoal(goal);
     if (!g) throw bad('Say what has to be true, like “all tests pass”.');
     this.tokens.delete(session.id);
     this.#unhold(session);
     // Editing the words of a goal still being worked on keeps its rounds; anything else starts over.
     const keep = prev && !ENDED.has(prev.status) && prev.status !== 'paused';
-    session.goal = keep ? { ...prev, ...g, status: prev.status === 'checking' ? 'working' : prev.status, why: undefined } : { ...g, budget: g.max, round: 1, status: 'working', setAt: Date.now(), by: 'user', checks: [], from: session.turns.at(-1)?.id };
+    session.goal = keep ? { ...prev, ...g, status: prev.status === 'checking' ? 'working' : prev.status, why: undefined } : { ...g, round: 1, status: 'working', setAt: Date.now(), by: 'user', checks: [], from: session.turns.at(-1)?.id };
     this.#note(session, `Goal set: ${g.text}`);
     this.#kick(session);
     return session.goal;
   }
 
-  // Back to work on a paused goal, or one out of rounds, with a fresh budget of rounds.
+  // Back to work on a paused goal (or an old one that ran out of rounds).
   resume(session) {
     const g = session.goal;
     if (!g) throw bad('This task has no goal.', 404);
@@ -113,8 +106,8 @@ export class Goals {
       this.runner.reply(session, waiting.text, [], { by: 'wisp', goal: waiting.goal });
       return g;
     }
-    Object.assign(g, { status: 'working', why: undefined, endedAt: undefined });
-    if (g.round >= g.max) g.max = g.round + (g.budget || g.max); // its next check gets the rounds it started with
+    // Stalled rounds before the resume don't count: you said go on, so it gets a fresh look.
+    Object.assign(g, { status: 'working', why: undefined, endedAt: undefined, fresh: g.checks.length });
     this.#note(session, 'Goal resumed');
     this.#kick(session);
     return g;
@@ -191,13 +184,13 @@ export class Goals {
   }
 
   // Auto moved the task to another run (a stronger pick, or one not at its limit): that run gets
-  // the goal, with the rounds left; this one is done with it.
+  // the goal; this one is done with it.
   handOff(session) {
     const g = session.goal;
     if (!g || ENDED.has(g.status)) return null;
     this.tokens.delete(session.id);
     Object.assign(g, { status: 'handed', endedAt: Date.now() });
-    return { text: g.text, max: Math.max(1, g.max - g.round + 1) };
+    return { text: g.text };
   }
 
   #pauseQuiet(session, why) {
@@ -222,11 +215,15 @@ export class Goals {
     const changed = (turn.changes || []).length;
     const entry = { turnId: turn.id, round: g.round, at: Date.now(), verdict: v?.verdict || 'unchecked', why: v?.why || 'No model could check the goal.', ...(v?.next && { next: v.next }), ...(v?.progress != null && { progress: v.progress }), ...(v?.tests && { tests: v.tests }), changed };
     g.checks.push(entry);
-    if (g.checks.length > 50) g.checks.splice(0, g.checks.length - 50);
+    if (g.checks.length > 50) {
+      const cut = g.checks.length - 50;
+      g.checks.splice(0, cut);
+      if (g.fresh) g.fresh = Math.max(0, g.fresh - cut);
+    }
     const done = (status, label, why) => {
       Object.assign(g, { status, endedAt: Date.now(), ...(why && { why }) });
       this.runner.note(session, turn, { kind: 'goal', label });
-      this.track?.('goal_ended', { status, rounds: g.round, max: g.max });
+      this.track?.('goal_ended', { status, rounds: g.round });
       this.tokens.delete(session.id);
       this.runner.settle(session);
     };
@@ -244,7 +241,6 @@ export class Goals {
       this.tokens.delete(session.id);
       return this.runner.settle(session);
     }
-    if (g.round >= g.max) return done('out', 'Goal check: out of rounds', `Still not met after ${plural(g.max, 'round')}`);
     g.round++;
     g.status = 'working';
     this.tokens.delete(session.id);
@@ -294,7 +290,7 @@ export class Goals {
   // Rounds that changed nothing, or were sent back with the same next step and no more progress:
   // going in circles.
   #stalled(g) {
-    const tail = g.checks.slice(-STALL);
+    const tail = g.checks.slice(g.fresh || 0).slice(-STALL);
     if (tail.length < STALL || !tail.every((c) => c.verdict === 'not_yet')) return false;
     const flat = tail.every((c, i) => !i || (c.progress ?? 0) <= (tail[i - 1].progress ?? 0));
     return tail.every((c) => !c.changed) || (!!tail[0].next && flat && tail.every((c) => c.next === tail[0].next));
@@ -353,7 +349,7 @@ ${diff ? clip(diff, MAX_DIFF) : '(none)'}
 
 Files changed this round: ${(turn.changes || []).map((c) => c.file).slice(0, 40).join(', ') || 'none'}
 ${tests && tests.verdict !== 'skip' ? `wisp ran the project's tests itself: ${tests.verdict}${tests.command ? ` (${tests.command})` : ''}${tests.newFailures?.length ? `, new failures: ${tests.newFailures.slice(0, 10).join(', ')}` : ''}\n` : ''}${history ? `Earlier checks:\n${history}\n` : ''}
-<agent-claim round="${g.round}" of="${g.max}">
+<agent-claim round="${g.round}">
 What the agent says it did. A claim, not evidence: check it.
 ${hero ? `${hero.title || ''}: ${hero.summary || ''} (status ${hero.status || 'unknown'})\n` : ''}${clip(turn.raw || '', 6000)}
 </agent-claim>
@@ -368,7 +364,7 @@ Reply with one JSON object: {"verdict": "met" | "not_yet" | "impossible", "why":
 
 function continuePrompt(g, c) {
   return [
-    `wisp checked your work against the goal and it isn't met yet (round ${g.round} of ${g.max} starts now).`,
+    `wisp checked your work against the goal and it isn't met yet (round ${g.round} starts now).`,
     `Goal: ${g.text}`,
     `What's missing: ${c.why}`,
     c.next ? `Next: ${c.next}` : '',
