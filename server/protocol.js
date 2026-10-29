@@ -156,7 +156,8 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
 const WATCH_TOOL = (tool) => `
 - For long or many-step work the user would like to follow (a migration across many files, a test or benchmark
   run, a data job), let them watch it: \`wisp_watch\` (${tool.replace(/ask_user$/, 'wisp_watch')}) puts a page you write
-  beside the task, and you send it your progress as you go. You decide what it shows. Skip it for quick tasks.`;
+  beside the task, and you send it your progress as you go; building a web app, it can show the app itself running
+  (its dev server's url), and you navigate it to what you just changed. You decide what it shows. Skip it for quick tasks.`;
 const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,
   two very different approaches), stop before acting on it and end with a "question" block (2–4 options).
   The user's answer comes back as a follow-up in this same session.`;

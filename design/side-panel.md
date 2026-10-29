@@ -296,6 +296,11 @@ The page an agent keeps beside its task while it works (`wisp_watch`, `server/wa
   scripts, styles and fonts; `web/js/watch-doc.js`), in wisp's theme through its CSS variables, and
   follows light and dark without reloading. A new state is posted into it: it never reloads for one,
   so nothing flashes. Only a new page (`rev`) reloads it. Loading, a placeholder in its shapes.
+- **A running app** (`url`): the agent's dev server, loaded like the preview block (its sandbox, the
+  grid's preview address for localhost). The caption line adds the address (mono, `--faint`, right)
+  and an `i-external` button that opens it in its own tab. `navigate` and `reload` load the frame
+  again at the new address; there's no state to post. Read away from the agent's computer with no
+  preview address, a line under the caption says it points at the agent's computer.
 - **Run it yourself** (only when the agent gave one): the command in a mono box, a copy button that
   copies `cd <folder> && <command>`, and the agent's note under it. `--bg-2`, 1px `--line` on top.
 - **Phones:** a page over the task with Back, never pushed by itself: the working card's **Watch**
