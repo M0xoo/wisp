@@ -13,6 +13,7 @@ import { shipDialog, shippable } from './ship.js';
 import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
 import { goBack, isStacked, splitOpen, stackPage, toggleSidebar } from './split.js';
+import { orgEscape } from './org.js';
 import { close as closePanel, openPanel, panelShown, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
@@ -41,8 +42,9 @@ export function onKey(e) {
     if (typing) return e.target.blur();
     // Stacked, Shell or PR is a page over the task: Esc goes back to the task first.
     if (isStacked() && panelShown()) return closePanel();
+    if (orgEscape()) return; // Org: done picking a member's delegates first
     // A crew job → its member's thread → home (stacked: the list).
-    if (S.crewOpen || splitOpen() || stackPage()) goBack();
+    if (S.crewOpen || S.orgOpen || splitOpen() || stackPage()) goBack();
     return;
   }
   if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#overlay').hidden) return;

@@ -29,6 +29,7 @@ import { barCover, stage } from './scroll.js';
 import { paintMini, placePr, renderBody } from './turns.js';
 import { slotHtml, spellProp } from './spells.js';
 import { avatarHtml, crewBack, crewDot, crewViewShown, leaveCrew, memberById, paintCrewView, underMember } from './crew.js';
+import { leaveOrg, orgShown, paintOrg } from './org.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
 import { planLine } from './budget.js';
@@ -93,6 +94,7 @@ export const stackPage = () => document.body.classList.contains('stack-page');
 // Nothing open: the prompt box, focused (New task).
 export function goHome({ focus = true } = {}) {
   leaveCrew(); // a crew member's thread too
+  leaveOrg(); // and the Org page
   for (const id of [...S.open]) collapse(id);
   homeAsked = isStacked();
   paintSplit();
@@ -105,6 +107,7 @@ export function goBack({ focus = false } = {}) {
   if (crewBack()) return;
   if (!isStacked()) return goHome({ focus });
   leaveCrew();
+  leaveOrg();
   for (const id of [...S.open]) collapse(id);
   homeAsked = false;
   paintSplit();
@@ -320,7 +323,8 @@ export function paintSplit() {
   const id = splitOpen();
   const s = id && S.sessions.get(id);
   paintCrewView(); // a crew member's thread fills the pane while no task is open (crew.js)
-  const crew = crewViewShown();
+  paintOrg(); // …and so does the Org page (org.js)
+  const crew = crewViewShown() || orgShown();
   const stacked = isStacked();
   if (s || crew) homeAsked = false;
   paintPage(stacked && (!!s || crew || homeAsked));

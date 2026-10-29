@@ -520,7 +520,7 @@ body.split.stack .split-head .sh-title {
   font-size: 14px; line-height: 1.3;
 }
 body.split.stack .split-head .sh-acts { min-height: 44px; }
-body.split.stack .crew-view .cv-top .sh-back { margin-right: -2px; }
+body.split.stack :is(.crew-view, .org-view) .cv-top .sh-back { margin-right: -2px; }
 
 /* Home as a page: Back beside the greeting, the prompt box under it; no tips or keys on a phone. */
 .sh-bar { display: contents; }
@@ -593,5 +593,5 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
 }
 /* The Mac window buttons sit over the page's top-left corner, and their hover area takes clicks out
    to x 88 (16px past the green one): Back's box starts there, not under them (its -10px margin). */
-body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top) { padding-left: 98px; }
+body.electron.mac.split.stack :is(.split-head, .crew-view .cv-top, .org-view .cv-top) { padding-left: 98px; }
 body.electron.mac.split.stack .sh-bar { padding-left: 82px; }

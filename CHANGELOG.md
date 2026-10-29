@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Org: your whole crew on one page.** A small **Org** button on the *Crew* heading (and *Org* in ⌘K) opens a chart of who hands work to whom in the main pane (a page with Back on phones). Each member is a card, with arrows going to their delegates; agents on other harnesses show as logos on the card. Select a member and the rest of the chart becomes their picker: **+** on a card makes that member their delegate and **✓** takes them off. With a mouse you can also drag from a card's handle onto another. The column beside the chart lists who they hand work to and get work from, each with a ×, and **Add a delegate…** adds another member or an agent on any harness. Changes save at once and roll back with a toast if refused. **Open thread** opens the member, and Back returns to the chart. **Delegates…** (in a member's menu, ⌘K, or the delegates line on their page) opens Org with that member selected. Spells reach it through the `org.head` slot and the `crew.org` and `org.*` parts.
+
 ### Changed
 
 - **Tasks start and answer sooner.** With Claude Code on Haiku, a quick question in a git project went from 2.6 s to 2.2 s (median of 8), and wisp's own part of it from 0.74 s to 0.22 s. wisp runs git by its full path (a bare `git` cost about 50 ms a call on macOS, and every task makes several), shows a Codex answer as soon as the turn completes instead of waiting about 0.4 s for codex to exit, and shares one `git fetch` between tasks started within a minute of each other in the same repo.

@@ -159,6 +159,13 @@ body.wisp-mobile .it-quick-gap { width: 32px; }
    keep their 32px pill (its ::before is the touch area) so they match the avatar beside them. */
 body.wisp-mobile.split .f-group h4.sec-toggle { min-height: 44px; }
 body.wisp-mobile #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44px; }
+/* Org on touch (the app and phone browsers): the heading's button and the column's × at 44px */
+@media (pointer: coarse) {
+  #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44px; }
+  #secCrew > .cr-org { top: 0; right: 44px; height: 44px; padding: 0 10px; font-size: 13px; }
+  .org-x { width: 44px; height: 44px; }
+  .org-pick::before { inset: -14px; }
+}
 body.wisp-mobile .ov-row .ghost.xs { height: 44px; }
 body.wisp-mobile .tests-cmd .run-tests { min-height: 44px; }
 body.wisp-mobile .trail-bar :is(.tb-acts, .tb-btn, .link.xs, .rate-btn) { min-height: 44px; min-width: 44px; justify-content: center; }
