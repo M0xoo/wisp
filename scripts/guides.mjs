@@ -138,7 +138,7 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
       card: 'Your desktop, a dev box, a cloud VM: one prompt, several machines, one queue.',
       description: 'Run Claude Code, Codex and other coding agents on your other computers over SSH: one prompt on several machines in parallel, one queue on your laptop, and agents that keep working when it sleeps.',
       lede: 'wisp runs Claude Code, Codex and other coding agent CLIs on your other computers over plain SSH: a desktop, a dev box, a cloud VM or a Mac mini on Tailscale. One prompt can go to several machines in parallel, every run lands in one queue on your laptop, and the agents keep working when the laptop sleeps.',
-      shot: ['app', 'The wisp queue with tasks from this computer and from other machines, grouped into Needs you, Working and Done'],
+      shot: ['app', 'The wisp task list with Claude Code and Codex tasks under Needs you, a Compare group, and a finished report open beside it'],
       body: `
     <section>
       <h2 id="why">Why run agents on other machines</h2>
@@ -383,7 +383,7 @@ curl -X POST localhost:4477/api/sessions/<id>/reply \\
       card: 'Several Claude Code sessions on one repo, a git worktree each, one queue.',
       description: 'Run several Claude Code sessions at once on one repo without them colliding: a git worktree and branch per task, headless runs, questions routed to you, and one queue that shows which needs you.',
       lede: 'Run several Claude Code sessions at once by giving each one its own git worktree, so they never edit the same files on disk. wisp makes a worktree and branch per task from <code>origin/main</code>, runs <code>claude</code> headless in each, and puts every run in one queue that tells you which one needs you.',
-      shot: ['app', 'The wisp queue: several Claude Code tasks sorted into Needs you, Working and Done'],
+      shot: ['app', 'The wisp task list: Claude Code tasks under Needs you (a question, a usage limit, finished reports) with one report open beside it'],
       body: `
     <section>
       <h2 id="why-worktrees">Why not just open more terminals?</h2>
@@ -651,7 +651,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       card: 'Give a task a Done when goal. wisp checks after every round and sends it back until it holds.',
       description: 'Stop coding agents from quitting early. Give a task a Done when goal and wisp runs your tests after every round until it holds. Works on any harness.',
       lede: 'Coding agents stop when they think they’re done, often with a test still failing. In wisp you give the task a goal, <i>Done when all tests pass and the login page works on a phone</i>. After every round wisp checks the work itself: it runs the tests and has a read-only model read the diff. Until the goal holds, the agent gets the task back with what’s missing. It works on Claude Code, Codex, opencode, Cursor and the rest.',
-      shot: ['goal', 'A wisp task working toward its goal: the condition, a progress bar at 60% (+30 since the last round), Round 3 of 10, and what the last check found still missing'],
+      shot: ['goal', 'A wisp task working toward its goal: the condition, a progress bar at 70% (+35 since the last round), Round 3 of 10, and what the last check found still missing'],
       body: `
     <section>
       <h2 id="why-agents-stop">Why agents stop early</h2>
@@ -914,7 +914,7 @@ tmux attach -t agent`)}
       card: 'Remote Control drives one Claude Code process on one awake computer. wisp adds Codex and the rest, every computer, and a cloud box.',
       description: 'Claude Code Remote Control drives Claude Code on a computer that stays awake. When you also run Codex, use several computers or want agents working with every lid shut, here is how wisp compares.',
       lede: 'Claude Code’s Remote Control lets you drive a Claude Code session on your computer from the Claude app or claude.ai, as long as that <code>claude</code> process keeps running and the computer stays awake. If that’s all you need, use it. wisp is for the rest: Codex, Cursor and other agents next to Claude Code, every computer you own in one list, and a cloud box that keeps working with the laptop shut.',
-      shot: ['app', 'The wisp queue with Claude Code and Codex tasks from several computers, grouped into Needs you, Working and Done'],
+      shot: ['app', 'The wisp task list with Claude Code and Codex tasks under Needs you, a Compare group, and a finished report open beside it'],
       body: `
     <section>
       <h2 id="rc">What Remote Control does well</h2>
@@ -1034,7 +1034,7 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
       card: 'Happy, Grass, CloudCLI and wisp all put your coding agents on your phone. Which agents, which phones, where they run, and what it costs.',
       description: 'Happy, Grass, CloudCLI and wisp let you run Claude Code, Codex and other coding agents from your phone. Which agents and phones each supports, where the agents run, licence and price, side by side.',
       lede: 'Happy, Grass, CloudCLI and wisp all let you reach your coding agents from your phone, and they differ in three ways: which agents they drive, where those agents run (your computer, their cloud or both), and whether you can run all of it yourself. Here they are side by side, with what each is best at.',
-      shot: ['app', 'The wisp queue with tasks from this computer, a cloud box and other machines, grouped into Needs you, Working and Done'],
+      shot: ['app', 'The wisp task list: tasks that need you, a Compare group of Claude Code and Codex, and a finished report open beside it'],
       body: `
     <section>
       <h2 id="table">Side by side</h2>
@@ -1156,9 +1156,9 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
         <li><b>Start wisp.</b> ${install()}</li>
         <li><b>Say what to change.</b> ⌘K → <i>Cast a spell…</i>, Settings → Spells, or type <code>/spell</code> in the prompt box: <code>/spell a floating button that opens all my open PRs, with how many there are</code>. Be as specific as you like about where it goes and what it shows.</li>
         <li><b>Look at the preview.</b> The agent works in an empty folder of its own: it reads wisp’s spell reference, samples your real data, checks the spell with wisp until it passes, and hands it back as a card. The card shows its buttons as they will look, its panels drawn with your data, and a plain-words list of what it adds.</li>
-        <li><b>Try it, then keep it.</b> <b>Try it</b> applies the spell to this window only; <b>Undo</b> takes it back. <b>Turn on</b> keeps it. A follow-up on the card changes it (“make it a top bar button”, “only for api-server”), and “remove the … spell” drops it.</li>
+        <li><b>Try it, then keep it.</b> <b>Try it</b> applies the spell to this window only; <b>Undo</b> takes it back. <b>Keep</b> turns it on for good. A follow-up on the card changes it (“make it a top bar button”, “only for api-server”), and “remove the … spell” drops it.</li>
       </ol>
-      ${shot('spell', 'A Cast a spell report in wisp: the Task board spell with what it adds, a preview of its floating button and its panel drawn with real data, and Turn on, Try it, JSON and Copy buttons')}
+      ${shot('spell', 'A Cast a spell report in wisp: the Task board spell with what it adds, a preview of its floating button and its panel drawn with real data, and Keep, Try it, JSON and Copy buttons')}
       <p>Every spell you have is in Settings → Spells, with a switch, its reach, and export, copy and remove.</p>
     </section>
 
