@@ -48,6 +48,13 @@ const MIGRATIONS = [
    CREATE TABLE machine_wishes (
      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, wants TEXT NOT NULL, note TEXT,
      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);`,
+  // Apps people published from My Stuff (grid/sites.js), open to anyone at <label>.<domain>. key:
+  // the item in their My Stuff, so publishing it again updates the same link. db: null, or its
+  // database's seed file ('' for none) when its wisp-app.json asks for one (server/app-db.js).
+  `CREATE TABLE sites (
+     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, key TEXT NOT NULL,
+     label TEXT UNIQUE NOT NULL, title TEXT NOT NULL, entry TEXT NOT NULL, files INTEGER NOT NULL,
+     size INTEGER NOT NULL, db TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (user_id, key));`,
 ];
 
 export async function openDb(dataDir) {

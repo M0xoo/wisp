@@ -31,11 +31,12 @@ export function gridUrl(raw) {
   return u.origin;
 }
 
-// JSON request. Resolves { status, body }; network errors reject with a 502.
-export function gridJson(url, { method = 'GET', body, token, headers = {}, timeout = 30_000 } = {}) {
+// JSON request (or raw bytes: a Buffer as raw). Resolves { status, body }; network errors reject
+// with a 502.
+export function gridJson(url, { method = 'GET', body, raw, token, headers = {}, timeout = 30_000 } = {}) {
   const { lib, opts } = target(url);
   const u = new URL(url);
-  const data = body === undefined ? undefined : JSON.stringify(body);
+  const data = raw || (body === undefined ? undefined : JSON.stringify(body));
   return new Promise((resolve, reject) => {
     const req = lib.request(
       {
@@ -45,7 +46,7 @@ export function gridJson(url, { method = 'GET', body, token, headers = {}, timeo
         timeout,
         headers: {
           accept: 'application/json',
-          ...(data && { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) }),
+          ...(data && { 'content-type': raw ? 'application/octet-stream' : 'application/json', 'content-length': Buffer.byteLength(data) }),
           ...(token && { authorization: `Bearer ${token}` }),
           ...headers,
         },

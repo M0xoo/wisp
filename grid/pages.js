@@ -554,7 +554,7 @@ f.addEventListener('change',paint);f.addEventListener('submit',(e)=>{e.preventDe
 const link=()=>{const h=/^#machines(?:[/](more|bigger|gpu))?$/.exec(location.hash);if(!h)return;history.replaceState(null,'',location.pathname+location.search);const b=h[1]&&f.querySelector('[name=want_'+h[1]+']');if(b&&!b.checked){b.checked=true;d.dataset.state='pick';paint()}if(!d.open)d.showModal()};
 paint();link();addEventListener('hashchange',link)})()</script>`;
 
-export function accountPage({ cfg, user, instance, machine = {}, devices, computers = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
+export function accountPage({ cfg, user, instance, machine = {}, devices, computers = [], sites = [], identities, providers, csrf, flash: msg = '', tone = '' }) {
   const st = instance.state;
   const url = cfg.instanceUrl(user.handle);
   const host = new URL(cfg.publicUrl).host;
@@ -637,6 +637,20 @@ export function accountPage({ cfg, user, instance, machine = {}, devices, comput
           </div>
         </details>
       </div>
+
+      ${
+        sites.length
+          ? `<h2 class="sec">Published apps <span class="n">${sites.length}</span></h2>
+      <p class="hint">Apps you published from My Stuff in wisp. Anyone with the link can open them; search engines don’t list them.</p>
+      <div class="group" data-live="sites">${sites
+        .map(
+          (x) => `<div class="r"><span class="ic">${I.globe}</span><div class="tx"><b>${esc(x.title)}</b><small>Updated ${ago(x.updatedAt)} · ${x.files} file${x.files === 1 ? '' : 's'}</small>${copyBtn(x.url, bare(x.url).replace(/\/$/, ''))}</div>
+          <a class="ghost line" href="${esc(x.url)}" target="_blank" rel="noopener">Open${I.arrow}</a>
+          <form class="inline" method="post" action="/sites/${esc(x.key)}/remove">${hidden}<button class="ghost danger" title="Take it offline: the link stops working. It stays in My Stuff.">Unpublish</button></form></div>`,
+        )
+        .join('')}</div>`
+          : ''
+      }
 
       <h2 class="sec">Open them from anywhere</h2>
       <div class="group">

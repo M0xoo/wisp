@@ -332,3 +332,138 @@ test('the stuff block: the agent is told; what it saved this turn shows as a car
   assert.deepEqual({ id: card.id, title: card.title, kind: card.kind }, { id: it.id, title: 'Flappy Bird', kind: 'app' });
   assert.equal(srv.store.get(s.id).savedStuff, undefined, 'one card, on that turn');
 });
+
+test('bundle: a folder packs into one body and unpacks the same, never outside its folder', async () => {
+  const { packDir, unpackTo, bundlePath } = await import('../server/bundle.js');
+  const src = tmp('bundle-src');
+  fs.mkdirSync(path.join(src, 'a', 'b'), { recursive: true });
+  fs.writeFileSync(path.join(src, 'index.html'), '<p>hi</p>');
+  fs.writeFileSync(path.join(src, 'a', 'b', 'pic.png'), PNG);
+  const { body, files, size } = packDir(src);
+  assert.deepEqual([files, size], [2, 9 + PNG.length]);
+  const out = path.join(tmp('bundle-out'), 'site');
+  assert.deepEqual(unpackTo(body, out), { files: 2, size: 9 + PNG.length });
+  assert.deepEqual(fs.readFileSync(path.join(out, 'a', 'b', 'pic.png')), PNG);
+  assert.throws(() => packDir(src, { maxBytes: 5 }), (e) => e.tooBig);
+  for (const p of ['../x', '/etc/x', 'a/../../x', 'a\\b', '', 'a//b', './x']) assert.equal(bundlePath(p), null, p);
+  assert.equal(bundlePath('a/b.js'), 'a/b.js');
+  const head = Buffer.from(JSON.stringify({ path: '../evil', size: 1 }));
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(head.length);
+  assert.throws(() => unpackTo(Buffer.concat([len, head, Buffer.from('x')]), path.join(tmp('bundle-bad'), 's')), /bad file/);
+  assert.throws(() => unpackTo(Buffer.concat([len, head]), path.join(tmp('bundle-bad'), 's')), /bad file/);
+  assert.throws(() => unpackTo(Buffer.from([0, 0]), path.join(tmp('bundle-bad'), 's')), /ends early/);
+});
+
+test('publish: GET /stuff says where an app can go; without a wisp Grid, publishing says to sign in', async () => {
+  const src = tmp('pub-app');
+  fs.writeFileSync(path.join(src, 'index.html'), '<p>app</p>');
+  const it = srv.stuff.addApp(src, { title: 'Demo' });
+  const list = await api('/stuff');
+  assert.deepEqual(list.publishTo, []);
+  await assert.rejects(api(`/stuff/${it.id}/publish`, {}), (e) => e.status === 409 && /Sign in to a wisp Grid/.test(e.message));
+  await assert.rejects(api(`/stuff/${it.id}/publish`, undefined, 'DELETE'), (e) => e.status === 404);
+  const doc = srv.stuff.addText('# hi', { title: 'Note' });
+  await assert.rejects(api(`/stuff/${doc.id}/publish`, {}), (e) => e.status === 404 && /Only apps/.test(e.message));
+});
+
+// App data needs node:sqlite (Node 22.13+): on older Node the endpoint says so, and these skip.
+const sqlite = await import('node:sqlite').then(
+  () => true,
+  () => false,
+);
+
+test('app data: an app whose wisp-app.json asks gets its own SQLite database, made from its seed, reset on demand', { skip: !sqlite && 'needs node:sqlite' }, async () => {
+  const src = tmp('db-app');
+  fs.writeFileSync(path.join(src, 'index.html'), '<p>todos</p>');
+  fs.writeFileSync(path.join(src, 'wisp-app.json'), JSON.stringify({ name: 'Todos', db: 'schema/seed.sql' }));
+  fs.mkdirSync(path.join(src, 'schema'));
+  fs.writeFileSync(path.join(src, 'schema', 'seed.sql'), "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT, done INTEGER DEFAULT 0); INSERT INTO todos (text) VALUES ('first');");
+  const it = srv.stuff.addApp(src, {});
+  assert.deepEqual(it.db, { seed: 'schema/seed.sql' });
+  const listed = (await api('/stuff')).items.find((x) => x.id === it.id);
+  assert.deepEqual([listed.db, listed.data], [true, false], 'the page sees whether it has one, not where');
+  const { url } = await api(`/stuff/${it.id}/launch`, {});
+  const q = (sql, params = [], headers = {}) => fetch(`${url}_wisp/db`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ sql, params }) });
+
+  assert.match(await (await fetch(`${url}_wisp/db.js`)).text(), /export async function sql/);
+  assert.deepEqual((await (await q('SELECT text, done FROM todos')).json()).rows, [{ text: 'first', done: 0 }]);
+  assert.deepEqual(await (await q('INSERT INTO todos (text, done) VALUES (?, ?)', ['second', true])).json(), { changes: 1, lastId: 2 });
+  assert.deepEqual((await (await q('UPDATE todos SET done = 1 WHERE id = ? RETURNING id', [1])).json()).rows, [{ id: 1 }]);
+  assert.equal((await (await q('SELECT count(*) AS n FROM todos WHERE done = 1')).json()).rows[0].n, 2);
+  assert.ok((await api('/stuff')).items.find((x) => x.id === it.id).data);
+
+  // Only this app's own data, from its own pages.
+  assert.match((await (await q("ATTACH DATABASE '/tmp/x.db' AS x")).json()).error, /ATTACH/);
+  assert.equal((await q('PRAGMA max_page_count = 999999')).status, 400);
+  assert.equal((await q('SELECT 1', [], { origin: 'https://evil.example' })).status, 403);
+  assert.equal((await fetch(`${url}_wisp/db`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: '{"sql":"DELETE FROM todos"}' })).status, 415, 'a form from another site can’t post it');
+  assert.equal((await q('SELECT ?', [{ a: 1 }])).status, 400);
+  assert.match((await (await q('SELECT * FROM nope')).json()).error, /no such table/);
+
+  // Updated by an agent: the data stays. Reset: made again from the seed.
+  fs.writeFileSync(path.join(src, 'index.html'), '<p>todos v2</p>');
+  srv.stuff.addApp(src, { replace: it.id });
+  assert.equal((await (await q('SELECT count(*) AS n FROM todos')).json()).rows[0].n, 2);
+  const reset = await api(`/stuff/${it.id}/data`, undefined, 'DELETE');
+  assert.equal(reset.data, false);
+  assert.equal((await (await q('SELECT count(*) AS n FROM todos')).json()).rows[0].n, 1);
+
+  // An app without one says how to turn it on; removing an app takes its data.
+  const plain = tmp('db-none');
+  fs.writeFileSync(path.join(plain, 'index.html'), 'x');
+  const other = srv.stuff.addApp(plain, {});
+  const o = await api(`/stuff/${other.id}/launch`, {});
+  assert.match((await (await fetch(`${o.url}_wisp/db`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).json()).error, /"db": true/);
+  await assert.rejects(api(`/stuff/${other.id}/data`, undefined, 'DELETE'), /no database/);
+  const file = srv.stuff.dataFile(it.id);
+  assert.ok(fs.existsSync(file));
+  await api(`/stuff/${it.id}`, undefined, 'DELETE');
+  assert.ok(!fs.existsSync(file));
+  const noSeed = tmp('db-noseed');
+  fs.writeFileSync(path.join(noSeed, 'index.html'), 'x');
+  fs.writeFileSync(path.join(noSeed, 'wisp-app.json'), JSON.stringify({ db: 'missing.sql' }));
+  assert.throws(() => srv.stuff.addApp(noSeed, {}), /No missing\.sql/);
+});
+
+test('app data: a query that never ends is stopped, and the next one works; the size cap holds', { skip: !sqlite && 'needs node:sqlite' }, async () => {
+  const http = await import('node:http');
+  const { createAppDb } = await import('../server/app-db.js');
+  const db = createAppDb({ maxBytes: 64 * 1024, timeoutMs: 800 });
+  const file = path.join(tmp('db-unit'), 'a.sqlite');
+  const s = http.createServer((req, res) => db.handle(req, res, { file, seed: 'CREATE TABLE t (v TEXT);' }));
+  await new Promise((r) => s.listen(0, '127.0.0.1', r));
+  const q = async (sql, params = []) => {
+    const r = await fetch(`http://127.0.0.1:${s.address().port}/_wisp/db`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ sql, params }) });
+    return { status: r.status, ...(await r.json()) };
+  };
+  try {
+    const forever = await q('WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c');
+    assert.deepEqual([forever.status, /stopped/.test(forever.error)], [503, true]);
+    assert.deepEqual((await q('SELECT 1 AS one')).rows, [{ one: 1 }], 'a fresh worker takes over');
+    let full;
+    for (let i = 0; i < 40 && !full; i++) {
+      const r = await q('INSERT INTO t VALUES (?)', ['x'.repeat(8000)]);
+      if (r.error) full = r;
+    }
+    assert.match(full?.error || '', /full \(0 MB at most\)|full/);
+  } finally {
+    db.close();
+    s.close();
+  }
+});
+
+test('publish by an agent: wisp_save with publish says why it couldn’t, and keeps the app saved', async () => {
+  const s = await task('make a demo');
+  const token = { 'x-wisp-token': srv.token };
+  const dir = path.join(srv.store.get(s.id).cwd, 'demo');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'index.html'), '<p>demo</p>');
+  const out = await api('/internal/stuff', { session: s.id, app: 'demo', publish: true }, 'POST', token);
+  assert.match(out.text, /Saved “demo” \(app/);
+  assert.match(out.text, /wasn't published: Sign in to a wisp Grid first/);
+  const it = srv.stuff.list().find((x) => x.title === 'demo');
+  assert.ok(it && !it.published);
+  const { systemPrompt: sp } = await import('../server/protocol.js');
+  assert.match(String(sp({ agent: 'claude', tools: true }) || ''), /publish: true|^$/);
+});

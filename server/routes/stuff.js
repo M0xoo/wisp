@@ -36,7 +36,7 @@ export function register(r, app) {
     return fn(c, it);
   };
 
-  r.route('GET', '/stuff', (c) => c.send(200, { items: stuff.list().map(view) }));
+  r.route('GET', '/stuff', (c) => c.send(200, { items: stuff.list().map(view), publishTo: app.publish?.targets() || [] }));
 
   // One of: { url } a link, { text } a doc or snippet, { session, path } a file from a task.
   r.route('POST', '/stuff', async (c) => {
@@ -111,6 +111,21 @@ export function register(r, app) {
   );
   r.route('DELETE', '/stuff/:id/launch', one((c, it) => c.send(200, { ok: app.apps.stop(it.id) })));
 
+  // Publish an app to your wisp Grid: a link anyone can open (services/publish.js). Again: updated.
+  r.route('POST', '/stuff/:id/publish', one(async (c, it) => c.send(200, view(await app.publish.publish(it.id, await c.body())))));
+  r.route('DELETE', '/stuff/:id/publish', one(async (c, it) => c.send(200, view(await app.publish.unpublish(it.id)))));
+
+  // Reset data: an app's database (app-db.js) goes; the next query makes it again from its seed.
+  r.route(
+    'DELETE',
+    '/stuff/:id/data',
+    one(async (c, it) => {
+      if (!it.db) return c.send(404, { error: 'That app has no database.' });
+      await app.apps.resetData(it.id);
+      c.send(200, view(stuff.get(it.id)));
+    }),
+  );
+
   // Back to the version before the last change (an agent's update, or yours).
   r.route('POST', '/stuff/:id/restore', one((c, it) => c.send(200, view(stuff.restore(it.id)))));
 
@@ -120,6 +135,8 @@ export function register(r, app) {
     '/stuff/:id',
     one((c, it) => {
       app.apps?.stop(it.id, { quiet: true });
+      // Gone from My Stuff: its public link goes too (best effort; the grid's account page lists it).
+      if (it.published) app.publish?.unpublish(it.id).catch(() => {});
       c.send(200, { ok: stuff.remove(it.id) });
     }),
   );

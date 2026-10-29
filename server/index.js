@@ -60,6 +60,7 @@ import { trackTurns } from './services/telemetry.js';
 import { Uploads } from './services/uploads.js';
 import { Stuff } from './services/stuff.js';
 import { Apps } from './services/apps.js';
+import { createPublish } from './services/publish.js';
 import { notifyWebhooks } from './services/webhooks.js';
 import { API_VERSION } from './routes/meta.js';
 import * as metaRoutes from './routes/meta.js';
@@ -153,6 +154,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
 
   // Apps in My Stuff, each on a port of its own while launched (services/apps.js).
   app.apps = new Apps({ stuff: app.stuff, onChange: () => events.broadcast('stuff', {}) });
+  app.publish = createPublish(app); // an app's public link on your wisp Grid (services/publish.js)
   runner.stuff = app.stuff; // @-mentions of My Stuff in prompts (mentions.js)
 
   if (store.all().length === 0) store.put(welcomeSession());

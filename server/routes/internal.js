@@ -145,7 +145,27 @@ export function register(r, app) {
       if (!(lead.savedStuff ||= []).includes(it.id)) lead.savedStuff.push(it.id);
       store.save(lead);
       const what = `“${it.title}” (${it.kind}${it.size ? `, ${size(it.size)}` : ''})`;
-      const launch = it.kind === 'app' ? ' The user launches it from My Stuff: wisp serves it on a port of its own.' : '';
+      let launch = it.kind === 'app' ? ' The user launches it from My Stuff: wisp serves it on a port of its own.' : '';
+      // publish: its public link on the user's wisp Grid (services/publish.js). Saved either way.
+      // false: taken down. Either way the answer's stuff card shows the link the user shares.
+      if (body.publish === true && it.kind === 'app') {
+        try {
+          const was = it.published;
+          it = await app.publish.publish(it.id);
+          launch += ` ${was ? 'Updated its public link (same address)' : 'Published it'}: ${it.published.url} — anyone with the link can open it, no sign-in. Give the user this link to share, and show the stuff block: its card has the link with Copy.`;
+          telemetry.track('stuff_publish', { by: 'agent', update: !!was });
+        } catch (err) {
+          launch += ` It wasn't published: ${err.message} Tell the user.`;
+        }
+      } else if (body.publish === false && it.published) {
+        try {
+          const url = it.published.url;
+          it = await app.publish.unpublish(it.id);
+          launch += ` Unpublished: ${url} no longer opens. It stays in My Stuff.`;
+        } catch (err) {
+          launch += ` It wasn't unpublished: ${err.message}`;
+        }
+      } else if (it.published) launch += ` It's public at ${it.published.url}${(it.published.rev || 1) !== (it.rev || 1) ? ', with an older version: wisp_save with this id and publish: true updates the link' : ''}.`;
       c.send(200, { text: replace ? `Updated ${what} in the user's My Stuff, now v${it.rev || 1}; the version before is kept and the user can restore it.${launch} Show it in your answer as {"type":"stuff","id":"${it.id}"}.` : `Saved ${what} to the user's My Stuff, id ${it.id}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).${launch} Show it in your answer as {"type":"stuff","id":"${it.id}"}${it.kind === 'app' ? ' (the user launches it from there, inside wisp)' : ''}.` });
     }),
     opts,
