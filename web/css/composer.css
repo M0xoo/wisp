@@ -16,13 +16,28 @@
 .cq-tag { flex: none; font-size: 11.5px; font-weight: 600; color: var(--accent-ink); }
 .cq .att-x:hover { color: var(--bad); }
 .cq-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-.cq:has(.cq-pen) { padding-right: 54px; }
+.cq.later:has(.cq-pen) { padding-right: 54px; }
 /* Edit (the pencil) shows on hover, beside ×; always there on a touch screen. */
 .cq-pen { position: absolute; right: 28px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: var(--muted); opacity: 0; transition: opacity 0.12s; }
 .cq-pen:hover { background: var(--bg-2); color: var(--ink); }
 .cq-pen .i { width: 12px; height: 12px; }
 .cq:is(:hover, :focus-within) .cq-pen { opacity: 1; }
 @media (hover: none) { .cq-pen { opacity: 1; } }
+/* A queued one's actions on hover (Send now, Combine with the next one, Edit): over the end of its
+   text, on the row's hover fill, so nothing in the row moves. A touch screen taps for the menu. */
+.cq:not(.later) { --cq-bg: transparent; transition: background 0.12s; }
+.cq:not(.later):is(:hover, :focus-within):not(.editing):not(.dragged) { --cq-bg: var(--bg-2); background: var(--cq-bg); }
+.cq-acts { position: absolute; right: 28px; top: 50%; translate: 0 -50%; display: flex; align-items: center; gap: 2px; padding-left: 24px; background: linear-gradient(90deg, transparent, var(--cq-bg) 20px); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+.cq:is(:hover, :focus-within) .cq-acts { opacity: 1; pointer-events: auto; }
+.c-queued.sorting .cq-acts { opacity: 0; }
+.cq-acts button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 20px; min-width: 20px; border-radius: 6px; color: var(--muted); }
+.cq-acts button:hover { background: var(--line); color: var(--ink); }
+.cq-acts .i { width: 12px; height: 12px; }
+.cq-acts .cq-pen { position: static; translate: none; opacity: 1; }
+.cq-now { padding: 0 6px; font-size: 11.5px; font-weight: 500; color: var(--ink-2); }
+@media (hover: none) { .cq-acts { display: none; } .cq:not(.later) { cursor: pointer; -webkit-tap-highlight-color: transparent; } }
+/* held after a Stop: they wait for you, so the first says so in a quieter voice */
+.cq.held .cq-tag { color: var(--ink-2); }
 /* Two or more queued: a grip in the left padding (there whether or not you hover, so nothing moves). */
 .cq.sortable { padding-left: 24px; }
 .cq-grip { position: absolute; left: 4px; top: 50%; translate: 0 -50%; display: grid; place-items: center; width: 16px; height: 20px; color: var(--faint); cursor: grab; touch-action: none; }
@@ -33,7 +48,7 @@
 .cq.dragged { z-index: 1; background: var(--surface); border-style: solid; box-shadow: var(--shadow-1); }
 /* Editing in place: the text becomes a box, the row grows with it. */
 .cq.editing { align-items: flex-start; padding-right: 30px; }
-.cq.editing :is(.cq-pen, .cq-grip) { display: none; }
+.cq.editing :is(.cq-pen, .cq-grip, .cq-acts) { display: none; }
 .cq.editing .att-x { top: 8px; translate: none; }
 .cq-editbox { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .composer .cq-edit { width: 100%; min-height: 24px; margin: -3px 0 0; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font: inherit; font-size: 12.5px; line-height: 1.45; resize: none; }

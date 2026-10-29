@@ -178,6 +178,7 @@ export function summarize(s, store) {
     updatedAt: s.updatedAt,
     turnCount: s.turns.length,
     queued: s.queue?.length || 0,
+    ...(s.queueHeld && s.queue?.length && { queueHeld: true }), // a Stop held them: they wait for you
     later: laterView(s), // follow-ups and reminders scheduled on it (server/later.js)
     reminder: s.reminder ? { text: s.reminder.text, at: s.reminder.at, setAt: s.reminder.setAt, by: s.reminder.by, ...(s.reminder.from && { from: s.reminder.from }), ...(s.reminder.missed && { missed: true }) } : undefined,
     status: last?.status === 'running' || s.auto?.busy || s.goal?.status === 'checking' ? 'running' : last?.status === 'held' ? 'held' : hero?.status || (last?.status === 'error' ? 'blocked' : 'info'),
@@ -431,6 +432,7 @@ export class Runner extends EventEmitter {
     if (session.parentId || (team && JSON.stringify(team) === JSON.stringify(session.subagents || []))) team = undefined;
     if (by !== 'wisp' && by !== 'later') this.pipeline?.cancel(session);
     if (by !== 'wisp') this.goals?.cancel(session);
+    if (by !== 'wisp') delete session.queueHeld; // you're back: a queue a Stop held carries on after this
     const extra = { ...(by === 'wisp' && goal && { goal }), ...(mode && { mode }), ...(run && { run }), ...(team && { team }), ...(grants?.length && { grants }), ...(MODES.has(once) && { once }), ...((by === 'wisp' || by === 'later') && { by }), ...(by === 'later' && later && { later }) };
     if (session.ask && !Object.keys(extra).length) {
       this.answer(session, text);
@@ -572,6 +574,56 @@ export class Runner extends EventEmitter {
     const at = session.queue.findIndex((q) => q.id === itemId);
     if (at < 0) return false;
     session.queue.splice(at, 1);
+    if (!session.queue.length) delete session.queueHeld;
+    this.#touch(session);
+    return true;
+  }
+
+  // A queued follow-up as the next turn: its own mode, harness, account and team from here on.
+  #startQueued(session, next) {
+    if (next.mode) session.mode = next.mode;
+    if (next.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
+    if (next.account) this.#switchAccount(session, next.account);
+    if (next.team) setTeam(session, next.team);
+    this.#startTurn(session, next.text, next.attachments, next);
+  }
+
+  // Send now: this queued follow-up goes next, interrupting the run (as a follow-up sent while it
+  // works does), or at once when nothing runs. Before the agent reports a session to resume it
+  // can't interrupt: then it's just next. A queue a Stop held carries on after it.
+  sendQueued(session, itemId) {
+    const at = session.queue.findIndex((q) => q.id === itemId);
+    if (at < 0) return false;
+    const [q] = session.queue.splice(at, 1);
+    delete session.queueHeld;
+    if (q.by !== 'wisp') {
+      this.pipeline?.cancel(session);
+      this.goals?.cancel(session);
+    }
+    const handle = this.live.get(session.id);
+    if (!handle) {
+      this.#startQueued(session, q);
+      return true;
+    }
+    const first = session.queue.findIndex((x) => !x.now);
+    const running = session.turns.at(-1)?.status === 'running';
+    session.queue.splice(first < 0 ? session.queue.length : first, 0, running && session.agentSessionId ? { ...q, now: true } : q);
+    if (!running) handle.release();
+    else if (session.agentSessionId) this.#interrupt(session);
+    else this.#touch(session);
+    return true;
+  }
+
+  // Combine queued follow-ups into one (ids, in the queue's order): it goes where the first was,
+  // with its mode and harness, saying each in turn, with all their files. Only yours.
+  mergeQueued(session, ids) {
+    const want = new Set(ids);
+    const picked = session.queue.filter((q) => want.has(q.id) && q.by !== 'wisp');
+    if (picked.length < 2) return false;
+    const [first, ...rest] = picked;
+    first.text = picked.map((q) => q.text.trim()).join('\n\n');
+    first.attachments = picked.flatMap((q) => q.attachments || []);
+    session.queue = session.queue.filter((q) => !rest.includes(q));
     this.#touch(session);
     return true;
   }
@@ -946,7 +998,9 @@ export class Runner extends EventEmitter {
     this.pipeline?.cancel(session);
     // A Stop during the goal's check: no run to stop, so the task lands here.
     if (!session.parentId && this.goals?.cancel(session, { stop: true }) && !this.live.has(session.id)) this.settle(session);
-    session.queue = [];
+    // Your queued follow-ups stay, held: nothing goes out by itself after a Stop. The next message
+    // you send (or Send now on one of them) carries the queue on.
+    if (session.queue?.length) session.queueHeld = true;
     delete session.ask;
     for (const cid of Object.values(session.children || {})) {
       const child = this.store.get(cid);
@@ -1151,13 +1205,9 @@ export class Runner extends EventEmitter {
       this.live.delete(session.id);
       this.interrupting.delete(session.id);
       this.stopping.delete(session.id); // a stop that landed after the result has nothing left to stop
-      const next = session.queue.shift();
-      if (next?.mode) session.mode = next.mode;
-      if (next?.run && adapters[next.run.agent]) this.#switchRun(session, next.run);
-      if (next?.account) this.#switchAccount(session, next.account);
-      if (next?.team) setTeam(session, next.team);
+      const next = session.queueHeld ? null : session.queue.shift();
       const handed = this.handing.delete(session.id);
-      if (next && this.store.get(session.id)) this.#startTurn(session, next.text, next.attachments, next);
+      if (next && this.store.get(session.id)) this.#startQueued(session, next);
       // Kept in Working for a follow-up that was then taken back or stopped: it lands in your queue after all.
       else if (handed) this.settle(session, { quiet: true });
       else this.#touch(session);
@@ -1322,7 +1372,7 @@ export class Runner extends EventEmitter {
     if (!ev.stopped && !session.parentId) this.#reportBack(session, { ending: true });
     // Auto checks the work before it reaches you: the session stays in Working meanwhile.
     // A follow-up starts as soon as this run lets go: stay in Working rather than flash through Needs you.
-    const handing = this.live.has(session.id) && (interrupted || session.queue.length > 0);
+    const handing = this.live.has(session.id) && (interrupted || (session.queue.length > 0 && !session.queueHeld));
     if (handing) this.handing.add(session.id);
     const checks = !handing && !!this.pipeline?.wants(session, turn, ev);
     // No Auto step: the goal (if any) is checked now. With one, Auto's settle() hands over to it.

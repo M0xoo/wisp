@@ -490,7 +490,7 @@ export function openapi({ version, port }) {
           responses: { 200: ok, 400: err[400], 404: err[404] },
         },
       },
-      '/sessions/{id}/stop': { parameters: [id], post: { summary: 'Stop the run and drop queued follow-ups', responses: { 200: ok } } },
+      '/sessions/{id}/stop': { parameters: [id], post: { summary: 'Stop the run; queued follow-ups stay, held until you send something', responses: { 200: ok } } },
       '/sessions/{id}/reveal': {
         parameters: [id],
         post: {
@@ -511,7 +511,7 @@ export function openapi({ version, port }) {
       },
       '/sessions/{id}/queue': {
         parameters: [id],
-        patch: { summary: 'Change a queued follow-up ({ item, text }) or the order they go out in ({ order: [ids] })', requestBody: body({ type: 'object', properties: { item: { type: 'string' }, text: { type: 'string' }, order: { type: 'array', items: { type: 'string' } } } }), responses: { 200: ok, 400: err[400], 404: err[404] } },
+        patch: { summary: 'Change a queued follow-up ({ item, text }), the order they go out in ({ order: [ids] }), combine some into one ({ merge: [ids] }) or send one now, interrupting the run ({ item, now: true })', requestBody: body({ type: 'object', properties: { item: { type: 'string' }, text: { type: 'string' }, order: { type: 'array', items: { type: 'string' } }, merge: { type: 'array', items: { type: 'string' } }, now: { type: 'boolean' } } }), responses: { 200: ok, 400: err[400], 404: err[404], 409: json(ref('Error')) } },
         delete: { summary: 'Cancel a queued follow-up', parameters: [{ name: 'item', in: 'query', required: true, schema: { type: 'string' } }], responses: { 200: ok, 404: err[404] } },
       },
       '/sessions/{id}/takeover': {
@@ -740,6 +740,7 @@ export function openapi({ version, port }) {
             unread: { type: 'boolean' },
             archived: { type: 'boolean' },
             queued: { type: 'integer' },
+            queueHeld: { type: 'boolean', description: 'A Stop held the queued follow-ups: none goes out until you send something or Send now' },
             turnCount: { type: 'integer' },
             createdAt: { type: 'integer' },
             updatedAt: { type: 'integer' },

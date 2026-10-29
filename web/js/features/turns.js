@@ -618,7 +618,7 @@ function renderWorking(s, t, tx) {
           ${tx ? '' : '<button class="link xs peek">Show all activity</button>'}
           ${s.queue?.length ? `<span class="w-queued">${s.queue.length} follow-up${s.queue.length > 1 ? 's' : ''} queued</span>` : ''}
           <span class="grow"></span>
-          <button class="ghost sm danger stop">${icon('stop')}Stop</button>
+          <button class="ghost sm danger stop"${s.queue?.length ? ' title="Stop: your queued follow-ups stay, held until you send one"' : ''}>${icon('stop')}Stop</button>
         </div>
         <ul class="log" hidden></ul>
       </div>

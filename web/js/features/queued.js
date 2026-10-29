@@ -1,9 +1,11 @@
 // The rows above the reply box: follow-ups queued for after the run (session.queue), then the ones
-// scheduled for a time (later.js). Each row says what goes out; the pencil (on hover, always there
-// on a touch screen) edits it in place, Enter saves, Esc keeps what it said. Two or more queued:
-// drag a row by its grip (or Move up / Move down in its menu) to change the order they go out in.
-// Every change is optimistic and rolls back with a toast. Rows are kept by id, so a refresh never
-// re-inserts (and replays) one that's already there.
+// scheduled for a time (later.js). Each row says what goes out. On hover a queued one offers Send
+// now (interrupts the run with it), Combine with the next one, and the pencil, which edits it in
+// place (Enter saves, Esc keeps what it said); on a touch screen a tap opens its menu instead. Two
+// or more queued: drag a row by its grip (or Move up / Move down in its menu) to change their order.
+// A Stop keeps them, held: they wait until you send something, or Send now. Every change is
+// optimistic and rolls back with a toast. Rows are kept by id, so a refresh never re-inserts (and
+// replays) one that's already there.
 
 import { esc } from '../md.js';
 import { mentionHtml } from '../mention-text.js';
@@ -102,6 +104,24 @@ const editQueued = (id, q, text) =>
     () => api(`/sessions/${id}/queue`, { method: 'PATCH', body: { item: q.id, text } }),
   );
 
+// Send now: off the list at once; the turn it starts (or the interrupt) comes with the server's update.
+const sendQueued = (id, q) =>
+  changeQueue(
+    id,
+    S.full.get(id).queue.filter((x) => x.id !== q.id),
+    () => api(`/sessions/${id}/queue`, { method: 'PATCH', body: { item: q.id, now: true } }),
+  );
+
+// Combine these (in the queue's order) into the first of them: one follow-up saying each in turn.
+function mergeQueued(id, ids) {
+  const list = S.full.get(id)?.queue || [];
+  const picked = list.filter((x) => ids.includes(x.id) && editable(x));
+  if (picked.length < 2) return;
+  const one = { ...picked[0], text: picked.map((x) => x.text.trim()).join('\n\n'), attachments: picked.flatMap((x) => x.attachments || []) };
+  const next = list.filter((x) => !picked.slice(1).includes(x)).map((x) => (x === picked[0] ? one : x));
+  changeQueue(id, next, () => api(`/sessions/${id}/queue`, { method: 'PATCH', body: { merge: picked.map((x) => x.id) } }));
+}
+
 export function moveQueued(id, from, to) {
   const list = [...(S.full.get(id)?.queue || [])];
   if (from === to || to < 0 || to >= list.length) return;
@@ -120,24 +140,43 @@ async function cancelQueued(id, q, anchor) {
 // What a queued follow-up's row offers: yours can be edited, wisp's own (reports back) can't.
 const editable = (q) => !!q.id && q.by !== 'wisp';
 
+// The one after this, if both are yours to combine.
+const nextOf = (id, q) => {
+  const list = S.full.get(id)?.queue || [];
+  const n = list[list.findIndex((x) => x.id === q.id) + 1];
+  return n && editable(q) && editable(n) ? n : null;
+};
+const touch = () => matchMedia('(hover: none)').matches;
+
 // The queued rows' items for keyedRows. name: the harness the run is on.
 export function queuedItems(s, name) {
   const q = s.queue || [];
   const many = q.length > 1;
+  const running = s.state === 'running';
+  // What the first one waits for: the run to finish, or (after a Stop) you.
+  const first = s.queueHeld ? 'Held after Stop' : `Next · after ${esc(name)} finishes`;
   return q.map((x, i) => ({
     key: `q-${x.id || i}`,
-    cls: `cq${many ? ' sortable' : ''}`,
+    cls: `cq${many ? ' sortable' : ''}${s.queueHeld ? ' held' : ''}`,
     item: x,
     html: `${many ? `<span class="cq-grip" aria-hidden="true" title="Drag to change the order">${icon('grip')}</span>` : ''}
-      <span class="cq-tag">${i === 0 ? `Next · after ${esc(name)} finishes` : `Queued #${i + 1}`}${x.run ? ` · on ${esc(runnerTip(x.run.agent, x.run.model, ''))}` : ''}</span>
+      <span class="cq-tag">${i === 0 ? first : `Queued #${i + 1}`}${x.run ? ` · on ${esc(runnerTip(x.run.agent, x.run.model, ''))}` : ''}</span>
       <span class="cq-text">${mentionHtml(esc(x.text), { link: false })}</span>
-      ${editable(x) ? `<button class="cq-pen" aria-label="Edit follow-up" title="Edit follow-up">${icon('pen')}</button>` : ''}
+      <span class="cq-acts">
+        ${x.id ? `<button class="cq-now" title="${running ? `Send now: interrupts ${esc(name)} with this follow-up` : 'Send now'}">${icon('send')}<span>Send now</span></button>` : ''}
+        ${editable(x) && editable(q[i + 1] || {}) ? `<button class="cq-merge" aria-label="Combine with the next one" title="Combine with the next one: one follow-up that says both">${icon('merge')}</button>` : ''}
+        ${editable(x) ? `<button class="cq-pen" aria-label="Edit follow-up" title="Edit follow-up">${icon('pen')}</button>` : ''}
+      </span>
       <button class="att-x" aria-label="Cancel this follow-up" title="Cancel this follow-up">${icon('x')}</button>`,
     make: (li) => {
       li.addEventListener('click', (e) => {
         const b = e.target.closest('button');
         if (b?.classList.contains('att-x')) return cancelQueued(s.id, li.item, b);
         if (b?.classList.contains('cq-pen')) return startEdit(s.id, li);
+        if (b?.classList.contains('cq-now')) return sendQueued(s.id, li.item);
+        if (b?.classList.contains('cq-merge')) return nextOf(s.id, li.item) && mergeQueued(s.id, [li.item.id, nextOf(s.id, li.item).id]);
+        // A touch screen has no hover: a tap is the row's menu.
+        if (!b && touch() && !li.classList.contains('editing') && !e.target.closest('.cq-grip')) queuedMenu(e, s.id, li);
       });
       li.addEventListener('dblclick', (e) => {
         if (!e.target.closest('button, .cq-grip') && editable(li.item)) startEdit(s.id, li);
@@ -160,14 +199,18 @@ function startEdit(id, li) {
   editRow(li, q.text, (text) => editQueued(id, q, text));
 }
 
-// Right-click on a queued follow-up: Edit, Move up / Move down, Cancel.
+// Right-click on a queued follow-up (a tap on a touch screen): Send now, Edit, Combine, Move, Cancel.
 function queuedMenu(e, id, li) {
   $('.menu.queued')?.close();
   const list = S.full.get(id)?.queue || [];
   const i = list.findIndex((x) => x.id === li.item.id);
+  const mine = list.filter(editable);
   const menu = el(`
     <div class="menu queued" role="menu">
+      ${li.item.id ? `<button data-a="now">${icon('send')}Send now</button>` : ''}
       ${editable(li.item) ? `<button data-a="edit">${icon('pen')}Edit follow-up</button>` : ''}
+      ${nextOf(id, li.item) ? `<button data-a="merge">${icon('merge')}Combine with the next one</button>` : ''}
+      ${mine.length > 2 && editable(li.item) ? `<button data-a="merge-all">${icon('merge')}Combine all ${mine.length} into one</button>` : ''}
       ${list.length > 1 && i > 0 ? `<button data-a="up">${icon('arrow', 'rot-up')}Move up</button>` : ''}
       ${list.length > 1 && i >= 0 && i < list.length - 1 ? `<button data-a="down">${icon('arrow', 'rot-down')}Move down</button>` : ''}
       <button data-a="cancel" class="danger">${icon('x')}Cancel follow-up</button>
@@ -176,7 +219,10 @@ function queuedMenu(e, id, li) {
     const a = ev.target.closest('button')?.dataset.a;
     if (!a) return;
     close();
+    if (a === 'now') sendQueued(id, li.item);
     if (a === 'edit') startEdit(id, li);
+    if (a === 'merge') mergeQueued(id, [li.item.id, nextOf(id, li.item).id]);
+    if (a === 'merge-all') mergeQueued(id, mine.map((x) => x.id));
     if (a === 'up') moveQueued(id, i, i - 1);
     if (a === 'down') moveQueued(id, i, i + 1);
     if (a === 'cancel') cancelQueued(id, li.item, li);
