@@ -276,10 +276,10 @@ async function openItem(it) {
 }
 
 // Launch: wisp serves the app on a port of its own (server/services/apps.js) and it opens inside
-// wisp (appFrame). On a grid the port shows at its preview address; the phone app can only reach
-// wisp itself.
+// wisp (appFrame). On a grid the port shows at its preview address; over SSH the phone app can only
+// reach wisp itself.
 async function launchApp(it) {
-  if (MOBILE) return toast('Apps open in a browser: on the computer running wisp, or wisp Cloud in your phone’s browser.', { tone: 'bad' });
+  if (MOBILE && isLoopback(location.href)) return toast('Apps open here when you connect through wisp Cloud, or in a browser on the computer running wisp.', { tone: 'bad' });
   const frame = appFrame(it);
   swap(it.id, { ...it, running: it.running || { port: 0 } });
   try {
@@ -290,12 +290,26 @@ async function launchApp(it) {
       await navigator.clipboard?.writeText(url).catch(() => {});
       return toast(`It’s running on the computer with wisp, at <code>${esc(url)}</code> (copied).`);
     }
-    frame.show(to);
+    frame.show(to, await gridLink(url, to));
     track('stuff_launch');
   } catch (err) {
     frame.close();
     loadStuff();
     toastError(err);
+  }
+}
+
+// Behind the grid (to is p<port>--<this wisp's address>), the frame starts at a one-time link that
+// signs it in there: the phone app's page has this wisp's cookie but not the grid's sign-in that
+// the preview address would send it through. An older grid lacks it: the address as it is.
+async function gridLink(url, to) {
+  if (!new URL(to).host.endsWith(`--${location.host}`)) return to;
+  const u = new URL(url);
+  try {
+    const r = await fetch(`/_grid/preview?port=${u.port || 80}&path=${encodeURIComponent(u.pathname + u.search)}`, { method: 'POST', credentials: 'same-origin' });
+    return (r.ok && (await r.json()).url) || to;
+  } catch {
+    return to;
   }
 }
 
@@ -349,15 +363,15 @@ function appFrame(it) {
   });
   return {
     close,
-    show(url) {
+    show(url, src = url) {
       iframe = el(`<iframe class="ap-frame" title="${esc(it.title)}" allow="fullscreen; autoplay; clipboard-write; gamepad" sandbox="${previewSandbox(url, location.origin)} allow-modals allow-downloads allow-pointer-lock"></iframe>`);
-      iframe.src = url;
+      iframe.src = src;
       iframe.addEventListener('load', () => node.classList.add('ready'), { once: true });
       stage.append(iframe);
       node.querySelector('.ap-url').textContent = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
       const tab = node.querySelector('.ap-tab');
       tab.href = url;
-      tab.hidden = false;
+      tab.hidden = MOBILE; // the phone's browser isn't signed in there
       requestAnimationFrame(() => iframe.focus());
     },
   };
