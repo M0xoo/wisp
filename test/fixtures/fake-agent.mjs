@@ -366,6 +366,22 @@ if (fixup) {
 const FAKE_SPELL = process.env.FAKE_SPELL ? JSON.parse(fs.readFileSync(process.env.FAKE_SPELL, 'utf8')) : { wispSpell: 1, id: 'fake-hello', name: 'Fake hello', prompt: ['Say hello first.'] };
 const ask = async () => {
   const srv = injectedMcp();
+  // WATCHURL: a running app beside the task (FAKE_WATCH_URL, its dev server), navigated and reloaded.
+  if (stdin.includes('WATCHURL') && srv) {
+    const url = process.env.FAKE_WATCH_URL || 'http://localhost:5173';
+    const step = Number(process.env.FAKE_WATCH_STEP || 20);
+    const pause = () => new Promise((r) => setTimeout(r, step));
+    const opened = await mcpCall(srv, 'wisp_watch', { action: 'open', title: 'The app', url, caption: 'Starting the dev server', run: { command: 'npm run dev', cwd: '.', note: `Then open ${url}` } });
+    if (!opened) return 'no wisp_watch';
+    for (const [path, caption] of JSON.parse(process.env.FAKE_WATCH_PATHS || '[["/settings","Adding the settings page"],["/","Back to the list"]]')) {
+      await pause();
+      await mcpCall(srv, 'wisp_watch', { action: 'navigate', path, caption });
+    }
+    await pause();
+    await mcpCall(srv, 'wisp_watch', { action: 'reload', caption: 'Reloaded after the last edit' });
+    await mcpCall(srv, 'wisp_watch', { action: 'close', caption: 'Done: the app is running' });
+    return `watched: ${opened.split(':')[0]}`;
+  }
   // WATCH: a progress page beside the task through wisp_watch, a state per file, then closed.
   // FAKE_WATCH_STEP: ms between files (slow it down to look at it in the page).
   if (stdin.includes('WATCH') && srv) {

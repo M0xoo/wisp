@@ -3,14 +3,17 @@
 // writes one self-contained HTML page that draws its progress; each state it sends after reaches
 // the page (wisp.on('state', fn)) without a reload. The page runs sealed, like the app block's
 // (web/js/watch-doc.js): it shows, it can't reach wisp or the network beyond its CDN scripts.
+// Or the agent shows a running app instead (its dev server, any local page): a url it can navigate
+// and reload as it works, loaded like the preview block's (web/js/preview-spec.js).
 //
-// On the session: watch = { title, file, own, caption, state, run, seq, rev, at, closed }. seq moves
+// On the session: watch = { title, file, own, url, caption, state, run, seq, rev, at, closed }. seq moves
 // on every change (the summary carries it, so the page and other machines hear of it); rev only
 // when the page itself changed, so the frame reloads then and only gets the state otherwise.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { bad } from './util.js';
+import { previewUrl } from '../web/js/preview-spec.js';
 
 export const WATCH_MAX_HTML = 1_000_000;
 export const WATCH_MAX_STATE = 64_000;
@@ -24,6 +27,7 @@ export const watchView = (s) => (s.watch ? { title: s.watch.title, caption: s.wa
 export function watchDoc(s) {
   const w = s.watch;
   if (!w) return null;
+  if (w.url) return { title: w.title, caption: w.caption || '', state: null, run: w.run || null, seq: w.seq, rev: w.rev, at: w.at, closed: !!w.closed, url: w.url, html: '', problem: '' };
   let html = '';
   let problem = '';
   try {
@@ -66,7 +70,11 @@ export function applyWatch(s, body = {}, { dir, keep }) {
     const title = text(body.title, MAX_TITLE) || w?.title || 'Progress';
     let file;
     let own = false;
-    if (typeof body.html === 'string' && body.html.trim()) {
+    let url = null;
+    if (typeof body.url === 'string' && body.url.trim()) {
+      url = previewUrl(body.url);
+      if (!url) throw bad('url must be an http:// or https:// page, e.g. http://localhost:5173.');
+    } else if (typeof body.html === 'string' && body.html.trim()) {
       if (Buffer.byteLength(body.html) > WATCH_MAX_HTML) throw bad(`html is larger than ${WATCH_MAX_HTML / 1e6} MB.`);
       fs.mkdirSync(keep, { recursive: true });
       file = path.join(keep, 'watch.html');
@@ -83,18 +91,22 @@ export function applyWatch(s, body = {}, { dir, keep }) {
       if (st.isDirectory()) file = path.join(file, 'index.html');
       if (!/\.html?$/i.test(file) || !fs.existsSync(file)) throw bad('path must be an .html file (or a folder with index.html).');
       if (fs.statSync(file).size > WATCH_MAX_HTML) throw bad(`The page is larger than ${WATCH_MAX_HTML / 1e6} MB.`);
-    } else throw bad('open needs html (the page) or path (an .html file you wrote).');
+    } else throw bad('open needs html (the page), path (an .html file you wrote) or url (a running app, e.g. your dev server).');
     if (w?.own && w.file !== file) fs.rmSync(w.file, { force: true });
     const reopened = !!w && !w.closed;
-    s.watch = { title, file, own, caption: text(body.caption, MAX_CAPTION), state: body.state !== undefined ? stateOf(body.state) : null, run: runOf(body.run, dir), seq: w?.seq || 0, rev: w?.rev || 0 };
+    s.watch = { title, ...(url ? { url } : { file, own }), caption: text(body.caption, MAX_CAPTION), state: !url && body.state !== undefined ? stateOf(body.state) : null, run: runOf(body.run, dir), seq: w?.seq || 0, rev: w?.rev || 0 };
     bump(true);
+    const next = url
+      ? `It shows ${url} live. Say what you're doing with "caption", "navigate" to the page you changed (path or url), and "reload" when hot reload doesn't pick a change up.`
+      : `Send progress with action "state" (the page gets it in wisp.on('state', fn)), say what you're doing with "caption", and "reload" after you edit the page's file.`;
     return {
-      text: `${reopened ? 'Replaced the page' : 'Opened'} “${title}” beside the task: the user can watch it now. Send progress with action "state" (the page gets it in wisp.on('state', fn)), say what you're doing with "caption", and "reload" after you edit the page's file.`,
+      text: `${reopened ? 'Replaced the page' : 'Opened'} “${title}” beside the task: the user can watch it now. ${next}`,
       note: reopened ? null : `Opened Watch: ${title}`,
     };
   }
   if (!w) throw bad('Nothing to watch yet: call it with action "open" first.');
   if (action === 'state') {
+    if (w.url) throw bad('This watch shows a running app: it has no state. Use "caption" to say what you are doing, "navigate" and "reload" to show your change.');
     const next = stateOf(body.state);
     s.watch.state = body.merge && w.state && typeof w.state === 'object' && !Array.isArray(w.state) && next && typeof next === 'object' && !Array.isArray(next) ? stateOf({ ...w.state, ...next }) : next;
     if (body.caption !== undefined) s.watch.caption = text(body.caption, MAX_CAPTION);
@@ -107,11 +119,25 @@ export function applyWatch(s, body = {}, { dir, keep }) {
     bump(false);
     return { text: 'Caption set.' };
   }
+  if (action === 'navigate') {
+    if (!w.url) throw bad('navigate is for a watch that shows a url (open it with url); your own page draws what it gets in "state".');
+    const to = String(body.path ?? body.url ?? '').trim();
+    let url = null;
+    try {
+      url = to ? previewUrl(new URL(to, w.url).href) : null;
+    } catch {}
+    if (!url) throw bad('navigate needs path (e.g. "/settings") or an http(s) url.');
+    s.watch.url = url;
+    if (body.caption !== undefined) s.watch.caption = text(body.caption, MAX_CAPTION);
+    delete s.watch.closed;
+    bump(true);
+    return { text: `Showing ${url}.` };
+  }
   if (action === 'reload') {
     if (body.run !== undefined) s.watch.run = runOf(body.run, dir);
     delete s.watch.closed;
     bump(true);
-    return { text: 'Reloaded the page; it gets the last state again.' };
+    return { text: w.url ? `Reloaded ${w.url}.` : 'Reloaded the page; it gets the last state again.' };
   }
   if (action === 'close') {
     s.watch.closed = true;
@@ -119,6 +145,6 @@ export function applyWatch(s, body = {}, { dir, keep }) {
     bump(false);
     return { text: 'Closed. The page stays on the task, with its last state, for the user to look back at.' };
   }
-  throw bad('action must be open, state, caption, reload or close.');
+  throw bad('action must be open, state, caption, navigate, reload or close.');
 }
 

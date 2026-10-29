@@ -63,7 +63,7 @@ test('wisp_watch: open, state, caption, reload, close; the summary moves, the pa
   const watch = (body) => api('/internal/watch', { session: s.id, ...body }, 'POST', token);
   await assert.rejects(api(`/sessions/${s.id}/watch`), /nothing to watch/);
   await assert.rejects(watch({ action: 'state', state: { done: 1 } }), /open.*first/);
-  await assert.rejects(watch({ action: 'open', title: 'x' }), /html .* or path/);
+  await assert.rejects(watch({ action: 'open', title: 'x' }), /html .*, path .* or url/);
 
   const html = '<!doctype html><html><body><div id="bar"></div><script>wisp.on("state", (s) => (bar.textContent = s.done))</script></body></html>';
   const opened = await watch({ action: 'open', title: 'TS migration', html, state: { done: 0, total: 40 }, run: { command: 'npm test', cwd: '.', note: 're-runs on save' } });
@@ -147,6 +147,56 @@ test('an agent watched end to end: wisp_watch through the injected MCP server, a
   assert.equal(doc.state.done, 6);
   assert.equal(doc.run.command, 'npx tsc --noEmit');
   assert.match(doc.html, /wisp\.on\('state'/);
+});
+
+test('wisp_watch on a url: a running app, navigated and reloaded; no state for it', async () => {
+  const s = await task('build the settings page');
+  const token = { 'x-wisp-token': srv.token };
+  const watch = (body) => api('/internal/watch', { session: s.id, ...body }, 'POST', token);
+  await assert.rejects(watch({ action: 'open', url: 'file:///etc/passwd' }), /http:\/\/ or https:\/\//);
+  await assert.rejects(watch({ action: 'open', url: 'http://user:pw@localhost:3000' }), /http:\/\/ or https:\/\//);
+  const opened = await watch({ action: 'open', title: 'The app', url: 'localhost:5173', run: { command: 'npm run dev' } });
+  assert.match(opened.text, /It shows http:\/\/localhost:5173\/ live/);
+  let doc = await api(`/sessions/${s.id}/watch`);
+  assert.equal(doc.url, 'http://localhost:5173/', 'a bare host gets http://');
+  assert.equal(doc.html, '');
+  assert.equal(doc.rev, 1);
+
+  await watch({ action: 'navigate', path: '/settings?tab=2', caption: 'Adding the settings page' });
+  doc = await api(`/sessions/${s.id}/watch`);
+  assert.equal(doc.url, 'http://localhost:5173/settings?tab=2', 'a path goes on the app’s address');
+  assert.equal(doc.caption, 'Adding the settings page');
+  assert.equal(doc.rev, 2, 'the frame loads the new address');
+  await watch({ action: 'navigate', url: 'http://127.0.0.1:3000/x' });
+  assert.equal((await api(`/sessions/${s.id}/watch`)).url, 'http://127.0.0.1:3000/x');
+  await assert.rejects(watch({ action: 'navigate' }), /path .* or an http\(s\) url/);
+  await assert.rejects(watch({ action: 'navigate', url: 'javascript:alert(1)' }), /path .* or an http\(s\) url/);
+  assert.match((await watch({ action: 'reload' })).text, /Reloaded http:\/\/127\.0\.0\.1:3000\/x/);
+  assert.equal((await api(`/sessions/${s.id}/watch`)).rev, 4);
+  await assert.rejects(watch({ action: 'state', state: { a: 1 } }), /running app: it has no state/);
+
+  // Back to a page of its own: navigate is for urls only.
+  await watch({ action: 'open', html: '<p>mine</p>' });
+  doc = await api(`/sessions/${s.id}/watch`);
+  assert.equal(doc.url, undefined);
+  assert.equal(doc.html, '<p>mine</p>');
+  await assert.rejects(watch({ action: 'navigate', path: '/' }), /navigate is for a watch that shows a url/);
+});
+
+test('an agent shows its running app end to end: open a url, navigate, reload, close', async () => {
+  process.env.FAKE_WATCH_URL = 'http://localhost:4599';
+  try {
+    const s = await task('Add a settings page. WATCHURL');
+    const sum = await summary(s.id);
+    assert.equal(sum.watch.title, 'The app');
+    assert.equal(sum.watch.caption, 'Done: the app is running');
+    assert.deepEqual([sum.watch.rev, sum.watch.seq], [4, 5], 'opened, two navigates, a reload, closed');
+    const doc = await api(`/sessions/${s.id}/watch`);
+    assert.equal(doc.url, 'http://localhost:4599/');
+    assert.equal(doc.run.command, 'npm run dev');
+  } finally {
+    delete process.env.FAKE_WATCH_URL;
+  }
 });
 
 test('wisp_watch is offered to agents unless Settings → Watch agents work is off', async () => {

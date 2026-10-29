@@ -3,6 +3,9 @@
 // the page in a sealed frame (web/js/watch-doc.js), and how to run the thing yourself under it.
 // Each change moves the task's summary (watch.seq); the panel then fetches the page and its state.
 // Only a new page (watch.rev) reloads the frame: a new state is posted into it, so nothing flashes.
+// A watch on a url shows that running app instead (the agent's dev server), loaded like the preview
+// block's: its sandbox, and on a wisp Grid its localhost at the box's preview address. Navigate and
+// reload move rev, so the frame loads the new address.
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
@@ -12,8 +15,9 @@ import { S } from '../core/state.js';
 import { copy } from '../blocks.js';
 import { APP_TOKENS, themeCss } from '../app-doc.js';
 import { watchDoc } from '../watch-doc.js';
+import { boxUrl, isLoopback, previewSandbox, shortUrl } from '../preview-spec.js';
 
-const docs = new Map(); // task id -> the last page and state fetched ({ title, caption, state, run, seq, rev, closed, html, problem })
+const docs = new Map(); // task id -> the last page and state fetched ({ title, caption, state, run, seq, rev, closed, html, url, problem })
 const loads = new Map(); // task id -> the fetch on its way; another change meanwhile fetches once more after it
 let frame = null; // { id, rev, seq, node, ready } the frame on screen
 
@@ -45,12 +49,22 @@ export function loadWatch(id) {
   return job.p;
 }
 
-// The caption line: a live dot while the task runs, what the agent says it's doing.
+// Where a url watch loads from here: read away from the computer it runs on (a grid box, a computer
+// added to the grid), its localhost has an address of its own. { src, local }: local, it points at
+// the agent's computer and may not load here.
+function where(id, url) {
+  const boxed = !isLoopback(location.href) && !String(id).includes('@') && boxUrl(url, S.config?.preview || S.config?.grid?.preview);
+  return { src: boxed || url, local: !boxed && isLoopback(url) && !isLoopback(location.href) };
+}
+
+// The caption line: a live dot while the task runs, what the agent says it's doing. A url watch
+// adds the page it shows and a way to open it in its own tab.
 function captionHtml(id, d) {
   const s = S.sessions.get(id);
   const live = !d.closed && (s?.state === 'running' || s?.state === 'waiting');
   const text = d.caption || (d.closed ? 'Finished' : live ? 'Working' : 'Stopped');
-  return `${live ? '<i class="wt-live" aria-hidden="true"></i>' : icon(d.closed ? 'done' : 'pause')}<span class="wt-text" title="${esc(text)}">${esc(text)}</span>`;
+  const addr = d.url ? `<span class="wt-addr" title="${esc(d.url)}">${esc(shortUrl(d.url))}</span><a class="icon-btn xs wt-open" href="${esc(where(id, d.url).src)}" target="_blank" rel="noopener" title="Open in a new tab" aria-label="Open in a new tab">${icon('external')}</a>` : '';
+  return `${live ? '<i class="wt-live" aria-hidden="true"></i>' : icon(d.closed ? 'done' : 'pause')}<span class="wt-text" title="${esc(text)}">${esc(text)}</span>${addr}`;
 }
 
 function runHtml(d) {
@@ -97,11 +111,19 @@ export function paintWatch(sec, id) {
     if (frame.ready) frame.seq = d.seq;
     return;
   }
-  const { vars, scheme } = theme();
   const node = document.createElement('iframe');
-  node.setAttribute('sandbox', 'allow-scripts');
   node.setAttribute('title', d.title || 'Watch');
   node.className = 'wt-frame';
+  if (d.url) {
+    const { src, local } = where(id, d.url);
+    node.setAttribute('sandbox', previewSandbox(src, location.origin));
+    node.src = src;
+    frame = { id, rev: d.rev, seq: d.seq, node, ready: true };
+    box.replaceChildren(...(local ? [Object.assign(document.createElement('p'), { className: 'wt-local', innerHTML: `${icon('info')}This points at the agent's computer; it may not load here.` })] : []), node);
+    return;
+  }
+  const { vars, scheme } = theme();
+  node.setAttribute('sandbox', 'allow-scripts');
   node.srcdoc = watchDoc(d.html, { vars, scheme, state: d.state });
   const f = (frame = { id, rev: d.rev, seq: d.seq, node, ready: false });
   node.addEventListener('load', () => {
@@ -133,7 +155,7 @@ export const forgetWatch = (id) => docs.delete(id);
 // Light and dark: the frame follows without reloading.
 bus.on('theme', () => {
   requestAnimationFrame(() => {
-    if (!frame?.node.isConnected) return;
+    if (!frame?.node.isConnected || docs.get(frame.id)?.url) return; // a running app keeps its own look
     const { vars, scheme } = theme();
     frame.node.contentWindow?.postMessage({ type: 'theme', css: themeCss(vars, scheme), scheme }, '*');
   });

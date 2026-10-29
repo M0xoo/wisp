@@ -112,21 +112,26 @@ const WATCH = {
     'current as you go. Worth it for long or many-step work the user would like to follow (a migration across many files, a test or ' +
     'benchmark run, a crawl, a data job, a design taking shape); not for quick tasks or plain questions. You decide what the page shows ' +
     'and how: a progress bar and a checklist, a table filling in, a chart, a diagram growing. ' +
+    'Two ways: a page you write that draws your progress, or the real thing running (the app you are building, on its dev server). ' +
     'action "open": html (one self-contained page: inline CSS and JS; scripts, styles and fonts from https CDNs are fine; no fetch, no ' +
-    'relative files) or path (an .html file you wrote, read again on "reload"), a title, and optionally run: { command, cwd, note }, ' +
+    'relative files), path (an .html file you wrote, read again on "reload"), or url (a running app, e.g. http://localhost:5173: start its ' +
+    'dev server first, in the background), a title, and optionally run: { command, cwd, note }, ' +
     'how the user runs or checks the thing themselves (shown under the page). The page uses wisp\'s theme as CSS variables ' +
     '(var(--ink), var(--muted), var(--line), var(--accent), var(--good), var(--bad), var(--surface), var(--sans), var(--mono)) and gets ' +
     'your data with wisp.on(\'state\', (s) => draw(s)) (called with the last state at once, then on every update; wisp.state is the last one). ' +
     'action "state": state (JSON, up to 64 KB: what the page draws now; merge: true merges it into the last one), caption optional. ' +
     'Send it after each meaningful step, not on every keystroke. action "caption": one line on what you are doing now. ' +
-    'action "reload": after you edited the page. action "close": when the work is done (the page stays, with its last state).',
+    'With a url: action "navigate" with path ("/settings") or url shows the page you just changed; "reload" when hot reload missed it; ' +
+    '"state" is for your own page only. action "reload": after you edited the page. action "close": when the work is done (the page ' +
+    'stays, with its last state; a url keeps showing while its server runs).',
   inputSchema: {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['open', 'state', 'caption', 'reload', 'close'] },
+      action: { type: 'string', enum: ['open', 'state', 'caption', 'navigate', 'reload', 'close'] },
       title: { type: 'string', description: 'open: a few words, e.g. "TypeScript migration".' },
       html: { type: 'string', description: 'open: the page (up to 1 MB).' },
-      path: { type: 'string', description: 'open: or an .html file you wrote: absolute, or relative to your working directory.' },
+      path: { type: 'string', description: 'open: or an .html file you wrote: absolute, or relative to your working directory. navigate: the path to show, e.g. "/settings".' },
+      url: { type: 'string', description: 'open: or a running app to show, e.g. "http://localhost:5173". navigate: a full url to show instead of a path.' },
       state: { description: 'open / state: the data the page draws, any JSON.' },
       merge: { type: 'boolean', description: 'state: merge into the last state (top-level keys) instead of replacing it.' },
       caption: { type: 'string', description: 'What you are doing now, one line: "Converting auth/ (12 of 40)".' },
