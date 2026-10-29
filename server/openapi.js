@@ -509,7 +509,11 @@ export function openapi({ version, port }) {
         parameters: [id],
         post: { summary: 'A run held near the usage limit (its last turn has status `held`): start it now, wait for the reset (it leaves Needs you), or skip it', requestBody: body({ type: 'object', required: ['action'], properties: { action: { enum: ['start', 'wait', 'skip'] } } }), responses: { 200: json(ref('Summary')), 400: err[400], 404: err[404] } },
       },
-      '/sessions/{id}/queue': { parameters: [id, { name: 'item', in: 'query', required: true, schema: { type: 'string' } }], delete: { summary: 'Cancel a queued follow-up', responses: { 200: ok, 404: err[404] } } },
+      '/sessions/{id}/queue': {
+        parameters: [id],
+        patch: { summary: 'Change a queued follow-up ({ item, text }) or the order they go out in ({ order: [ids] })', requestBody: body({ type: 'object', properties: { item: { type: 'string' }, text: { type: 'string' }, order: { type: 'array', items: { type: 'string' } } } }), responses: { 200: ok, 400: err[400], 404: err[404] } },
+        delete: { summary: 'Cancel a queued follow-up', parameters: [{ name: 'item', in: 'query', required: true, schema: { type: 'string' } }], responses: { 200: ok, 404: err[404] } },
+      },
       '/sessions/{id}/takeover': {
         parameters: [id],
         get: { summary: 'The shell command that resumes this agent session interactively', responses: { 200: json({ type: 'object', properties: { command: { type: 'string' } } }) } },

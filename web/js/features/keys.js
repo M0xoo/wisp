@@ -44,7 +44,7 @@ export function onKey(e) {
     if (isStacked() && panelShown()) return closePanel();
     if (orgEscape()) return; // Org: done picking a member's delegates first
     // A crew job → its member's thread → home (stacked: the list).
-    if (S.crewOpen || S.orgOpen || splitOpen() || stackPage()) goBack();
+    if (S.crewOpen || S.orgOpen || S.planOpen || splitOpen() || stackPage()) goBack();
     return;
   }
   if (typing || e.metaKey || e.ctrlKey || e.altKey || !$('#overlay').hidden) return;

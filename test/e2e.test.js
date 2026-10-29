@@ -307,6 +307,29 @@ test('a follow-up can switch the mode: plan → edits → auto, and a queued one
   assert.equal(bad.status, 400);
 });
 
+test('queued follow-ups can be changed and reordered before they go out', async () => {
+  const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await until(async () => (await session(s.id)).state === 'review');
+  const patch = (body) => fetch(`${base}/api/sessions/${s.id}/queue`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  process.env.FAKE_HANG = '1';
+  try {
+    await api(`/sessions/${s.id}/reply`, { text: 'long one' });
+    await until(async () => (await session(s.id)).turns[1]?.activity.length > 0);
+    for (const text of ['first', 'second', 'third']) await api(`/sessions/${s.id}/reply`, { text, queue: true });
+    let q = (await session(s.id)).queue;
+    assert.deepEqual(q.map((x) => x.text), ['first', 'second', 'third']);
+    assert.equal((await patch({ item: q[1].id, text: '  second, changed  ' })).status, 200);
+    assert.equal((await patch({ order: [q[2].id, q[0].id] })).status, 200); // the one left out keeps its place at the end
+    assert.deepEqual((await session(s.id)).queue.map((x) => x.text), ['third', 'first', 'second, changed']);
+    assert.equal((await patch({ item: q[0].id, text: '  ' })).status, 400);
+    assert.equal((await patch({ item: 'nope', text: 'x' })).status, 404);
+  } finally {
+    delete process.env.FAKE_HANG;
+    await api(`/sessions/${s.id}/stop`, {});
+  }
+  assert.equal((await patch({ order: [] })).status, 404, 'stopping dropped the queue');
+});
+
 test('an interrupting follow-up keeps the task in Working: no flash through Needs you, no notification', async () => {
   const s = await api('/sessions', { prompt: 'look at add()', cwd: makeRepo(), agent: 'claude', worktree: false });
   await until(async () => (await session(s.id)).state === 'review');

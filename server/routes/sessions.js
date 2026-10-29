@@ -451,6 +451,17 @@ export function register(r, app) {
       return ok ? c.send(200, { ok }) : c.send(404, { error: 'Already sent.' });
     }),
   );
+  // { item, text }: change a queued follow-up. { order: [ids] }: the order they go out in.
+  r.route(
+    'PATCH',
+    '/sessions/:id/queue',
+    one(async (c, s) => {
+      const { item, text, order } = await c.body();
+      if (Array.isArray(order)) return runner.reorderQueue(s, order.map(String)) ? c.send(200, { ok: true }) : c.send(404, { error: 'Already sent.' });
+      if (typeof text !== 'string' || !text.trim()) return c.send(400, { error: 'text required: what the follow-up says.' });
+      return runner.editQueued(s, String(item || ''), text.trim()) ? c.send(200, { ok: true }) : c.send(404, { error: 'Already sent.' });
+    }),
+  );
 
   r.route(
     'POST',

@@ -576,6 +576,27 @@ export class Runner extends EventEmitter {
     return true;
   }
 
+  // Change what a queued follow-up says. Only yours: wisp's own (reports back, repairs) aren't.
+  editQueued(session, itemId, text) {
+    const q = session.queue.find((x) => x.id === itemId);
+    if (!q || q.by === 'wisp') return false;
+    q.text = text;
+    this.#touch(session);
+    return true;
+  }
+
+  // Put the queue in this order (ids). Ids it doesn't know are skipped; any left out keep their
+  // place at the end, so an item queued meanwhile isn't lost. false when nothing's left to order.
+  reorderQueue(session, ids) {
+    if (!session.queue.length) return false;
+    const byId = new Map(session.queue.map((q) => [q.id, q]));
+    const picked = [...new Set(ids)].map((id) => byId.get(id)).filter(Boolean);
+    const rest = session.queue.filter((q) => !picked.includes(q));
+    session.queue.splice(0, session.queue.length, ...picked, ...rest);
+    this.#touch(session);
+    return true;
+  }
+
   // /btw: a side question, answered by a read-only run of its own while the task's run carries on
   // (server/btw.js). It lands on the latest turn and never reaches the task's conversation.
   btw(session, question, attachments = []) {

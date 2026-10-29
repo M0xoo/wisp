@@ -2,13 +2,11 @@
 // side questions (/btw), which don't interrupt the run.
 
 import { esc } from '../md.js';
-import { mentionHtml } from '../mention-text.js';
 import { btwQuestion, goalAsk, isBtw, isGoalDrop, SPELL_HINT, spellAsk } from '../slash-text.js';
 import { editGoal, goalAction, setGoal } from './goal.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { here, S, saveOpen } from '../core/state.js';
-import { clampToViewport, popover } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
@@ -29,10 +27,10 @@ import { renderBody } from './turns.js';
 import { paintCard, runAction, spellProp } from './spells.js';
 import { spellSlash } from './launcher.js';
 import { cast } from './spell-ui.js';
-import { ask } from '../ui/confirm.js';
 import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
 import { parseWhen } from '../when.js';
-import { aheadLabel, followUpRows, scheduleFollowUp, timeMenu, whenTip } from './later.js';
+import { aheadLabel, followUpItems, scheduleFollowUp, timeMenu, whenTip } from './later.js';
+import { keyedRows, queuedItems } from './queued.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { commentCount, commentTray, paintCommentTray, restoreComments, takeComments, withPending } from './comments.js';
 
@@ -525,52 +523,10 @@ function paintSide(id) {
   if (hint.dataset.h !== html) (hint.innerHTML = html), (hint.dataset.h = html);
 }
 
-// Follow-ups waiting their turn, shown above the composer so it's clear what goes out next.
+// Follow-ups waiting their turn, shown above the composer so it's clear what goes out next
+// (queued.js), then the ones scheduled for later, by time (later.js).
 function renderQueued(s, list, name) {
-  const sum = S.sessions.get(s.id) || {};
-  const key = (s.queue || []).map((q) => `${q.id}${q.run ? `:${q.run.agent}/${q.run.model}` : ''}`).join() + '|' + JSON.stringify(sum.later || []);
-  if (list.dataset.key === key) return;
-  list.dataset.key = key;
-  list.innerHTML = '';
-  (s.queue || []).forEach((q, i) => {
-    const li = el(`
-      <li class="cq">
-        <span class="cq-tag">${i === 0 ? `Next · after ${esc(name)} finishes` : `Queued #${i + 1}`}${q.run ? ` · on ${esc(runnerTip(q.run.agent, q.run.model, ''))}` : ''}</span>
-        <span class="cq-text">${mentionHtml(esc(q.text), { link: false })}</span>
-        <button class="att-x" title="Cancel this follow-up">${icon('x')}</button>
-      </li>`);
-    const cancel = async () => {
-      // Items queued by a wisp older than queue ids get one when wisp restarts.
-      if (!q.id) return toast('Restart wisp to cancel this follow-up.', { tone: 'bad' });
-      const short = q.text.length > 80 ? `${q.text.slice(0, 80)}…` : q.text;
-      if (!(await ask(`Cancel this queued follow-up?\n\n“${short}”`, { ok: 'Cancel follow-up', danger: true, anchor: $('.att-x', li) }))) return;
-      api(`/sessions/${s.id}/queue?item=${encodeURIComponent(q.id)}`, { method: 'DELETE' }).catch(toastError);
-    };
-    $('.att-x', li).onclick = cancel;
-    li.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      queuedMenu(e, cancel);
-    });
-    list.append(li);
-  });
-  followUpRows(sum, list); // then the ones scheduled for later, by time (later.js)
-}
-
-// Right-click on a queued follow-up.
-function queuedMenu(e, cancel) {
-  $('.menu.queued')?.close();
-  const menu = el(`
-    <div class="menu queued" style="top:${e.clientY}px;left:${e.clientX}px">
-      <button data-a="cancel" class="danger">${icon('x')}Cancel follow-up</button>
-    </div>`);
-  menu.onclick = (ev) => {
-    const a = ev.target.closest('button')?.dataset.a;
-    close();
-    if (a === 'cancel') cancel();
-  };
-  const close = popover(menu);
-  clampToViewport(menu, e.clientX, e.clientY);
+  keyedRows(list, [...queuedItems(s, name), ...followUpItems(S.sessions.get(s.id) || {})]);
 }
 
 // Follow-ups sent while an agent works interrupt it, unless the user flipped this on.

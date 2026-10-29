@@ -29,6 +29,7 @@ export const SLOTS = {
   'panel.head': "The side panel beside the open task (Shell, PR): a button in its head (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
+  'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
 };
@@ -66,6 +67,11 @@ export const PARTS = {
   'section.working': '#secWorking',
   'section.scheduled': '#secScheduled', // tasks and reminders set for later, and done tasks with follow-ups to come
   'scheduled.row': '#secScheduled .plan-row',
+  // A scheduled task (or reminder) opened from its row: its page, the box with its prompt, its details and actions.
+  'plan.page': '.plan-view',
+  'plan.prompt': '.plan-view .pv-box',
+  'plan.details': '.plan-view .pv-side', // its details column (a bar over the box when narrow)
+  'plan.actions': '.plan-view .pv-side .it-actions', // Start now, Change start time…, Delete
   'section.forLater': '#secForLater', // finished tasks (and crew jobs) saved to look at again
   'section.done': '#secDone',
   'section.heading': '#feed .f-group > h4',
@@ -169,6 +175,8 @@ export const PARTS = {
   'composer.queue': '.composer .c-queue',
   // Later: the follow-ups scheduled on a task (rows above the box), Send later, the time read from the box.
   'composer.later': '.composer .cq.later',
+  // Follow-ups queued for after the run (above the box, before the scheduled ones): edit, drag to reorder.
+  'composer.queued': '.composer .cq:not(.later)',
   'composer.sendLater': '.composer .c-later',
   'composer.when': '.composer .when-chip',
   'composer.send': '.composer .send',
@@ -405,7 +413,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

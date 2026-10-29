@@ -286,6 +286,19 @@ test('Org: moving cards by hand can be turned off, and Reset layout is a part', 
   assert.ok(problems({ ...base0, parts: { 'org.chart': { props: { movable: 'no' } } } }).some((x) => /movable/.test(x)));
 });
 
+test('a scheduled task\'s page and queued follow-ups: parts, and a header that takes buttons, not panels', () => {
+  const ok = {
+    ...base0,
+    parts: { 'plan.page': { style: { background: 'var(--surface)' } }, 'plan.prompt': { style: { borderRadius: '6px' } }, 'plan.details': { hide: true }, 'plan.actions': { style: { gap: '4px' } }, 'composer.queued': { style: { opacity: '0.9' } } },
+    buttons: [{ slot: 'plan.head', icon: 'clock', label: 'Snooze a day', do: { open: 'https://example.com' } }],
+  };
+  assert.deepEqual(problems(ok), []);
+  assert.ok(schema.SLOTS['plan.head'] && !schema.CARD_SLOTS.has('plan.head'));
+  assert.ok(schema.ICONS.includes('grip'));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'plan.head', panel: 'x' }] }).length);
+  assert.ok(problems({ ...base0, parts: { 'plan.nope': { hide: true } } }).some((x) => /plan\.nope/.test(x)));
+});
+
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,

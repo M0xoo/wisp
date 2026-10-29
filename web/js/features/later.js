@@ -17,6 +17,8 @@ import { openAutomations } from './automations.js';
 import { projectLabel } from './places.js';
 import { agentName, MODES } from './runners.js';
 import { HELD_LABEL, heldAction } from './hold.js';
+import { editRow } from './queued.js';
+import { openPlan, planShown } from './plan-view.js';
 
 // A time ahead, short: 14:32 today, Mon 9:00 this week, 2 Nov 9:00 after.
 export function aheadLabel(t) {
@@ -222,6 +224,7 @@ export function followUpMenu(e, id, l, anchor) {
   const menu = el(`
     <div class="menu later-row" role="menu">
       <button data-a="now">${icon('send')}${l.remind ? 'Remind me now' : 'Send now'}</button>
+      ${l.goal || !anchor.matches?.('.cq') ? '' : `<button data-a="edit">${icon('pen')}${l.remind ? 'Edit reminder' : 'Edit follow-up'}</button>`}
       <button data-a="time">${icon('clock')}Change time…</button>
       <button data-a="cancel" class="danger">${icon('x')}${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}</button>
     </div>`);
@@ -229,6 +232,7 @@ export function followUpMenu(e, id, l, anchor) {
     const a = ev.target.closest('button')?.dataset.a;
     if (!a) return;
     close();
+    if (a === 'edit') editLaterRow(id, anchor);
     if (a === 'now') sendNow(id, l);
     if (a === 'cancel') cancelFollowUp(id, l);
     if (a === 'time') timeMenu(anchor, { at: { x, y }, pick: (at) => moveFollowUp(id, l, at) });
@@ -237,29 +241,51 @@ export function followUpMenu(e, id, l, anchor) {
   clampToViewport(menu, x, y);
 }
 
-// The rows above the reply box: queued follow-ups go first (composer.js), then these, by time.
-export function followUpRows(s, list) {
-  for (const l of s.later || []) {
-    const li = el(`
-      <li class="cq later" data-later="${esc(l.id)}">
-        <span class="cq-tag" title="${esc(l.held ? `${whenTip(l.at)}\nWaits for your plan: ${l.held.why}` : whenTip(l.at))}">${icon(l.held ? 'pause' : l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · ${l.held ? 'when your plan resets' : `set by ${esc(whoSet(l.by))}`}${l.files ? ` · <span title="${l.files === 1 ? '1 file goes with it' : `${l.files} files go with it`}">${icon('clip')}${l.files}</span>` : ''}</span>
-        <span class="cq-text">${esc(l.goal ? laterLine(l)[1] : l.text)}</span>
-        <button class="att-x" aria-label="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}" title="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}">${icon('x')}</button>
-      </li>`);
-    $('.att-x', li).onclick = (e) => {
-      e.stopPropagation();
-      cancelFollowUp(s.id, l);
-    };
-    const menu = (e) => {
-      if (e.target.closest('.att-x')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      followUpMenu(e, s.id, l, li);
-    };
-    li.addEventListener('contextmenu', menu);
-    li.addEventListener('click', menu);
-    list.append(li);
+export async function editFollowUp(id, l, text) {
+  const was = S.sessions.get(id)?.later || [];
+  setLater(id, was.map((x) => (x.id === l.id ? { ...x, text } : x)));
+  try {
+    await api(`/sessions/${id}/later`, { method: 'PATCH', body: { item: l.id, text } });
+    return true;
+  } catch (err) {
+    setLater(id, was);
+    toastError(err);
+    return false;
   }
+}
+
+// The rows above the reply box, for queued.js's keyedRows: queued follow-ups go first, then these,
+// by time. A click (or right-click) is the row's menu; the pencil edits what it says.
+export function followUpItems(s) {
+  return (s.later || []).map((l) => ({
+    key: `l-${l.id}`,
+    cls: 'cq later',
+    item: l,
+    html: `<span class="cq-tag" title="${esc(l.held ? `${whenTip(l.at)}\nWaits for your plan: ${l.held.why}` : whenTip(l.at))}">${icon(l.held ? 'pause' : l.remind ? 'bell' : 'clock')}${l.remind ? 'Reminder at' : 'At'} ${esc(aheadLabel(l.at))} · ${l.held ? 'when your plan resets' : `set by ${esc(whoSet(l.by))}`}${l.files ? ` · <span title="${l.files === 1 ? '1 file goes with it' : `${l.files} files go with it`}">${icon('clip')}${l.files}</span>` : ''}</span>
+      <span class="cq-text">${esc(l.goal ? laterLine(l)[1] : l.text)}</span>
+      ${l.goal || String(l.id).startsWith('tmp') ? '' : `<button class="cq-pen" aria-label="${l.remind ? 'Edit reminder' : 'Edit follow-up'}" title="${l.remind ? 'Edit reminder' : 'Edit follow-up'}">${icon('pen')}</button>`}
+      <button class="att-x" aria-label="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}" title="${l.remind ? 'Cancel reminder' : 'Cancel follow-up'}">${icon('x')}</button>`,
+    make: (li) => {
+      const menu = (e) => {
+        if (li.classList.contains('editing')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        followUpMenu(e, s.id, li.item, li);
+      };
+      li.addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (b?.classList.contains('att-x')) return e.stopPropagation(), cancelFollowUp(s.id, li.item);
+        if (b?.classList.contains('cq-pen')) return e.stopPropagation(), editLaterRow(s.id, li);
+        menu(e);
+      });
+      li.addEventListener('contextmenu', menu);
+    },
+  }));
+}
+
+function editLaterRow(id, li) {
+  const l = li.item;
+  editRow(li, l.text, (text) => editFollowUp(id, l, text));
 }
 
 // --- reminders that came due --------------------------------------------------------------
@@ -302,7 +328,7 @@ export async function addPlan(kind, at, body) {
   }
 }
 
-async function cancelPlan(p) {
+export async function cancelPlan(p) {
   const was = S.config.later || [];
   setPlans(was.filter((x) => x.id !== p.id));
   try {
@@ -314,19 +340,37 @@ async function cancelPlan(p) {
   toast(p.kind === 'task' ? 'Deleted' : 'Reminder deleted', { action: { label: 'Undo', run: () => addPlan(p.kind, Math.max(p.at, Date.now() + 61_000), p.kind === 'task' ? p.body : { text: p.text, from: p.from }) } });
 }
 
-async function startPlan(p) {
+// Resolves true once it started (its task opens), false when the server refused.
+export async function startPlan(p) {
   const was = S.config.later || [];
   setPlans(was.filter((x) => x.id !== p.id));
   try {
     const out = await api(`/later/${p.id}`, { method: 'PATCH', body: { now: true } });
     if (out.session?.id) (S.sessions.set(out.session.id, out.session), renderFeed(), reveal(out.session.id));
+    return true;
   } catch (err) {
     setPlans(was);
     toastError(err);
+    return false;
   }
 }
 
-async function movePlan(p, at) {
+// What a task will be asked (or a reminder will say). Resolves true once the server has it.
+export async function editPlan(p, text) {
+  const was = S.config.later || [];
+  const task = p.kind === 'task';
+  setPlans(was.map((x) => (x.id !== p.id ? x : task ? { ...x, body: { ...x.body, prompt: text }, title: text.split('\n')[0].slice(0, 80) } : { ...x, text })));
+  try {
+    await api(`/later/${p.id}`, { method: 'PATCH', body: task ? { prompt: text } : { text } });
+    return true;
+  } catch (err) {
+    setPlans(was);
+    toastError(err);
+    return false;
+  }
+}
+
+export async function movePlan(p, at) {
   const was = S.config.later || [];
   setPlans(was.map((x) => (x.id === p.id ? { ...x, at } : x)));
   await api(`/later/${p.id}`, { method: 'PATCH', body: { at } }).catch((err) => (setPlans(was), toastError(err)));
@@ -341,6 +385,7 @@ export function planMenu(e, p, anchor) {
   const menu = el(`
     <div class="menu later-plan" role="menu">
       <p class="lp-what">${esc(task ? p.body.prompt : p.text)}</p>
+      <button data-a="open">${icon('pen')}${task ? 'Edit task' : 'Edit reminder'}</button>
       <button data-a="now">${icon(task ? 'play' : 'bell')}${task ? 'Start now' : 'Remind me now'}</button>
       <button data-a="time">${icon('clock')}${task ? 'Change start time…' : 'Change time…'}</button>
       <button data-a="cancel" class="danger">${icon('trash')}${task ? 'Delete' : 'Delete reminder'}</button>
@@ -349,6 +394,7 @@ export function planMenu(e, p, anchor) {
     const a = ev.target.closest('button')?.dataset.a;
     if (!a) return;
     close();
+    if (a === 'open') openPlan(p.id);
     if (a === 'now') startPlan(p);
     if (a === 'cancel') cancelPlan(p);
     if (a === 'time') timeMenu(anchor, { at: { x, y }, pick: (at) => movePlan(p, at) });
@@ -385,20 +431,21 @@ export function planRows() {
     if (!n) {
       n = el(`<div class="item plan-row c-${project?.color || 'slate'}" data-plan="${esc(p.id)}"><div class="it-head" role="button" tabindex="0"></div></div>`);
       const head = $('.it-head', n);
-      const menu = (e) => {
+      // A click opens it as a page to edit (plan-view.js); right-click is its menu.
+      head.addEventListener('click', () => openPlan(n.dataset.plan));
+      head.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        planMenu(e, want.get(n.dataset.plan) || plans().find((x) => x.id === n.dataset.plan), head);
-      };
-      head.addEventListener('click', menu);
-      head.addEventListener('contextmenu', menu);
+        planMenu(e, plans().find((x) => x.id === n.dataset.plan), head);
+      });
       head.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') menu(e);
+        if (e.key === 'Enter' || e.key === ' ') (e.preventDefault(), openPlan(n.dataset.plan));
       });
       planNodes.set(p.id, n);
     }
     const head = $('.it-head', n);
     if (head.dataset.h !== html) (head.dataset.h = html), (head.innerHTML = html);
     n.dataset.at = p.at;
+    n.classList.toggle('sel', planShown() && S.planOpen === p.id);
     rows.push(n);
   });
   return rows;
@@ -459,7 +506,7 @@ export function openUpcoming(x, anchor, e) {
   if (x.id) return reveal(x.id);
   if (x.member) return openMember(x.member.id);
   if (x.trigger) return openAutomations({ tab: 'triggers' });
-  if (x.plan) return planMenu(e, x.plan, anchor);
+  if (x.plan) return openPlan(x.plan.id);
 }
 
 // --- task actions, the same everywhere (right-click, More, ⌘K) -------------------------------

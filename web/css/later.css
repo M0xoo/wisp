@@ -75,3 +75,67 @@ body.wisp-mobile .when-chip .link, body.wisp-mobile .when-chip .att-x { min-heig
   .c-bar:has(.when-chip) { flex-wrap: wrap; }
   .c-bar .c-hint:has(.when-chip) { flex-basis: 100%; order: -1; }
 }
+
+/* the open plan's row in the list, like an open task's */
+body.split #feed .plan-row.sel { background: var(--bg-2); border-color: transparent; box-shadow: none; }
+
+/* A scheduled task's page (plan-view.js), built like a task's: its header, the prompt where the
+   turns would be, and beside it (≥860px, .wide) the details column; narrower, its facts and actions
+   are a bar over the box. */
+.plan-view { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+.plan-view[hidden] { display: none; }
+body.split #planView { flex: 1; }
+.plan-view { --pv-pad: max(24px, calc((100% - var(--read-w)) / 2)); }
+.plan-view.wide { --pv-pad: max(24px, calc((100% - var(--det-w) - 48px - var(--read-w)) / 2)); }
+.plan-view .pv-head { padding-left: var(--pv-pad); padding-right: var(--pv-pad); }
+.plan-view.wide .pv-head { padding-right: calc(var(--pv-pad) - 8px); }
+.pv-head .q-dot.auto { color: var(--muted); }
+.pv-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px var(--pv-pad) 40px; }
+.pv-cols { display: flex; flex-direction: column; gap: 14px; }
+.plan-view.wide .pv-cols { display: grid; grid-template-columns: minmax(0, 1fr) var(--det-w); column-gap: 48px; align-items: start; }
+
+/* the prompt: a quiet box, like the reply box at rest */
+.pv-box { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 6px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); transition: border-color 0.15s, background 0.15s; }
+.pv-box:focus-within { background: var(--surface); border-color: var(--line-2); }
+.pv-text { width: 100%; min-height: 66px; padding: 6px 2px; border: 0; outline: 0; background: none; resize: none; font: inherit; font-size: 14px; line-height: 1.55; color: var(--ink); }
+.pv-bar { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.pv-hint { flex: 1; min-width: 0; font-size: 11.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-save-acts { display: flex; gap: 2px; }
+.pv-save-acts[hidden] { display: none; }
+.pv-save { color: var(--ink); font-weight: 500; }
+
+/* the details: when, harness, mode, project, files */
+.pv-side { flex-wrap: wrap; gap: 8px 12px; padding: 0; }
+.pv-side > .it-props { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.pv-fact { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.pv-fact .i { width: 12px; height: 12px; flex: none; color: var(--faint); }
+.pv-mode.m-plan .i { color: var(--accent-ink); }
+.pv-mode.m-auto .i { color: var(--warn); }
+.pv-when .i { width: 11px; height: 11px; }
+.pv-side > .it-actions { display: flex; gap: 2px; }
+.pv-side .it-actions .pv-now { color: var(--ink); }
+/* wide: a column, one fact a row behind a 13px icon, then the actions with their names */
+.plan-view.wide .pv-side { position: sticky; top: 0; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 14px; }
+.plan-view.wide .pv-side > .it-props { flex-direction: column; align-items: stretch; gap: 8px; line-height: 1.45; color: var(--ink-2); }
+.plan-view.wide .pv-side .it-props > * { display: flex; align-items: flex-start; gap: 9px; max-width: none; min-width: 0; }
+.plan-view.wide .pv-side .it-props .i { width: 13px; height: 13px; flex: none; margin-top: 2px; color: var(--faint); }
+.plan-view.wide .pv-side .later-pill { height: auto; padding: 0; background: none; font-size: 12.5px; color: var(--ink-2); }
+.plan-view.wide .pv-side .model-logo { width: auto; height: auto; }
+.plan-view.wide .pv-side .model-logo > * { width: 13px; height: 13px; flex: none; margin-top: 2px; }
+.plan-view.wide .pv-side .model-logo::after { content: attr(data-tip); position: static; opacity: 1; transform: none; transition: none; padding: 0; background: none; color: var(--ink-2); font-size: 12.5px; white-space: normal; }
+.plan-view.wide .pv-side .q-proj { position: relative; padding: 0 0 0 22px; background: none; font-size: 12.5px; color: var(--ink-2); }
+.plan-view.wide .pv-side .q-proj::before { content: ''; position: absolute; left: 4px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--pc); }
+.plan-view.wide .pv-side > .it-actions { flex-direction: column; align-items: stretch; gap: 1px; padding-top: 12px; border-top: 1px solid var(--line); }
+.plan-view.wide .pv-side .it-actions .ghost { justify-content: flex-start; height: 32px; padding: 0 8px; margin-inline: -8px; gap: 7px; font-size: 13px; color: var(--muted); }
+.plan-view.wide .pv-side .it-actions .ghost:hover, .plan-view.wide .pv-side .it-actions .pv-now { color: var(--ink); }
+.plan-view.wide .pv-side .it-actions .ghost .i { width: 15px; height: 15px; }
+.plan-view.wide .pv-side .it-actions .ghost > .it-lbl { display: inline; }
+/* narrow: the bar goes over the box, as a task's does */
+.plan-view:not(.wide) .pv-side { order: -1; display: flex; align-items: center; justify-content: space-between; }
+body.stack .pv-scroll { padding: 12px 16px 32px; }
+body.split.stack .plan-view .pv-head { min-height: 56px; padding: 6px 12px 6px 16px; }
+body.split.stack .plan-view .pv-head .sh-row { gap: 6px; }
+@media (pointer: coarse) { .pv-text { font-size: 16px; } .pv-side .it-actions .ghost { min-height: 44px; min-width: 44px; } }
+/* the start time is a fact here (a task's own rows above its box say it, so .it-props hides it there) */
+.pv-side .it-props > .later-pill { display: inline-flex; }
+.pv-side .it-actions .pv-now > span { display: inline; }
