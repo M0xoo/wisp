@@ -31,7 +31,7 @@ import { paintCard } from './spells.js';
 import { paintGoal, wireGoalSlot } from './goal.js';
 import { signIn } from './connectors.js';
 import { crewFace, paintOffers } from './crew.js';
-import { keepCtx } from './stuff.js';
+import { keepCtx, stuffBlock } from './stuff.js';
 import { paintMarks, sentComments } from './comments.js';
 
 export function ctxFor(s, turn, isLatest) {
@@ -52,6 +52,7 @@ export function ctxFor(s, turn, isLatest) {
     approve: (allow) => approveBlocked(s, turn, allow),
     refresh: () => fetchFull(s.id).then(() => S.full.get(s.id)),
     keep: s.agent === 'wisp' ? null : keepCtx(s, turn), // Save to My Stuff (not on the tour)
+    stuffBlock: (b) => stuffBlock(b), // something the agent saved in My Stuff (stuff.js)
   };
 }
 

@@ -964,6 +964,10 @@ R.task = (b, ctx) => {
   return node;
 };
 
+// stuff: something in the user's My Stuff the agent saved (features/stuff.js draws it, with Launch
+// for an app). Without wisp's page around it (a spell's preview) it's its title.
+R.stuff = (b, ctx) => (ctx.stuffBlock ? ctx.stuffBlock(b) : el(`<div class="b-stuff card"><span class="sb-main"><b>${esc(b.title || 'Something in My Stuff')}</b></span></div>`));
+
 R.question = (b, ctx) => {
   const answered = !ctx.isLatest;
   const node = el(`

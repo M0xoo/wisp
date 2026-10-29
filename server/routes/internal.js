@@ -141,9 +141,12 @@ export function register(r, app) {
         it = body.app ? app.stuff.addApp(file, { ...meta, cover: body.cover && local(body.cover) }) : app.stuff.addFile(file, { ...meta, name: body.name });
       }
       telemetry.track('stuff_save', { kind: it.kind, by: 'agent', update: !!replace });
+      // The answer shows it as a card (runner.js keepStuff adds one if the agent doesn't).
+      if (!(lead.savedStuff ||= []).includes(it.id)) lead.savedStuff.push(it.id);
+      store.save(lead);
       const what = `“${it.title}” (${it.kind}${it.size ? `, ${size(it.size)}` : ''})`;
       const launch = it.kind === 'app' ? ' The user launches it from My Stuff: wisp serves it on a port of its own.' : '';
-      c.send(200, { text: replace ? `Updated ${what} in the user's My Stuff, now v${it.rev || 1}; the version before is kept and the user can restore it.${launch}` : `Saved ${what} to the user's My Stuff, id ${it.id}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).${launch} Say in a word that it's in My Stuff.` });
+      c.send(200, { text: replace ? `Updated ${what} in the user's My Stuff, now v${it.rev || 1}; the version before is kept and the user can restore it.${launch} Show it in your answer as {"type":"stuff","id":"${it.id}"}.` : `Saved ${what} to the user's My Stuff, id ${it.id}. It's a copy: later changes to the original don't reach it (wisp_save with this id updates it).${launch} Show it in your answer as {"type":"stuff","id":"${it.id}"}${it.kind === 'app' ? ' (the user launches it from there, inside wisp)' : ''}.` });
     }),
     opts,
   );

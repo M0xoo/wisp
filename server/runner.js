@@ -672,6 +672,27 @@ export class Runner extends EventEmitter {
 
   // forked: on a copy of the agent's conversation, so it knows what the run did and why. A fork
   // that fails (a CLI too old to fork) asks again with wisp's record of the task instead.
+  // What the agent saved in My Stuff this turn (wisp_save) shows in its answer as a stuff block: one
+  // it left out goes before the closing actions. Each block keeps the item's title and kind as they
+  // were, so it still reads right once the item is gone.
+  #keepStuff(session, turn) {
+    const blocks = turn.presentation?.blocks;
+    if (!Array.isArray(blocks)) return;
+    const saved = session.savedStuff || [];
+    delete session.savedStuff;
+    const shown = new Set(blocks.filter((b) => b?.type === 'stuff').map((b) => String(b.id || '').trim()));
+    const add = saved.filter((id) => !shown.has(id) && this.stuff?.get(id)).map((id) => ({ type: 'stuff', id }));
+    if (add.length) {
+      const end = blocks.findIndex((b) => ['actions', 'next', 'question'].includes(b?.type));
+      blocks.splice(end === -1 ? blocks.length : end, 0, ...add);
+    }
+    for (const b of blocks) {
+      if (b?.type !== 'stuff' || typeof b.id !== 'string') continue;
+      const it = this.stuff?.get(b.id.trim());
+      if (it) Object.assign(b, { id: it.id, title: it.title, kind: it.kind });
+    }
+  }
+
   #sideRun(session, turn, entry, attachments, forked) {
     const adapter = adapters[entry.agent];
     const name = (t) => adapters[t.agent || session.agent]?.name || t.agent || session.agent;
@@ -1361,6 +1382,7 @@ export class Runner extends EventEmitter {
       this.store.keepImages(session, turn);
       this.store.keepDocs?.(session, turn);
       this.store.keepTasks?.(turn);
+      this.#keepStuff(session, turn);
       const hero = heroOf(turn.presentation);
       // Compare runs keep the prompt's title: they're one task, and one run's headline shouldn't name it.
       if (hero?.title && session.titleAuto && session.turns.length === 1 && !session.groupId) session.title = hero.title;
