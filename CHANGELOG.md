@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-10-29
+
 ### Added
 
 - **Edit what's waiting before it goes.** A task waiting under *Scheduled* (from **Wait until …** near the usage limit, or Start later) opens as a page when you click it: change its prompt there (saved on ⌘Enter or when you click away), or Start now, Change start time… and Delete. Queued follow-ups and ones scheduled for a time get a pencil on hover to change them in place (Enter saves, Esc keeps the old text), and with two or more queued you drag one by its grip, or use **Move up** / **Move down** in its menu, to change the order they go out in. On hover a queued follow-up also offers **Send now**, which interrupts the run with it, and **Combine with the next one** (its menu has **Combine all into one**), so several go out as one message. On a phone, tap a row for the same menu. New `PATCH /api/sessions/{id}/queue` (`{ item, text }`, `{ order }`, `{ merge }` or `{ item, now: true }`); spells reach it through the `plan.head` slot and the `plan.page`, `plan.prompt`, `plan.details` and `composer.queued` parts.
