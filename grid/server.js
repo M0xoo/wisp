@@ -608,6 +608,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
     // A page elsewhere can't post to someone's wisp with their cookie.
     if (req.method !== 'GET' && req.method !== 'HEAD' && who.via === 'cookie' && req.headers.origin !== origin) return json(res, 403, { error: 'forbidden origin' });
+    if (p === '/_grid/preview' && req.method === 'POST') return previewLink(res, url, user, user.handle, previews);
 
     if (p === '/_grid/state') {
       const i = hostd.inst.get(user.id);
@@ -663,6 +664,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       return json(res, 401, { error: 'Sign in again.' });
     }
     if (req.method !== 'GET' && req.method !== 'HEAD' && who.via === 'cookie' && req.headers.origin !== origin) return json(res, 403, { error: 'forbidden origin' });
+    // The computer decides whether it shows its local pages (Show local pages in previews).
+    if (p === '/_grid/preview' && req.method === 'POST') return previewLink(res, url, user, c.label, true);
     // Whether it's connected, without asking it anything (what wisp elsewhere polls while it's off).
     if (p === '/_grid/state') return json(res, 200, { state: tunnels.online(c.id) ? 'running' : 'offline', name: c.name });
     // Like the wisp edge: the grid's own sign-in stays here; the computer only learns who asked where.
@@ -676,6 +679,16 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   }
 
   // ---- a page in the user's box, or on a computer they added: its own cookie, then on to it ----
+
+  // A one-time link into p<port>--<label> (an app launched from My Stuff), asked by wisp's own page.
+  // The phone app's page is signed in to that wisp only, not to the grid, so /go would stop at the
+  // grid's sign-in inside the frame.
+  function previewLink(res, url, user, label, allowed) {
+    const raw = url.searchParams.get('port') || '';
+    const port = /^\d{1,5}$/.test(raw) ? Number(raw) : 0;
+    if (!allowed || port < 1 || port > 65535) return json(res, 400, { error: 'No preview for that port here.' });
+    return json(res, 200, { url: `${previewUrl(label, port)}/_grid/auth?t=${accounts.ticket(user.id)}&r=${encodeURIComponent(safePath(url.searchParams.get('path')))}` });
+  }
 
   // The user whose page this is, if the request carries their preview cookie. Only cookies: a
   // frame can't send a device's token, and the page there never sees one.

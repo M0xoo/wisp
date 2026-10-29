@@ -875,6 +875,22 @@ test('a page the agent left running in the box shows at p<port>--<handle>: signe
     stolen.jar.set(new URL(at).host, bob.jar.get(new URL(cfg.instanceUrl(`p${port}--bob`)).host));
     assert.equal((await stolen.go(`${at}/`, { headers: { accept: 'application/json' } })).status, 401);
 
+    // The phone app's page: signed in to ada's wisp, not the grid. Its wisp hands out the way in
+    // (an app launched from My Stuff); not to another site's page, nor without the cookie.
+    const phone = browser();
+    phone.jar.set(new URL(origin).host, new Map([wispCookie]));
+    const ask = (b2, q, from = origin) => b2.go(`${origin}/_grid/preview?${q}`, { method: 'POST', headers: { origin: from, accept: 'application/json' } });
+    const link = await ask(phone, `port=${port}&path=${encodeURIComponent('/hello?x=1')}`);
+    assert.equal(link.status, 200, link.text);
+    assert.ok(link.json.url.startsWith(`${at}/_grid/auth?t=`), link.json.url);
+    const framed = await phone.follow(link.json.url);
+    assert.equal(framed.at, `${at}/hello?x=1`);
+    assert.deepEqual(framed.json, { host: `localhost:${port}`, url: '/hello?x=1', method: 'GET' });
+    assert.equal((await phone.follow(link.json.url)).at.startsWith(`${base}/`), true, 'the link works once');
+    assert.equal((await ask(phone, `port=${port}`, 'https://evil.example')).status, 403);
+    assert.equal((await ask(browser(), `port=${port}`)).status, 401);
+    assert.equal((await ask(phone, 'port=99999')).status, 400);
+
     // Never the wisp itself at a preview address.
     const own = grid.hostd.port(grid.accounts.byHandle('ada').id);
     assert.equal((await b.follow(`${cfg.instanceUrl(`p${own}--ada`)}/api/health`)).status, 404);
@@ -1029,6 +1045,12 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
       assert.equal((await viewer.go(`${at}/away`)).location, '/home');
       assert.equal((await viewer.go(`${at}/form`, { method: 'POST', body: {}, headers: { origin: 'https://evil.example' } })).status, 403);
       assert.equal((await viewer.go(`${at}/form`, { method: 'POST', body: {}, headers: { origin: at } })).json.method, 'POST');
+      // The phone app, in through the computer's address (no grid sign-in): a one-time link to the page.
+      const link = await browser().go(`${on.json.url}/_grid/preview?port=${dev.port}&path=/hello`, { method: 'POST', headers: { authorization: `Bearer ${phone}`, accept: 'application/json' } });
+      assert.equal(link.status, 200, link.text);
+      const framed = await browser().follow(link.json.url);
+      assert.equal(framed.at, `${at}/hello`);
+      assert.equal(framed.json.url, '/hello');
       // The computer's own address doesn't take a preview port from outside.
       const sneaky = await browser().go(`${on.json.url}/api/health`, { headers: { authorization: `Bearer ${phone}`, accept: 'application/json', 'x-wisp-preview': String(dev.port) } });
       assert.equal(sneaky.json.pid, process.pid);

@@ -217,3 +217,12 @@ Never send builds to someone's own phone as part of QA.
   (or the app goes to the background). A short pull springs back. A running
   task's row only gives a little to the right, with no band. The edge swipe is Android's Back, and
   scrolling never swipes a row.
+
+### MOB-24 Launch a My Stuff app in the app
+- **Run:** Manual on the Pixel (debug APK). The grid side is in `test/grid.test.js` (`/_grid/preview`).
+- **Steps:** connected to the cloud computer (and again to a computer *via grid* with **Show local
+  pages in previews** on), open My Stuff and tap an app's **Launch**; Reload, Stop, Back. Then
+  over SSH, tap **Launch** again.
+- **Expected:** through the grid the app opens inside the app, full screen under its bar at
+  `p<port>--…`, with no sign-in page in the frame and no *New tab*; Back closes it. Over SSH a
+  toast says apps open there through wisp Cloud, or in a browser on that computer.
