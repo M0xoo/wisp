@@ -77,6 +77,19 @@ export function scrollByPx(dy) {
   if (Math.abs(dy) >= 1) (mainBox() || stage).scrollTop += dy;
 }
 
+// Bring something just added to an open card (a /btw question) into view, clear of the follow-up
+// box docked over the bottom of the body. Only scrolls if it's hidden, and never past its top.
+export function reveal(node) {
+  if (!node?.isConnected) return;
+  const dock = node.closest('.it-body')?.querySelector('.it-dock');
+  const floor = (dock ? Math.min(dock.getBoundingClientRect().top, innerHeight) : innerHeight) - 12;
+  const r = node.getBoundingClientRect();
+  const dy = r.bottom > floor ? Math.min(r.bottom - floor, r.top - topInset() - 12) : r.top < topInset() ? r.top - topInset() - 12 : 0;
+  if (Math.abs(dy) < 1) return;
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  (mainBox() || stage).scrollBy({ top: dy, behavior: smooth ? 'smooth' : 'auto' });
+}
+
 // The card to hold still while the feed changes around it: the first one showing under the top
 // bar and docked launcher, skipping `id` (the card that's changing). None at the very top of the page, where new
 // cards should push the list down, or when `id` itself is the top card on screen: then the next
