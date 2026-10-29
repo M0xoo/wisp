@@ -361,17 +361,15 @@ New harnesses and models: when a CLI or model shows up (after an install or a Re
 
 Compare runs get different picks. A delegate set to Auto is picked on its first task and keeps that harness (on its own machine, from what that machine has). A launch on a machine is picked here, from the harnesses that machine reported, and that machine's outcomes come back to the same router. All of it stays in `~/.wisp/router.json`. Usage stats only add which goal, kind of task, size, tier and level were used, whether the pick was exploring, previewed or suggested something, and which harness you switched to when you changed a preview. Never the prompt.
 
-After the run, Auto checks the work before it lands in your queue:
+Around the run, Auto can do a few more steps:
 
-1. **Scout** (bigger tasks): a cheap model looks around the repo, read-only, and the agent gets the files that matter and the test command.
-2. **Check**: wisp runs the project's tests itself. A failure only counts if that test passed on the base commit, and a failing suite runs twice so a flaky test doesn't count. The turn gets a **Run by wisp** tests block. If the agent said "done" and the run disagrees, the turn says so.
-3. **Repair**: new failures go back to the same agent (1 round by default, up to 2).
-4. **Hand over**: still failing, or the run errored. A run that thought at low or medium goes again at high on the same model first (one at high, at x-high): Anthropic measured low with the failures rerun at high solving 97% for $0.17 a task, against 95% for $0.29 with everything at high. Otherwise the task runs again on a stronger tier (small → everyday → frontier). Either way it runs in its own worktree, next to the first run.
+1. **Scout** (bigger tasks): a cheap model looks around the repo, read-only, and the agent gets the files that matter and the test command, which it runs itself.
+2. **Hand over**: the run errored. A run that thought at low or medium goes again at high on the same model first (one at high, at x-high): Anthropic measured low with the failures rerun at high solving 97% for $0.17 a task, against 95% for $0.29 with everything at high. Otherwise the task runs again on a stronger tier (small → everyday → frontier). Either way it runs in its own worktree, next to the first run.
 
 A harness that says it's at its limit (session or usage limit, rate limit, no credit) isn't failing the task. Auto rests it until the limit resets, doesn't count the run against it, and moves the task to the best pick that can run now. Best always runs frontier models only; it falls back to the strongest you have only when no frontier model is installed. Balanced runs on the strongest tier that can run now, whatever the record of the weaker models: frontier, or everyday (Sonnet, never Haiku) while every frontier model is at its limit or when you have none. The benchmark estimates count for at most 8 tasks each (4 when they rest on a predecessor model), so your own outcomes soon outweigh them.
-5. **Best of two** (goal Best, off by default): two picks work side by side; tests decide, then a cheap model reads both diffs, and the better run is marked **Pick**.
+3. **Best of two** (goal Best, off by default): two picks work side by side; a cheap model reads both diffs, and the better run is marked **Pick**.
 
-Each step's outcome feeds the router: a test pass counts more than the agent's "done", needing a repair counts less, and losing a best-of-2 a little less again. Your own follow-up stops whatever Auto was about to do next. A launch on a machine is checked on that machine, where the files are. Settings → Auto turns each step on or off and sets the test command per project.
+Each step's outcome feeds the router: losing a best-of-2 counts a little less. Your own follow-up stops whatever Auto was about to do next. Settings → Auto turns each step on or off and sets the test command per project.
 
 The benchmark behind the priors is in [`bench/`](bench/README.md).
 

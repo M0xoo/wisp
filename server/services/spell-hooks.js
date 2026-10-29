@@ -9,11 +9,9 @@ import { summarize } from '../runner.js';
 import { fillTemplate } from '../../web/js/spell-schema.js';
 import { VERSION, clip } from '../util.js';
 
-// Did the turn's tests fail (its own tests block, or Auto's check)?
+// Did the turn's tests fail (its own tests block)?
 export function testsFailed(session, turn) {
-  const blocks = turn?.presentation?.blocks || [];
-  if (blocks.some((b) => b.type === 'tests' && Number(b.failed) > 0)) return true;
-  return session.auto?.checks?.at(-1)?.verdict === 'fail';
+  return (turn?.presentation?.blocks || []).some((b) => b.type === 'tests' && Number(b.failed) > 0);
 }
 
 export function hookMatches(cond = {}, { session, turn, summary }) {

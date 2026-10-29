@@ -31,7 +31,7 @@ Two halves, both from what wisp already records; nothing is asked of the provide
    (`input − cached + output`, in millions). p50 / p75 / p90 of the last 50 finished runs of the
    harness in 30 days: first turns for a new task, follow-ups for a follow-up. A schedule, trigger,
    recipe or crew job with five runs of its own uses those. A follow-up is at least this task's own
-   median. Subagents and Auto's repair rounds don't count as samples.
+   median. Subagents don't count as samples.
 2. **Share of the window per unit**, learned in `Budget` (`server/budget.js`): Claude reports the
    windows after every request, so readings come while runs work. What a window moved between two
    readings under 30 minutes apart counts (`learn.du`), against the units of the runs that ended
@@ -56,7 +56,7 @@ estimate matters; the weekly one is mostly "already past the line".
 | Schedule, trigger, recipe, Later plan, crew job (`launch()` with an origin or crew) | the task is made with a **held turn** |
 | Scheduled follow-up (`later.fire`), goal round, trigger or crew follow-up | the follow-up becomes a held turn on its task |
 | Machine | each machine checks its own budget; the 409's `hold` comes back through `machines.js` |
-| Not checked | subagents, `/btw`, Auto's check and repair rounds, a crew job a lead delegated, a moved task, the queue draining a follow-up already checked |
+| Not checked | subagents, `/btw`, a crew job a lead delegated, a moved task, the queue draining a follow-up already checked |
 
 A held turn (`status: 'held'`, `turn.held`, `turn.run` with what it carried) keeps the task in Needs
 you (`state: review`, unread). It goes by itself at the window's reset (`Later.tick`); still over a

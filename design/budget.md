@@ -71,7 +71,7 @@ with no reset time holds nothing). `app.reserve.check(agent, account)` adds the 
 | Follow-up an agent / wisp / a crew member scheduled | `Later.tick` | moved to the reset with `held: { why, until }`; *Send now* still sends it; the next due follow-up (yours) goes in the same tick |
 
 Not held: anything you start or schedule, *Check in now*, *Run now*, delegations (a lead waits on
-them), Auto's repair rounds (part of the run), subagents, members and launches on other machines
+them), subagents, members and launches on other machines
 (each machine keeps its own budget).
 
 ## Where it went

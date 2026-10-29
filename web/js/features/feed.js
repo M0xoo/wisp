@@ -451,13 +451,6 @@ function autoPill(s) {
     const why = a.reason === 'limit' ? `${agentName(s.agent)} was at its usage limit, so wisp moved the task to ${toName}` : a.reason === 'error' ? `The run failed, so wisp handed the task to ${toName}` : `Tests still failed, so wisp handed the task to ${toName}`;
     out.push(`<span class="pill auto-handed" title="${esc(why)}">${a.reason === 'limit' ? 'Moved on' : 'Handed on'}</span>`);
   }
-  const c = a.check;
-  if (c && !a.busy && c.verdict !== 'skip') {
-    const n = c.newFailures || c.failed;
-    const tip = c.verdict === 'pass' ? `wisp ran ${c.command}: no new failures${c.note ? ` (${c.note})` : ''}` : c.verdict === 'fail' ? `wisp ran ${c.command}: ${n} test${n === 1 ? '' : 's'} that passed before now fail${a.repairs ? `, after ${a.repairs} repair round${a.repairs > 1 ? 's' : ''}` : ''}` : `wisp ran ${c.command}: ${c.note || "couldn't tell"}`;
-    const label = c.verdict === 'pass' ? 'Tests' : c.verdict === 'fail' ? `${n} failing` : 'Tests ?';
-    out.push(`<span class="pill auto-ck ck-${c.verdict}" title="${esc(tip)}">${icon(c.verdict === 'pass' ? 'check' : c.verdict === 'fail' ? 'x' : 'info')}${label}</span>`);
-  }
   return out.join('');
 }
 
@@ -506,7 +499,7 @@ function taskItem(t) {
   const handed = t.runs.find((r) => r.auto?.escalatedFrom);
   const runName = (r) => `${agentName(r.agent)}${r.model ? ` · ${r.model}` : ''}`;
   const how = handed?.auto?.reason === 'limit' ? 'The first harness was at its usage limit, so wisp moved it to' : handed?.auto?.reason === 'error' ? 'The first run failed, so wisp handed it to' : 'Tests failed, so wisp handed it to';
-  const autoLine = picked ? `wisp's pick: ${picked.auto.pick.why}` : handed ? `${how} ${runName(handed)}${handed.auto?.check?.verdict === 'pass' ? ' · tests pass now' : handed.auto?.check?.verdict === 'fail' ? ' · still failing' : ''}` : '';
+  const autoLine = picked ? `wisp's pick: ${picked.auto.pick.why}` : handed ? `${how} ${runName(handed)}` : '';
   const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : autoLine || (places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep');
   g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
   paintHtml(g.head, `

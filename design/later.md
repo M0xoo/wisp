@@ -27,8 +27,8 @@ backend) and Gucci (the UI); the decisions they changed are marked *(review)*.
 
 ## Rules
 
-- **Same conversation.** A follow-up goes through `runner.reply` with `by: 'later'`. It doesn't cancel
-  Auto's repair round *(review)* and isn't read as `/btw` *(review)*. The turn records
+- **Same conversation.** A follow-up goes through `runner.reply` with `by: 'later'`. It isn't read
+  as `/btw` *(review)*. The turn records
   `turn.later = { by, setAt, at, late? }`. The agent reads a note first (*this is the follow-up you
   scheduled at 14:12…*; when late: *check the current state*). The bubble shows only the message
   *(review)*.

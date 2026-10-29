@@ -77,7 +77,7 @@ export async function openRouter({ host } = {}) {
         .join('')}</tbody></table></div>
       <div class="ro-kinds" hidden></div>
       <h4>Tests per project</h4>
-      <p class="hint">What wisp runs to check an Auto task. Leave it empty to use what wisp found, or type <code>off</code> to skip the check in that project.</p>
+      <p class="hint">The command the scout hands the agent, and what a goal check runs. Leave it empty to use what wisp found, or type <code>off</code> for none in that project.</p>
       ${r.projects?.length
         ? `<div class="ro-tests">${r.projects
             .map((p) => `<label class="ro-test"><span class="us-proj c-${esc(p.color || 'slate')}"><i class="p-dot"></i>${esc(p.name)}</span><input class="input mono" data-id="${esc(p.id)}" value="${esc(p.testCommand)}" placeholder="${esc(p.detected?.command || (p.detected?.skip ? `none: ${p.detected.skip}` : 'none found'))}" spellcheck="false"></label>`)

@@ -28,12 +28,8 @@
 .ro-foot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
 .ro-foot .hint { margin: 0; }
 
-/* Auto's steps after a run: check, repair, hand-over, best of two */
-.pill.auto-ck { gap: 4px; }
-.pill.auto-ck .i, .pill.auto-pick .i { width: 11px; height: 11px; }
-.pill.auto-ck.ck-pass { --tone: var(--good); color: var(--good); }
-.pill.auto-ck.ck-fail { --tone: var(--bad); color: var(--bad); }
-.pill.auto-ck.ck-unknown { color: var(--muted); }
+/* Auto's steps after a run: hand-over, best of two */
+.pill.auto-pick .i { width: 11px; height: 11px; }
 .pill.auto-pick { gap: 4px; color: var(--accent-ink); }
 .pill.auto-handed { color: var(--muted); }
 .ask.by-wisp { background: color-mix(in srgb, var(--accent) 6%, var(--bg-2)); }

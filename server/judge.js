@@ -1,6 +1,5 @@
-// Picking between two runs of the same task (best-of-2). Tests decide when they can: a run whose
-// check passed beats one whose check failed. Otherwise a cheap model reads both diffs, and if
-// that isn't available either, fewer new failures and then the smaller diff win.
+// Picking between two runs of the same task (best-of-2): a cheap model reads both diffs, and if
+// that isn't available, the run that changed something and then the smaller diff win.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -29,20 +28,13 @@ export function diffOf(dir, base = 'HEAD') {
 }
 
 const changed = (d) => d.split('\n').filter((l) => /^[+-](?![+-])/.test(l)).length;
-const SCORE = { pass: 3, unknown: 2, skip: 2, fail: 0 };
 
-// candidates: [{ id, label, check, diff }]. Resolves with { winner, why, by }.
+// candidates: [{ id, label, diff }]. Resolves with { winner, why, by }.
 export async function judge({ prompt, candidates, agents }) {
   const [a, b] = candidates;
-  const sa = SCORE[a.check?.verdict] ?? 1;
-  const sb = SCORE[b.check?.verdict] ?? 1;
-  if (sa !== sb) {
-    const w = sa > sb ? a : b;
-    return { winner: w.id, by: 'tests', why: `${w.label}'s changes pass the tests; the other run's don't.` };
-  }
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'wisp-judge-'));
   try {
-    const ask = `Two coding agents did the same task. Judge which change is better: correct, complete, minimal, and in the style of the code around it. Tests: run A ${a.check?.verdict || 'not checked'}, run B ${b.check?.verdict || 'not checked'}.
+    const ask = `Two coding agents did the same task. Judge which change is better: correct, complete, minimal, and in the style of the code around it.
 
 <task>
 ${String(prompt).slice(0, 4000)}
@@ -61,12 +53,6 @@ Reply with one JSON object: {"winner": "A" | "B", "why": "one sentence"}`;
     if (j && (j.winner === 'A' || j.winner === 'B')) return { winner: (j.winner === 'A' ? a : b).id, by: 'model', why: String(j.why || '').slice(0, 300) };
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true });
-  }
-  const fa = a.check?.newFailures?.length ?? 0;
-  const fb = b.check?.newFailures?.length ?? 0;
-  if (fa !== fb) {
-    const w = fa < fb ? a : b;
-    return { winner: w.id, by: 'rule', why: `${w.label} leaves fewer new failing tests.` };
   }
   const empty = (c) => !c.diff.trim();
   if (empty(a) !== empty(b)) {

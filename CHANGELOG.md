@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- **Auto no longer runs your tests after the agent answers.** An Auto task used to stay in *Working* while wisp ran the project's tests itself, sent new failures back to the agent for a repair round and handed the task to a stronger pick if they still failed. The agent runs the tests it needs, so the task now lands in your queue as soon as it answers. Settings → Auto loses *Check with the tests* and *Repair rounds* (the `check` and `repairs` fields of `PATCH /api/router` are gone), and task rows no longer get the *Tests* / *N failing* pill. Auto still hands a run that errored to a stronger pick, moves on at a usage limit, and judges best of two by reading both diffs. The test command per project stays: the scout hands it to the agent and a goal check runs it.
+
 ## [0.48.0] - 2026-10-29
 
 ### Changed
