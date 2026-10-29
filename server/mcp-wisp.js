@@ -33,9 +33,10 @@ const TOOLS = [
         subagents: {
           type: 'array',
           description: 'A team the agent can delegate to, each on its own harness: [{ agent, model?, effort?, name?, use?, count? }]. use = when to pick it ("research", "image work"); count = parallel copies (1–5).',
-          items: { type: 'object', properties: { agent: { type: 'string', enum: AGENTS }, model: { type: 'string' }, effort: { type: 'string' }, name: { type: 'string' }, use: { type: 'string' }, count: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['agent'] },
+          items: { type: 'object', properties: { agent: { type: 'string', enum: AGENTS }, model: { type: 'string' }, effort: { type: 'string' }, name: { type: 'string' }, use: { type: 'string' }, count: { type: 'integer', minimum: 1, maximum: 5 }, machine: { type: 'string', description: 'Run this subagent on a machine (id from wisp_agents).' } }, required: ['agent'] },
         },
         preset: { type: 'string', description: 'Id of a saved subagent preset, instead of subagents.' },
+        machine: { type: 'string', description: 'Run it on one of the user’s machines (id from wisp_agents). cwd is then the folder there, or a project folder here that wisp finds or clones there. Default: this computer.' },
         wait: { type: 'boolean', description: 'Block until the agent finishes or asks (up to timeout_seconds).' },
         timeout_seconds: { type: 'number', description: `Max wait when wait=true. Default ${DEFAULT_WAIT_S}.` },
       },
@@ -91,7 +92,7 @@ const TOOLS = [
   },
   {
     name: 'wisp_agents',
-    description: 'Which harnesses are installed, with their models and thinking levels.',
+    description: 'Which harnesses are installed, with their models and thinking levels, and the user’s machines (other computers, cloud computers) with theirs.',
     inputSchema: { type: 'object', properties: {} },
   },
   // wisp_crew_kit shows its files under a task's answer for the user to pick from: there's none here.
@@ -123,7 +124,7 @@ async function callTool(name, a = {}) {
   switch (name) {
     case 'wisp_launch': {
       if (!a.prompt?.trim()) throw new Error('prompt is required');
-      const s = await c.launch({ prompt: a.prompt, cwd: a.cwd || process.cwd(), also: Array.isArray(a.also) ? a.also : undefined, agent: a.agent, mode: a.mode, model: a.model, effort: a.effort, subagents: a.subagents, preset: a.preset });
+      const s = await c.launch({ prompt: a.prompt, cwd: a.cwd || process.cwd(), also: Array.isArray(a.also) ? a.also : undefined, agent: a.agent, mode: a.mode, model: a.model, effort: a.effort, subagents: a.subagents, preset: a.preset, machine: a.machine });
       if (a.wait) return waitFor(s.id);
       return `Launched session \`${s.id}\` (“${s.title}”) on ${s.agent} in ${s.cwd}, mode ${s.mode}. Call wisp_wait or wisp_get with this id for the result.`;
     }
@@ -143,10 +144,14 @@ async function callTool(name, a = {}) {
     case 'wisp_stop':
       await c.stop(a.id);
       return `Stopped \`${a.id}\`.`;
-    case 'wisp_agents':
-      return (await c.agents())
+    case 'wisp_agents': {
+      const here = (await c.agents())
         .map((x) => `- **${x.id}** (${x.name}) — ${x.available ? `installed${x.version ? ` ${x.version}` : ''}; models: ${(x.models || []).map((m) => m.id).filter(Boolean).slice(0, 12).join(', ') || 'default'}` : 'not installed'}`)
         .join('\n');
+      const ms = await c.machines().catch(() => []);
+      const there = ms.map((m) => `- \`${m.id}\` **${m.name}** — ${m.state}${m.remote?.agents ? `; harnesses: ${m.remote.agents.filter((a) => a.available).map((a) => a.id).join(', ') || 'none'}` : ''}`).join('\n');
+      return `${here}\n\nMachines (pass machine to wisp_launch):\n${there || 'None.'}`;
+    }
     case 'wisp_crew': {
       if (a.member) return memberDetail(await c.crewMember(String(a.member).replace(/^@/, '')));
       const list = await c.crew();

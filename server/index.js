@@ -66,6 +66,7 @@ import { API_VERSION } from './routes/meta.js';
 import * as metaRoutes from './routes/meta.js';
 import * as autoRoutes from './routes/auto.js';
 import * as internalRoutes from './routes/internal.js';
+import * as controlRoutes from './routes/control.js';
 import * as uploadRoutes from './routes/uploads.js';
 import * as stuffRoutes from './routes/stuff.js';
 import * as settingsRoutes from './routes/settings.js';
@@ -83,7 +84,7 @@ import * as connectorRoutes from './routes/connectors.js';
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, uploadRoutes, stuffRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, spellRoutes, crewRoutes, connectorRoutes];
+const ROUTES = [metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, spellRoutes, crewRoutes, connectorRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the

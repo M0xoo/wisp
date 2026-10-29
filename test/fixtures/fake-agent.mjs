@@ -402,11 +402,25 @@ const ask = async () => {
     const check = await mcpCall(srv, 'wisp_spell_check', { spell: FAKE_SPELL });
     return `schema ${schema ? 'read' : 'missing'} | check: ${String(check).split('\n')[0]}`;
   }
+  // ADHOC: the lead makes its own subagents (codex here, or on the machine ADHOC@<id> names).
+  if (stdin.includes('ADHOC') && srv) {
+    const machine = stdin.match(/ADHOC@(\S+)/)?.[1];
+    const report = await mcpCall(srv, 'delegate', { tasks: [{ agent: 'codex', name: 'Reviewer', effort: 'high', ...(machine && { machine }), prompt: 'Check math.js' }, { agent: 'nope', prompt: 'x' }], ...(machine && { wait: false }) });
+    return `adhoc: ${report.split('\n').filter((l) => /^(### |- |Delegated)/.test(l)).join(' | ')}`;
+  }
+  // AVAILABLE / LAUNCHTASK / TASKCTL <id> <action>: the agent drives wisp.
+  if (stdin.includes('AVAILABLE') && srv) return (await mcpCall(srv, 'wisp_available', {})).split('\n').join(' ');
+  if (stdin.includes('LAUNCHTASK') && srv) {
+    const r = await mcpCall(srv, 'wisp_launch', { prompt: 'look at math.js', agent: 'codex', mode: 'plan', worktree: false, wait: stdin.includes('WAIT') });
+    return `launch: ${r.split('\n').join(' ')}`;
+  }
+  const ctl = stdin.match(/TASKCTL (\w+) (\w+)(?: (.+))?/);
+  if (ctl && srv) return `task: ${(await mcpCall(srv, 'wisp_task', { task: ctl[1], action: ctl[2], text: ctl[3], title: ctl[3] })).split('\n')[0]}`;
   if (stdin.includes('DELEGATE') && srv) {
-    const names = (list) => list.find((t) => t.name === 'delegate').inputSchema.properties.tasks.items.properties.subagent.enum.filter((n) => !n.includes('#'));
+    const names = (list) => (list.find((t) => t.name === 'delegate').inputSchema.properties.tasks.items.properties.subagent?.enum || []).filter((n) => !n.includes('#'));
     const times = stdin.includes('DELEGATE TWICE') ? 2 : 1;
     const report = await mcpCall(srv, 'delegate', (list) => ({ tasks: names(list).flatMap((n) => Array.from({ length: times }, (_, i) => ({ subagent: n, prompt: `Check math.js for ${n}${stdin.includes('DELEGATE SLOW') ? ' slowly' : ''}${i ? ` (${i + 1})` : ''}` }))) }));
-    return report ? `delegated (${report.length} chars) ${report.match(/### [\w#-]+/g)?.join(' ')}` : 'no delegate tool';
+    return report?.startsWith('Nothing was delegated') || report?.startsWith('wisp') ? 'no team' : report ? `delegated (${report.length} chars) ${report.match(/### [\w#-]+/g)?.join(' ')}` : 'no delegate tool';
   }
   const mention = stdin.match(/\(wisp task ([a-z0-9]+)\)/);
   if (mention && srv) {
