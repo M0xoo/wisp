@@ -34,19 +34,21 @@ if none answers. Opening the desktop app later attaches to that server.
 
 | Tool | What it does |
 |---|---|
-| `wisp_launch` | Start a task (`prompt`, `cwd`, `agent`, `mode`, `model`, `effort`). `wait: true` blocks until it finishes or asks. |
+| `wisp_launch` | Start a task (`prompt`, `cwd`, `agent`, `mode`, `model`, `effort`, `machine`, `subagents`). `wait: true` blocks until it finishes or asks. |
 | `wisp_wait` | Block until a session finishes or asks (`timeout_seconds`, default 240), then return it. |
 | `wisp_get` | State + latest presentation as markdown, plus any pending question. |
 | `wisp_reply` | Follow up; answers a pending `ask_user` question if there is one. `agent` / `model` / `effort` move the task to another harness or model, and the new harness gets the conversation so far. |
 | `wisp_list` | Sessions, newest first (`state`, `cwd`, `limit`). |
 | `wisp_stop` | Stop a run. |
-| `wisp_agents` | Installed harnesses and their models. |
+| `wisp_agents` | Installed harnesses and their models, and your machines with theirs. |
 | `wisp_crew` | Your crew: each member's name, role, brief, folder, harness, schedule and jobs. |
 | `wisp_crew_add` | Add a member (`name`, `role`, `brief`, `cwd`, `agent`, `model`, `effort`, `mode`, `cron`, `parallel`). `checkin: true` starts a first check-in. |
 | `wisp_crew_edit` | Change a member (`member`: name, `@handle` or id, plus the fields to change, `paused` too). |
 | `wisp_crew_remove` | Remove a member (`member`). Their jobs stay as tasks. |
 
 `cwd` defaults to the directory the MCP client started `wisp mcp` in, usually the project.
+
+Agents running *inside* wisp get the same control from wisp's own injected server: `wisp_available` (harnesses, machines, projects, presets), `wisp_launch` (start a task here or on a machine), `wisp_task` (follow up, stop, mark done, archive, rename or wait on another task) and `delegate`, which creates subagents on the fly on any harness, model or machine (`{ agent, model, effort, machine, name, prompt }`) when the task wasn't launched with a team. Subagents can't use them, and a task an agent started can start at most two levels more.
 
 **Claude Code**
 

@@ -140,7 +140,7 @@ export function register(r, app) {
     const body = await c.body();
     // A machine's wisp hands on where a recipe, trigger or Telegram launch came from.
     const o = body.origin;
-    const origin = o && ['recipe', 'trigger', 'telegram'].includes(o.kind) ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
+    const origin = o && ['recipe', 'trigger', 'telegram', 'task'].includes(o.kind) ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
     // "@Ada check the deploy": a job for Ada (each member named first gets it), not a task of its own.
     const t = !body.machine && !body.kind ? tagged(String(body.prompt || '')) : { all: [], lead: [] };
     if (t.lead.length) {

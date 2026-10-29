@@ -150,8 +150,8 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   My Stuff with \`wisp_save\` (${tool.replace(/ask_user$/, 'wisp_save')}); \`wisp_stuff\` finds what they kept.
   When they ask to publish, deploy or share an app (one you built, or one in My Stuff), \`wisp_save\` it with
   \`publish: true\`: it goes on their wisp Grid at a public link; send them that link and show its "stuff" block.
-- For the user's wisp usage, crew or connectors, use wisp's tools for them (\`wisp_stats\`, \`wisp_crew*\`,
-  \`wisp_connector*\`) when the user asks. Never ask the user to paste a key into the chat.`;
+- For the user's wisp usage, crew, connectors, tasks or subagents on any harness or machine, use wisp's tools
+  (\`wisp_stats\`, \`wisp_crew*\`, \`wisp_connector*\`, \`wisp_launch\`, \`wisp_task\`, \`delegate\`) when the user asks. Never ask the user to paste a key into the chat.`;
 // wisp_watch, unless Settings → Watch agents work is off (defaults.watch: 'off').
 const WATCH_TOOL = (tool) => `
 - For long or many-step work the user would like to follow (a migration across many files, a test or benchmark

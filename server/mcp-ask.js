@@ -2,8 +2,12 @@
 // Minimal stdio MCP server exposing `ask_user`, `wisp_stats`, `wisp_sessions` and `wisp_session`, injected into every agent wisp launches.
 // The call is relayed to the wisp server, which surfaces it in the queue and blocks
 // (by polling) until the user answers — so the agent keeps its full context.
-// With a team (WISP_TEAM), it also offers `delegate` and `subagent_results`: tasks for the
-// subagents the user picked, which wisp runs as child sessions while this call waits.
+// `delegate` and `subagent_results`: tasks for subagents, which wisp runs as child sessions while
+// this call waits: the team the user picked (WISP_TEAM), or ones the agent names on the fly (any
+// harness, model, machine).
+// `wisp_available`, `wisp_launch` and `wisp_task` let the agent drive wisp like the user does
+// (server/routes/control.js): what harnesses, machines, projects and presets there are, start a
+// task anywhere, and follow up, stop, finish, archive or wait on one.
 // With WISP_APPROVE, it offers `approve`: the harness's permission prompt (Claude's
 // --permission-prompt-tool), answered by the user in wisp.
 // `resume_later` schedules a follow-up to this same task (server/later.js).
@@ -30,6 +34,8 @@ import { CREW_TOOLS } from './crew-tools.js';
 import { blockDocs } from './protocol.js';
 
 const { WISP_URL, WISP_TOKEN, WISP_SESSION, WISP_TURN, WISP_APPROVE, WISP_SPELLS, WISP_WATCH } = process.env;
+const WAIT_S = 240; // wisp_task wait / wisp_launch wait=true, unless the agent asks for longer
+const MAX_WAIT_S = 1800;
 let TEAM = [];
 try {
   TEAM = JSON.parse(process.env.WISP_TEAM || '[]');
@@ -409,6 +415,7 @@ async function stats({ days, agent, project } = {}) {
   return (await call(`/api/internal/stats/${WISP_SESSION}?${q}`)).text;
 }
 
+const AGENTS = ['auto', 'claude', 'codex', 'opencode', 'cursor', 'antigravity', 'grok', 'copilot'];
 const roster = TEAM.map((m) => `- ${m.name}${m.count > 1 ? ` ×${m.count} (parallel copies ${m.copies.join(', ')})` : ''}: ${[m.agent, m.model || 'default model', m.effort && `${m.effort} thinking`, m.place && `on ${m.place}`].filter(Boolean).join(' · ')}${m.use ? ` — use for: ${m.use}` : ''}`).join('\n');
 const TEAM_TOOLS = [
   {
@@ -417,9 +424,13 @@ const TEAM_TOOLS = [
       'Hand tasks to your subagents (separate coding agents the user picked, each on its own harness and model). ' +
       'Tasks in one call run in parallel in your working folder. By default the call waits until every task finishes and ' +
       'returns each report plus the files it changed; wait=false returns delegation ids at once. Delegating to a subagent ' +
-      'again continues its conversation. Use this instead of any built-in subagent or task tool.' +
-      (TEAM.some((m) => m.place) ? ' A subagent on another machine gets a copy of your folder (wisp carries it: no commit or push needed): name files by their path in the folder, not absolute paths, and paste in what stays behind (git-ignored files, files outside the folder).' : '') +
-      '\n\nThe team:\n' + roster,
+      'again continues its conversation.' +
+      (TEAM.length ? ' Use this instead of any built-in subagent or task tool.' : '') +
+      ' A task can name a subagent of the team, or create one on the fly: agent (a harness), with model, effort and machine ' +
+      '(to run it on one of the user\'s machines; wisp_available lists harnesses and machines) and a name; pass that name again to continue it. ' +
+      'Create them when the user asks for subagents ("have codex review it", "run the tests on my devbox") or when parallel work on other harnesses pays off. ' +
+      'A subagent on another machine gets a copy of your folder (wisp carries it: no commit or push needed): name files by their path in the folder, not absolute paths, and paste in what stays behind (git-ignored files, files outside the folder).' +
+      (TEAM.length ? '\n\nThe team:\n' + roster : '\n\nNo team yet.'),
     inputSchema: {
       type: 'object',
       properties: {
@@ -429,10 +440,16 @@ const TEAM_TOOLS = [
           items: {
             type: 'object',
             properties: {
-              subagent: { type: 'string', enum: TEAM.flatMap((m) => (m.count > 1 ? [m.name, ...m.copies] : [m.name])), description: 'Which subagent. A name with copies (×N) goes to a free copy; name a copy (x#2) to continue it.' },
+              ...(TEAM.length && { subagent: { type: 'string', enum: TEAM.flatMap((m) => (m.count > 1 ? [m.name, ...m.copies] : [m.name])), description: 'A subagent of the team. A name with copies (×N) goes to a free copy; name a copy (x#2) to continue it.' } }),
+              agent: { type: 'string', enum: AGENTS, description: 'Or a new subagent on this harness (auto: wisp picks harness and model).' },
+              model: { type: 'string', description: 'With agent: its model id. Default: the harness default.' },
+              effort: { type: 'string', description: 'With agent: thinking level, e.g. low | medium | high.' },
+              machine: { type: 'string', description: 'With agent: run it on this machine (id or name from wisp_available). Default: this computer.' },
+              name: { type: 'string', description: 'With agent: a short name for it ("reviewer"). Pass the same name later to continue that subagent.' },
+              use: { type: 'string', description: 'With agent: what it is for, shown to the user.' },
               prompt: { type: 'string', description: 'The task, briefed like a colleague: goal, files, constraints, how to verify. It cannot see your conversation.' },
             },
-            required: ['subagent', 'prompt'],
+            required: ['prompt'],
           },
         },
         wait: { type: 'boolean', description: 'Wait for all tasks to finish (default true).' },
@@ -446,6 +463,108 @@ const TEAM_TOOLS = [
     inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } }, wait: { type: 'boolean', description: 'Default true; false returns current status at once.' } } },
   },
 ];
+
+// Driving wisp like the user does (server/routes/control.js).
+const CONTROL_TOOLS = [
+  {
+    name: 'wisp_available',
+    description:
+      'What the user has in wisp to run work on, in one read: harnesses on this computer (installed or not, models, thinking levels), ' +
+      'their machines (other computers and cloud computers, online or not, the harnesses on each), projects, saved subagent presets, ' +
+      'this task\'s own subagents and the crew. Read-only. Read it before you pick a harness, model or machine for delegate or wisp_launch.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'wisp_launch',
+    description:
+      'Start a new wisp task, as the user would from wisp\'s prompt box: its own agent, conversation and card, which the user follows ' +
+      'and replies to on its own. Use it when the user asks you to start, kick off or hand off tasks ("start a task to…", "open a new ' +
+      'conversation for…", "run this on my devbox"); for help with your own work, use delegate instead. Returns the new task\'s id at once ' +
+      '(wait=true blocks until it finishes or asks). Show each task you start in your answer as a "task" block.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'The task, briefed like a colleague: goal, constraints, how to verify. It cannot see your conversation.' },
+        project: { type: 'string', description: 'A project by name or id (wisp_available lists them).' },
+        cwd: { type: 'string', description: 'Or a folder (absolute path). Default: this task\'s project.' },
+        scratch: { type: 'boolean', description: 'No project: an empty folder of its own (questions, research).' },
+        also: { type: 'array', items: { type: 'string' }, description: 'More folders the same task works in (absolute paths).' },
+        machine: { type: 'string', description: 'Run it on this machine (id or name). Default: where the project is, else this computer.' },
+        agent: { type: 'string', enum: AGENTS, description: 'Harness. Default: the user\'s default.' },
+        model: { type: 'string', description: 'Model id for that harness.' },
+        effort: { type: 'string', description: 'Thinking level.' },
+        mode: { type: 'string', enum: ['plan', 'edits', 'auto'], description: 'plan = read-only, edits = auto-accept edits, auto = no prompts. Default: the user\'s.' },
+        worktree: { type: 'boolean', description: 'Its own git worktree (default on in git repos, except in plan mode).' },
+        subagents: {
+          type: 'array',
+          description: 'A team the new task\'s agent can delegate to: [{ agent, model?, effort?, machine?, name?, use?, count? }].',
+          items: { type: 'object', properties: { agent: { type: 'string', enum: AGENTS }, model: { type: 'string' }, effort: { type: 'string' }, machine: { type: 'string' }, name: { type: 'string' }, use: { type: 'string' }, count: { type: 'integer', minimum: 1, maximum: 5 } }, required: ['agent'] },
+        },
+        preset: { type: 'string', description: 'Or a saved subagent preset\'s id.' },
+        wait: { type: 'boolean', description: 'Block until it finishes or asks (up to timeout_seconds).' },
+        timeout_seconds: { type: 'number', description: `With wait: default ${WAIT_S}, at most ${MAX_WAIT_S}.` },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'wisp_task',
+    description:
+      'Act on another wisp task, as the user would from its card. action: reply (a follow-up, or the answer when it is asking; agent, ' +
+      'model, effort or mode switch it from then on; queue=true waits for its current run instead of interrupting), stop, done (mark it ' +
+      'done), archive, unarchive, rename (title), or wait (block until it finishes or asks, then return its report). Only when the user ' +
+      'asks, or for tasks you started. Find tasks with wisp_sessions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'The task id.' },
+        action: { type: 'string', enum: ['reply', 'stop', 'done', 'archive', 'unarchive', 'rename', 'wait'] },
+        text: { type: 'string', description: 'reply: the message.' },
+        queue: { type: 'boolean', description: 'reply: wait for its current run instead of interrupting it.' },
+        mode: { type: 'string', enum: ['plan', 'edits', 'auto'] },
+        agent: { type: 'string', enum: AGENTS },
+        model: { type: 'string' },
+        effort: { type: 'string' },
+        title: { type: 'string', description: 'rename: the new title.' },
+        timeout_seconds: { type: 'number', description: `wait: default ${WAIT_S}, at most ${MAX_WAIT_S}.` },
+      },
+      required: ['task', 'action'],
+    },
+  },
+];
+
+// Until the task finishes or asks, or the time is up: its report either way.
+async function waitTask(id, seconds) {
+  const end = Date.now() + Math.min(Math.max(Number(seconds) || WAIT_S, 1), MAX_WAIT_S) * 1000;
+  for (;;) {
+    let r;
+    try {
+      r = await call(`/api/internal/task/${WISP_SESSION}?of=${encodeURIComponent(id)}`);
+    } catch (err) {
+      if (Date.now() > end) throw err;
+      await sleep(1500);
+      continue; // wisp restarting
+    }
+    if (r.error) throw new Error(r.error);
+    if (r.settled) return `${r.question ? `It is asking: ${r.question} (answer with wisp_task action "reply").\n\n` : ''}${r.text}`;
+    if (Date.now() > end) return `Still running (timed out waiting; call wait again for more).\n\n${r.text}`;
+    await sleep(2000);
+  }
+}
+
+async function controlTool(name, a = {}) {
+  if (name === 'wisp_available') return (await call(`/api/internal/available/${WISP_SESSION}`)).text;
+  if (name === 'wisp_launch') {
+    const { wait, timeout_seconds, ...body } = a;
+    const r = await call(`/api/internal/launch/${WISP_SESSION}`, body);
+    if (r.error) throw new Error(r.error);
+    return wait && r.ids?.length ? `${r.text}\n\n---\n\n${await waitTask(r.ids[0], timeout_seconds)}` : r.text;
+  }
+  if (a.action === 'wait') return waitTask(a.task, a.timeout_seconds);
+  const r = await call(`/api/internal/task/${WISP_SESSION}`, a);
+  if (r.error) throw new Error(r.error);
+  return r.text;
+}
 
 async function results(ids, wait = true) {
   for (;;) {
@@ -527,7 +646,7 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
     if (method === 'initialize') {
       send({ id, result: { protocolVersion: params?.protocolVersion || '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'wisp', version: '0.1.0' } } });
     } else if (method === 'tools/list') {
-      send({ id, result: { tools: [TOOL, LATER, TAG, PR, ...(WISP_WATCH ? [WATCH] : []), SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...(TEAM.length ? TEAM_TOOLS : []), ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
+      send({ id, result: { tools: [TOOL, LATER, TAG, PR, ...(WISP_WATCH ? [WATCH] : []), SAVE, STUFF, BLOCKS, STATS, SESSIONS, SESSION, ...CREW_TOOLS, ...CONNECTOR_TOOLS, ...CONTROL_TOOLS, ...(WISP_APPROVE ? [APPROVE] : []), ...TEAM_TOOLS, ...(WISP_SPELLS ? SPELL_TOOLS : [])] } });
     } else if (method === 'tools/call' && params?.name === 'ask_user') {
       const answer = await askUser(params.arguments || {});
       const text = answer === null ? 'The user did not answer (the question was cancelled). Use your best judgment and note the assumption.' : `The user answered: ${answer}`;
@@ -565,9 +684,11 @@ readline.createInterface({ input: process.stdin }).on('line', async (line) => {
       send({ id, result: { content: [{ type: 'text', text: await crewTool(params.name, params.arguments || {}) }] } });
     } else if (method === 'tools/call' && CONNECTOR_TOOLS.some((t) => t.name === params?.name)) {
       send({ id, result: { content: [{ type: 'text', text: await connectorTool(params.name, params.arguments || {}) }] } });
-    } else if (method === 'tools/call' && TEAM.length && params?.name === 'delegate') {
+    } else if (method === 'tools/call' && CONTROL_TOOLS.some((t) => t.name === params?.name)) {
+      send({ id, result: { content: [{ type: 'text', text: await controlTool(params.name, params.arguments || {}) }] } });
+    } else if (method === 'tools/call' && params?.name === 'delegate') {
       send({ id, result: { content: [{ type: 'text', text: await delegate(params.arguments || {}) }] } });
-    } else if (method === 'tools/call' && TEAM.length && params?.name === 'subagent_results') {
+    } else if (method === 'tools/call' && params?.name === 'subagent_results') {
       const a = params.arguments || {};
       send({ id, result: { content: [{ type: 'text', text: await results(a.ids, a.wait !== false) }] } });
     } else if (method === 'tools/call' && WISP_SPELLS && SPELL_TOOLS.some((t) => t.name === params?.name)) {

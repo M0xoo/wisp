@@ -238,7 +238,9 @@ export function register(r, app) {
       const s = lead(c);
       if (!s) return c.send(404, { error: 'no such session' });
       const body = await c.body();
-      const delegations = await runner.delegate(s, body.tasks);
+      // Tasks that name a harness or machine instead of a member: new subagents, made on the fly.
+      const { tasks, errors } = (await app.adhocTeam?.(s, body.tasks)) || { tasks: body.tasks, errors: [] };
+      const delegations = [...errors, ...(tasks?.length || !errors.length ? await runner.delegate(s, tasks) : [])];
       telemetry.track('delegate', { agent: s.agent, tasks: delegations.length, harnesses: [...new Set(delegations.filter((d) => d.agent).map((d) => d.agent))] });
       c.send(200, { delegations });
     }),

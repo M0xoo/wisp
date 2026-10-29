@@ -101,6 +101,7 @@ export class WispClient {
   health = () => this.request('GET', '/health');
   agents = () => this.request('GET', '/agents');
   config = () => this.request('GET', '/config');
+  machines = () => this.request('GET', '/machines');
   updateConfig = (patch) => this.request('PATCH', '/config', patch);
 
   projects = () => this.request('GET', '/projects');
@@ -144,16 +145,17 @@ export class WispClient {
   // runs the same task on more harnesses at once, each in its own worktree. subagents:
   // [{ name, agent, model, effort, use }] (or preset: a saved team's id) the lead can delegate to.
   // also: more folders the same task works in (each git repo gets its own worktree and PR).
+  // machine: run it on one of the user's machines (id; '' or none = this computer).
   // confirmLimit: the user agreed to go ahead although it takes a usage window past their Ask near
   // the limit line (refused with 409 and `hold` otherwise, server/guard.js).
-  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, confirmLimit } = {}) {
+  async launch({ prompt, cwd = process.cwd(), also, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit } = {}) {
     if (!agent || !mode || model === undefined) {
       const { defaults = {} } = await this.config();
       agent ||= defaults.agent || 'auto';
       mode ||= defaults.mode || 'auto';
       model ??= defaults.models?.[agent] ?? (agent === defaults.agent ? defaults.model || '' : '');
     }
-    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, confirmLimit });
+    return this.request('POST', '/sessions', { prompt, cwd: path.resolve(cwd), also: also?.length ? also.map((d) => path.resolve(d)) : undefined, agent, mode, model, effort, attachments, worktree, compare, subagents, preset, kind, machine, confirmLimit });
   }
 
   // Ship it: commit the session's worktree, push its branch, open (or update) the PR.

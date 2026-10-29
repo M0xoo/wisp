@@ -854,7 +854,7 @@ export class Runner extends EventEmitter {
     const turn = lead.turns.at(-1);
     if (turn?.status !== 'running') throw bad('The lead agent is not running.', 409);
     const team = lead.subagents || [];
-    if (!team.length) throw bad('This session has no subagents. The user can add them when launching.');
+    if (!team.length) throw bad('This session has no subagents yet. Name a harness (agent, and machine to run it elsewhere) in each task to create one.');
     const out = [];
     const claimed = new Set(); // copies handed a task in this call
     const busy = (name) => claimed.has(name) || this.live.has(lead.children?.[name]);

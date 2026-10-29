@@ -158,10 +158,10 @@ test('presets: save a team, launch from it, edit and delete it; deleting a lead 
   assert.equal((await api('/teams')).length, 0);
 });
 
-test('a lead without a team gets no delegate tool and no team note', async () => {
+test('a lead without a team gets no team note, and delegate with no subagent named does nothing', async () => {
   const s = await api('/sessions', { prompt: 'DELEGATE nothing', cwd: makeRepo(), agent: 'claude', worktree: false });
   const done = await settled(s.id);
-  assert.match(done.turns[0].presentation.blocks[0].summary, /no delegate tool/);
+  assert.match(done.turns[0].presentation.blocks[0].summary, /no team/);
   assert.equal(done.team, undefined);
   const run = records(RECORD, 'claude').find((r) => r.stdin.includes('DELEGATE nothing'));
   assert.ok(!run.argv.includes('--disallowedTools'), 'built-in subagents stay on without a team');
@@ -190,7 +190,7 @@ test('a follow-up gives a task launched without subagents a team, and another fo
     return x.turns.length === 3 && x.state === 'review' && x;
   });
   assert.equal(after.subagents, undefined);
-  assert.match(after.turns[2].presentation.blocks[0].summary, /no delegate tool/);
+  assert.match(after.turns[2].presentation.blocks[0].summary, /no team/);
   assert.equal(Object.keys(after.children).length, 1, 'the child session it used stays linked');
 });
 
