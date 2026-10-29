@@ -204,7 +204,7 @@
     ]
   }
   </script>
-  <link rel="stylesheet" href="style.css?v=52" />
+  <link rel="stylesheet" href="style.css?v=58" />
   <script>document.documentElement.classList.add('js'); if (/iPhone|iPod|Android.+Mobile/.test(navigator.userAgent)) document.documentElement.classList.add('phone')</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}p||((p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",p.onerror=function(){p=null},(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r));var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],Object.defineProperty(u,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e}}),Object.defineProperty(u.people,"toString",{configurable:!0,enumerable:!0,writable:!0,value:function(){return u.toString(1)+".people (stub)"}}),o="vu pu gu mu init Gu Qu Hu Wu Xu il Vu Yu ju oc ac lc uc cc hc capture getExtension Zu hu gc calculateEventProperties vc register register_once register_for_session unregister unregister_for_session zu mc getFeatureFlag getFeatureFlagPayload getFeatureFlagResult getAllFeatureFlags isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys onActiveMatchingSurveysChanged renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync wc identify setPersonProperties unsetPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset kc shutdown setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException addExceptionStep captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty yc nc createPersonProfile setInternalOrTestUser bc xu ku opt_in_capturing opt_out_capturing Su has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing tc debug nl Os getPageViewId captureTraceFeedback captureTraceMetric Du".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
@@ -241,13 +241,20 @@
   </header>
 
   <main id="top">
-    <!-- ───────── hero: the pitch, both ways in, and a night of work played back ───────── -->
+    <!-- ───────── hero: the pitch, what you get, both ways in, and the real app ───────── -->
     <section class="hero">
       <div class="h-glow" aria-hidden="true"></div>
       <div class="wrap h-head">
-        <a class="h-news" href="#stuff"><span class="h-news-tag">New</span>Share what your agents build<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5"/></svg></a>
-        <h1>Your coding agents,<br /> <span class="h-echo">working while you sleep.</span></h1>
-        <p class="lede">Give Claude Code, Codex and five more tonight's tasks. Wake up to one report from each. Free and open source.</p>
+        <h1>Your new way<br /> <span class="h-echo">to build.</span></h1>
+        <p class="lede">One place to run, orchestrate and ship the work of all your coding agents. Open source, MIT.</p>
+        <ul class="h-gives">
+          <li><b>Orchestration</b><span>Agents hand work to other agents.</span></li>
+          <li><b>Every model</b><span>Mix harnesses and models in one task.</span></li>
+          <li><b>Every machine</b><span>Your laptop, your servers, wisp Cloud.</span></li>
+          <li><b>A crew</b><span>Named agents with faces and schedules.</span></li>
+          <li><b>Clean reports</b><span>Diff, tests, decisions. No transcript.</span></li>
+          <li><b>$0 on top</b><span>You only pay for the plans you have.</span></li>
+        </ul>
 
         <div class="h-ctas">
           <!-- Straight to sign-in: one click to GitHub or Google, no page in between -->
@@ -278,44 +285,15 @@
         <p class="fine h-fine" data-tab-note>macOS · Linux and Windows in beta · Node 20+ · MIT</p>
       </div>
 
-      <!-- The night shift: six tasks on three machines, played from midnight to morning. The rows
-           and the report are in the markup, so the window has its real shape before main.js runs. -->
+      <!-- The real app: a capture from marketing/guide-shots, the same one the guides use. -->
       <div class="wrap-wide h-stage">
-        <div class="window h-win morning" id="night" data-ui>
-          <div class="win-bar">
-            <span class="lights"><i></i><i></i><i></i></span>
-            <span class="win-title">wisp</span>
-            <span class="h-clock" aria-hidden="true"><svg class="h-moon" viewBox="0 0 16 16"><path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6z"/></svg><svg class="h-sun" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg><b data-hclock>07:30</b></span>
-            <button class="h-replay" type="button" data-replay hidden>Replay the night</button>
-          </div>
-          <div class="h-body">
-            <aside class="h-side">
-              <div class="h-side-top"><span>Tonight</span><span class="h-count" data-count>5 done · 1 needs you</span></div>
-              <ol class="h-rows">
-                <li class="h-row" data-s="done" data-at="00:40"><span class="h-dot"></span><span class="h-main"><b>Check CI on main</b><small data-live="Scout · watching run #418" data-done="CI green again · cached the rates call">CI green again · cached the rates call</small></span><span class="h-who"><span class="cw-av h-face c-sky" data-face="ghost.sky.visor.flat.antenna" title="Scout, a crew member"></span><span class="h-where">cloud</span></span></li>
-                <li class="h-row on" data-s="done" data-at="01:55" data-report><span class="h-dot"></span><span class="h-main"><b>Fix the flaky session-expiry test</b><small data-live="Editing src/auth/session.ts" data-done="214 passed · +42 −9">214 passed · +42 −9</small></span><span class="h-who"><img src="assets/logos/claudecode-color.svg" alt="Claude Code" width="16" height="16" /><span class="h-where">laptop</span></span></li>
-                <li class="h-row" data-s="asks" data-at="03:10"><span class="h-dot"></span><span class="h-main"><b>Migrate billing webhooks to Stripe v2</b><small data-live="Claude Code and Codex, same prompt" data-done="Asks: keep a v1 handler for 30 days?">Asks: keep a v1 handler for 30 days?</small></span><span class="h-who"><span class="h-pair"><img src="assets/logos/claudecode-color.svg" alt="Claude Code" width="16" height="16" /><img src="assets/logos/codex-color.svg" alt="Codex" width="16" height="16" /></span><span class="h-where">cloud</span></span></li>
-                <li class="h-row" data-s="done" data-at="04:25"><span class="h-dot"></span><span class="h-main"><b>Upgrade to Node 22, fix what breaks</b><small data-live="Running npm test · 3 failing" data-done="3 adapters fixed · PR #212">3 adapters fixed · PR #212</small></span><span class="h-who"><img src="assets/logos/codex-color.svg" alt="Codex" width="16" height="16" /><span class="h-where">dev-box</span></span></li>
-                <li class="h-row" data-s="done" data-at="05:50"><span class="h-dot"></span><span class="h-main"><b>Paginate the /invoices endpoint</b><small data-live="Leading 2 helpers on ci-box" data-done="Cursor param, max 200 · PR #184">Cursor param, max 200 · PR #184</small></span><span class="h-who"><img class="mono" src="assets/logos/cursor.svg" alt="Cursor" width="16" height="16" /><span class="h-where">dev-box</span></span></li>
-                <li class="h-row" data-s="done" data-at="06:45"><span class="h-dot"></span><span class="h-main"><b>Review PR #142 before I merge</b><small data-live="Quill · reading 11 files" data-done="Approved · 2 comments">Approved · 2 comments</small></span><span class="h-who"><span class="cw-av h-face c-violet" data-face="blob.violet.wide.flat.headphones" title="Quill, a crew member"></span><span class="h-where">cloud</span></span></li>
-              </ol>
-            </aside>
-            <div class="h-report" data-show="1">
-              <p class="h-kicker"><span class="h-ok">Done</span>Claude Code · laptop · 1h 57m</p>
-              <h3>Session-expiry test no longer flakes</h3>
-              <p class="h-sum">The test slept 50 ms and raced the token's TTL. SessionStore now takes a clock, and the test drives it.</p>
-              <div class="h-stats"><span><b>3</b>files</span><span><b><em class="h-add">+42</em> <em class="h-del">−9</em></b>lines</span><span><b>214</b>tests passed</span></div>
-              <pre class="h-diff"><span class="d-h">src/auth/session.ts</span>
-<span class="d-del">-  isExpired(t) { return Date.now() &gt; t.exp; }</span>
-<span class="d-add">+  constructor(private clock = systemClock) {}</span>
-<span class="d-add">+  isExpired(t) { return this.clock.now() &gt; t.exp; }</span></pre>
-              <div class="h-tests"><i></i><span>npm test · 214 passed · 0 failed</span></div>
-              <div class="h-acts"><span class="h-ship">Ship it<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg></span><span class="h-act">Follow up</span><span class="h-act">Rerun</span></div>
-            </div>
-          </div>
-          <div class="h-toast" data-toast><svg class="h-sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg>Good morning. 5 reports and 1 question.</div>
+        <div class="window h-win">
+          <div class="win-bar"><span class="lights"><i></i><i></i><i></i></span><span class="win-title">wisp</span></div>
+          <picture>
+            <source srcset="assets/shots/dark-app.webp" media="(prefers-color-scheme: dark)" />
+            <img src="assets/shots/light-app.webp" width="1280" height="860" fetchpriority="high" alt="wisp: tasks on Claude Code and Codex in a list sorted by what needs you, a Compare of two runs, and an open report with stats, a diff and the actions Transcript, Rerun, Take over, Shell, Ship it and Mark done." />
+          </picture>
         </div>
-        <p class="h-caption">One night with wisp: six tasks on your laptop, a dev box and wisp Cloud. You slept through it.</p>
       </div>
     </section>
 
@@ -559,9 +537,9 @@
     </section>
 
     <!-- ───────── wisp Cloud teaser ───────── -->
-    <section class="final cloud-band" id="cloud" data-clock="03:12">
+    <section class="final cloud-band" id="cloud">
       <div class="wrap">
-        <h2>Let it run while you sleep.</h2>
+        <h2>Or skip the install.</h2>
         <p class="sub"><b>wisp Cloud</b> is a free early preview<span data-seats-full=", all seats taken for now">, opening seats as it grows</span>. Your own wisp on a server: sign in with GitHub or Google, give it a task, close the laptop, and read the report on your phone. Open it from the browser, the desktop app or the phone app, along with your own computers, which you add to it from Machines. wisp on your computer stays free.</p>
         <div class="cta">
           <a class="cmd link" href="https://grid.trywisp.dev" data-cloud-cta="band" data-seats-cta="Get the next seat">Try wisp Cloud</a>
@@ -604,9 +582,9 @@
     </section>
 
     <!-- ───────── final ───────── -->
-    <section class="final" data-clock="09:02">
+    <section class="final">
       <div class="wrap">
-        <h2>Tomorrow morning, start here.</h2>
+        <h2>One line to start.</h2>
         <div class="cta">
           <div class="desk-cta final-tabs" data-tabs>
             <div class="hero-tabs" role="tablist" aria-label="How to get wisp">
@@ -644,7 +622,7 @@
     <a href="https://github.com/M0xoo/wisp" target="_blank" rel="noopener">GitHub</a>
   </footer>
 
-  <script src="main.js?v=24"></script>
+  <script src="main.js?v=27"></script>
   <script src="relay.js?v=2" defer></script>
   <script src="spells.js?v=4" defer></script>
   <script src="control.js?v=1" defer></script>
