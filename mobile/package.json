@@ -1,7 +1,7 @@
 {
   "name": "wisp-mobile",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "wisp on Android: SSH to a machine, start wisp there and use its page through a tunnel.",
   "type": "module",
   "scripts": {
