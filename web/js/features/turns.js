@@ -155,7 +155,7 @@ export function renderBody(id, { fresh }) {
   // While it works, the session id may still be on its way: takeOver asks for it.
   $('[data-a="takeover"]', body).hidden = !s.agentSessionId && !live;
   const tx = transcriptOn(id);
-  const txBtn = $('[data-a="transcript"]', body);
+  const txBtn = $('.it-actions [data-a="transcript"]', body);
   txBtn.classList.toggle('on', tx);
   txBtn.setAttribute('aria-pressed', tx);
   txBtn.title = tx ? 'Back to the presentation (V)' : 'Full transcript: every message and step (V)';
