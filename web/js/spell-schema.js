@@ -28,6 +28,7 @@ export const SLOTS = {
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
   'panel.head': "The side panel beside the open task (Shell, PR): a button in its head (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
+  'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
   'split.upcoming': "Split view's home: a button on the Coming up heading (scheduled tasks, reminders, follow-ups, check-ins).",
   'goal.band': "The open task's goal band: a button on its second line, after the last check (acts on that task).",
 };
@@ -96,6 +97,12 @@ export const PARTS = {
   // Sharing (crew-share.js): Share (a file, JSON, a gist or a spell) and Import with its review. Not
   // the review a spell's member needs before it resumes, nor the note saying which spell it's from:
   // a spell mustn't hide what gates its own members.
+  // Org (org.js): the whole crew as a chart of who hands work to whom, opened from the Crew heading.
+  'crew.org': '#secCrew .cr-org', // the Org button on the Crew heading
+  'org.page': '.org-view',
+  'org.chart': '.org-view .org-chart',
+  'org.card': '.org-view .org-card', // a member in the chart
+  'org.details': '.org-view .org-side', // the column beside the chart: the selected member's delegates
   'crew.share': '.crew-share',
   'crew.import': '.crew-import',
   'section.archived': '#secArchived',
@@ -396,7 +403,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

@@ -67,6 +67,21 @@ its thread; its work never mixes with your tasks.
 - **Delegates**: a member has a team like a task's (any harness, other crew members, never itself);
   every job of its gets it. A job that was itself delegated hands nothing on to the crew, so members
   can't loop; one on another machine can't reach the crew here.
+- **Org** (`web/js/features/org.js`): the small button beside **+** on the heading (and ⌘K) opens the whole
+  crew as a chart in the main pane, like a thread (stacked: a page with Back). Members who hand out
+  work sit on top, their delegates a tier below, and arrows run from a member to each delegate; other
+  harnesses are logos on the card. Members with no arrows sit under *Not connected*. Cards have one
+  fixed size, so nothing moves when you select one. Select a member and the chart becomes its picker:
+  **+** / **✓** on every other card, a drag from the card's handle with a mouse, and the column
+  beside it (under it when narrow) with *Hands work to* / *Gets work from*, a × each, and **Add a
+  delegate…** (another member, or an agent on any harness through the Delegate editor). Esc ends the
+  picking before it closes the page. **Open thread** opens the member, and Back returns to the chart.
+  A spell's member can't be changed there; a member on another machine draws its arrows dashed.
+  Arrows never pass behind a card: they run down the gaps between rows and the openings between
+  cards, with rounded corners, so an arrow that goes past one member can't read as going through it.
+  **Delegates…** (a member's ⋯ / right-click menu, ⌘K *Ada’s delegates…*, the delegates line in its
+  details) opens Org with that member selected. Selecting moves nothing: the hint keeps room for its
+  longest line, and a delegate's card shows only its ✓ (the border is for the selected member).
 - With no crew yet, the section is one dashed row that invites you to add someone. It's useful, so it
   stays (ux.md: empty states are useful or absent).
 

@@ -18,6 +18,7 @@ import { focusLauncher, renderLaunchChips } from './launcher.js';
 import { inBrowser, openGetApp } from './getapp.js';
 import { openMachines } from './machines.js';
 import { openMemory } from './memory.js';
+import { openOrg } from './org.js';
 import { openPhone } from './phone.js';
 import { openProjects, renderProjects } from './projects.js';
 import { agentName } from './runners.js';
@@ -83,8 +84,10 @@ function paletteItems() {
 
   // The crew: open a member, or add one.
   for (const m of crewList()) items.push({ group: 'Crew', label: m.name, sub: [m.role, m.paused ? 'Paused' : cadenceLabel(m.cron)].filter(Boolean).join(' · '), icon: 'crew', keywords: `crew agent @${m.name} ${m.brief.slice(0, 200)}`, run: () => openCrew(m.id) });
+  if (crewList().length) items.push({ group: 'Crew', label: 'Org', sub: 'Who on your crew hands work to whom', icon: 'org', keywords: 'crew org chart delegates team hierarchy relationships manage', run: () => openOrg() });
   items.push({ group: 'Crew', label: 'Add a crew member…', icon: 'plus', keywords: 'crew agent assistant new persistent schedule avatar spirit', run: () => crewEditor() });
   // Sharing them: one, all of them, or one someone shared with you (crew-share.js).
+  for (const m of crewList()) items.push({ group: 'Crew', label: `${m.name}’s delegates…`, icon: 'org', keywords: 'crew org delegates team who hands work', run: () => openOrg(m.id) });
   for (const m of crewList()) items.push({ group: 'Crew', label: `Share ${m.name}…`, icon: 'arrow', keywords: 'crew export gist file copy send colleague', run: () => shareMember(m.id) });
   if (crewList().length > 1) items.push({ group: 'Crew', label: 'Share your crew…', icon: 'arrow', keywords: 'crew export all members gist file', run: () => shareMember(crewList().map((m) => m.id)) });
   for (const m of crewList()) items.push({ group: 'Crew', label: `${m.name}’s track record`, icon: 'stats', keywords: 'crew track record performance stats jobs finished check-ins spend', run: () => trackRecord({ id: m.id }) });

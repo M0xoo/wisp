@@ -173,7 +173,7 @@ function busyLine(live) {
   return pick(BUSY[s.crew?.job] || BUSY.task, s.id).replace('%', s.crew?.from?.title || (s.crew?.job === 'trigger' ? 'a trigger' : 'a task'));
 }
 
-function statusLine(m, st) {
+export function statusLine(m, st) {
   const ask = st.jobs.find((s) => s.state === 'waiting');
   if (ask) return { cls: 'asks', text: `Asking you${ask.question ? `: ${ask.question}` : ''}` };
   if (st.live.length) return { cls: 'live', text: busyLine(st.live) };
@@ -422,6 +422,8 @@ bus.on('machines', () => (S.sessions.size ? renderFeed() : paintCrew())); // a m
 // another task opens); in the feed it unfolds under its row. entry: a job to bring into view.
 export function openMember(id, { entry = null } = {}) {
   if (!memberById(id)) return;
+  crewHooks.back = null; // the Org page sets it again when it opened this one
+  crewHooks.leave?.(); // a member takes the pane: the Org page goes
   if (isSplit()) for (const o of [...S.open]) collapse(o);
   pinned.clear(); // back in the thread: jobs opened from it go back to it
   setOpen(id);
@@ -440,7 +442,12 @@ export function closeMember() {
   renderFeed();
 }
 
-// Esc: from a member's job back to its thread; from the thread back home. True when it did.
+// What the Org page (org.js) hooks in: leave() closes it when a member opens; back() returns
+// to it from a member opened there.
+export const crewHooks = { back: null, leave: null };
+
+// Esc: from a member's job back to its thread; from the thread back home (or to the Org page it
+// was opened from). True when it did.
 export function crewBack() {
   if (!S.crewOpen || !isSplit()) return false;
   const open = splitOpen();
@@ -451,7 +458,10 @@ export function crewBack() {
   }
   if (!open) {
     closeMember();
-    goBack({ focus: true }); // home (stacked: the list)
+    const back = crewHooks.back;
+    crewHooks.back = null;
+    if (back) back();
+    else goBack({ focus: true }); // home (stacked: the list)
     return true;
   }
   return false;
@@ -459,6 +469,7 @@ export function crewBack() {
 
 // Nothing of the crew stays open when home is asked for (New task, Esc).
 export function leaveCrew() {
+  crewHooks.back = null;
   if (S.crewOpen) setOpen(null);
 }
 
@@ -488,7 +499,7 @@ export const crewViewShown = () => isSplit() && !!S.crewOpen && !splitOpen();
 // --- actions --------------------------------------------------------------------------------------
 
 // Optimistic: the member changes here at once, and goes back if the server refuses.
-async function patchMember(m, body, { quiet = false } = {}) {
+export async function patchMember(m, body, { quiet = false } = {}) {
   const before = { ...m };
   const paint = () => (renderFeed(), paintOffers());
   Object.assign(m, body);
@@ -630,7 +641,7 @@ function addPendingJob(m, prompt) {
   return id;
 }
 
-function memberMenu(id, { x, y, anchor } = {}) {
+export function memberMenu(id, { x, y, anchor } = {}) {
   const m = memberById(id);
   if (!m) return;
   $('.menu.cr-menu')?.close();
@@ -639,6 +650,7 @@ function memberMenu(id, { x, y, anchor } = {}) {
       <button data-a="checkin">${icon('clock')}Check in now</button>
       <button data-a="pause">${icon(m.paused ? 'play' : 'pause')}${m.paused ? 'Resume' : 'Pause'}</button>
       <button data-a="edit">${icon('pen')}Edit…</button>
+      <button data-a="org">${icon('org')}Delegates…</button>
       <button data-a="share">${icon('arrow')}Share…</button>
       <button data-a="record">${icon('stats')}Track record…</button>
       ${m.spell ? `<button data-a="mine">${icon('wizard')}Make it mine</button>` : ''}
@@ -651,6 +663,7 @@ function memberMenu(id, { x, y, anchor } = {}) {
     if (a === 'checkin') checkIn(id);
     if (a === 'pause') togglePause(id);
     if (a === 'edit') crewEditor({ member: m });
+    if (a === 'org') openDelegates(id);
     if (a === 'share') shareMember(id);
     if (a === 'record') trackRecord({ id });
     if (a === 'mine') makeMine(id);
@@ -665,6 +678,9 @@ function memberMenu(id, { x, y, anchor } = {}) {
   menu.style.left = `${Math.max(8, Math.min(left, innerWidth - w - 8))}px`;
   menu.style.top = `${Math.max(8, Math.min(top, innerHeight - h - 8))}px`;
 }
+
+// Delegates…: the Org page with the member selected (org.js, loaded on first use: it imports this file).
+export const openDelegates = (id) => import('./org.js').then((o) => o.openOrg(id));
 
 // A spell's member becomes yours: the spell lets go of them, and everything about them can change.
 export async function makeMine(id, { then } = {}) {
@@ -823,14 +839,15 @@ function buildView(id) {
     const split = isSplit();
     const stacked = isStacked();
     // Header: like a task's (stacked, Back to the list first, and no Close).
-    const top = `${stacked ? `<button class="icon-btn sh-back" data-a="close" title="Back to tasks" aria-label="Back to tasks">${icon('back')}</button>` : ''}${avatarHtml(m, { size: 30, dot: false })}
+    const backTo = crewHooks.back ? 'Back to Org' : 'Back to tasks';
+    const top = `${stacked ? `<button class="icon-btn sh-back" data-a="close" title="${backTo}" aria-label="${backTo}">${icon('back')}</button>` : ''}${avatarHtml(m, { size: 30, dot: false })}
       <div class="cv-who"><h2 class="sh-title">${esc(m.name)}</h2>${m.role ? `<span class="cv-role">${esc(m.role)}</span>` : ''}</div>
       <span class="cv-state ${statusLine(m, st).cls}">${esc(statusLine(m, st).text)}</span>
       <span class="sh-acts">
         ${slotHtml('crew.page', null)}
         <button class="ghost sm" data-a="pause" aria-label="${m.paused ? 'Resume' : 'Pause'}" title="${m.paused ? 'Resume: check-ins and triggers start again' : 'Pause: no check-ins, triggers or delegations until you resume'}">${icon(m.paused ? 'play' : 'pause')}<span>${m.paused ? 'Resume' : 'Pause'}</span></button>
         <button class="icon-btn" data-a="more" title="More" aria-label="More">${icon('dots')}</button>
-        ${split && !stacked ? `<button class="icon-btn" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>` : ''}
+        ${split && !stacked ? `<button class="icon-btn" data-a="close" title="${crewHooks.back ? 'Close: back to Org (Esc)' : 'Close: back to New task (Esc)'}" aria-label="Close">${icon('x')}</button>` : ''}
       </span>`;
     const hd = $('.cv-top', node);
     const hkey = top.replace(/<svg[\s\S]*?<\/svg>/, `[${st.mood}:${m.avatar}]`);
@@ -913,10 +930,16 @@ function buildView(id) {
     if (e.target.closest('.cv-kit')) return kitClick(e, m, patchMember, sendJob);
     if (e.target.closest('.cv-offer')) return offerClick(e, m, patchMember, paint);
     const a = e.target.closest('[data-a]')?.dataset.a;
-    if (a === 'close') return closeMember();
+    if (a === 'close') {
+      const back = crewHooks.back;
+      crewHooks.back = null;
+      closeMember();
+      return back?.();
+    }
     if (a === 'checkin') return checkIn(id);
     if (a === 'pause') return togglePause(id);
     if (a === 'edit') return crewEditor({ member: m });
+    if (a === 'org') return openDelegates(id);
     if (a === 'share') return shareMember(id);
     if (a === 'note-edit') return notebookEditor(m);
     const clip = e.target.closest('[data-clip]')?.dataset.clip;
@@ -1033,7 +1056,7 @@ function paintSide(m, st, side) {
   const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');
   const html = `
     <div class="cv-facts">${facts.map(([ic, t, tip]) => `<div class="m${ic === 'pause' ? ' held' : ''}">${ic.startsWith('logo:') ? `<span class="cv-logo">${harnessLogo(ic.slice(5))}</span>` : icon(ic)}<span title="${esc(tip || t)}">${esc(t)}</span></div>`).join('')}
-      <div class="m">${icon('agent')}<span>${team ? `<span class="cv-team">${team}</span>` : 'No delegates'}</span></div></div>
+      <button class="m cv-dlg" data-a="org" title="Who ${esc(m.name)} hands work to: see and change it in Org">${icon('agent')}<span>${team ? `<span class="cv-team">${team}</span>` : 'No delegates'}</span>${icon('chevron', 'chev')}</button></div>
     <div class="cv-actions">
       <button class="ghost sm" data-a="checkin">${icon('clock')}<span>Check in now</span></button>
       <button class="ghost sm" data-a="edit">${icon('pen')}<span>Edit…</span></button>

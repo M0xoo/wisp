@@ -268,6 +268,19 @@ test('Automations stop at (autoStop) is a setting; its row, Where it went and a 
   assert.deepEqual(problems({ ...base0, ui: { hide: ['budget.where', 'details.plan'] }, parts: { 'settings.autoStop': { style: { opacity: '0.8' } } } }), []);
 });
 
+test('Org: its button, page, chart, cards and details are parts; its header takes buttons, not panels', () => {
+  const ok = {
+    ...base0,
+    parts: { 'crew.org': { hide: true }, 'org.page': { style: { background: 'var(--surface)' } }, 'org.chart': { style: { padding: '8px' } }, 'org.card': { style: { borderRadius: '6px' } }, 'org.details': { hide: true } },
+    buttons: [{ slot: 'org.head', icon: 'org', label: 'Standup', do: { open: 'https://example.com' } }],
+  };
+  assert.deepEqual(problems(ok), []);
+  assert.ok(schema.SLOTS['org.head'] && !schema.CARD_SLOTS.has('org.head'));
+  assert.ok(schema.ICONS.includes('org'));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'org.head', panel: 'x' }] }).length);
+  assert.ok(problems({ ...base0, parts: { 'org.nope': { hide: true } } }).some((x) => /org\.nope/.test(x)));
+});
+
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,

@@ -54,6 +54,13 @@
 .cr-add { margin-left: auto; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); transition: background 0.15s, color 0.15s; }
 .cr-add:hover { background: var(--bg-2); color: var(--ink); }
 .cr-add .i { width: 14px; height: 14px; }
+/* Org, beside +: the whole crew's chart (org.js). Small, like the heading it sits on. */
+#secCrew > .cr-org { position: absolute; top: 3px; right: 32px; }
+.cr-org { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 7px; border-radius: 6px; font-size: 12px; font-weight: 500; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.cr-org[hidden] { display: none; }
+.cr-org:hover { background: var(--bg-2); color: var(--ink); }
+.cr-org.on { background: var(--accent-soft); color: var(--accent-ink); }
+.cr-org .i { width: 13px; height: 13px; }
 .cr-list { display: flex; flex-direction: column; gap: 2px; }
 .cr-row {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px;
@@ -297,6 +304,10 @@ body.split #crewView { flex: 1; }
 .cv-facts .m > .i { flex: none; width: 13px; height: 13px; margin-top: 2px; color: var(--faint); }
 .cv-facts .m.held > .i { color: var(--warn); } /* check-ins wait for the plan (Automations stop at) */
 .cv-facts .m > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* its delegates: opens Org on it */
+.cv-facts .cv-dlg { width: calc(100% + 12px); margin: -3px -6px; padding: 3px 6px; border-radius: 6px; text-align: left; color: inherit; transition: background 0.15s; }
+.cv-facts .cv-dlg:hover { background: var(--bg-2); }
+.cv-facts .cv-dlg > .chev { flex: none; width: 12px; height: 12px; margin: 3px 0 0 auto; color: var(--faint); }
 .cv-facts .cv-logo { flex: none; display: grid; place-items: center; width: 13px; height: 13px; margin-top: 2px; }
 .cv-facts .cv-logo > * { width: 13px; height: 13px; }
 .cv-team { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
@@ -712,3 +723,137 @@ button.rec-rank:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-soft), 
 }
 @media (pointer: coarse) { .crew-record header .us-range button { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .rec-strip.skel, .rec-sk { animation: none; } }
+
+/* ---------- Org (org.js): the crew as a chart of who hands work to whom ---------- */
+.org-view { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+.org-view[hidden] { display: none; }
+body.split #orgView { flex: 1; }
+.org-top { padding-left: 24px; padding-right: 16px; }
+.org-ic { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--bg-2); color: var(--ink-2); }
+.org-ic .i { width: 16px; height: 16px; }
+.org-top .sh-acts .ghost.sm { gap: 6px; }
+.org-top .sh-acts .ghost.sm .i { width: 13px; height: 13px; }
+
+/* the chart and, on a wide pane, the details beside it; narrower, under it, one scroll */
+.org-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.org-view.wide .org-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; overflow: hidden; }
+.org-chart { position: relative; min-width: 0; padding: 14px 24px 40px; outline: none; }
+.org-view.wide .org-chart { overflow: auto; }
+body.stack .org-chart { padding: 12px 16px 32px; }
+body.stack .org-top { padding-left: 12px; padding-right: 8px; }
+body.stack .org-side { padding: 18px 16px 28px; }
+.org-side { display: flex; flex-direction: column; gap: 18px; padding: 18px 20px 28px; border-top: 1px solid var(--line); font-size: 13px; }
+.org-view.wide .org-side { overflow-y: auto; border-top: 0; border-left: 1px solid var(--line); }
+
+/* the line over the chart: how it works, then what picking does (kept one line tall so nothing moves) */
+.org-hint { display: grid; place-items: center; min-height: 48px; margin: 0 auto 14px; max-width: 720px; padding: 6px 14px; border-radius: var(--radius); font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; }
+.org-hint .link { font-size: inherit; }
+/* stacked, a hint can take a third line on a narrow phone: keep room for it so selecting moves nothing */
+body.stack .org-hint { min-height: calc(2.9em + 12px); }
+.org-hint.on { background: var(--accent-soft); color: var(--accent-ink); }
+.org-hint b { font-weight: 600; }
+.org-hint .i { width: 12px; height: 12px; vertical-align: -1px; }
+
+.org-graph { position: relative; width: 100%; max-width: 980px; margin: 0 auto; }
+.org-edges { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.org-tiers { position: relative; display: flex; flex-direction: column; align-items: center; gap: 56px; }
+.org-tier { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 18px; width: 100%; }
+.org-alone { flex-direction: column; align-items: center; gap: 10px; width: 100%; padding-top: 18px; border-top: 1px dashed var(--line-2); }
+.org-alone > h5 { margin: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.org-row-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px 18px; width: 100%; }
+.org-empty { flex-direction: column; align-items: center; gap: 12px; max-width: 420px; padding: 40px 0; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.org-empty b { color: var(--ink); font-weight: 600; }
+.org-empty .primary .i { width: 13px; height: 13px; margin-right: 4px; }
+
+/* a member: a card of fixed size, so picking, a status change or a new delegate moves nothing */
+.org-card {
+  position: relative; display: block; width: min(196px, calc(50% - 9px)); padding: 12px 12px 10px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); box-shadow: var(--shadow-1); cursor: pointer; user-select: none;
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s;
+}
+.org-card:hover { border-color: var(--line-2); }
+.org-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-1); }
+.org-card.dim { opacity: 0.45; }
+.org-card.dim:hover, .org-card.dim:focus-visible { opacity: 0.85; }
+.org-card.paused .org-who b { color: var(--ink-2); }
+.org-face { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 10px; row-gap: 6px; align-items: center; min-height: 64px; }
+.org-face > .cr-av { grid-row: 1; }
+.org-who { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.org-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; color: var(--ink); }
+.org-who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.org-st { grid-column: 1 / -1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--faint); }
+.org-st.live { color: var(--accent-ink); }
+.org-st.asks { color: var(--warn); font-weight: 500; }
+.org-st.report { color: var(--ink-2); }
+/* other harnesses it hands work to, in the card's corner */
+.org-tools { position: absolute; right: 10px; bottom: 9px; display: flex; align-items: center; gap: 3px; padding-left: 6px; background: var(--surface); }
+.org-face:has(.org-tools) .org-st { padding-right: 64px; }
+.org-tool { position: relative; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--bg-2); }
+.org-tool > svg, .org-tool > img, .org-tool > span:first-child { width: 12px; height: 12px; }
+.org-tool small, .org-tools > small { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.org-tool small { position: absolute; right: -6px; bottom: -5px; }
+
+/* picking: + on a card makes it the selected member's delegate, ✓ takes it off */
+.org-pick { position: absolute; top: -9px; right: -9px; z-index: 1; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface); color: var(--muted); box-shadow: var(--shadow-1); transition: background 0.15s, color 0.15s, border-color 0.15s; }
+.org-pick[hidden] { display: none; }
+.org-pick::before { content: ''; position: absolute; inset: -10px; }
+.org-pick .i { width: 13px; height: 13px; }
+.org-pick:hover { border-color: var(--accent); color: var(--accent-ink); }
+.org-card.picked .org-pick { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.org-card.can-pick.dim { opacity: 0.75; }
+
+/* the handle a link is dragged from (a mouse; touch picks with +) */
+.org-port { position: absolute; left: 50%; bottom: -6px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--surface); cursor: crosshair; touch-action: none; opacity: 0; transition: opacity 0.15s, border-color 0.15s, background 0.15s; }
+.org-port::before { content: ''; position: absolute; inset: -7px; }
+.org-card:hover .org-port, .org-card.sel .org-port, .org-view.dragging .org-port { opacity: 1; }
+.org-port:hover { border-color: var(--accent); background: var(--accent-soft); }
+.org-card.locked .org-port { display: none; }
+@media (pointer: coarse) { .org-port { display: none; } }
+.org-view.dragging, .org-view.dragging .org-card { cursor: crosshair; }
+.org-card.drop.ok { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-1); }
+.org-card.drop.no { opacity: 0.6; }
+
+/* the arrows */
+.org-edge .org-line { fill: none; stroke: color-mix(in srgb, var(--faint) 70%, transparent); stroke-width: 1.5; transition: stroke 0.15s, opacity 0.2s; }
+.org-edge .org-hit { fill: none; stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+.org-edge:hover .org-line, .org-edge.on .org-line { stroke: var(--accent); }
+.org-edge.on .org-line { stroke-width: 2; }
+.org-edge.off .org-line { stroke-dasharray: 4 4; }
+.org-edge.dim { opacity: 0.35; }
+.org-arr { fill: color-mix(in srgb, var(--faint) 70%, transparent); }
+.org-arr.on { fill: var(--accent); }
+.org-temp { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
+
+/* the details: the whole org, or the selected member's delegates */
+.org-sec { gap: 8px; }
+.org-sec h5 small { margin-left: auto; }
+.org-side > .org-sec:first-child { padding-top: 0; border-top: 0; }
+.org-sec p { margin: 0; line-height: 1.5; color: var(--ink-2); }
+.org-sec .org-none { color: var(--faint); font-size: 12.5px; }
+.org-note p { display: flex; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.org-note .i { flex: none; width: 13px; height: 13px; margin-top: 3px; color: var(--faint); }
+.org-rows { display: flex; flex-direction: column; gap: 2px; }
+.org-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.org-person { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; padding: 5px 6px; border-radius: 7px; text-align: left; }
+button.org-person:hover { background: var(--bg-2); }
+.org-person > span:last-child { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.org-person b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; color: var(--ink); }
+.org-person small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--faint); }
+.org-logo { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--bg-2); }
+.org-logo > * { width: 13px; height: 13px; }
+.org-x { flex: none; color: var(--faint); }
+.org-x:hover { color: var(--bad); }
+.org-addto { align-self: flex-start; gap: 5px; }
+.org-addto .i { width: 12px; height: 12px; }
+.org-me { display: flex; align-items: center; gap: 10px; }
+.org-me .org-who { flex: 1; }
+.org-me .org-who b { font-size: 14px; }
+.org-side > .org-st { margin-top: -10px; font-size: 12.5px; white-space: normal; }
+.org-acts { display: flex; align-items: center; gap: 6px; }
+.org-acts .ghost.sm { gap: 6px; }
+.org-acts .ghost.sm .i { width: 13px; height: 13px; }
+.org-acts .icon-btn { margin-left: auto; }
+.menu.org-menu { min-width: 220px; }
+.menu.org-menu button { gap: 8px; }
+.menu.org-menu small { color: var(--faint); font-size: 12px; }
+.menu.org-menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--line); }
