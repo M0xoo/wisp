@@ -31,8 +31,9 @@ export default {
   models: [{ id: '', label: 'Default', hint: 'Whatever Grok is set to' }],
   efforts: ['low', 'medium', 'high', 'xhigh'],
 
-  resumeCommand({ resumeId, model, effort }) {
-    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--reasoning-effort', effort] : [])];
+  // trusted: a folder wisp made (scratch, worktree), which it would otherwise stop to ask about.
+  resumeCommand({ resumeId, model, effort, trusted = false }) {
+    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--reasoning-effort', effort] : []), ...(trusted ? ['--trust'] : [])];
   },
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).

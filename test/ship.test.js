@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import path from 'node:path';
-import { installFakeBins, makeClone, makeRepo, records, tmp, until } from './helpers.js';
+import { installFakeBins, makeClone, makeRepo, records, tmp, until, isolateAgentConfigs } from './helpers.js';
 
 const RECORD = tmp('ship-record');
 const GH_STATE = path.join(tmp('gh'), 'state.json');
@@ -17,6 +17,7 @@ process.env.FAKE_GH_STATE = GH_STATE;
 process.env.WISP_HOME = tmp('ship-home');
 process.env.WISP_UPDATE_CHECK = '0';
 installFakeBins();
+isolateAgentConfigs();
 
 const { startServer } = await import('../server/index.js');
 const { parseCron, nextRun, cronMatches } = await import('../server/triggers.js');

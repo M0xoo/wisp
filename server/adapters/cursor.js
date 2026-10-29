@@ -14,8 +14,9 @@ export default {
   askTool: null,
   models: [{ id: '', label: 'Default', hint: 'Whatever Cursor is set to' }],
 
-  resumeCommand({ resumeId, model }) {
-    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : [])];
+  // trusted: a folder wisp made (scratch, worktree), which it would otherwise stop to ask about.
+  resumeCommand({ resumeId, model, trusted = false }) {
+    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(trusted ? ['--trust'] : [])];
   },
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).

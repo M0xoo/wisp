@@ -4,7 +4,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import { installFakeBins, makeRepo, tmp } from './helpers.js';
+import { installFakeBins, makeRepo, tmp, isolateAgentConfigs } from './helpers.js';
 import { ptyCommand, python, Terms } from '../server/pty.js';
 import { defaultTerminal, inWisp, terminalsFor } from '../server/terminal.js';
 import { keyBytes, Screen } from '../web/js/term-emu.js';
@@ -99,6 +99,7 @@ before(async () => {
   process.env.WISP_HOME = tmp('pty-home');
   process.env.WISP_UPDATE_CHECK = '0';
   installFakeBins();
+  isolateAgentConfigs();
   const { startServer } = await import('../server/index.js');
   const port = await freePort();
   srv = await startServer({ port, handleSignals: false });

@@ -586,12 +586,17 @@ export function register(r, app) {
   // Take over: continue this exact agent session interactively in a terminal. GET: the command.
   // POST stops the run and opens it: in the terminal app from Settings, or in the page (inline:
   // a terminal here that the page streams from /term; always on a cloud computer).
+  // A folder wisp made (a no-folder task's scratch folder, a worktree) is one the user never opened
+  // the agent in, so its interactive CLI would stop at "Do you trust this folder?" first: wisp
+  // answers yes for it. The user's own folders keep the CLI's question.
   const takeover = (fn) =>
     one(async (c, s) => {
       const adapter = adapters[s.agent];
       if (!adapter?.resumeCommand || !s.agentSessionId) return c.send(400, { error: 'This session cannot be resumed in a terminal.' });
-      const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort, dirs: alsoDirs(s) });
+      const trusted = store.isScratch(s.cwd) || !!s.worktree?.cwd;
+      const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort, dirs: alsoDirs(s), cwd: workdir(s), trusted });
       await ensureTrees(s);
+      if (trusted) adapter.trust?.(workdir(s));
       const command = `cd ${shq(workdir(s))} && ${argv.map(shq).join(' ')}`;
       c.send(200, { command, ...(await fn(s, argv, c)) });
     });
