@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A /btw question scrolls into view when you send it.** Side questions sit at the end of the turn they were asked during, so on a long task the one you'd just sent could land under the follow-up box or below the fold. The task now scrolls just enough to show it, clear of the box, and stays put if it already shows. The same goes for an `@Name` question to a crew member and a reply in their thread.
 - **The Transcript button shows when it's on again.** Since the compact row that pins on long tasks, switching to the full transcript lit up that row's copy of the button and left the task's own Transcript button looking off.
 
 ## [0.48.0] - 2026-10-29

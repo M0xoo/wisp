@@ -14,6 +14,7 @@ import { toastError } from '../ui/toast.js';
 import { scheduleRefetch } from './feed.js';
 import { agentName } from './runners.js';
 import { avatarHtml, memberById } from './crew.js';
+import { reveal } from './scroll.js';
 
 const waiting = new Map(); // session id -> side questions sent, not yet confirmed by the server
 const gone = new Set(); // ids dismissed here, until the server has dropped them too
@@ -30,6 +31,7 @@ export async function askBtw(id, question, { attachments = [], files = [], resto
   const unwait = () => (mine().length > 1 ? waiting.set(id, mine().filter((b) => b !== pending)) : waiting.delete(id));
   waiting.set(id, [...mine(), pending]);
   paintBtw(id);
+  showAsked(id, pending.id);
   try {
     const entry = await api(`/sessions/${id}/btw`, { method: 'POST', body: { text: question, attachments } });
     unwait();
@@ -46,6 +48,12 @@ export async function askBtw(id, question, { attachments = [], files = [], resto
     restore?.();
     toastError(err);
   }
+}
+
+// What you just asked shows where you can see it: the list sits at the end of its turn, often under
+// the follow-up box or below a long answer. After a frame, once the box has emptied and shrunk.
+function showAsked(id, btwId) {
+  requestAnimationFrame(() => reveal($(`.btw[data-id="${btwId}"]`, S.nodes.get(id)?.card)));
 }
 
 // Reply in a crew thread: a box under the last message; your reply joins the thread at once and
@@ -79,6 +87,7 @@ async function replyCrew(id, entryId, text) {
   const pend = { id: `pending-${++seq}`, question: text, status: 'running', askedAt: Date.now(), crew: parent.crew, job: parent.job, thread: parent.thread || parent.id };
   turn.btw.splice(turn.btw.indexOf(parent) + 1, 0, pend);
   paintBtw(id);
+  showAsked(id, pend.id);
   try {
     const entry = await api(`/sessions/${id}/crew-reply`, { method: 'POST', body: { entry: entryId, text } });
     const node = $(`.btw[data-id="${pend.id}"]`, S.nodes.get(id)?.card);
@@ -104,6 +113,7 @@ export async function askCrew(id, text, members, rest, { attachments = [], resto
   const pend = members.map((m) => ({ id: `pending-${++seq}`, question: rest, status: 'running', askedAt: Date.now(), crew: { id: m.id, name: m.name, avatar: m.avatar, color: m.color } }));
   (turn.btw ||= []).push(...pend);
   paintBtw(id);
+  showAsked(id, pend[0]?.id);
   try {
     const r = await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments } });
     const cur = S.full.get(id)?.turns.find((t) => t.id === turn.id) || turn;
