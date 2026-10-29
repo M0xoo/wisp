@@ -1,6 +1,6 @@
 // The set for the site's screenshots (docs/assets/shots/): an isolated wisp (qa/lib.mjs) whose
 // `claude` and `codex` are director.mjs, two Claude Code accounts (Work, Personal), three projects,
-// a crew, a machine (this computer behind test/fixtures/fake-ssh.mjs) and the tasks each shot needs.
+// a crew, two machines (this computer behind test/fixtures/fake-ssh.mjs) and the tasks each shot needs.
 // Exports start() for shoot.mjs; run alone to keep it up and look around.
 
 import { execFileSync } from 'node:child_process';
@@ -68,7 +68,7 @@ const MEMBERS = [
   { name: 'Echo', role: 'Release notes', avatar: 'drop.rose.happy.cat.halo', color: 'rose', cron: '0 9 * * 1-5', brief: 'Draft release notes from what merged.' },
 ];
 
-export async function start({ port = 4511, machinePort = 4521 } = {}) {
+export async function start({ port = 4511, machinePort = 4521, gpuPort = 4522 } = {}) {
   const parent = tmp('repos');
   const repos = Object.fromEntries(Object.keys(FILES).map((n) => [n, repo(parent, n)]));
   const b = bin();
@@ -85,6 +85,7 @@ export async function start({ port = 4511, machinePort = 4521 } = {}) {
   for (const m of MEMBERS) crew[m.name] = (await api(w.url, '/api/crew', { ...m, cwd: repos['api-server'], agent: 'claude' })).json;
   const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(ROOT, 'bin/wisp.js'))}`;
   const studio = (await api(w.url, '/api/machines', { name: 'studio', target: 'me@studio', port: machinePort, command })).json;
+  await api(w.url, '/api/machines', { name: 'gpu-box', target: 'me@gpu-box', port: gpuPort, command });
   for (let i = 0; i < 120 && (await api(w.url, '/api/machines')).json.some((m) => m.state !== 'online'); i++) await new Promise((r) => setTimeout(r, 500));
 
   const task = async (prompt, cwd, body = {}) => (await api(w.url, '/api/sessions', { prompt, cwd: repos[cwd], agent: 'claude', ...body })).json;
@@ -108,7 +109,7 @@ export async function start({ port = 4511, machinePort = 4521 } = {}) {
   w.stop = () => {
     stop();
     try {
-      execFileSync('sh', ['-c', `lsof -ti tcp:${machinePort} -sTCP:LISTEN | xargs kill`]);
+      for (const port of [machinePort, gpuPort]) execFileSync('sh', ['-c', `lsof -ti tcp:${port} -sTCP:LISTEN | xargs kill`]);
     } catch {}
   };
   return { ...w, repos, crew, ids, studio };

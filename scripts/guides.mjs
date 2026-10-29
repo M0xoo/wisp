@@ -138,7 +138,7 @@ wisp "fix the flaky auth test" --agent claude --compare codex,opencode`)}
       card: 'Your desktop, a dev box, a cloud VM: one prompt, several machines, one queue.',
       description: 'Run Claude Code, Codex and other coding agents on your other computers over SSH: one prompt on several machines in parallel, one queue on your laptop, and agents that keep working when it sleeps.',
       lede: 'wisp runs Claude Code, Codex and other coding agent CLIs on your other computers over plain SSH: a desktop, a dev box, a cloud VM or a Mac mini on Tailscale. One prompt can go to several machines in parallel, every run lands in one queue on your laptop, and the agents keep working when the laptop sleeps.',
-      shot: ['app', 'The wisp task list with Claude Code and Codex tasks under Needs you, a Compare group, and a finished report open beside it'],
+      shot: ['machines', 'The wisp launcher’s Run on menu with This computer, studio and gpu-box ticked: one prompt in parallel on 3 places'],
       body: `
     <section>
       <h2 id="why">Why run agents on other machines</h2>

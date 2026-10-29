@@ -70,6 +70,19 @@ const TAKES = [
     const x = Math.min(a.x, m.x), y = Math.min(a.y, m.y);
     return { clip: pad({ x, y, width: Math.max(a.x + a.width, m.x + m.width) - x, height: Math.max(a.y + a.height, m.y + m.height) - y }, 20) };
   }],
+  // The launcher's Run on with studio and gpu-box ticked beside this computer.
+  ['machines', 1280, 860, async (p) => {
+    await p.locator('#launcher textarea').first().fill('Run the e2e suite and fix what fails');
+    await p.click('#whereBtn');
+    await p.waitForSelector('.where-menu');
+    for (const n of ['studio', 'gpu-box']) await p.locator('.where-menu .wm-row', { hasText: n }).locator('[data-also]').click();
+    await p.mouse.move(2, 2);
+    await p.waitForTimeout(600);
+    const a = await p.locator('#launcher').boundingBox();
+    const m = await p.locator('.where-menu').boundingBox();
+    const x = Math.min(a.x, m.x), y = Math.min(a.y, m.y);
+    return { clip: pad({ x, y, width: Math.max(a.x + a.width, m.x + m.width) - x, height: Math.max(a.y + a.height, m.y + m.height) - y }, 20) };
+  }],
   ['report', 1100, 2200, async (p) => {
     await open(p, w.ids.flaky);
     return { clip: pad(await p.locator('.item.open .turns, .turns').first().boundingBox(), 12) };
