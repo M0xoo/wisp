@@ -306,12 +306,15 @@ export class Stuff {
     return this.#save({ ...it, ...f });
   }
 
-  remove(id) {
+  // Async: on Windows a file the app's server is still closing blocks its folder for a moment, and
+  // rmSync's retries would block the very event loop that closes it.
+  async remove(id) {
     const it = this.byId.get(id);
     if (!it) return false;
     this.byId.delete(id);
-    for (const p of [it.path, it.prev?.path, it.cover]) if (p) rmTree(p);
-    for (const f of ['', '-wal', '-shm']) fs.rmSync(`${this.dataFile(id)}${f}`, { force: true });
+    const rm = (p, recursive = false) => fs.promises.rm(p, { recursive, force: true, maxRetries: 10 });
+    for (const p of [it.path, it.prev?.path, it.cover]) if (p) await rm(p, true);
+    for (const f of ['', '-wal', '-shm']) await rm(`${this.dataFile(id)}${f}`);
     fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
     this.onChange();
     return true;

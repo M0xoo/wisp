@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { pipeline } from 'node:stream';
 import { MIME } from '../http/static.js';
 import { bad } from '../util.js';
 import { DB_CLIENT, createAppDb } from '../app-db.js';
@@ -132,7 +133,8 @@ export class Apps {
     const st = fs.statSync(file);
     res.writeHead(200, { 'content-type': typeOf(file), 'content-length': st.size, 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
     if (req.method === 'HEAD') return res.end();
-    fs.createReadStream(file).pipe(res);
+    // pipeline, not pipe: a client that goes early closes the file too, or Windows keeps the folder.
+    pipeline(fs.createReadStream(file), res, () => {});
   }
 
   stop(id, { quiet = false } = {}) {
@@ -151,9 +153,13 @@ export class Apps {
     this.db.close();
   }
 
-  // Reset data: the worker lets go of the file, then it goes.
+  // Before its database goes (Reset data, the app removed): the worker lets go of the file.
+  releaseData(id) {
+    return this.db.release(this.stuff.dataFile(id));
+  }
+
   async resetData(id) {
-    await this.db.release(this.stuff.dataFile(id));
+    await this.releaseData(id);
     this.stuff.resetData(id);
   }
 }

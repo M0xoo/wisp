@@ -19,7 +19,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- **Removing an app from My Stuff on Windows** no longer fails with *directory not empty* right after the app was running: wisp retries while Windows lets go of the files it just served.
+- **Removing an app from My Stuff on Windows** no longer fails with *directory not empty* right after the app was running: wisp retries while Windows lets go of the files it just served, without holding them open itself.
+- **Removing an app that keeps data** (`"db"` in its `wisp-app.json`) no longer fails on Windows with *resource busy or locked*: its database is closed before its file goes.
 
 ## [0.49.0] - 2026-10-29
 
