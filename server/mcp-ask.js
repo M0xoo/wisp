@@ -115,7 +115,7 @@ const SAVE = {
     'For a bigger thing (slides, a demo, a small tool), build it as a static web app (index.html with its JS, CSS and assets; ' +
     'no server, no install step; bundle dependencies in or load them from a CDN) and save its folder as app: wisp serves and ' +
     'launches it for the user. With id, it updates an item they already have (a mentioned one, or from wisp_stuff) instead ' +
-    'of adding one; the version before is kept.',
+    'of adding one; the version before is kept. Show what you saved in your answer as a "stuff" block with its id.',
   inputSchema: {
     type: 'object',
     properties: {

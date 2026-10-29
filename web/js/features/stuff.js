@@ -30,7 +30,8 @@ import { copyImage } from '../ui/image.js';
 import { collapse, renderFeed, reveal as revealTask } from './feed.js';
 import { goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
 import { cleanTitle } from '../mention-text.js';
-import { boxUrl, isLoopback } from '../preview-spec.js';
+import { boxUrl, isLoopback, previewSandbox } from '../preview-spec.js';
+import { overlay } from '../ui/overlay.js';
 import { leaveCrew } from './crew.js';
 import { leaveOrg } from './org.js';
 import { leavePlan } from './plan-view.js';
@@ -84,6 +85,7 @@ function setStuff(list) {
   S.stuff = list;
   save('wisp.stuff', list.filter((x) => !x.pending).slice(0, CACHED));
   paintSaveButtons();
+  paintStuffBlocks();
   paintStuff();
 }
 
@@ -269,32 +271,74 @@ async function openItem(it) {
   download(it);
 }
 
-// Launch: wisp serves the app on a port of its own (server/services/apps.js) and it opens in a tab.
-// The tab opens with the click (a popup blocker lets it), then goes to the app once it's up. On a
-// grid the port shows at its preview address; the phone app can only reach wisp itself.
+// Launch: wisp serves the app on a port of its own (server/services/apps.js) and it opens inside
+// wisp (appFrame). On a grid the port shows at its preview address; the phone app can only reach
+// wisp itself.
 async function launchApp(it) {
   if (MOBILE) return toast('Apps open in a browser: on the computer running wisp, or wisp Cloud in your phone’s browser.', { tone: 'bad' });
-  const tab = window.open('about:blank', '_blank');
+  const frame = appFrame(it);
   swap(it.id, { ...it, running: it.running || { port: 0 } });
   try {
     const { url } = await api(`/stuff/${it.id}/launch`, { method: 'POST' });
-    const here = isLoopback(location.href);
-    const to = here ? url : boxUrl(url, S.config?.preview || S.config?.grid?.preview);
+    const to = isLoopback(location.href) ? url : boxUrl(url, S.config?.preview || S.config?.grid?.preview);
     if (!to) {
-      tab?.close();
+      frame.close();
       await navigator.clipboard?.writeText(url).catch(() => {});
       return toast(`It’s running on the computer with wisp, at <code>${esc(url)}</code> (copied).`);
     }
-    if (tab) {
-      tab.opener = null;
-      tab.location.href = to;
-    } else window.open(to, '_blank', 'noopener');
+    frame.show(to);
     track('stuff_launch');
   } catch (err) {
-    tab?.close();
+    frame.close();
     loadStuff();
     toastError(err);
   }
+}
+
+// An app runs inside wisp: the whole window, its name and controls in a bar on top, the app in a
+// frame under it. It's on its own origin (its port), so it keeps its storage and can't reach wisp.
+// Esc closes it (once the frame lets go of the keyboard: a game keeps its keys); Back on a phone.
+function appFrame(it) {
+  const node = el(`
+    <div class="ap" role="dialog" aria-label="${esc(it.title)}">
+      <header class="ap-top">
+        <span class="ap-ic">${icon('app')}</span>
+        <div class="ap-name"><b>${esc(it.title)}</b><span>${it.rev > 1 ? `<i>v${it.rev}</i>` : ''}<i class="ap-url">Starting…</i></span></div>
+        <div class="ap-tools">
+          <button class="ghost xs" data-a="reload" title="Reload the app">${icon('rerun')}<span>Reload</span></button>
+          <a class="ghost xs ap-tab" target="_blank" rel="noopener" title="Open it in a browser tab" hidden>${icon('external')}<span>New tab</span></a>
+          <button class="ghost xs" data-a="stop" title="Stop it: wisp stops serving it">${icon('stop')}<span>Stop</span></button>
+          <button class="ghost xs" data-a="close" title="Close (Esc)" aria-label="Close">${icon('x')}</button>
+        </div>
+      </header>
+      <div class="ap-stage"><div class="ap-wait"><i></i><span>Starting ${esc(it.title)}…</span></div></div>
+    </div>`);
+  const stage = node.querySelector('.ap-stage');
+  let iframe = null;
+  const close = overlay(node);
+  node.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'close') close();
+    if (a === 'reload' && iframe) iframe.src = iframe.src;
+    if (a === 'stop') {
+      close();
+      stopApp(S.stuff.find((x) => x.id === it.id) || it);
+    }
+  });
+  return {
+    close,
+    show(url) {
+      iframe = el(`<iframe class="ap-frame" title="${esc(it.title)}" allow="fullscreen; autoplay; clipboard-write; gamepad" sandbox="${previewSandbox(url, location.origin)} allow-modals allow-downloads allow-pointer-lock"></iframe>`);
+      iframe.src = url;
+      iframe.addEventListener('load', () => node.classList.add('ready'), { once: true });
+      stage.append(iframe);
+      node.querySelector('.ap-url').textContent = url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      const tab = node.querySelector('.ap-tab');
+      tab.href = url;
+      tab.hidden = false;
+      requestAnimationFrame(() => iframe.focus());
+    },
+  };
 }
 
 async function stopApp(it) {
@@ -318,6 +362,8 @@ async function restoreItem(it) {
 }
 
 // Use in a new task: New task, with the thing mentioned in the prompt box (the agent gets its file).
+export { launchApp };
+
 export function mentionInNew(it) {
   goHome();
   const ta = $('#prompt');
@@ -376,6 +422,48 @@ export function stuffThumbHtml(it) {
   const pic = it.kind === 'image' ? fileUrl(it) : it.kind === 'app' && it.cover ? coverUrl(it) : '';
   return `<span class="st-mini k-${esc(it.kind)}">${pic ? `<img src="${pic}" alt="" loading="lazy">` : icon(KIND[it.kind]?.icon || 'clip')}</span>`;
 }
+
+// --- the stuff block: something in My Stuff, in an answer -------------------------------------------
+
+// An agent's answer points at what it saved ({ type: 'stuff', id, note }): a card with its picture,
+// what it is, and its main action, Launch for an app (it opens inside wisp), Open for the rest.
+// It reads the item as it is now (an update shows), and the title the server kept once it's gone.
+export function stuffBlock(b) {
+  const node = el(`<div class="b-stuff card" data-stuff="${esc(String(b.id || '').trim())}"></div>`);
+  node.block = b;
+  paintStuffBlock(node);
+  node.addEventListener('click', (e) => {
+    const it = all().find((x) => x.id === node.dataset.stuff);
+    if (!it || it.pending) return;
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'page') return openStuff();
+    if (a === 'go' || !e.target.closest('button, a')) openItem(it);
+  });
+  return node;
+}
+
+function paintStuffBlock(node) {
+  const b = node.block || {};
+  const it = all().find((x) => x.id === node.dataset.stuff);
+  const k = KIND[it?.kind || b.kind] || KIND.file;
+  const title = it?.title || b.title || 'Something in My Stuff';
+  const meta = it ? [k.one, it.files ? `${it.files} file${it.files === 1 ? '' : 's'}` : '', it.size ? fmtSize(it.size) : '', it.rev > 1 ? `v${it.rev}` : ''].filter(Boolean) : [S.stuff === null ? 'Loading…' : 'No longer in My Stuff'];
+  const pic = !it ? '' : it.kind === 'app' ? (it.cover ? `<img src="${coverUrl(it)}" alt="" loading="lazy">` : `<b class="sb-initial">${esc(title.trim()[0]?.toUpperCase() || '?')}</b>`) : it.kind === 'image' ? `<img src="${fileUrl(it)}" alt="" loading="lazy">` : icon(k.icon);
+  const go = !it ? '' : it.kind === 'app' ? `<button class="sb-go primary sm" data-a="go">${icon('play')}<span>${it.running?.port ? 'Open' : 'Launch'}</span></button>` : `<button class="sb-go ghost sm" data-a="go">${icon(it.kind === 'link' ? 'external' : 'expand')}<span>Open</span></button>`;
+  const html = `
+    <span class="sb-pic k-${esc(it?.kind || b.kind || 'file')}">${pic}${it?.kind === 'app' ? '<span class="sb-bar"><i></i><i></i><i></i></span>' : ''}</span>
+    <span class="sb-main">
+      <b>${esc(title)}</b>
+      <span class="sb-meta">${icon(k.icon)}${meta.map((m) => `<i>${esc(m)}</i>`).join('')}${it ? `<button class="link sb-page" data-a="page">In My Stuff</button>` : ''}</span>
+      ${b.note ? `<span class="sb-note">${esc(b.note)}</span>` : it?.excerpt && it.kind === 'app' ? `<span class="sb-note">${esc(it.excerpt)}</span>` : ''}
+    </span>
+    ${go}`;
+  node.classList.toggle('missing', !it);
+  node.classList.toggle('k-app', it?.kind === 'app');
+  setHtml(node, html);
+}
+
+const paintStuffBlocks = () => $$('.b-stuff[data-stuff]').forEach(paintStuffBlock);
 
 // A My Stuff chip in a sent prompt opens it.
 document.addEventListener('click', (e) => {
@@ -924,8 +1012,8 @@ function thumb(it) {
 // An app's main action, on its preview: Launch, or Open while it runs.
 const launchBtn = (it) =>
   it.running
-    ? `<button class="st-launch on" data-a="launch" title="It’s running: open it again">${it.running.port ? '<i class="st-dot"></i>' : ''}<span>${it.running.port ? 'Running' : 'Starting…'}</span>${icon('external')}</button>`
-    : `<button class="st-launch" data-a="launch" title="Launch it in a new tab">${icon('play')}<span>Launch</span></button>`;
+    ? `<button class="st-launch on" data-a="launch" title="It’s running: open it again">${it.running.port ? '<i class="st-dot"></i>' : ''}<span>${it.running.port ? 'Running' : 'Starting…'}</span>${icon('expand')}</button>`
+    : `<button class="st-launch" data-a="launch" title="Launch it in wisp">${icon('play')}<span>Launch</span></button>`;
 
 function thumbBody(it) {
   // An app: its picture (the agent's screenshot) in a window, else its initial and what it is.

@@ -104,6 +104,9 @@ Each rule saves the user a follow-up they would otherwise type:
 - {"type":"task","id":"8e64708d4b75","note":"…"}
   Another wisp task (from wisp_sessions or wisp_session) that you found or point to. wisp shows its title
   and state and the user opens it with a click. Use one per task instead of naming ids in prose.
+- {"type":"stuff","id":"0bac5acb43c9","note":"…"}
+  Something you saved or updated in the user's My Stuff (its id). An app shows with
+  Launch and opens inside wisp; the rest with Open. One per thing you saved this turn.
 - {"type":"question","question":"…","options":[{"label":"Short choice","reply":"full message sent back to you"}]}
   When you need a decision. The user's click resumes you with the reply.
 - {"type":"blocked","items":[{"tool":"shell","detail":"npm publish","why":"needs network access"}]}

@@ -308,3 +308,27 @@ test('a task launched with @-mentioned My Stuff: the agent’s prompt carries ea
   assert.ok(text.includes('<wisp-stuff>') && text.includes(it.path));
   assert.equal(srv.store.get(s.id).title.includes('stuff:'), false, 'titles read as people write');
 });
+
+test('the stuff block: the agent is told; what it saved this turn shows as a card even if it left it out', async () => {
+  const { SYSTEM_PROMPT } = await import('../server/protocol.js').then((m) => ({ SYSTEM_PROMPT: m.systemPrompt({ askTool: 'mcp__wisp__ask_user' }) }));
+  assert.match(SYSTEM_PROMPT, /"type":"stuff","id"/);
+  const { BUILTIN_BLOCKS, PARTS } = await import('../web/js/spell-schema.js');
+  assert.ok(BUILTIN_BLOCKS.includes('stuff') && PARTS['stuff.block'] && PARTS['stuff.frame']);
+  const { blocksToMarkdown } = await import('../server/render.js');
+  assert.match(blocksToMarkdown([{ type: 'stuff', id: 'abc', title: 'Flappy Bird', note: 'a game' }]), /📦 \*\*Flappy Bird\*\* \(My Stuff `abc`\) — a game/);
+
+  const s = await task('make a game');
+  const token = { 'x-wisp-token': srv.token };
+  const cwd = srv.store.get(s.id).cwd;
+  fs.mkdirSync(path.join(cwd, 'game'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, 'game', 'index.html'), '<title>Game</title>');
+  const out = await api('/internal/stuff', { session: s.id, app: 'game', title: 'Flappy Bird' }, 'POST', token);
+  const it = srv.stuff.list().find((x) => x.title === 'Flappy Bird');
+  assert.ok(out.text.includes(`{"type":"stuff","id":"${it.id}"}`), 'the reply tells the agent how to show it');
+  await api(`/sessions/${s.id}/reply`, { text: 'thanks' });
+  await until(async () => (await api(`/sessions/${s.id}`)).turns.length === 2 && !srv.runner.live.has(s.id));
+  const blocks = (await api(`/sessions/${s.id}`)).turns[1].presentation.blocks;
+  const card = blocks.find((b) => b.type === 'stuff');
+  assert.deepEqual({ id: card.id, title: card.title, kind: card.kind }, { id: it.id, title: 'Flappy Bird', kind: 'app' });
+  assert.equal(srv.store.get(s.id).savedStuff, undefined, 'one card, on that turn');
+});

@@ -353,6 +353,9 @@ export const PARTS = {
   // Another wisp task in a reply (the task block): the card, and its Open label.
   task: '.b-task',
   'task.open': '.b-task .tk-open',
+  'stuff.block': '.b-stuff', // something from My Stuff in an answer
+  'stuff.block.go': '.b-stuff .sb-go', // its Launch / Open
+  'stuff.frame': '.ap', // an app running inside wisp, over the page
   // An interactive block in an answer (an agent's or a spell's app) and its title row. Not the
   // strip that asks before sending what the app offers: that one always shows.
   'block.app': '.b-app',
@@ -525,7 +528,7 @@ export function wispPathProblem(p) {
 }
 
 // Built-in presentation blocks (a spell's agent block type can't reuse these names).
-export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'video', 'preview', 'doc', 'task', 'question', 'blocked', 'actions', 'next', 'spell', 'app'];
+export const BUILTIN_BLOCKS = ['hero', 'markdown', 'steps', 'stats', 'files', 'diff', 'tests', 'commits', 'graph', 'tree', 'code', 'compare', 'flow', 'chart', 'terminal', 'checklist', 'callout', 'image', 'video', 'preview', 'doc', 'task', 'question', 'blocked', 'actions', 'next', 'spell', 'app', 'stuff'];
 
 // {field} templates over a context object (dotted paths): "PR #{pr.number}". Missing → ''.
 export function fillTemplate(tpl, ctx = {}) {
