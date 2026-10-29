@@ -255,6 +255,10 @@ export function openapi({ version, port }) {
         get: { summary: 'Your crew: long-lived agents with a name, role, avatar, brief, schedule and memory (notebook, log). Their work runs as tasks (jobs, `crew` on a session summary); running counts jobs now, nextAt is the next check-in', responses: { 200: json({ type: 'array', items: ref('CrewMember') }) } },
         post: { summary: 'Add a crew member. checkin: true starts its first check-in at once', requestBody: body(ref('CrewMember')), responses: { 201: json(ref('CrewMember')), 400: err[400] } },
       },
+      '/crew-layout': {
+        get: { summary: 'Where each crew member sits on the Org page: { [id]: { x, y } } (x from the chart’s middle, y from its top, px). Empty: laid out automatically', responses: { 200: json({ type: 'object', additionalProperties: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } } } }) } },
+        put: { summary: 'Replace the Org page layout. Members left out are placed automatically; {} goes back to the automatic layout', requestBody: body({ type: 'object', required: ['layout'], properties: { layout: { type: 'object', additionalProperties: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } } } } } }), responses: { 200: json({ type: 'object' }), 400: err[400] } },
+      },
       '/crew-kit': {
         get: {
           summary: 'Skills (SKILL.md folders in ~/.claude/skills, ~/.agents/skills, …) and instructions files (~/.claude/CLAUDE.md, ~/.codex/AGENTS.md, …) on this computer, to add to a crew member’s kit. cwd: a project’s too',

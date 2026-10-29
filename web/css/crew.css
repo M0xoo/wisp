@@ -810,6 +810,14 @@ body.stack .org-hint { min-height: calc(2.9em + 12px); }
 .org-card.locked .org-port { display: none; }
 @media (pointer: coarse) { .org-port { display: none; } }
 .org-view.dragging, .org-view.dragging .org-card { cursor: crosshair; }
+/* placed by hand (org.js placeFree): the chart takes the pane's width, each card at its spot */
+.org-graph.free { max-width: none; }
+.org-free { position: relative; display: block; align-self: flex-start; width: 100%; }
+.org-free > .org-card { position: absolute; }
+.org-card.lifted { z-index: 2; border-color: var(--line-2); box-shadow: var(--shadow-2); }
+.org-view.moving, .org-view.moving .org-card { cursor: grabbing; }
+/* on touch a selected card moves under the finger instead of scrolling the page */
+@media (pointer: coarse) { .org-view.movable .org-card.sel { touch-action: none; } }
 .org-card.drop.ok { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-1); }
 .org-card.drop.no { opacity: 0.6; }
 

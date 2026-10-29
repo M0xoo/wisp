@@ -465,6 +465,16 @@ test('a member has delegates of its own, other crew members too, but never itsel
   await api(`/crew/${bo.id}`, null, 'DELETE');
 });
 
+test('the Org page layout: where each member sits, for members that exist, refused when malformed', async () => {
+  assert.deepEqual(await api('/crew-layout'), {});
+  const out = await api('/crew-layout', { layout: { [ada.id]: { x: -120.4, y: 30.6 }, gone: { x: 1, y: 1 } } }, 'PUT');
+  assert.deepEqual(out, { [ada.id]: { x: -120, y: 31 } }, 'rounded; a member not on the crew is dropped');
+  assert.deepEqual(await api('/crew-layout'), out);
+  await assert.rejects(api('/crew-layout', { layout: { [ada.id]: { x: 'a', y: 0 } } }, 'PUT'), (e) => e.status === 400 && /Ada/.test(e.message));
+  await assert.rejects(api('/crew-layout', { layout: [] }, 'PUT'), (e) => e.status === 400);
+  assert.deepEqual(await api('/crew-layout', { layout: {} }, 'PUT'), {}, 'back to the automatic layout');
+});
+
 test('a trigger sends its work to a crew member', async () => {
   const t = await api('/triggers', { kind: 'schedule', cron: '0 0 1 1 *', crew: ada.id, prompt: 'Weekly dependency check' });
   assert.equal(t.cwd, repo, 'the member’s folder');

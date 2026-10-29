@@ -41,6 +41,28 @@ export function register(r, app) {
   // Skills and instructions files on this computer, to add to a member's kit (cwd: its project's too).
   r.route('GET', '/crew-kit', (c) => c.send(200, localKit({ home: os.homedir(), cwd: c.query.get('cwd') || '' })));
   r.route('GET', '/crew', (c) => c.send(200, crew.list.map((m) => crew.view(m))));
+  // Where you put each member on the Org page (web/js/features/org.js): { [id]: { x, y } }, x from
+  // the chart's middle, y from its top, in px. Empty: the chart lays itself out.
+  const layout = () => {
+    const ids = new Set(crew.list.map((m) => m.id));
+    return Object.fromEntries(Object.entries(store.config.crewLayout || {}).filter(([id]) => ids.has(id)));
+  };
+  r.route('GET', '/crew-layout', (c) => c.send(200, layout()));
+  r.route('PUT', '/crew-layout', async (c) => {
+    const body = await c.body();
+    const raw = body?.layout;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw bad('layout must be { [member id]: { x, y } }.');
+    const out = {};
+    for (const m of crew.list) {
+      const p = raw[m.id];
+      if (p === undefined) continue;
+      if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) throw bad(`Where ${m.name} sits needs a number x and y.`);
+      out[m.id] = { x: Math.round(Math.min(20000, Math.max(-20000, p.x))), y: Math.round(Math.min(20000, Math.max(0, p.y))) };
+    }
+    store.config.crewLayout = out;
+    store.saveConfig();
+    c.send(200, out);
+  });
   // checkin: true starts a first check-in right away (so a new member shows what it does).
   r.route('POST', '/crew', async (c) => {
     const body = await c.body();

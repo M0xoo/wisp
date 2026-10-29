@@ -281,6 +281,11 @@ test('Org: its button, page, chart, cards and details are parts; its header take
   assert.ok(problems({ ...base0, parts: { 'org.nope': { hide: true } } }).some((x) => /org\.nope/.test(x)));
 });
 
+test('Org: moving cards by hand can be turned off, and Reset layout is a part', () => {
+  assert.deepEqual(problems({ ...base0, parts: { 'org.chart': { props: { movable: false } }, 'org.reset': { hide: true } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'org.chart': { props: { movable: 'no' } } } }).some((x) => /movable/.test(x)));
+});
+
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,

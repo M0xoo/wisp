@@ -11,20 +11,26 @@
 // who it hands work to and gets work from, each with a ×, and adds agents on any harness.
 // Every change is one optimistic PATCH of the member's team (patchMember rolls back with a toast).
 //
+// Cards can be moved anywhere: drag one with a mouse (on touch, select it, then drag it), or the
+// arrow keys on a focused card. The first move pins every card where it was, and from then on the
+// chart is yours (GET/PUT /api/crew-layout, the same on every device) until Reset layout; a member
+// added later goes under the rest. Placed by hand, arrows take the short way between cards.
+//
 // Spells reach it through spell-schema.js: the org.head slot, the crew.org, org.* parts.
 
 import { esc } from '../md.js';
 import { $, $$, beforePaint, el, icon } from '../core/dom.js';
+import { api } from '../core/api.js';
 import { load, S, save } from '../core/state.js';
 import { popover } from '../ui/popover.js';
-import { toast } from '../ui/toast.js';
+import { toast, toastError } from '../ui/toast.js';
 import { collapse, renderFeed } from './feed.js';
 import { goBack, isSplit, isStacked, splitOpen } from './split.js';
 import { avatarHtml, crewEditor, crewHooks, crewList, leaveCrew, memberById, memberMenu, memberState, openMember, patchMember, rankCrew, statusLine } from './crew.js';
 import { agentName, harnessLogo } from './runners.js';
 import { memberLabel, teamEditor } from './team.js';
 import { placeName } from './places.js';
-import { slotHtml } from './spells.js';
+import { slotHtml, spellProp } from './spells.js';
 
 const MAX_TEAM = 6; // a member's delegates (rows), as the server allows
 const MAX_INSTANCES = 12; // parallel copies across them
@@ -34,6 +40,20 @@ S.orgOpen = load('wisp.orgOpen', false);
 let sel = load('wisp.orgSel', null); // the member whose delegates the chart is picking
 let drag = null; // { from, x, y, over }: a link being drawn from a card's handle
 let view = null;
+let layout = load('wisp.orgLayout', {}); // { [id]: { x, y } }: where you put each member (last seen; the server has it)
+let move = null; // a card being moved: { id, card, x0, y0, left, top, on }
+let moved = false; // the click that ends a move doesn't select
+let freeShift = 0; // px from the chart's left edge to x = 0 of the layout
+let shiftW = 0; // the chart's width freeShift was found for
+const GAP = 18; // between cards placed in a row (the tiers' gap)
+
+const setLayout = (next) => {
+  layout = next || {};
+  save('wisp.orgLayout', layout);
+};
+// Moving is on unless a spell turns it off (org.chart movable: false), which keeps the tiers.
+const movable = () => spellProp('org.chart', 'movable') !== false;
+const free = () => movable() && crewList().some((m) => layout[m.id]);
 
 const setSel = (id) => {
   sel = id;
@@ -50,6 +70,7 @@ export function openOrg(id = null) {
   for (const id of [...S.open]) collapse(id);
   S.orgOpen = true;
   save('wisp.orgOpen', true);
+  fetchLayout();
   renderFeed(); // the list's selection, then the pane (paintSplit → paintOrg)
   requestAnimationFrame(() => $('.org-view .org-chart')?.focus({ preventScroll: true }));
 }
@@ -58,6 +79,19 @@ export function leaveOrg() {
   if (!S.orgOpen) return;
   S.orgOpen = false;
   save('wisp.orgOpen', false);
+}
+
+// The layout as last seen paints at once; the server's (moved on another device) follows.
+let fetched = false;
+function fetchLayout() {
+  fetched = true;
+  api('/crew-layout')
+    .then((l) => {
+      if (move || JSON.stringify(l) === JSON.stringify(layout)) return;
+      setLayout(l);
+      paintOrg();
+    })
+    .catch(() => {});
 }
 
 // Shown while nothing else has the pane: opening a task or a member closes it.
@@ -129,7 +163,7 @@ function build() {
       </div>
     </section>`);
   const graphBox = $('.org-graph', node);
-  new ResizeObserver(() => beforePaint(drawEdges)).observe(graphBox);
+  new ResizeObserver(() => beforePaint(relayout)).observe(graphBox);
   node.addEventListener('click', onClick);
   node.addEventListener('dblclick', (e) => {
     const card = e.target.closest('.org-card');
@@ -156,6 +190,7 @@ export function paintOrg() {
     return;
   }
   view ||= build();
+  if (!fetched) fetchLayout();
   const { node } = view;
   if (node.parentNode !== $('#splitMain')) $('#splitMain').append(node);
   node.hidden = false;
@@ -164,6 +199,8 @@ export function paintOrg() {
   const g = graph(list);
   paintWide();
   node.classList.toggle('picking', !!sel);
+  node.classList.toggle('movable', movable());
+  $('.org-graph', node).classList.toggle('free', free());
   paintTop(list, g);
   paintHint();
   paintTiers(list, g);
@@ -191,6 +228,7 @@ function paintTop(list, g) {
     <span class="cv-state">${esc(sub)}</span>
     <span class="sh-acts">
       ${slotHtml('org.head', null)}
+      ${free() ? `<button class="ghost sm org-reset" data-a="tidy" title="Put everyone back in tiers, the way the chart lays itself out">${icon('rerun')}<span>Reset layout</span></button>` : ''}
       <button class="ghost sm" data-a="add" title="Add a crew member">${icon('plus')}<span>Add member</span></button>
       ${stacked ? '' : `<button class="icon-btn" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}
     </span>`;
@@ -208,7 +246,7 @@ function paintHint() {
         ? `The “${esc(m.spell.name)}” spell sets who <b>${esc(m.name)}</b> hands work to.`
         : `Choosing <b>${esc(m.name)}</b>’s delegates: ${icon('plus')} adds a member, ${icon('check')} takes them off${(m.team || []).length < MAX_TEAM ? ` · <button class="link xs" data-a="add-to">Add a delegate…</button>` : ''}${touch ? '' : ' · Esc when done'}`
       : crewList().length
-        ? `Arrows go from a member to their delegates. Select one to change who they hand work to${touch ? '' : ', or drag from one’s handle onto another'}.`
+        ? `Arrows go from a member to their delegates. Select one to change who they hand work to${movable() ? (touch ? ', then drag it to move it' : '. Drag a card to move it, or from its handle onto another to link them') : touch ? '' : ', or drag from one’s handle onto another'}.`
         : '';
   const hint = $('.org-hint', view.node);
   if (hint.dataset.h !== text) (hint.innerHTML = `<span>${text}</span>`), (hint.dataset.h = text);
@@ -238,8 +276,9 @@ function paintTiers(list, g) {
   const ranked = rankCrew(list);
   const rows = tiers(ranked, g);
   const alone = ranked.filter((m) => !g.out.get(m.id).length && !g.inc.get(m.id).length);
-  const want = rows.map((row, i) => ({ key: `t${i}`, list: row }));
-  if (alone.length) want.push({ key: 'alone', list: alone });
+  // Placed by hand: one box, each card where you put it (placeFree).
+  const want = free() ? [{ key: 'free', list: ranked }] : rows.map((row, i) => ({ key: `t${i}`, list: row }));
+  if (alone.length && !free()) want.push({ key: 'alone', list: alone });
   if (!list.length) want.push({ key: 'empty', list: [] });
   const picks = new Set(sel ? g.out.get(sel) || [] : []);
   const near = new Set(sel ? [sel, ...picks, ...(g.inc.get(sel) || [])] : []);
@@ -252,6 +291,7 @@ function paintTiers(list, g) {
       box.insertBefore(tier, box.children[i] || null);
     }
     const row = $('.org-row-cards', tier) || tier;
+    const key = w.key;
     w.list.forEach((m, j) => {
       let card = cards.get(m.id);
       if (!card) {
@@ -274,6 +314,7 @@ function paintTiers(list, g) {
       card.classList.toggle('locked', !!m.spell);
       card.setAttribute('aria-pressed', m.id === sel);
       card.title = m.id === sel ? `${m.name}: double-click to open their thread` : `${m.name}${m.role ? ` · ${m.role}` : ''}: select to choose their delegates`;
+      if (key !== 'free') card.style.left = card.style.top = '';
       const pick = $('.org-pick', card);
       pick.hidden = !canPick;
       if (canPick) {
@@ -292,6 +333,44 @@ function paintTiers(list, g) {
     while (row.children.length > w.list.length) row.lastElementChild.remove();
   });
   while (box.children.length > want.length) box.lastElementChild.remove();
+  placeFree();
+}
+
+// Cards placed by hand, each at its spot (x from the chart's middle). Members not placed yet go in
+// rows under the rest. Nothing is cut off on the left: on a pane too narrow for the middle to stay
+// put, the whole starts at the left edge and scrolls sideways.
+function placeFree() {
+  const box = view && $('.org-free', view.node);
+  if (!box) return (shiftW = 0);
+  const cards = $$(':scope > .org-card', box);
+  if (!cards.length) return;
+  const W = box.parentNode.clientWidth; // the chart's, not the box's (which grows to scroll)
+  const cw = cards[0].offsetWidth;
+  const ch = cards[0].offsetHeight;
+  const at = new Map(cards.filter((c) => layout[c.dataset.m]).map((c) => [c.dataset.m, layout[c.dataset.m]]));
+  const rest = cards.filter((c) => !at.has(c.dataset.m));
+  if (rest.length) {
+    const y0 = at.size ? Math.max(...[...at.values()].map((p) => p.y)) + ch + 40 : 0;
+    const per = Math.max(1, Math.floor((W + GAP) / (cw + GAP)));
+    rest.forEach((c, i) => {
+      const n = Math.min(per, rest.length - Math.floor(i / per) * per);
+      at.set(c.dataset.m, { x: -(n * cw + (n - 1) * GAP) / 2 + (i % per) * (cw + GAP), y: y0 + Math.floor(i / per) * (ch + 22) });
+    });
+  }
+  const xs = [...at.values()].map((p) => p.x);
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs) + cw;
+  // Held while the width stays, so moving the leftmost card doesn't slide the rest along.
+  freeShift = W === shiftW ? Math.max(freeShift, -lo) : Math.max(W / 2, -lo);
+  shiftW = W;
+  box.style.minWidth = hi + freeShift > W ? `${hi + freeShift}px` : '';
+  for (const c of cards) {
+    if (move?.card === c) continue;
+    const p = at.get(c.dataset.m);
+    c.style.left = `${Math.round(p.x + freeShift)}px`;
+    c.style.top = `${Math.round(p.y)}px`;
+  }
+  box.style.height = `${Math.max(...[...at.values()].map((p) => p.y), move ? move.top : 0) + ch}px`;
 }
 
 function tierNode(key) {
@@ -300,6 +379,7 @@ function tierNode(key) {
         <p><b>No crew yet.</b> Add someone, then give them delegates: other crew members, or agents on any harness, that their jobs can hand work to.</p>
         <button class="primary sm" data-a="add">${icon('plus')}Add a crew member</button>
       </div>`);
+  if (key === 'free') return el(`<div class="org-tier org-free" data-key="free"></div>`);
   if (key === 'alone')
     return el(`<div class="org-tier org-alone" data-key="alone"><h5>Not connected</h5><div class="org-row-cards"></div></div>`);
   return el(`<div class="org-tier" data-key="${key}"></div>`);
@@ -363,6 +443,25 @@ function route(a, b, all) {
   }
   return rounded(pts);
 }
+// Placed by hand: the short way, out of the side facing the delegate and into the side facing back,
+// with one bend in the middle.
+function freeRoute(a, b) {
+  if (b.top > a.bottom + 16) {
+    const gy = (a.bottom + b.top) / 2;
+    return rounded([[a.x, a.bottom], [a.x, gy], [b.x, gy], [b.x, b.top - 2]]);
+  }
+  if (b.bottom < a.top - 16) {
+    const gy = (b.bottom + a.top) / 2;
+    return rounded([[a.x, a.top], [a.x, gy], [b.x, gy], [b.x, b.bottom + 2]]);
+  }
+  const right = b.x >= a.x;
+  const ax = right ? a.right : a.left;
+  const bx = right ? b.left - 2 : b.right + 2;
+  const ay = (a.top + a.bottom) / 2;
+  const by = (b.top + b.bottom) / 2;
+  const gx = (ax + bx) / 2;
+  return rounded([[ax, ay], [gx, ay], [gx, by], [bx, by]]);
+}
 function rounded(raw, r = 8) {
   const pts = raw.filter((p, i) => !i || Math.abs(p[0] - raw[i - 1][0]) + Math.abs(p[1] - raw[i - 1][1]) > 0.5);
   let d = `M${pts[0][0]} ${pts[0][1]}`;
@@ -391,12 +490,13 @@ function drawEdges() {
   const rel = (r) => ({ left: r.left - box.left, right: r.right - box.left, top: r.top - box.top, bottom: r.bottom - box.top });
   const at = new Map($$('.org-card', g).map((c) => [c.dataset.m, rel(c.getBoundingClientRect())]));
   const all = rows([...at.values()]);
-  const pos = (r) => ({ x: (r.left + r.right) / 2, top: r.top, bottom: r.bottom });
+  const pos = (r) => ({ x: (r.left + r.right) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+  const byHand = free();
   const paths = [];
   for (const m of crewList())
     for (const t of m.team || []) {
       if (!t.crew || !at.has(m.id) || !at.has(t.crew) || t.crew === m.id) continue;
-      const d = route(pos(at.get(m.id)), pos(at.get(t.crew)), all);
+      const d = (byHand ? freeRoute : route)(pos(at.get(m.id)), pos(at.get(t.crew)), all);
       const on = sel && (m.id === sel || t.crew === sel);
       // A member on another machine: its jobs there can't reach the crew here (server/crew.js #teamFor).
       const off = !!m.machine;
@@ -411,6 +511,11 @@ function drawEdges() {
   svg.setAttribute('width', g.scrollWidth);
   svg.setAttribute('height', g.scrollHeight);
   if (svg.dataset.h !== html) (svg.innerHTML = html), (svg.dataset.h = html);
+}
+
+function relayout() {
+  placeFree();
+  drawEdges();
 }
 
 // --- the details column -------------------------------------------------------------------------------
@@ -541,10 +646,12 @@ function select(id) {
 }
 
 function onClick(e) {
+  if (moved) return (moved = false);
   const a = e.target.closest('[data-a]')?.dataset.a;
   const m = sel && memberById(sel);
   if (a === 'close') return goBack({ focus: true });
   if (a === 'add') return crewEditor();
+  if (a === 'tidy') return resetLayout();
   if (m && a === 'open') return openFrom(m.id);
   if (m && a === 'edit') return crewEditor({ member: m });
   if (m && a === 'more') return memberMenu(m.id, { anchor: e.target.closest('[data-a]') });
@@ -585,8 +692,25 @@ export function orgEscape() {
   return true;
 }
 
+const STEP = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
 function onKey(e) {
   const card = e.target.closest('.org-card');
+  // Arrows move the focused card (Shift: further), saved once they stop.
+  if (card && e.target === card && STEP[e.key] && movable() && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    e.preventDefault();
+    const next = pinned();
+    const p = next[card.dataset.m];
+    const k = e.shiftKey ? 40 : 8;
+    const W = $('.org-tiers', view.node).clientWidth;
+    const x = Math.max(-freeShift, Math.min(p.x + STEP[e.key][0] * k, Math.max(p.x, W - freeShift - card.offsetWidth)));
+    next[card.dataset.m] = { x, y: Math.max(0, p.y + STEP[e.key][1] * k) };
+    setLayout(next);
+    paintOrg();
+    if (document.activeElement !== card) card.focus({ preventScroll: true }); // moved into the free box
+    clearTimeout(onKey.t);
+    onKey.t = setTimeout(() => saveLayout(layout, keyBefore), 500);
+    return;
+  }
   if (card && e.target === card && (e.key === 'Enter' || e.key === ' ')) {
     e.preventDefault();
     if (sel && sel !== card.dataset.m && card.classList.contains('can-pick')) return $('.org-pick', card).click();
@@ -594,10 +718,121 @@ function onKey(e) {
   }
 }
 
+// Where every card sits now, as a layout: the one placed by hand, or the tiers' spots pinned (the
+// first move keeps everyone else where they were).
+let keyBefore = null; // the layout before a run of arrow keys, to roll back to
+function pinned() {
+  if (!onKey.t) keyBefore = layout;
+  if (free()) {
+    const out = { ...layout };
+    for (const c of $$('.org-free > .org-card', view.node)) out[c.dataset.m] ||= { x: parseFloat(c.style.left) - freeShift, y: parseFloat(c.style.top) };
+    return out;
+  }
+  const g = $('.org-graph', view.node).getBoundingClientRect();
+  const out = {};
+  for (const c of $$('.org-card', view.node)) {
+    const r = c.getBoundingClientRect();
+    out[c.dataset.m] = { x: Math.round(r.left - g.left - g.width / 2), y: Math.round(r.top - g.top) };
+  }
+  return out;
+}
+
+// Every card as it sits on screen now, as a layout. over: a card's spot while moving.
+function where(over = {}) {
+  const out = {};
+  for (const c of $$('.org-free > .org-card', view.node)) {
+    const p = over[c.dataset.m] || { left: parseFloat(c.style.left), top: parseFloat(c.style.top) };
+    out[c.dataset.m] = { x: Math.round(p.left - freeShift), y: Math.round(p.top) };
+  }
+  return out;
+}
+
+// Optimistic: the chart shows it at once and goes back with a toast if the server refuses.
+async function saveLayout(next, before = layout) {
+  onKey.t = null;
+  if (next !== layout) {
+    setLayout(next);
+    paintOrg();
+  }
+  try {
+    const out = await api('/crew-layout', { method: 'PUT', body: { layout: next } });
+    if (layout === next) setLayout(out);
+  } catch (err) {
+    if (layout === next) {
+      setLayout(before);
+      paintOrg();
+    }
+    toastError(err);
+  }
+}
+
+function resetLayout() {
+  const before = layout;
+  saveLayout({}, before);
+  toast('Back to the automatic layout', { action: { label: 'Undo', run: () => saveLayout(before, {}) } });
+}
+
+// A card dragged to a new spot: with a mouse from anywhere on it, on touch once it's selected (so a
+// swipe elsewhere still scrolls). It follows the pointer, arrows and all, and is saved on release.
+function onCardDown(e) {
+  const card = e.target.closest('.org-card');
+  if (!card || e.button !== 0 || !movable() || e.target.closest('button, .org-port')) return;
+  if (e.pointerType === 'touch' && !card.classList.contains('sel')) return;
+  const id = card.dataset.m;
+  const x0 = e.clientX;
+  const y0 = e.clientY;
+  const go = (ev) => {
+    if (!move) {
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+      const before = layout;
+      setLayout(pinned());
+      paintOrg(); // into the free box, if it wasn't yet
+      move = { id, card, before, left: parseFloat(card.style.left), top: parseFloat(card.style.top) };
+      move.l0 = move.left;
+      move.room = Math.max(move.left, card.parentNode.parentNode.clientWidth - card.offsetWidth);
+      move.t0 = move.top;
+      view.node.classList.add('moving');
+      card.classList.add('lifted');
+      getSelection()?.removeAllRanges();
+    }
+    ev.preventDefault();
+    // Kept inside the chart's width (it grows downwards, not sideways).
+    move.left = Math.max(0, Math.min(move.l0 + ev.clientX - x0, move.room));
+    move.top = Math.max(0, move.t0 + ev.clientY - y0);
+    card.style.left = `${move.left}px`;
+    card.style.top = `${move.top}px`;
+    const box = card.parentNode;
+    if (move.top + card.offsetHeight > box.offsetHeight) box.style.height = `${move.top + card.offsetHeight}px`;
+    beforePaint(drawEdges);
+  };
+  const end = (ev) => {
+    removeEventListener('pointermove', go);
+    removeEventListener('pointerup', end);
+    removeEventListener('pointercancel', end);
+    if (!move) return;
+    const m = move;
+    move = null;
+    view.node.classList.remove('moving');
+    card.classList.remove('lifted');
+    if (ev.type === 'pointerup') {
+      moved = true;
+      setTimeout(() => (moved = false));
+      saveLayout(where({ [id]: { left: m.left, top: m.top } }), m.before);
+    } else {
+      setLayout(m.before);
+      paintOrg();
+    }
+  };
+  addEventListener('pointermove', go, { passive: false });
+  addEventListener('pointerup', end);
+  addEventListener('pointercancel', end);
+}
+
 // Drag from a card's handle onto another card: a link, drawn as it goes.
 function onPointerDown(e) {
   const port = e.target.closest('.org-port');
-  if (!port || e.button !== 0) return;
+  if (!port) return onCardDown(e);
+  if (e.button !== 0) return;
   const from = port.closest('.org-card').dataset.m;
   if (memberById(from)?.spell) return;
   e.preventDefault();
