@@ -21,6 +21,7 @@ import { ptySupported } from '../pty.js';
 import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
 import { APP_MAX_STATE } from '../../web/js/app-doc.js';
+import { watchDoc } from '../watch.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -581,6 +582,13 @@ export function register(r, app) {
       store.save(s);
       c.send(200, { ok: true });
     }),
+  );
+
+  // Watch: the page its agent keeps beside it and where it stands (server/watch.js).
+  r.route(
+    'GET',
+    '/sessions/:id/watch',
+    one((c, s) => (s.watch ? c.send(200, watchDoc(s)) : c.send(404, { error: 'nothing to watch on this task' }))),
   );
 
   // Take over: continue this exact agent session interactively in a terminal. GET: the command.

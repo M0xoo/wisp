@@ -278,16 +278,40 @@ place.
 - The shimmer and the running checks' clock already have `prefers-reduced-motion` rules. Add one
   for anything new that loops.
 
+## Watch
+
+The page an agent keeps beside its task while it works (`wisp_watch`, `server/watch.js`,
+`web/js/features/watch.js`). The agent writes the page and sends it its progress; wisp shows it.
+
+- **Opens by itself** when the agent puts a page up on the task you're looking at (split view, not
+  stacked), unless the panel shows that task's shell: you're typing there. Otherwise its doors are
+  the task's **Watch** button (`i-eye`, in the action row after Shell, pressed while it shows; also
+  in the pinned mini row), **Watch** in the working card next to Stop, *More*, right-click and ⌘K.
+  None of them show before there's a page.
+- **Head:** `i-eye` and the page's title. No place line: it's about the page, not the folder.
+- **Caption line** (32px): a green dot pulsing while the task runs, then what the agent says it's
+  doing (*Converting cart.js*). Done: `i-done` and its last caption (*All 6 files converted*), or
+  *Finished*. Stopped without closing: `i-pause` *Stopped*.
+- **The page** fills the rest, on `--bg`, sealed (`sandbox="allow-scripts"`, no network beyond https
+  scripts, styles and fonts; `web/js/watch-doc.js`), in wisp's theme through its CSS variables, and
+  follows light and dark without reloading. A new state is posted into it: it never reloads for one,
+  so nothing flashes. Only a new page (`rev`) reloads it. Loading, a placeholder in its shapes.
+- **Run it yourself** (only when the agent gave one): the command in a mono box, a copy button that
+  copies `cd <folder> && <command>`, and the agent's note under it. `--bg-2`, 1px `--line` on top.
+- **Phones:** a page over the task with Back, never pushed by itself: the working card's **Watch**
+  is the way in. Copy is 40px.
+
 ## Spells
 
 - `SLOTS`: `panel.head`, buttons in its head. It acts on the task, so it also goes in
   `CARD_SLOTS` and `BUTTON_SLOTS`.
 - `PARTS`: `panel`, `panel.tabs` (its title now; the name is kept so spells keep working), `panel.place`, `panel.shell`, `panel.pr`, `panel.checks`,
-  `panel.conversation`, `panel.files`. The verdict and Merge stay out of `PARTS`: a spell can't hide
+  `panel.conversation`, `panel.files`, `panel.watch`, `watch.caption`, `watch.run`, `split.watch`. The verdict and Merge stay out of `PARTS`: a spell can't hide
   what decides a merge.
-- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`shell` | `pr`), `panel.pr.bots` (`bool`: show bot
+- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`shell` | `pr` | `watch`), `panel.pr.bots` (`bool`: show bot
   comments unfolded).
-- `ICONS`: `panel`.
+- `ICONS`: `panel`, `eye`.
+- `SETTINGS`: `watch` (`on` | `off`): agents are offered `wisp_watch`.
 
 ## v1 / later
 

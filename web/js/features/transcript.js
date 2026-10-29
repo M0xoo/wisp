@@ -7,7 +7,7 @@ import { esc, md } from '../md.js';
 import { $, el, icon } from '../core/dom.js';
 import { load, S, save } from '../core/state.js';
 
-export const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock', account: 'clock' };
+export const KIND_ICON = { check: 'check', read: 'read', edit: 'pen', run: 'terminal', search: 'search', web: 'web', agent: 'agent', plan: 'plan', tool: 'tool', text: 'text', error: 'warn', ask: 'ask', answer: 'check', wait: 'ask', background: 'clock', account: 'clock', watch: 'eye' };
 
 // --- which view a card shows ---------------------------------------------------
 

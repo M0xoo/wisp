@@ -366,6 +366,21 @@ if (fixup) {
 const FAKE_SPELL = process.env.FAKE_SPELL ? JSON.parse(fs.readFileSync(process.env.FAKE_SPELL, 'utf8')) : { wispSpell: 1, id: 'fake-hello', name: 'Fake hello', prompt: ['Say hello first.'] };
 const ask = async () => {
   const srv = injectedMcp();
+  // WATCH: a progress page beside the task through wisp_watch, a state per file, then closed.
+  // FAKE_WATCH_STEP: ms between files (slow it down to look at it in the page).
+  if (stdin.includes('WATCH') && srv) {
+    const files = ['auth.js', 'billing.js', 'cart.js', 'search.js', 'users.js', 'api.js'];
+    const step = Number(process.env.FAKE_WATCH_STEP || 20);
+    const html = `<style>h1{font:600 15px var(--sans);margin:0 0 4px}p{color:var(--muted);margin:0 0 14px}.bar{height:8px;border-radius:99px;background:var(--bg-2);overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}ul{list-style:none;padding:0;margin:14px 0 0}li{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--line);font:12.5px var(--mono)}li b{margin-left:auto;font:500 12px var(--sans);color:var(--muted)}li.done b{color:var(--good)}li.now b{color:var(--accent)}</style><h1>TypeScript migration</h1><p id="n"></p><div class="bar"><i id="bar"></i></div><ul id="list"></ul><script>wisp.on('state',(s)=>{n.textContent=s.done+' of '+s.files.length+' files';bar.style.width=(100*s.done/s.files.length)+'%';list.innerHTML=s.files.map((f,i)=>'<li class="'+(i<s.done?'done':i===s.done?'now':'')+'">'+f+'<b>'+(i<s.done?'converted':i===s.done?'converting':'waiting')+'</b></li>').join('')})</script>`;
+    const opened = await mcpCall(srv, 'wisp_watch', { action: 'open', title: 'TS migration', html, state: { done: 0, files }, caption: 'Reading the project', run: { command: 'npx tsc --noEmit', cwd: '.', note: 'Type-checks what is converted so far' } });
+    if (!opened) return 'no wisp_watch';
+    for (let i = 1; i <= files.length; i++) {
+      await new Promise((r) => setTimeout(r, step));
+      await mcpCall(srv, 'wisp_watch', { action: 'state', state: { done: i, files }, caption: i < files.length ? `Converting ${files[i]}` : 'Type-checking' });
+    }
+    await mcpCall(srv, 'wisp_watch', { action: 'close', caption: `All ${files.length} files converted` });
+    return `watched: ${opened.split(':')[0]}`;
+  }
   if (stdin.includes('CAST') && srv) {
     const schema = await mcpCall(srv, 'wisp_spell_schema', {});
     const check = await mcpCall(srv, 'wisp_spell_check', { spell: FAKE_SPELL });

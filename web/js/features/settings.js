@@ -118,6 +118,7 @@ export function openSettings(opts) {
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
             ${row('Auto-fix PR conflicts', 'Without waiting for a click on Fix conflicts: when a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
             ${row('Read times in prompts', 'A prompt that starts with a time (“in 5 min …”, “tomorrow at 9 …”) or says “remind me … in 1 hour” is scheduled for then. A chip under the box shows the time before you send', '<button class="switch" id="readTimes" role="switch"></button>')}
+            ${row('Watch agents work', 'On long tasks, agents may put a page beside the task that shows their progress as they go, and keep it current. It opens in the side panel', '<button class="switch" id="watchOn" role="switch"></button>')}
             ${row('Interactive answers', 'Agents may answer with a small page you use in place, like a slider with a live preview or a list to pick from. It runs sandboxed, with no network, and sends nothing until you click Send', '<button class="switch" id="appsOn" role="switch"></button>')}
           </div>
           <div class="sx-group">
@@ -555,6 +556,19 @@ export function openSettings(opts) {
     }
   };
   paintRt();
+  const wo = $('#watchOn', node);
+  const paintWo = () => wo.setAttribute('aria-checked', S.config.defaults.watch !== 'off');
+  wo.onclick = async () => {
+    const was = S.config.defaults.watch;
+    S.config.defaults.watch = was === 'off' ? 'on' : 'off';
+    paintWo();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { watch: S.config.defaults.watch } } }));
+    if (!saved) {
+      S.config.defaults.watch = was;
+      paintWo();
+    }
+  };
+  paintWo();
   const ap = $('#appsOn', node);
   const paintAp = () => ap.setAttribute('aria-checked', S.config.defaults.apps !== 'off');
   ap.onclick = async () => {
@@ -683,7 +697,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', limitHold: '.hold-seg' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', limitHold: '.hold-seg' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

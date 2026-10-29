@@ -13,6 +13,7 @@ import { stuffDetail, stuffLine } from '../services/stuff.js';
 import { delegationReport } from '../subagents.js';
 import { toolStats, toolStatsText } from '../usage.js';
 import { clip } from '../util.js';
+import { applyWatch } from '../watch.js';
 import { EDIT_FIELDS, memberDetail, memberLine } from '../crew-tools.js';
 import { applyImport, parseCrewFile, planImport } from '../crew-share.js';
 import { fetchShared } from './spells.js';
@@ -89,6 +90,31 @@ export function register(r, app) {
       if (!was.length) telemetry.track('wisp_tag', { agent: s.agent, tags: tags.length });
       const cut = Array.isArray(body.tags) && body.tags.length > MAX_TAGS ? ` (only the first ${MAX_TAGS} are kept)` : '';
       c.send(200, { text: `Tagged: ${tags.map((t) => `#${t}`).join(' ')}${cut}. Call wisp_tag again only if the work moves to another topic; it replaces these.` });
+    }),
+    opts,
+  );
+
+  // wisp_watch: a page beside the task the agent keeps updating while it works (server/watch.js).
+  // A subagent's goes on its lead's task, where the user looks.
+  r.route(
+    'POST',
+    '/internal/watch',
+    guarded(async (c) => {
+      const body = await c.body();
+      const s = store.get(body.session);
+      if (!s) return c.send(404, { error: 'no such session' });
+      const host = s.parentId && !s.crew ? store.get(s.parentId) || s : s;
+      let out;
+      try {
+        out = applyWatch(host, body, { dir: workdir(s), keep: path.join(store.shots, host.id) });
+      } catch (err) {
+        return c.send(err.status || 500, { error: err.message });
+      }
+      const turn = host.turns.at(-1);
+      if (out.note && turn) runner.note(host, turn, { kind: 'watch', label: out.note });
+      else app.sessionChanged(host);
+      if (body.action === 'open') telemetry.track('wisp_watch', { agent: s.agent, html: typeof body.html === 'string' });
+      c.send(200, { text: out.text });
     }),
     opts,
   );

@@ -65,6 +65,8 @@ export function connect() {
     if (JSON.stringify([prev?.pr, prev?.also, prev?.prs, prev?.toShip, prev?.state, prev?.shipping]) !== JSON.stringify([s.pr, s.also, s.prs, s.toShip, s.state, s.shipping])) renderPrStrip(s.id);
     if (JSON.stringify(prev?.overlaps || null) !== JSON.stringify(s.overlaps || null)) renderOverlapStrip(s.id);
     if (prev?.state !== s.state || prev?.pr?.state !== s.pr?.state) spellEvent('summary');
+    // Watch: the page its agent keeps beside it moved (panel.js); opened: put up just now.
+    if (s.watch && (prev?.watch?.seq !== s.watch.seq || prev?.state !== s.state)) bus.emit('watch', { id: s.id, opened: !!prev && !s.watch.closed && (!prev.watch || (prev.watch.closed && prev.watch.seq !== s.watch.seq)) });
   });
   es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
