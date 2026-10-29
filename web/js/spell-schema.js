@@ -103,6 +103,7 @@ export const PARTS = {
   'org.chart': '.org-view .org-chart',
   'org.card': '.org-view .org-card', // a member in the chart
   'org.details': '.org-view .org-side', // the column beside the chart: the selected member's delegates
+  'org.reset': '.org-view .org-reset', // Reset layout, once cards were moved by hand
   'crew.share': '.crew-share',
   'crew.import': '.crew-import',
   'section.archived': '#secArchived',
@@ -366,6 +367,7 @@ export const PART_PROPS = {
   'split.home': { greeting: 'string' },
   'crew.record': { tips: 'bool' }, // the suggestion line under a member's numbers (on)
   'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold
+  'org.chart': { movable: 'bool' }, // cards can be moved by hand (on); off keeps the automatic tiers
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },

@@ -82,6 +82,12 @@ its thread; its work never mixes with your tasks.
   **Delegates…** (a member's ⋯ / right-click menu, ⌘K *Ada’s delegates…*, the delegates line in its
   details) opens Org with that member selected. Selecting moves nothing: the hint keeps room for its
   longest line, and a delegate's card shows only its ✓ (the border is for the selected member).
+- **Arranging Org**: drag a card anywhere (a mouse from anywhere on it; touch only once it's selected,
+  so a swipe still scrolls; arrow keys on a focused card). The first move pins every card where it
+  was, so nothing else moves, and from then on the layout is yours (`/api/crew-layout`, one per
+  wisp) until **Reset layout** (with Undo). Cards stay inside the chart's width and it grows down;
+  on a narrower pane than the one you arranged on, it scrolls sideways rather than squeezing. Placed
+  by hand, an arrow takes the short way: out of the side facing the delegate, one bend, in.
 - With no crew yet, the section is one dashed row that invites you to add someone. It's useful, so it
   stays (ux.md: empty states are useful or absent).
 
