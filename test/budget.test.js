@@ -307,7 +307,7 @@ test('Automations stop at: a goal’s next round waits under Scheduled, then goe
   seedPlan();
   await api('/config', { defaults: { autoStop: '75' } }, 'PATCH');
   try {
-    const s = await api('/sessions', { prompt: 'make it work', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it works [met after 3]', max: 5 } });
+    const s = await api('/sessions', { prompt: 'make it work', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it works [met after 3]' } });
     const x = await until(async () => {
       const y = await api(`/sessions/${s.id}`);
       return y.goal?.held && y;

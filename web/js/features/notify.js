@@ -62,7 +62,7 @@ export function notifyFinished(s) {
   }
   // A task with a goal: it pings once, when the goal ends, and says how (server/goal.js).
   const goal = s.state !== 'waiting' && ['met', 'impossible', 'out', 'paused'].includes(s.goal?.status) ? s.goal : null;
-  if (goal) verb = { met: `reached its goal${goal.round > 1 ? ` in ${goal.round} rounds` : ''}`, impossible: 'can’t reach its goal', out: `stopped: ${goal.max} rounds and the goal isn’t met`, paused: 'paused its goal' }[goal.status];
+  if (goal) verb = { met: `reached its goal${goal.round > 1 ? ` in ${goal.round} rounds` : ''}`, impossible: 'can’t reach its goal', out: 'stopped before its goal', paused: 'paused its goal' }[goal.status];
   // A crew member's job: their face and name say who's reporting. Not while their thread is on
   // screen: it shows there.
   const member = s.crew && memberById(s.crew.id);

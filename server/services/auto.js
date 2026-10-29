@@ -198,7 +198,7 @@ export function createAuto(app) {
       route: { ...pick.route, escalated: reason !== 'limit', ...(reason === 'limit' && { moved: true }) },
       auto: { strategy: reason === 'limit' ? s.auto?.strategy || 'single' : 'escalated', escalatedFrom: s.id, reason, tried: [...new Set([...tried, ...(s.auto?.tried || []), s.route?.key].filter(Boolean))] },
       scout: s.scout || null,
-      goal: app.goals?.handOff(s), // the goal goes with it, with the rounds it has left
+      goal: app.goals?.handOff(s), // the goal goes with it
     });
     // Now one task with two runs: it's named after the prompt, like a compare task.
     if (s.titleAuto) s.title = sib.title;

@@ -13,13 +13,11 @@ import { fmtDuration } from '../blocks.js';
 import { whenLabel } from '../core/format.js';
 import { slotHtml } from './spells.js';
 
-export const GOAL_ROUNDS = [3, 5, 10, 20];
 const LIVE = new Set(['working', 'checking']);
 // The state, in the band's fixed column. The row's pill has the round instead; the band's second
 // line says what the check found, in the checker's own words.
-const STATE = { working: 'Working', checking: 'Checking', met: 'Goal met', impossible: 'Can’t be done', out: 'Out of rounds', paused: 'Paused', handed: 'Moved on' };
+const STATE = { working: 'Working', checking: 'Checking', met: 'Goal met', impossible: 'Can’t be done', out: 'Stopped', paused: 'Paused', handed: 'Moved on' };
 
-export const goalRounds = () => (GOAL_ROUNDS.includes(Number(S.config.defaults?.goalRounds)) ? Number(S.config.defaults.goalRounds) : 10);
 export const goalLive = (g) => !!g && LIVE.has(g.status);
 const lastProgress = (g, back = 0) => g?.checks?.filter((c) => c.progress != null).at(-1 - back)?.progress ?? null;
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -36,7 +34,7 @@ export function goalPill(s) {
   const g = s.goal;
   if (!g || s.pending) return '';
   const tip = `Done when: ${g.text}\n${STATE[g.status] || ''}${g.last ? ` · ${g.last.why}` : ''}`;
-  return `<span class="pill goal-pill g-${g.status}" title="${esc(tip)}">${ring(g.status === 'met' ? 100 : lastProgress(g))}<span class="gp-n">${g.round}/${g.max}</span></span>`;
+  return `<span class="pill goal-pill g-${g.status}" title="${esc(tip)}">${ring(g.status === 'met' ? 100 : lastProgress(g))}<span class="gp-n">${g.round}</span></span>`;
 }
 
 // What the band's second line says, by state.
@@ -46,6 +44,7 @@ function checkLine(g) {
   if (g.status === 'met') return `<b>Met in ${plural(g.round, 'round')}</b>${esc([spent, last?.why].filter(Boolean).join(' · '))}`;
   if (g.status === 'impossible') return `<b>Why</b>${esc(g.why || last?.why || '')}`;
   if (g.status === 'out') return `<b>Stopped at ${lastProgress(g) ?? 0}%</b>${last ? esc(last.why) : ''}`;
+  // Goals from before rounds were unlimited could run out of them.
   // Automations stop at held the next round back: it goes on by itself at the plan's reset.
   if (g.status === 'paused' && g.held) return `<b>Round ${g.round} goes on ${esc(whenLabel(g.held))}</b>${esc(g.why || '')}`;
   if (g.status === 'paused') return `<b>${esc(g.why || 'Paused')}</b>${last ? esc(last.why) : ''}`;
@@ -62,7 +61,7 @@ function bandHtml(s) {
   const was = lastProgress(g, 1);
   const delta = p != null && was != null && p !== was ? p - was : null;
   const ended = !LIVE.has(g.status);
-  const primary = ['paused', 'out'].includes(g.status) ? `<button class="ghost xs gb-go" data-g="resume">${icon('play')}Resume goal${g.status === 'out' ? ` <small>+${g.budget || g.max}</small>` : ''}</button>` : '';
+  const primary = ['paused', 'out'].includes(g.status) ? `<button class="ghost xs gb-go" data-g="resume">${icon('play')}Resume goal</button>` : '';
   const history = (g.checks || []).map((c) => `Round ${c.round}: ${c.verdict === 'met' ? 'met' : c.verdict === 'not_yet' ? 'not yet' : c.verdict === 'impossible' ? 'can’t be done' : 'not checked'}${c.progress != null ? ` (${c.progress}%)` : ''}`).join('\n');
   return `
     <section class="goal-band g-${g.status}" aria-label="Goal">
@@ -76,7 +75,7 @@ function bandHtml(s) {
       <div class="gb-row gb-sub">
         <span class="gb-track" title="${esc(history || 'Not checked yet')}" style="--p:${p ?? 0}%;--was:${was ?? 0}%"><i class="gb-was"></i><i class="gb-fill"></i></span>
         <span class="gb-pct">${p == null ? '–' : `${p}%`}${delta ? `<small class="${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
-        ${ended ? '' : `<span class="gb-round">Round ${g.round} of ${g.max}</span>`}
+        ${ended ? '' : `<span class="gb-round">Round ${g.round}</span>`}
         <span class="gb-check"${g.held && g.why ? ` title="${esc(g.why)}"` : ''}>${checkLine(g)}</span>
         ${primary}${slotHtml('goal.band', S.sessions.get(s.id))}
       </div>
@@ -167,48 +166,43 @@ export async function goalAction(id, action) {
   if (prev.held) s.later = s.later?.filter((l) => !l.goal);
   if (s.later && !s.later.length) delete s.later;
   if (action === 'drop') delete s.goal;
-  else s.goal = { ...prev, held: undefined, status: action === 'pause' ? 'paused' : 'working', why: action === 'pause' ? 'You paused it' : undefined, ...(action === 'resume' && !prev.held && prev.round >= prev.max && { max: prev.round + (prev.budget || prev.max) }) };
+  else s.goal = { ...prev, held: undefined, status: action === 'pause' ? 'paused' : 'working', why: action === 'pause' ? 'You paused it' : undefined };
   repaint(id);
   try {
     if (action === 'drop') await api(`/sessions/${id}/goal`, { method: 'DELETE', body: {} });
     else await api(`/sessions/${id}/goal`, { method: 'PATCH', body: { action } });
-    if (action === 'drop') toast(`${icon('target')} Goal dropped`, { action: { label: 'Undo', run: () => setGoal(id, prev.text, prev.max) } });
+    if (action === 'drop') toast(`${icon('target')} Goal dropped`, { action: { label: 'Undo', run: () => setGoal(id, prev.text) } });
   } catch (err) {
     if (S.sessions.get(id) === s) (s.goal = prev), (s.later = prevLater), repaint(id);
     toastError(err);
   }
 }
 
-export async function setGoal(id, text, max) {
+export async function setGoal(id, text) {
   const s = S.sessions.get(id);
   if (!s) return;
-  max ||= goalRounds();
   const prev = s.goal;
-  s.goal = { ...(prev && LIVE.has(prev.status) ? prev : { round: 1, checks: [], setAt: Date.now() }), text, max, status: s.state === 'running' && prev?.status !== 'checking' ? 'working' : 'checking' };
+  s.goal = { ...(prev && LIVE.has(prev.status) ? prev : { round: 1, checks: [], setAt: Date.now() }), text, status: s.state === 'running' && prev?.status !== 'checking' ? 'working' : 'checking' };
   repaint(id);
   try {
-    await api(`/sessions/${id}/goal`, { method: 'PUT', body: { text, max } });
+    await api(`/sessions/${id}/goal`, { method: 'PUT', body: { text } });
   } catch (err) {
     if (S.sessions.get(id) === s) (prev ? (s.goal = prev) : delete s.goal), repaint(id);
     toastError(err);
   }
 }
 
-// The rounds, as small radio chips: the launcher's line and the popover share them.
-const roundsHtml = (cur) => `<span class="g-rounds" role="radiogroup" aria-label="Rounds">${GOAL_ROUNDS.map((n) => `<button type="button" role="radio" class="g-r${n === cur ? ' on' : ''}" aria-checked="${n === cur}" data-r="${n}">${n}</button>`).join('')}<small>rounds</small></span>`;
-
-// Set goal… / Edit goal…: a popover by what asked, the condition and how many rounds it gets.
+// Set goal… / Edit goal…: a popover by what asked, with the condition.
 export function editGoal(id, anchor) {
   const s = S.sessions.get(id);
   if (!s) return;
   $('.menu.goal-pop')?.close();
-  let max = s.goal?.max || goalRounds();
   const node = el(`
     <div class="menu goal-pop" role="dialog" aria-label="${s.goal ? 'Edit goal' : 'Set goal'}">
       <label class="gp-k" for="goalText">${icon('target')}Done when</label>
       <textarea id="goalText" rows="3" spellcheck="false" placeholder="all tests pass and the page works on a phone"></textarea>
       <p class="gp-hint">wisp checks after every round, reading the code and running the tests, and sends it back with what’s missing.</p>
-      <div class="gp-foot">${roundsHtml(max)}<span class="grow"></span><button class="ghost sm" data-a="no">Cancel</button><button class="primary sm" data-a="yes">${s.goal ? 'Save goal' : 'Set goal'}</button></div>
+      <div class="gp-foot"><span class="grow"></span><button class="ghost sm" data-a="no">Cancel</button><button class="primary sm" data-a="yes">${s.goal ? 'Save goal' : 'Set goal'}</button></div>
     </div>`);
   const ta = $('textarea', node);
   ta.value = s.goal?.text || '';
@@ -216,15 +210,9 @@ export function editGoal(id, anchor) {
     const text = ta.value.trim();
     if (!text) return ta.focus();
     close();
-    setGoal(id, text, max);
+    setGoal(id, text);
   };
   node.onclick = (e) => {
-    const r = e.target.closest('[data-r]');
-    if (r) {
-      max = Number(r.dataset.r);
-      node.querySelectorAll('.g-r').forEach((b) => (b.classList.toggle('on', b === r), b.setAttribute('aria-checked', b === r)));
-      return;
-    }
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'no') close();
     if (a === 'yes') go();
@@ -248,7 +236,7 @@ export function editGoal(id, anchor) {
 }
 
 // The launcher's Goal: a toggle in its bar and, while on, a "Done when" line under the prompt.
-// On/off and the text survive a reload; the rounds are a setting (goalRounds).
+// On/off and the text survive a reload.
 export function launcherGoal(box, ta) {
   const btn = $('#goalBtn', box);
   const line = $('.l-goal', box);
@@ -261,7 +249,6 @@ export function launcherGoal(box, ta) {
     btn.innerHTML = `${icon('target')}<span>Goal</span>`;
     btn.title = on ? 'Goal: the task keeps going until “Done when” holds. Click to launch without one.' : 'Goal: keep going until a condition holds (wisp checks after every round)';
     line.hidden = !on;
-    $('.g-rounds', line).outerHTML = roundsHtml(goalRounds());
   };
   paint();
   btn.onclick = () => {
@@ -275,19 +262,12 @@ export function launcherGoal(box, ta) {
     if (e.key === 'Escape') (e.preventDefault(), ta.focus());
     if (e.key === 'Enter' && !e.isComposing) (e.preventDefault(), $('#launch', box).click());
   });
-  line.addEventListener('click', (e) => {
-    const r = e.target.closest('[data-r]');
-    if (!r) return;
-    S.config.defaults.goalRounds = r.dataset.r;
-    paint();
-    api('/config', { method: 'PATCH', body: { defaults: { goalRounds: r.dataset.r } } }).catch(toastError);
-  });
   // A bare /goal in the box: open Done when and type there.
   box.goalOpen = () => {
     if (on) return input.focus();
     btn.click();
   };
-  // What the launch sends: { text, max }, or nothing. Taking it clears the line (back on failure).
+  // What the launch sends: { text }, or nothing. Taking it clears the line (back on failure).
   box.goal = () => {
     if (!on) return null;
     const text = input.value.trim();
@@ -295,7 +275,7 @@ export function launcherGoal(box, ta) {
       toast(`${icon('target')} No goal: Done when is empty`);
       return null;
     }
-    return { text, max: goalRounds() };
+    return { text };
   };
   box.goalTaken = (goal) => {
     if (!goal) return () => {};
@@ -305,4 +285,4 @@ export function launcherGoal(box, ta) {
   };
 }
 
-export const launcherGoalHtml = () => `<div class="l-goal" hidden><span class="lg-k">${icon('target')}<span>Done when</span></span><input type="text" spellcheck="false" placeholder="all tests pass and it works on a phone" aria-label="Done when"><span class="g-rounds"></span></div>`;
+export const launcherGoalHtml = () => `<div class="l-goal" hidden><span class="lg-k">${icon('target')}<span>Done when</span></span><input type="text" spellcheck="false" placeholder="all tests pass and it works on a phone" aria-label="Done when"></div>`;

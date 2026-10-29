@@ -676,11 +676,13 @@ test("the phone's New task button is a part spells can restyle or hide", () => {
   assert.ok(problems({ ...base0, parts: { 'launcher.fab': { props: { size: 2 } } } }).some((x) => /launcher\.fab/.test(x)));
 });
 
-test('goals: the band, its parts, the row pill and the launcher line are parts; the band takes buttons; goalRounds is a setting', () => {
+test('goals: the band, its parts, the row pill and the launcher line are parts; the band takes buttons; goalRounds is gone but still loads', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['card.goal', 'launcher.goal', 'goal.track'] }, parts: { 'goal.band': { style: { opacity: '0.9' } }, 'goal.text': { style: { fontSize: '14px' } }, 'goal.check': { style: { color: 'var(--muted)' } }, 'launcher.goalLine': { style: { opacity: '0.8' } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'goal.band', label: 'Tests', icon: 'target', do: { open: 'https://example.com' } }] }), []);
-  for (const goalRounds of ['3', '5', '10', '20']) assert.deepEqual(problems({ ...base0, settings: { goalRounds } }), []);
-  assert.ok(problems({ ...base0, settings: { goalRounds: '7' } }).some((x) => /goalRounds/.test(x) && /3, 5, 10, 20|3/.test(x)));
+  // Goals have no cap on rounds: a spell that still sets one loads, with a warning.
+  assert.deepEqual(problems({ ...base0, settings: { goalRounds: '5' } }), []);
+  assert.ok(normalizeSpell({ ...base0, settings: { goalRounds: '5' } }).warnings.some((w) => /goalRounds/.test(w)));
+  assert.ok(!('goalRounds' in spellReference().settings));
 });
 
 test('the side panel: its parts, width, opening tab and bot comments as props, a head slot; the verdict is not a part', () => {

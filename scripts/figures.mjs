@@ -246,7 +246,7 @@ export const FIGURES = {
     steps: 8,
     ms: 1400,
     stage: `<div class="mf-goal">
-      ${row(`<span class="mf-done-when"><b>Done when</b> every test in <code>test/auth</code> passes</span>`, `<span class="mf-round"${A({ text: 'Round 0 of 10|Round 1 of 10|Round 1 of 10|Round 2 of 10|Round 2 of 10|Round 3 of 10|Round 3 of 10|Round 3 of 10' })}></span>`)}
+      ${row(`<span class="mf-done-when"><b>Done when</b> every test in <code>test/auth</code> passes</span>`, `<span class="mf-round"${A({ text: 'Round 0|Round 1|Round 1|Round 2|Round 2|Round 3|Round 3|Round 3' })}></span>`)}
       ${bar('0,0,.3,.3,.7,.7,1,1', 'goalbar')}
       <div class="mf-chain">
         ${node(`${head('The agent', 'any harness')}${chip('', 'go', { text: 'Waiting|Working|Done for now|Working|Done for now|Working|Done for now|Done' })}`)}

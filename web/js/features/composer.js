@@ -647,7 +647,7 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     S.drafts.delete(id);
     if (!goal) return editGoal(id, ta);
     if (isGoalDrop(goal)) return S.sessions.get(id)?.goal ? goalAction(id, 'drop') : toast('This task has no goal to drop.');
-    return setGoal(id, goal, S.sessions.get(id)?.goal?.max || undefined);
+    return setGoal(id, goal);
   }
   if (isFeedback(text)) {
     if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));

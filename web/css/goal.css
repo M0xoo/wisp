@@ -71,16 +71,6 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .g-ring-fg { fill: none; stroke: var(--tone); stroke-width: 1.6; stroke-linecap: round; transition: stroke-dashoffset 0.6s var(--ease); }
 .g-ring-dot { fill: var(--tone); }
 
-/* Rounds, as small radio chips (the launcher's line, the goal popover). */
-.g-rounds { display: inline-flex; align-items: center; gap: 2px; flex: none; }
-.g-rounds .g-r, .menu .g-rounds .g-r {
-  width: auto; min-width: 28px; height: 24px; padding: 0 6px; justify-content: center; border-radius: 7px;
-  font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums;
-}
-.g-rounds .g-r:hover { background: var(--bg-2); color: var(--ink); }
-.g-rounds .g-r.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
-.g-rounds small { margin-left: 4px; font-size: 12.5px; color: var(--faint); }
-
 /* The launcher: Goal in its bar, and "Done when" under the prompt while it's on. */
 .l-goal { display: flex; align-items: center; gap: 10px; margin: 2px 14px 4px; padding: 6px 4px 6px 10px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line); }
 .l-goal[hidden] { display: none; }
@@ -112,13 +102,12 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
   .gb-track { width: 96px; }
   .gb-check { flex-basis: 100%; order: 9; }
   .l-goal input, .goal-pop textarea { font-size: 16px; } /* iOS doesn't zoom into a 16px field */
-  /* The prompt box's line: the icon names it, and the rounds keep to their numbers. */
+  /* The prompt box's line: the icon names it. */
   .l-goal { gap: 8px; margin: 2px 10px 4px; padding-left: 8px; }
-  .lg-k > span, .l-goal .g-rounds small { display: none; }
+  .lg-k > span { display: none; }
 }
 body.wisp-mobile .gb-row:not(.gb-sub) { height: 44px; }
 body.wisp-mobile .gb-more { width: 44px; height: 44px; }
-body.wisp-mobile .g-rounds .g-r { min-width: 40px; height: 36px; }
 
 /* A turn wisp sent back for the goal: what's missing, and what's next. */
 .ask-goal { font-size: 14px; line-height: 1.5; color: var(--ink); }

@@ -651,7 +651,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       card: 'Give a task a Done when goal. wisp checks after every round and sends it back until it holds.',
       description: 'Stop coding agents from quitting early. Give a task a Done when goal and wisp runs your tests after every round until it holds. Works on any harness.',
       lede: 'Coding agents stop when they think they’re done, often with a test still failing. In wisp you give the task a goal, <i>Done when all tests pass and the login page works on a phone</i>. After every round wisp checks the work itself: it runs the tests and has a read-only model read the diff. Until the goal holds, the agent gets the task back with what’s missing. It works on Claude Code, Codex, opencode, Cursor and the rest.',
-      shot: ['goal', 'A wisp task working toward its goal: the condition, a progress bar at 70% (+35 since the last round), Round 3 of 10, and what the last check found still missing'],
+      shot: ['goal', 'A wisp task working toward its goal: the condition, a progress bar at 70% (+35 since the last round), Round 3, and what the last check found still missing'],
       body: `
     <section>
       <h2 id="why-agents-stop">Why agents stop early</h2>
@@ -665,9 +665,9 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       <ul class="doc-list">
         <li><b>Good:</b> <i>every test in <code>test/auth</code> passes and <code>npm run build</code> has no warnings</i>. Tests and a build the checker can run.</li>
         <li><b>Good:</b> <i>the login form fits a 390px screen with no horizontal scroll</i>. Something the checker can read in the CSS and markup.</li>
-        <li><b>Too vague:</b> <i>the code is clean</i>. Nothing to check it against, so the rounds run out.</li>
+        <li><b>Too vague:</b> <i>the code is clean</i>. Nothing to check it against, so it goes in circles and pauses.</li>
       </ul>
-      <p>Pick how many rounds it gets: 3, 5, 10 or 20. On a task that’s already running or finished, type <code>/goal &lt;condition&gt;</code> in the reply box; an idle task is checked right away, since it may already hold.</p>
+      <p>There’s no cap on rounds: it keeps going until the check says it holds. On a task that’s already running or finished, type <code>/goal &lt;condition&gt;</code> in the reply box; an idle task is checked right away, since it may already hold.</p>
     </section>
 
     <section>
@@ -683,14 +683,13 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
 
     <section>
       <h2 id="rounds">Rounds, stalls and the one ping</h2>
-      <p>The task stays in Working through every round. A band on top of it shows the goal, a progress bar with how much the last round moved it, <i>Round 3 of 10</i>, and the last check in the checker’s words; the row in the list shows a ring and <i>3/10</i>. It lands in <i>Needs you</i>, with one notification, when the goal is:</p>
+      <p>The task stays in Working through every round. A band on top of it shows the goal, a progress bar with how much the last round moved it, <i>Round 3</i>, and the last check in the checker’s words; the row in the list shows a ring and the round. It lands in <i>Needs you</i>, with one notification, when the goal is:</p>
       <div class="table"><table>
         <thead><tr><th>Outcome</th><th>When</th><th>What you can do</th></tr></thead>
         <tbody>
           <tr><td>Met</td><td>the checker saw it hold, tests passing</td><td>Ship it</td></tr>
           <tr><td>Can’t be done</td><td>it needs access or a decision only you have, or contradicts itself</td><td>read why, change the goal</td></tr>
-          <tr><td>Out of rounds</td><td>still not met after the last round</td><td><b>Resume goal</b> for another set of rounds</td></tr>
-          <tr><td>Stalled</td><td>two rounds changed nothing, or got the same next step with no progress</td><td>steer it with a follow-up, then resume</td></tr>
+          <tr><td>Stalled</td><td>two rounds changed nothing, or got the same next step with no progress</td><td>steer it with a follow-up, or <b>Resume goal</b></td></tr>
         </tbody>
       </table></div>
       <p><b>Stop</b> pauses the goal. A follow-up of yours keeps it, and it’s checked again after your turn.</p>
@@ -698,17 +697,17 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
 
     <section>
       <h2 id="any-harness">Goals on Codex, opencode and Cursor</h2>
-      <p>wisp checks the work outside the agent, so a goal works the same on every harness it runs: Claude Code, Codex, opencode, Cursor, Antigravity, Grok and Copilot. The agent is told its goal every turn and that it will be checked. With <a href="/guides/claude-code-vs-codex.html#let-results-pick">Auto</a>, a task handed to a stronger model takes its goal, and the rounds it has left, along.</p>
+      <p>wisp checks the work outside the agent, so a goal works the same on every harness it runs: Claude Code, Codex, opencode, Cursor, Antigravity, Grok and Copilot. The agent is told its goal every turn and that it will be checked. With <a href="/guides/claude-code-vs-codex.html#let-results-pick">Auto</a>, a task handed to a stronger model takes its goal along.</p>
       ${sh(`wisp "/goal every test in test/auth passes"        # the condition is the task
 curl -X PUT localhost:4477/api/sessions/$ID/goal \\
   -H 'content-type: application/json' \\
-  -d '{"text":"npm run build has no warnings","max":5}'`)}
+  -d '{"text":"npm run build has no warnings"}'`)}
     </section>
 `,
       faq: [
-        ['Does it cost more?', 'Each round is another agent turn, plus a test run and a short call to a cheap model. Pick fewer rounds for small tasks; a stalled goal pauses on its own instead of using them up.'],
+        ['Does it cost more?', 'Each round is another agent turn, plus a test run and a short call to a cheap model. There’s no cap on rounds, so write a goal that can hold; a goal that goes in circles pauses on its own instead of running on, and Pause goal stops it whenever you like.'],
         ['What if my project has no tests?', 'The checker still reads the diff and the files. Write a goal it can verify by reading, like a page that fits 390px or an endpoint that returns 404 for unknown ids.'],
-        ['Can I change the goal mid-way?', 'Yes. Edit goal… in the band, More, the right-click menu or ⌘K changes the words and keeps the rounds it has used. /goal drop, or Drop goal, removes it.'],
+        ['Can I change the goal mid-way?', 'Yes. Edit goal… in the band, More, the right-click menu or ⌘K changes the words and keeps its rounds so far. /goal drop, or Drop goal, removes it.'],
       ],
       related: ['run-coding-agents-in-the-background', 'claude-code-vs-codex', 'run-multiple-claude-code-agents-in-parallel'],
     },

@@ -1,5 +1,5 @@
 // Goals (server/goal.js): the task keeps going until wisp's check finds the condition holds, can't
-// hold, or it runs out of rounds. The fake harness's checker reads its verdict off the goal's text.
+// hold, or goes in circles; there's no cap on rounds. The fake harness's checker reads its verdict off the goal's text.
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -52,18 +52,18 @@ test('goalCommand and normalizeGoal read what the user typed', () => {
   assert.equal(goalCommand('/goal'), '');
   assert.equal(goalCommand('/goals are nice'), null);
   assert.equal(goalCommand('fix it'), null);
-  assert.deepEqual(normalizeGoal('tests pass'), { text: 'tests pass', max: 10 });
-  assert.deepEqual(normalizeGoal({ text: ' x ', max: 3 }), { text: 'x', max: 3 });
+  assert.deepEqual(normalizeGoal('tests pass'), { text: 'tests pass' });
+  assert.deepEqual(normalizeGoal({ text: ' x ', max: 3 }), { text: 'x' }, "an old client's max is ignored");
   assert.equal(normalizeGoal({ text: '  ' }), null);
-  assert.throws(() => normalizeGoal({ text: 'x', max: 0 }), /1 to 20/);
   assert.throws(() => normalizeGoal('x'.repeat(1001)), /at most 1000/);
-  assert.match(goalNote({ goal: { text: 'it builds', round: 2, max: 5, status: 'working' } }), /## Goal[\s\S]*it builds[\s\S]*round 2 of 5/);
+  assert.match(goalNote({ goal: { text: 'it builds', round: 2, status: 'working' } }), /## Goal[\s\S]*it builds[\s\S]*round 2 now/);
   assert.equal(goalNote({ goal: { text: 'x', status: 'met' } }), '');
 });
 
 test('not met yet: wisp sends it back with what is missing, until the check says it holds', async () => {
-  const s = await api('/sessions', { prompt: 'make it work', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it works [met after 3]', max: 5 } });
+  const s = await api('/sessions', { prompt: 'make it work', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it works [met after 3]' } });
   assert.equal(s.goal.status, 'working');
+  assert.equal(s.goal.max, undefined);
   const done = await landed(s.id);
   assert.equal(done.turns.length, 3, 'two rounds sent back');
   assert.equal(done.goal.status, 'met');
@@ -91,16 +91,24 @@ test('a goal that cannot be met stops at once, with why', async () => {
   assert.match(done.goal.why, /impossible/);
 });
 
-test('out of rounds: it stops at max, and Resume gives it a fresh budget', async () => {
-  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'never true', max: 2 } });
+test('no cap on rounds: an old max is ignored and it keeps going until the check says met', async () => {
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'it holds [met after 5]', max: 2 } });
+  const done = await landed(s.id);
+  assert.equal(done.goal.status, 'met');
+  assert.equal(done.goal.round, 5);
+  assert.equal(done.turns.length, 5);
+});
+
+test('a goal that never holds and gets nowhere pauses as stalled, and Resume carries on', async () => {
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'never true' } });
   let done = await landed(s.id);
-  assert.equal(done.turns.length, 2);
-  assert.equal(done.goal.status, 'out');
+  assert.equal(done.goal.status, 'paused');
+  assert.match(done.goal.why, /^Stalled/);
+  const n = done.turns.length;
   await api(`/sessions/${s.id}/goal`, { action: 'resume' }, 'PATCH');
   done = await landed(s.id);
-  assert.equal(done.goal.status, 'out');
-  assert.equal(done.goal.max, 4);
-  assert.equal(done.turns.length, 4, 'resumed: checked, then two more rounds');
+  assert.equal(done.goal.status, 'paused');
+  assert.ok(done.turns.length > n, 'resumed: more rounds');
 });
 
 test('/goal in a follow-up sets one on an idle task and goes after it; /goal drop drops it', async () => {
