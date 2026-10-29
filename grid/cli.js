@@ -266,7 +266,7 @@ export async function gridCli(args) {
 async function deleteUser(cfg, db, handle, yes) {
   const u = db.get('SELECT * FROM users WHERE handle = ?', handle);
   if (!u) throw new Error(`Nobody here is called ${handle}.`);
-  const what = `${u.handle}${u.email ? ` (${u.email})` : ''}: their box, its files and their agents’ sign-ins, their secrets, sessions and devices`;
+  const what = `${u.handle}${u.email ? ` (${u.email})` : ''}: their box, its files and their agents’ sign-ins, their secrets, sessions, devices and published apps`;
   if (!yes) return console.log(`  This deletes ${what}.\n  To go ahead: wisp grid users --delete ${u.handle} --yes`);
   // A process can only be stopped by the grid that started it.
   if (cfg.hostd.driver === 'process' && db.get('SELECT state FROM instances WHERE user_id = ?', u.id)?.state === 'running') throw new Error(`${u.handle}'s wisp is running: put it to sleep from their account page, or stop the grid, then try again.`);
@@ -280,6 +280,8 @@ async function deleteUser(cfg, db, handle, yes) {
     accounts.setDisabled(u.id, !!u.disabled);
     throw err;
   }
+  const { createSites } = await import('./sites.js');
+  createSites({ db, cfg }).removeAll(u.id);
   accounts.remove(u.id);
   console.log(`  ✓ deleted ${what}`);
 }

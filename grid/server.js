@@ -16,10 +16,14 @@
 //   p<port>--<name>--<handle>.<domain>
 //                       the same for a computer they added, through its tunnel; the computer
 //                       answers only while its Show local pages in previews is on.
+//   <slug>--app--<handle>.<domain>
+//                       an app they published from My Stuff (grid/sites.js): open to anyone with
+//                       the link, served by the grid itself, so it answers while their wisp sleeps.
 //
 // Cookies never span subdomains, so one user's wisp page can't read or set another's.
 
 import fs from 'node:fs';
+import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import net from 'node:net';
 import { MACHINE_WANTS, createAccounts, bad } from './accounts.js';
@@ -28,6 +32,7 @@ import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
 import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
+import { SITE_LABEL, createSites, readRaw } from './sites.js';
 import { createGridTelemetry } from './telemetry.js';
 import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
 
@@ -125,6 +130,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   const stats = createGridTelemetry(cfg);
   const accounts = createAccounts({ db, cfg, secrets, onAudit: stats.audit });
   const limit = limiter();
+  const sites = createSites({ db, cfg, log });
   // Account pages open in a browser, each with an event stream (GET /events): told when something
   // on the page changed (a computer came online, the cloud wisp woke), they fetch it again.
   const watchers = new Map(); // user id -> Set of responses
@@ -214,6 +220,15 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   };
   // dev: the device asking, so a computer can tell itself apart in the list.
   const computerView = (c, dev = null) => ({ id: c.id, name: c.name, url: cfg.instanceUrl(c.label), online: tunnels.online(c.id), lastSeenAt: tunnels.online(c.id) ? Date.now() : c.last_seen_at || null, mine: !!dev && c.device_id === dev.device.id });
+  // The cloud wisp asking for itself: "Box <handle> <its trusted-proxy secret>" (hostd gave it both).
+  const boxUser = (auth) => {
+    const m = /^Box\s+([a-z0-9-]+)\s+(\S+)$/.exec(String(auth || ''));
+    const u = m && accounts.byHandle(m[1]);
+    if (!u || u.disabled) return null;
+    const want = Buffer.from(secrets.ensure(u.id, 'wisp-proxy'));
+    const got = Buffer.from(m[2]);
+    return got.length === want.length && timingSafeEqual(got, want) ? u : null;
+  };
   // A user's computer, or a 404.
   const ownComputer = (userId, id) => {
     const c = accounts.computer(id);
@@ -229,6 +244,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     const bare = host.replace(/:\d+$/, '');
     if (bare.endsWith(`.${cfg.domain}`)) {
       const handle = bare.slice(0, -cfg.domain.length - 1);
+      if (SITE_LABEL.test(handle)) return { kind: 'site', site: sites.byLabel(handle) };
       const computer = handle.includes('--') ? accounts.computerByLabel(handle) : null;
       if (computer) return { kind: 'computer', computer };
       const pv = /^p(\d{1,5})--([a-z0-9-]+)$/.exec(handle);
@@ -261,7 +277,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     // Device API: other origins (the phone app) call it with a bearer token, so CORS is open
     // and cookies are never involved.
     if (p.startsWith('/api/')) {
-      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS', 'access-control-max-age': '600' };
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS', 'access-control-max-age': '600' };
       if (req.method === 'OPTIONS') {
         res.writeHead(204, cors);
         return res.end();
@@ -293,6 +309,28 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         if (r.error) return send(400, { error: r.error });
         notify(r.user.id);
         return send(200, { token: r.token, token_type: 'Bearer', user: userView(r.user), instance: instanceView(r.user) });
+      }
+      // Publishing an app from My Stuff (grid/sites.js): from wisp on a computer (its device token),
+      // or from the cloud wisp itself, which has no device but has its trusted-proxy secret.
+      const site = /^\/api\/sites(?:\/([A-Za-z0-9_-]{1,64}))?$/.exec(p);
+      if (site) {
+        const who = accounts.device(req.headers.authorization)?.user || boxUser(req.headers.authorization);
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        if (req.method === 'GET' && !site[1]) return send(200, { enabled: sites.opts.enabled, maxBytes: sites.opts.maxBytes, sites: sites.list(who.id).map(sites.view) });
+        if (req.method === 'PUT' && site[1]) {
+          limit(`site|${who.id}`, 30);
+          if (!sites.opts.enabled) return send(403, { error: 'This grid doesn’t publish apps.' });
+          const buf = await readRaw(req, sites.opts.maxBytes);
+          const out = sites.publish(who, site[1], buf, { title: url.searchParams.get('title'), entry: url.searchParams.get('entry') });
+          notify(who.id);
+          return send(200, out);
+        }
+        if (req.method === 'DELETE' && site[1]) {
+          const ok = sites.remove(who.id, site[1]);
+          notify(who.id);
+          return send(200, { ok });
+        }
+        return send(404, { error: 'not found' });
       }
       const dev = accounts.device(req.headers.authorization);
       if (!dev) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
@@ -333,7 +371,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages, ua: req.headers['user-agent'] }));
       const u = s.user;
-      return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
+      return page(accountPage({ cfg, user: u, instance: { ...accounts.instance(u.id), state: hostd.state(u.id) }, machine: { cpus: hostd.container.cpus, memory: hostd.container.memory, wish: accounts.machineWish(u.id) }, devices: accounts.devices(u.id), computers: accounts.computers(u.id).map((c) => ({ ...computerView(c), deviceId: c.device_id })), sites: sites.list(u.id).map(sites.view), identities: accounts.identities(u.id), providers, csrf: csrfFor(s), flash: url.searchParams.get('m') || '' }));
     }
     if (req.method === 'GET' && p === '/events') {
       if (!s) return json(res, 401, { error: 'Sign in again.' });
@@ -481,6 +519,12 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         notify(s.user.id);
         return redirect(res, `/?m=${encodeURIComponent(`${c.name} removed.`)}`);
       }
+      if ((m = /^\/sites\/([A-Za-z0-9_-]{1,64})\/remove$/.exec(p))) {
+        await needCsrf();
+        sites.remove(s.user.id, m[1]);
+        notify(s.user.id);
+        return redirect(res, `/?m=${encodeURIComponent('Unpublished: that link no longer works.')}`);
+      }
       if (p === '/identities/unlink') {
         const body = await needCsrf();
         accounts.unlink(s.user.id, String(body.provider || ''));
@@ -525,6 +569,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       throw bad('Your files couldn’t be deleted just now, so your account is still here. Try again in a minute.', 409);
     }
     const gone = accounts.computers(u.id);
+    sites.removeAll(u.id);
     accounts.remove(u.id);
     for (const c of gone) tunnels.close(c.id);
     log(`grid: ${u.handle} deleted their account`);
@@ -768,7 +813,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         const d = String(url.searchParams.get('domain') || '').toLowerCase();
         const label = d.slice(0, -cfg.domain.length - 1);
         const pv = /^p\d{1,5}--([a-z0-9-]+)$/.exec(label);
-        const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!(accounts.byHandle(label) || accounts.computerByLabel(label) || (pv && ((previews && accounts.byHandle(pv[1])) || accounts.computerByLabel(pv[1])))));
+        const ok = d === cfg.domain || (d.endsWith(`.${cfg.domain}`) && !!(accounts.byHandle(label) || sites.byLabel(label) || accounts.computerByLabel(label) || (pv && ((previews && accounts.byHandle(pv[1])) || accounts.computerByLabel(pv[1])))));
         return json(res, ok ? 200 : 404, { ok });
       }
       // The grid's own images (screenshots, logos), on every address it answers.
@@ -791,6 +836,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       if (h.kind === 'edge') return await edge(req, res, url, h.handle);
       if (h.kind === 'computer') return await computerEdge(req, res, url, h.computer);
       if (h.kind === 'preview') return await previewEdge(req, res, url, h);
+      if (h.kind === 'site' && h.site && url.pathname === '/_wisp/db') limit(`sitedb|${clientIp(req)}`, 600);
+      if (h.kind === 'site') return h.site ? sites.serve(req, res, h.site) : html(res, 404, messagePage({ cfg, title: 'Nothing here', text: 'This app was unpublished, or its link has a typo.', link: [cfg.publicUrl, 'Home'] }));
       json(res, 421, { error: `This grid answers at ${cfg.domain}.` });
     } catch (err) {
       const status = err.status && err.status < 600 ? err.status : 500;
@@ -859,6 +906,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     url: cfg.publicUrl,
     async close() {
       clearInterval(sampler);
+      sites.close();
       const closed = Promise.all(servers.map((x) => new Promise((r) => x.close(r))));
       tunnels.closeAll();
       for (const set of watchers.values()) for (const res of set) res.end();

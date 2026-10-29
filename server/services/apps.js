@@ -10,6 +10,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { MIME } from '../http/static.js';
 import { bad } from '../util.js';
+import { DB_CLIENT, createAppDb } from '../app-db.js';
 
 const BASE = 47100;
 const SPAN = 800;
@@ -34,7 +35,7 @@ const MORE_MIME = {
   '.xml': 'application/xml',
   '.webmanifest': 'application/manifest+json',
 };
-const typeOf = (f) => MORE_MIME[path.extname(f).toLowerCase()] || MIME[path.extname(f).toLowerCase()] || 'application/octet-stream';
+export const typeOf = (f) => MORE_MIME[path.extname(f).toLowerCase()] || MIME[path.extname(f).toLowerCase()] || 'application/octet-stream';
 
 // The same port for the same app every time (its localStorage lives on its origin).
 export function appPort(id) {
@@ -63,9 +64,10 @@ export function appFile(root, urlPath, entry = 'index.html') {
 }
 
 export class Apps {
-  constructor({ stuff, onChange = () => {} }) {
+  constructor({ stuff, onChange = () => {}, db = createAppDb({ maxBytes: 100 * 1024 * 1024 }) }) {
     this.stuff = stuff;
     this.onChange = onChange;
+    this.db = db; // apps' own databases (app-db.js), for those whose wisp-app.json asks
     this.running = new Map(); // id -> { server, port, last, timer }
   }
 
@@ -90,7 +92,7 @@ export class Apps {
     }
     const root = it.path;
     const r = { root, port: 0, last: Date.now(), server: null, timer: null };
-    r.server = http.createServer((req, res) => this.#serve(r, it.entry, req, res));
+    r.server = http.createServer((req, res) => this.#serve(r, it.entry, req, res, id));
     const want = appPort(id);
     for (let i = 0; i < 20 && !r.port; i++) {
       const port = BASE + ((want - BASE + i * 7) % SPAN);
@@ -107,7 +109,7 @@ export class Apps {
     return r.port;
   }
 
-  #serve(r, entry, req, res) {
+  #serve(r, entry, req, res, id) {
     r.last = Date.now();
     // Only by its loopback name (a preview through the grid comes as localhost too): a page on
     // another site can't reach it through a rebound DNS name.
@@ -116,6 +118,8 @@ export class Apps {
       res.writeHead(403, { 'content-type': 'text/plain' });
       return res.end('forbidden host');
     }
+    const pathname = new URL(req.url, 'http://x').pathname;
+    if (pathname.startsWith('/_wisp/')) return serveDb(req, res, pathname, this.stuff.get(id)?.db, () => ({ file: this.stuff.dataFile(id), seed: seedOf(r.root, this.stuff.get(id).db, this.stuff.dataFile(id)) }), this.db);
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405, { allow: 'GET, HEAD' });
       return res.end();
@@ -144,5 +148,35 @@ export class Apps {
 
   stopAll() {
     for (const id of [...this.running.keys()]) this.stop(id, { quiet: true });
+    this.db.close();
   }
+
+  // Reset data: the worker lets go of the file, then it goes.
+  async resetData(id) {
+    await this.db.release(this.stuff.dataFile(id));
+    this.stuff.resetData(id);
+  }
+}
+
+// The SQL to make an app's database with: its seed file, read only when there's no database yet.
+export function seedOf(root, db, file) {
+  if (!db?.seed || fs.existsSync(file)) return '';
+  const f = appFile(root, `/${db.seed}`);
+  return f ? fs.readFileSync(f, 'utf8') : '';
+}
+
+// /_wisp/db.js (the page's helper) and /_wisp/db (its queries), for an app with a database.
+export function serveDb(req, res, pathname, db, where, appDb) {
+  const head = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
+  if (!db) {
+    res.writeHead(404, { 'content-type': 'application/json', ...head });
+    return res.end(JSON.stringify({ error: 'This app has no database: put "db": true in its wisp-app.json.' }));
+  }
+  if (pathname === '/_wisp/db.js') {
+    res.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', ...head });
+    return res.end(req.method === 'HEAD' ? undefined : DB_CLIENT);
+  }
+  if (pathname === '/_wisp/db') return appDb.handle(req, res, where());
+  res.writeHead(404, { 'content-type': 'application/json', ...head });
+  res.end(JSON.stringify({ error: 'not found' }));
 }

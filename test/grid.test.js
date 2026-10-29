@@ -1465,3 +1465,114 @@ test('grid usage stats: off unless grid.json turns them on; fixed values, users 
   assert.deepEqual([stopped.properties.reason, stopped.properties.minutes], ['idle', 12]);
   assert.throws(() => loadConfig({ dataDir: tmp('grid-tel'), env: {}, overrides: { domain: 'wisp.localhost', auth: { dev: true }, telemetry: 'yes' } }), /telemetry/);
 });
+
+test('an app published from My Stuff: a public link on the grid, updated in place, unpublished, and only by its owner', async () => {
+  const { Stuff } = await import('../server/services/stuff.js');
+  const { createPublish } = await import('../server/services/publish.js');
+  const { packDir } = await import('../server/bundle.js');
+  const token = await deviceToken('pia@example.com', 'Pia’s laptop (wisp)');
+  const auth = (t) => ({ authorization: `Bearer ${t}`, accept: 'application/json' });
+  const me = (await browser().go(`${base}/api/me`, { headers: auth(token) })).json.user;
+
+  // wisp on Pia's laptop, signed in to this grid (its cloud computer holds the token).
+  const src = tmp('publish-src');
+  fs.mkdirSync(path.join(src, 'js'), { recursive: true });
+  fs.writeFileSync(path.join(src, 'index.html'), '<h1>Slides v1</h1>');
+  fs.writeFileSync(path.join(src, 'js', 'app.js'), 'console.log(1)');
+  const stuff = new Stuff(tmp('publish-stuff'));
+  const app = { stuff, machines: { list: [{ id: 'm1', kind: 'grid', grid: base, handle: me.handle }] }, secrets: { get: () => token } };
+  const pub = createPublish(app, { env: {} });
+  assert.deepEqual(pub.targets(), [{ id: 'm1', host: new URL(base).host, handle: me.handle }]);
+  const it = stuff.addApp(src, { title: 'Pia’s Slides!' });
+  const out = await pub.publish(it.id);
+  const url = cfg.instanceUrl(`pia-s-slides--app--${me.handle}`) + '/';
+  assert.deepEqual([out.published.url, out.published.account, out.published.rev], [url, 'm1', 1]);
+
+  // Anyone opens it, signed in or not: no cookie set there, kept out of search engines.
+  const page = await browser().go(url);
+  assert.equal(page.status, 200);
+  assert.equal(page.text, '<h1>Slides v1</h1>');
+  assert.match(page.headers['content-type'], /text\/html/);
+  assert.ok(!page.headers['set-cookie']);
+  assert.match(page.headers['x-robots-tag'], /noindex/);
+  assert.equal((await browser().go(`${url}js/app.js`)).text, 'console.log(1)');
+  assert.equal((await browser().go(`${url}..%2f..%2fgrid.db`)).status, 404);
+  assert.equal((await browser().go(url, { method: 'POST', body: {} })).status, 405);
+  assert.equal((await browser().go(cfg.instanceUrl(`nope--app--${me.handle}`) + '/')).status, 404);
+  assert.equal((await browser().go(`http://127.0.0.1:${cfg.listen.port}/_grid/tls-ask?domain=pia-s-slides--app--${me.handle}.wisp.localhost`, { headers: { host: `127.0.0.1:${cfg.listen.port}` } })).status, 200);
+  assert.equal((await browser().go(`http://127.0.0.1:${cfg.listen.port}/_grid/tls-ask?domain=nope--app--${me.handle}.wisp.localhost`, { headers: { host: `127.0.0.1:${cfg.listen.port}` } })).status, 404);
+
+  // An agent changes it: publishing again updates the same link.
+  fs.writeFileSync(path.join(src, 'index.html'), '<h1>Slides v2</h1>');
+  const v2 = stuff.addApp(src, { replace: it.id });
+  const again = await pub.publish(v2.id);
+  assert.deepEqual([again.published.url, again.published.rev], [url, 2]);
+  assert.equal((await browser().go(url)).text, '<h1>Slides v2</h1>');
+  assert.equal((await browser().go(`${base}/api/sites`, { headers: auth(token) })).json.sites.length, 1);
+
+  // A bundle that reaches outside its folder, or has no entry, is refused.
+  const bad = Buffer.concat([Buffer.from([0, 0, 0, 30]), Buffer.from('{"path":"../x.html","size":0} ').subarray(0, 30)]);
+  const put = (body, t = token) =>
+    new Promise((resolve) => {
+      const u = new URL(`${base}/api/sites/evil`);
+      const req = http.request({ host: '127.0.0.1', port: u.port, path: u.pathname, method: 'PUT', headers: { host: u.host, ...auth(t), 'content-type': 'application/octet-stream' } }, (res) => {
+        let s = '';
+        res.on('data', (d) => (s += d));
+        res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(s) }));
+      });
+      req.end(body);
+    });
+  assert.equal((await put(bad)).status, 400);
+  const noEntry = tmp('publish-noentry');
+  fs.writeFileSync(path.join(noEntry, 'readme.md'), 'hi');
+  assert.match((await put(packDir(noEntry).body)).json.error, /No index\.html/);
+
+  // Someone else can't take it down; the cloud wisp (its proxy secret) can publish as Pia.
+  const dee = await deviceToken('dee@example.com', 'Dee’s laptop');
+  assert.equal((await browser().go(`${base}/api/sites/${it.id}`, { method: 'DELETE', headers: auth(dee) })).json.ok, false);
+  assert.equal((await browser().go(url)).status, 200);
+  const secret = grid.secrets.ensure(me.id, 'wisp-proxy');
+  const box = createPublish({ stuff, machines: { list: [] }, secrets: null }, { env: { WISP_GRID_URL: base, WISP_TRUSTED_PROXY_SECRET: secret, WISP_PUBLIC_URL: cfg.instanceUrl(me.handle) } });
+  assert.deepEqual(box.targets().map((t) => [t.id, t.handle]), [['box', me.handle]]);
+  assert.equal((await box.publish(it.id)).published.url, url, 'the same link, whichever wisp sends it');
+  const wrong = createPublish({ stuff, machines: { list: [] } }, { env: { WISP_GRID_URL: base, WISP_TRUSTED_PROXY_SECRET: 'nope', WISP_PUBLIC_URL: cfg.instanceUrl(me.handle) } });
+  await assert.rejects(wrong.publish(it.id), /Sign in again/);
+
+  // Listed on the account page; unpublished, the link stops working and the app stays in My Stuff.
+  const acct = browser();
+  await devSignIn(acct, 'pia@example.com');
+  assert.match((await acct.go(`${base}/`)).text, /Published apps[\s\S]*Pia’s Slides!/);
+  const gone = await box.unpublish(it.id);
+  assert.equal(gone.published, undefined);
+  assert.ok(stuff.get(it.id));
+  assert.equal((await browser().go(url)).status, 404);
+  await assert.rejects(pub.unpublish(it.id), /isn’t published/);
+});
+
+test('a published app with data: its own database on the grid, for everyone with the link, gone when unpublished', async () => {
+  const { Stuff } = await import('../server/services/stuff.js');
+  const { createPublish } = await import('../server/services/publish.js');
+  const token = await deviceToken('rio@example.com', 'Rio’s laptop (wisp)');
+  const me = (await browser().go(`${base}/api/me`, { headers: { authorization: `Bearer ${token}`, accept: 'application/json' } })).json.user;
+  const src = tmp('publish-db');
+  fs.writeFileSync(path.join(src, 'index.html'), '<p>guestbook</p>');
+  fs.writeFileSync(path.join(src, 'wisp-app.json'), JSON.stringify({ name: 'Guestbook', db: true }));
+  fs.writeFileSync(path.join(src, 'seed.sql'), "CREATE TABLE notes (text TEXT); INSERT INTO notes VALUES ('hello');");
+  const stuff = new Stuff(tmp('publish-db-stuff'));
+  const pub = createPublish({ stuff, machines: { list: [{ id: 'm1', kind: 'grid', grid: base, handle: me.handle }] }, secrets: { get: () => token } }, { env: {} });
+  const it = stuff.addApp(src, {});
+  const { url } = (await pub.publish(it.id)).published;
+  const q = (sql, params = []) => browser().go(`${url}_wisp/db`, { method: 'POST', body: { sql, params } });
+  assert.match((await browser().go(`${url}_wisp/db.js`)).text, /export async function sql/);
+  assert.deepEqual((await q('SELECT text FROM notes')).json.rows, [{ text: 'hello' }]);
+  assert.equal((await q('INSERT INTO notes VALUES (?)', ['from a visitor'])).json.changes, 1);
+  assert.equal((await q("ATTACH DATABASE 'x.db' AS x")).status, 400);
+  // An update keeps what visitors wrote.
+  fs.writeFileSync(path.join(src, 'index.html'), '<p>guestbook v2</p>');
+  await pub.publish(stuff.addApp(src, { replace: it.id }).id);
+  assert.equal((await q('SELECT count(*) AS n FROM notes')).json.rows[0].n, 2);
+  const file = path.join(cfg.dataDir, 'sites', `${grid.db.get('SELECT id FROM sites WHERE key = ?', it.id).id}.sqlite`);
+  assert.ok(fs.existsSync(file));
+  await pub.unpublish(it.id);
+  await until(() => !fs.existsSync(file), { what: 'its data removed' });
+});

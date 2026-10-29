@@ -148,6 +148,8 @@ const ASK_TOOL = (tool) => `- If a decision would change the rest of the work (a
   Show each task you name in the answer as a "task" block so the user can open it.
 - When the user asks you to save or keep something for them (a picture, a doc, a file, a link), put it in their
   My Stuff with \`wisp_save\` (${tool.replace(/ask_user$/, 'wisp_save')}); \`wisp_stuff\` finds what they kept.
+  When they ask to publish, deploy or share an app (one you built, or one in My Stuff), \`wisp_save\` it with
+  \`publish: true\`: it goes on their wisp Grid at a public link; send them that link and show its "stuff" block.
 - For the user's wisp usage, crew or connectors, use wisp's tools for them (\`wisp_stats\`, \`wisp_crew*\`,
   \`wisp_connector*\`) when the user asks. Never ask the user to paste a key into the chat.`;
 const ASK_BLOCK = `- If a decision would change the rest of the work (ambiguous requirement, destructive or risky step,

@@ -50,6 +50,7 @@ const KIND = Object.fromEntries(KINDS.map((k) => [k.id, k]));
 const CACHED = 300; // items kept in this browser for the first paint
 
 S.stuff = load('wisp.stuff', null); // null: never loaded here (placeholders, not "nothing yet")
+S.publishTo = load('wisp.publishTo', []); // the wisp Grids an app can be published to
 S.stuffOpen = load('wisp.stuffOpen', false);
 let query = '';
 let kind = load('wisp.stuffKind', 'all');
@@ -74,7 +75,9 @@ export const stuffByKey = (key) => (key ? all().find((x) => x.from?.key === key)
 
 export async function loadStuff() {
   try {
-    const { items } = await api('/stuff');
+    const { items, publishTo = [] } = await api('/stuff');
+    S.publishTo = publishTo;
+    save('wisp.publishTo', publishTo);
     agentNews(items);
     // Saves still on their way stay at the top until their answer replaces them.
     setStuff([...(S.stuff || []).filter((x) => x.pending && !items.some((i) => i.from?.key && i.from.key === x.from?.key)), ...items]);
@@ -87,6 +90,7 @@ function setStuff(list) {
   paintSaveButtons();
   paintStuffBlocks();
   paintStuff();
+  bus.emit('stuff-list');
 }
 
 const swap = (id, next) => {
@@ -307,6 +311,7 @@ function appFrame(it) {
         <div class="ap-tools">
           <button class="ghost xs" data-a="reload" title="Reload the app">${icon('rerun')}<span>Reload</span></button>
           <a class="ghost xs ap-tab" target="_blank" rel="noopener" title="Open it in a browser tab" hidden>${icon('external')}<span>New tab</span></a>
+          ${canPublish(it) ? `<button class="ghost xs ap-pub" data-a="publish">${icon('web')}<span></span></button>` : ''}
           <button class="ghost xs" data-a="stop" title="Stop it: wisp stops serving it">${icon('stop')}<span>Stop</span></button>
           <button class="ghost xs" data-a="close" title="Close (Esc)" aria-label="Close">${icon('x')}</button>
         </div>
@@ -314,12 +319,29 @@ function appFrame(it) {
       <div class="ap-stage"><div class="ap-wait"><i></i><span>Starting ${esc(it.title)}…</span></div></div>
     </div>`);
   const stage = node.querySelector('.ap-stage');
+  // Publish, Update link or Copy link, kept current while the frame is open.
+  const pub = node.querySelector('.ap-pub');
+  const paintPub = () => {
+    const now = S.stuff?.find((x) => x.id === it.id);
+    if (!pub || !now) return;
+    const [label, title] = now.publishing ? ['Publishing…', 'Putting it on your wisp Grid'] : !now.published ? ['Publish', `Publish to ${S.publishTo[0]?.host || 'your wisp Grid'}: a link anyone can open`] : behind(now) ? ['Update link', 'Your public link has an older version: put this one there'] : ['Copy link', `Public at ${bare(now.published.url)}: copy the link`];
+    pub.querySelector('span').textContent = label;
+    pub.title = title;
+    pub.disabled = !!now.publishing;
+  };
+  paintPub();
+  if (pub) bus.on('stuff-list', paintPub, { node });
   let iframe = null;
   const close = overlay(node);
   node.addEventListener('click', (e) => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'close') close();
     if (a === 'reload' && iframe) iframe.src = iframe.src;
+    if (a === 'publish') {
+      const now = S.stuff.find((x) => x.id === it.id) || it;
+      if (now.published && !behind(now)) copyPublic(now);
+      else publishApp(now);
+    }
     if (a === 'stop') {
       close();
       stopApp(S.stuff.find((x) => x.id === it.id) || it);
@@ -359,6 +381,77 @@ async function restoreItem(it) {
   } catch (err) {
     toastError(err);
   }
+}
+
+// Publish: the app goes up to your wisp Grid (server/services/publish.js) at a link anyone can
+// open, while this computer is off. Again after a change: the same link, the new version.
+const behind = (it) => !!it.published && (it.published.rev || 1) !== (it.rev || 1);
+const canPublish = (it) => it.kind === 'app' && !it.pending && (!!it.published || S.publishTo.length > 0);
+
+async function publishApp(it) {
+  if (it.publishing) return;
+  swap(it.id, { ...it, publishing: true });
+  try {
+    const next = await api(`/stuff/${it.id}/publish`, { method: 'POST', body: {} });
+    swap(it.id, next);
+    const copied = await navigator.clipboard?.writeText(next.published.url).then(
+      () => true,
+      () => false,
+    );
+    toast(`${it.published ? 'Updated' : 'Published'} at <code>${esc(bare(next.published.url))}</code>: anyone with the link can open it.${copied ? ' Link copied.' : ''}`, { action: { label: 'Open', run: () => window.open(next.published.url, '_blank', 'noopener') } });
+    track('stuff_publish');
+  } catch (err) {
+    swap(it.id, it);
+    toastError(err);
+  }
+}
+
+async function unpublishApp(it) {
+  const { published: _p, ...rest } = it;
+  swap(it.id, rest);
+  try {
+    swap(it.id, await api(`/stuff/${it.id}/publish`, { method: 'DELETE' }));
+    toast(`Unpublished: <code>${esc(bare(it.published.url))}</code> no longer opens.`);
+  } catch (err) {
+    swap(it.id, it);
+    loadStuff();
+    toastError(err);
+  }
+}
+
+// Reset data: the app's database goes; the next time it asks, it's made again from its seed.
+async function resetData(it) {
+  swap(it.id, { ...it, data: false });
+  try {
+    swap(it.id, await api(`/stuff/${it.id}/data`, { method: 'DELETE' }));
+    toast(`${esc(it.title)} starts again with ${it.published ? 'fresh data here (its public link keeps its own)' : 'fresh data'}.`);
+  } catch (err) {
+    swap(it.id, it);
+    toastError(err);
+  }
+}
+
+async function copyPublic(it, btn) {
+  try {
+    await navigator.clipboard.writeText(it.published.url);
+    if (btn?.classList.contains('st-pub')) flash(btn, 'Copied');
+    else toast(`Copied <code>${esc(bare(it.published.url))}</code>`);
+  } catch {
+    toast(`The link: <code>${esc(it.published.url)}</code>`);
+  }
+}
+
+const bare = (u) => u.replace(/^https?:\/\//, '').replace(/\/$/, '');
+// A button says what happened for a moment, then goes back.
+function flash(btn, text) {
+  const span = btn.querySelector('span');
+  if (!span || btn.dataset.was) return;
+  btn.dataset.was = span.textContent;
+  span.textContent = text;
+  setTimeout(() => {
+    span.textContent = btn.dataset.was;
+    delete btn.dataset.was;
+  }, 1200);
 }
 
 // Use in a new task: New task, with the thing mentioned in the prompt box (the agent gets its file).
@@ -437,6 +530,7 @@ export function stuffBlock(b) {
     if (!it || it.pending) return;
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'page') return openStuff();
+    if (a === 'pubcopy') return copyPublic(it, e.target.closest('button'));
     if (a === 'go' || !e.target.closest('button, a')) openItem(it);
   });
   return node;
@@ -447,7 +541,7 @@ function paintStuffBlock(node) {
   const it = all().find((x) => x.id === node.dataset.stuff);
   const k = KIND[it?.kind || b.kind] || KIND.file;
   const title = it?.title || b.title || 'Something in My Stuff';
-  const meta = it ? [k.one, it.files ? `${it.files} file${it.files === 1 ? '' : 's'}` : '', it.size ? fmtSize(it.size) : '', it.rev > 1 ? `v${it.rev}` : ''].filter(Boolean) : [S.stuff === null ? 'Loading…' : 'No longer in My Stuff'];
+  const meta = it ? [k.one, it.files ? `${it.files} file${it.files === 1 ? '' : 's'}` : '', it.db ? 'with data' : '', it.size ? fmtSize(it.size) : '', it.rev > 1 ? `v${it.rev}` : ''].filter(Boolean) : [S.stuff === null ? 'Loading…' : 'No longer in My Stuff'];
   const pic = !it ? '' : it.kind === 'app' ? (it.cover ? `<img src="${coverUrl(it)}" alt="" loading="lazy">` : `<b class="sb-initial">${esc(title.trim()[0]?.toUpperCase() || '?')}</b>`) : it.kind === 'image' ? `<img src="${fileUrl(it)}" alt="" loading="lazy">` : icon(k.icon);
   const go = !it ? '' : it.kind === 'app' ? `<button class="sb-go primary sm" data-a="go">${icon('play')}<span>${it.running?.port ? 'Open' : 'Launch'}</span></button>` : `<button class="sb-go ghost sm" data-a="go">${icon(it.kind === 'link' ? 'external' : 'expand')}<span>Open</span></button>`;
   const html = `
@@ -456,6 +550,7 @@ function paintStuffBlock(node) {
       <b>${esc(title)}</b>
       <span class="sb-meta">${icon(k.icon)}${meta.map((m) => `<i>${esc(m)}</i>`).join('')}${it ? `<button class="link sb-page" data-a="page">In My Stuff</button>` : ''}</span>
       ${b.note ? `<span class="sb-note">${esc(b.note)}</span>` : it?.excerpt && it.kind === 'app' ? `<span class="sb-note">${esc(it.excerpt)}</span>` : ''}
+      ${it?.published ? `<span class="sb-pub">${icon('web')}<a href="${esc(it.published.url)}" target="_blank" rel="noopener" title="Its public link: anyone can open it">${esc(bare(it.published.url))}</a><button class="st-pub" data-a="pubcopy" title="Copy the public link">${icon('copy')}<span>Copy link</span></button></span>` : ''}
     </span>
     ${go}`;
   node.classList.toggle('missing', !it);
@@ -538,6 +633,12 @@ function itemMenu(it, at, anchor = null) {
   const rows = [
     app ? ['open', 'play', it.running ? 'Open again' : 'Launch'] : ['open', it.kind === 'link' ? 'external' : 'expand', it.kind === 'link' ? 'Open link' : 'Open'],
     app && it.running && ['stop', 'stop', 'Stop'],
+    app && !it.published && S.publishTo.length && ['publish', 'web', `Publish to ${S.publishTo[0].host}`],
+    app && it.published && ['pubcopy', 'copy', 'Copy public link'],
+    app && it.published && ['pubopen', 'external', 'Open public link'],
+    app && behind(it) && ['publish', 'update', 'Update public link'],
+    app && it.published && ['unpublish', 'x', 'Unpublish'],
+    app && it.db && it.data && ['resetdata', 'rerun', 'Reset data'],
     ['mention', 'agent', 'Use in a new task'],
     canCopy(it) && ['copy', 'copy', it.kind === 'link' ? 'Copy link' : 'Copy'],
     !app && it.kind !== 'link' && !MOBILE && ['download', 'download', 'Download'],
@@ -563,6 +664,11 @@ function itemMenu(it, at, anchor = null) {
 function act(a, it, btn) {
   if (a === 'open' || a === 'launch') return openItem(it);
   if (a === 'stop') return stopApp(it);
+  if (a === 'publish') return publishApp(it);
+  if (a === 'unpublish') return unpublishApp(it);
+  if (a === 'resetdata') return resetData(it);
+  if (a === 'pubcopy') return copyPublic(it, btn);
+  if (a === 'pubopen') return window.open(it.published.url, '_blank', 'noopener');
   if (a === 'mention') return mentionInNew(it);
   if (a === 'restore') return restoreItem(it);
   if (a === 'copy') return copyItem(it, btn?.classList.contains('st-copy') ? btn : null);
@@ -986,7 +1092,7 @@ function paintCard(card, it) {
     ${tools}
     <div class="st-meta">
       <b class="st-title" title="${esc(it.title)}">${esc(it.title)}</b>
-      <span class="st-sub">${icon(k.icon)}<span>${esc(meta.join(' · '))}</span>${ver}<time title="${esc(fmtDate(it.at, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}">${esc(when(it.at))}</time></span>
+      <span class="st-sub">${icon(k.icon)}<span>${esc(meta.join(' · '))}</span>${ver}${pubPill(it)}<time title="${esc(fmtDate(it.at, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }))}">${esc(when(it.at))}</time></span>
       ${it.note ? `<span class="st-note">${esc(it.note)}</span>` : ''}
       ${it.tags?.length ? `<span class="st-tags">${it.tags.map((t) => `<i>#${esc(t)}</i>`).join('')}</span>` : ''}
       ${fromTitle && grouping() !== 'task' ? `<button class="st-from" data-a="${task ? 'from' : ''}" ${task ? '' : 'disabled'} title="${task ? 'Open the task it came from' : 'The task it came from is gone'}">${icon('agent')}<span>${esc(fromTitle)}</span></button>` : ''}
@@ -994,6 +1100,14 @@ function paintCard(card, it) {
   setHtml(card, html);
   card.setAttribute('aria-label', `${k.one}: ${it.title}`);
 }
+
+// Published (or on its way): the pill copies the link. Behind: the grid has an older version.
+const pubPill = (it) =>
+  it.publishing
+    ? `<i class="st-pub busy">${icon('web')}<span>Publishing…</span></i>`
+    : it.published
+      ? `<button class="st-pub${behind(it) ? ' old' : ''}" data-a="pubcopy" title="${behind(it) ? `Public at ${esc(bare(it.published.url))}, with an older version (⋯ → Update public link). Copy the link` : `Public at ${esc(bare(it.published.url))}: copy the link`}">${icon('web')}<span>Public</span></button>`
+      : '';
 
 const when = (t) => {
   const d = new Date(t);

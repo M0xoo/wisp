@@ -115,6 +115,21 @@ next:
   account page. Accounts are never joined just because the email matches: that would let anyone
   who can claim an address at some provider take over the account.
 
+### Published apps
+
+People publish apps from My Stuff in wisp (or ask an agent to): the grid keeps the files under
+`<data>/sites/` and serves them to anyone at `<app>--app--<handle>.<domain>`, without sign-in
+and while their wisp sleeps. An app whose `wisp-app.json` asks for one gets a SQLite database
+there too (`/_wisp/db`, run in a child process that's killed after 5 s; no ATTACH or PRAGMA).
+Each user's account page lists what they published, with Unpublish.
+
+```json
+"sites": { "enabled": true, "maxBytes": 52428800, "perUser": 20, "dbBytes": 10485760 }
+```
+
+They're arbitrary pages on your domain's subdomains: turn `enabled` off if you can't keep an eye
+on what people publish.
+
 ### Usage stats
 
 Off unless `grid.json` has `"telemetry": true`. Then the grid sends wisp's PostHog project

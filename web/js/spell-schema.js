@@ -118,6 +118,7 @@ export const PARTS = {
   'stuff.card': '.stuff-view .st-card', // one thing kept
   'stuff.save': '.stuff-save', // Save to My Stuff on a reply's picture, video, doc or code
   'stuff.launch': '.stuff-view .st-launch', // Launch on an app's card
+  'stuff.public': '.stuff-view .st-pub', // Public on a published app's card (copies its link)
   'crew.share': '.crew-share',
   'crew.import': '.crew-import',
   'section.archived': '#secArchived',
@@ -355,7 +356,9 @@ export const PARTS = {
   'task.open': '.b-task .tk-open',
   'stuff.block': '.b-stuff', // something from My Stuff in an answer
   'stuff.block.go': '.b-stuff .sb-go', // its Launch / Open
+  'stuff.block.public': '.b-stuff .sb-pub', // a published app's public link, with Copy link
   'stuff.frame': '.ap', // an app running inside wisp, over the page
+  'stuff.frame.publish': '.ap .ap-pub', // its Publish / Update link / Copy link
   // An interactive block in an answer (an agent's or a spell's app) and its title row. Not the
   // strip that asks before sending what the app offers: that one always shows.
   'block.app': '.b-app',

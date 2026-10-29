@@ -9,6 +9,7 @@ import path from 'node:path';
 import { MIME } from '../http/static.js';
 import { bad, clip, newId } from '../util.js';
 import { normalizeTags } from '../../web/js/tags.js';
+import { dbSpec } from '../app-db.js';
 
 export const MAX_STUFF = 500 * 1024 * 1024;
 const MAX_TEXT = 2 * 1024 * 1024; // text saved from a reply (a doc, a snippet)
@@ -68,7 +69,7 @@ function fields(body = {}) {
 }
 
 // What makes up an item's content (the rest is yours: title, note, tags, star, where it's from).
-const CONTENT = ['kind', 'name', 'mime', 'size', 'path', 'source', 'lang', 'excerpt', 'url', 'entry', 'files', 'by'];
+const CONTENT = ['kind', 'name', 'mime', 'size', 'path', 'source', 'lang', 'excerpt', 'url', 'entry', 'files', 'db', 'by'];
 const content = (it) => ({ ...Object.fromEntries(CONTENT.filter((k) => it[k] !== undefined).map((k) => [k, it[k]])), at: it.updatedAt || it.at });
 
 // --- what an agent reads (wisp_stuff, @-mentions in a prompt) --------------------------------------
@@ -84,7 +85,7 @@ const UPDATE = {
 
 // One line per item, with where its file is.
 export function stuffLine(x) {
-  const where = x.url ? `url: ${x.url}` : x.kind === 'app' ? `folder: ${x.path} (entry ${x.entry})` : `file: ${x.path}`;
+  const where = x.url ? `url: ${x.url}` : x.kind === 'app' ? `folder: ${x.path} (entry ${x.entry})${x.published ? `, public at ${x.published.url}` : ''}` : `file: ${x.path}`;
   return `- \`${x.id}\` **${x.title}** — ${x.kind}${x.lang ? ` (${x.lang})` : ''}${x.size ? `, ${bytes(x.size)}` : ''}, saved ${day(x.at)} by ${x.by === 'agent' ? 'an agent' : 'the user'}${x.rev > 1 ? `, v${x.rev} (updated ${day(x.updatedAt)})` : ''}${x.from?.title ? ` from “${x.from.title}”` : ''}${x.starred ? ', starred' : ''}${x.tags?.length ? ` ${x.tags.map((t) => `#${t}`).join(' ')}` : ''}\n  ${where}${x.note ? `\n  note: ${clip(x.note, 200)}` : ''}`;
 }
 
@@ -108,7 +109,7 @@ export function stuffDetail(x, { text = true } = {}) {
     try {
       walk(x.path);
     } catch {}
-    body = `\n  ${x.files} file${x.files === 1 ? '' : 's'}: ${files.join(', ')}${x.files > files.length ? ', …' : ''}\n  The user launches it from My Stuff (wisp serves it on a port of its own).`;
+    body = `\n  ${x.files} file${x.files === 1 ? '' : 's'}: ${files.join(', ')}${x.files > files.length ? ', …' : ''}\n  The user launches it from My Stuff (wisp serves it on a port of its own).${x.db ? `\n  It has a database (SQLite, "db" in its wisp-app.json${x.db.seed ? `, made from ${x.db.seed}` : ''}): its pages use it with import { sql } from '/_wisp/db.js'.` : ''}`;
   }
   return `${stuffLine(x)}${body}\n  ${UPDATE[x.kind] || 'To change it, wisp_save with id and path (the new file).'} Don't change files in My Stuff's own folder.`;
 }
@@ -137,10 +138,22 @@ export class Stuff {
     return [...this.byId.values()].sort((a, b) => b.at - a.at);
   }
 
-  // What the page sees: no paths on this computer.
+  // What the page sees: no paths on this computer. db: whether the app has a database, and data:
+  // whether it has any yet (Reset data).
   view(it) {
-    const { path: _p, source: _s, prev, cover, ...rest } = it;
-    return { ...rest, ...(prev && { prev: { at: prev.at, size: prev.size, by: prev.by } }), ...(cover && { cover: true }) };
+    const { path: _p, source: _s, prev, cover, db, ...rest } = it;
+    return { ...rest, ...(prev && { prev: { at: prev.at, size: prev.size, by: prev.by } }), ...(cover && { cover: true }), ...(db && { db: true, data: fs.existsSync(this.dataFile(it.id)) }) };
+  }
+
+  // An app's database (app-db.js): beside it, under its id, so it outlives updates to the app.
+  dataFile(id) {
+    return path.join(this.dir, `${id}-data.sqlite`);
+  }
+
+  // Its data gone: the next query makes the database again from its seed.
+  resetData(id) {
+    for (const f of ['', '-wal', '-shm']) fs.rmSync(`${this.dataFile(id)}${f}`, { force: true });
+    this.onChange();
   }
 
   // The same thing from the same place (a reply's picture saved twice) is the one item.
@@ -185,7 +198,9 @@ export class Stuff {
     if (old.cover && it.cover && old.cover !== it.cover) fs.rmSync(old.cover, { force: true });
     // A title from the file's name doesn't replace the one it has (yours, or the agent's).
     const title = it.titled ? it.title : old.title;
-    return { ...old, ...it, title, id: old.id, at: old.at, from: old.from, updatedAt: Date.now(), rev: (old.rev || 1) + 1, prev: content(old) };
+    const next = { ...old, ...it, title, id: old.id, at: old.at, from: old.from, updatedAt: Date.now(), rev: (old.rev || 1) + 1, prev: content(old) };
+    if (!it.db) delete next.db; // the new version has no database (its data stays, for a later one)
+    return next;
   }
 
   // Swap an item with its previous version.
@@ -275,6 +290,14 @@ export class Stuff {
     return this.#record(id, file, name, { ...opts, size });
   }
 
+  // Where an app is published (services/publish.js), or null once it's taken down.
+  setPublished(id, published) {
+    const it = this.byId.get(id);
+    if (!it) throw bad('That’s no longer in My Stuff.', 404);
+    const { published: _p, ...rest } = it;
+    return this.#save(published ? { ...rest, published } : rest);
+  }
+
   update(id, body) {
     const it = this.byId.get(id);
     if (!it) throw bad('That’s no longer in My Stuff.', 404);
@@ -288,13 +311,14 @@ export class Stuff {
     if (!it) return false;
     this.byId.delete(id);
     for (const p of [it.path, it.prev?.path, it.cover]) if (p) rmTree(p);
+    for (const f of ['', '-wal', '-shm']) fs.rmSync(`${this.dataFile(id)}${f}`, { force: true });
     fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
     this.onChange();
     return true;
   }
 
   // An app an agent built (slides, a demo, a small tool): its folder, copied without what a build
-  // makes again. wisp-app.json may name it ({ name, entry, description }); entry is index.html
+  // makes again. wisp-app.json may name it ({ name, entry, description, db }); entry is index.html
   // unless it says otherwise, and has to be there. wisp serves it on a port of its own (apps.js).
   addApp(src, { cover, ...opts } = {}) {
     const st = fs.statSync(src);
@@ -304,6 +328,13 @@ export class Stuff {
       manifest = JSON.parse(fs.readFileSync(path.join(src, 'wisp-app.json'), 'utf8'));
     } catch {}
     const entry = String(manifest.entry || 'index.html').replace(/^\/+/, '');
+    let db;
+    try {
+      db = dbSpec(manifest, (f) => fs.existsSync(path.join(src, f)));
+    } catch (err) {
+      throw bad(err.message);
+    }
+    if (db?.seed && !fs.existsSync(path.join(src, db.seed))) throw bad(`No ${db.seed} in ${src}: wisp-app.json's "db" names it as the seed.`);
     if (entry.split(/[\\/]/).includes('..') || !fs.existsSync(path.join(src, entry))) throw bad(`No ${entry} in ${src}: build the app first (static files: HTML, JS, CSS), or name its entry in wisp-app.json.`);
     const { old, id, tag } = this.#slot(opts.replace);
     const dest = path.join(this.dir, `${tag || id}-app`);
@@ -338,6 +369,7 @@ export class Stuff {
       size,
       files,
       entry,
+      ...(db && { db }),
       at: Date.now(),
       by: opts.by || 'you',
       path: dest,

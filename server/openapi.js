@@ -564,7 +564,10 @@ export function openapi({ version, port }) {
         get: { summary: 'The uploaded file, with its MIME type', responses: { 200: { description: 'The file' }, 404: err[404] } },
       },
       '/stuff': {
-        get: { summary: 'My Stuff: what you and your agents kept from tasks (pictures, videos, docs, code, files, links), newest first', responses: { 200: json({ type: 'object', properties: { items: { type: 'array', items: ref('StuffItem') } } }) } },
+        get: {
+          summary: 'My Stuff: what you and your agents kept from tasks (pictures, videos, docs, code, files, links), newest first. publishTo: the wisp Grids an app can be published to',
+          responses: { 200: json({ type: 'object', properties: { items: { type: 'array', items: ref('StuffItem') }, publishTo: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, host: { type: 'string' }, handle: { type: 'string' } } } } } }) },
+        },
         post: {
           summary: 'Save to My Stuff: a link (url), text (text, with name or lang for a snippet), or a file from a task (session, path). The same key again answers the item already saved',
           requestBody: body({ type: 'object', properties: { url: { type: 'string' }, text: { type: 'string' }, name: { type: 'string' }, lang: { type: 'string' }, session: { type: 'string' }, path: { type: 'string' }, turn: { type: 'string' }, key: { type: 'string' }, title: { type: 'string' }, note: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } } }),
@@ -594,6 +597,19 @@ export function openapi({ version, port }) {
         post: { summary: 'Launch an app: wisp serves its folder on a loopback port of its own (the same one each time) until it is stopped or idle for 30 minutes', responses: { 200: json({ type: 'object', properties: { port: { type: 'integer' }, url: { type: 'string' } } }), 404: err[404] } },
         delete: { summary: 'Stop an app', responses: { 200: ok, 404: err[404] } },
       },
+      '/stuff/{sid}/publish': {
+        parameters: [stuffId],
+        post: {
+          summary: 'Publish an app to your wisp Grid (or update it there): anyone with its link can open it. account: one of publishTo (default: where it went before, else the first)',
+          requestBody: body({ type: 'object', properties: { account: { type: 'string' } } }),
+          responses: { 200: json(ref('StuffItem')), 404: err[404], 409: json(ref('Error'), 'Not signed in to a grid'), 413: json(ref('Error'), 'Too big') },
+        },
+        delete: { summary: 'Unpublish an app: its link stops working; it stays in My Stuff', responses: { 200: json(ref('StuffItem')), 404: err[404], 409: json(ref('Error'), 'Signed out of that grid') } },
+      },
+      '/stuff/{sid}/data': {
+        parameters: [stuffId],
+        delete: { summary: 'Reset an app’s data: its database goes, and is made again from its seed on the next query', responses: { 200: json(ref('StuffItem')), 404: err[404] } },
+      },
       '/stuff/{sid}/restore': { parameters: [stuffId], post: { summary: 'Swap an item with its previous version (before its last update)', responses: { 200: json(ref('StuffItem')), 404: err[404] } } },
       '/stuff/{sid}/reveal': { parameters: [stuffId], post: { summary: 'Show the item’s file in its folder (on the computer running wisp)', responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, path: { type: 'string' } } }), 404: err[404], 409: json(ref('Error'), 'Through a proxy: the path, to copy') } } },
       '/events': {
@@ -609,7 +625,7 @@ export function openapi({ version, port }) {
         StuffItem: {
           type: 'object',
           description: 'Something kept in My Stuff. Docs and code carry their opening (excerpt); links their url; apps their entry, file count and whether they run',
-          properties: { id: { type: 'string' }, kind: { type: 'string', enum: ['image', 'video', 'doc', 'code', 'file', 'link', 'app'] }, entry: { type: 'string' }, files: { type: 'integer' }, cover: { type: 'boolean' }, rev: { type: 'integer' }, updatedAt: { type: 'integer' }, prev: { type: 'object', properties: { at: { type: 'integer' }, size: { type: 'integer' }, by: { type: 'string' } } }, running: { type: 'object', properties: { port: { type: 'integer' } } }, name: { type: 'string' }, title: { type: 'string' }, mime: { type: 'string' }, size: { type: 'integer' }, at: { type: 'integer' }, by: { type: 'string', enum: ['you', 'agent'] }, url: { type: 'string' }, lang: { type: 'string' }, excerpt: { type: 'string' }, note: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, starred: { type: 'boolean' }, from: { type: 'object', properties: { session: { type: 'string' }, title: { type: 'string' }, turn: { type: 'string' }, key: { type: 'string' } } } },
+          properties: { id: { type: 'string' }, kind: { type: 'string', enum: ['image', 'video', 'doc', 'code', 'file', 'link', 'app'] }, entry: { type: 'string' }, files: { type: 'integer' }, cover: { type: 'boolean' }, rev: { type: 'integer' }, updatedAt: { type: 'integer' }, prev: { type: 'object', properties: { at: { type: 'integer' }, size: { type: 'integer' }, by: { type: 'string' } } }, running: { type: 'object', properties: { port: { type: 'integer' } } }, db: { type: 'boolean', description: 'The app has a database (wisp-app.json "db")' }, data: { type: 'boolean', description: 'Its database has been made' }, published: { type: 'object', description: 'Its public link on a wisp Grid, and the version (rev) that went up', properties: { url: { type: 'string' }, account: { type: 'string' }, host: { type: 'string' }, handle: { type: 'string' }, rev: { type: 'integer' }, at: { type: 'integer' } } }, name: { type: 'string' }, title: { type: 'string' }, mime: { type: 'string' }, size: { type: 'integer' }, at: { type: 'integer' }, by: { type: 'string', enum: ['you', 'agent'] }, url: { type: 'string' }, lang: { type: 'string' }, excerpt: { type: 'string' }, note: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, starred: { type: 'boolean' }, from: { type: 'object', properties: { session: { type: 'string' }, title: { type: 'string' }, turn: { type: 'string' }, key: { type: 'string' } } } },
         },
         Hold: {
           type: 'object',

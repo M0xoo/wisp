@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Publish an app from My Stuff to your wisp Grid.** Signed in to a grid (Settings → Cloud), or in your cloud wisp, an app's **⋯** menu and its bar while it runs offer **Publish to `<grid>`**: its files go up to the grid, which serves them at `<app>--app--<you>.<grid>` to anyone with the link, no sign-in, while your computer or cloud wisp sleeps (kept out of search engines). The link is copied, the card shows **Public** (click to copy it again), and once an agent changes the app **Update public link** puts the new version at the same address. **Unpublish** takes it down; removing the app from My Stuff does too, and your grid account page lists what you published, with Unpublish. New `POST`/`DELETE /api/stuff/{id}/publish`; spells reach it through the `stuff.public`, `stuff.frame.publish` and `stuff.block.public` parts.
+- **Agents publish for you.** Ask *“publish it”* or *“deploy this so I can share it”* and the agent saves the app with `wisp_save` `publish: true` (or an id alone, for one already in My Stuff): it answers with the public link, and the app's card in the reply shows it with **Copy link**. `publish: false` takes it down.
+- **Apps can keep data.** An app whose `wisp-app.json` says `"db": true` (or `"db": "seed.sql"`, made from that file the first time) gets its own SQLite database, used from its pages with `import { sql } from '/_wisp/db.js'`. Launched in wisp it lives beside the app and survives updates (**⋯ → Reset data** starts it over); published, the grid keeps one for everyone who opens the link (10 MB). Queries run in a separate process that's stopped after 5 s, without ATTACH or PRAGMA. Needs Node 22.13+.
+
+### Grid
+
+- Published apps (`grid/sites.js`): `PUT`/`DELETE`/`GET /api/sites` with a device token, or the cloud wisp's own secret; files under `<data>/sites/`, served at `<slug>--app--<handle>.<domain>` (on-demand TLS allows those names). `grid.json` `"sites": { "enabled", "maxBytes", "perUser", "dbBytes" }` (on, 50 MB, 20 apps, 10 MB). Deleting an account deletes its published apps and their data.
+
 ### Fixed
 
 - **Removing an app from My Stuff on Windows** no longer fails with *directory not empty* right after the app was running: wisp retries while Windows lets go of the files it just served.

@@ -122,13 +122,28 @@ const SAVE = {
       path: { type: 'string', description: 'A file you made or found: absolute, or relative to your working directory.' },
       text: { type: 'string', description: 'Or text to save as a file: a note, a doc (markdown) or a snippet. Give it a name with an extension.' },
       url: { type: 'string', description: 'Or a link (http/https).' },
-      app: { type: 'string', description: 'Or an app: a folder with index.html (or wisp-app.json naming { name, entry, description }). node_modules and .git are left out.' },
+      app: {
+        type: 'string',
+        description:
+          'Or an app: a folder with index.html (or wisp-app.json naming { name, entry, description, db }). node_modules and .git are left out. ' +
+          'An app that keeps data (a demo\'s todos, form entries, scores) can have its own SQLite database: "db": true in wisp-app.json, ' +
+          'or "db": "seed.sql" to make its tables (and sample rows) from that file in the app the first time. Its pages use it with ' +
+          "import { sql } from '/_wisp/db.js'; then await sql('SELECT * FROM todos WHERE done = ?', 0) gives rows, and a write gives { changes, lastId }. " +
+          'One statement per call, ? for values; no ATTACH or PRAGMA. A published app has one database for everyone who opens its link: no secrets in it.',
+      },
       cover: { type: 'string', description: 'With app: a screenshot of it (png/jpg), for its card.' },
       id: { type: 'string', description: 'Update this item instead of adding one: new content (path, text, url or app) and/or title, note, tags.' },
       name: { type: 'string', description: 'File name to keep it under, e.g. "launch-plan.md". Default: the file\'s own name.' },
       title: { type: 'string', description: 'What the user sees on its card, a few words. Default: from the file name.' },
       note: { type: 'string', description: 'Optional: one or two sentences on what it is, to find it by later.' },
       tags: { type: 'array', items: { type: 'string' }, description: 'Optional: 1–5 short words to find it by, e.g. ["logo", "brand"].' },
+      publish: {
+        type: 'boolean',
+        description:
+          'With an app (new, or id alone to act on one they have): true puts it on the user\'s wisp Grid at a public link anyone can open ' +
+          '(no sign-in), or updates the link it has with this version; the answer gives the link: send it to the user. false takes the link down. ' +
+          'Only when the user asks to publish, deploy, host or share it. Needs them signed in to a wisp Grid (Settings → Cloud), or running in their cloud wisp.',
+      },
     },
   },
 };

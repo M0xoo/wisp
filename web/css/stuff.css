@@ -380,3 +380,15 @@ body.electron.mac :is(.ap, .dr) { top: 46px; }
   body.electron.mac .ap { top: 0; }
   body.electron.mac .ap-top { padding-left: 84px; }
 }
+/* published on a wisp Grid: copies its public link */
+.st-pub { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 6px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-ink); font: 500 11px var(--sans); font-style: normal; }
+.st-pub .i { width: 11px; height: 11px; }
+button.st-pub:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.st-pub.old { background: var(--bg-2); color: var(--muted); }
+.st-pub.busy { background: var(--bg-2); color: var(--muted); }
+/* a published app's link, in an answer's card */
+.sb-pub { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
+.sb-pub > .i { flex: none; width: 13px; height: 13px; color: var(--accent-ink); }
+.sb-pub a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; color: var(--accent-ink); text-decoration: none; }
+.sb-pub a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.sb-pub .st-pub { cursor: pointer; }
