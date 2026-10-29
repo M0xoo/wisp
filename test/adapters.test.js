@@ -458,6 +458,38 @@ test('copilot: a lead with a team turns its own subagents off; Take over resumes
   assert.deepEqual(adapters.copilot.resumeCommand({ resumeId: 'r1', model: 'gpt-9.1-sol', effort: 'high' }), ['copilot', '--resume=r1', '--model', 'gpt-9.1-sol', '--reasoning-effort', 'high']);
 });
 
+test('take over in a folder wisp made starts without the trust question, for every harness', async () => {
+  const dir = fs.realpathSync(tmp('made-by-wisp'));
+  const cmd = (id, trusted) => adapters[id].resumeCommand({ resumeId: 'r1', cwd: dir, trusted });
+  assert.deepEqual(cmd('cursor', true).slice(-1), ['--trust']);
+  assert.deepEqual(cmd('grok', true).slice(-1), ['--trust']);
+  assert.deepEqual(cmd('antigravity', true).slice(-2), ['--settings', JSON.stringify({ trustedWorkspaces: [dir] })]);
+  for (const id of ['cursor', 'grok', 'antigravity']) assert.ok(!cmd(id, false).some((a) => /trust/i.test(a)), `${id}: the user's own folder keeps its question`);
+  // The rest have no flag for it: their config records the answer, as their own dialog would.
+  const { trustFolder: codexTrust } = await import('../server/adapters/codex.js');
+  const codexHome = tmp('trust-codex');
+  fs.writeFileSync(path.join(codexHome, 'config.toml'), 'model = "x"');
+  codexTrust(dir, codexHome);
+  codexTrust(dir, codexHome);
+  assert.equal(fs.readFileSync(path.join(codexHome, 'config.toml'), 'utf8'), `model = "x"\n\n[projects.${JSON.stringify(dir)}]\ntrust_level = "trusted"\n`, 'once, after what was there');
+  const { trustFolder: copilotTrust } = await import('../server/adapters/copilot.js');
+  const copilotHome = tmp('trust-copilot');
+  fs.writeFileSync(path.join(copilotHome, 'config.json'), JSON.stringify({ model: 'x', trusted_folders: ['/elsewhere'] }));
+  copilotTrust(dir, copilotHome);
+  copilotTrust(dir, copilotHome);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(copilotHome, 'config.json'), 'utf8')), { model: 'x', trusted_folders: ['/elsewhere', dir] });
+  const { trustFolder: claudeTrust } = await import('../server/adapters/claude.js');
+  const claudeHome = tmp('trust-claude');
+  const file = path.join(claudeHome, '.claude.json');
+  fs.writeFileSync(file, JSON.stringify({ numStartups: 3, projects: { [dir]: { allowedTools: ['Bash'] } } }));
+  claudeTrust(dir, { CLAUDE_CONFIG_DIR: claudeHome });
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { numStartups: 3, projects: { [dir]: { allowedTools: ['Bash'], hasTrustDialogAccepted: true } } });
+  assert.ok(!fs.existsSync(`${file}.lock`), 'its lock is let go');
+  const fresh = tmp('trust-claude-none');
+  claudeTrust(dir, { CLAUDE_CONFIG_DIR: fresh });
+  assert.ok(!fs.existsSync(path.join(fresh, '.claude.json')), 'a claude never run gets no config from wisp');
+});
+
 test('copilot: a COPILOT_ALLOW_ALL in the environment does not lift Plan or Edits', async () => {
   process.env.COPILOT_ALLOW_ALL = 'true';
   try {

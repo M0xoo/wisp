@@ -4,12 +4,14 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import net from 'node:net';
-import { installFakeBins, tmp } from './helpers.js';
+import { installFakeBins, tmp, isolateAgentConfigs } from './helpers.js';
 
 process.env.WISP_HOME = tmp('routes-home');
 process.env.WISP_UPDATE_CHECK = '0';
 installFakeBins();
+isolateAgentConfigs();
 const { startServer } = await import('../server/index.js');
 
 const freePort = () =>
@@ -122,6 +124,28 @@ test('a scratch launch runs in its own empty folder, without a project or worktr
   assert.equal(s.projectId, null);
   const cfg = await (await fetch(`${base}/api/config`)).json();
   assert.ok(!cfg.projects.some((p) => p.path === s.cwd));
+});
+
+test('take over trusts the folders wisp made, so the interactive CLI does not stop to ask', async () => {
+  const claudeJson = path.join(process.env.CLAUDE_CONFIG_DIR, '.claude.json');
+  fs.writeFileSync(claudeJson, JSON.stringify({ projects: {} }));
+  const post = (body) => fetch(`${base}/api/sessions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
+  const settled = async (id) => {
+    for (let i = 0; i < 200; i++) {
+      const r = await fetch(`${base}/api/sessions/${id}/takeover`);
+      if (r.status === 200) return (await r.json()).command;
+      await new Promise((ok) => setTimeout(ok, 50));
+    }
+    throw new Error(`${id} never became resumable`);
+  };
+  const scratch = await post({ prompt: 'what is a monad?', scratch: true, agent: 'claude' });
+  const own = tmp('own-folder');
+  const mine = await post({ prompt: 'look here', cwd: own, agent: 'claude', worktree: false });
+  await settled(scratch.id);
+  await settled(mine.id);
+  const { projects } = JSON.parse(fs.readFileSync(claudeJson, 'utf8'));
+  assert.equal(projects[fs.realpathSync(scratch.cwd)]?.hasTrustDialogAccepted, true, 'the scratch folder');
+  assert.equal(projects[fs.realpathSync(own)]?.hasTrustDialogAccepted, undefined, "the user's own folder keeps claude's question");
 });
 
 test('deleting a scratch task deletes its scratch folder', async () => {

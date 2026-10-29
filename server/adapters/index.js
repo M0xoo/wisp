@@ -14,7 +14,11 @@
 //     permission?(tool, input, cwd): { tool, action, detail, why? }   what a live approval is about
 //     detect(): Promise<{ available, version?, error?, models? }>   models overrides the static list
 //     setup?(platform): { tip, command?, url? }    how to get it on that OS, sent while it isn't found
-//     resumeCommand({ resumeId, model, effort }): string[]   argv to continue the session interactively
+//     resumeCommand({ resumeId, model, effort, cwd, trusted }): string[]   argv to continue the session
+//                                                  interactively; trusted: cwd is a folder wisp made
+//                                                  (scratch, worktree), start without asking to trust it
+//     trust?(dir)                                  record dir as trusted in the CLI's own config, for
+//                                                  one whose trust question no flag skips
 //     run({ prompt, cwd, resumeId, mode, model, effort, systemPrompt, grants, onEvent }): { stop(), done: Promise }
 //                                                  grants: `rule`s from its own blocked events the
 //                                                  user allowed, for this turn only
@@ -60,6 +64,7 @@ function checked(a) {
     a.setup !== undefined && typeof a.setup !== 'function' && 'setup()',
     typeof a.run !== 'function' && 'run()',
     a.resumeCommand !== undefined && typeof a.resumeCommand !== 'function' && 'resumeCommand()',
+    a.trust !== undefined && typeof a.trust !== 'function' && 'trust()',
   ].filter(Boolean);
   if (missing.length) throw new Error(`adapter ${a.id || '?'}: missing or wrong ${missing.join(', ')}`);
   return a;

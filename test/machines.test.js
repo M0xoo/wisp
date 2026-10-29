@@ -10,7 +10,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { installFakeBins, makeClone, makeRepo, records, same, tmp, until, win } from './helpers.js';
+import { installFakeBins, makeClone, makeRepo, records, same, tmp, until, win, isolateAgentConfigs } from './helpers.js';
 import { sameRepo } from '../server/git.js';
 import { authorizedKeys, reachable, sshBanner, tailscaleSelf } from '../server/machines/reachable.js';
 import { nodeInstallScript } from '../server/machines/bootstrap.js';
@@ -24,6 +24,7 @@ process.env.FAKE_SSH_LOG = path.join(RECORD, 'ssh.jsonl');
 process.env.WISP_HOME = tmp('machines-here');
 process.env.WISP_UPDATE_CHECK = '0';
 installFakeBins();
+isolateAgentConfigs();
 
 // `ssh` itself: a node launcher for the fake, like the fake harnesses.
 const sshDir = tmp('ssh-bin');

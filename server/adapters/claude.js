@@ -54,15 +54,58 @@ export const fallbackBins = () => {
 // Claude in Chrome turns itself on only in interactive sessions; `-p` needs --chrome. Follow the
 // user's own "enabled by default" choice (/chrome in Claude Code) so a wisp run gets the same tools.
 // WISP_CLAUDE_CHROME=1/0 overrides it.
+const claudeJson = (env) => (env.CLAUDE_CONFIG_DIR ? path.join(env.CLAUDE_CONFIG_DIR, '.claude.json') : path.join(os.homedir(), '.claude.json'));
+
 export function chromeEnabled(env = process.env) {
   if (env.WISP_CLAUDE_CHROME) return env.WISP_CLAUDE_CHROME !== '0';
-  const file = env.CLAUDE_CONFIG_DIR ? path.join(env.CLAUDE_CONFIG_DIR, '.claude.json') : path.join(os.homedir(), '.claude.json');
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8')).claudeInChromeDefaultEnabled === true;
+    return JSON.parse(fs.readFileSync(claudeJson(env), 'utf8')).claudeInChromeDefaultEnabled === true;
   } catch {
     return false;
   }
 }
+
+// Interactive claude won't start in a folder nobody has said "Yes, I trust this folder" for (`-p`
+// skips the question, so runs never see it). Take over opens it in folders wisp made itself, a
+// scratch folder or a worktree, so say yes for it in .claude.json: projects[dir].hasTrustDialogAccepted,
+// what the dialog writes. Under claude's own lock (<file>.lock, a directory), so a running claude
+// saving its config at the same moment doesn't lose either write.
+export function trustFolder(dir, env = process.env) {
+  const file = claudeJson(env);
+  if (!fs.existsSync(file)) return; // never run: its first start asks more than this anyway
+  const key = realDir(dir);
+  const lock = `${fs.realpathSync(file)}.lock`;
+  let locked = false;
+  for (let i = 0; i < 40 && !locked; i++) {
+    try {
+      fs.mkdirSync(lock);
+      locked = true;
+    } catch {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+    }
+  }
+  try {
+    const cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (cfg.projects?.[key]?.hasTrustDialogAccepted) return;
+    cfg.projects = { ...cfg.projects, [key]: { ...cfg.projects?.[key], hasTrustDialogAccepted: true } };
+    const real = fs.realpathSync(file);
+    const tmp = `${real}.wisp-${process.pid}`;
+    fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2), { mode: fs.statSync(real).mode });
+    fs.renameSync(tmp, real);
+  } catch {
+    // Unreadable config: claude asks, as before.
+  } finally {
+    if (locked) fs.rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+const realDir = (dir) => {
+  try {
+    return fs.realpathSync(dir);
+  } catch {
+    return path.resolve(dir);
+  }
+};
 
 const PERMISSION_MODES = {
   plan: 'plan',
@@ -88,6 +131,7 @@ export default {
   resumeCommand({ resumeId, model, effort, dirs = [] }) {
     return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : []), ...dirs.flatMap((d) => ['--add-dir', d])];
   },
+  trust: (dir) => trustFolder(dir),
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
   setup(platform = process.platform) {

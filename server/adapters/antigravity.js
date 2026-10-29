@@ -6,6 +6,7 @@
 // the agent to end with a question block. Same for the system prompt: it goes in front of the
 // first message.
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { attachmentNote, clip, detectVersion, exitText, fileTracker, helpEfforts, helpText, quietOutput, rel, spawnJsonl, withProtocol } from './common.js';
 import { describeCommand } from './commands.js';
@@ -23,6 +24,14 @@ const MODE_ARGS = {
   auto: ['--dangerously-skip-permissions'],
 };
 
+const realDir = (dir) => {
+  try {
+    return fs.realpathSync(dir);
+  } catch {
+    return path.resolve(dir);
+  }
+};
+
 const EDIT_TOOL = /write|replace|edit|delete/i;
 const EFFORT_SUFFIX = /-(low|medium|high)$/;
 
@@ -33,8 +42,11 @@ export default {
   models: [{ id: '', label: 'Default', hint: 'Whatever Antigravity is set to' }],
   efforts: ['low', 'medium', 'high'],
 
-  resumeCommand({ resumeId, model, effort }) {
-    return [BIN, ...(resumeId ? ['--conversation', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : [])];
+  // trusted: a folder wisp made (scratch, worktree), which it would otherwise stop to ask about.
+  // agy has no --trust; --settings is for this session only, and only the folder itself counts.
+  resumeCommand({ resumeId, model, effort, cwd, trusted = false }) {
+    const trust = trusted && cwd ? ['--settings', JSON.stringify({ trustedWorkspaces: [realDir(cwd)] })] : [];
+    return [BIN, ...(resumeId ? ['--conversation', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : []), ...trust];
   },
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).

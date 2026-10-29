@@ -62,6 +62,7 @@ export default {
   resumeCommand({ resumeId, model, effort }) {
     return [BIN, ...(resumeId ? ['resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['-c', `model_reasoning_effort=${toml(effort)}`] : [])];
   },
+  trust: (dir) => trustFolder(dir),
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
   setup(platform = process.platform) {
@@ -302,6 +303,30 @@ async function catalog() {
     } catch {}
   }
   return [];
+}
+
+// Interactive codex asks "Do you trust the files in this folder?" before it starts in a folder that
+// isn't trusted (`exec` doesn't). Take over opens it in folders wisp made itself, so record the yes
+// the way codex does: a [projects."<dir>"] table in config.toml with trust_level = "trusted".
+// A table that's already there, either answer, stays as it is.
+export function trustFolder(dir, home = codexHome()) {
+  let key = path.resolve(dir);
+  try {
+    key = fs.realpathSync(dir);
+  } catch {}
+  const file = path.join(home, 'config.toml');
+  let text = '';
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {}
+  const quoted = [JSON.stringify(key), `'${key}'`];
+  if (quoted.some((q) => text.includes(`[projects.${q}]`))) return;
+  try {
+    fs.mkdirSync(home, { recursive: true });
+    fs.appendFileSync(file, `${text && !text.endsWith('\n') ? '\n' : ''}\n[projects.${JSON.stringify(key)}]\ntrust_level = "trusted"\n`);
+  } catch {
+    // Read-only home: codex asks, as before.
+  }
 }
 
 function ownDeveloperInstructions(home) {

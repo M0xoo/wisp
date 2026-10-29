@@ -43,6 +43,7 @@ export default {
   resumeCommand({ resumeId, model, effort }) {
     return [BIN, ...(resumeId ? [`--resume=${resumeId}`] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--reasoning-effort', effort] : [])];
   },
+  trust: (dir) => trustFolder(dir),
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).
   setup() {
@@ -354,4 +355,25 @@ function captureChange(name, a, cwd, files) {
     return { file: rel(a.path, cwd), op: 'edit', edits: [{ before: a.old_str, after: a.new_str ?? '' }] };
   }
   return files.change(a.path);
+}
+
+// Interactive copilot asks whether to trust a folder before it starts there. Take over opens it in
+// folders wisp made itself, so add the folder to trusted_folders in its config.json, where that
+// answer goes.
+export function trustFolder(dir, home = process.env.COPILOT_HOME || path.join(os.homedir(), '.copilot')) {
+  let key = path.resolve(dir);
+  try {
+    key = fs.realpathSync(dir);
+  } catch {}
+  const file = path.join(home, 'config.json');
+  try {
+    let cfg = {};
+    if (fs.existsSync(file)) cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const folders = Array.isArray(cfg.trusted_folders) ? cfg.trusted_folders : [];
+    if (folders.includes(key)) return;
+    fs.mkdirSync(home, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify({ ...cfg, trusted_folders: [...folders, key] }, null, 2) + '\n');
+  } catch {
+    // Unreadable config: copilot asks, as before.
+  }
 }

@@ -62,6 +62,13 @@ export function installFakeBins() {
   return dir;
 }
 
+// Take over marks the folders wisp made trusted in the CLIs' own configs: point those at throwaway
+// dirs, not this computer's ~/.claude.json and ~/.copilot. For the files whose tests take over.
+export function isolateAgentConfigs() {
+  process.env.CLAUDE_CONFIG_DIR ||= tmp('claude-home');
+  process.env.COPILOT_HOME ||= tmp('copilot-home');
+}
+
 // A git repo with a committed buggy math.js plus one uncommitted line, so diffs must come from
 // the working tree as it was when the turn started, not from HEAD.
 export function makeRepo() {
