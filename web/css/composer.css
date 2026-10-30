@@ -134,13 +134,13 @@
 .c-runner.changed .rb-logo { margin-right: 4px; }
 .c-runner:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 /* where the next follow-up runs: a quiet icon, the computer's name once it's switched */
-.c-place { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.c-place { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s; }
 .c-place .i { width: 15px; height: 15px; }
 .c-place:hover, .c-place[aria-expanded='true'], .c-place.changed { background: var(--bg-2); color: var(--ink); }
 .c-place.changed { padding-right: 9px; color: var(--accent); }
 .c-place:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 1px var(--accent); }
 /* subagents from the next follow-up on: a quiet icon, the members' logos once there's a team */
-.c-team { display: inline-flex; align-items: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.c-team { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 8px; font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s; }
 .c-team .i { width: 15px; height: 15px; }
 .c-team .tb-label { display: none; }
 .c-team.changed .tb-label { display: inline; font-weight: 500; }
