@@ -50,6 +50,18 @@ export function createSites({ db, cfg, log = () => {} }) {
     for (const f of ['', '-wal', '-shm']) fs.rmSync(`${dataOf(id)}${f}`, { force: true });
   };
   const urlOf = (s) => `${cfg.instanceUrl(s.label)}/`;
+  // On Windows a file a visitor just read can stay open a moment after the answer went out
+  // (EPERM, EBUSY), and a folder with an open file can't be renamed: wait and try again.
+  const rename = async (from, to) => {
+    for (let k = 0; ; k++) {
+      try {
+        return fs.renameSync(from, to);
+      } catch (err) {
+        if (k >= 10 || !['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) throw err;
+        await new Promise((r) => setTimeout(r, 50 * (k + 1)));
+      }
+    }
+  };
   const view = (s) => ({ key: s.key, title: s.title, url: urlOf(s), files: s.files, size: s.size, createdAt: s.created_at, updatedAt: s.updated_at });
 
   const byLabel = (label) => {
@@ -60,7 +72,7 @@ export function createSites({ db, cfg, log = () => {} }) {
   const own = (userId, key) => db.get('SELECT * FROM sites WHERE user_id = ? AND key = ?', userId, String(key));
 
   // Publish (or update) the app keyed `key` from a bundle (server/bundle.js).
-  function publish(user, key, buf, { title, entry } = {}) {
+  async function publish(user, key, buf, { title, entry } = {}) {
     if (!opts.enabled) throw bad('This grid doesn’t publish apps.', 403);
     if (!KEY.test(String(key || ''))) throw bad('Bad app key.');
     const name = String(title || '').replace(/\s+/g, ' ').trim().slice(0, 140) || 'App';
@@ -89,9 +101,15 @@ export function createSites({ db, cfg, log = () => {} }) {
     // Swap it in: the old version moves aside, the new one takes its name, the old one goes.
     const dir = dirOf(id);
     const old = `${dir}.old-${randomBytes(3).toString('hex')}`;
-    if (fs.existsSync(dir)) fs.renameSync(dir, old);
-    fs.renameSync(tmp, dir);
-    fs.rmSync(old, { recursive: true, force: true });
+    if (fs.existsSync(dir)) await rename(dir, old);
+    try {
+      await rename(tmp, dir);
+    } catch (err) {
+      if (fs.existsSync(old)) fs.renameSync(old, dir);
+      fs.rmSync(tmp, { recursive: true, force: true });
+      throw err;
+    }
+    fs.promises.rm(old, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }).catch(() => {});
     const t = Date.now();
     if (have) {
       db.run('UPDATE sites SET title = ?, entry = ?, files = ?, size = ?, db = ?, updated_at = ? WHERE id = ?', name, start, got.files, got.size, dbSeed, t, id);

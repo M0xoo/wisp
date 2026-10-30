@@ -321,7 +321,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
           limit(`site|${who.id}`, 30);
           if (!sites.opts.enabled) return send(403, { error: 'This grid doesn’t publish apps.' });
           const buf = await readRaw(req, sites.opts.maxBytes);
-          const out = sites.publish(who, site[1], buf, { title: url.searchParams.get('title'), entry: url.searchParams.get('entry') });
+          const out = await sites.publish(who, site[1], buf, { title: url.searchParams.get('title'), entry: url.searchParams.get('entry') });
           notify(who.id);
           return send(200, out);
         }

@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - **My Stuff in the phone app's top bar.** The app's floating New task hides the row that held the My Stuff button, so My Stuff was only reachable through Search. It now has its own button beside Search. Spells reach it through the `stuff.topButton` part.
 
+### Fixed
+
+- **Updating a published app on a Windows grid.** Publishing a new version right after someone opened the link could fail with *Something went wrong on the grid*: Windows still held the file the visitor had just read, so the app's folder couldn't be swapped. The grid now waits a moment and tries again.
+
 ## [0.50.0] - 2026-10-30
 
 ### Added
