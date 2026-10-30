@@ -61,6 +61,11 @@
 .cr-org:hover { background: var(--bg-2); color: var(--ink); }
 .cr-org.on { background: var(--accent-soft); color: var(--accent-ink); }
 .cr-org .i { width: 13px; height: 13px; }
+/* On touch, Org and + take a thumb on the heading's line. Here, after the rules above, which load after responsive.css. */
+@media (pointer: coarse) {
+  #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44px; }
+  #secCrew > .cr-org { top: 0; right: 44px; height: 44px; padding: 0 10px; font-size: 13px; }
+}
 .cr-list { display: flex; flex-direction: column; gap: 2px; }
 .cr-row {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px;

@@ -133,7 +133,7 @@ body.wisp-mobile .topbar .brand:active { opacity: 0.6; }
 body.wisp-mobile .topbar .me-btn .sf-av { width: 30px; height: 30px; font-size: 13px; }
 body.wisp-mobile .topbar .me-btn .sf-av.out { background: var(--surface); }
 body.wisp-mobile .topbar .me-btn .sf-av .i { width: 16px; height: 16px; }
-body.wisp-mobile .topbar :is(.search-btn, .stuff-top) { position: relative; color: var(--ink-2); }
+body.wisp-mobile .topbar :is(.search-btn, .stuff-top) { position: relative; color: var(--ink-2); background: none; }
 body.wisp-mobile .topbar :is(.search-btn, .stuff-top)::after { content: ''; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); z-index: -1; }
 body.wisp-mobile .topbar :is(.search-btn, .stuff-top) .i { width: 16px; height: 16px; }
 /* Pressed while My Stuff is open. */
@@ -161,10 +161,8 @@ body.wisp-mobile .it-quick-gap { width: 32px; }
    keep their 32px pill (its ::before is the touch area) so they match the avatar beside them. */
 body.wisp-mobile.split .f-group h4.sec-toggle { min-height: 44px; }
 body.wisp-mobile #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44px; }
-/* Org on touch (the app and phone browsers): the heading's button and the column's × at 44px */
+/* Org on touch (the app and phone browsers): the column's × at 44px (the heading's Org and + are in crew.css) */
 @media (pointer: coarse) {
-  #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44px; }
-  #secCrew > .cr-org { top: 0; right: 44px; height: 44px; padding: 0 10px; font-size: 13px; }
   .org-x { width: 44px; height: 44px; }
   .org-pick::before { inset: -14px; }
 }

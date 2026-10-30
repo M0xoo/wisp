@@ -21,9 +21,9 @@ body.wisp-mobile .split-stuff { width: 44px; height: 44px; }
 .stuff-view { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--bg); container-type: inline-size; }
 .stuff-view[hidden] { display: none; }
 body.split #stuffView { flex: 1; }
-.stuff-top { padding-left: 24px; padding-right: 16px; }
-.stuff-top .sh-acts .ghost.sm { gap: 6px; }
-.stuff-top .sh-acts .ghost.sm .i { width: 13px; height: 13px; }
+.cv-top.stuff-top { padding-left: 24px; padding-right: 16px; }
+.cv-top.stuff-top .sh-acts .ghost.sm { gap: 6px; }
+.cv-top.stuff-top .sh-acts .ghost.sm .i { width: 13px; height: 13px; }
 .sf-ic { color: var(--accent); background: var(--accent-soft); }
 
 /* Search, the kinds, and how it's laid out */
@@ -257,8 +257,8 @@ body.split #stuffView { flex: 1; }
   .sf-search { flex: 1 1 0; }
   .sf-search kbd { display: none; }
   .sf-body { padding: 0 14px 48px; }
-  .stuff-top { padding-left: 14px; padding-right: 10px; }
-  .stuff-top .sh-acts .ghost.sm span { display: none; }
+  .cv-top.stuff-top { padding-left: 14px; padding-right: 10px; }
+  .cv-top.stuff-top .sh-acts .ghost.sm span { display: none; }
   .sf-opt span { display: none; }
   .stuff-view.list .st-meta { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title sub' 'from from'; padding-right: 12px; }
   .stuff-view.list .st-note { display: none; }
