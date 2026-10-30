@@ -1,5 +1,5 @@
 // Presentation blocks. Each renderer gets (block, ctx) and returns an element.
-// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line), fileUrl(path), reveal(path), openTask(id), keep (Save to My Stuff) }
+// ctx: { session, turn, isLatest, reply(text), draft(text), openFile(path, line) (absent where there's no editor: a shared task), fileUrl(path), reveal(path), openTask(id), keep (Save to My Stuff) }
 
 import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
@@ -162,7 +162,7 @@ R.files = (b, ctx) => {
               <span class="badge ${cls}">${ch}</span>${pathHtml(f.path)}
               ${rev ? '<span class="rev-tag">Reverted</span>' : ''}
               ${n ? `<span class="nums"><span class="plus">+${n.add}</span><span class="minus">−${n.del}</span></span>` : ''}
-              <span class="actions">${c && canRevert ? `<button class="ghost xs revert" title="${rev ? 'Re-apply changes to this file' : 'Revert file to before this turn'}">${icon(rev ? 'rerun' : 'replay')}<span>${rev ? 'Re-apply' : 'Revert'}</span></button>` : ''}${c ? `<button class="ghost xs toggle" title="Show diff">${icon('chevron')}</button>` : ''}<button class="ghost xs open" title="Open in editor">${icon('external')}</button></span>
+              <span class="actions">${c && canRevert ? `<button class="ghost xs revert" title="${rev ? 'Re-apply changes to this file' : 'Revert file to before this turn'}">${icon(rev ? 'rerun' : 'replay')}<span>${rev ? 'Re-apply' : 'Revert'}</span></button>` : ''}${c ? `<button class="ghost xs toggle" title="Show diff">${icon('chevron')}</button>` : ''}${ctx.openFile ? `<button class="ghost xs open" title="Open in editor">${icon('external')}</button>` : ''}</span>
             </div>
             ${f.note ? `<p class="note">${inlineMd(f.note)}</p>` : ''}
           </li>`;
@@ -172,7 +172,8 @@ R.files = (b, ctx) => {
   node.addEventListener('click', (e) => {
     const li = e.target.closest('li');
     if (!li) return;
-    if (e.target.closest('.open')) return ctx.openFile(li.dataset.path);
+    // An expanded row is li.open itself: only the button opens the file.
+    if (e.target.closest('button.open')) return ctx.openFile(li.dataset.path);
     const revBtn = e.target.closest('.revert');
     if (revBtn) {
       const c = findChange(ctx.turn, li.dataset.path);
@@ -224,7 +225,7 @@ R.tree = (b, ctx) => {
   const node = el(`<div class="b-tree card">${b.title ? `<h3 class="b-title">${esc(b.title)}</h3>` : ''}<ul>${render(root, 0)}</ul></div>`);
   node.addEventListener('click', (e) => {
     const li = e.target.closest('li.file');
-    if (li) ctx.openFile(li.dataset.path);
+    if (li) ctx.openFile?.(li.dataset.path);
   });
   return node;
 };
@@ -262,11 +263,11 @@ R.diff = (b, ctx) => {
     .join('');
   const node = el(`
     <div class="b-diff ${b.bare ? 'bare' : 'card'} ${reverted ? 'is-reverted' : ''}">
-      ${b.bare ? '' : `<div class="diff-head">${icon('file')}${pathHtml(file)}${reverted ? '<span class="rev-tag">Reverted</span>' : ''}<span class="nums"><span class="plus">+${add}</span><span class="minus">−${del}</span></span>${canRevert ? `<button class="ghost xs revert ${reverted ? 'reverted' : ''}" title="${reverted ? 'Re-apply changes to this file' : 'Revert this file to before this turn'}">${icon(reverted ? 'rerun' : 'replay')}<span>${reverted ? 'Re-apply' : 'Revert'}</span></button>` : ''}<button class="ghost xs open" title="Open in editor">${icon('external')}</button></div>`}
+      ${b.bare ? '' : `<div class="diff-head">${icon('file')}${pathHtml(file)}${reverted ? '<span class="rev-tag">Reverted</span>' : ''}<span class="nums"><span class="plus">+${add}</span><span class="minus">−${del}</span></span>${canRevert ? `<button class="ghost xs revert ${reverted ? 'reverted' : ''}" title="${reverted ? 'Re-apply changes to this file' : 'Revert this file to before this turn'}">${icon(reverted ? 'rerun' : 'replay')}<span>${reverted ? 'Re-apply' : 'Revert'}</span></button>` : ''}${ctx.openFile ? `<button class="ghost xs open" title="Open in editor">${icon('external')}</button>` : ''}</div>`}
       <div class="diff-scroll"><table><tbody>${body}</tbody></table></div>
       ${b.caption ? `<p class="caption">${inlineMd(b.caption)}</p>` : ''}
     </div>`);
-  node.querySelector('.open')?.addEventListener('click', () => ctx.openFile(file));
+  node.querySelector('.open')?.addEventListener('click', () => ctx.openFile?.(file));
   node.querySelector('.revert')?.addEventListener('click', () => ctx.revertFile?.(file, reverted));
   return node;
 };
@@ -288,7 +289,7 @@ R.code = (b, ctx) => {
   node.querySelector('.copy').addEventListener('click', (e) => copy(b.code, e.currentTarget));
   const fileName = String(b.file || '').split(/[\\/]/).pop();
   ctx.keep?.bind(node, codeWhat, { text: String(b.code || ''), lang: lang || 'text', name: fileName || undefined, title: plainTitle(b.caption) || fileName || `${lang || 'Code'} snippet` });
-  node.querySelector('.file')?.addEventListener('click', () => ctx.openFile(b.file, b.line));
+  node.querySelector('.file')?.addEventListener('click', () => ctx.openFile?.(b.file, b.line));
   return node;
 };
 
@@ -557,7 +558,7 @@ R.tests = (b, ctx) => {
   node.querySelectorAll('.file').forEach((btn) =>
     btn.addEventListener('click', () => {
       const [p, line] = btn.dataset.file.split(':');
-      ctx.openFile(p, line);
+      ctx.openFile?.(p, line);
     }),
   );
   const outSlot = node.querySelector('.tests-rerun-out');
