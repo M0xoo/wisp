@@ -38,7 +38,7 @@ so a wisp.app you have open keeps its single-instance lock.
 | Script | Ports |
 |---|---|
 | web | 4493 (`QA_WEB_PORT`) |
-| desktop | 4520–4529 |
+| desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
 | mobile | 4540–4549 |
 | grid | 8090 (`QA_GRID_PORT`) |
 
