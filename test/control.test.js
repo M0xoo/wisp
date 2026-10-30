@@ -92,13 +92,20 @@ test('a subagent named on a machine runs there (relayed); an unknown machine is 
   srv.store.config.machines.push({ id: 'm-box', name: 'devbox', target: 'dev@devbox', autoConnect: false });
   try {
     const s = await launch('ADHOC@devbox on the box');
-    const done = await settled(s.id);
+    // The box is offline, so the relay fails the run and the lead gets that back as a second
+    // turn, sometimes before its first one has settled: wait on the first turn, not the task.
+    const done = await until(async () => {
+      const x = await api(`/sessions/${s.id}`);
+      return x.turns[0]?.status === 'done' && x;
+    });
     assert.match(said(done), /Delegated: reviewer \(id/);
     const m = done.subagents[0];
     assert.deepEqual([m.agent, m.machine, m.place], ['codex', 'm-box', 'devbox']);
     const child = srv.store.get(done.children[m.name]);
     assert.equal(child.relay.machine, 'm-box', 'carried to the machine by the relay');
-    srv.runner.stop(child);
+    const back = await settled(s.id, 2);
+    assert.equal(srv.store.get(child.id).turns[0].status, 'error');
+    assert.match(back.turns[1].prompt, /Subagents you delegated to earlier have finished[^]*devbox is offline/);
 
     const bad = await launch('ADHOC@nowhere');
     assert.match(said(await settled(bad.id)), /- Reviewer: No machine “nowhere”/);
