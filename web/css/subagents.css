@@ -206,17 +206,17 @@ button.tp-place[aria-expanded="true"] { border-color: color-mix(in srgb, var(--a
 .sub-dock .i { width: 13px; height: 13px; flex: none; }
 .sub-dock button { flex: none; }
 
-/* the open task's head: the tasks above it, each a way up */
+/* the open task's head: the tasks above it, each a way up (scoped: Coming up's rows are .sh-up too) */
 .sh-trail { flex: 0 1 auto; display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 45%; }
-.sh-up { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 28px; padding: 0 8px; margin-left: -8px; border-radius: 99px; font-size: 13px; font-weight: 500; color: var(--ink-2); transition: background 0.15s; }
-.sh-up + .sh-up, .sh-sep + .sh-up { margin-left: 0; }
-.sh-up span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sh-up .i { width: 13px; height: 13px; flex: none; color: var(--faint); }
-button.sh-up:hover, button.sh-up:focus-visible { background: var(--bg-2); color: var(--ink); }
-.sh-up.off { color: var(--faint); }
-.sh-up.more { flex: none; padding: 0 8px; letter-spacing: 0.08em; }
+.sh-trail .sh-up { flex: 0 1 auto; display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 28px; padding: 0 8px; margin-left: -8px; border-radius: 99px; font-size: 13px; font-weight: 500; color: var(--ink-2); transition: background 0.15s; }
+.sh-trail :is(.sh-up + .sh-up, .sh-sep + .sh-up) { margin-left: 0; }
+.sh-trail .sh-up span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-trail .sh-up .i { width: 13px; height: 13px; flex: none; color: var(--faint); }
+.sh-trail button.sh-up:is(:hover, :focus-visible) { background: var(--bg-2); color: var(--ink); }
+.sh-trail .sh-up.off { color: var(--faint); }
+.sh-trail .sh-up.more { flex: none; padding: 0 8px; letter-spacing: 0.08em; }
 .sh-sep { flex: none; width: 11px; height: 11px; color: var(--faint); }
 .trail-menu { min-width: 220px; max-width: min(420px, calc(100vw - 16px)); }
 .trail-menu button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.split.stack .sh-trail { max-width: 38%; }
-body.split.stack .sh-up .i { display: none; }
+body.split.stack .sh-trail .sh-up .i { display: none; }

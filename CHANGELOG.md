@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - **Updating a published app on a Windows grid.** Publishing a new version right after someone opened the link could fail with *Something went wrong on the grid*: Windows still held the file the visitor had just read, so the app's folder couldn't be swapped. The grid now waits a moment and tries again.
+- **Coming up's rows line up.** On the home page the first row under Coming up sat a little to the left of the others, and the rows were shorter than Needs you's: they picked up the styles of the open task's "delegated from" trail, which uses the same class name. Those styles now stay in the trail.
 
 ## [0.50.0] - 2026-10-30
 
