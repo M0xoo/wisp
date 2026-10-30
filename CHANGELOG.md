@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-10-30
+
 ### Added
 
 - **Open a delegate's task by itself.** A delegate's live row and its report's **→** (or **Open @… task**) open its whole run in the main pane, a subagent nested under its lead in the list, a crew member's job under the member. The head names the tasks above it (*Lead › Ada › job*; deeper chains fold into **…**), each a click away, and Esc, × or Back go up one level to the task you came from. A subagent has no follow-up box of its own: its dock sends you to the lead. Links to a subagent (`#/s/<id>`) open it under its lead. Spells reach it through the `delegate.go`, `delegate.row`, `delegate.dock` and `split.trail` parts.
