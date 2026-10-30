@@ -3,6 +3,7 @@
 // Ids of the form <id>@<machine> are passed through to that machine's wisp (proxy.js).
 
 import { spawn } from 'node:child_process';
+import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
@@ -119,8 +120,40 @@ export function register(r, app) {
   const sumOf = (x) => (x.turns ? summarize(x, store) : x);
   const turnOf = (s, turnId) => (turnId ? s.turns.find((t) => t.id === turnId) : s.turns.at(-1));
 
+  // ?since=<token> (the phone, over a slow tunnel): only the tasks whose summary changed since the
+  // list that token came with, and the ones gone since. Each list asked for this way is compared
+  // with the one before it (a fingerprint per task), so nothing has to remember to mark a change.
+  // A token from another run of wisp, or one older than what's kept, gets the whole list.
+  const epoch = randomBytes(4).toString('hex');
+  let seq = 0;
+  const seen = new Map(); // id -> { hash, seq }
+  const gone = new Map(); // id -> seq it went at
+  let forgot = 0; // the newest removal no longer kept: a token older than it can't be diffed
+  const listDelta = (list, since) => {
+    const now = new Set();
+    for (const x of list) {
+      now.add(x.id);
+      const hash = createHash('sha1').update(JSON.stringify(x)).digest('base64url');
+      const was = seen.get(x.id);
+      if (was?.hash !== hash) seen.set(x.id, { hash, seq: ++seq });
+      gone.delete(x.id);
+    }
+    for (const id of seen.keys()) if (!now.has(id)) (seen.delete(id), gone.set(id, ++seq));
+    while (gone.size > 5000) {
+      const [id, at] = gone.entries().next().value;
+      gone.delete(id);
+      forgot = at;
+    }
+    const token = `${epoch}.${seq}`;
+    const [e, n] = String(since).split('.');
+    const from = Number(n);
+    if (e !== epoch || !Number.isInteger(from) || from > seq || from < forgot) return { token, full: list };
+    return { token, changed: list.filter((x) => seen.get(x.id).seq > from), removed: [...gone].filter(([, at]) => at > from).map(([id]) => id) };
+  };
   r.route('GET', '/sessions', async (c) => {
     const q = Object.fromEntries(c.query);
+    const since = q.since;
+    delete q.since;
     const cwd = q.cwd && expand(q.cwd);
     // Subagent sessions belong to their lead; ?children=1 lists them too.
     // Sessions on machines too (the last ones seen, for a machine that's offline), unless another
@@ -135,6 +168,7 @@ export function register(r, app) {
     if (cwd) list = list.filter((x) => dirs(x).some((d) => d === cwd || d?.startsWith(cwd + path.sep)));
     if (q.archived !== undefined) list = list.filter((x) => x.archived === (q.archived === 'true' || q.archived === '1'));
     if (Number(q.limit) > 0) list = list.slice(0, Number(q.limit));
+    if (since !== undefined) return c.send(200, Object.keys(q).length ? { token: '', full: list } : listDelta(list, since)); // a filtered list isn't the one diffed
     c.send(200, list);
   });
   r.route('POST', '/sessions', async (c) => {
@@ -157,6 +191,25 @@ export function register(r, app) {
   });
 
   // A lead comes with its subagents' sessions, so its cards can show their reports and diffs.
+  // ?lean=1 (the page): without each edit's whole file from before it, which only rollback reads
+  // (here, on the server). A tenth or more of a big task, and the phone fetches it through a tunnel.
+  // &turns=N (the phone): the latest N turns whole, older ones as stubs with what their folded row
+  // shows (prompt, time, result title, mode and account); unfolding one fetches the task whole.
+  const leanTurns = (turns) => turns?.map((t) => (t.changes?.some((x) => 'beforeFile' in x) ? { ...t, changes: t.changes.map(({ beforeFile, ...x }) => x) } : t));
+  const STUB = ['id', 'prompt', 'by', 'goal', 'status', 'startedAt', 'endedAt', 'rolledBackAt', 'moved', 'mode', 'account', 'agent', 'model', 'effort', 'forked', 'shared', 'btw', 'checkpoint', 'held', 'attachments'];
+  const stub = (t) => {
+    const out = { stub: true };
+    for (const k of STUB) if (t[k] !== undefined) out[k] = t[k];
+    const hero = t.presentation?.blocks?.find((b) => b.type === 'hero');
+    if (hero) out.presentation = { blocks: [{ type: 'hero', title: hero.title }] };
+    return out;
+  };
+  const windowed = (turns, n) => (n > 0 && turns?.length > n ? turns.map((t, i) => (i < turns.length - n ? stub(t) : t)) : turns);
+  const lean = (s, n) => ({
+    ...s,
+    turns: windowed(leanTurns(s.turns), n),
+    ...(s.childSessions && { childSessions: Object.fromEntries(Object.entries(s.childSessions).map(([k, x]) => [k, { ...x, turns: leanTurns(x.turns) }])) }),
+  });
   r.route(
     'GET',
     '/sessions/:id',
@@ -164,7 +217,8 @@ export function register(r, app) {
       app.ship.recheck(s, { lazy: true }); // edits made outside wisp (in an editor) show up too
       // Crew members' jobs it delegated count as its children here too.
       const kids = [...Object.values(s.children || {}), ...s.turns.flatMap((t) => (t.delegations || []).filter((d) => d.crew).map((d) => d.sessionId))];
-      c.send(200, kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid) || runner.crewChild(cid)]).filter(([, x]) => x)) } : s);
+      const out = kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid) || runner.crewChild(cid)]).filter(([, x]) => x)) } : s;
+      c.send(200, c.query.get('lean') === '1' ? lean(out, Number(c.query.get('turns')) || 0) : out);
     }),
   );
   r.route(

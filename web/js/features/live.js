@@ -137,11 +137,32 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) hiddenAt = Date.now();
   else if (es && hiddenAt && Date.now() - hiddenAt > 10000) connect();
 });
+// The network is back (out of a tunnel, off a dead Wi-Fi): reconnect now rather than at the
+// stream's next retry, seconds away. Its `hello` refetches the list (what changed since) and the
+// open task (304 if unchanged).
+addEventListener('online', () => {
+  if (!es) return;
+  connect();
+  for (const id of S.open) scheduleRefetch(id, 0); // the task on screen doesn't wait for the stream's hello
+});
 
+// The phone asks for what changed since its last list (thousands of tasks are hundreds of KB, and
+// it fetches the list each time it comes back); the answer says when it's the whole list instead.
 export const loadSessions = shared(async () => {
-  const list = await api('/sessions');
   const prev = S.sessions;
-  S.sessions = new Map(list.filter((s) => !S.deleting.has(s.id)).map((s) => [s.id, s]));
+  if (MOBILE) {
+    const r = await api(`/sessions?since=${encodeURIComponent(S.listToken)}`);
+    S.listToken = r.token || '';
+    // As the whole list would: no placeholders or subagents (keepSubs puts back the ones still open).
+    const next = r.full ? new Map(r.full.map((s) => [s.id, s])) : new Map([...prev].filter(([, s]) => !s.pending && !s.parentId && !s.delegated));
+    for (const id of r.removed || []) next.delete(id);
+    for (const s of r.changed || []) next.set(s.id, s);
+    for (const id of S.deleting) next.delete(id);
+    S.sessions = next;
+  } else {
+    const list = await api('/sessions');
+    S.sessions = new Map(list.filter((s) => !S.deleting.has(s.id)).map((s) => [s.id, s]));
+  }
   keepSubs(prev); // subagents opened by themselves aren't in the list
   for (const id of S.open) if (!S.sessions.has(id)) S.open.delete(id);
   saveOpen();

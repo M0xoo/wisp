@@ -61,6 +61,7 @@ export class Drafts extends Map {
 
 export const S = {
   sessions: new Map(), // id -> summary
+  listToken: '', // the phone's last task list, for ?since= (features/live.js loadSessions)
   deleting: new Set(), // ids swiped away whose delete waits for its Undo toast to go (actions.js)
   full: new Map(), // id -> full session, for expanded items
   open: new Set(MOBILE ? [] : load('wisp.open', [])), // expanded item ids (the phone app starts on the list)

@@ -68,18 +68,18 @@
 .runners.cmp .apv-l, .runners.many .auto-pv { display: none; }
 /* With the preview on, the pick says more than the goal: the goal moves to the button's tooltip and
    the popover, and the pill keeps its room for "Auto" and the pick. */
-.runners:has(.auto-pv:not([hidden])) .rb-m { display: none; }
+.runners.pv-on .rb-m { display: none; }
 /* "Auto" keeps its word; the pick's label gives way (ellipsis) before it does */
-.runners:has(.auto-pv:not([hidden])) .rb-h { flex: none; }
+.runners.pv-on .rb-h { flex: none; }
 .runners .auto-pv { flex: 0 1 auto; }
 /* a narrower bar: the pick outranks the word (the spark still says Auto, its tooltip names the goal) */
-@container launcher (max-width: 640px) { .runners:has(.auto-pv:not([hidden])) .rb-h { display: none; } }
+@container launcher (max-width: 640px) { .runners.pv-on .rb-h { display: none; } }
 /* a phone: the pick's logo alone, and Auto's chevron goes (the pick is the next thing to tap) */
 @container launcher (max-width: 520px) {
   .apv-l, .apv-sk { display: none; }
   .auto-pv { padding: 0 6px 0 7px; }
   .auto-pv .rb-logo { margin-right: 0; }
-  .runners:has(.auto-pv:not([hidden])) .runner-btn .chev { display: none; }
+  .runners.pv-on .runner-btn .chev { display: none; }
 }
 body.wisp-mobile .launcher .runners .auto-pv { height: 44px; }
 @media (prefers-reduced-motion: reduce) { .auto-pv .sk { animation: none; } }

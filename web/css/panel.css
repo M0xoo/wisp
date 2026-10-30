@@ -310,7 +310,7 @@ body.split.stack .it-bar > .shell-door {
   display: flex; align-items: center; gap: 8px; order: 10; flex: 1 0 100%; min-width: 0; min-height: 44px; margin: 0; padding: 0 8px 0 12px;
   border-radius: 9px; border: 1px solid var(--line); background: var(--bg-2); color: var(--ink); font: 12.5px var(--sans); text-align: left; touch-action: manipulation;
 }
-body.split.stack .it-bar > .shell-door:active { background: var(--line); }
+body.split.stack .it-bar > .shell-door:is(:active, .pressed) { background: var(--line); }
 .shell-door > .i:first-child { width: 15px; height: 15px; flex: none; color: var(--ink-2); }
 .shell-door b { flex: none; font-weight: 600; }
 .shell-door .sd-sub { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 6px; overflow: hidden; color: var(--muted); white-space: nowrap; }
@@ -332,7 +332,7 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .side-panel.stacked .pn-place .icon-btn { width: 36px; height: 36px; }
 /* The PR's verdict bar rests at the page's foot even when the PR is short. */
 .side-panel.stacked .pn-pr:has(> .pn-bar) { display: flex; flex-direction: column; }
-.side-panel.stacked .pn-pr:has(> .pn-bar) > * { flex: none; }
+.side-panel.stacked .pn-pr > * { flex: none; } /* only a flex box (above) reads it; `:has() > *` restyled the whole page on any change */
 .side-panel.stacked .pn-pr > .pn-bar { margin-top: auto; }
 .side-panel.stacked .pn-pr { padding: 12px 14px 0; }
 

@@ -110,8 +110,10 @@ body.wisp-mobile .c-bar .c-mode { padding: 0; justify-content: center; }
 body.wisp-mobile :is(button, a, summary, .it-head, .task-head) { touch-action: manipulation; }
 body.wisp-mobile :is(button, .topbar, .it-head, .task-head) { -webkit-user-select: none; user-select: none; }
 body.wisp-mobile button { transition: transform 0.12s var(--ease), opacity 0.12s; }
-body.wisp-mobile button:active:not(:disabled) { transform: scale(0.96); opacity: 0.8; }
-body.wisp-mobile :is(.it-head, .task-head):active { background: var(--bg-2); }
+/* .pressed: set as the finger goes down (ui/press.js); :active only comes once it lifts. Pressing
+   in is instant, letting go eases out. */
+body.wisp-mobile button:is(:active, .pressed):not(:disabled) { transform: scale(0.96); opacity: 0.8; transition: none; }
+body.wisp-mobile :is(.it-head, .task-head):is(:active, .pressed) { background: var(--bg-2); }
 /* While what's shown may be stale (painted from the phone's cache, or the tunnel is reconnecting):
    a thin moving line under the top bar (features/cache.js syncing). */
 body.wisp-mobile .topbar::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; opacity: 0; pointer-events: none; transition: opacity 0.3s;
@@ -128,7 +130,7 @@ body.wisp-mobile .me-menu :is(.sf-me, .me-nav .auto-btn) { min-height: 44px; }
 body.wisp-mobile .lp-chip { height: 44px; }
 /* The logo goes to the app's computers list (app.js): a 44px target, no #/ history entry. */
 body.wisp-mobile .topbar .brand { min-width: 44px; height: 44px; margin-right: 6px; }
-body.wisp-mobile .topbar .brand:active { opacity: 0.6; }
+body.wisp-mobile .topbar .brand:is(:active, .pressed) { opacity: 0.6; }
 /* Search, the avatar and the project pill read as one row: each 32px to the eye (30px and its 1px ring), 44px to a thumb. */
 body.wisp-mobile .topbar .me-btn .sf-av { width: 30px; height: 30px; font-size: 13px; }
 body.wisp-mobile .topbar .me-btn .sf-av.out { background: var(--surface); }
@@ -239,3 +241,8 @@ body.wisp-mobile .tb-l { display: inline; }
    second line, rather than landing wherever the wrap falls. */
 body.wisp-mobile .trail-bar:has(> .link.xs, .tb-tools > *) > .grow { flex-basis: 100%; }
 body.wisp-mobile .trail-bar > .link.xs + .tb-tools { margin-left: -14px; }
+
+/* A long list (Done holds hundreds once scrolled through): rows off screen skip style, layout and
+   paint, so a page opening over the list doesn't restyle all of them. Not the open task's row: its
+   body is fixed over the page, and containment would hold it inside the row. */
+body.wisp-mobile #feed .item:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 88px; }

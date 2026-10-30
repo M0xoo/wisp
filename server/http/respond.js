@@ -1,5 +1,6 @@
 // Writing responses and reading request bodies. The API speaks JSON; a few routes stream.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 
@@ -11,6 +12,19 @@ const GZIP_MIN = 8 * 1024;
 
 export function send(res, status, body) {
   const json = JSON.stringify(body);
+  // A big read answered again unchanged (a task opened again, the lists after a reconnect): the
+  // browser keeps the last answer and asks with If-None-Match, so the tunnel carries a 304
+  // instead of the body. no-cache: it always asks; private: nothing in between keeps it.
+  const req = res.req;
+  if (status === 200 && json !== undefined && json.length >= GZIP_MIN && req?.method === 'GET') {
+    const etag = `W/"${crypto.createHash('sha1').update(json).digest('base64url')}"`;
+    res.setHeader('etag', etag);
+    res.setHeader('cache-control', 'private, no-cache');
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304);
+      return res.end();
+    }
+  }
   if (json === undefined || json.length < GZIP_MIN || !/\bgzip\b/.test(res.req?.headers['accept-encoding'] || '')) {
     res.writeHead(status, { 'content-type': 'application/json' });
     return res.end(json);

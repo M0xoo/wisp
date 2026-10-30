@@ -14,7 +14,7 @@ import { popover } from '../ui/popover.js';
 import { execAction, forkable, forkTask, moreMenu, openInEditor, rerun, revealFile, revertFile, rollbackTurn, takeOver, toggleDone } from './actions.js';
 import { btwTip, paintBtw } from './btw.js';
 import { draftInto, renderDock, sendReply, startOptimistic, updateDock } from './composer.js';
-import { expand, fetchFull, renderFeed, reveal as revealTask, scheduleRefetch, setFocus } from './feed.js';
+import { expand, fetchFull, renderFeed, reveal as revealTask, scheduleRefetch, setFocus, wholeTask } from './feed.js';
 import { feedbackOn, rateTurn, whyForm } from './feedback.js';
 import { projectById } from './places.js';
 import { accountMark, accountOf, agentName, DEFAULT_MODE, effortLabel, limitUntil, modelBadge, MODES } from './runners.js';
@@ -78,7 +78,8 @@ async function approveBlocked(s, turn, allow) {
 }
 
 // Older turns render as one-line folded rows; past this many they hide behind "Show earlier".
-const VISIBLE_TURNS = 8;
+export const VISIBLE_TURNS = 8;
+const PROMPT_CUT = 4000; // characters of a folded prompt laid out before Show all
 
 export function renderBody(id, { fresh }) {
   const s = S.full.get(id);
@@ -196,13 +197,22 @@ export function renderBody(id, { fresh }) {
   const sharedStart = s.sharedFrom && s.turns.find((t) => !t.shared)?.id;
   turns.forEach((t, i) => {
     const isLatest = t.id === latestId;
-    const folded = !isLatest && !n.unfolded.has(t.id);
+    const folded = !isLatest && (!n.unfolded.has(t.id) || !!t.stub);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
     const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
-      const toggle = () => (n.unfolded.has(t.id) ? n.unfolded.delete(t.id) : n.unfolded.add(t.id), renderBody(id, { fresh: false }));
+      const toggle = () => {
+        // A stub (the phone fetched only the latest turns): it opens once the whole task is here.
+        if (t.stub) {
+          n.unfolded.add(t.id);
+          node.setAttribute('aria-busy', 'true');
+          return wholeTask(id);
+        }
+        n.unfolded.has(t.id) ? n.unfolded.delete(t.id) : n.unfolded.add(t.id);
+        renderBody(id, { fresh: false });
+      };
       node = folded ? renderFoldedTurn(t, toggle) : renderTurn(s, t, isLatest, isLatest ? null : toggle, tx);
       // A fork's own turns start under a line: the ones above came with it from the original.
       // On a narrow pane the bar has no room for Forked from: the line names the original instead.
@@ -417,7 +427,7 @@ function renderFoldedTurn(t, unfold) {
     <article class="turn folded" data-turn="${t.id}">
       <button class="t-fold" title="Show this exchange">
         ${icon('chevron', 'chev')}
-        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? 'What’s still missing' : `${sent ? icon('comment', 't-cm') : ''}${mentionHtml(esc(said.replace(/\s+/g, ' ')), { link: false })}`}</span>
+        <span class="t-prompt">${t.by === 'wisp' ? '<b class="t-by">wisp</b> ' : ''}${t.goal ? 'What’s still missing' : `${sent ? icon('comment', 't-cm') : ''}${mentionHtml(esc(said.slice(0, 300).replace(/\s+/g, ' ')), { link: false })}`}</span>
         ${t.rolledBackAt ? '<span class="rev-tag">Rolled back</span>' : ''}
         ${t.moved ? `<span class="t-moved" title="${esc(`Ran on ${t.moved}`)}">${icon('server')}${esc(t.moved)}</span>` : ''}
         ${hero?.title ? `<span class="t-result">${esc(hero.title)}</span>` : ''}
@@ -526,6 +536,8 @@ function renderTurn(s, t, isLatest, fold, tx) {
   const sent = !t.goal && sentComments(t.prompt);
   const said = sent ? sent.rest : t.prompt;
   const long = !!missing || said.length > 360 || said.split('\n').length > 5;
+  // A pasted prompt of hundreds of KB: folded, only its opening is laid out until Show all.
+  const cut = !missing && said.length > PROMPT_CUT;
   const cp = t.checkpoint;
   // The task's worktree branch shows once, with the task: a turn names its branch only when it ran
   // on another one (a task in the project folder, where the branch can change between turns).
@@ -538,7 +550,7 @@ function renderTurn(s, t, isLatest, fold, tx) {
       ${t.by === 'wisp' ? `<div class="ask-by">${icon(t.goal ? 'target' : 'spark')}${t.reports ? 'Sent by wisp when your subagents finished' : t.goal ? 'Sent back by wisp: the goal isn’t met yet' : 'Sent by wisp after its test run'}</div>` : ''}
       ${missing ? `<div class="ask-goal"><b>Still missing</b> ${esc(missing)}${next ? `<span>Next: ${esc(next)}</span>` : ''}</div>` : ''}
       ${sent ? sent.html : ''}
-      <div class="ask-text ${long ? 'clamped' : ''}" ${missing || (sent && !said.trim()) ? 'hidden' : ''}>${mentionHtml(esc(said))}</div>
+      <div class="ask-text ${long ? 'clamped' : ''}" ${missing || (sent && !said.trim()) ? 'hidden' : ''}>${mentionHtml(esc(cut ? said.slice(0, PROMPT_CUT) : said))}</div>
       ${long ? '<button class="link xs more-btn">Show all</button>' : ''}
       ${t.attachments?.length ? `<div class="ask-atts">${t.attachments.map((a) => (a.mime?.startsWith('image/') ? `<img src="/api/uploads/${a.id}" alt="${esc(a.name)}" title="${esc(a.name)}">` : `<a class="att-pill" href="/api/uploads/${a.id}" target="_blank">${icon('file')}${esc(a.name)}</a>`)).join('')}</div>` : ''}
       <div class="ask-foot">
@@ -565,7 +577,9 @@ function renderTurn(s, t, isLatest, fold, tx) {
       e.target.textContent = full.hidden ? 'Show all' : 'Show less';
       return;
     }
-    ask.querySelector('.ask-text').classList.toggle('clamped');
+    const text = ask.querySelector('.ask-text');
+    if (text.dataset.cut !== 'whole' && cut) (text.innerHTML = mentionHtml(esc(said))), (text.dataset.cut = 'whole');
+    text.classList.toggle('clamped');
     e.target.textContent = ask.querySelector('.ask-text').classList.contains('clamped') ? 'Show all' : 'Show less';
   });
   const atts = [...ask.querySelectorAll('.ask-atts img')];

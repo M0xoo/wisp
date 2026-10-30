@@ -14,8 +14,8 @@
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: clip;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.task-item:hover, .task-item:has(.item.focused) { border-color: var(--line-2); }
-.task-item:has(.item.open) { border-color: var(--line-2); box-shadow: var(--shadow-2); }
+.task-item:hover, .task-item.has-focus { border-color: var(--line-2); }
+.task-item.has-open { border-color: var(--line-2); box-shadow: var(--shadow-2); }
 .task-item.st-done { background: transparent; }
 .task-item.arrived { animation: arrive 1.4s var(--ease); }
 .task-head { display: grid; grid-template-columns: 10px 1fr auto; gap: 12px; align-items: center; padding: 11px 12px 9px 14px; }

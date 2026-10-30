@@ -204,7 +204,7 @@ body.split:not(.side-full) #feed .it-side > :is(.model-logo, .team-stack, .q-mac
 /* …but not the harness and machine twice: the third line says those. */
 body.split.side-full #feed .it-head:has(> .it-main > .it-run) .it-side > :is(.model-logo, .q-machine) { display: none; }
 body.split .task-item { background: transparent; border-color: var(--line); box-shadow: none; }
-body.split .task-item:has(.item.open) { box-shadow: none; }
+body.split .task-item.has-open { box-shadow: none; }
 body.split .task-head { padding: 8px 10px 6px 12px; gap: 10px; }
 body.split .task-head .it-side > :is(.q-proj, button[data-a='compare'] span) { display: none; }
 body.split .task-runs { padding: 0 4px 4px; }
@@ -587,11 +587,11 @@ body.wisp-mobile #feed .item.sw-gone { transition: height 0.2s var(--ease), marg
   body.split.stack .it-bar .ghost.xs { min-width: 44px; height: 44px; padding: 4px; justify-content: center; border-radius: 12px; background-clip: content-box; }
 }
 @media (hover: none) {
-  body.split.stack #feed:has(.it-quick) .it-head { grid-template-columns: 10px minmax(0, 1fr) auto 36px; }
+  body.split.stack #feed.has-quick .it-head { grid-template-columns: 10px minmax(0, 1fr) auto 36px; }
   body.split.stack #feed .it-quick { top: 50%; right: 8px; width: 36px; height: 36px; margin: -18px 0 0; background: none; }
-  body.split.stack #feed:has(.it-quick) .it-side .q-time { right: 48px; }
-  body.split.stack #feed:has(.it-quick) .it-title { padding-right: 84px; }
-  body.split.stack #feed:has(.it-quick) .f-group.scheduled .it-title { padding-right: 136px; }
+  body.split.stack #feed.has-quick .it-side .q-time { right: 48px; }
+  body.split.stack #feed.has-quick .it-title { padding-right: 84px; }
+  body.split.stack #feed.has-quick .f-group.scheduled .it-title { padding-right: 136px; }
 }
 /* The Mac window buttons sit over the page's top-left corner, and their hover area takes clicks out
    to x 88 (16px past the green one): Back's box starts there, not under them (its -10px margin). */

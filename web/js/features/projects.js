@@ -94,9 +94,13 @@ export function renderProjects() {
       $('.p-need', more).hidden = !need;
       $('.p-need', more).textContent = need;
     }
+    fitBar.w = $('#projects').clientWidth; // the solo chip can change the bar's own width
   };
+  // Fitting itself only changes what's inside. Hidden (a phone's task page hides the top bar) it
+  // has no width: nothing to fit, and back at the width it had, nothing to refit.
   fitBar ??= new ResizeObserver(([e]) => {
-    if (e.target.clientWidth !== fitBar.w) fitBar.fit?.(); // fitting itself only changes what's inside
+    const w = e.target.clientWidth;
+    if (w && w !== fitBar.w) fitBar.fit?.();
   });
   fitBar.fit = fit;
   fitBar.observe($('#projects'));

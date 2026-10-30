@@ -534,6 +534,9 @@ function paintHome() {
 // writes what changed: a new --sb-* on body restyles the whole page.
 let lastBox = '';
 function measure() {
+  // Stacked with no task open there's no box: keep the last one, so Back and the next open don't
+  // write --sb-* twice (each write restyles the whole page; the phone's box never moves).
+  if (isStacked() && $('#splitStage').hidden) return;
   const box = $('#splitStage').getBoundingClientRect();
   // Without the page's slide in (stacked): the body slides with it, from where it'll rest.
   const m = new DOMMatrixReadOnly(getComputedStyle($('#splitMain')).transform);
