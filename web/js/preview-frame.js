@@ -5,6 +5,7 @@
 import { esc, inlineMd } from './md.js';
 import { el, icon } from './core/dom.js';
 import { S } from './core/state.js';
+import { gridLink } from './grid-link.js';
 import { DEVICES, boxUrl, isLoopback, previewProblem, previewSandbox, previewSize, previewUrl, shortUrl } from './preview-spec.js';
 
 const picked = new Map(); // key -> { device, w, h }, so a re-render keeps the size the user switched to
@@ -92,7 +93,11 @@ export function previewBlock(b, ctx = {}) {
     screen.classList.remove('loaded');
     screen.querySelector('iframe')?.remove();
     screen.append(frame);
-    frame.src = src;
+    // Behind the grid, the phone app's frame starts at a link that signs it in there (grid-link.js).
+    const f = frame;
+    gridLink(url, src).then((to) => {
+      if (f === frame) f.src = to;
+    });
     paint();
   };
 

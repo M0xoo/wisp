@@ -16,6 +16,7 @@ import { copy } from '../blocks.js';
 import { APP_TOKENS, themeCss } from '../app-doc.js';
 import { watchDoc } from '../watch-doc.js';
 import { boxUrl, isLoopback, previewSandbox, shortUrl } from '../preview-spec.js';
+import { gridLink } from '../grid-link.js';
 
 const docs = new Map(); // task id -> the last page and state fetched ({ title, caption, state, run, seq, rev, closed, html, url, problem })
 const loads = new Map(); // task id -> the fetch on its way; another change meanwhile fetches once more after it
@@ -117,8 +118,11 @@ export function paintWatch(sec, id) {
   if (d.url) {
     const { src, local } = where(id, d.url);
     node.setAttribute('sandbox', previewSandbox(src, location.origin));
-    node.src = src;
-    frame = { id, rev: d.rev, seq: d.seq, node, ready: true };
+    const f = (frame = { id, rev: d.rev, seq: d.seq, node, ready: true });
+    // Behind the grid, the phone app's frame starts at a link that signs it in there (grid-link.js).
+    gridLink(d.url, src).then((to) => {
+      if (frame === f) node.src = to;
+    });
     box.replaceChildren(...(local ? [Object.assign(document.createElement('p'), { className: 'wt-local', innerHTML: `${icon('info')}This points at the agent's computer; it may not load here.` })] : []), node);
     return;
   }

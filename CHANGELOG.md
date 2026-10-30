@@ -25,6 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Watch and previews in the phone app through wisp Grid.** A page on your computer's localhost (a running app in Watch, a preview block) stopped at the grid's sign-in, which can't be shown in a frame (*Webpage not available*). They now start at a one-time link that signs the frame in, as My Stuff apps do.
 - **Interactive answers follow your computer's light or dark switch** while they're open, with the theme on *System*; they kept the colours they opened with until a reload.
 - **Removing an app from My Stuff on Windows** no longer fails with *directory not empty* right after the app was running: wisp retries while Windows lets go of the files it just served, without holding them open itself.
 - **Removing an app that keeps data** (`"db"` in its `wisp-app.json`) no longer fails on Windows with *resource busy or locked*: its database is closed before its file goes.
