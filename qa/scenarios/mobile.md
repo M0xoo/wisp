@@ -226,3 +226,15 @@ Never send builds to someone's own phone as part of QA.
 - **Expected:** through the grid the app opens inside the app, full screen under its bar at
   `p<port>--…`, with no sign-in page in the frame and no *New tab*; Back closes it. Over SSH a
   toast says apps open there through wisp Cloud, or in a browser on that computer.
+
+### MOB-25 Swipe a task page for its side panel
+- **Run:** Manual on the Pixel (debug APK); `qa/mobile.mjs`'s page can drive it with CDP touch events.
+- **Steps:** open a task; drag the page slowly to the left past half way and let go; drag the
+  panel to the right; drag a little and let go; flick a short way fast both ways; open a file's
+  diff with a long line and swipe on it both ways; pick Shell, go back, swipe again; scroll the
+  task up and down; press the phone's Back once the panel is in. In light and dark.
+- **Expected:** the panel tracks the finger with no hitch at the start or at 60fps through the
+  drag, the task sliding and dimming under it; past 40% or on a flick it finishes, short of it it
+  springs back. The diff scrolls first and only then does a right swipe go back. The swipe reopens
+  Shell without the keyboard. Scrolling never moves the panel; Back returns to the task, then the
+  list. A tap after a swipe doesn't press what was under the finger.

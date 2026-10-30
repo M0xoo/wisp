@@ -233,7 +233,7 @@ body.split #feed .item.open .pr-strip:not(.ship-run):hover { background: color-m
 .pr-go { display: none; }
 
 /* The PR says it all: the task's own PR row would say it twice. */
-body.panel-pr #feed .item.open .pr-strip { display: none; }
+body.panel-pr:not(.stack) #feed .item.open .pr-strip { display: none; }
 
 .pn-fold.shut .chev { transform: rotate(90deg); }
 .pn-fold:not(.shut) .i { transform: rotate(-90deg); }
@@ -251,6 +251,15 @@ body.split.stack .sh-panel { display: none; }
 .side-panel.stacked.pn-in > * { animation: none; }
 @media (prefers-reduced-motion: reduce) { .side-panel.stacked.pn-in { animation: none; } }
 .side-panel.stacked .pn-grip, .side-panel.stacked .pn-close { display: none; }
+/* Swiping it in and out in the app (panel-swipe.js): sideways is ours, the browser keeps vertical
+   scrolling (and a diff's own sideways scroll). While the finger moves, the panel and the task
+   under it are layers of their own, and the task dims under a shade that only fades. */
+/* (A scroller takes sideways pans for itself unless told, so the panel's own scrollers say it too.) */
+body.wisp-mobile.stack-page :is(.split-main, #feed .item.open > .it-body),
+body.wisp-mobile .side-panel.stacked, body.wisp-mobile .side-panel.stacked :is(.pn-pr, .cx-list, .tm-screen) { touch-action: pan-y pinch-zoom; }
+.pn-drag { will-change: transform; }
+.side-panel.stacked.pn-drag { animation: none; box-shadow: -1px 0 0 var(--line), var(--shadow-2); }
+.pn-scrim { position: fixed; inset: 0; z-index: 5; background: rgb(10 10 12); opacity: 0; pointer-events: none; will-change: opacity; }
 /* The same 56px head and Back spot as the task's page, so Back never moves under your thumb. */
 .side-panel.stacked .pn-head { height: auto; min-height: 56px; gap: 6px; padding: 6px 12px 6px 6px; }
 .side-panel.stacked .pn-back { display: inline-flex; flex: none; width: 44px; height: 44px; justify-content: center; }

@@ -28,6 +28,7 @@ import { routeCrew } from './features/crew-share.js';
 import './features/spells.js';
 import './features/tips.js';
 import './features/swipe.js';
+import './features/panel-swipe.js';
 
 document.addEventListener('keydown', onKey);
 stage.addEventListener('scroll', onScroll, { passive: true });
