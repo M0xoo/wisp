@@ -204,7 +204,8 @@ test('shared with a passkey, opened in a browser with its delegate, imported wit
   assert.equal(kid.turns[0].prompt, 'write a test for add');
   assert.deepEqual([s.turns[0].delegations[0].sessionId, s.turns[0].delegations[0].turnId], [kid.id, kid.turns[0].id]);
   assert.ok(s.worktree, notes.join('\n'));
-  assert.equal(fs.readFileSync(path.join(workdir(s), 'notes.md'), 'utf8'), 'work in progress\n');
+  // Its repo is new, so it checks out with the importer's git config: CRLF on Windows (core.autocrlf).
+  assert.equal(fs.readFileSync(path.join(workdir(s), 'notes.md'), 'utf8').replace(/\r\n/g, '\n'), 'work in progress\n');
   assert.match(fs.readFileSync(path.join(workdir(s), 'math.js'), 'utf8'), /uncommitted/);
 
   // Carried on: the harness hears what happened before it, as a shared task.
