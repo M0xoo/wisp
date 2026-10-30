@@ -39,6 +39,11 @@ export const TASK_FILE = 1; // wispTask
 const MAX = 100 * 1024 * 1024; // the grid says its own limit (413)
 const FILES_MAX = 50 * 1024 * 1024; // a folder-less task's files
 const EDITS_MAX = 200_000; // characters of captured edits per turn
+const MEDIA_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.mp4', '.webm', '.mov', '.m4v']);
+const ATTACHED_MAX = 80 * 1024 * 1024; // pictures, videos and My Stuff items, together
+const STUFF_MAX = 50 * 1024 * 1024; // one My Stuff item
+const MEDIA_NAME = /^media\/[\w.-]{1,80}$/;
+const STUFF_PACK = /^stuff\/\d{1,3}$/;
 // A share link: <grid>/s/<16 characters>.
 export const SHARE_LINK = /^(https?:\/\/[^/\s]+)\/s\/([A-Za-z0-9_-]{16})\/?$/;
 
@@ -151,6 +156,81 @@ export function usedSkills(turns, home = os.homedir()) {
     }
   }
   return out;
+}
+
+// What a task's reports show that lives on this computer, packed with it so the page and an
+// import show it too: every picture and video (media/<n>.<ext>, the block's path pointing there,
+// `shared: true`) and what they saved in My Stuff (a stuff block gets `item`: its card, and its
+// app's folder or file in stuff/<n>/; never an app's data). turnLists: shared turns (shareTurn),
+// whose presentations are replaced, never changed in place. cwd: where relative paths are.
+export function packAttached(turnLists, { dir, cwd, stuff = null, notes = [] }) {
+  const media = new Map(); // absolute path → its name in media/
+  const items = new Map(); // My Stuff id → its card
+  let room = ATTACHED_MAX;
+  let skipped = 0;
+  const addMedia = (p) => {
+    const abs = path.resolve(cwd, p);
+    if (media.has(abs)) return media.get(abs);
+    const ext = path.extname(abs).toLowerCase();
+    let st;
+    try {
+      st = fs.statSync(abs);
+    } catch {
+      return null;
+    }
+    if (!MEDIA_EXT.has(ext) || !st.isFile()) return null;
+    if (st.size > room) return void skipped++, null;
+    const name = `media/${media.size + 1}${ext}`;
+    fs.mkdirSync(path.join(dir, 'media'), { recursive: true });
+    fs.copyFileSync(abs, path.join(dir, name));
+    room -= st.size;
+    media.set(abs, name);
+    return name;
+  };
+  const addStuff = (id) => {
+    if (items.has(id)) return items.get(id);
+    const it = stuff?.get(id);
+    if (!it) return null;
+    const card = { kind: it.kind, title: it.title || it.name, name: it.name, ...(it.excerpt && { excerpt: it.excerpt }), ...(it.files && { files: it.files }), ...(it.size && { size: it.size }), ...(it.entry && { entry: it.entry }), ...(it.url && { url: it.url }), ...(it.published?.url && { published: it.published.url }) };
+    const cover = it.cover ? addMedia(it.cover) : it.kind === 'image' ? addMedia(it.path) : null;
+    if (cover) card.cover = cover;
+    if (it.kind !== 'link' && it.path && fs.existsSync(it.path)) {
+      if ((it.size || 0) > Math.min(STUFF_MAX, room)) skipped++;
+      else {
+        const pack = `stuff/${items.size + 1}`;
+        const to = path.join(dir, pack);
+        if (it.kind === 'app') fs.cpSync(it.path, to, { recursive: true });
+        else (fs.mkdirSync(to, { recursive: true }), fs.copyFileSync(it.path, path.join(to, path.basename(it.name))));
+        room -= it.size || 0;
+        card.pack = pack;
+      }
+    }
+    items.set(id, card);
+    return card;
+  };
+  const block = (b) => {
+    if (!b || typeof b !== 'object') return b;
+    if (b.type === 'image' || b.type === 'video') {
+      const { source: _s, ...rest } = b;
+      const rel = b.path || b.src;
+      if (typeof rel !== 'string' || !rel || /^https?:/.test(rel)) return rest;
+      const name = addMedia(rel);
+      delete rest.src;
+      // One that isn't here any more keeps its name, not where it was on this computer.
+      return name ? { ...rest, path: name, shared: true } : { ...rest, path: path.basename(rel) };
+    }
+    if (b.type === 'stuff' && typeof b.id === 'string') {
+      const item = addStuff(b.id.trim());
+      return item ? { ...b, item } : b;
+    }
+    if (b.type === 'app' && Array.isArray(b.fallback)) return { ...b, fallback: b.fallback.map(block) };
+    return b;
+  };
+  for (const turns of turnLists) {
+    for (const t of turns) if (Array.isArray(t.presentation?.blocks)) t.presentation = { ...t.presentation, blocks: t.presentation.blocks.map(block) };
+  }
+  if (skipped) notes.push(`${skipped} picture${skipped === 1 ? '' : 's'} or My Stuff item${skipped === 1 ? '' : 's'} didn’t fit (80 MB at most), so ${skipped === 1 ? 'it stays' : 'they stay'} here`);
+  return { media: media.size, stuff: [...items.values()].filter((x) => x.pack || x.url).length };
 }
 
 // Where a shared run carries on here (here: listAgents(), available ones). The same harness and
@@ -286,6 +366,7 @@ export function createShare(app, { env = process.env } = {}) {
       const crewKey = (id) => crewOut?.bundle.members[crewIds.indexOf(id)]?.key || '';
       const { runs, runOf } = shareRuns(s, { get: (id) => store.get(id) || runner.crewChild?.(id), crewKey });
       const turns = s.turns.filter((x) => x.status !== 'held').map((t) => shareTurn(t, runOf));
+      const attached = packAttached([turns, ...Object.values(runs).map((r) => r.turns)], { dir, cwd: workdir(s), stuff: app.stuff, notes });
       const crewKit = ((s.crew && app.crew?.get(s.crew.id)?.kit) || []).filter((k) => k.on !== false).map(({ kind, name, description, body }) => ({ kind, name, ...(description && { description }), body }));
       const kit = [...crewKit, ...usedSkills(s.turns).filter((k) => !crewKit.some((c) => c.name === k.name))];
       let workInfo = null;
@@ -327,6 +408,7 @@ export function createShare(app, { env = process.env } = {}) {
         connectors: (store.config.connectors || []).filter((c) => c.enabled !== false).map(shareConnector),
         kit,
         work: workInfo,
+        ...((attached.media || attached.stuff) && { attached }),
         sharedAt: Date.now(),
       };
       const { value, hits } = redactDeep(task);
@@ -448,6 +530,59 @@ export function createShare(app, { env = process.env } = {}) {
     return out;
   }
 
+  // What came packed with it (packAttached), back on this computer: its pictures and videos in
+  // ~/.wisp/shots/<the new task>/, as wisp keeps a turn's own (Store.keepImages), and what they
+  // saved in My Stuff in yours (once per share: importing it again finds them). → a block mapper.
+  function unpackAttached(dir, { sid, shareId, title, notes }) {
+    const shots = path.join(store.shots, sid);
+    const mine = new Map(); // stuff/<n> → the item here
+    const media = (rel) => {
+      if (typeof rel !== 'string' || !MEDIA_NAME.test(rel) || !fs.existsSync(path.join(dir, rel))) return null;
+      const dest = path.join(shots, path.basename(rel));
+      if (!fs.existsSync(dest)) (fs.mkdirSync(shots, { recursive: true }), fs.copyFileSync(path.join(dir, rel), dest));
+      return dest;
+    };
+    const keep = (card) => {
+      const key = `share:${shareId}:${card.pack || card.url || ''}`;
+      if (!app.stuff || !(card.pack || card.url) || (card.pack && !STUFF_PACK.test(card.pack))) return null;
+      if (mine.has(key)) return mine.get(key);
+      let it = app.stuff.findKey(key);
+      if (!it) {
+        const opts = { title: card.title, by: 'agent', from: { title, key } };
+        try {
+          if (card.kind === 'link') it = app.stuff.addLink(card.url, opts);
+          else if (card.kind === 'app') it = app.stuff.addApp(path.join(dir, card.pack), { ...opts, cover: media(card.cover) || undefined });
+          else {
+            const files = fs.readdirSync(path.join(dir, card.pack));
+            if (files.length === 1) it = app.stuff.addFile(path.join(dir, card.pack, files[0]), { ...opts, name: card.name });
+          }
+        } catch (err) {
+          notes.push(`${card.title} couldn’t go in your My Stuff: ${err.message}`);
+        }
+      }
+      mine.set(key, it || null);
+      return it || null;
+    };
+    const block = (b) => {
+      if (!b || typeof b !== 'object') return b;
+      if ((b.type === 'image' || b.type === 'video') && b.shared) {
+        const { shared: _, ...rest } = b;
+        const p = media(b.path);
+        return p ? { ...rest, path: p } : rest;
+      }
+      if (b.type === 'stuff' && b.item && typeof b.item === 'object') {
+        const { item, ...rest } = b;
+        const it = keep(item);
+        return it ? { ...rest, id: it.id, title: it.title } : { ...rest, title: item.title };
+      }
+      if (b.type === 'app' && Array.isArray(b.fallback)) return { ...b, fallback: b.fallback.map(block) };
+      return b;
+    };
+    const turn = (t) => (Array.isArray(t.presentation?.blocks) ? { ...t, presentation: { ...t.presentation, blocks: t.presentation.blocks.map(block) } } : t);
+    turn.saved = () => [...new Set([...mine.values()].filter(Boolean))];
+    return turn;
+  }
+
   // Import the shared task at link. prompt: its first follow-up here ('' waits for you).
   // connectors: false leaves theirs out. Resolves { session, notes }.
   // run: { agent, model, effort } picked on the card for the lead. crew: false leaves their crew
@@ -520,7 +655,8 @@ export function createShare(app, { env = process.env } = {}) {
       // Its delegated runs, as subagent sessions of the new lead: their own history, so the lead's
       // report links open them, and a subagent the lead delegates to again carries on from there.
       const mode0 = MODES.has(mode) ? mode : MODES.has(task.mode) ? task.mode : 'auto';
-      const shared = (x) => ({ ...x, id: newId(), activity: [], shared: true, checkpoint: null, attachments: [] });
+      const attached = unpackAttached(dir, { sid, shareId: id, title, notes });
+      const shared = (x) => attached({ ...x, id: newId(), activity: [], shared: true, checkpoint: null, attachments: [] });
       const children = {};
       const runIds = new Map(); // run key → { id, turns: [new turn ids] }
       for (const [key, r] of Object.entries(task.runs && typeof task.runs === 'object' ? task.runs : {}).slice(0, 40)) {
@@ -561,6 +697,8 @@ export function createShare(app, { env = process.env } = {}) {
         sharedFrom: { id, url: card.url || link, host: t.host, handle: from.handle || '', name: from.name || from.handle || '', title, ...(kit.length && { kit }), at: Date.now() },
         idle: !text,
       });
+      const saved = attached.saved();
+      if (saved.length) notes.push(`${saved.map((x) => x.title).join(', ')} ${saved.length === 1 ? 'is' : 'are'} in your My Stuff now`);
       if (Object.keys(children).length) {
         session.children = { ...(session.children || {}), ...children };
         store.save(session);

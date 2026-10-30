@@ -107,3 +107,7 @@ body.share-view { margin: 0; min-height: 100dvh; background: var(--bg); color: v
 .sv-run > :is(img, i.mono) { width: 14px; height: 14px; flex: none; }
 .sv-run > i.mono { background: var(--ink-2); -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
 .sv-turns .subs { margin: 18px 0 0; }
+/* A preview of a page on the sharer's computer (localhost): it can't load here, so it says why. */
+.sv-pv-off .sv-pv-body { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 140px; padding: 24px; background: var(--bg-2); font-size: 13px; color: var(--muted); text-align: center; }
+.sv-pv-off .sv-pv-body .i { width: 18px; height: 18px; flex: none; }
+.sv-turns .b-stuff a.sb-go { text-decoration: none; }
