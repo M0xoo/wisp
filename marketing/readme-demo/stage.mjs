@@ -41,7 +41,7 @@ export const MEMBERS = [
 export async function start({ port = 4496, seed = MEMBERS } = {}) {
   const cwd = repo();
   const w = await startWisp({ port, extraEnv: { PATH: `${bin()}:${process.env.PATH}`, DIRECTOR_SCALE: process.env.DIRECTOR_SCALE || '1' } });
-  await api(w.url, '/api/config', { defaults: { agent: 'claude', theme: process.env.THEME || 'light' } }, 'PATCH').catch(() => {});
+  await api(w.url, '/api/config', { defaults: { agent: 'claude', theme: process.env.THEME || 'dark' } }, 'PATCH').catch(() => {});
   for (const x of (await api(w.url, '/api/sessions')).json || []) await api(w.url, `/api/sessions/${x.id}`, { archived: true }, 'PATCH');
   await api(w.url, '/api/projects', { path: cwd });
   const crew = {};
