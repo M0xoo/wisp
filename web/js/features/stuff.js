@@ -31,6 +31,7 @@ import { collapse, renderFeed, reveal as revealTask } from './feed.js';
 import { goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
 import { cleanTitle } from '../mention-text.js';
 import { boxUrl, isLoopback, previewSandbox } from '../preview-spec.js';
+import { gridLink } from '../grid-link.js';
 import { overlay } from '../ui/overlay.js';
 import { leaveCrew } from './crew.js';
 import { leaveOrg } from './org.js';
@@ -296,20 +297,6 @@ async function launchApp(it) {
     frame.close();
     loadStuff();
     toastError(err);
-  }
-}
-
-// Behind the grid (to is p<port>--<this wisp's address>), the frame starts at a one-time link that
-// signs it in there: the phone app's page has this wisp's cookie but not the grid's sign-in that
-// the preview address would send it through. An older grid lacks it: the address as it is.
-async function gridLink(url, to) {
-  if (!new URL(to).host.endsWith(`--${location.host}`)) return to;
-  const u = new URL(url);
-  try {
-    const r = await fetch(`/_grid/preview?port=${u.port || 80}&path=${encodeURIComponent(u.pathname + u.search)}`, { method: 'POST', credentials: 'same-origin' });
-    return (r.ok && (await r.json()).url) || to;
-  } catch {
-    return to;
   }
 }
 

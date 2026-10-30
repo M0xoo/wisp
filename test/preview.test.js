@@ -3,6 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { gridLink } from '../web/js/grid-link.js';
 import { DEVICES, PREVIEW_SIZE, boxUrl, isLoopback, previewProblem, previewSandbox, previewSize, previewUrl, shortUrl } from '../web/js/preview-spec.js';
 import { SYSTEM_PROMPT } from '../server/protocol.js';
 import { blocksToMarkdown } from '../server/render.js';
@@ -68,4 +69,25 @@ test('on a wisp Grid, the box’s localhost shows at its preview address; other 
   assert.equal(boxUrl('https://example.com/', t), null);
   assert.equal(boxUrl('http://localhost:5173/', ''), null);
   assert.equal(boxUrl('http://localhost:5173/', undefined), null);
+});
+
+test('behind the grid, a frame starts at the one-time link that signs it in there (the phone app has no grid cookie)', async () => {
+  const was = { location: globalThis.location, fetch: globalThis.fetch };
+  const asked = [];
+  globalThis.location = { host: 'mac--ada.grid.example' };
+  globalThis.fetch = async (u, o) => (asked.push([u, o.method]), { ok: true, json: async () => ({ url: 'https://p5173--mac--ada.grid.example/_grid/auth?t=x&r=%2Fsettings' }) });
+  try {
+    const to = boxUrl('http://localhost:5173/settings#top', 'https://p{port}--mac--ada.grid.example');
+    assert.equal(await gridLink('http://localhost:5173/settings#top', to), 'https://p5173--mac--ada.grid.example/_grid/auth?t=x&r=%2Fsettings');
+    assert.deepEqual(asked, [['/_grid/preview?port=5173&path=%2Fsettings%23top', 'POST']], 'its port and path, hash and all');
+    // Not behind this wisp's own address (a public page, another grid): no link, the address as it is.
+    assert.equal(await gridLink('https://example.com/', 'https://example.com/'), 'https://example.com/');
+    // An older grid without /_grid/preview: the preview address as it is.
+    globalThis.fetch = async () => ({ ok: false });
+    assert.equal(await gridLink('http://localhost:5173/', to), to);
+    assert.equal(asked.length, 1);
+  } finally {
+    globalThis.location = was.location;
+    globalThis.fetch = was.fetch;
+  }
 });
