@@ -330,6 +330,8 @@ function describeTool(name, input, cwd) {
       const active = input.todos?.find((t) => t.status === 'in_progress');
       return { kind: 'plan', label: active ? clip(active.activeForm || active.content) : 'Planning' };
     }
+    case 'Skill': // the name is how a shared task finds the skills it used (services/share.js)
+      return { kind: 'tool', label: input?.skill ? `Using the ${clip(String(input.skill), 64)} skill` : 'Using a skill' };
     case 'mcp__wisp__ask_user':
       return { kind: 'wait', label: 'Waiting for your answer' };
     case 'mcp__wisp__delegate':

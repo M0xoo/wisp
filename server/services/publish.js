@@ -12,25 +12,29 @@ import { bad } from '../util.js';
 
 const MAX = 200 * 1024 * 1024; // the grid says its own limit (413)
 
+// Each wisp Grid this wisp is signed in to: { id, grid, host, handle, auth }. In a cloud wisp, its
+// own grid (hostd gave it the address and a secret); elsewhere, a grid you signed in to (Settings →
+// Cloud, or Machines): its cloud computer's device token. Sharing a task goes the same way (services/share.js).
+export function gridTargets(app, env = process.env) {
+  const out = [];
+  const grid = String(env.WISP_GRID_URL || '').replace(/\/+$/, '');
+  const secret = env.WISP_TRUSTED_PROXY_SECRET;
+  if (grid && secret && env.WISP_PUBLIC_URL) {
+    const handle = new URL(env.WISP_PUBLIC_URL).hostname.split('.')[0];
+    out.push({ id: 'box', grid, handle, auth: `Box ${handle} ${secret}` });
+  }
+  for (const m of app.machines?.list || []) {
+    if (m.kind !== 'grid' || m.computer || !m.grid) continue;
+    const token = app.secrets?.get('machines', m.id);
+    if (token && !out.some((t) => t.grid === m.grid && t.handle === m.handle)) out.push({ id: m.id, grid: m.grid, handle: m.handle, auth: `Bearer ${token}` });
+  }
+  return out.map((t) => ({ ...t, host: new URL(t.grid).host }));
+}
+
 export function createPublish(app, { env = process.env } = {}) {
   const { stuff } = app;
 
-  // Each place an app can go: { id, grid, host, handle, auth }.
-  function targets() {
-    const out = [];
-    const grid = String(env.WISP_GRID_URL || '').replace(/\/+$/, '');
-    const secret = env.WISP_TRUSTED_PROXY_SECRET;
-    if (grid && secret && env.WISP_PUBLIC_URL) {
-      const handle = new URL(env.WISP_PUBLIC_URL).hostname.split('.')[0];
-      out.push({ id: 'box', grid, handle, auth: `Box ${handle} ${secret}` });
-    }
-    for (const m of app.machines?.list || []) {
-      if (m.kind !== 'grid' || m.computer || !m.grid) continue;
-      const token = app.secrets?.get('machines', m.id);
-      if (token && !out.some((t) => t.grid === m.grid && t.handle === m.handle)) out.push({ id: m.id, grid: m.grid, handle: m.handle, auth: `Bearer ${token}` });
-    }
-    return out.map((t) => ({ ...t, host: new URL(t.grid).host }));
-  }
+  const targets = () => gridTargets(app, env);
 
   // What the page shows: where it can publish, never a token.
   const view = () => targets().map(({ id, host, handle }) => ({ id, host, handle }));

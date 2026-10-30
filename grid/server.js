@@ -30,8 +30,9 @@ import { MACHINE_WANTS, createAccounts, bad } from './accounts.js';
 import { createProviders, newFlow } from './auth/providers.js';
 import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
-import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, signInPage, wakingPage } from './pages.js';
+import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, sharePassPage, shareViewPage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
+import { SHARE_ID, createShares } from './shares.js';
 import { SITE_LABEL, createSites, readRaw } from './sites.js';
 import { createGridTelemetry } from './telemetry.js';
 import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
@@ -39,6 +40,14 @@ import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
 const BODY_LIMIT = 64 * 1024;
 const ASSETS = new URL('./assets/', import.meta.url);
 const TYPES = { webp: 'image/webp', svg: 'image/svg+xml', png: 'image/png' };
+const WEB_TYPES = { css: 'text/css; charset=utf-8', js: 'text/javascript; charset=utf-8', svg: 'image/svg+xml' };
+// wisp's page's look, from web/index.html: its stylesheets in order and its icon sprite.
+let look = null;
+const webLook = () =>
+  (look ||= (() => {
+    const html = fs.readFileSync(new URL('../web/index.html', import.meta.url), 'utf8');
+    return { styles: [...html.matchAll(/<link rel="stylesheet" href="(\/css\/[\w.-]+\.css)">/g)].map((m) => m[1]), sprite: /<svg width="0" height="0"[\s\S]*?<\/svg>\n/.exec(html)?.[0] || '' };
+  })());
 const HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'te', 'trailer']);
 
 // --- small HTTP helpers --------------------------------------------------------------------
@@ -82,8 +91,9 @@ function readBody(req) {
 }
 
 const SECURITY = { 'x-content-type-options': 'nosniff', 'referrer-policy': 'same-origin', 'x-frame-options': 'DENY' };
+// headers: null drops one of SECURITY's (a shared task's page may be framed).
 const html = (res, status, body, headers = {}) => {
-  res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY, ...headers });
+  res.writeHead(status, Object.fromEntries(Object.entries({ 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY, ...headers }).filter(([, v]) => v !== null)));
   res.end(body);
 };
 const json = (res, status, body, headers = {}) => {
@@ -131,6 +141,8 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
   const accounts = createAccounts({ db, cfg, secrets, onAudit: stats.audit });
   const limit = limiter();
   const sites = createSites({ db, cfg, log });
+  const shares = createShares({ db, cfg, log });
+  const shareCard = (row) => shares.card(row, accounts.userById(row.user_id));
   // Account pages open in a browser, each with an event stream (GET /events): told when something
   // on the page changed (a computer came online, the cloud wisp woke), they fetch it again.
   const watchers = new Map(); // user id -> Set of responses
@@ -277,7 +289,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     // Device API: other origins (the phone app) call it with a bearer token, so CORS is open
     // and cookies are never involved.
     if (p.startsWith('/api/')) {
-      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS', 'access-control-max-age': '600' };
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type, x-wisp-passkey', 'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS', 'access-control-max-age': '600' };
       if (req.method === 'OPTIONS') {
         res.writeHead(204, cors);
         return res.end();
@@ -332,6 +344,49 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         }
         return send(404, { error: 'not found' });
       }
+      // Shared tasks (grid/shares.js). Only wisp signed in to this grid shares and imports them:
+      // PUT/DELETE /api/shares/mine/<task key> from the sharer's wisp, GET /api/shares/<id> (the
+      // card) and /api/shares/<id>/pack (everything) from whoever imports it, passkey in x-wisp-passkey.
+      const sh = /^\/api\/shares(?:\/(mine)(?:\/([A-Za-z0-9_-]{1,64}))?|\/([A-Za-z0-9_-]{16})(\/pack)?)$/.exec(p);
+      if (sh) {
+        const who = accounts.device(req.headers.authorization)?.user || boxUser(req.headers.authorization);
+        if (!who) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
+        try {
+          if (sh[1]) {
+            if (req.method === 'GET' && !sh[2]) return send(200, { enabled: shares.opts.enabled, maxBytes: shares.opts.maxBytes, shares: shares.list(who.id).map(shares.view) });
+            if (req.method === 'PUT' && sh[2]) {
+              limit(`share|${who.id}`, 30);
+              const buf = await readRaw(req, shares.opts.maxBytes);
+              const pass = req.headers['x-wisp-passkey'];
+              const out = shares.share(who, sh[2], buf, { passkey: pass === undefined ? undefined : decodeURIComponent(String(pass)) });
+              notify(who.id);
+              return send(200, out);
+            }
+            if (req.method === 'DELETE' && sh[2]) {
+              const ok = shares.remove(who.id, sh[2]);
+              notify(who.id);
+              return send(200, { ok });
+            }
+            return send(404, { error: 'not found' });
+          }
+          if (req.method !== 'GET') return send(404, { error: 'not found' });
+          const row = shares.get(sh[3]);
+          if (!row) return send(404, { error: 'This task isn’t shared any more, or its link has a typo.' });
+          const pass = req.headers['x-wisp-passkey'] === undefined ? '' : decodeURIComponent(String(req.headers['x-wisp-passkey']));
+          if (!shares.unlocks(row, pass)) {
+            if (pass) limit(`sharepk|${row.id}|${who.id}`, 10);
+            const c = shareCard(row);
+            return send(pass ? 403 : 401, { error: pass ? 'That passkey isn’t right.' : 'This task is locked with a passkey.', locked: true, from: c.from, id: c.id, url: c.url });
+          }
+          if (!sh[4]) return send(200, { ...shareCard(row), mine: row.user_id === who.id });
+          limit(`sharepack|${who.id}`, 30);
+          const buf = shares.pack(row);
+          res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': buf.length, 'cache-control': 'no-store', ...cors });
+          return res.end(buf);
+        } catch (err) {
+          return send(err.status || 400, { error: err.message });
+        }
+      }
       const dev = accounts.device(req.headers.authorization);
       if (!dev) return send(401, { error: 'Sign in again: this device isn’t known here (removed, or a typo in the token).' });
       if (req.method === 'GET' && p === '/api/me') return send(200, { user: userView(dev.user), instance: instanceView(dev.user), device: { id: dev.device.id, name: dev.device.name } });
@@ -367,6 +422,45 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
 
     if (p === '/healthz') return json(res, 200, { ok: true });
+    // wisp's own stylesheets, scripts and logos (web/), for a shared task's page: it's drawn the
+    // way wisp draws a task. Public files from the repo, nothing of anyone's.
+    if ((req.method === 'GET' || req.method === 'HEAD') && /^\/(css|js|logos)\/[\w./-]+\.(css|js|svg)$|^\/favicon\.svg$/.test(p) && !p.includes('..')) {
+      const file = new URL(`../web${p}`, import.meta.url);
+      if (!fs.existsSync(file)) return json(res, 404, { error: 'not found' });
+      const body = fs.readFileSync(file);
+      res.writeHead(200, { 'content-type': WEB_TYPES[p.split('.').pop()], 'content-length': body.length, 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff' });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    // A shared task's page, and its delegates' (/s/<id>/r/<run>): open to anyone with the link, or
+    // only with its passkey (POSTed here). Opened once, a cookie for that share keeps it open a
+    // while, so its delegates' pages don't ask again; a new passkey shuts it.
+    const sp = /^\/s\/([A-Za-z0-9_-]+)(?:\/r\/([^/]{1,60}))?$/.exec(p);
+    if (sp && (req.method === 'GET' || req.method === 'HEAD' || req.method === 'POST')) {
+      const row = SHARE_ID.test(sp[1]) && shares.get(sp[1]);
+      if (!row) return page(messagePage({ cfg, title: 'Nothing here', text: 'This task isn’t shared any more, or its link has a typo.', link: [cfg.publicUrl, 'Home'] }), 404);
+      const c = shareCard(row);
+      const ck = `wsh_${row.id}`;
+      const opened = !!row.pass && secrets.verify(`share|${row.id}|${row.pass}`, cookies(req)[ck] || '');
+      let pass = '';
+      if (req.method === 'POST') {
+        limit(`sharepk|${row.id}|${clientIp(req)}`, 10);
+        pass = String((await readBody(req)).passkey || '');
+      }
+      // Framed anywhere (wisp's preview block, a doc, a wiki): it's meant to be shown, and the page
+      // has nothing to click that acts for anyone. Every other grid page stays DENY.
+      const framed = { 'x-frame-options': null };
+      if (!opened && !shares.unlocks(row, pass)) return page(sharePassPage({ cfg, share: c, wrong: !!pass }), pass ? 403 : 200, framed);
+      const task = shares.task(row);
+      let run = null;
+      if (sp[2]) {
+        try {
+          run = decodeURIComponent(sp[2]);
+        } catch {}
+        if (!run || !task.runs?.[run]) return page(messagePage({ cfg, title: 'Nothing here', text: 'That delegated task isn’t in this share.', link: [`/s/${row.id}`, 'Back to the task'] }), 404);
+      }
+      const keep = row.pass && pass ? { 'set-cookie': cookie(ck, secrets.sign(`share|${row.id}|${row.pass}`), { secure: cfg.publicUrl.startsWith('https:'), maxAge: 12 * 3600, path: `/s/${row.id}` }) } : {};
+      return page(shareViewPage({ share: c, task, run, look: webLook() }), 200, { 'content-security-policy': "default-src 'none'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'none'; frame-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors *", ...framed, ...keep });
+    }
     // HEAD too: link checkers (ad review, unfurlers) probe with it, and a 404 there reads as a dead page
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
       if (!s) return page(signInPage({ cfg, providers, seats: accounts.seats(), ret: url.searchParams.get('return') || '', analytics: stats.pages, ua: req.headers['user-agent'] }));
@@ -570,6 +664,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     }
     const gone = accounts.computers(u.id);
     sites.removeAll(u.id);
+    shares.removeAll(u.id);
     accounts.remove(u.id);
     for (const c of gone) tunnels.close(c.id);
     log(`grid: ${u.handle} deleted their account`);

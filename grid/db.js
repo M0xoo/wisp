@@ -55,6 +55,12 @@ const MIGRATIONS = [
      id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, key TEXT NOT NULL,
      label TEXT UNIQUE NOT NULL, title TEXT NOT NULL, entry TEXT NOT NULL, files INTEGER NOT NULL,
      size INTEGER NOT NULL, db TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (user_id, key));`,
+  // Tasks people shared from their wisp (grid/shares.js), at <publicUrl>/s/<id>. key: the task on
+  // their wisp, so sharing it again updates the same link. pass: the passkey's scrypt hash, or null.
+  `CREATE TABLE shares (
+     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, key TEXT NOT NULL,
+     title TEXT NOT NULL, pass TEXT, size INTEGER NOT NULL, meta TEXT NOT NULL,
+     created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (user_id, key));`,
 ];
 
 export async function openDb(dataDir) {

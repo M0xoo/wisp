@@ -20,6 +20,7 @@ import { LIMIT_CARRY_ON, laterNote, laterView } from './later.js';
 import { HOMES as ACCOUNT_HOMES } from './accounts.js';
 import { infraError } from './router.js';
 import { goalNote, goalView } from './goal.js';
+import { kitNote } from './crew.js';
 import { planOf, unitsOf } from './budget.js';
 import { watchView } from './watch.js';
 
@@ -217,6 +218,8 @@ export function summarize(s, store) {
     moved: s.moved || null, // { from }: carried on here from another place (services/move.js)
     movedTo: s.movedTo || null, // { id, place }: this one carried on there, and was archived
     ...(s.forkedFrom && { forkedFrom: s.forkedFrom }), // { id, title, turn, of }: a fork of that task (services/fork.js)
+    ...(s.shared && { shared: { url: s.shared.url, host: s.shared.host, locked: !!s.shared.locked, work: !!s.shared.work, at: s.shared.at } }), // its share link (services/share.js)
+    ...(s.sharedFrom && { sharedFrom: { id: s.sharedFrom.id, url: s.sharedFrom.url, host: s.sharedFrom.host, handle: s.sharedFrom.handle, name: s.sharedFrom.name, skills: (s.sharedFrom.kit || []).map((k) => k.name) } }), // imported from someone's share
     ...(s.forks?.length && { forks: store ? s.forks.filter((x) => store.get(x)) : s.forks }), // its forks' ids
     // The roster, for the stacked logos on the card: used = delegated to at least once, busy = working now.
     team: (s.subagents || []).flatMap((m) =>
@@ -302,7 +305,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, hold = null }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, hold = null, sharedFrom = null, idle = false }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -326,6 +329,7 @@ export class Runner extends EventEmitter {
       turns: [...history],
       ...(moved && { moved }),
       ...(forkedFrom && { forkedFrom }), // { id, title, turn, of }: forked from that task's turn (services/fork.js)
+      ...(sharedFrom && { sharedFrom }), // { id, url, host, handle, name, title, kit? }: imported from a share (services/share.js)
       ...(kind && { kind }), // 'spell': a Cast a spell task (server/spell-guide.js)
       ...(worktree && { worktree }),
       ...(also.length && { also }),
@@ -344,7 +348,9 @@ export class Runner extends EventEmitter {
     this.store.put(session);
     if (!parentId && !delegated) for (const dir of [...also.map((a) => a.cwd), cwd]) this.store.touchProject(dir); // a subagent's cwd may be the lead's worktree
     // Ask near the limit (server/guard.js): an automation's task that would cross your line waits.
-    if (hold) this.#holdTurn(session, prompt, attachments, {}, hold);
+    // idle: an imported task with nothing asked yet: its history shows, and it waits for your follow-up.
+    if (idle) Object.assign(session, { state: 'review', unread: false });
+    else if (hold) this.#holdTurn(session, prompt, attachments, {}, hold);
     else this.#startTurn(session, prompt, attachments);
     return session;
   }
@@ -1094,7 +1100,9 @@ export class Runner extends EventEmitter {
       : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off', watch: this.store.config?.defaults?.watch !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
     const crew = session.crew ? this.crewNote(session) : '';
-    return base + spell + crew + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
+    // A shared task's skills and instructions came with it (services/share.js): written out in full.
+    const kit = !sub && session.sharedFrom?.kit?.length ? kitNote({ kit: session.sharedFrom.kit }) : '';
+    return base + spell + crew + kit + goalNote(session) + workspaceNote(session) + this.promptExtra(session);
   }
 
   // wisp's own MCP server (ask_user, delegate), for harnesses that take one, and your connectors

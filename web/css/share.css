@@ -1,0 +1,112 @@
+/* ---------- sharing a task (features/share.js): the Share dialog, and a pasted link's card ---------- */
+.share-modal { width: min(520px, 100%); }
+.sm-title { margin: -6px 0 10px; font-size: 13.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-carry { display: flex; flex-wrap: wrap; gap: 6px; min-height: 27px; }
+.sm-carry > span { display: inline-flex; align-items: center; gap: 5px; height: 27px; padding: 0 10px; border-radius: 99px; background: var(--bg-2); font-size: 12px; color: var(--ink-2); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-carry .i { width: 12px; height: 12px; color: var(--muted); flex: none; }
+.sm-who { margin: 14px 0 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sm-who legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.sm-opt { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.sm-opt:has(input:checked) { border-color: var(--line-2); background: var(--accent-soft); }
+.sm-opt input { margin: 3px 0 0; flex: none; }
+.sm-opt b { display: block; font-size: 13px; font-weight: 600; color: var(--ink); }
+.sm-opt small { display: block; font-size: 12.5px; color: var(--muted); }
+.sm-pass, .sm-link { display: flex; align-items: center; gap: 6px; }
+.sm-pass[hidden], .sm-link[hidden] { display: none; }
+.sm-pass .input, .sm-link .input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; }
+.share-modal .cs-opts { margin-top: 14px; }
+.sm-link { margin-top: 12px; }
+.share-modal .primary.busy { opacity: 0.7; pointer-events: none; }
+
+/* A shared task's link in the prompt box: who shared it, what comes, what carries it on here. */
+.l-share[hidden] { display: none; }
+.l-share { margin: 2px 0 6px; animation: pop 0.25s var(--ease); }
+.ls-card { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 10px 34px 10px 10px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--surface-2); }
+.ls-card > .att-x { top: 10px; translate: none; }
+.ls-card.bad { align-items: center; }
+.ls-card.bad > .i { width: 16px; height: 16px; color: var(--bad); flex: none; }
+.ls-av { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--accent-soft); color: var(--accent-ink, var(--accent)); font-weight: 650; font-size: 13px; object-fit: cover; }
+.ls-av.sk { animation: sk-pulse 1.4s ease-in-out infinite; background: var(--bg-2); }
+.ls-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ls-main .sk-line { display: block; height: 11px; width: 70%; border-radius: 6px; margin: 3px 0; }
+.ls-main .sk-line.short { width: 40%; }
+.ls-main b { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.ls-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-main small { font-size: 12px; color: var(--muted); }
+.ls-from { display: inline-flex; align-items: center; gap: 4px; }
+.ls-from .i { width: 11px; height: 11px; }
+.ls-run { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.ls-run .runner-btn { height: 26px; }
+.ls-note { display: flex; align-items: flex-start; gap: 5px; color: var(--ink-2) !important; }
+.ls-note .i { width: 12px; height: 12px; margin-top: 2px; flex: none; color: var(--warn); }
+.ls-note .link { font-size: inherit; }
+.ls-checks { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.ls-checks .check { align-items: flex-start; font-size: 12.5px; }
+.ls-checks .check input { margin: 2px 0 0; flex: none; }
+.ls-checks .check small { display: block; font-size: 11.5px; color: var(--faint); }
+.ls-hint { margin-top: 2px; color: var(--faint) !important; }
+.ls-lock { display: flex; gap: 6px; margin-top: 6px; }
+.ls-lock .input { flex: 1; min-width: 0; max-width: 260px; }
+@media (pointer: coarse) { .ls-hint { display: none; } .ls-lock .input { font-size: 16px; } }
+
+/* A shared task on wisp Grid (web/js/share-view.js): the open task's page, read-only. The same
+   head, reading column and details column as split view, with the reasons it's here (who shared
+   it, Copy link) in the details. */
+body.share-view { margin: 0; min-height: 100dvh; background: var(--bg); color: var(--ink); }
+.sv-top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 20px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.sv-brand { display: inline-flex; align-items: center; gap: 8px; font: 650 15px var(--display); letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
+.sv-brand img { width: 20px; height: 20px; }
+.sv-tag { height: 22px; display: inline-flex; align-items: center; padding: 0 9px; border-radius: 99px; border: 1px solid var(--line-2); font-size: 12px; color: var(--muted); }
+.sv-wrap { display: grid; grid-template-columns: minmax(0, var(--read-w)) var(--det-w); gap: 48px; justify-content: center; padding: 0 24px 80px; }
+.sv-main { min-width: 0; }
+.sv-head.split-head { padding: 10px 0; position: sticky; top: 48px; z-index: 5; background: var(--bg); }
+.sv-head .sv-back { margin-left: -6px; }
+.sv-head .q-dot { --pc: var(--good); background: var(--pc); }
+.sv-head .q-dot:is(.st-partial, .st-blocked) { --pc: var(--warn); }
+.sv-turns { padding-top: 22px; }
+.sv-turns .turn { scroll-margin-top: 120px; }
+.sv-turns .ask-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.sv-turns .ask-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.sv-model { font-size: 11.5px; color: var(--muted); }
+.sv-turns .sub-head { text-decoration: none; color: inherit; }
+.sv-turns a.sub-head:hover { background: var(--bg-2); }
+.sv-turns .sub-side > .i { width: 14px; height: 14px; color: var(--muted); }
+.sv-face { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 650; font-size: 12px; }
+.sv-files { display: flex; gap: 6px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+.sv-files .i { flex: none; width: 13px; height: 13px; margin-top: 2px; }
+.sv-files code { font-size: 11.5px; }
+.sv-sk { display: flex; flex-direction: column; gap: 12px; margin-bottom: 36px; }
+.sv-sk .sk-line { width: 60%; height: 40px; border-radius: var(--radius); margin-left: auto; }
+.sv-sk .sk-block { display: block; height: 140px; border-radius: var(--radius); background: var(--bg-2); animation: sk-pulse 1.4s ease-in-out infinite; }
+.sv-side.it-bar { position: sticky; top: 72px; align-self: start; display: flex; flex-direction: column; align-items: stretch; gap: 16px; padding: 22px 0 0; background: none; }
+.sv-side .it-props { display: flex; }
+.sv-side .it-props .pill { height: auto; padding: 0; background: none; font-size: 12.5px; color: var(--ink-2); }
+.sv-side .it-props .pill i { width: 6px; height: 6px; margin: 0 12px 0 4px; }
+.sv-side .it-meta { flex-direction: column; align-items: stretch; gap: 10px; overflow: visible; white-space: normal; font-size: 12.5px; color: var(--ink-2); }
+.sv-side .it-meta .m { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sv-side .it-meta .m > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-side .it-meta .i { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.sv-from { display: flex; align-items: center; gap: 10px; }
+.sv-from > span { display: flex; flex-direction: column; min-width: 0; }
+.sv-from small { font-size: 11.5px; color: var(--muted); }
+.sv-from b { font-size: 13px; font-weight: 600; }
+.sv-av { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: var(--accent-soft); color: var(--accent); font-weight: 650; font-size: 12.5px; object-fit: cover; }
+.sv-import { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.sv-import b { font-size: 13px; font-weight: 600; }
+.sv-import p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.sv-import .ghost { align-self: flex-start; }
+.sv-hint { position: fixed; left: 50%; bottom: 24px; translate: -50% 0; z-index: 20; display: flex; align-items: center; gap: 8px; max-width: calc(100vw - 32px); }
+.sv-hint[hidden] { display: none; }
+.sv-hint .i { width: 14px; height: 14px; flex: none; }
+/* Narrow: one column, the details first (who shared it, Copy link), then the conversation. */
+@media (max-width: 900px) {
+  .sv-wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 16px 64px; }
+  .sv-side.it-bar { position: static; order: -1; padding-top: 16px; flex-direction: row; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
+  .sv-side .it-meta { flex-direction: row; flex-wrap: wrap; gap: 8px 14px; }
+  .sv-import { flex: 1 0 100%; }
+  .sv-head.split-head { top: 48px; }
+  .sv-head .sh-acts .sv-copy span { display: none; }
+}
+.sv-run > :is(img, i.mono) { width: 14px; height: 14px; flex: none; }
+.sv-run > i.mono { background: var(--ink-2); -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
+.sv-turns .subs { margin: 18px 0 0; }

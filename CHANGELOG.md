@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Share a task, and import one.** Share… (in a task's menu and its More) puts the task on your wisp Grid at a link: anyone with it opens the task in a browser, drawn the way wisp draws a task page (the same reports, delegates and details column), or only people with the passkey you set, each delegated run on a page of its own. Someone signed in to the same grid pastes the link in New task: it shows as a card (who shared it, its turns, delegates, crew, connectors and skills, and what carries it on here), and Enter imports it with its history, work (branch and uncommitted changes, into their checkout of the repo), team and delegates' runs, the crew members it delegated to, its connectors (a command one starts switched off) and skills. A harness or model they don't have is swapped for the nearest one, and the card says so and lets them pick another. Secrets in the conversation are redacted; connectors never take their keys. Spells reach it through the `launcher.share` and `share.dialog` parts.
 - **My Stuff in the phone app's top bar.** The app's floating New task hides the row that held the My Stuff button, so My Stuff was only reachable through Search. It now has its own button beside Search. Spells reach it through the `stuff.topButton` part.
 
 ### Fixed
