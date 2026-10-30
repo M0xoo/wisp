@@ -414,7 +414,9 @@ export const PART_PROPS = {
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
-  panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'watch'] }, // tab: what it opens on (the toggle, ]), until you open another
+  // tab: what it opens on (the toggle, ]), until you open another; swipe: false stops swiping a
+  // task page left (and the panel right) bringing it in and out in the phone app
+  panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'watch'], swipe: 'bool' },
   'panel.changes': { generated: 'bool' }, // lockfiles and build output listed, not folded under one row (off)
   'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };

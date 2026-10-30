@@ -835,19 +835,23 @@ document.addEventListener('click', (e) => {
 
 // --- what the rest of the page calls ---------------------------------------------------------
 
-export function openPanel(id, tab) {
+// swipe: brought in by a finger (panel-swipe.js), which moves it itself: no slide-in, and the
+// shell doesn't call up the keyboard (only a tap does).
+export function openPanel(id, tab, { swipe = false } = {}) {
   const go = () => {
     // Open on the other one, it swaps in place: to the shell, a fresh one if it had ended.
     if (!panel.hidden && tab === 'shell' && tabOf() !== 'shell' && shown) freshShell(shown);
-    fresh = panel.hidden;
-    if (isStacked()) page = { id: target(), tab: tab || (page?.id === target() && page.tab) || 'shell' };
-    else {
+    fresh = panel.hidden && !swipe;
+    if (isStacked()) {
+      page = { id: target(), tab: tab || (page?.id === target() && page.tab) || 'shell' };
+      if (tab) (pref.tab = tab), keep(); // what a swipe brings back next time
+    } else {
       if (tab) pref.tab = tab;
       pref.open = true;
       keep();
     }
     paint();
-    if (tabOf() === 'shell') requestAnimationFrame(() => view.focus());
+    if (tabOf() === 'shell' && !swipe) requestAnimationFrame(() => view.focus());
     if (tabOf() === 'pr' && shown) loadPrs(shown);
     if (tabOf() === 'changes' && shown && changesOf(shown)) refreshCx(shown);
   };
@@ -894,6 +898,10 @@ export function shellKey() {
   if (!panel.hidden && tabOf() === 'shell' && $('.pn-shell', panel).contains(document.activeElement)) return void $('.reply', S.nodes.get(id)?.card)?.focus();
   openPanel(id, 'shell');
 }
+
+// For the swipe (panel-swipe.js): the page itself, and what it opens on: what it last showed.
+export const sidePanel = panel;
+export const lastTab = () => pref.tab || spellProp('panel', 'tab') || 'changes';
 
 // For the menus: the items' names, the same everywhere.
 export const reviewLabel = (s) => {

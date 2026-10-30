@@ -251,6 +251,15 @@ page is the task, and Shell and PR are places it leads to.
   motion). It covers the whole screen, sized to what the keyboard leaves (`--vv-*`, like Take over).
 - **Its head is the task page's head:** the same 56px box and Back on the same spot, so the thumb
   never hunts; then `i-shell` **Shell** or `i-merge` **PR #412**, 15px semibold. No close button.
+- **Swipe (the app):** dragging the task page to the left brings the panel in under the finger,
+  on the tab it last showed (Changes until you've picked another); dragging the panel to the right
+  takes it back to the task. The panel follows the finger 1:1, the task slides a quarter of its
+  width under it and dims (to 18%); letting go past 40% of the way, or a flick (0.3px/ms), finishes
+  the move at the finger's speed (140–320ms), otherwise it springs back. Only `transform` and
+  `opacity` move, so no frame waits on layout. It never focuses the shell (no keyboard). Not from the
+  screen's edges (Android's Back), not from a text box, and not inside something that still scrolls
+  that way (a diff, the key row): that scroll goes first, then the swipe. `panel.swipe: false` turns
+  it off. Phone browsers keep their own sideways gestures.
 - **Back** (the head's, the phone's, `Esc`) returns to the task, where it was scrolled. The page
   takes one `onBack` entry above the task's, so a second Back goes to the list.
 - Opening a task lands on the task. The page isn't remembered per task on phones: the transcript is
@@ -371,8 +380,8 @@ The page an agent keeps beside its task while it works (`wisp_watch`, `server/wa
 - `PARTS`: `panel`, `panel.tabs` (its tabs again), `panel.place`, `panel.shell`, `panel.pr`, `panel.checks`,
   `panel.conversation`, `panel.files`, `panel.watch`, `watch.caption`, `watch.run`, `split.watch`. The verdict and Merge stay out of `PARTS`: a spell can't hide
   what decides a merge.
-- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`changes` | `pr` | `shell` | `watch`), `panel.pr.bots` (`bool`: show bot
-  comments unfolded).
+- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`changes` | `pr` | `shell` | `watch`), `panel.swipe` (`bool`: swiping
+  brings it in and out in the phone app), `panel.pr.bots` (`bool`: show bot comments unfolded).
 - `ICONS`: `panel`, `eye`.
 - `SETTINGS`: `watch` (`on` | `off`): agents are offered `wisp_watch`.
 
