@@ -75,6 +75,17 @@ function rowHtml(r, cx) {
   return out || ' ';
 }
 
+// The background of the screen's four corners when they share one (null when they don't).
+function edgeBg(rows) {
+  const top = rows[0];
+  const bottom = rows[rows.length - 1];
+  if (!top || !bottom) return null;
+  const pens = [top.p[0], top.p[top.p.length - 1], bottom.p[0], bottom.p[bottom.p.length - 1]];
+  if (pens.some((p) => !p || p.bg === null || p.f & INVERSE)) return null;
+  const bg = colorOf(pens[0].bg);
+  return pens.every((p) => colorOf(p.bg) === bg) ? bg : null;
+}
+
 // The screen, its hidden input and the phone's key row: what a TermView paints into.
 export const SCREEN_HTML = `
   <div class="tm-screen">
@@ -229,8 +240,11 @@ export class TermView {
       t.screen.resize(cols, rows);
       this.schedule(t);
     }
-    if (!t.ready || (t.size?.cols === cols && t.size?.rows === rows)) return;
+    if (!t.ready) return;
+    // A size on its way is dropped even when this one is what the server has: back where it was
+    // after a quick drag, the last word must not be a size it passed through.
     clearTimeout(this.fitTimer);
+    if (t.size?.cols === cols && t.size?.rows === rows) return;
     this.fitTimer = setTimeout(() => {
       t.size = { cols, rows };
       if (t.code === null) api(t.url, { method: 'POST', body: { cols, rows } }).catch(() => {});
@@ -249,7 +263,9 @@ export class TermView {
   }
 
   measureCell() {
-    const fs = getComputedStyle(this.root).getPropertyValue('--tm-fs') || '';
+    // Keyed on the font the rows really get: a spell's size, or the phone width's smaller one
+    // (term.css), which a window crossing 700px switches without touching --tm-fs.
+    const fs = getComputedStyle($('.tm-rows', this.root)).font;
     if (this.cell?.fs === fs && this.cell.w) return this.cell;
     const probe = el(`<span class="tm-probe">${'W'.repeat(40)}</span>`);
     $('.tm-rows', this.root).append(probe);
@@ -328,6 +344,10 @@ export class TermView {
       P.cx[y] = cx;
     }
     P.rows.length = P.vers.length = P.cx.length = rows.length;
+    // A full-screen program that paints its own background (opencode, grok): the padding around
+    // its cells takes that colour too, so it reaches the box's edges instead of sitting in a frame.
+    const edge = sc.alt ? edgeBg(rows) : null;
+    if (P.edge !== edge) (box.style.background = edge || ''), (P.edge = edge);
     if (t.stick || sc.alt) box.scrollTop = box.scrollHeight;
     this.lastTop = box.scrollTop;
     if (!t.drawn && (sc.back.length || rows.some((r) => r.c.some((c) => c !== ' ')))) t.drawn = true;

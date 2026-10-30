@@ -40,6 +40,7 @@ import { launcherGoal, launcherGoalHtml } from './goal.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { autoPreview } from './auto-preview.js';
 import { importedToast, shareCard } from './share.js';
+import { launchSize } from './term.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -564,6 +565,8 @@ export function renderLauncher() {
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
+    // A terminal session starts at the size of the pane it opens in (measured before home leaves it).
+    const cells = S.config.defaults.terminalSessions === 'on' || terminalAsk(prompt) !== null ? launchSize() : {};
     leaveHome();
     save('wisp.sent', remember(load('wisp.sent', []), prompt));
     sentAt = null;
@@ -592,7 +595,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
           }),
         ),
       );

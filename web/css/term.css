@@ -23,6 +23,13 @@
    turns, details and reply box), so it follows the body through every resize. Nothing around it. */
 body.split #feed .item.open > .it-body:has(> .tui-term) { overflow: hidden; }
 .tui-term { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; background: var(--term-bg); }
+/* Its header spans the terminal's width too: the actions at the pane's right edge, not the reading
+   column's (with the list hidden, still clear of the top bar's buttons floating in the corner). */
+body.split:not(.stack):has(#feed .item.open > .it-body > .tui-term) .split-head { padding-left: 24px; padding-right: 16px; }
+body.split.side-hidden:not(.stack):not(.side-right):has(#feed .item.open > .it-body > .tui-term) .split-head { padding-left: calc(var(--bar-w, 120px) + 8px); }
+body.split.side-hidden.side-right:not(.stack):has(#feed .item.open > .it-body > .tui-term) .split-head { padding-right: calc(var(--bar-w, 120px) + 8px); }
+/* Measures the cells a new terminal session gets (term.js, launchSize): the body's box, unseen. */
+.tui-term.tm-sizer { position: fixed; inset: auto; z-index: -1; visibility: hidden; pointer-events: none; }
 /* Not the room the body's children leave for the details column on a wide pane (split.css). */
 body.split #feed .item.open > .it-body > .tui-term { margin: 0 !important; }
 
