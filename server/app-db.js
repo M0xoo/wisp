@@ -62,6 +62,7 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
     me.on('message', (m) => {
       const w = m.id && me.waiting.get(m.id);
       if (!w) return;
+      if (m.started) return w.arm();
       me.waiting.delete(m.id);
       clearTimeout(w.timer);
       w.resolve(m);
@@ -87,14 +88,23 @@ export function createAppDb({ maxBytes = 10 * 1024 * 1024, timeoutMs = 5000 } = 
     }
     const id = ++seq;
     return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        me.waiting.delete(id);
-        resolve({ error: `That query took over ${timeoutMs / 1000} s and was stopped.`, status: 503 });
-        // The only way to stop a query in node:sqlite. The next query starts a new worker at once.
-        if (child === me) child = null;
-        me.kill('SIGKILL');
-      }, timeoutMs);
-      me.waiting.set(id, { resolve, timer });
+      // Timed from when the worker says it started, not from sending, and judged only after the
+      // answers already in the pipe are read (setImmediate runs after them): a busy wisp that reads
+      // its messages late (a loaded CI box) would otherwise run the timer first and stop a query
+      // that took a millisecond.
+      const w = { resolve, timer: null };
+      w.arm = () => {
+        const stop = () => {
+          if (me.waiting.get(id) !== w) return;
+          me.waiting.delete(id);
+          resolve({ error: `That query took over ${timeoutMs / 1000} s and was stopped.`, status: 503 });
+          // The only way to stop a query in node:sqlite. The next query starts a new worker at once.
+          if (child === me) child = null;
+          me.kill('SIGKILL');
+        };
+        w.timer = setTimeout(() => setImmediate(stop), timeoutMs);
+      };
+      me.waiting.set(id, w);
       me.channel?.ref();
       me.send({ ...msg, id }, (err) => err && resolve({ error: err.message, status: 503 }));
     }).finally(() => {

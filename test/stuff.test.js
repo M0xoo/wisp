@@ -447,6 +447,23 @@ test('app data: a query that never ends is stopped, and the next one works; the 
       if (r.error) full = r;
     }
     assert.match(full?.error || '', /full \(0 MB at most\)|full/);
+
+    // A wisp too busy to read the answer in time (a loaded CI box) doesn't stop a quick query.
+    const real = globalThis.setTimeout;
+    globalThis.setTimeout = (fn, ms, ...rest) => {
+      if (ms === 800) {
+        globalThis.setTimeout = real;
+        queueMicrotask(() => {
+          for (const end = Date.now() + 1500; Date.now() < end; );
+        });
+      }
+      return real(fn, ms, ...rest);
+    };
+    try {
+      assert.deepEqual((await q('SELECT 2 AS two')).rows, [{ two: 2 }]);
+    } finally {
+      globalThis.setTimeout = real;
+    }
   } finally {
     db.close();
     s.close();
