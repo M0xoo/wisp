@@ -9,6 +9,8 @@
 .split-stuff:hover { border-color: var(--faint); color: var(--ink); }
 .split-stuff.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); color: var(--accent); }
 body.wisp-mobile .split-stuff { width: 44px; height: 44px; }
+/* Its stand-in in the phone app's top bar (responsive.css styles it); shown only there. */
+.stuff-top[hidden] { display: none; }
 
 /* Save to My Stuff, on a reply's picture, video, doc and code: in My Stuff, it takes the accent. */
 .stuff-save.on, .img-tools button.stuff-save.on { color: var(--accent); }

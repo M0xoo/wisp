@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **My Stuff in the phone app's top bar.** The app's floating New task hides the row that held the My Stuff button, so My Stuff was only reachable through Search. It now has its own button beside Search. Spells reach it through the `stuff.topButton` part.
+
 ## [0.50.0] - 2026-10-30
 
 ### Added

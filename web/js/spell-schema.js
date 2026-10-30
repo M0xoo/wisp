@@ -113,6 +113,7 @@ export const PARTS = {
   'org.reset': '.org-view .org-reset', // Reset layout, once cards were moved by hand
   // My Stuff (stuff.js): what you and your agents kept, opened from the box beside New task.
   'stuff.button': '#splitStuff', // the box beside New task that opens it
+  'stuff.topButton': '#stuffTop', // in the phone app, the top bar button that opens it
   'stuff.page': '.stuff-view',
   'stuff.filters': '.stuff-view .sf-bar', // search, the kinds, Starred, By time / By task, grid or list
   'stuff.card': '.stuff-view .st-card', // one thing kept
