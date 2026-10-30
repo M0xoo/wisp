@@ -26,6 +26,11 @@ function color256(n) {
 }
 const colorOf = (c) => (c === null ? null : typeof c === 'number' ? color256(c) : c);
 
+// Scrollback rows painted at once when many come in; the rest follow in chunks while idle.
+const BACK_NOW = 300;
+const BACK_CHUNK = 500;
+const SYNC_MS = 150; // the longest a frame the program began (synchronized output) waits to be painted
+
 const escCell = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 function styleOf(p) {
@@ -86,8 +91,10 @@ export const SCREEN_HTML = `
 // A terminal's state: url is where it streams from and takes input (/sessions/:id/term or /shell).
 // onHello / onExit(code): it (re)connected, it ended. stick: the view follows new output (until you
 // scroll up). drawn: something's on screen yet.
+const newSender = () => Math.random().toString(36).slice(2, 10);
+
 export function termState(id, url, { onHello = () => {}, onExit = () => {} } = {}) {
-  const t = { id, url, es: null, code: null, ready: false, replay: false, queue: '', sending: false, size: null, painted: null, stick: true, drawn: false, view: null, onHello, onExit };
+  const t = { id, url, es: null, code: null, ready: false, replay: false, queue: '', sending: 0, seq: 0, from: newSender(), size: null, painted: null, stick: true, drawn: false, view: null, onHello, onExit };
   t.screen = new Screen(80, 24, {
     // What the terminal answers the program (cursor position and the like); not for old output replayed.
     onReply: (r) => !t.replay && send(t, r),
@@ -100,8 +107,12 @@ export function connect(t) {
   t.es?.close();
   const es = new EventSource(`/api${t.url}`);
   t.es = es;
-  es.addEventListener('hello', () => {
+  es.addEventListener('hello', (e) => {
     t.ready = true;
+    t.ordered = !!JSON.parse(e.data).ordered; // an older wisp over there: one send at a time
+    // Maybe a new terminal over there (wisp restarted): its count starts again, so does ours.
+    t.from = newSender();
+    t.seq = 0;
     t.screen.reset();
     t.drawn = false;
     t.replay = true; // the next data is what it printed so far
@@ -132,26 +143,37 @@ export function finished(t, code) {
   t.view?.schedule(t);
 }
 
-// Typed text goes out in order, batched while a send is on its way.
+// Typed text goes out at once, without waiting for the last send to answer (a round trip to a
+// cloud computer would hold up every key behind it). Sends are numbered and the server puts them
+// back in order; keys from one event go together, and at most IN_FLIGHT are on their way (one
+// before the server said it orders them).
+const IN_FLIGHT = 4;
 export function send(t, data) {
   if (!data || t.code !== null) return;
   t.queue += data;
-  if (t.sending) return;
-  t.sending = true;
-  (async () => {
-    while (t.queue) {
-      const chunk = t.queue;
-      t.queue = '';
-      try {
-        await api(t.url, { method: 'POST', body: { data: chunk } });
-      } catch (err) {
+  if (t.batching) return;
+  t.batching = true;
+  queueMicrotask(() => {
+    t.batching = false;
+    pump(t);
+  });
+}
+
+function pump(t) {
+  while (t.queue && t.sending < (t.ordered ? IN_FLIGHT : 1) && t.code === null) {
+    const body = { data: t.queue, seq: t.seq++, from: t.from };
+    t.queue = '';
+    t.sending++;
+    api(t.url, { method: 'POST', body })
+      .catch((err) => {
         if (err.status === 404) finished(t, 0);
         else toastError(err);
-        t.queue = '';
-      }
-    }
-    t.sending = false;
-  })();
+      })
+      .finally(() => {
+        t.sending--;
+        pump(t);
+      });
+  }
 }
 
 // --- the view ---------------------------------------------------------------------------------
@@ -182,7 +204,7 @@ export class TermView {
     this.cur = t;
     if (!t) return;
     t.view = this;
-    if (fresh) (t.painted = { cleared: -1, back: 0, dropped: 0, rows: [], vers: [], cx: [] }), (this.lastTop = 0);
+    if (fresh) (t.painted = { cleared: -1, from: 0, back: 0, dropped: 0, rows: [], vers: [], cx: [] }), (this.lastTop = 0);
     this.fit();
     this.paint();
   }
@@ -245,6 +267,10 @@ export class TermView {
     this.queued = true;
     requestAnimationFrame(() => {
       this.queued = false;
+      // Mid-frame (synchronized output): wait for the rest, so a frame split across two chunks of
+      // output never shows half drawn. Painted anyway after SYNC_MS.
+      const wait = t.screen.modes.sync ? SYNC_MS - (Date.now() - t.screen.syncAt) : 0;
+      if (wait > 0) return void (this.syncTimer ||= setTimeout(() => ((this.syncTimer = null), this.schedule(t)), wait));
       this.paint();
     });
   }
@@ -261,22 +287,31 @@ export class TermView {
     if (P.cleared !== sc.cleared) {
       backEl.replaceChildren();
       P.cleared = sc.cleared;
-      P.back = 0;
+      P.from = P.back = 0;
       P.dropped = sc.dropped;
     }
-    // Rows trimmed off the scrollback's top, then the new ones at its end.
-    let gone = Math.min(sc.dropped - P.dropped, backEl.childElementCount);
+    // The page holds scrollback rows from..back. Rows trimmed off the scrollback's top go, then
+    // the new ones are added at its end.
+    const drop = sc.dropped - P.dropped;
     P.dropped = sc.dropped;
-    P.back -= gone;
-    while (gone-- > 0) backEl.firstElementChild.remove();
+    if (drop > 0) {
+      P.from -= drop;
+      P.back = Math.max(0, P.back - drop);
+      let gone = Math.min(-P.from, backEl.childElementCount);
+      while (gone-- > 0) backEl.firstElementChild.remove();
+      P.from = Math.max(0, P.from);
+    }
     if (P.back < sc.back.length) {
-      const frag = document.createDocumentFragment();
-      for (let i = Math.max(0, P.back); i < sc.back.length; i++) {
-        const d = document.createElement('div');
-        d.innerHTML = rowHtml(sc.back[i], -1);
-        frag.append(d);
+      // Many at once (a reopened terminal, a flood of output): the last screenfuls now, the older
+      // ones above them once the page is idle.
+      if (sc.back.length - P.back > BACK_NOW) {
+        backEl.replaceChildren();
+        P.from = P.back = sc.back.length - BACK_NOW;
+        this.fillBack();
       }
-      backEl.append(frag);
+      let html = '';
+      for (let i = P.back; i < sc.back.length; i++) html += `<div>${rowHtml(sc.back[i], -1)}</div>`;
+      backEl.insertAdjacentHTML('beforeend', html);
       P.back = sc.back.length;
     }
     const rows = sc.screen;
@@ -298,6 +333,32 @@ export class TermView {
     if (!t.drawn && (sc.back.length || rows.some((r) => r.c.some((c) => c !== ' ')))) t.drawn = true;
     $('.tm-wait', this.root).hidden = t.drawn || t.code !== null;
     this.placeInput();
+  }
+
+  // The scrollback rows above what's painted, a chunk per idle moment, keeping the view in place.
+  fillBack() {
+    if (this.filling) return;
+    this.filling = true;
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 16));
+    const step = () => {
+      const t = this.cur;
+      const P = t?.painted;
+      if (!P || P.from <= 0 || !this.shown()) return void (this.filling = false);
+      const sc = t.screen;
+      const box = $('.tm-screen', this.root);
+      const backEl = $('.tm-scroll', this.root);
+      const start = Math.max(0, P.from - BACK_CHUNK);
+      let html = '';
+      for (let i = start; i < P.from; i++) html += `<div>${rowHtml(sc.back[i], -1)}</div>`;
+      const h = box.scrollHeight;
+      backEl.insertAdjacentHTML('afterbegin', html);
+      P.from = start;
+      if (t.stick || sc.alt) box.scrollTop = box.scrollHeight;
+      else box.scrollTop += box.scrollHeight - h;
+      this.lastTop = box.scrollTop;
+      idle(step);
+    };
+    idle(step);
   }
 
   // The hidden input sits on the cursor, so the IME's suggestions show up next to it.
@@ -402,8 +463,19 @@ export class TermView {
       e.preventDefault();
       typed(this.pasted(e.clipboardData?.getData('text/plain') || ''));
     });
-    ta.addEventListener('focus', () => root.classList.add('focused'));
-    ta.addEventListener('blur', () => root.classList.remove('focused'));
+    // Programs that asked (claude, codex) are told when the terminal gets and loses the keys.
+    const focusReport = (seq) => {
+      const t = this.cur;
+      if (t && t.code === null && t.ready && t.screen.modes.focus) send(t, seq);
+    };
+    ta.addEventListener('focus', () => {
+      root.classList.add('focused');
+      focusReport('\x1b[I');
+    });
+    ta.addEventListener('blur', () => {
+      root.classList.remove('focused');
+      focusReport('\x1b[O');
+    });
     // A click puts the keys in the terminal, unless it selected text to copy.
     screen.addEventListener('mouseup', () => {
       if (!String(getSelection())) this.focus();

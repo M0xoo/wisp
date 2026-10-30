@@ -47,7 +47,22 @@ export function charWidth(cp) {
   return 1;
 }
 
-const blankRow = (cols, p = PLAIN) => ({ c: Array(cols).fill(' '), p: Array(cols).fill(p), w: Array(cols).fill(1), wrapped: false, v: 0 });
+// A blank row is copied from a kept one: a scrolling log makes one per line, and filling fresh
+// arrays was most of the time spent on it.
+const blanks = new Map();
+function blankRow(cols, p = PLAIN) {
+  let b = blanks.get(cols);
+  if (!b) {
+    if (blanks.size > 8) blanks.clear();
+    blanks.set(cols, (b = { c: Array(cols).fill(' '), w: Array(cols).fill(1), p: new Map() }));
+  }
+  let ps = b.p.get(p);
+  if (!ps) {
+    if (b.p.size > 64) b.p.clear();
+    b.p.set(p, (ps = Array(cols).fill(p)));
+  }
+  return { c: b.c.slice(), p: ps.slice(), w: b.w.slice(), wrapped: false, v: 0 };
+}
 
 export class Screen {
   // onReply(text): what the terminal answers the program (typed back into it).
@@ -72,7 +87,8 @@ export class Screen {
     this.top = 0;
     this.bottom = this.rows - 1;
     this.saved = null;
-    this.modes = { appCursor: false, wrap: true, cursor: true, paste: false, mouse: 0, sgrMouse: false, origin: false, insert: false };
+    this.modes = { appCursor: false, wrap: true, cursor: true, paste: false, mouse: 0, sgrMouse: false, origin: false, insert: false, focus: false, sync: false };
+    this.syncAt = 0; // when the program began a frame (synchronized output: paint it whole)
     this.charset = [null, null]; // G0, G1: null or DEC
     this.gl = 0;
     this.title = '';
@@ -93,7 +109,21 @@ export class Screen {
   }
 
   write(text) {
-    for (const ch of text) this.#feed(ch);
+    const n = text.length;
+    let i = 0;
+    while (i < n) {
+      const c = text.charCodeAt(i);
+      // Runs of plain ASCII text, most of any output, skip the state machine.
+      if (c >= 0x20 && c < 0x7f && this.state === 'ground' && !this.charset[this.gl] && !this.modes.insert) {
+        let j = i + 1;
+        while (j < n && text.charCodeAt(j) >= 0x20 && text.charCodeAt(j) < 0x7f) j++;
+        this.#printAscii(text, i, j);
+        i = j;
+      } else if (c >= 0xd800 && c <= 0xdbff && i + 1 < n) {
+        this.#feed(text.slice(i, i + 2));
+        i += 2;
+      } else this.#feed(text[i++]);
+    }
   }
 
   #feed(ch) {
@@ -260,6 +290,32 @@ export class Screen {
     } else this.x += w;
   }
 
+  // #print for text[i..j), all one column wide: the row is marked changed once per run.
+  #printAscii(text, i, j) {
+    const cols = this.cols;
+    let r = this.screen[this.y];
+    for (; i < j; i++) {
+      if (this.wrapNext || this.x >= cols) {
+        if (this.modes.wrap) {
+          r.wrapped = true;
+          this.x = 0;
+          this.#touch(this.y);
+          this.#index();
+          r = this.screen[this.y];
+        } else this.x = cols - 1;
+        this.wrapNext = false;
+      }
+      const x = this.x;
+      if (r.w[x] !== 1) this.#clearWide(r, x);
+      r.c[x] = text[i];
+      r.p[x] = this.pen;
+      r.w[x] = 1;
+      if (x + 1 >= cols) this.wrapNext = true;
+      else this.x = x + 1;
+    }
+    this.#touch(this.y);
+  }
+
   // Writing over half of a wide character blanks the other half.
   #clearWide(r, x) {
     if (x >= this.cols) return;
@@ -286,15 +342,32 @@ export class Screen {
   #scrollUp(n, top = this.top, bottom = this.bottom) {
     const rows = this.screen;
     n = Math.min(n, bottom - top + 1);
+    const whole = top === 0 && bottom === rows.length - 1;
+    const toBack = !this.alt && top === 0 && bottom === this.rows - 1;
     for (let i = 0; i < n; i++) {
-      const [gone] = rows.splice(top, 1);
-      rows.splice(bottom, 0, blankRow(this.cols, this.#bgPen()));
-      if (!this.alt && top === 0 && bottom === this.rows - 1) {
+      const gone = whole ? rows.shift() : rows.splice(top, 1)[0];
+      let fresh = null;
+      if (toBack) {
         this.back.push(gone);
-        if (this.back.length > SCROLLBACK) this.back.shift(), this.dropped++;
+        // A full scrollback: the row it drops is blanked and used again (no garbage per line).
+        if (this.back.length > SCROLLBACK) (fresh = this.#reuse(this.back.shift())), this.dropped++;
       }
+      fresh ||= blankRow(this.cols, this.#bgPen());
+      if (whole) rows.push(fresh);
+      else rows.splice(bottom, 0, fresh);
     }
-    for (let y = top; y <= bottom; y++) this.#touch(y);
+    // Rows that moved are new at their place to a renderer (it compares rows by identity): only
+    // the blank ones need marking.
+    for (let y = bottom - n + 1; y <= bottom; y++) this.#touch(y);
+  }
+
+  #reuse(r) {
+    if (r.c.length !== this.cols) return null;
+    r.c.fill(' ');
+    r.p.fill(this.#bgPen());
+    r.w.fill(1);
+    r.wrapped = false;
+    return r;
   }
 
   #scrollDown(n, top = this.top, bottom = this.bottom) {
@@ -397,7 +470,7 @@ export class Screen {
     const raw = (i, d = 0) => (Number.isFinite(args[i]) ? args[i] : d);
     if (inter) {
       if (final === 'p' && inter === '!') return this.#softReset();
-      if (final === 'p' && inter === '$') return this.onReply(`\x1b[${prefix}${raw(0)};0$y`); // DECRQM: not recognised
+      if (final === 'p' && inter === '$') return this.onReply(`\x1b[${prefix}${raw(0)};${prefix === '?' ? this.#modeState(raw(0)) : 0}$y`); // DECRQM
       return; // DECSCUSR (cursor style) and the like
     }
     if (prefix === '?' || prefix === '>' || prefix === '=' || prefix === '<') {
@@ -529,6 +602,14 @@ export class Screen {
     Object.assign(this.modes, { appCursor: false, wrap: true, cursor: true, origin: false, insert: false });
   }
 
+  // DECRQM's answer for DEC mode m: 1 set, 2 reset, 0 not one this screen knows. Programs ask
+  // before they use one (synchronized output).
+  #modeState(m) {
+    const M = this.modes;
+    const v = { 1: M.appCursor, 6: M.origin, 7: M.wrap, 25: M.cursor, 47: !!this.alt, 1047: !!this.alt, 1049: !!this.alt, 1000: M.mouse === 1000, 1002: M.mouse === 1002, 1003: M.mouse === 1003, 1004: M.focus, 1006: M.sgrMouse, 2004: M.paste, 2026: M.sync }[m];
+    return v === undefined ? 0 : v ? 1 : 2;
+  }
+
   #decMode(args, on) {
     for (const m of args) {
       switch (m) {
@@ -563,6 +644,13 @@ export class Screen {
           break;
         case 2004:
           this.modes.paste = on;
+          break;
+        case 1004:
+          this.modes.focus = on;
+          break;
+        case 2026:
+          this.modes.sync = on;
+          if (on) this.syncAt = Date.now();
           break;
       }
     }

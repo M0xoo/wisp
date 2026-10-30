@@ -40,6 +40,8 @@ body.split #feed .item.open > .it-body > .tui-term { margin: 0 !important; }
 }
 .tm-rows { font: var(--tm-fs, 13px) / 1.3 var(--mono); font-variant-ligatures: none; white-space: pre; }
 .tm-rows > div > div { height: var(--tm-lh, 1.3em); line-height: var(--tm-lh, 1.3em); overflow: hidden; }
+/* Scrollback rows off screen skip layout and paint: a reopened terminal brings thousands. */
+.tm-scroll > div { content-visibility: auto; contain-intrinsic-size: auto var(--tm-lh, 17px); }
 /* Coloured cells fill the whole row, not just the glyphs: TUIs that paint their own background
    (opencode) would otherwise show stripes between rows. */
 .tm-rows > div > div > span { display: inline-block; height: 100%; vertical-align: top; }

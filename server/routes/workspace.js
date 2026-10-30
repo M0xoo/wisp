@@ -82,7 +82,7 @@ export function register(r, app) {
       const body = await c.body();
       if (typeof body.data === 'string') {
         if (!open(s)) return c.send(404, { error: 'The shell has ended.' });
-        app.shells.input(s.id, body.data);
+        app.shells.input(s.id, body.data, body);
         if (body.cols && body.rows) app.shells.resize(s.id, body.cols, body.rows);
         return c.send(200, { ok: true });
       }
