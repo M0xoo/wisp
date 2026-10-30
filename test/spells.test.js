@@ -205,6 +205,14 @@ test('Auto\'s preview: the chip, its popover, the alternatives and suggestion, a
   assert.ok(problems({ ...base0, ui: { hide: ['launcher.autopreview'] } }).some((x) => /launcher\.autopreview/.test(x)));
 });
 
+test('sharing a task: a pasted link\'s card and the Share dialog are parts, with the share icon', () => {
+  for (const part of ['launcher.share', 'share.dialog']) assert.ok(schema.PARTS[part], part);
+  assert.ok(schema.ICONS.includes('share'));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.share'] }, parts: { 'share.dialog': { style: { borderRadius: '6px' } } } }), []);
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'share', label: 'Share', do: { toast: 'hi' } }] }).filter((x) => /icon/.test(x)), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['launcher.shared'] } }).some((x) => /launcher\.shared/.test(x)));
+});
+
 test('forks: a fork button acts on the card\'s task, its chips, turn button and start line are parts', () => {
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'fork', label: 'Try with Codex', do: { fork: { prompt: 'Try it another way', agent: 'codex', mode: 'plan' } } }] }), []);
   assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { fork: { agent: 'codex' } } }] }).some((x) => /fork needs a prompt: what the fork should try/.test(x)));

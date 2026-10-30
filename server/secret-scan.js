@@ -34,3 +34,14 @@ export function scanSecrets(text) {
 export function scanAll(texts) {
   return Object.entries(texts).flatMap(([where, text]) => scanSecrets(text).map((h) => ({ where, ...h })));
 }
+
+// The same text with every secret in it replaced by [redacted: what it was], for text that leaves
+// whole (a shared task): → { text, hits }.
+export function redactSecrets(text) {
+  let hits = 0;
+  let out = String(text ?? '');
+  for (const [what, re] of PATTERNS) {
+    out = out.replace(new RegExp(re.source, `${re.flags.replace('g', '')}g`), () => (hits++, `[redacted: ${what}]`));
+  }
+  return { text: out, hits };
+}

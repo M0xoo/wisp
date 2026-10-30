@@ -61,6 +61,7 @@ import { Uploads } from './services/uploads.js';
 import { Stuff } from './services/stuff.js';
 import { Apps } from './services/apps.js';
 import { createPublish } from './services/publish.js';
+import { createShare } from './services/share.js';
 import { notifyWebhooks } from './services/webhooks.js';
 import { API_VERSION } from './routes/meta.js';
 import * as metaRoutes from './routes/meta.js';
@@ -262,6 +263,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.places = createPlaces(app);
   app.mover = createMove(app);
   app.forker = createFork(app);
+  app.sharer = createShare(app); // share a task on your wisp Grid, import someone's (services/share.js)
   app.relay = createRelay(app);
   app.cloud = createCloud(app);
   app.computer = createComputer(app);

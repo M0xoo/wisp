@@ -17,6 +17,7 @@ import { saveAsRecipe } from './automations.js';
 import { compareView } from './compare.js';
 import { collapse, expand, handOff, renderFeed, setFocus } from './feed.js';
 import { launchBehind } from './launcher.js';
+import { shareable, shareTask } from './share.js';
 import { copyTaskId, mentionBox } from './mentions.js';
 import { runnerPicker } from './runner-picker.js';
 import { connectMachine } from './machines.js';
@@ -192,6 +193,7 @@ export function moreMenu(id, anchor) {
       ${s.agentSessionId ? `<button data-a="copy">${icon('copy')}Copy resume command</button>` : ''}
       ${MOBILE ? '' : `<button data-a="folder">${icon('folder')}Open project in editor</button>`}
       ${forkable(sum) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
+      ${shareable(sum) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
       ${mergeLabel(sum) ? `<button data-a="merge">${icon('check')}${mergeLabel(sum)}</button>` : ''}
       ${reviewLabel(sum) ? `<button data-a="review">${icon('merge')}${reviewLabel(sum)}${keyHint('P')}</button>` : ''}
       ${shellItem(id)}
@@ -214,6 +216,7 @@ export function moreMenu(id, anchor) {
     if (a === 'rename') rename(id);
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'fork') forkTask(id);
+    if (a === 'share') shareTask(id);
     if (a === 'merge') mergePr(id);
     if (a === 'review') openPanel(id, 'pr');
     if (a === 'shell') openPanel(id, 'shell');
@@ -254,6 +257,7 @@ export function taskMenu(id, e) {
       <button data-a="copy-id">${icon('copy')}Copy task ID</button>
       <button data-a="rerun">${icon('rerun')}Rerun…${keyHint('⇧R')}</button>
       ${forkable(s) ? `<button data-a="fork">${icon('fork')}Fork…${keyHint('⇧F')}</button>` : ''}
+      ${shareable(s) ? `<button data-a="share">${icon('share')}Share…</button>` : ''}
       ${shippable(s) ? `<button data-a="ship">${icon('send')}${shipLabel(s)}${keyHint('S')}</button>` : ''}
       ${mergeLabel(s) ? `<button data-a="merge">${icon('check')}${mergeLabel(s)}</button>` : ''}
       ${reviewLabel(s) ? `<button data-a="review">${icon('merge')}${reviewLabel(s)}${keyHint('P')}</button>` : ''}
@@ -280,6 +284,7 @@ export function taskMenu(id, e) {
     if (a === 'copy-id') copyTaskId(id);
     if (a === 'rerun') rerun(id);
     if (a === 'fork') forkTask(id);
+    if (a === 'share') shareTask(id);
     if (a === 'ship') shipDialog(id);
     if (a === 'merge') mergePr(id);
     if (a === 'review') openPanel(id, 'pr');

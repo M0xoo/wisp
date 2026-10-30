@@ -329,6 +329,30 @@ export function register(r, app) {
     }),
   );
 
+  // Share: a link on your wisp Grid that opens the task in a browser (optionally behind a passkey)
+  // and imports it into someone else's wisp (services/share.js). GET: what it would carry.
+  r.route('GET', '/sessions/:id/share', one(async (c, s) => c.send(200, await app.sharer.preview(s))));
+  r.route(
+    'POST',
+    '/sessions/:id/share',
+    one(async (c, s) => {
+      const { passkey, work, account } = await c.body();
+      c.send(200, await app.sharer.share(s, { passkey: passkey ?? '', work: work !== false, account }));
+    }),
+  );
+  r.route('DELETE', '/sessions/:id/share', one(async (c, s) => c.send(200, await app.sharer.unshare(s))));
+  // A pasted share link: the card (peek), then the task carried on here (import).
+  r.route('POST', '/shares/peek', async (c) => {
+    const { url, passkey } = await c.body();
+    c.send(200, await app.sharer.peek(url, { passkey: typeof passkey === 'string' ? passkey : '' }));
+  });
+  r.route('POST', '/shares/import', async (c) => {
+    const { url, passkey, prompt, mode, connectors, crew, agent, model, effort } = await c.body();
+    if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
+    const out = await app.sharer.importShare(url, { passkey: typeof passkey === 'string' ? passkey : '', prompt: typeof prompt === 'string' ? prompt : '', mode, connectors: connectors !== false, crew: crew !== false, run: typeof agent === 'string' && agent ? { agent, model: typeof model === 'string' ? model : '', effort: typeof effort === 'string' ? effort : '' } : null });
+    c.send(201, { ...summarize(out.session, store), notes: out.notes, connectorsAdded: out.connectors, crewAdded: out.crew });
+  });
+
   // Pack the task's work to move it to another place (services/move.js): bundles, as uploads.
   r.route(
     'POST',

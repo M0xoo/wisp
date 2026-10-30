@@ -174,7 +174,7 @@ export function offerFiles(list = []) {
 
 // What a job's note says about the kit. files (a member here): skill name → its SKILL.md on disk,
 // read when needed. Without them (a job on another machine) the skills are written out in full.
-function kitNote(m, files = null) {
+export function kitNote(m, files = null) {
   const kit = (m.kit || []).filter((k) => k.on !== false);
   const rules = kit.filter((k) => k.kind === 'rules');
   const skills = kit.filter((k) => k.kind === 'skill');
@@ -190,7 +190,7 @@ function kitNote(m, files = null) {
 // Skills and instructions files already on this computer, to add to a kit: the harnesses' own
 // (~/.claude/skills, ~/.codex/AGENTS.md, …) and a project's (cwd). { skills, rules }, each with
 // where it came from (from) and its text.
-const SKILL_DIRS = ['.claude/skills', '.agents/skills', '.codex/skills', '.gemini/skills'];
+export const SKILL_DIRS = ['.claude/skills', '.agents/skills', '.codex/skills', '.gemini/skills'];
 const RULES_FILES = ['.claude/CLAUDE.md', '.codex/AGENTS.md', '.gemini/GEMINI.md', '.config/opencode/AGENTS.md'];
 const PROJECT_RULES = ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md'];
 export function localKit({ home, cwd = '' }) {

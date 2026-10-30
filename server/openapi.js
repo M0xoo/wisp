@@ -459,6 +459,30 @@ export function openapi({ version, port }) {
           responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, turnId: { type: 'string' }, file: { type: 'string' }, reverted: { type: 'boolean' } } }), 400: err[400], 404: err[404] },
         },
       },
+      '/sessions/{id}/share': {
+        parameters: [id],
+        get: { summary: 'What sharing the task would carry: the grids you can share to, its link if shared, its work, delegates, crew, connectors and skills', responses: { 200: json({ type: 'object' }), 404: err[404] } },
+        post: {
+          summary: 'Share the task on your wisp Grid (again: the same link, updated): a page anyone with the link opens, and a task other people on that grid import into their wisp',
+          requestBody: body({ type: 'object', properties: { passkey: { type: 'string', description: 'Only people with it open the link (empty: anyone with the link)' }, work: { type: 'boolean', description: 'Include its work: the branch and uncommitted changes, or a folder-less task’s files (default true)' }, account: { type: 'string', description: 'Which grid, when you are signed in to several' } } }),
+          responses: { 200: json({ type: 'object', properties: { url: { type: 'string' }, locked: { type: 'boolean' }, notes: { type: 'array', items: { type: 'string' } } } }), 400: err[400], 404: err[404], 409: json(ref('Error'), 'Not signed in to a grid, or nothing to share yet') },
+        },
+        delete: { summary: 'Stop sharing the task: its link stops working', responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' } } }), 404: err[404] } },
+      },
+      '/shares/peek': {
+        post: {
+          summary: 'What a shared task’s link holds, for the card a pasted link shows: who shared it, its harness and model and what runs it here, turns, delegates, crew, connectors and skills',
+          requestBody: body({ type: 'object', required: ['url'], properties: { url: { type: 'string' }, passkey: { type: 'string' } } }),
+          responses: { 200: json({ type: 'object' }), 400: err[400], 409: json(ref('Error'), 'Not signed in to that grid') },
+        },
+      },
+      '/shares/import': {
+        post: {
+          summary: 'Import a shared task: a new task with its history, work, delegates, crew, connectors and skills, carried on here',
+          requestBody: body({ type: 'object', required: ['url'], properties: { url: { type: 'string' }, passkey: { type: 'string' }, prompt: { type: 'string', description: 'Its first follow-up here (empty: it waits for you)' }, mode: { type: 'string', enum: ['plan', 'edits', 'auto'] }, agent: { type: 'string', description: 'Carry it on on this harness instead' }, model: { type: 'string' }, effort: { type: 'string' }, connectors: { type: 'boolean', description: 'Add their connectors you don’t have (default true)' }, crew: { type: 'boolean', description: 'Add the crew members it delegated to (default true)' } } }),
+          responses: { 201: json(ref('Summary')), 400: err[400], 403: json(ref('Error'), 'Wrong or missing passkey'), 409: json(ref('Error'), 'Not signed in to that grid') },
+        },
+      },
       '/sessions/{id}/fork': {
         parameters: [id],
         post: {

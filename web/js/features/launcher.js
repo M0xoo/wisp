@@ -39,6 +39,7 @@ import { addPlan, aheadLabel, timeMenu, whenTip } from './later.js';
 import { launcherGoal, launcherGoalHtml } from './goal.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { autoPreview } from './auto-preview.js';
+import { importedToast, shareCard } from './share.js';
 
 // "No folder": a general ask with no project. The server gives it an empty scratch directory.
 const NO_FOLDER = 'none';
@@ -121,6 +122,7 @@ export function renderLauncher() {
   box.innerHTML = `
     <div class="l-projects"></div>
     <div class="l-setup" hidden></div>
+    <div class="l-share" aria-live="polite" hidden></div>
     <textarea id="prompt" rows="2" spellcheck="false"></textarea>
     ${launcherGoalHtml()}
     <div class="l-bar">
@@ -155,6 +157,10 @@ export function renderLauncher() {
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
   ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen(), pv?.refresh()));
+  // A shared task's link pasted in the box: its card, and Enter imports it (features/share.js).
+  const shareRow = $('.l-share', box);
+  ta.parentNode.before(shareRow);
+  const sharing = shareCard(shareRow, ta);
   // While focus is elsewhere, the placeholder advertises the shortcut that brings you back.
   // The phone (or any touch-only screen) has no keyboard shortcut to advertise.
   const hint = () => (ta.placeholder = spellProp('launcher.input', 'placeholder') || (document.activeElement === ta || MOBILE || matchMedia('(hover: none)').matches
@@ -435,6 +441,27 @@ export function renderLauncher() {
       ta.value = '';
       ta.dispatchEvent(new Event('input'));
       return runAction(slash.spell, slash.cmd.do, { args: slash.args, input: ta });
+    }
+    // A shared task's link: import it, with the rest of the text as its first follow-up. The box
+    // empties and the task shows in the list at once; a refusal brings the text back.
+    if (sharing.active()) {
+      const body = sharing.take(prompt);
+      if (!body) return;
+      const { title, from, ...req } = body;
+      ta.value = '';
+      S.drafts.delete('home');
+      sharing.reset();
+      ta.dispatchEvent(new Event('input'));
+      leaveHome();
+      try {
+        const s = await launchBehind({ prompt: req.prompt || title, cwd: '', runner: { agent: req.agent, model: req.model, effort: req.effort }, machine: '' }, () => api('/shares/import', { method: 'POST', body: { ...req, mode: curMode } }));
+        importedToast(s, body);
+        reveal(s.id);
+      } catch (err) {
+        if (!ta.value) (ta.value = prompt), ta.dispatchEvent(new Event('input'));
+        toastError(err);
+      }
+      return;
     }
     if (isFeedback(prompt)) {
       ta.value = '';
