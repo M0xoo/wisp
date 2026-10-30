@@ -159,6 +159,8 @@ async function devServer() {
   app.on('upgrade', (req, socket) => {
     socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n');
     socket.on('data', (d) => socket.write(d));
+    // Windows resets the socket when the proxy in front hangs up: not an error for this test.
+    socket.on('error', () => {});
   });
   await listen(app);
   return { app, seen, port: app.address().port };
