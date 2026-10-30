@@ -22,6 +22,7 @@ export function shortcuts() {
     ['T', 'Take over in a terminal'],
     ['⌃`', 'Open shell in the task’s folder (again: back to the reply box)'],
     ['P', 'Review PR: checks, reviews and comments in the side panel'],
+    ['D', 'Show changes: every file the task changed, in the side panel'],
     ['V', 'Full transcript / presentation'],
     ['⇧R', 'Rerun with another harness, model or thinking level'],
     ['⇧F', 'Fork: a new task that carries on from here, on its own branch'],

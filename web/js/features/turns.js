@@ -23,7 +23,7 @@ import { scheduleFollowUp } from './later.js';
 import { scrollByPx, topInset, watching } from './scroll.js';
 import { prsOf, renderPrStrip, shipDialog } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
-import { openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
+import { changesButton, openPanel, paintDoor, shellButton, shellLive, watchButton } from './panel.js';
 import { paintSplit } from './split.js';
 import { copiesOf, memberLabel, renderSubs, subKey, teamLiveHtml, teamSize } from './team.js';
 import { appendStep, KIND_ICON, pickView, renderLiveTranscript, renderTranscript, sameStep, transcriptOn, updateStep } from './transcript.js';
@@ -98,6 +98,7 @@ export function renderBody(id, { fresh }) {
             <button class="ghost xs tx-toggle" data-a="transcript" data-key="V" aria-pressed="false">${icon('transcript')}<span>Transcript</span></button>
             <button class="ghost xs" data-a="rerun" data-key="⇧R" title="Rerun: the same task again, on any harness, model or computer (⇧R)">${icon('rerun')}<i class="it-lbl">Rerun…</i></button>
             <button class="ghost xs" data-a="takeover" data-key="T" title="Take over: carry on with the agent yourself, in a terminal (T)">${icon('terminal')}<i class="it-lbl">Take over</i></button>
+            <button class="ghost xs it-changes" data-a="changes" data-key="D" aria-pressed="false" title="Changes: every file this task changed (D)">${icon('file')}<i class="it-lbl">Changes</i></button>
             <button class="ghost xs it-shell" data-a="shell" data-key="⌃\`" aria-pressed="false" title="Shell: your terminal in this task's folder (⌃\`)">${icon('shell')}<i class="it-lbl">Shell</i></button>
             <button class="ghost xs it-watch" data-a="watch" aria-pressed="false" title="Watch: the page the agent keeps up to date while it works" hidden>${icon('eye')}<i class="it-lbl">Watch</i></button>
             <button class="ghost xs" data-a="ship" data-key="S" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
@@ -119,6 +120,7 @@ export function renderBody(id, { fresh }) {
       if (a === 'transcript') toggleTranscript(id);
       if (a === 'rerun') rerun(id);
       if (a === 'takeover') takeOver(id);
+      if (a === 'changes') changesButton(id);
       if (a === 'shell') shellButton(id);
       if (a === 'watch') watchButton(id);
       if (a === 'ship') shipDialog(id);
@@ -163,6 +165,7 @@ export function renderBody(id, { fresh }) {
   // While it works, the session id may still be on its way: takeOver asks for it.
   $('[data-a="takeover"]', body).hidden = !s.agentSessionId && !live;
   $('.it-watch', body).hidden = !summary.watch; // only once its agent put a page up (wisp_watch)
+  $('.it-changes', body).hidden = !!summary.pending;
   const tx = transcriptOn(id);
   const txBtn = $('.it-actions [data-a="transcript"]', body);
   txBtn.classList.toggle('on', tx);
@@ -854,6 +857,7 @@ function renderTrail(s, t, tx) {
   const body = $('.trail-body', node);
   let open = null;
   node.addEventListener('click', (e) => {
+    if (e.target.closest('.tr-all')) return openPanel(s.id, 'changes');
     if (e.target.closest('[data-a="rollback"]')) {
       return rollbackTurn(s.id, t.id, rolledBack);
     }
@@ -890,6 +894,8 @@ function renderTrail(s, t, tx) {
     if (tab === 'notes') body.append(el(`<div class="prose">${md(t.presentation.notes)}</div>`));
     if (tab === 'changes') {
       body.append(renderPresentation({ blocks: t.changes.map((c) => ({ type: 'diff', file: c.file })) }, ctxFor(s, t, false)));
+      // This turn's edits, with its own Revert; the whole task's are in the side panel.
+      if (s.turns.length > 1) body.append(el(`<button class="link xs tr-all" data-a="changes">${icon('file')}All changes in this task</button>`));
     }
   });
   return node;

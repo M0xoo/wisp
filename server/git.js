@@ -357,6 +357,79 @@ export async function touchedFiles(wt) {
   return { files: [...new Set([...committed, ...edited, ...added])].sort(), head, base };
 }
 
+// The side panel's Changes (design/side-panel.md): every file the task changed since its branch left
+// the base, committed or not, with its hunks. From the merge-base, so what lands on the base later
+// is never the task's. Untracked files come in whole, as added. null when it can't tell.
+const DIFF_LINES = 2000; // a file's rows past this are counted, not sent
+const UNTRACKED_MAX = 200;
+const GENERATED = /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|Gemfile\.lock|poetry\.lock|composer\.lock|go\.sum)$|\.lock$|\.min\.(js|css)$|(^|\/)(dist|build)\//;
+export const generatedPath = (p) => GENERATED.test(String(p || ''));
+
+// `git diff` output, one entry per file: { path, from?, status, add, del, binary, rows, more }. rows
+// are the hunks as the page draws them: { op: ' ' | '+' | '-', text, a, b } and { op: '…', count }.
+export function parseDiff(out) {
+  const files = [];
+  let f = null;
+  let a = 0;
+  let b = 0;
+  const push = (row) => (f.rows.length < DIFF_LINES ? f.rows.push(row) : f.more++);
+  for (const line of String(out || '').split('\n')) {
+    const head = line.match(/^diff --git a\/(.*) b\/(.*)$/);
+    if (head) {
+      files.push((f = { path: head[2], status: 'M', add: 0, del: 0, binary: false, rows: [], more: 0 }));
+      a = b = 1; // the next line of the old file and the new one
+      continue;
+    }
+    if (!f) continue;
+    if (line.startsWith('new file mode')) f.status = 'A';
+    else if (line.startsWith('deleted file mode')) f.status = 'D';
+    else if (line.startsWith('rename from ')) (f.from = line.slice(12)), (f.status = 'R');
+    else if (line.startsWith('rename to ')) f.path = line.slice(10);
+    else if (/^Binary files /.test(line) || line === 'GIT binary patch') f.binary = true;
+    else if (line.startsWith('@@')) {
+      const m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)/);
+      const gap = Number(m?.[2] || 1) - b;
+      if (gap > 0) push({ op: '…', count: gap });
+      a = Number(m?.[1] || 1);
+      b = Number(m?.[2] || 1);
+    } else if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('index ') || line.startsWith('similarity ')) continue;
+    else if (line[0] === '+') (f.add++, push({ op: '+', text: line.slice(1), b: b++ }));
+    else if (line[0] === '-') (f.del++, push({ op: '-', text: line.slice(1), a: a++ }));
+    else if (line[0] === ' ') push({ op: ' ', text: line.slice(1), a: a++, b: b++ });
+  }
+  return files;
+}
+
+export async function taskChanges(wt) {
+  if (!wt || !fs.existsSync(wt.path)) return null;
+  const dir = wt.path;
+  // Read-only and one after another, like touchedFiles: the agent's own git never finds it locked.
+  const read = (...args) => quiet(git(dir, ['--no-optional-locks', '-c', 'core.quotePath=false', ...args], { timeout: 30_000 }));
+  const base = await read('merge-base', 'HEAD', wt.remote ? `refs/remotes/${wt.remote}/${wt.base}` : wt.base);
+  if (!base) return null;
+  const files = parseDiff(await read('diff', '--no-color', '--no-ext-diff', '-M', '-U3', base));
+  const untracked = (await read('ls-files', '--others', '--exclude-standard')).split('\n').filter(Boolean);
+  for (const p of untracked.slice(0, UNTRACKED_MAX)) {
+    const f = { path: p, status: 'A', add: 0, del: 0, binary: false, rows: [], more: 0 };
+    try {
+      const buf = fs.readFileSync(path.join(dir, p));
+      if (buf.subarray(0, 8000).includes(0)) f.binary = true;
+      else {
+        const lines = buf.toString('utf8').replace(/\n$/, '').split('\n');
+        f.add = buf.length ? lines.length : 0;
+        f.rows = lines.slice(0, DIFF_LINES).map((text, i) => ({ op: '+', text, b: i + 1 }));
+        f.more = Math.max(0, lines.length - DIFF_LINES);
+      }
+    } catch {
+      continue; // gone since ls-files, or a folder (a nested repo)
+    }
+    files.push(f);
+  }
+  for (const f of files) if (generatedPath(f.path)) f.generated = true;
+  files.sort((x, y) => x.path.localeCompare(y.path));
+  return { base: wt.base, at: base, files, untracked: Math.max(0, untracked.length - UNTRACKED_MAX) };
+}
+
 // Would merging two tasks' work conflict? Their heads (from touchedFiles) share the repo's objects,
 // so this runs in either worktree without touching it. The conflicted files ([] when it merges
 // cleanly), or null when this git can't tell (< 2.38).

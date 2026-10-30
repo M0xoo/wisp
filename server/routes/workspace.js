@@ -7,13 +7,14 @@
 //   POST   /sessions/:id/shell       { cols, rows } start it (or { restart }), { data } type, resize
 //   DELETE /sessions/:id/shell       end it
 //   POST   /sessions/:id/open-shell  the folder in the terminal app from Settings, on this desktop
+//   GET    /sessions/:id/changes     what the task changed since its branch left the base, with hunks
 //   GET    /sessions/:id/prs         every PR of the task in full: each check, reviews, comments
 //   GET    /sessions/:id/check-log   ?url= a failing GitHub Actions job's log, its last lines
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { ensureWorktree, gh, worktreeStatus } from '../git.js';
+import { ensureWorktree, gh, taskChanges, worktreeStatus } from '../git.js';
 import { ptySupported } from '../pty.js';
 import { workdir } from '../runner.js';
 import { defaultTerminal, inWisp, openInTerminal } from '../terminal.js';
@@ -110,6 +111,18 @@ export function register(r, app) {
       const terminal = d.terminal === 'wisp' || !d.terminal ? 'auto' : d.terminal; // "In wisp" is the panel itself
       if (process.env.WISP_NO_OPEN !== '1') openInTerminal({ cwd: dir, argv: shellArgv(), terminal, custom: d.terminalCommand });
       c.send(200, { ok: true, dir });
+    }),
+  );
+
+  // A task without a worktree (or with it gone) gets { files: null }: the page shows the edits wisp
+  // captured instead, since a diff of the project folder would hold the user's own work too.
+  r.route(
+    'GET',
+    '/sessions/:id/changes',
+    one(async (c, s) => {
+      if (s.worktree && !fs.existsSync(s.worktree.path)) await ensureWorktree(s.worktree).catch(() => {});
+      const out = s.worktree && !shellDir(s).gone ? await taskChanges(s.worktree) : null;
+      c.send(200, out || { files: null });
     }),
   );
 
