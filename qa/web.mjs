@@ -72,8 +72,9 @@ try {
   await check('WEB-02', 'first paint: split view home', async () => {
     await p.goto(w.url);
     await p.getByText('What should wisp do next?').waitFor();
+    // The greeting is in index.html; Needs you and the tasks paint once /api answers, so wait for them.
     for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'Tips'])
-      ok(await p.getByText(t, { exact: false }).first().isVisible(), `"${t}" not visible`);
+      await p.getByText(t, { exact: false }).first().waitFor({ timeout: 10_000 }).catch(() => ok(false, `"${t}" not visible`));
     // The launcher is under 800px wide here, so the place shows as its icon; its title names it.
     ok(await p.locator('#whereBtn').isVisible(), 'the place button is not visible');
     ok(/this computer/i.test(await p.locator('#whereBtn').getAttribute('title')), 'the place button does not say this computer');

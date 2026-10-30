@@ -57,7 +57,7 @@ const underLights = (page) =>
     return [...new Set(hits)];
   });
 
-const PORT = 4521;
+const PORT = Number(process.env.QA_DESKTOP_PORT) || 4521;
 let A;
 
 await check('DESK-01', 'electron . boots, starts its own server and loads the page', async () => {

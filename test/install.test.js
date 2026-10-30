@@ -11,7 +11,11 @@ import { npmCmdShim, tmp, win } from './helpers.js';
 // A clean slate: no wisp home, no ~/.opencode, and a PATH without any harness CLI.
 process.env.WISP_HOME = tmp('install-home');
 process.env.HOME = process.env.USERPROFILE = tmp('install-user');
-process.env.PATH = path.dirname(process.execPath) + (win ? `${path.delimiter}${process.env.SystemRoot}\\System32` : `${path.delimiter}/usr/bin${path.delimiter}/bin`);
+// Only node itself, not the folder it's in: with nvm or Homebrew that folder also holds every CLI
+// installed with `npm i -g` (grok, codex, claude…), which would then be found but not signed in.
+const nodeOnly = tmp('install-node');
+if (!win) fs.symlinkSync(process.execPath, path.join(nodeOnly, 'node'));
+process.env.PATH = (win ? path.dirname(process.execPath) : nodeOnly) + (win ? `${path.delimiter}${process.env.SystemRoot}\\System32` : `${path.delimiter}/usr/bin${path.delimiter}/bin`);
 delete process.env.WISP_OPENCODE_BIN;
 
 const { createInstaller, npmInstall } = await import('../server/services/install.js');

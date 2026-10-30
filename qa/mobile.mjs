@@ -131,10 +131,13 @@ try {
     await page.waitForTimeout(800);
     ok(await page.evaluate(() => document.body.classList.contains('stack-page')), 'the task did not open as a page');
     await shot(page, 'task-page');
-    const more = page.locator('.item.open [data-a="more"], .item.open button[title*="More" i]').first();
+    // The task's own action row: the pinned compact row (.im-acts) has a More too, hidden until scrolled.
+    const more = page.locator('.item.open .it-actions [data-a="more"]');
     if (await more.count()) {
       await more.tap();
       await page.waitForSelector('.menu:not(#meMenu)', { timeout: 5000 });
+      // The shot waits out the menu's fade-in, or it shows the page through it.
+      await page.waitForFunction(() => getComputedStyle(document.querySelector('.menu:not(#meMenu)')).opacity === '1', null, { timeout: 5000 });
       const text = await page.locator('.menu:not(#meMenu)').innerText();
       ok(!/Open project in editor/.test(text), 'More menu offers “Open project in editor”');
       ok(/Delete task/.test(text), 'More menu is missing Delete task');
