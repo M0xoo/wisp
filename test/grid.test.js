@@ -1598,3 +1598,37 @@ test('a published app with data: its own database on the grid, for everyone with
   await pub.unpublish(it.id);
   await until(() => !fs.existsSync(file), { what: 'its data removed' });
 });
+
+test('an update swaps its folder in even while Windows still holds a file a visitor just read', async () => {
+  const { createSites } = await import('../grid/sites.js');
+  const { packDir } = await import('../server/bundle.js');
+  const dataDir = tmp('sites-busy');
+  const db = await openDb(dataDir);
+  const user = { id: 'u1', handle: 'pia' };
+  db.run('INSERT INTO users (id, email, handle, created_at) VALUES (?, ?, ?, ?)', user.id, 'pia@example.com', user.handle, Date.now());
+  const sites = createSites({ db, cfg: { dataDir, instanceUrl: (l) => `https://${l}.wisp.localhost` } });
+  const src = tmp('sites-busy-src');
+  fs.writeFileSync(path.join(src, 'index.html'), 'v1');
+  await sites.publish(user, 'k1', packDir(src).body, { title: 'Busy' });
+  fs.writeFileSync(path.join(src, 'index.html'), 'v2');
+  const real = fs.renameSync;
+  let refused = 0;
+  fs.renameSync = (from, to) => {
+    if (refused < 2) {
+      refused++;
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' });
+    }
+    return real(from, to);
+  };
+  try {
+    await sites.publish(user, 'k1', packDir(src).body, { title: 'Busy' });
+  } finally {
+    fs.renameSync = real;
+  }
+  assert.equal(refused, 2);
+  const id = db.get('SELECT id FROM sites WHERE key = ?', 'k1').id;
+  assert.equal(fs.readFileSync(path.join(dataDir, 'sites', id, 'index.html'), 'utf8'), 'v2');
+  await until(() => fs.readdirSync(path.join(dataDir, 'sites')).length === 1, { what: 'only the new version left' });
+  sites.close();
+  db.close();
+});
