@@ -567,12 +567,15 @@ export async function expand(id, { scroll = true } = {}) {
   saveOpen();
   n.card.classList.add('open');
   renderHead(n, S.sessions.get(id));
-  if (!n.body) {
-    n.body = el(`<div class="it-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>`);
-    n.card.append(n.body);
-  }
+  // A terminal session the server is still starting: its terminal's waiting screen until the real
+  // task takes its place (launcher.js handOver). Nothing to fetch yet.
+  const s = S.sessions.get(id);
+  if (!n.body && s?.pending) n.body = el(`<div class="it-body"><div class="tui-term"><div class="tm-screen"><div class="tm-wait" aria-live="polite"><span class="tm-wait-l">${esc(s.live || 'Starting up')}…</span><i></i><i></i><i></i><i></i></div></div></div></div>`);
+  if (!n.body) n.body = el(`<div class="it-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>`);
+  if (!n.body.isConnected) n.card.append(n.body);
   placeCollapseAll();
   paintSplit();
+  if (s?.pending) return;
   syncUrl();
   // Closed a moment ago (j/k through the list) or fetched ahead: it shows at once as it was, then
   // the refetch brings what changed meanwhile. A fetch ahead still on its way is waited for.

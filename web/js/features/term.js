@@ -124,6 +124,7 @@ export function follow() {
   if (shown) return place();
   const t = id && terms.get(id);
   const s = id && S.sessions.get(id);
+  if (s?.pending) return; // still starting up: the real task opens its terminal (launcher.js)
   if (s?.tui) {
     // A terminal session opens on its CLI: one whose terminal ended resumes it.
     if (s.term) {
