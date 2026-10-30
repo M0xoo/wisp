@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Take over without the JSON.** A Claude Code session you take over is now told to answer you in plain text, so its replies in the terminal no longer end in a `wisp` block meant for wisp's page.
 - **Collapsing a file's diff in a report's Files.** Once a file's diff was open, clicking its chevron (or the row) tried to open the file in the editor instead of closing the diff. On a shared task's page, Open in editor did nothing at all: there's no editor there, so it's no longer shown.
 - **Updating a published app on a Windows grid.** Publishing a new version right after someone opened the link could fail with *Something went wrong on the grid*: Windows still held the file the visitor had just read, so the app's folder couldn't be swapped. The grid now waits a moment and tries again.
+- **A quick query in an app's data isn't stopped on a busy computer.** When wisp (or the grid) was too busy to read the answer in time, a query that took a millisecond could fail with *That query took over 5 s and was stopped*, and the database restarted. The limit now counts from when the query starts, and is checked only after any answer already waiting is read.
 - **Coming up's rows line up.** On the home page the first row under Coming up sat a little to the left of the others, and the rows were shorter than Needs you's: they picked up the styles of the open task's "delegated from" trail, which uses the same class name. Those styles now stay in the trail.
 
 ## [0.50.0] - 2026-10-30

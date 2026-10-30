@@ -1,7 +1,7 @@
 // The child process that runs apps' SQL (app-db.js): node:sqlite is synchronous and can't be
 // interrupted, so a query that never ends (a recursive CTE) takes this process down, not wisp or
 // the grid. Messages in: { id, op: 'query', file, sql, params, seed, maxBytes } or
-// { id, op: 'close', file }. Out: { id, rows } | { id, changes, lastId } | { id, error }.
+// { id, op: 'close', file }. Out: { id, started } first, then { id, rows } | { id, changes, lastId } | { id, error }.
 
 import fs from 'node:fs';
 
@@ -49,6 +49,8 @@ const plain = (row) => {
 };
 
 process.on('message', (m) => {
+  // The parent times the query from here (app-db.js).
+  process.send({ id: m.id, started: true });
   try {
     if (m.op === 'close') {
       open.get(m.file)?.close();
