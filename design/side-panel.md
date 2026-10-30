@@ -1,14 +1,24 @@
-# The side panel: Shell and PR
+# The side panel: Changes, PR, Shell and Watch
 
 A third column in split view, on the task's far side from the list, for doing things with what an
-agent made without leaving wisp. It shows one of two things: **Shell**, a real shell in the task's
-folder on whichever computer ran the task, or **PR**, the task's pull request without the noise.
-Code and CSS call it the *side panel*. On screen it has no name of its own: its head says what it
-shows (*Shell*, *PR #412*).
+agent made without leaving wisp. It shows one thing at a time: **Changes**, every file the task
+changed with its diff; **PR**, the task's pull request without the noise; **Shell**, a real shell in
+the task's folder on whichever computer ran the task; **Watch**, the page its agent keeps (below).
+Code and CSS call it the *side panel*. On screen it has no name of its own: its head is its tabs.
 
-**No tabs.** The task is the main thing; Shell and PR are places you go *from* the task, so each is
-opened from it (its Shell button, its PR row, the menus, the keys) and the panel never offers a
-row of tabs to flip between them. Opening the other one while it's open swaps it in place.
+**Tabs inside the panel, doors on the task.** The task is still the main thing, and each view is
+reached from the task (its buttons, its PR row, the menus, the keys). Once the panel is open its
+head is a segmented switch, **Changes · PR #412 · Shell · Watch**, so you move between them without
+going back to the task. The order is fixed; Watch, the only one that comes and goes (once there's a
+page), is last so the others never move. No counts on the tabs: a number changing as you watch
+would shift them.
+
+- The switch is `.pn-tabs` (the preview block's `.pv-seg` look): 30px, `--bg-2`, 1px `--line`, 9px
+  radius; the shown tab on `--surface` in `--accent-ink` with `--shadow-1`. `role=tablist`, each
+  `role=tab` with `aria-selected`; ←/→ move to the next tab and show it. Under 420px of panel every
+  tab is icon-only (32px, `title`) at once. On phones it fills the page's head after Back: text
+  only, equal widths, 40px; switching swaps the page in place (no `stack-in`, no new Back entry).
+- It opens on Changes until you've picked another (`wisp.panel`, `panel.tab`).
 
 ## Layout
 
@@ -100,6 +110,50 @@ button), never an empty black box:
 and titled with the agent's name (*In terminal* pill). The Shell is *yours*, in the panel, under
 its place line. Same emulator, same dark screen; the place and the header tell them apart. Both can
 be open at once.
+
+## Changes
+
+What the task changed, as one flat list of files whose diffs open in place (`changes.js`).
+
+**Where it comes from.** A worktree: `GET /sessions/:id/changes`, git's diff from the merge-base of
+the branch and its base to the folder as it is (committed or not), plus untracked files whole, as
+added. From the merge-base, so what lands on the base later is never the task's. Without a worktree
+(or with it gone, or a machine's wisp too old to answer) the edits wisp captured, turn by turn,
+merged per file, and the note line says so: *Not a worktree: showing the edits wisp saw, not a git
+diff.* A diff of the project folder would hold the user's own work too.
+
+1. **Place line**, as on the other tabs (its count says *3 uncommitted*).
+2. **Summary**, 36px: `7 files +15 −7 vs main` (*edits wisp saw* for captured ones), and at the
+   right **Expand all** / **Collapse all** (skips folded and 300+ line files).
+3. **Files**, sorted by path (keeps folders together; no tree: indents eat a 360px column). A row is
+   30px (44px on touch): chevron · A/M/D/R badge · the path, its folder cut from the start before
+   the name shortens (full path in `title`) · `+n` `−n` in fixed 5ch columns (a zero leaves its
+   column blank) · `⋯` (*Open in editor*, desktop and not deleted; *Copy path*). Binary files say
+   *binary* and have no chevron; a rename with no edits says *renamed*; deleted names are struck.
+   Lockfiles, `*.min.*`, `dist/` and `build/` fold into one `--faint` row, *1 generated file* with
+   its +/−, that unfolds in place. Past 200 files, *and 54 more*.
+4. **A diff** opens under its row (`.b-diff.bare` rows, numbered by the new file; captured edits are
+   snippets, so unnumbered with a gap row between). Its row sticks to the top while you read it.
+   Past 300 lines, *Show 940 more lines*. A rename starts with *Renamed from old.js*.
+
+**States:** the skeleton is the summary and six rows in their real shapes. Empty while the agent
+works: *No changes yet. Files show here as Claude Code edits them.*; finished: *This task didn't
+change any files.*; merged: *Everything here is in main now.* A failed first look: *Couldn't read
+the changes: …* + **Try again**; a failed refresh keeps the list and says *Couldn't check just now*.
+
+**Refresh:** the last list paints first. It asks again a second after each of the agent's edits,
+every 10s while the task runs and the tab shows, when the task is fetched again (a turn ended), on
+window focus and on opening the tab. Rows are keyed by path and patched in place, never
+re-appended; open diffs stay open and are redrawn only when their file changed, keeping their
+sideways scroll. A new file fades in on its own row.
+
+**Ways in:** the action row's **Changes** (`i-file`, pressed while it shows, again to put it away),
+`D`, **Show changes** in More, right-click and ⌘K, and *All changes in this task* under a turn's own
+file list (which keeps showing that turn's diffs with its Revert). A page the agent puts up doesn't
+take Changes' place: its Watch tab appears.
+
+**Later:** Revert a file to the base from its `⋯`; a PR file row opening Changes at that file;
+*This turn* / *All turns*; comments on a diff line sent to the agent; before/after for images.
 
 ## PR
 
@@ -256,7 +310,8 @@ keyboard hints anywhere on this page (`.key-hint`).
 
 | Thing | Text |
 |---|---|
-| Head | *Shell*, *PR #412* / *PRs* / *PR* |
+| Head (tabs) | *Changes*, *PR #412* / *PRs* / *PR*, *Shell*, *Watch* |
+| Changes | *7 files +15 −7 vs main* · *edits wisp saw* · *Expand all* / *Collapse all* · *1 generated file* · *Show 940 more lines* · *Show changes* (`D`) · *All changes in this task* |
 | Task's ways in | *Shell* (action row; on phones the door, *Running on Studio*), the PR row |
 | Head toggle | *Show side panel (])* / *Hide side panel (])* |
 | Actions (all places) | *Open shell*, *Review PR #412*, *Review PRs*, *Show side panel* / *Hide side panel* |
@@ -308,12 +363,15 @@ The page an agent keeps beside its task while it works (`wisp_watch`, `server/wa
 
 ## Spells
 
+- Changes: `PARTS` `panel.changes`, `panel.changes.summary`, `panel.changes.list`, `split.changes`
+  (the action row's button); `PART_PROPS` `panel.tab` takes `changes`, and `panel.changes`
+  `{ generated: bool }` lists generated files unfolded.
 - `SLOTS`: `panel.head`, buttons in its head. It acts on the task, so it also goes in
   `CARD_SLOTS` and `BUTTON_SLOTS`.
-- `PARTS`: `panel`, `panel.tabs` (its title now; the name is kept so spells keep working), `panel.place`, `panel.shell`, `panel.pr`, `panel.checks`,
+- `PARTS`: `panel`, `panel.tabs` (its tabs again), `panel.place`, `panel.shell`, `panel.pr`, `panel.checks`,
   `panel.conversation`, `panel.files`, `panel.watch`, `watch.caption`, `watch.run`, `split.watch`. The verdict and Merge stay out of `PARTS`: a spell can't hide
   what decides a merge.
-- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`shell` | `pr` | `watch`), `panel.pr.bots` (`bool`: show bot
+- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`changes` | `pr` | `shell` | `watch`), `panel.pr.bots` (`bool`: show bot
   comments unfolded).
 - `ICONS`: `panel`, `eye`.
 - `SETTINGS`: `watch` (`on` | `off`): agents are offered `wisp_watch`.

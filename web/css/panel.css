@@ -1,7 +1,8 @@
 /* ---------- the side panel (features/panel.js): Shell and PR beside the open task ----------
    A third column of split view's grid, opposite the list. 900–1179px it takes the list's place
    while open (split.js hides the list); stacked (narrow windows, the phone app) it's a page pushed
-   over the task. It shows one thing, Shell or the PR, opened from the task: no tabs.
+   over the task. It shows one thing at a time (Changes, the PR, Shell, Watch), opened from the task;
+   once open, the tabs in its head move between them.
    design/side-panel.md has the why. */
 :root { --panel-w: 480px; }
 
@@ -26,12 +27,9 @@ body.side-right .side-panel { grid-column: 1; border-left: 0; border-right: 1px 
 body.side-right .pn-grip { left: auto; right: -4px; }
 .pn-grip:hover, body.resizing .pn-grip { background: linear-gradient(90deg, transparent 3px, var(--line-2) 3px, var(--line-2) 4px, transparent 4px); }
 
-/* The head: what it shows (Shell, PR #412), a spell's buttons, close. 42px like the terminal's. */
+/* The head: the tabs (below), a spell's buttons, close. 42px like the terminal's. */
 .pn-head { flex: none; display: flex; align-items: center; gap: 4px; height: 42px; padding: 0 6px 0 14px; border-bottom: 1px solid var(--line); }
 .pn-back { display: none; }
-.pn-name { display: flex; align-items: center; gap: 7px; flex: 1; min-width: 0; margin: 0; color: var(--ink); font: 600 13px var(--sans); white-space: nowrap; }
-.pn-name span { overflow: hidden; text-overflow: ellipsis; }
-.pn-name .i { width: 15px; height: 15px; flex: none; color: var(--muted); }
 .pn-acts { display: flex; gap: 2px; flex: none; }
 
 /* The place line: which computer, the branch, what's not shipped. */
@@ -257,8 +255,6 @@ body.split.stack .sh-panel { display: none; }
 .side-panel.stacked .pn-head { height: auto; min-height: 56px; gap: 6px; padding: 6px 12px 6px 6px; }
 .side-panel.stacked .pn-back { display: inline-flex; flex: none; width: 44px; height: 44px; justify-content: center; }
 .side-panel.stacked .pn-back .i { width: 20px; height: 20px; }
-.side-panel.stacked .pn-name { font-size: 15px; gap: 8px; }
-.side-panel.stacked .pn-name .i { width: 17px; height: 17px; }
 body.electron.mac .side-panel.stacked .pn-head { padding-left: 88px; }
 /* Stacked, the task's bar scrolls away with the task: on a phone it's a screen of its own. Once its
    actions are gone the mini row pins in their place, one 48px row: the state, the actions as icons,
@@ -344,3 +340,114 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
   border-radius: 0; border: 0; border-top: 1px solid color-mix(in srgb, var(--tone) 35%, var(--line)); background: color-mix(in srgb, var(--tone) 6%, var(--bg));
 }
 .pn-verdict.pn-bar button { height: 40px; padding: 0 16px; }
+
+/* ---------- the head's tabs: Changes · PR · Shell · Watch (features/panel.js) ----------
+   A segmented switch, like the preview block's. Watch, the only one that comes and goes, is last
+   so the others never move. No counts on them: a number changing as you watch would shift them.
+   Narrow, every tab goes icon-only at once, so none moves on its own. */
+.side-panel { container-type: inline-size; container-name: pnl; }
+.pn-tabs { display: flex; flex: 0 1 auto; min-width: 0; gap: 2px; margin-left: -8px; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg-2); }
+.pn-head { gap: 8px; }
+.pn-head .pn-acts { margin-left: auto; }
+.pn-tabs button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 26px; min-width: 0; padding: 0 9px;
+  border: 0; border-radius: 7px; background: none; color: var(--muted); font: 500 12.5px var(--sans); white-space: nowrap; cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.pn-tabs button:hover { color: var(--ink); }
+.pn-tabs button.on { background: var(--surface); color: var(--accent-ink); box-shadow: var(--shadow-1); }
+.pn-tabs button span { overflow: hidden; text-overflow: ellipsis; }
+.pn-tabs .i { width: 13px; height: 13px; flex: none; }
+@container pnl (max-width: 420px) {
+  .pn-tabs button { width: 32px; padding: 0; }
+  .pn-tabs button span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .pn-tabs button { transition: none; } }
+
+/* The task's own Changes button, pressed while they show. */
+.it-actions .it-changes[aria-pressed='true'] { color: var(--ink); background: var(--bg-2); }
+.trail-body .tr-all { display: inline-flex; align-items: center; gap: 6px; margin: 2px 2px 8px; }
+.trail-body .tr-all .i { width: 13px; height: 13px; }
+
+/* ---------- Changes: every file the task changed, each diff opening in place (features/changes.js) ----------
+   One flat list sorted by path, as the PR's Files. Numbers sit in fixed columns so rows never
+   shift; a long path loses its folder before its name. An open file's row sticks to the top. */
+.pn-changes { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pn-changes[hidden] { display: none; }
+.cx-sum {
+  flex: none; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 12px; min-width: 0;
+  border-bottom: 1px solid var(--line); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cx-sum[hidden] { display: none; }
+.cx-sum .plus, .cx-sum .minus { font: 500 12px var(--mono); }
+.cx-files { color: var(--ink-2); font-weight: 500; }
+.cx-vs { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+.cx-sum .grow { flex: 1; }
+.cx-upd { color: var(--faint); font-size: 11.5px; }
+.cx-sk-a { width: 56px; height: 10px; border-radius: 4px; }
+.cx-sk-b { width: 72px; height: 10px; border-radius: 4px; }
+
+.cx-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px; }
+.cx-file { border-bottom: 1px solid var(--line); }
+.cx-file.cx-new { animation: fade-in 0.12s var(--ease); }
+.cx-head { display: flex; align-items: center; min-width: 0; background: var(--bg); }
+.cx-file.open > .cx-head { position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--line); }
+.cx-row {
+  flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; height: 30px; padding: 0 4px 0 8px;
+  border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.cx-row:disabled { cursor: default; opacity: 1; }
+.cx-head:hover { background: var(--bg-2); }
+.cx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cx-chev { display: inline-flex; width: 12px; flex: none; color: var(--faint); }
+.cx-chev .i { width: 12px; height: 12px; transition: transform 0.12s var(--ease); }
+.cx-file.open .cx-chev .i { transform: rotate(90deg); }
+.cx-row .badge { width: 18px; height: 18px; font-size: 10.5px; border-radius: 5px; }
+/* The folder shrinks first, cut from its start; then the name, from its end. */
+.cx-row .path { flex: 1 1 auto; display: flex; min-width: 0; font-size: 12px; }
+.cx-row .path .dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.cx-row .path .base { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; }
+.cx-file.gone .path .base { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.cx-row .rev-tag { flex: none; font-size: 11px; padding: 0 5px; }
+.cx-file:has(.rev-tag) .path .base { text-decoration: line-through; color: var(--muted); }
+.cx-n { flex: none; width: 5ch; text-align: right; font: 500 11.5px var(--mono); font-variant-numeric: tabular-nums; }
+.cx-word { width: calc(10ch + 8px); color: var(--faint); font: 11.5px var(--sans); }
+.cx-more { flex: none; width: 24px; height: 24px; margin-right: 6px; border-radius: 7px; color: var(--faint); }
+.cx-more:hover { color: var(--ink); }
+.cx-more .i { width: 14px; height: 14px; }
+
+.cx-diff.b-diff.bare { margin: 0; border: 0; border-radius: 0; background: var(--surface); animation: fade-in 0.12s var(--ease); }
+.cx-diff .diff-scroll { max-height: none; overflow-y: visible; touch-action: pan-x pan-y; }
+.cx-diff table { font-size: 12px; line-height: 1.6; }
+.cx-diff.nonum .no { min-width: 0; width: 0; padding: 0 0 0 8px; }
+.cx-from { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; color: var(--muted); font-size: 12px; background: var(--surface-2); }
+.cx-from .i { width: 12px; height: 12px; }
+.cx-from code { font: 11.5px var(--mono); }
+.cx-show { margin: 6px 10px 8px; }
+.cx-cut { margin: 0; padding: 6px 12px 8px; color: var(--faint); font-size: 12px; }
+
+.cx-fold { padding: 2px 12px; border-bottom: 1px solid var(--line); }
+.cx-fold .pn-fold { width: 100%; color: var(--faint); }
+.cx-fold .pn-fold:hover { color: var(--ink); }
+.cx-fold .cx-nums { display: inline-flex; gap: 6px; margin-left: auto; font: 500 11.5px var(--mono); }
+.cx-fold .pn-fold .chev { margin-left: 4px; }
+
+.cx-skel { display: flex; flex-direction: column; }
+.cx-sk-row { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 36px 0 28px; border-bottom: 1px solid var(--line); }
+.cx-sk-badge { width: 14px; height: 14px; border-radius: 4px; }
+.cx-sk-path { height: 10px; border-radius: 4px; margin-right: auto; }
+.cx-sk-n { width: 22px; height: 10px; border-radius: 4px; }
+.cx-msg { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 24px; color: var(--muted); text-align: center; font-size: 13px; }
+.cx-msg > .i { width: 22px; height: 22px; color: var(--faint); }
+.cx-msg p { max-width: 34ch; margin: 0; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) { .cx-file.cx-new, .cx-diff.b-diff.bare { animation: none; } .cx-chev .i { transition: none; } }
+
+/* Stacked (phones): the tabs fill the page's head, text only, equal widths, 44px; rows are 44px. */
+.side-panel.stacked .pn-tabs { flex: 1; margin-left: 0; }
+.side-panel.stacked .pn-tabs button { flex: 1; width: auto; height: 40px; padding: 0 6px; font-size: 13.5px; }
+.side-panel.stacked .pn-tabs button .i { display: none; }
+.side-panel.stacked .pn-tabs button span { display: inline; }
+.side-panel.touch .cx-row { height: 44px; }
+.side-panel.touch .cx-more { width: 40px; height: 40px; }
+.side-panel.touch .cx-sum { height: 44px; }
+.side-panel.stacked .cx-list { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }

@@ -14,10 +14,10 @@ import { toggleTranscript } from './turns.js';
 import { activeSpells, runAction } from './spells.js';
 import { goBack, isStacked, splitOpen, stackPage, toggleSidebar } from './split.js';
 import { orgEscape } from './org.js';
-import { close as closePanel, openPanel, panelShown, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
+import { changesButton, close as closePanel, openPanel, panelShown, reviewLabel, shellKey, toggle as togglePanel } from './panel.js';
 
 // Keys wisp uses itself (with or without Shift), which spells can't claim.
-const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ']', 'p', ...'123456789'.split('')]);
+const BUILT_IN = new Set(['n', 'j', 'k', 'o', 'enter', 'e', 'a', 'l', 'c', 'u', 'home', 'm', 'delete', 'backspace', 't', 'shift+r', 'shift+f', 's', 'r', 'v', '/', '?', 'shift+?', 'escape', '\\', '[', ']', 'p', 'd', ...'123456789'.split('')]);
 
 export function onKey(e) {
   // ⌘K / Ctrl+K works from anywhere, even mid-sentence in the launcher.
@@ -108,6 +108,7 @@ export function onKey(e) {
   else if (k === '[') toggleSidebar();
   else if (k === ']' && (splitOpen() || id)) togglePanel();
   else if (k === 'p' && id && reviewLabel(S.sessions.get(id))) openPanel(id, 'pr');
+  else if (k === 'd' && id && !S.sessions.get(id)?.pending) changesButton(id);
   else if (/^[1-9]$/.test(k) && id && S.open.has(id)) {
     const card = S.nodes.get(id).card;
     const opts = $$('.ask-card .opt', card).length ? $$('.ask-card .opt', card) : $$('.turn:last-child .b-question:not(.answered) .opt:not(.own)', card);

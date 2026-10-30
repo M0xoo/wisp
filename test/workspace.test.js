@@ -20,7 +20,7 @@ installFakeBins();
 
 const { startServer } = await import('../server/index.js');
 const { python } = await import('../server/pty.js');
-const { isBot, prDetailOf, threadsOf } = await import('../server/git.js');
+const { generatedPath, isBot, parseDiff, prDetailOf, threadsOf } = await import('../server/git.js');
 
 const freePort = () =>
   new Promise((resolve) => {
@@ -70,6 +70,62 @@ test('workspace: the worktree, its branch and what is not shipped yet', async ()
   if (w.shell.app) assert.equal((await api(`/sessions/${s.id}/open-shell`, { method: 'POST' })).dir, w.dir);
   else await assert.rejects(api(`/sessions/${s.id}/open-shell`, { method: 'POST' }), (e) => e.status === 409 && /use the one in the panel/.test(e.message));
   await assert.rejects(api('/sessions/nope/workspace'), (e) => e.status === 404);
+});
+
+test('changes: what the task changed since the base, committed or not, new files whole', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'Fix add() so it adds', cwd: repo.dir, agent: 'claude' } });
+  const done = await settled(s.id);
+  const dir = done.worktree.cwd || done.worktree.path;
+  fs.writeFileSync(path.join(dir, 'notes.md'), 'one\ntwo\n');
+  const c = await api(`/sessions/${s.id}/changes`);
+  assert.equal(c.base, 'main');
+  assert.match(c.at, /^[0-9a-f]{40}$/);
+  assert.deepEqual(c.files.map((f) => [f.path, f.status, f.add, f.del]), [['math.js', 'M', 1, 1], ['notes.md', 'A', 2, 0]]);
+  const math = c.files[0];
+  assert.deepEqual(math.rows.filter((r) => r.op !== ' ').map((r) => r.op + r.text.trim()), ['-return a - b;', '+return a + b;']);
+  assert.deepEqual(c.files[1].rows, [{ op: '+', text: 'one', b: 1 }, { op: '+', text: 'two', b: 2 }]);
+  await assert.rejects(api('/sessions/nope/changes'), (e) => e.status === 404);
+  // Without a worktree, a git diff of the project would hold the user's own work: the page shows the captured edits.
+  const plain = await api('/sessions', { body: { prompt: 'Fix add() so it adds', cwd: makeClone().dir, agent: 'claude', worktree: false } });
+  await settled(plain.id);
+  assert.deepEqual(await api(`/sessions/${plain.id}/changes`), { files: null });
+});
+
+test('parseDiff: hunks with the unchanged gaps between them, renames, deletions, binaries', () => {
+  const out = [
+    'diff --git a/a.js b/a.js',
+    'index 1..2 100644',
+    '--- a/a.js',
+    '+++ b/a.js',
+    '@@ -3,2 +3,2 @@ x',
+    ' keep',
+    '-old',
+    '+new',
+    '@@ -20,1 +20,2 @@',
+    ' tail',
+    '+more',
+    'diff --git a/old.js b/new.js',
+    'similarity index 100%',
+    'rename from old.js',
+    'rename to new.js',
+    'diff --git a/gone.js b/gone.js',
+    'deleted file mode 100644',
+    '--- a/gone.js',
+    '+++ /dev/null',
+    '@@ -1 +0,0 @@',
+    '-bye',
+    'diff --git a/logo.png b/logo.png',
+    'Binary files a/logo.png and b/logo.png differ',
+  ].join('\n');
+  const [a, r, d, b] = parseDiff(out);
+  assert.deepEqual(a.rows, [{ op: '…', count: 2 }, { op: ' ', text: 'keep', a: 3, b: 3 }, { op: '-', text: 'old', a: 4 }, { op: '+', text: 'new', b: 4 }, { op: '…', count: 15 }, { op: ' ', text: 'tail', a: 20, b: 20 }, { op: '+', text: 'more', b: 21 }]);
+  assert.deepEqual([a.add, a.del], [2, 1]);
+  assert.deepEqual([r.path, r.from, r.status, r.rows.length], ['new.js', 'old.js', 'R', 0]);
+  assert.deepEqual([d.status, d.del, d.rows], ['D', 1, [{ op: '-', text: 'bye', a: 1 }]]);
+  assert.equal(b.binary, true);
+  assert.ok(generatedPath('web/package-lock.json') && generatedPath('dist/app.js') && generatedPath('x.min.css'));
+  assert.ok(!generatedPath('server/git.js') && !generatedPath('distance.js'));
 });
 
 test('shell: a login shell in the worktree the page streams, types into and ends; the task stays free', { skip: win || !python() }, async () => {

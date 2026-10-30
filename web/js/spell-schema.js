@@ -26,7 +26,7 @@ export const SLOTS = {
   'split.head': "Split view: a button in the open task's header, next to its title (acts on that task).",
   'split.details': "Split view: a button in the open task's details column, under its actions (acts on that task).",
   'term.head': "A button in the header of a task's terminal (take over in wisp), before End (acts on that task).",
-  'panel.head': "The side panel beside the open task (Shell, PR, Watch): a button in its head (acts on that task).",
+  'panel.head': "The side panel beside the open task (Changes, PR, Shell, Watch): a button in its head (acts on that task).",
   'crew.page': "A crew member's thread: a button in its header, next to Pause.",
   'org.head': 'The Org page (who on the crew hands work to whom): a button in its header, before Add member.',
   'plan.head': "A scheduled task's page (opened from its row under Scheduled): a button in its header, before Start now.",
@@ -274,6 +274,7 @@ export const PARTS = {
   'split.shell': 'body.split #feed .item.open .it-actions > .it-shell',
   'split.shellDoor': 'body.split #feed .item.open .it-bar > .shell-door',
   'split.watch': 'body.split #feed .item.open .it-actions > .it-watch',
+  'split.changes': 'body.split #feed .item.open .it-actions > .it-changes',
   // Narrow, the row that pins at the top once the task's bar has scrolled away: the state, the
   // actions as icons, the PR as a chip and the shell.
   'split.mini': 'body.split #feed .item.open .it-mini > .im-row',
@@ -290,12 +291,15 @@ export const PARTS = {
   'term.head': '#term .tm-head',
   'term.screen': '#term .tm-screen',
   'term.keys': '#term .tm-keys',
-  // The side panel beside the open task: its title (Shell, PR #412; once its tabs, hence the
-  // name), the line saying where the task's folder is
-  // (computer, branch, what's not shipped), the shell in that folder, and the PR's parts. The
+  // The side panel beside the open task: its tabs (Changes, PR #412, Shell, Watch), the line
+  // saying where the task's folder is (computer, branch, what's not shipped), the files the task
+  // changed (their summary line and list), the shell in that folder, and the PR's parts. The
   // PR's verdict and Merge aren't parts: a spell can't hide what decides a merge.
   panel: '#sidePanel',
-  'panel.tabs': '#sidePanel .pn-name',
+  'panel.tabs': '#sidePanel .pn-tabs',
+  'panel.changes': '#sidePanel .pn-changes',
+  'panel.changes.summary': '#sidePanel .cx-sum',
+  'panel.changes.list': '#sidePanel .cx-list',
   'panel.place': '#sidePanel .pn-place',
   'panel.shell': '#sidePanel .pn-shell',
   'panel.pr': '#sidePanel .pn-pr',
@@ -410,7 +414,8 @@ export const PART_PROPS = {
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
   term: { fontSize: 'int' },
-  panel: { width: 'px', tab: ['shell', 'pr', 'watch'] }, // tab: what it opens on (the toggle, ]), until you open the other
+  panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'watch'] }, // tab: what it opens on (the toggle, ]), until you open another
+  'panel.changes': { generated: 'bool' }, // lockfiles and build output listed, not folded under one row (off)
   'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };
 

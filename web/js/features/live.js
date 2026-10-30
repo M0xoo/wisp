@@ -69,7 +69,11 @@ export function connect() {
     // Watch: the page its agent keeps beside it moved (panel.js); opened: put up just now.
     if (s.watch && (prev?.watch?.seq !== s.watch.seq || prev?.state !== s.state)) bus.emit('watch', { id: s.id, opened: !!prev && !s.watch.closed && (!prev.watch || (prev.watch.closed && prev.watch.seq !== s.watch.seq)) });
   });
-  es.addEventListener('activity', (e) => onActivity(JSON.parse(e.data)));
+  es.addEventListener('activity', (e) => {
+    const a = JSON.parse(e.data);
+    onActivity(a);
+    if (a.item?.kind === 'edit') bus.emit('edit', a.sessionId); // the panel's Changes looks again
+  });
   es.addEventListener('turn', (e) => scheduleRefetch(JSON.parse(e.data).sessionId));
   es.addEventListener('finished', (e) => (notifyFinished(JSON.parse(e.data).session), spellEvent('finished')));
   es.addEventListener('reminder', (e) => notifyReminder(JSON.parse(e.data).session));

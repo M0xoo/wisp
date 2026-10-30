@@ -755,6 +755,13 @@ test('the side panel: its parts, width, opening tab and bot comments as props, a
   assert.ok(p.some((x) => /panel\.verdict/.test(x)), p.join('\n'));
 });
 
+test('the panel’s Changes: opening on it, its parts, generated files unfolded; a bad tab or prop is refused', () => {
+  assert.deepEqual(problems({ ...base0, parts: { panel: { props: { tab: 'changes' } }, 'panel.changes': { props: { generated: true }, style: { background: 'var(--surface)' } }, 'panel.changes.summary': { style: { fontSize: '13px' } } }, ui: { hide: ['panel.changes.list', 'split.changes'] } }), []);
+  const p = problems({ ...base0, parts: { panel: { props: { tab: 'diff' } }, 'panel.changes': { props: { generated: 'yes' } } } });
+  assert.ok(p.some((x) => /tab/.test(x) && /changes/.test(x)), p.join('\n'));
+  assert.ok(p.some((x) => /generated/.test(x)), p.join('\n'));
+});
+
 test('watch: the setting, the panel opening on it, its parts and the eye icon', () => {
   for (const watch of ['on', 'off']) assert.deepEqual(problems({ ...base0, settings: { watch } }), []);
   const bad = problems({ ...base0, settings: { watch: 'sometimes' } });
