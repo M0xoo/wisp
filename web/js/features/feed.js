@@ -78,11 +78,13 @@ export function groups() {
   // Saved for later: newest saved first. Out of Needs you, Scheduled and Done meanwhile.
   const forLater = every.filter((s) => isForLater(s)).sort((a, b) => b.forLater.at - a.forLater.at);
   const all = every.filter((s) => !s.archived && !isForLater(s));
+  // A terminal session with its terminal running is being worked on, by you and its agent.
+  const inTerm = (s) => s.tui && s.term && s.state === 'review';
   const needs = all
-    .filter((s) => s.state === 'review' || s.state === 'waiting')
+    .filter((s) => (s.state === 'review' || s.state === 'waiting') && !inTerm(s))
     .sort((a, b) => (b.state === 'waiting') - (a.state === 'waiting') || b.updatedAt - a.updatedAt);
   // Working items keep launch order so the feed doesn't reshuffle on every tool call.
-  const working = all.filter((s) => s.state === 'running').sort((a, b) => b.createdAt - a.createdAt);
+  const working = all.filter((s) => s.state === 'running' || inTerm(s)).sort((a, b) => b.createdAt - a.createdAt);
   // Done, with follow-ups still to come: Scheduled, soonest first (later.js).
   const scheduled = all.filter((s) => isScheduled(s)).sort((a, b) => nextAt(a) - nextAt(b));
   const done = all.filter((s) => s.state === 'done' && !isScheduled(s)).sort((a, b) => b.updatedAt - a.updatedAt);

@@ -9,6 +9,7 @@ import { $, el, icon } from '../core/dom.js';
 import { here, S, saveOpen } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { toggleDone } from './actions.js';
+import { openTerm, termFailed, termStarted } from './term.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { askBtw, askCrew, btwTipShown } from './btw.js';
 import { addressedTo } from './crew.js';
@@ -636,6 +637,9 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   const said = text;
   const notes = takeComments(id);
   if (notes.length) text = withPending(id, said, notes);
+  // A terminal session's follow-up goes to its CLI (server/services/tui.js): typed into the terminal,
+  // which shows at once, or the terminal opens again on it.
+  if (s.tui && !answering) return replyInTerminal(id, ta, text, said, notes, attachments, n?.tray?.take());
   // Optimistic: the composer empties and the card goes to Working before the server answers
   // (it may first have to bring back an archived worktree, or reach another machine).
   if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
@@ -662,6 +666,24 @@ export async function sendReply(id, text, { confirm = false } = {}) {
     n?.tray?.restore(files);
     // The server knew better (another account, a number that moved): the same row, from its answer.
     if (err.hold && holdRow) return holdReply(id, ta, holdRow, err.hold, ta?.value.trim() === text ? null : text);
+    toastError(err);
+  }
+}
+
+async function replyInTerminal(id, ta, text, said, notes, attachments, files) {
+  const n = S.nodes.get(id);
+  if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+  S.drafts.delete(id);
+  const live = !!S.sessions.get(id)?.term;
+  openTerm(id, { starting: !live });
+  try {
+    await api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments } });
+    if (!live) termStarted(id, true);
+  } catch (err) {
+    if (!live) termFailed(id);
+    restoreComments(id, notes);
+    if (ta?.isConnected && !ta.value) ((ta.value = said), ta.dispatchEvent(new Event('input')));
+    n?.tray?.restore(files);
     toastError(err);
   }
 }

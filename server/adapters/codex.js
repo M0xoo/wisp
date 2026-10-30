@@ -59,8 +59,8 @@ export default {
   models: [{ id: '', label: 'Default', hint: 'Whatever Codex is set to' }],
   efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
 
-  resumeCommand({ resumeId, model, effort }) {
-    return [BIN, ...(resumeId ? ['resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['-c', `model_reasoning_effort=${toml(effort)}`] : [])];
+  resumeCommand({ resumeId, model, effort, prompt }) {
+    return [BIN, ...(resumeId ? ['resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['-c', `model_reasoning_effort=${toml(effort)}`] : []), ...(prompt ? [prompt] : [])];
   },
   trust: (dir) => trustFolder(dir),
 

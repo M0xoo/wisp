@@ -15,8 +15,8 @@ export default {
   models: [{ id: '', label: 'Default', hint: 'Whatever Cursor is set to' }],
 
   // trusted: a folder wisp made (scratch, worktree), which it would otherwise stop to ask about.
-  resumeCommand({ resumeId, model, trusted = false }) {
-    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(trusted ? ['--trust'] : [])];
+  resumeCommand({ resumeId, model, trusted = false, prompt }) {
+    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(trusted ? ['--trust'] : []), ...(prompt ? [prompt] : [])];
   },
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).

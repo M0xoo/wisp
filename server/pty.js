@@ -103,6 +103,12 @@ export function ptyCommand(argv, { cols = 100, rows = 30, platform = process.pla
   return ['script', ['-qfec', line, '/dev/null'], false]; // util-linux
 }
 
+// What a Claude Code session that started wisp (`npm run dev:web` from its terminal) leaves in the
+// environment. An interactive claude that inherits them thinks it's that session's child and keeps no
+// transcript, so the conversation can't be resumed. Only these: CLAUDE_CODE_USE_BEDROCK and such are
+// the user's own settings.
+export const PARENT_SESSION_ENV = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_EXECPATH', 'CLAUDE_PID'];
+
 const clampSize = (n, lo, hi, d) => (Number.isFinite(Number(n)) ? Math.min(hi, Math.max(lo, Math.round(Number(n)))) : d);
 
 export class Terms {
@@ -130,6 +136,7 @@ export class Terms {
     const [command, args, resizable] = ptyCommand(argv, { cols, rows });
     const env = { ...this.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'wisp' };
     delete env.NO_COLOR;
+    for (const k of PARENT_SESSION_ENV) delete env[k];
     const child = this.spawnFn(command, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
     const t = { id, child, cwd, cols, rows, resizable, out: '', code: null, startedAt: Date.now(), usedAt: Date.now(), clients: new Set(), timer: null };
     const dec = new StringDecoder('utf8');

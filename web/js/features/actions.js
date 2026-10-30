@@ -120,16 +120,18 @@ export async function execAction(id, turnId, command, key) {
 // Take over: carry on the agent's own session interactively. In a terminal in the page when
 // there's no terminal app to open (a wisp Grid, a server, the phone app; or Settings says so),
 // else in the terminal app. The page's terminal shows at once and fills in when it's started.
+// A terminal session (Settings → General) is always in the page, and opens with no conversation yet.
 export async function takeOver(id) {
   if (S.sessions.get(id)?.term) return void openTerm(id); // already open: show it again
+  const tui = !!S.sessions.get(id)?.tui;
   let s = S.full.get(id);
-  if (!s?.agentSessionId) s = await api(`/sessions/${id}`).catch(() => null); // a run that just started
-  if (!s?.agentSessionId) return void toast(`${(s && agentName(s.agent)) || 'The agent'} hasn't started its session yet. Try again in a moment.`);
-  if (s.state === 'running' && !(await ask(`${agentName(s.agent)} is still running. Stop it and take over?`, { ok: 'Stop and take over' }))) return;
-  const inline = MOBILE || S.config.takeoverInline || machineById(S.sessions.get(id)?.machine?.id)?.kind === 'grid';
+  if (!s?.agentSessionId && !tui) s = await api(`/sessions/${id}`).catch(() => null); // a run that just started
+  if (!s?.agentSessionId && !tui) return void toast(`${(s && agentName(s.agent)) || 'The agent'} hasn't started its session yet. Try again in a moment.`);
+  if (s?.state === 'running' && !(await ask(`${agentName(s.agent)} is still running. Stop it and take over?`, { ok: 'Stop and take over' }))) return;
+  const inline = tui || MOBILE || S.config.takeoverInline || machineById(S.sessions.get(id)?.machine?.id)?.kind === 'grid';
   if (inline) openTerm(id, { starting: true });
   try {
-    const out = await api(`/sessions/${id}/takeover`, { method: 'POST', body: { ...(MOBILE && { inline: true }), ...termSize(id) } });
+    const out = await api(`/sessions/${id}/takeover`, { method: 'POST', body: { ...((MOBILE || tui) && { inline: true }), ...termSize(id) } });
     termStarted(id, out.inline);
     if (!out.inline) toast(`${icon('terminal')} Opened in your terminal`, { action: { label: 'Copy command', run: () => copy(out.command) } });
   } catch (err) {

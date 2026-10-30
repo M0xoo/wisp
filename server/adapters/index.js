@@ -14,9 +14,12 @@
 //     permission?(tool, input, cwd): { tool, action, detail, why? }   what a live approval is about
 //     detect(): Promise<{ available, version?, error?, models? }>   models overrides the static list
 //     setup?(platform): { tip, command?, url? }    how to get it on that OS, sent while it isn't found
-//     resumeCommand({ resumeId, model, effort, cwd, trusted }): string[]   argv to continue the session
-//                                                  interactively; trusted: cwd is a folder wisp made
-//                                                  (scratch, worktree), start without asking to trust it
+//     resumeCommand({ resumeId, model, effort, cwd, trusted, prompt, sessionId?, mode?, systemPrompt? }): string[]
+//                                                  argv to continue the session interactively, or with
+//                                                  no resumeId to start one on prompt (terminal sessions;
+//                                                  typesPrompt: true when it can't, and wisp types it in);
+//                                                  trusted: cwd is a folder wisp made (scratch, worktree),
+//                                                  start without asking to trust it
 //     trust?(dir)                                  record dir as trusted in the CLI's own config, for
 //                                                  one whose trust question no flag skips
 //     run({ prompt, cwd, resumeId, mode, model, effort, systemPrompt, grants, onEvent }): { stop(), done: Promise }

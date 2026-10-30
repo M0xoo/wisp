@@ -3,7 +3,9 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import net from 'node:net';
+import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, isolateAgentConfigs } from './helpers.js';
 import { ptyCommand, python, Terms } from '../server/pty.js';
 import { defaultTerminal, inWisp, terminalsFor } from '../server/terminal.js';
@@ -74,6 +76,14 @@ test('Terms: runs on a terminal, takes input and a new size, replays its output 
   assert.equal(terms.input('s1', 'x'), false);
   assert.ok(terms.close('s1'));
   assert.equal(terms.get('s1'), null);
+});
+
+test('Terms: a Claude Code session that started wisp does not leak into its terminals', { skip: win || !python() }, async () => {
+  const terms = new Terms({ env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_CODE_SESSION_ID: 'x', CLAUDE_CODE_USE_BEDROCK: '1' } });
+  const t = terms.open('env', { argv: ['sh', '-c', 'echo "[$CLAUDECODE][$CLAUDE_CODE_CHILD_SESSION][$CLAUDE_CODE_SESSION_ID][$CLAUDE_CODE_USE_BEDROCK]"'], cwd: tmp('pty-env') });
+  await waitFor(() => t.code !== null);
+  assert.match(t.out, /\[\]\[\]\[\]\[1\]/, 'its markers go; the user\'s own settings stay');
+  terms.close('env');
 });
 
 // --- the routes ------------------------------------------------------------------------------
@@ -152,6 +162,89 @@ test('take over in wisp: the agent on a terminal the page streams, types into an
   await assert.rejects(api(`/sessions/${s.id}/term`, { body: { data: 'x' } }), (e) => e.status === 404);
   assert.equal((await api(`/sessions/${s.id}/term`, { method: 'DELETE' })).ok, true);
   assert.equal((await api('/status')).terms, 0);
+});
+
+test('/terminal: one task in its terminal with Babysitting mode off, the command left out of its prompt', { skip: win || !python() }, async () => {
+  const repo = makeRepo();
+  assert.notEqual((await api('/config')).defaults.terminalSessions, 'on');
+  const s = await api('/sessions', { body: { prompt: '/terminal fix the login bug', cwd: repo, agent: 'claude', worktree: false } });
+  assert.equal(s.tui, true);
+  assert.equal(s.term, true);
+  const full = await api(`/sessions/${s.id}`);
+  assert.equal(full.turns[0].prompt, 'fix the login bug');
+  const t = await stream(s.id);
+  await t.until(/you said: .*fix the login bug/);
+  t.close();
+  assert.equal((await api(`/sessions/${s.id}/term`, { method: 'DELETE' })).ok, true);
+  // It can't be one with what wisp has to drive itself: refused, before any worktree is made.
+  await assert.rejects(api('/sessions', { body: { prompt: '/terminal ship it', cwd: repo, agent: 'claude', goal: { text: 'tests pass' } } }), (e) => e.status === 400 && /\/terminal starts one task/.test(e.message));
+});
+
+// Reads a task's terminal stream until re matches; fails rather than waits for ever.
+async function stream(id) {
+  const ctl = new AbortController();
+  const reader = (await fetch(`${base}/api/sessions/${id}/term`, { signal: ctl.signal })).body.getReader();
+  const out = { text: '', close: () => ctl.abort() };
+  out.until = async (re) => {
+    const end = Date.now() + 15_000;
+    while (!re.test(out.text)) {
+      let timer;
+      const quiet = new Promise((_, reject) => (timer = setTimeout(() => reject(new Error(`no ${re} in: ${JSON.stringify(out.text)}`)), end - Date.now())));
+      const { value, done } = await Promise.race([reader.read(), quiet]).finally(() => clearTimeout(timer));
+      if (done) throw new Error(`the stream ended without ${re}: ${JSON.stringify(out.text)}`);
+      out.text += new TextDecoder().decode(value);
+    }
+  };
+  return out;
+}
+
+test('terminal sessions: a task starts as the agent on a terminal, follow-ups are typed into it, and it resumes once ended', { skip: win || !python() }, async () => {
+  await api('/config', { method: 'PATCH', body: { defaults: { terminalSessions: 'on' } } });
+  try {
+    const repo = makeRepo();
+    const s = await api('/sessions', { body: { prompt: 'fix the login bug', cwd: repo, agent: 'claude', worktree: false } });
+    assert.equal(s.tui, true);
+    assert.equal(s.term, true, 'its terminal is open from the start');
+    assert.equal(s.state, 'review', 'wisp runs nothing itself');
+    const full = await api(`/sessions/${s.id}`);
+    assert.match(full.agentSessionId, /^[0-9a-f-]{36}$/, 'wisp names the conversation, to resume it later');
+    assert.equal(full.turns.length, 1);
+    assert.equal(full.turns[0].prompt, 'fix the login bug');
+    let t = await stream(s.id);
+    await t.until(new RegExp(`fake claude.*interactive · session ${full.agentSessionId}[\\s\\S]*you said: .*fix the login bug`));
+    // A follow-up from wisp's box is typed into the terminal, not run beside it.
+    assert.equal((await api(`/sessions/${s.id}/reply`, { body: { text: 'and add a test' } })).terminal, true);
+    await t.until(/you said: .*and add a test/);
+    assert.equal((await api(`/sessions/${s.id}`)).turns.length, 1);
+    await api(`/sessions/${s.id}/term`, { body: { data: '/exit\r' } });
+    await t.until(/event: exit/);
+    t.close();
+    // claude never kept the conversation (the fake saves none, as a real one quitting at a start-up
+    // question): it starts again under the same id. Once it has it, it's resumed.
+    assert.match((await api(`/sessions/${s.id}/takeover`)).command, new RegExp(`'--session-id' '${full.agentSessionId}'[\\s\\S]*'fix the login bug'`));
+    const kept = path.join(process.env.CLAUDE_CONFIG_DIR, 'projects', 'somewhere');
+    fs.mkdirSync(kept, { recursive: true });
+    fs.writeFileSync(path.join(kept, `${full.agentSessionId}.jsonl`), '{}\n');
+    assert.match((await api(`/sessions/${s.id}/takeover`)).command, new RegExp(`'--resume' '${full.agentSessionId}'`));
+    // Ended: a follow-up opens it again on the same conversation, and so does opening the task (take over).
+    await api(`/sessions/${s.id}/reply`, { body: { text: 'one more thing' } });
+    t = await stream(s.id);
+    await t.until(new RegExp(`session ${full.agentSessionId}[\\s\\S]*you said: .*one more thing`));
+    await api(`/sessions/${s.id}/term`, { body: { data: '/exit\r' } });
+    await t.until(/event: exit/);
+    t.close();
+    assert.equal((await api(`/sessions/${s.id}/takeover`, { body: {} })).inline, true, 'always in the page, whatever Take over in says');
+    t = await stream(s.id);
+    await t.until(new RegExp(`session ${full.agentSessionId}`));
+    t.close();
+    assert.equal((await api(`/sessions/${s.id}/term`, { method: 'DELETE' })).ok, true);
+    // Schedules, crew jobs and the like still run in wisp.
+    const planned = await api('/sessions', { body: { prompt: 'plan it', cwd: repo, agent: 'claude', worktree: false, tui: false } });
+    assert.equal(planned.tui, undefined);
+    await waitFor(async () => (await api(`/sessions/${planned.id}`)).state !== 'running');
+  } finally {
+    await api('/config', { method: 'PATCH', body: { defaults: { terminalSessions: 'off' } } });
+  }
 });
 
 // --- the page's screen -----------------------------------------------------------------------

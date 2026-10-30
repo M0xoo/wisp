@@ -212,6 +212,12 @@ Every page check also fails on an uncaught page error or a `console.error`.
 - **Steps:** *Take over* (`T`) on a finished Claude task; open another task, then the first again.
 - **Expected:** the in-app terminal resumes `claude --resume <id>` in the worktree. Another task (or home) puts it away; back on the first task it shows again, with the same screen.
 - **Suite** (`test/terminal.test.js`, `test/pty.test.js`) · **Manual** with a real CLI
+- **No wisp block:** the resumed agent is told (`--append-system-prompt`) to answer in plain text, so its replies in the terminal carry no ```` ```wisp ```` JSON.
+
+### WEB-43 · Babysitting mode (Terminals) and wisp blocks
+- **Steps:** Settings → General → *Babysitting mode (Terminals)* on; send a Claude task. Type a follow-up in wisp's box. `/exit`, open another task, then the first again. With Babysitting mode off, send `/terminal fix the login bug` (and a bare `/terminal`). Then *wisp blocks* off and send a task with Babysitting mode off.
+- **Expected:** on sending, the task opens straight on the agent's own CLI as its content: full width in the task's body under its header (no panel, head, End or details column), following every window resize (`claude --session-id <uuid> … -- "<prompt>"`), already answering the prompt; its row says *In terminal* and its one turn is the prompt with *In the terminal*. The follow-up is typed into the terminal (the box empties, no Working card). Opening the task again after `/exit` resumes the same conversation. `/terminal …` with the setting off does the same for that task (its turn is the prompt without `/terminal`); a bare `/terminal` says what to type. Schedules, crew jobs, spells, goals, teams and compare runs still run in wisp. With wisp blocks off the answer is plain markdown, with no *answered in plain text instead* note. Both rows say which spell set them when one does. Light and dark, split view and 390px.
+- **Suite** (`test/pty.test.js`, `test/app.test.js`, `test/protocol.test.js`) · **Manual** with a real CLI
 
 ### WEB-30 · Real harnesses
 - **Steps:** `npm run test:real` with signed-in CLIs.

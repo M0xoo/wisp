@@ -77,6 +77,10 @@ export const workdir = (s) => s.worktree?.cwd || s.cwd;
 // Where the agent works in the task's other folders (also): their worktrees, else the folders.
 export const alsoDirs = (s) => (s.also || []).map((a) => a.worktree?.cwd || a.cwd);
 
+// Settings → General → wisp blocks off: the agent answers in plain markdown. Not for crew jobs or
+// spells (their blocks carry what wisp acts on), nor for subagents (they report to their lead).
+export const plainAnswer = (s, store) => store?.config?.defaults?.blocks === 'off' && !s.crew && s.kind !== 'spell' && !s.parentId && !s.delegated;
+
 // Worktree sessions get told where they are, so they don't go looking for the main checkout. A task
 // with other folders (also) gets their paths: that's where the work in them goes.
 function workspaceNote(s) {
@@ -191,6 +195,7 @@ export function summarize(s, store) {
     ...(s.tags?.length && { tags: s.tags }), // topic words its agent set with wisp_tag, for search (web/js/tags.js)
     live: s.ask ? `Asks: ${s.ask.question}` : last?.status === 'running' ? waitingOn || lastAct?.label || 'Starting up' : s.auto?.busy ? s.auto.label : s.goal?.status === 'checking' ? 'Checking the goal' : '',
     term: openTerms.has(s.id) || undefined, // taken over in the page: a terminal is open
+    ...(s.tui && { tui: true }), // a terminal session: it opens on the agent's own CLI (services/tui.js)
     asks: !!s.ask || !!last?.presentation?.blocks?.some((b) => b.type === 'question'),
     question: s.ask?.question || '',
     options: s.ask?.options?.length ? s.ask.options : undefined, // its choices, answered from the row on a phone
@@ -305,7 +310,7 @@ export class Runner extends EventEmitter {
   // subagents: the team a lead may delegate to. parentId/member: this session is one of them.
   // also: the task's other folders, [{ cwd, worktree }] (services/launch.js).
   // history / title / moved: a task moved here from another place, with the turns it had there.
-  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, hold = null, sharedFrom = null, idle = false }) {
+  create({ id = newId(), prompt, cwd, also = [], agent = 'claude', mode = 'auto', model = '', effort = '', account = '', attachments = [], worktree = null, groupId = null, origin = null, subagents = [], parentId = null, member = '', route = null, auto = null, scout = null, history = [], title = '', moved = null, kind = '', relay = null, delegated = null, crew = null, goal = null, forkedFrom = null, hold = null, sharedFrom = null, idle = false, tui = false }) {
     if (!adapters[agent] && !(relay && agent === 'auto')) throw new Error(`Unknown agent: ${agent}`);
     const now = Date.now();
     const session = {
@@ -350,9 +355,21 @@ export class Runner extends EventEmitter {
     // Ask near the limit (server/guard.js): an automation's task that would cross your line waits.
     // idle: an imported task with nothing asked yet: its history shows, and it waits for your follow-up.
     if (idle) Object.assign(session, { state: 'review', unread: false });
+    else if (tui) this.#tuiTurn(session, prompt, attachments);
     else if (hold) this.#holdTurn(session, prompt, attachments, {}, hold);
     else this.#startTurn(session, prompt, attachments);
     return session;
+  }
+
+  // Terminal sessions (Settings → General): the task is the agent's own CLI in a terminal in the page,
+  // started with the prompt (services/tui.js). wisp keeps the prompt as its one turn and runs nothing.
+  #tuiTurn(session, prompt, attachments = []) {
+    const turn = this.#newTurn(session, prompt, attachments);
+    const name = adapters[session.agent]?.name || session.agent;
+    Object.assign(turn, { tui: true, status: 'done', endedAt: Date.now(), presentation: { blocks: [{ type: 'hero', title: 'In the terminal', summary: `This task runs in ${name}'s own terminal. Open it to carry on.`, status: 'info' }] } });
+    session.turns.push(turn);
+    Object.assign(session, { tui: true, state: 'review', unread: false });
+    this.#touch(session, { turn: turn.id });
   }
 
   // A run that would take its account's window past your line (server/guard.js), kept as a held
@@ -1091,13 +1108,19 @@ export class Runner extends EventEmitter {
     };
   }
 
+  // What a terminal session's CLI is told on top of its own prompt (services/tui.js): where it works,
+  // and what wisp learned.
+  terminalNote(session) {
+    return workspaceNote(session) + this.promptExtra(session);
+  }
+
   // The wisp protocol for this run: a lead hears about its team, a subagent that it can't ask.
   #systemPrompt(session, adapter, team) {
     const sub = session.parentId || session.delegated; // a delegate here, or one for a lead on another wisp
     const extraBlocks = sub ? [] : this.spellBlocks(session);
     const base = sub
       ? systemPrompt({ ask: SUBAGENT_ASK + (session.delegated ? AWAY_SUBAGENT : '') })
-      : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off', watch: this.store.config?.defaults?.watch !== 'off' }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
+      : systemPrompt({ askTool: adapter.askTool, extraBlocks, apps: this.store.config?.defaults?.apps !== 'off', watch: this.store.config?.defaults?.watch !== 'off', blocks: !plainAnswer(session, this.store) }) + teamNote(team, adapters, delegateTool(adapter.askTool ?? 'mcp__wisp__ask_user'));
     const spell = session.kind === 'spell' ? spellGuide(adapter.askTool ?? 'mcp__wisp__ask_user') : '';
     const crew = session.crew ? this.crewNote(session) : '';
     // A shared task's skills and instructions came with it (services/share.js): written out in full.
@@ -1166,6 +1189,7 @@ export class Runner extends EventEmitter {
       if (!prev.delegations.length) delete prev.delegations;
       turn.delegations = owed;
     }
+    if (plainAnswer(session, this.store)) turn.plain = true;
     session.turns.push(turn);
     if (session.goal && !session.goal.from) session.goal.from = turn.id; // its changes are measured from here
     session.state = 'running';
@@ -1330,7 +1354,7 @@ export class Runner extends EventEmitter {
         // It ended its turn in plain text with background tasks still running ("I'll report once
         // it's done"): the CLI wakes it up when they finish and it reports again, so the turn stays
         // open. A full presentation is a finished task that left something up (a dev server).
-        if (ev.background > 0 && !ev.isError && parsePresentation(ev.text).fallback) {
+        if (ev.background > 0 && !ev.isError && !turn.plain && parsePresentation(ev.text).fallback) {
           turn.interim = { text: ev.text, stats: ev.stats };
           this.#waitItem(session, turn);
           return 'waiting';
@@ -1389,6 +1413,7 @@ export class Runner extends EventEmitter {
       turn.status = 'done';
       turn.raw = ev.text; // kept so the turn can be re-parsed if the parser improves
       turn.presentation = parsePresentation(ev.text);
+      if (turn.plain) delete turn.presentation.fallback; // asked for plain text (wisp blocks off), so it isn't a slip
       if (session.crew) crewOut = this.crewTurn(session, turn) || {}; // its memory comes out of the report
       this.store.keepImages(session, turn);
       this.store.keepDocs?.(session, turn);
