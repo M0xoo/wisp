@@ -4,10 +4,14 @@
 // (/s/<id>/r/<run>), with the way back to the turn that sent it. The grid embeds what to show
 // (#shareData); nothing here talks to a wisp.
 
-import { esc, md } from './md.js';
-import { el, icon, renderPresentation } from './blocks.js';
-import { DAY_TIME, fmtDate, STATUS_LABEL } from './core/format.js';
+import { esc, inlineMd, md } from './md.js';
+import { el, icon, registerBlock, renderPresentation } from './blocks.js';
+import { previewBlock } from './preview-frame.js';
+import { isLoopback, shortUrl } from './preview-spec.js';
+import { DAY_TIME, fmtDate, fmtSize, STATUS_LABEL } from './core/format.js';
 import { toast } from './ui/toast.js';
+import { viewImage } from './ui/viewer.js';
+import { closeOverlay } from './ui/overlay.js';
 
 const data = JSON.parse(document.getElementById('shareData').textContent);
 const { share, task, run, base } = data;
@@ -25,7 +29,39 @@ const statusOf = (t) => (t?.status === 'error' ? 'blocked' : t?.status === 'stop
 // Buttons in a report (Next, actions) act on the task in wisp: here a toast, wisp's own, says how
 // to get it there, with the link to copy.
 const hint = () => toast('Import the task into wisp to carry it on: copy the link and paste it in New task.', { action: { label: 'Copy link', run: copyLink } });
-const ctxFor = (t) => ({ session: { id: `share-${share.id}`, turns: [] }, turn: t, isLatest: false, reply: hint, draft: hint });
+// Its pictures and videos came with it (share.js packAttached → media/<n>.<ext>); the grid serves
+// them beside the page. One that didn't come has nothing to load: it shows as missing.
+const fileUrl = (p) => (/^media\/[\w.-]+$/.test(p || '') ? `${base.replace(/\/r\/[^/]*$/, '')}/m/${encodeURIComponent(p.slice(6))}` : 'data:,');
+const ctxFor = (t) => ({ session: { id: `share-${share.id}`, turns: [] }, turn: t, isLatest: false, reply: hint, draft: hint, fileUrl, zoom: viewImage, stuffBlock });
+
+// Something they saved in My Stuff: its card as it was shared (b.item). A published app opens at
+// its public link; the rest comes into the importer's My Stuff with the task.
+const KIND = { app: ['App', 'app'], image: ['Picture', 'image'], video: ['Video', 'play'], doc: ['Doc', 'file'], code: ['Code', 'terminal'], file: ['File', 'clip'], link: ['Link', 'web'] };
+function stuffBlock(b) {
+  const it = b.item && typeof b.item === 'object' ? b.item : null;
+  const [one, ic] = KIND[it?.kind || b.kind] || KIND.file;
+  const title = it?.title || b.title || 'Something in My Stuff';
+  const meta = it ? [one, it.files ? plural(it.files, 'file') : '', it.size ? fmtSize(it.size) : ''].filter(Boolean) : ['In their My Stuff'];
+  const pic = it?.cover ? `<img src="${esc(fileUrl(it.cover))}" alt="" loading="lazy">` : it?.kind === 'app' ? `<b class="sb-initial">${esc(title.trim()[0]?.toUpperCase() || '?')}</b>` : icon(ic);
+  const go = it?.published ? `<a class="sb-go primary sm" href="${esc(it.published)}" target="_blank" rel="noopener">${icon('external')}<span>Open</span></a>` : it?.kind === 'link' && it.url ? `<a class="sb-go ghost sm" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${icon('external')}<span>Open</span></a>` : it?.kind === 'app' ? `<button class="sb-go ghost sm" type="button">${icon('play')}<span>Run in wisp</span></button>` : '';
+  const node = el(`<div class="b-stuff card${it ? '' : ' missing'}${it?.kind === 'app' ? ' k-app' : ''}">
+    <span class="sb-pic k-${esc(it?.kind || 'file')}">${pic}${it?.kind === 'app' ? '<span class="sb-bar"><i></i><i></i><i></i></span>' : ''}</span>
+    <span class="sb-main"><b>${esc(title)}</b><span class="sb-meta">${icon(ic)}${meta.map((m) => `<i>${esc(m)}</i>`).join('')}</span>${b.note || it?.excerpt ? `<span class="sb-note">${esc(b.note || it.excerpt)}</span>` : ''}</span>
+    ${go}</div>`);
+  node.querySelector('button.sb-go')?.addEventListener('click', () => toast(`Import the task into wisp to run ${title}: it comes into your My Stuff with it.`, { action: { label: 'Copy link', run: copyLink } }));
+  return node;
+}
+
+// A page the agent pointed at on its own computer (localhost) can't load here: what it was, and
+// how to run it. A public page shows live, as in wisp.
+registerBlock('preview', (b, ctx) => {
+  if (!isLoopback(String(b.url || ''))) return previewBlock(b, ctx);
+  return el(`<figure class="b-preview card sv-pv-off">
+    <div class="pv-head"><span class="pv-addr" title="${esc(b.url)}">${icon('web')}<span class="pv-host">${esc(shortUrl(String(b.url)))}</span></span></div>
+    <div class="sv-pv-body">${icon('web')}<span>It ran on ${esc(share.from?.name || 'their')}${share.from?.name ? '’s' : ''} computer while the agent worked. Import the task to run it in your wisp.</span></div>
+    ${b.title || b.caption ? `<figcaption class="pv-foot"><span class="pv-cap">${b.title ? `<b>${esc(b.title)}</b>` : ''}${b.caption ? `<span>${inlineMd(b.caption)}</span>` : ''}</span></figcaption>` : ''}
+  </figure>`);
+});
 
 // A turn's delegated runs: the lead's "N delegated tasks" cards, each opening its run's page.
 function subsHtml(t) {
@@ -84,6 +120,12 @@ function render() {
   // The head, as the open task's: its status dot and title; Copy link where its actions are.
   document.getElementById('svHead').innerHTML = `<div class="sh-row">${r ? `<a class="icon-btn sv-back" href="${esc(base)}${backAt >= 0 ? `#t${backAt + 1}` : ''}" title="Back to “${esc(share.title)}”" aria-label="Back">${icon('back')}</a>` : ''}<span class="q-dot st-${st}"></span><h2 class="sh-title">${esc(title)}</h2><span class="sh-acts"><button class="primary sm sv-copy" type="button">${icon('copy')}<span>Copy link</span></button></span></div>`;
 
+  // What an import brings, as a list a person reads: "Its history, work, pictures and model".
+  const carried = () => {
+    const at = task.attached || {};
+    const all = ['history', share.work && 'work', team.length && 'delegates', share.crew?.length && 'crew', 'model', at.media && 'pictures', at.stuff && 'what it saved in My Stuff', share.connectors?.length && 'connectors', share.skills?.length && 'skills'].filter(Boolean);
+    return `Its ${all.slice(0, -1).join(', ')} and ${all.at(-1)}`;
+  };
   // The details column: what ran it, its work, team and what comes with an import.
   const team = (task.subagents || []).filter(Boolean);
   const meta = [
@@ -100,7 +142,7 @@ function render() {
     <div class="it-props"><span class="pill st-${st}"><i></i>${STATUS_LABEL[st] || 'Finished'}</span></div>
     <div class="sv-from">${from.avatar ? `<img class="sv-av" src="${esc(from.avatar)}" alt="">` : `<span class="sv-av">${esc((from.name || from.handle || '?')[0].toUpperCase())}</span>`}<span><small>Shared by</small><b>${esc(from.name || from.handle || 'someone')}</b>${from.handle && from.handle !== from.name ? `<small>@${esc(from.handle)}</small>` : ''}</span></div>
     <div class="it-meta">${meta.join('')}</div>
-    <div class="sv-import"><b>Carry it on in wisp</b><p>Paste the link in wisp’s New task box. Its history${share.work ? ', work' : ''}${team.length ? ', delegates' : ''}${share.crew?.length ? ', crew' : ''}, model${share.connectors?.length ? ', connectors' : ''}${share.skills?.length ? ' and skills' : ''} come with it.</p><button class="ghost sm sv-copy" type="button">${icon('copy')}<span>Copy link</span></button></div>`;
+    <div class="sv-import"><b>Carry it on in wisp</b><p>Paste the link in wisp’s New task box. ${esc(carried())} come with it.</p><button class="ghost sm sv-copy" type="button">${icon('copy')}<span>Copy link</span></button></div>`;
 
   const box = document.getElementById('svTurns');
   box.removeAttribute('aria-busy');
@@ -124,6 +166,10 @@ async function copyLink() {
 
 document.addEventListener('click', (e) => {
   if (e.target.closest('.sv-copy')) copyLink();
+});
+// Escape closes a picture opened full screen, as in wisp (whose page-wide keys do it there).
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeOverlay();
 });
 
 render();

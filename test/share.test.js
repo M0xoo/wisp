@@ -77,7 +77,7 @@ async function deviceToken(email) {
 // This wisp, signed in to the grid as someone (a cloud computer holding their device token).
 const signedIn = (token) =>
   createShare(
-    { store: srv.store, runner: srv.runner, crew: srv.crew, triggers: srv.triggers, machines: { list: [{ id: 'm1', kind: 'grid', grid: gridBase, handle: 'x' }] }, secrets: { get: () => token }, configChanged() {}, sessionChanged() {}, broadcast() {} },
+    { store: srv.store, runner: srv.runner, stuff: srv.stuff, crew: srv.crew, triggers: srv.triggers, machines: { list: [{ id: 'm1', kind: 'grid', grid: gridBase, handle: 'x' }] }, secrets: { get: () => token }, configChanged() {}, sessionChanged() {}, broadcast() {} },
     { env: {} },
   );
 
@@ -266,3 +266,65 @@ test('a crew member it delegated to comes along: on the importer’s crew (resum
 });
 
 const inScratch = (s) => srv.store.isScratch(s.cwd);
+
+test('what its reports show comes with it: pictures and videos on the page and on import, the app it saved in My Stuff', async () => {
+  const pia = signedIn(await deviceToken('pia3@example.com'));
+  const dee = signedIn(await deviceToken('dee3@example.com'));
+  const dir = tmp('share-media');
+  const png = path.join(dir, 'shot.png');
+  fs.writeFileSync(png, Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(200, 7)]));
+  const appDir = path.join(dir, 'cr7');
+  fs.mkdirSync(appDir);
+  fs.writeFileSync(path.join(appDir, 'index.html'), '<h1>Road to 1000</h1>');
+  const it = srv.stuff.addApp(appDir, { title: 'CR7 · Road to 1000', cover: png, by: 'agent' });
+  const lead = srv.runner.create({ prompt: 'build the ronaldo app', cwd: makeRepo(), agent: 'claude' });
+  await settled(lead.id, 1);
+  lead.turns[0].presentation = {
+    blocks: [
+      { type: 'hero', title: 'Built it', status: 'done' },
+      { type: 'preview', url: 'http://localhost:8765/', title: 'CR7' },
+      { type: 'image', path: png, caption: 'Desktop', source: '/tmp/x/shot.png' },
+      { type: 'image', path: path.join(dir, 'gone.png'), caption: 'Gone' },
+      { type: 'stuff', id: it.id, note: 'Saved' },
+    ],
+  };
+  srv.store.save(lead);
+
+  const out = await pia.share(lead, { work: false });
+  const b = browser();
+  const page = await b.go(out.url);
+  const blocks = shown(page.text).task.turns[0].presentation.blocks;
+  assert.deepEqual([blocks[2].path, blocks[2].shared, blocks[2].source], ['media/1.png', true, undefined], 'the picture went, not where it was');
+  assert.equal(blocks[3].path, 'gone.png', 'one that isn’t there keeps its name only');
+  assert.deepEqual([blocks[4].item.kind, blocks[4].item.title, blocks[4].item.pack, blocks[4].item.cover], ['app', 'CR7 · Road to 1000', 'stuff/1', 'media/2.png'], 'its cover is My Stuff’s copy');
+  assert.equal(lead.turns[0].presentation.blocks[2].path, png, 'the task here is left as it was');
+  assert.match(page.headers['content-security-policy'], /media-src 'self'/);
+  const pic = await b.go(`${out.url}/m/1.png`);
+  assert.deepEqual([pic.status, pic.headers['content-type'], pic.headers['content-length']], [200, 'image/png', String(fs.statSync(png).size)]);
+  const part = await b.go(`${out.url}/m/1.png`, { headers: { range: 'bytes=0-7' } });
+  assert.deepEqual([part.status, part.headers['content-range']], [206, `bytes 0-7/${fs.statSync(png).size}`]);
+  assert.equal((await b.go(`${out.url}/m/9.png`)).status, 404);
+  assert.equal((await b.go(`${out.url}/m/..%2ftask.json`)).status, 404);
+
+  // Locked: its pictures are too.
+  await pia.share(lead, { work: false, passkey: 'pk' });
+  assert.equal((await browser().go(`${out.url}/m/1.png`)).status, 404);
+  const opened = browser();
+  await opened.go(out.url, { method: 'POST', form: { passkey: 'pk' } });
+  assert.equal((await opened.go(`${out.url}/m/1.png`)).status, 200);
+
+  // Imported: the picture is on this computer, the app in Dee's My Stuff, once.
+  await srv.stuff.remove(it.id);
+  const { session: s, notes } = await dee.importShare(out.url, { passkey: 'pk' });
+  const got = s.turns[0].presentation.blocks;
+  assert.ok(got[2].path.startsWith(path.join(srv.store.shots, s.id) + path.sep) && fs.existsSync(got[2].path), got[2].path);
+  assert.equal(got[2].shared, undefined);
+  const mine = srv.stuff.get(got[4].id);
+  assert.ok(mine && mine.kind === 'app' && mine.id !== it.id, 'the app is in My Stuff here');
+  assert.equal(mine.title, 'CR7 · Road to 1000');
+  assert.ok(mine.cover && fs.existsSync(mine.cover));
+  assert.equal(fs.readFileSync(path.join(mine.path, 'index.html'), 'utf8'), '<h1>Road to 1000</h1>');
+  assert.ok(notes.some((n) => /CR7 · Road to 1000 is in your My Stuff/.test(n)), notes.join('\n'));
+  const again = await dee.importShare(out.url, { passkey: 'pk' });
+  assert.equal(again.session.turns[0].presentation.blocks[4].id, mine.id, 'imported again: the same item, not a second');
+});

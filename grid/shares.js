@@ -22,6 +22,8 @@ export const SHARE_DEFAULTS = { enabled: true, maxBytes: 100 * 1024 * 1024, perU
 export const SHARE_ID = /^[A-Za-z0-9_-]{16}$/;
 const KEY = /^[A-Za-z0-9_-]{1,64}$/;
 export const PASSKEY_MAX = 128;
+export const MEDIA_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', m4v: 'video/mp4' };
+const MEDIA = new RegExp(`^\\d{1,5}\\.(${Object.keys(MEDIA_TYPES).join('|')})$`);
 
 // A passkey as kept: "<salt>:<hash>", both hex.
 export function hashPasskey(pass) {
@@ -131,8 +133,15 @@ export function createShares({ db, cfg, log = () => {} }) {
 
   // The conversation, for the page: task.json as it was shared.
   const task = (s) => JSON.parse(fs.readFileSync(path.join(dirOf(s.id), 'task.json'), 'utf8'));
+  // A picture or video its reports show (media/<n>.<ext>, server/services/share.js packAttached),
+  // for the page: its path, or null.
+  const media = (s, name) => {
+    if (!MEDIA.test(String(name || ''))) return null;
+    const p = path.join(dirOf(s.id), 'media', name);
+    return fs.existsSync(p) ? p : null;
+  };
   // Everything, for an import: the folder packed again.
   const pack = (s) => packDir(dirOf(s.id)).body;
 
-  return { opts, get, own, list, view, card, share, remove, removeAll, task, pack, unlocks: (s, pass) => checkPasskey(s.pass, pass) };
+  return { opts, get, own, list, view, card, share, remove, removeAll, task, media, pack, unlocks: (s, pass) => checkPasskey(s.pass, pass) };
 }

@@ -32,7 +32,7 @@ import { openDb } from './db.js';
 import { Hostd } from './hostd.js';
 import { APP_URL, accountPage, activatePage, devSignInPage, messagePage, sharePassPage, shareViewPage, signInPage, wakingPage } from './pages.js';
 import { createSecrets, ensureMaster } from './secrets.js';
-import { SHARE_ID, createShares } from './shares.js';
+import { MEDIA_TYPES, SHARE_ID, createShares } from './shares.js';
 import { SITE_LABEL, createSites, readRaw } from './sites.js';
 import { createGridTelemetry } from './telemetry.js';
 import { TUNNEL_PROTOCOL, createTunnels, hostOnly } from './tunnels.js';
@@ -434,6 +434,28 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
     // A shared task's page, and its delegates' (/s/<id>/r/<run>): open to anyone with the link, or
     // only with its passkey (POSTed here). Opened once, a cookie for that share keeps it open a
     // while, so its delegates' pages don't ask again; a new passkey shuts it.
+    // Its pictures and videos (/s/<id>/m/<n>.<ext>), behind the same passkey as the page. A range
+    // for a video, so it seeks (and plays at all in Safari).
+    const sm = /^\/s\/([A-Za-z0-9_-]{16})\/m\/([\w.-]{1,40})$/.exec(p);
+    if (sm && (req.method === 'GET' || req.method === 'HEAD')) {
+      const row = shares.get(sm[1]);
+      const file = row && (!row.pass || secrets.verify(`share|${row.id}|${row.pass}`, cookies(req)[`wsh_${row.id}`] || '')) && shares.media(row, sm[2]);
+      if (!file) return json(res, 404, { error: 'not found' });
+      const size = fs.statSync(file).size;
+      const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+      let [start, end] = [0, size - 1];
+      if (m && (m[1] || m[2])) {
+        [start, end] = m[1] ? [Number(m[1]), m[2] ? Math.min(Number(m[2]), size - 1) : size - 1] : [Math.max(0, size - Number(m[2])), size - 1];
+        if (start > end || start >= size) {
+          res.writeHead(416, { 'content-range': `bytes */${size}` });
+          return res.end();
+        }
+      }
+      const head = { 'content-type': MEDIA_TYPES[sm[2].split('.').pop().toLowerCase()], 'content-length': end - start + 1, 'accept-ranges': 'bytes', 'cache-control': row.pass ? 'private, max-age=300' : 'public, max-age=300', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" };
+      res.writeHead(m && (m[1] || m[2]) ? 206 : 200, m && (m[1] || m[2]) ? { ...head, 'content-range': `bytes ${start}-${end}/${size}` } : head);
+      if (req.method === 'HEAD') return res.end();
+      return fs.createReadStream(file, { start, end }).pipe(res);
+    }
     const sp = /^\/s\/([A-Za-z0-9_-]+)(?:\/r\/([^/]{1,60}))?$/.exec(p);
     if (sp && (req.method === 'GET' || req.method === 'HEAD' || req.method === 'POST')) {
       const row = SHARE_ID.test(sp[1]) && shares.get(sp[1]);
@@ -459,7 +481,7 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
         if (!run || !task.runs?.[run]) return page(messagePage({ cfg, title: 'Nothing here', text: 'That delegated task isn’t in this share.', link: [`/s/${row.id}`, 'Back to the task'] }), 404);
       }
       const keep = row.pass && pass ? { 'set-cookie': cookie(ck, secrets.sign(`share|${row.id}|${row.pass}`), { secure: cfg.publicUrl.startsWith('https:'), maxAge: 12 * 3600, path: `/s/${row.id}` }) } : {};
-      return page(shareViewPage({ share: c, task, run, look: webLook() }), 200, { 'content-security-policy': "default-src 'none'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'none'; frame-src 'none'; form-action 'self'; base-uri 'none'; frame-ancestors *", ...framed, ...keep });
+      return page(shareViewPage({ share: c, task, run, look: webLook() }), 200, { 'content-security-policy': "default-src 'none'; img-src 'self' https: data:; media-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src 'none'; frame-src https:; form-action 'self'; base-uri 'none'; frame-ancestors *", ...framed, ...keep });
     }
     // HEAD too: link checkers (ad review, unfurlers) probe with it, and a 404 there reads as a dead page
     if ((req.method === 'GET' || req.method === 'HEAD') && (p === '/' || p === '/account')) {
