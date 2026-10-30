@@ -257,6 +257,9 @@ export function renderLauncher() {
     const n = compare.length;
     runners.classList.toggle('cmp', n > 0);
     runners.classList.toggle('many', n > 1);
+    // The bar's labels fold too: a class rather than :has(), which restyled the whole page on any change.
+    runners.parentElement.classList.toggle('l-cmp', n > 0);
+    runners.parentElement.classList.toggle('l-many', n > 1);
     for (const x of $$('.cmp-x', runners)) x.remove();
     compare.forEach((c, i) => {
       const name = agentName(c.agent);
@@ -748,7 +751,8 @@ export function renderLaunchChips() {
     beforePaint(fitLaunchChips);
   }
   fitRow ??= new ResizeObserver(([e]) => {
-    if (e.contentRect.width === fitRow.w) return; // its own folding only changes the height
+    // Its own folding only changes the height; hidden (home under a phone's task page) there's nothing to fit.
+    if (!e.contentRect.width || e.contentRect.width === fitRow.w) return;
     fitRow.w = e.contentRect.width;
     fitChips(e.target);
   });
@@ -822,7 +826,9 @@ export function renderLaunchChips() {
 let fitRow;
 const fitLaunchChips = () => {
   const box = $('#launcher .l-projects');
-  if (box) fitChips(box);
+  if (!box) return;
+  if (!box.clientWidth && fitRow) fitRow.w = 0; // hidden: fitted again when it shows
+  fitChips(box);
 };
 function fitChips(box) {
   for (const g of $$('.lp-group', box)) {
@@ -854,6 +860,8 @@ function fitChips(box) {
       paint();
     }
   }
+  // Some chips folded into "+N": a narrow box drops the No project chip's label (launcher.css).
+  box.classList.toggle('folded', $$('.more', box).some((m) => !m.hidden));
 }
 
 // "Run on": this computer and/or machines. The button says where; its menu picks one or several.

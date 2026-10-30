@@ -36,6 +36,7 @@ export function autoPreview(btn, { read, pick, back }) {
   const paint = () => {
     const q = read();
     btn.hidden = !q.on;
+    btn.parentElement?.classList.toggle('pv-on', !!q.on); // the harness button folds beside it (auto.css)
     if (!q.on) return;
     const r = last?.r;
     btn.classList.toggle('loading', loading && !!r);

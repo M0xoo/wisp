@@ -28,6 +28,11 @@
 .prose { color: var(--ink-2); line-height: 1.65; overflow-wrap: break-word; }
 .prose > :first-child { margin-top: 0; }
 .prose > :last-child { margin-bottom: 0; }
+/* A very long answer in the phone app, in chunks laid out only near the screen (blocks.js chunked). */
+.prose > .md-chunk { content-visibility: auto; contain-intrinsic-size: auto 1600px; }
+.md-chunk > :first-child { margin-top: 0; }
+.md-chunk > :last-child { margin-bottom: 0; }
+.md-chunk + .md-chunk { margin-top: 12px; }
 .prose p, .prose ul, .prose ol, .prose pre, .prose blockquote, .prose .table-wrap { margin: 0 0 12px; }
 .prose h3, .prose h4, .prose h5, .prose h6 { color: var(--ink); margin: 18px 0 8px; font-weight: 600; font-size: 14px; }
 .prose h3 { font: 600 14px/1.3 var(--display); letter-spacing: -0.015em; }

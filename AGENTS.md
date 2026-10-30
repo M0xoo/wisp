@@ -127,6 +127,10 @@ is New task). Scrolling goes through `web/js/features/scroll.js` (`scrollByPx`, 
   (`tryApi`).
 - In `server/runner.js` the store may be a test stub: call optional methods as `store?.method?.()`.
 - Borders are plain 1px neutral lines (`var(--line)`, `var(--line-2)`), no coloured side stripes.
+- Keep `:has()` to small, local boxes. Anchored on `body`, `.stage` or `#feed`, followed by `> *`, or
+  matching things that change everywhere (`.open`, `.i`, `[hidden]`), it makes every class change restyle the
+  whole page (each open and Back on a phone paid ~25 ms per change). Set a class from the JS instead
+  (`has-quick`, `l-cmp`, `pv-on`); `node qa/mobile-perf.mjs` shows the cost.
 - New integrations ship off by default behind a Settings switch, with tests.
 - `scripts/site.mjs` must handle CRLF input (Windows CI).
 - User-facing features and fixes get a `CHANGELOG.md` entry under *Unreleased*. Releases also

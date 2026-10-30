@@ -426,7 +426,7 @@ export function slotHtml(slot, session = null) {
         case 'composer.chips':
           return `<button type="button" class="sp-qr" ${attrs(spell, kind, i)} title="${tip(spell, b)}">${ic}${label || esc(b.icon)}${n}</button>`;
         default:
-          return `<button type="button" class="ghost sm sp-btn" ${attrs(spell, kind, i)} title="${tip(spell, b)}">${ic}${label}${n}</button>`;
+          return `<button type="button" class="ghost sm sp-btn${ic ? ' has-i' : ''}" ${attrs(spell, kind, i)} title="${tip(spell, b)}">${ic}${label}${n}</button>`;
       }
     })
     .join('');

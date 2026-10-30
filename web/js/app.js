@@ -21,6 +21,7 @@ import { askNotify } from './features/notify.js';
 import { onKey } from './features/keys.js';
 import { backToTop, onScroll, stage } from './features/scroll.js';
 import { promptFab } from './features/fab.js';
+import { pressFeedback } from './ui/press.js';
 import { openSettings, telemetryNotice } from './features/settings.js';
 import { installUpdate, loadUpdate } from './features/update.js';
 import { routeSpell } from './features/spell-ui.js';
@@ -33,6 +34,7 @@ import './features/panel-swipe.js';
 document.addEventListener('keydown', onKey);
 stage.addEventListener('scroll', onScroll, { passive: true });
 if (MOBILE) promptFab(); // the phone opens the prompt box from a floating New task button
+if (MOBILE) pressFeedback(); // what you touch shows it while your finger is down
 $('#toTop').onclick = backToTop;
 
 // Top bar and the feed's Done / Archived toggles.
@@ -117,6 +119,7 @@ function paintSnapshot(snap) {
   setConfig(snap.config);
   setMachines(snap.machines || [], { quiet: true });
   S.sessions = new Map(snap.sessions.map((s) => [s.id, s]));
+  S.listToken = snap.listToken || ''; // what changed since this list is all the server sends (live.js)
   for (const [id, s] of snap.full || []) if (S.open.has(id)) S.full.set(id, s);
   renderFeed();
   renderLauncher();

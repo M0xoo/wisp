@@ -70,7 +70,7 @@
 .lp-also.x:hover { background: var(--bad); border-color: var(--bad); }
 @media (hover: none) { .lp-also:not(.x) { opacity: 1; transform: none; pointer-events: auto; } }
 /* narrow, with "+N" (whose list has No folder too): it goes icon-only unless picked */
-@container launcher (max-width: 520px) { .l-projects:has(.more:not([hidden])) .lp-chip.none:not(.on) span { display: none; } }
+@container launcher (max-width: 520px) { .l-projects.folded .lp-chip.none:not(.on) span { display: none; } }
 /* recipes: one-click prompts under the launch bar */
 .l-recipes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px -12px -10px; padding: 7px 14px 8px; border-top: 1px solid var(--line); }
 /* the label sits on the chips' centre line, whatever their height (44px on phones) */
@@ -126,13 +126,13 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 .runners .rb-logo { flex: none; }
 .runners .rb-h { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .runners .rb-m { flex: 0 10000 auto; min-width: 0; } /* the model gives way well before the harness name */
-.runners.cmp :is(.rb-e, .rb-a), .l-bar:has(.runners.cmp) #wtBtn span { display: none; }
+.runners.cmp :is(.rb-e, .rb-a), .l-bar.l-cmp #wtBtn span { display: none; }
 /* three or four harnesses: logos only (each button's tooltip names it), the bar's other labels fold too */
 .runners.many .runner-btn { flex: none; padding-inline: 6px; }
 .runners.many :is(.rb-h, .rb-m) { display: none; }
 .runners.many .rb-logo { margin-right: 3px; }
 .runners.many .runner-btn .chev { margin-left: 0; }
-.l-bar:has(.runners.many) :is(.mode-btn span, .team-btn .tb-label) { display: none; }
+.l-bar.l-many :is(.mode-btn span, .team-btn .tb-label) { display: none; }
 /* a narrower bar: the place goes to its icon first, so the harness keeps its name */
 @container launcher (max-width: 800px) { .l-bar .where-btn span { display: none; } }
 /* …then Worktree to its branch icon (its tooltip names it): a project picked adds it, and side by side
@@ -148,7 +148,7 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
   .l-bar .where-btn span { display: none; }
   .runners, .runners .runner-btn { flex: none; }
   .runners .rb-h, .runners .rb-m.def, .runners .rb-e { display: none; }
-  .runners:not(.cmp, :has(.auto-pv:not([hidden]))) .runner-btn:has(.rb-m.def) .rb-h { display: inline; }
+  .runners:not(.cmp, .pv-on) .runner-btn:has(.rb-m.def) .rb-h { display: inline; }
   .runners .rb-m { flex: none; margin-left: 0; max-width: 120px; color: var(--ink); font-weight: 500; }
   .runners .rb-m::before { display: none; }
   .runners .rb-logo { margin-right: 6px; }

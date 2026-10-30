@@ -32,7 +32,7 @@ export function recall() {
 export function remember() {
   if (!SNAPSHOT || !S.sessions.size) return;
   const full = [...S.open].map((id) => [id, S.full.get(id)]).filter(([, s]) => s && JSON.stringify(s).length < MAX_FULL);
-  const snap = { at: Date.now(), config: S.config, machines: S.machines, sessions: [...S.sessions.values()], full };
+  const snap = { at: Date.now(), config: S.config, machines: S.machines, sessions: [...S.sessions.values()], listToken: S.listToken, full };
   try {
     localStorage.setItem(KEY, JSON.stringify(snap));
   } catch {

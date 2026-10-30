@@ -281,6 +281,31 @@ test('a conflict fix that leaves conflicts is not pushed; Fix conflicts retries;
   }
 });
 
+test('the task list answers ?since= with only what changed, and the whole list when it can’t tell', async () => {
+  const repo = makeRepo();
+  const a = await api('/sessions', { body: { prompt: 'Fix add()', cwd: repo.dir, agent: 'claude' } });
+  const b = await api('/sessions', { body: { prompt: 'Fix sub()', cwd: repo.dir, agent: 'claude' } });
+  await Promise.all([settled(a.id), settled(b.id)]);
+  const first = await api('/sessions?since=');
+  assert.ok(first.token && first.full.some((x) => x.id === a.id));
+  const same = await api(`/sessions?since=${first.token}`);
+  assert.deepEqual([same.changed, same.removed], [[], []]);
+  await api(`/sessions/${a.id}`, { method: 'PATCH', body: { title: 'Renamed' } });
+  const renamed = await api(`/sessions?since=${same.token}`);
+  assert.deepEqual(renamed.changed.map((x) => [x.id, x.title]), [[a.id, 'Renamed']]);
+  await api(`/sessions/${b.id}`, { method: 'DELETE' });
+  const gone = await api(`/sessions?since=${renamed.token}`);
+  assert.deepEqual([gone.changed, gone.removed], [[], [b.id]]);
+  // From the first token, everything since: the rename and the delete.
+  const since0 = await api(`/sessions?since=${first.token}`);
+  assert.deepEqual([since0.changed.map((x) => x.id), since0.removed], [[a.id], [b.id]]);
+  // Another run of wisp's token, or a filtered list: the whole list.
+  assert.ok((await api('/sessions?since=deadbeef.1')).full);
+  assert.ok((await api(`/sessions?since=${gone.token}&state=review`)).full);
+  // Without since: the plain array, as before.
+  assert.ok(Array.isArray(await api('/sessions')));
+});
+
 test('ship it refuses an empty branch and sessions without a worktree', async () => {
   const repo = makeClone();
   const s = await api('/sessions', { body: { prompt: 'look around', cwd: repo.dir, agent: 'claude' } });
@@ -443,6 +468,15 @@ test('archive drops a clean worktree and a follow-up brings it back; delete remo
   await api(`/sessions/${s.id}/reply`, { body: { text: 'one more thing' } });
   await until(() => fs.existsSync(wt.path));
   await settled(s.id);
+  // The phone's window: the latest turn whole, the older one a stub its folded row can show.
+  const whole = await api(`/sessions/${s.id}?lean=1`);
+  const win = await api(`/sessions/${s.id}?lean=1&turns=1`);
+  assert.equal(win.turns.length, 2);
+  assert.deepEqual(win.turns[1], whole.turns[1]);
+  assert.equal(win.turns[0].stub, true);
+  assert.equal(win.turns[0].prompt, whole.turns[0].prompt);
+  assert.equal(win.turns[0].activity, undefined);
+  assert.equal(win.turns[0].changes, undefined);
   assert.equal(repo.git('-C', wt.path, 'log', '-1', '--format=%s'), 'wip');
   await api(`/sessions/${s.id}`, { method: 'DELETE' });
   assert.equal(fs.existsSync(wt.path), false);
@@ -467,6 +501,10 @@ test('compare: one task on two harnesses, each in its own worktree; discard the 
     assert.equal(f.turns[0].checkpoint.dirty, false);
     const math = f.turns[0].changes.find((c) => c.file === 'math.js');
     assert.match(math.beforeFile, /a - b/, 'diffs read the base from the checkpoint');
+    // The page's copy leaves the whole file out (only rollback, on the server, reads it).
+    const lean = (await api(`/sessions/${f.id}?lean=1`)).turns[0].changes.find((c) => c.file === 'math.js');
+    assert.equal('beforeFile' in lean, false);
+    assert.deepEqual(lean.edits, math.edits);
   }
   // One task: the runs keep the prompt's title instead of each taking its own headline.
   assert.deepEqual([fa.title, fb.title], ['Fix add()', 'Fix add()']);

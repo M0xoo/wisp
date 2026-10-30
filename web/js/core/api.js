@@ -1,8 +1,9 @@
 // The wisp HTTP API (server/routes/). A failed request throws with the server's message.
 
-export async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, { method = 'GET', body, priority } = {}) {
   const r = await fetch(`/api${path}`, {
     method,
+    priority, // a fetch ahead goes 'low', so the one waited for isn't queued behind it
     // The server only accepts JSON on non-GET requests (CSRF guard), even body-less DELETEs.
     headers: method !== 'GET' ? { 'content-type': 'application/json' } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,

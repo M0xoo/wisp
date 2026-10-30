@@ -137,9 +137,13 @@ function paint() {
 }
 
 function paintWidth() {
-  const max = Math.max(MIN_W, innerWidth - (isStacked() ? 0 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--side-w')) || 340) * (squeezed() ? 0 : 1) - TASK_MIN);
+  // Only the side-by-side grid uses it; stacked (the phone) the panel is the page, and reading
+  // innerWidth there forces a layout on every page change.
+  if (isStacked()) return;
+  const max = Math.max(MIN_W, innerWidth - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--side-w')) || 340) * (squeezed() ? 0 : 1) - TASK_MIN);
   const w = Math.round(Math.min(Math.max(pref.w ?? spellProp('panel', 'width') ?? PANEL_W, MIN_W), max));
-  document.documentElement.style.setProperty('--panel-w', `${w}px`);
+  // A custom property on the root restyles the whole page: only when it changes.
+  if (w !== paintWidth.w) document.documentElement.style.setProperty('--panel-w', `${(paintWidth.w = w)}px`);
 }
 
 // The open task's own ways in show what's open: its Shell button is pressed while the shell shows.

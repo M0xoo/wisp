@@ -491,7 +491,7 @@ body:not(.split) .crew-view .cv-top { justify-content: flex-end; padding: 6px 10
 .overlay:not([hidden]) ~ .team-pop { z-index: 56; }
 
 /* the phone app: 44px targets, a row shows it's pressed */
-body.wisp-mobile .cr-row:active { background: var(--bg-2); }
+body.wisp-mobile .cr-row:is(:active, .pressed) { background: var(--bg-2); }
 body.wisp-mobile .cv-top :is(.ghost.sm, .icon-btn) { min-width: 44px; height: 44px; justify-content: center; }
 body.wisp-mobile :is(.cv-acts, .cv-bar) .ghost.xs { height: 44px; }
 body.wisp-mobile .cv-bar .send { min-width: 44px; height: 44px; }

@@ -18,7 +18,7 @@ import { scrollByPx, stage, topInset } from './scroll.js';
 import { prOf, prPill, shipPill } from './ship.js';
 import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
-import { renderBody } from './turns.js';
+import { renderBody, VISIBLE_TURNS } from './turns.js';
 import { slotHtml } from './spells.js';
 import { swipesDone } from './swipe.js';
 import { toastError } from '../ui/toast.js';
@@ -93,8 +93,9 @@ export function groups() {
 }
 
 // Done and Archived can hold hundreds of tasks: they show a page of cards and add the next
-// page as the user scrolls to the end of the list. The headings count every one.
-const PAGE = 60;
+// page as the user scrolls to the end of the list. The headings count every one. The phone shows
+// a third as many at a time: each card it holds is restyled whenever a page opens over the list.
+const PAGE = MOBILE ? 20 : 60;
 const page = { secForLater: PAGE, secDone: PAGE, secArchived: PAGE };
 const moreObserver = new IntersectionObserver(
   (entries) => {
@@ -231,6 +232,8 @@ export function renderFeed() {
   document.title = n ? `(${n}) wisp` : 'wisp';
   renderProjects();
   paintSplit();
+  paintQuick(); // rows that went away took their buttons with them
+  prefetchShown();
 }
 
 // A new project filter swaps the whole list; staying at the old offset would drop the user
@@ -364,6 +367,20 @@ function renderHead(n, s) {
       ${quickLater(s, open)}${quickDone(s, open)}
       ${icon('chevron', 'chev')}
     </span>`);
+  paintQuick();
+}
+
+// Whether any row has a quick button (touch screens make room for it in every row): a class,
+// set once the rows are painted, as #feed:has(.it-quick) restyled the whole page on any change.
+let quickQueued = false;
+function paintQuick() {
+  if (quickQueued) return;
+  quickQueued = true;
+  queueMicrotask(() => {
+    quickQueued = false;
+    const feed = $('#feed');
+    feed?.classList.toggle('has-quick', !!$('.it-quick', feed));
+  });
 }
 
 // The row's third line: what ran the task and where (harness, model, machine). The machine is
@@ -518,7 +535,7 @@ function taskItem(t) {
   const how = handed?.auto?.reason === 'limit' ? 'The first harness was at its usage limit, so wisp moved it to' : handed?.auto?.reason === 'error' ? 'The first run failed, so wisp handed it to' : 'Tests failed, so wisp handed it to';
   const autoLine = picked ? `wisp's pick: ${picked.auto.pick.why}` : handed ? `${how} ${runName(handed)}` : '';
   const status = t.state === 'waiting' ? 'A run is asking you' : t.state === 'running' ? `${finished} of ${t.runs.length} finished${places > 1 ? ` · on ${places} machines` : ''}` : t.state === 'done' ? 'Done' : autoLine || (places > 1 ? `All finished on ${places} machines` : 'All finished · pick one to keep');
-  g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''}`;
+  g.card.className = `task-item c-${t.color} st-${t.state} ${t.unread ? 'unread' : ''} ${t.runs.some((r) => S.open.has(r.id)) ? 'has-open' : ''} ${t.runs.some((r) => r.id === S.focus) ? 'has-focus' : ''}`;
   paintHtml(g.head, `
     ${qDot(t)}
     <span class="it-main">
@@ -539,12 +556,24 @@ function taskItem(t) {
   return g;
 }
 
+// A compare task's card shows its open or focused run: classes, as :has() on it restyled the
+// whole page whenever any row was focused or opened.
+function paintGroup(card) {
+  const g = card?.closest('.task-item');
+  if (!g) return;
+  g.classList.toggle('has-focus', !!$('.item.focused', g));
+  g.classList.toggle('has-open', !!$('.item.open', g));
+}
+
 export function setFocus(id, { scroll = true } = {}) {
   if (S.focus === id) return;
-  S.nodes.get(S.focus)?.card.classList.remove('focused');
+  const was = S.nodes.get(S.focus)?.card;
+  was?.classList.remove('focused');
+  paintGroup(was);
   S.focus = id;
   const n = S.nodes.get(id);
   n?.card.classList.add('focused');
+  paintGroup(n?.card);
   // A card taller than the screen would land with its header out of view ('nearest' aligns
   // its far edge when moving up), so bring its top in instead.
   if (scroll && n) n.card.scrollIntoView({ block: !isSplit() && n.card.offsetHeight > stage.clientHeight - topInset() ? 'start' : 'nearest', behavior: 'smooth' });
@@ -570,6 +599,7 @@ export async function expand(id, { scroll = true } = {}) {
   S.open.add(id);
   saveOpen();
   n.card.classList.add('open');
+  paintGroup(n.card);
   renderHead(n, S.sessions.get(id));
   // A terminal session the server is still starting: its terminal's waiting screen until the real
   // task takes its place (launcher.js handOver). Nothing to fetch yet.
@@ -582,22 +612,27 @@ export async function expand(id, { scroll = true } = {}) {
   if (s?.pending) return;
   syncUrl();
   // Closed a moment ago (j/k through the list) or fetched ahead: it shows at once as it was, then
-  // the refetch brings what changed meanwhile. A fetch ahead still on its way is waited for.
+  // the refetch brings what changed meanwhile. A fetch ahead still on its way is waited for, and
+  // if it left just now (the press before this tap) it is what changed: no second download.
+  let fresh = false;
   if (!S.full.has(id) && fetching.has(id)) {
-    await fetching.get(id);
+    const f = fetching.get(id);
+    await f;
     if (!S.open.has(id)) return; // closed while it came
+    fresh = Date.now() - f.at < FRESH_MS;
   }
   const ahead = !S.full.has(id) && kept.get(id);
   if (ahead) (kept.delete(id), S.full.set(id, ahead));
   if (!S.full.has(id)) await fetchFull(id);
   else renderBody(id, { fresh: true });
   backToPlace(id);
-  if (ahead) fetchFull(id);
+  if (ahead && fresh) fetched(id);
+  else if (ahead) fetchFull(id);
   prefetchAround(id);
 }
 
 // Tasks loaded but not open, newest last: the last ones closed, and the ones fetched ahead.
-const KEPT_MAX = 12;
+const KEPT_MAX = 20;
 const kept = new Map();
 function keep(id, s) {
   kept.delete(id);
@@ -608,22 +643,60 @@ function keep(id, s) {
 // Fetched ahead of the click, so the task opens with nothing to wait for: the row under the pointer
 // (after a short hover, not on the way past it), the one pressed, and in split view the rows on
 // either side of the open one, where J / K go next. Most tasks are tens of KB.
-const fetching = new Map(); // id -> the fetch ahead on its way
-function prefetch(id) {
+const fetching = new Map(); // id -> the fetch ahead on its way (.at: when it left)
+// Changes while it opens are refetched (the task is open by then); older than this, the copy is not trusted.
+const FRESH_MS = 2000;
+function prefetch(id, { low = false } = {}) {
   const s = S.sessions.get(id);
   if (!s || s.pending || S.full.has(id) || kept.has(id) || fetching.has(id)) return;
-  const p = api(`/sessions/${id}`)
+  const p = api(taskUrl(id), { priority: low ? 'low' : 'high' })
     .then((full) => S.sessions.has(id) && !S.full.has(id) && keep(id, full))
     .catch(() => {})
     .finally(() => fetching.delete(id));
+  p.at = Date.now();
   fetching.set(id, p);
+  return p;
 }
+const idle = (f) => (window.requestIdleCallback || ((g) => setTimeout(g, 200)))(f);
 function prefetchAround(id) {
   const card = S.nodes.get(id)?.card;
   if (MOBILE || !isSplit() || !card?.isConnected) return;
-  const idle = window.requestIdleCallback || ((f) => setTimeout(f, 200));
   idle(() => {
     for (const x of [card.nextElementSibling, card.previousElementSibling]) if (x?.dataset.id) prefetch(x.dataset.id);
+  });
+}
+
+// The phone has no hover, and its tunnel can be a quarter of a second each way: once the list is
+// idle, the rows on screen (Needs you first) are fetched ahead, so opening one waits on nothing
+// (a kept copy shows at once and is refreshed behind). Not the running ones (they change every
+// few seconds), nor on Data Saver. Two at a time, at low priority: a row pressed meanwhile goes first.
+const AHEAD = 6;
+const aheadQ = [];
+let aheadBusy = 0;
+function nextAhead() {
+  // A task opened meanwhile has the tunnel to itself; Back picks up again (collapse).
+  while (aheadBusy < 2 && aheadQ.length && !S.open.size) {
+    const p = prefetch(aheadQ.shift(), { low: true });
+    if (!p) continue;
+    aheadBusy++;
+    p.finally(() => (aheadBusy--, nextAhead()));
+  }
+}
+let aheadQueued = false;
+if (MOBILE) addEventListener('scroll', () => prefetchShown(), { capture: true, passive: true }); // new rows came on screen
+function prefetchShown() {
+  if (!MOBILE || aheadQueued || navigator.connection?.saveData) return;
+  aheadQueued = true;
+  idle(() => {
+    aheadQueued = false;
+    if (document.hidden || S.open.size) return; // reading something: later
+    const rows = $$('#feed .item[data-id]:not(.pending)').filter((x) => {
+      const r = x.getBoundingClientRect();
+      return r.height && r.bottom > 0 && r.top < innerHeight;
+    });
+    aheadQ.length = 0; // what's on screen now, not what was
+    for (const x of rows.slice(0, AHEAD)) if (S.sessions.get(x.dataset.id)?.state !== 'running') aheadQ.push(x.dataset.id);
+    nextAhead();
   });
 }
 
@@ -641,13 +714,16 @@ export function collapse(id) {
     n.turnNodes.clear();
     n.tray = null;
     n.showAll = false;
+    n.whole = false;
     n.card.classList.remove('open');
+    paintGroup(n.card);
     const s = S.sessions.get(id);
     if (s) renderHead(n, s);
   }
   placeCollapseAll();
   paintSplit();
   syncUrl();
+  prefetchShown();
   // A folded section only kept its row while it was open.
   if (n?.card.closest('.f-group.collapsed')) renderFeed();
   // Subagent rows leave with their lead: checked once whatever opens next is open.
@@ -668,10 +744,20 @@ export function syncUrl({ start = false } = {}) {
   } else if (h.startsWith('#/s/')) history.replaceState(history.state, '', location.pathname + location.search); // the phone's Back entries keep their state
 }
 
+// The page's copy of a task: lean, and on the phone only its latest turns whole (the rest are
+// stubs a folded row can show) until something needs them all (wholeTask).
+const taskUrl = (id) => `/sessions/${id}?lean=1${MOBILE && !S.nodes.get(id)?.whole ? `&turns=${VISIBLE_TURNS}` : ''}`;
+export function wholeTask(id) {
+  const n = S.nodes.get(id);
+  if (!n || n.whole) return;
+  n.whole = true;
+  if (S.open.has(id)) fetchFull(id);
+}
+
 export async function fetchFull(id) {
   let s;
   try {
-    s = await api(`/sessions/${id}`);
+    s = await api(taskUrl(id));
   } catch (err) {
     // Gone on the server: close it. Anything else is the connection (a phone back from the
     // background waits for its tunnel): keep it open and try again, or its body says Loading
@@ -685,8 +771,14 @@ export async function fetchFull(id) {
   const fresh = !S.full.has(id);
   S.full.set(id, s);
   renderBody(id, { fresh });
-  bus.emit('task', id);
+  fetched(id);
   if (fresh) backToPlace(id); // it was loading when it opened, or failed and came back
+}
+
+// The open task's copy just came from the server (fetched now, or by the press that opened it).
+function fetched(id) {
+  const s = S.full.get(id);
+  bus.emit('task', id);
   if (s.unread && s.state !== 'running' && document.hasFocus()) api(`/sessions/${id}`, { method: 'PATCH', body: { unread: false } }).catch(() => {});
 }
 

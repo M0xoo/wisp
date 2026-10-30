@@ -199,7 +199,7 @@ body.sp-comfy #feed .it-head { padding-top: 15px; padding-bottom: 15px; }
   .sp-try { left: 12px; right: 12px; translate: none; top: 62px; }
   .sp-castrow { flex-direction: column; align-items: stretch; }
   /* bar buttons fold to their icon (a button without one keeps its label) */
-  .sp-lbar .sp-btn:has(.i) > span, .sp-cbar .sp-btn:has(.i) > span { display: none; }
+  .sp-lbar .sp-btn.has-i > span, .sp-cbar .sp-btn.has-i > span { display: none; }
   .sp-lbar .sp-btn, .sp-cbar .sp-btn { padding: 0 7px; }
 }
 

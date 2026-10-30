@@ -32,7 +32,9 @@ narrow browser's under the media query (the reply box's mode button is icon-only
 ## Touch
 
 - In the app, touch targets are at least 44px (an invisible `::before` can grow a 32px pill's hit
-  area). Buttons get a press state (`scale(0.96)`), rows an active background.
+  area). Buttons get a press state (`scale(0.96)`), rows an active background. In the app it shows as
+  the finger goes down (`.pressed`, `web/js/ui/press.js`), not when it lifts as `:active` does: style
+  both (`:is(:active, .pressed)`).
 - Menus, the project list and search's rows are 44px on any touch screen (`@media (pointer: coarse)`,
   `responsive.css`), not only in the app: a phone browser's thumb is the same size.
 - Search (⌘K's palette) is a sheet from the top on a narrow screen, as tall as the screen allows, so

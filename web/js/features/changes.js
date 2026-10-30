@@ -14,6 +14,7 @@ import { popover } from '../ui/popover.js';
 import { toast } from '../ui/toast.js';
 import { agentName } from './runners.js';
 import { spellProp } from './spells.js';
+import { wholeTask } from './feed.js';
 
 const SHOWN_LINES = 300; // a file's diff past this waits for Show more
 const SHOWN_FILES = 200;
@@ -34,6 +35,7 @@ const setOf = (m, id) => m.get(id) || (m.set(id, new Set()), m.get(id));
 function captured(id, root) {
   const s = S.full.get(id);
   if (!s) return null;
+  if (s.turns?.some((t) => t.stub)) wholeTask(id); // the phone's copy has only the latest turns' edits: the rest follow (bus 'task')
   const strip = (p) => (root && p.startsWith(`${root}/`) ? p.slice(root.length + 1) : p);
   const by = new Map();
   for (const t of s.turns || [])

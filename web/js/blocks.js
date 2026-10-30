@@ -113,7 +113,22 @@ R.hero = (b, ctx) => {
     </div>`);
 };
 
-R.markdown = (b) => el(`<div class="b-md prose">${md(b.text || '')}</div>`);
+R.markdown = (b) => chunked(el(`<div class="b-md prose">${md(b.text || '')}</div>`));
+
+// An answer of hundreds of KB on the phone: its parts go in big chunks that the WebView only lays
+// out and paints near the screen (blocks.css .md-chunk), so opening it doesn't freeze the page.
+const CHUNK = 60;
+function chunked(node) {
+  const kids = [...node.children];
+  if (!MOBILE || kids.length < CHUNK * 2) return node;
+  for (let i = 0; i < kids.length; i += CHUNK) {
+    const c = document.createElement('div');
+    c.className = 'md-chunk';
+    c.append(...kids.slice(i, i + CHUNK));
+    node.append(c);
+  }
+  return node;
+}
 
 R.steps = (b) => {
   const items = b.items || [];

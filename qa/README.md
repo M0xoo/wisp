@@ -40,9 +40,23 @@ so a wisp.app you have open keeps its single-instance lock.
 | web | 4493 (`QA_WEB_PORT`) |
 | desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
 | mobile | 4540–4549 |
+| mobile-perf | 4550 (`PERF_PORT`) |
 | grid | 8090 (`QA_GRID_PORT`) |
 
 They can run at the same time.
+
+## Speed in the phone app
+
+`node qa/mobile-perf.mjs` times page changes as the app's WebView sees them (Done unfolded, tasks
+opened and left with Back, New task) on a laptop, a slowed CPU (`pixel`) and a far-away tunnel
+(`remote`: 250 ms per request, 5 Mbit/s; `bad`: 600 ms, 1 Mbit/s): tap to painted frame, the slow frames and the scripts in
+them, the requests, the buttons in a task and the top bar, how soon a touched button or row looks
+pressed, and a CPU profile's top functions, in `qa/out/mobile-perf.json`.
+`PERF_SESSIONS=~/.wisp/sessions` runs it on a copy of real tasks (and that wisp's projects).
+`PERF_STRESS=4000` with it clones them into 4,000 tasks plus a task of 400 turns and one with a
+huge prompt and answer (`qa/stress-data.mjs`), and adds the stress steps: those opened and read,
+the list flung, search typed into, a 130 KB prompt pasted, the connection lost and back. The `bad`
+profile is 600 ms per request at 1 Mbit/s.
 
 ## Results
 

@@ -158,6 +158,7 @@ export function openapi({ version, port }) {
             { name: 'cwd', in: 'query', schema: { type: 'string' }, description: 'Sessions in this folder or below' },
             { name: 'archived', in: 'query', schema: { type: 'boolean' } },
             { name: 'limit', in: 'query', schema: { type: 'integer' } },
+            { name: 'since', in: 'query', schema: { type: 'string' }, description: 'The token from an earlier answer with `since` (empty the first time): answers `{ token, changed, removed }`, only what changed since then, or `{ token, full }` when it can’t tell (another run of wisp, a filter)' },
             { name: 'here', in: 'query', schema: { type: 'boolean' }, description: "This wisp's own sessions only, not its machines' (what another wisp asks for)" },
           ],
           responses: { 200: json({ type: 'array', items: ref('Summary') }) },
@@ -166,7 +167,14 @@ export function openapi({ version, port }) {
       },
       '/sessions/{id}': {
         parameters: [id],
-        get: { summary: 'Full session record: turns, activity, captured edits, presentations', responses: { 200: json({ type: 'object' }), 404: err[404] } },
+        get: {
+          summary: 'Full session record: turns, activity, captured edits, presentations',
+          parameters: [
+            { name: 'lean', in: 'query', schema: { type: 'boolean' }, description: 'Leave out each captured edit’s `beforeFile` (the whole file before it; only rollback needs it)' },
+            { name: 'turns', in: 'query', schema: { type: 'integer' }, description: 'With `lean`: only the latest N turns whole; older ones are stubs (`stub: true`) with their prompt, times, status, mode, account and result title' },
+          ],
+          responses: { 200: json({ type: 'object' }), 404: err[404] },
+        },
         patch: {
           summary: 'Rename, mark done/review, mark read, archive',
           requestBody: body({ type: 'object', properties: { title: { type: 'string' }, state: { enum: ['done', 'review'] }, unread: { type: 'boolean' }, archived: { type: 'boolean' }, forLater: { type: ['boolean', 'number'], description: 'Save a finished task for later (true, or the time it was saved, to put it back in its place) or unsave it (false)' }, discardWorktree: { type: 'boolean', description: 'Remove the worktree and its uncommitted changes (a compare run you did not keep)' } } }),
