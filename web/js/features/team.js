@@ -12,7 +12,7 @@ import { HERE, here, S } from '../core/state.js';
 import { popover } from '../ui/popover.js';
 import { toast, toastError, tryApi } from '../ui/toast.js';
 import { draftInto } from './composer.js';
-import { reveal, scheduleRefetch } from './feed.js';
+import { scheduleRefetch } from './feed.js';
 import { connectMachine, openMachines } from './machines.js';
 import { placeMenu } from './place-menu.js';
 import { MACHINE_STATE, machineById, placeName } from './places.js';
@@ -20,6 +20,7 @@ import { runnerPicker } from './runner-picker.js';
 import { agentById, agentName, effortLabel, harnessesAt, harnessLogo, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { ctxFor } from './turns.js';
 import { avatarHtml, crewList, memberById } from './crew.js';
+import { onSubSummary, openFrom, openSub } from './lineage.js';
 
 const MAX_TEAM = 6; // rows
 const MAX_COPIES = 5; // parallel copies of one row
@@ -491,8 +492,8 @@ export function teamLiveHtml(s, t) {
       const hero = ct?.presentation?.blocks?.find((b) => b.type === 'hero');
       const last = ct?.activity?.findLast((a) => a.kind !== 'text')?.label;
       const st = subStatus(ct);
-      // A crew member's job is a task of its own: the row opens it.
-      const open = d.crew ? ` data-open="${esc(d.sessionId)}" role="link" tabindex="0" title="${esc(`Open @${d.name}’s task`)}"` : '';
+      // Every row opens the delegate's run by itself (a crew member's job is a task of its own).
+      const open = ` data-open="${esc(d.sessionId)}" role="link" tabindex="0" title="${esc(d.crew ? `Open @${d.name}’s job` : `Open @${d.name}’s task`)}"`;
       return `<div class="tl-row ${running ? 'live' : `st-${st.cls}`}${open ? ' opens' : ''}" data-sub="${esc(d.sessionId)}"${open}>
         <span class="tl-logo${d.crew ? ' crew' : ''}">${faceOf(d, 22, { state: running ? 'live' : 'idle' })}</span>
         <b class="tl-name">@${esc(d.name)}</b>
@@ -504,14 +505,19 @@ export function teamLiveHtml(s, t) {
     .join('')}</div>`;
 }
 
-// A crew delegation's live row and its report's link open the member's job.
+// A delegation's live row and its report's Open link open the delegate's run as a task of its own,
+// with its lead above it to go back to (lineage.js).
 const openJob = (e) => {
-  const at = e.target.closest('.tl-row[data-open], .sub-open[data-open]');
+  const at = e.target.closest('.tl-row[data-open], .sub-open[data-open], .sub-go[data-open]');
   if (!at || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
   e.preventDefault();
-  if (S.sessions.has(at.dataset.open)) reveal(at.dataset.open);
-  else toast('That job isn’t here anymore.', { tone: 'bad' });
+  e.stopPropagation();
+  openDelegate(at.closest('.item[data-id]')?.dataset.id, at.dataset.open);
 };
+function openDelegate(leadId, id) {
+  if (S.sessions.has(id)) return openFrom(id, leadId); // a crew member's job
+  openSub(leadId, S.full.get(leadId)?.childSessions?.[id]);
+}
 document.addEventListener('click', openJob);
 document.addEventListener('keydown', (e) => {
   if (e.target.matches?.('.tl-row[data-open]')) openJob(e);
@@ -552,11 +558,12 @@ export function renderSubs(s, t) {
             ${icon('chevron', 'chev')}
           </span>
         </button>
+        <button class="icon-btn sub-go" data-open="${esc(d.sessionId)}" title="${esc(d.crew ? `Open @${d.name}’s job` : `Open @${d.name}’s task`)}" aria-label="${esc(d.crew ? `Open @${d.name}’s job` : `Open @${d.name}’s task`)}">${icon('arrow')}</button>
         <div class="sub-body" ${subOpen.has(d.id) ? '' : 'hidden'}></div>
       </article>`);
     const body = $('.sub-body', card);
     const fill = () => {
-      body.innerHTML = `<div class="sub-task"><span>Task from ${esc(agentName(s.agent))}${d.crew ? `<button class="link xs sub-open" data-open="${esc(d.sessionId)}">Open @${esc(d.name)}’s job${icon('arrow')}</button>` : ''}</span><p>${esc(d.prompt)}</p></div>`;
+      body.innerHTML = `<div class="sub-task"><span>Task from ${esc(agentName(s.agent))}<button class="link xs sub-open" data-open="${esc(d.sessionId)}">Open @${esc(d.name)}’s ${d.crew ? 'job' : 'task'}${icon('arrow')}</button></span><p>${esc(d.prompt)}</p></div>`;
       if (ct?.presentation && child) {
         // Its "next" and question blocks draft into the lead's composer: the lead stays in charge.
         const ctx = { ...ctxFor(child, ct, false), reply: (text) => draftInto(s.id, `Ask @${d.name} to: ${text}`), draft: (text) => draftInto(s.id, `Ask @${d.name} to: ${text}`) };
@@ -580,6 +587,7 @@ export function renderSubs(s, t) {
 // A subagent's summary: its lead's card shows it, so update the live line or re-fetch the lead.
 const childState = new Map();
 export function onChildSummary(c) {
+  if (onSubSummary(c)) scheduleRefetch(c.id); // opened by itself too
   const row = $(`.tl-row[data-sub="${CSS.escape(c.id)}"] .tl-live`);
   if (row && c.state === 'running' && c.live) row.textContent = c.live;
   if (childState.get(c.id) !== c.state) {
