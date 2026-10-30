@@ -20,14 +20,14 @@ fs.mkdirSync(FRAMES, { recursive: true });
 const w = await start();
 const { chromium } = playwright();
 const browser = await chromium.launch({ executablePath: CHROME });
-const ctx = await browser.newContext({ viewport: { width: 1024, height: 720 }, deviceScaleFactor: 2, colorScheme: process.env.THEME || 'light' });
+const ctx = await browser.newContext({ viewport: { width: 1024, height: 720 }, deviceScaleFactor: 2, colorScheme: process.env.THEME || 'dark' });
 const p = await ctx.newPage();
 await p.goto(w.url);
 await p.waitForSelector('.cr-member .cr-row');
 // A task already at work, and Claude Code picked in the launcher (Auto would run a scout first).
 await api(w.url, '/api/sessions', { prompt: 'Migrate billing to the v2 API, keep the webhooks on v1 for now', cwd: w.cwd, agent: 'claude' });
 await p.click('.runner-btn');
-await p.getByText('Claude Code').first().click();
+await p.locator('.picker').getByText('Claude Code').first().click();
 await p.keyboard.press('Escape');
 await p.evaluate(() => document.activeElement?.blur());
 await p.waitForTimeout(1500);
@@ -126,7 +126,7 @@ mark('sent');
 await wait(1200);
 
 await caption('Agents ask when they need you');
-await p.waitForFunction(() => /Asks:/.test(document.querySelector('.sidebar, #sidebar, aside')?.innerText || document.body.innerText), null, { timeout: 15000 });
+await p.waitForFunction(() => /Asks:/.test(document.body.innerText), null, { timeout: 15000 });
 await click('article.item:has-text("rate limiting")');
 await p.waitForSelector('button.opt:visible:has-text("Yes, behind nginx")', { timeout: 10000 }).catch(async (e) => (await p.screenshot({ path: path.join(OUT, 'fail.png') }), Promise.reject(e)));
 await wait(1400);
