@@ -26,6 +26,7 @@ import { termPill } from './term.js';
 import { goalPill } from './goal.js';
 import { aheadLabel, isScheduled, laterLine, laterPill, laterTip, nextAt, planRows } from './later.js';
 import { crewDot, crewFace, memberById, paintCrew, pinJob, underMember } from './crew.js';
+import { openUnlisted, pruneSubs, subsUnder } from './lineage.js';
 import { backToPlace, goBack, goHome, isSplit, isStacked, keepPlace, paintHead, paintSplit, sidebar, splitOpen } from './split.js';
 
 // A run held near the limit (features/hold.js), on its row: the window, and when it goes by itself.
@@ -68,6 +69,7 @@ export function groups() {
   const seen = new Set();
   for (const s of visible([...S.sessions.values()])) {
     if (underMember(s)) continue; // a crew job for another task: under its member (crew.js)
+    if (s.parentId) continue; // a subagent opened by itself: under its lead (lineage.js)
     const t = taskOf(s);
     if (t.runs && seen.has(t.key)) continue;
     if (t.runs) seen.add(t.key);
@@ -137,18 +139,27 @@ function paintFold(sec) {
 // The cards of `list` in `box`, in order. Only what changed moves: moving a node would blur a
 // composer the user is typing in (and replay entrances).
 export function placeCards(box, list) {
-  list.forEach((s, i) => {
-    const { card } = s.runs ? taskItem(s) : item(s);
+  const cards = list.flatMap(withSubs);
+  cards.forEach((card, i) => {
     if (box.children[i] !== card) box.insertBefore(card, box.children[i] || null);
   });
-  while (box.children.length > list.length) box.lastElementChild.remove();
+  while (box.children.length > cards.length) box.lastElementChild.remove();
 }
+
+// A task's card, then the rows of its subagents opened by themselves (lineage.js), nested under it.
+const runIds = (t) => (t.runs || [t]).map((r) => r.id);
+function withSubs(t) {
+  const subs = runIds(t).flatMap(subsUnder);
+  return [(t.runs ? taskItem(t) : item(t)).card, ...subs.map((c) => item(c).card)];
+}
+const subOpen = (t) => runIds(t).some((id) => subsUnder(id).some((c) => S.open.has(c.id)));
 
 // The rows' third line names harnesses and models from the harness list, which can land after
 // the first paint (a cold start, the phone's cached page): repaint then, so no row keeps a raw id.
 bus.on('agents', () => renderFeed());
 
 export function renderFeed() {
+  pruneSubs();
   const { needs, working, scheduled, forLater, done, archived } = groups();
   // extra: rows that aren't tasks (Scheduled's plans), placed among them by their time.
   const place = (sec, list, extra = []) => {
@@ -159,14 +170,14 @@ export function renderFeed() {
     $('h4 .n', sec).textContent = list.length + extra.length || '';
     const cap = page[sec.id] ?? list.length;
     // A folded section in split view keeps the task open beside it: its body hangs off that row.
-    const want = show ? list.slice(0, cap) : isSplit() ? list.filter((t) => (t.runs || [t]).some((r) => S.open.has(r.id))) : [];
+    const want = show ? list.slice(0, cap) : isSplit() ? list.filter((t) => (t.runs || [t]).some((r) => S.open.has(r.id)) || subOpen(t)) : [];
     const more = $('.f-more', sec);
     if (more) {
       const left = show ? list.length - want.length : 0;
       more.hidden = left <= 0;
       more.textContent = `Show ${Math.min(left, PAGE)} more · ${left} left`;
     }
-    const nodes = want.map((s) => (s.runs ? taskItem(s) : item(s)).card);
+    const nodes = want.flatMap(withSubs);
     if (show && extra.length) {
       const at = (n) => Number(n.dataset.at) || S.sessions.get(n.dataset.id)?.later?.[0]?.at || 0;
       nodes.push(...extra);
@@ -199,7 +210,7 @@ export function renderFeed() {
   const crewShown = paintCrew();
   // Drop nodes for sessions that are gone or filtered out of the feed entirely.
   const tasks = [...needs, ...working, ...scheduled, ...forLater, ...done, ...archived, ...crewShown];
-  const shown = new Set(tasks.flatMap((s) => (s.runs || [s]).map((r) => r.id)));
+  const shown = new Set(tasks.flatMap((s) => (s.runs || [s]).flatMap((r) => [r.id, ...subsUnder(r.id).map((c) => c.id)])));
   for (const [id, n] of S.nodes) if (!shown.has(id)) (n.card.remove(), S.nodes.delete(id), S.full.delete(id), kept.delete(id));
   const keys = new Set(tasks.map((t) => t.key));
   for (const [key, g] of S.tasks) if (!keys.has(key)) (g.card.remove(), S.tasks.delete(key));
@@ -302,7 +313,7 @@ function item(s) {
     });
     n.head.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      if (s.pending) return;
+      if (s.pending || S.sessions.get(s.id)?.parentId) return; // a subagent's row: its lead's menu acts for it
       setFocus(s.id, { scroll: false });
       taskMenu(s.id, e);
     });
@@ -331,7 +342,7 @@ function renderHead(n, s) {
   // In Scheduled, the time column is when its follow-up goes (and there's no pill for it).
   const sched = isScheduled(s);
   const swipe = [...n.card.classList].filter((c) => c === 'swiping' || c === 'sw-gone').join(' '); // a refresh mid-swipe (swipe.js) keeps it
-  n.card.className = `item ${s.pending ? 'pending' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''} ${swipe}`;
+  n.card.className = `item ${s.pending ? 'pending' : ''} ${s.parentId ? 'is-sub' : ''} c-${s.color} st-${s.state} ${s.unread ? 'unread' : ''} ${open ? 'open' : ''} ${S.focus === s.id ? 'focused' : ''} ${swipe}`;
   paintHtml(n.head, `
     ${(s.crew && crewDot(s)) || (s.kind === 'reminder' ? `<span class="q-dot auto">${icon('bell')}</span>` : qDot(s))}
     <span class="it-main">
@@ -405,14 +416,14 @@ export function qDot(s, { ring = true } = {}) {
 // a swipe marks done, so rows there keep neither the check nor its space.
 function quickDone(s, open) {
   if (swipesDone()) return '';
-  if (s.state === 'review' && !s.archived && (!open || isSplit())) return `<span class="it-quick" data-a="quick-done" title="Mark done (E)" aria-hidden="true">${icon('done')}</span>`; // a pointer shortcut inside the row's button: keys have E, the task's bar has Mark done
+  if (s.state === 'review' && !s.parentId && !s.archived && (!open || isSplit())) return `<span class="it-quick" data-a="quick-done" title="Mark done (E)" aria-hidden="true">${icon('done')}</span>`; // a pointer shortcut inside the row's button: keys have E, the task's bar has Mark done
   return '<span class="it-quick-gap" aria-hidden="true"></span>';
 }
 
 // Save for later beside Mark done: triage is one click either way. Every row keeps its place so
 // the columns line up; touch has no hover, so there it isn't drawn at all (feed.css).
 function quickLater(s, open) {
-  if (s.pending || s.archived || (open && !isSplit())) return '<span class="it-later-gap" aria-hidden="true"></span>';
+  if (s.pending || s.archived || s.parentId || (open && !isSplit())) return '<span class="it-later-gap" aria-hidden="true"></span>'; // a subagent's row: its lead is the task
   if (isForLater(s)) return `<button class="it-later on" data-a="quick-later" title="Unsave (L)" aria-label="Unsave">${icon('bookmark')}</button>`;
   if (s.state === 'review') return `<button class="it-later" data-a="quick-later" title="Save for later (L)" aria-label="Save for later">${icon('bookmark')}</button>`;
   return '<span class="it-later-gap" aria-hidden="true"></span>';
@@ -630,6 +641,8 @@ export function collapse(id) {
   syncUrl();
   // A folded section only kept its row while it was open.
   if (n?.card.closest('.f-group.collapsed')) renderFeed();
+  // Subagent rows leave with their lead: checked once whatever opens next is open.
+  else queueMicrotask(() => pruneSubs() && renderFeed());
 }
 
 // The address names the open task (#/s/<id>), so a reload or a
@@ -689,11 +702,13 @@ export const sectionOf = (s) => {
 
 // Bring an item into view, expanded — used by notifications and links.
 export function reveal(id) {
-  const s = S.sessions.get(id);
-  if (!s) return;
+  const sub = S.sessions.get(id);
+  if (!sub) return void openUnlisted(id); // a subagent's run, from a link: under its lead
+  // A subagent opened by itself sits under its lead: the lead's section and project show it.
+  const s = (sub.parentId && S.sessions.get(sub.parentId)) || sub;
   // A crew job for another task opens under the member (Crew unfolded), wherever it is in its life.
   const crew = underMember(s);
-  if (crew) pinJob(id);
+  if (crew) pinJob(s.id);
   const sec = crew ? 'secCrew' : { needs: 'secNeeds', working: 'secWorking', scheduled: 'secScheduled', forLater: 'secForLater', done: 'secDone', archived: 'secArchived' }[sectionOf(s)];
   if (!sectionOpen(sec)) toggleSection(sec, true);
   if (S.filter !== 'all' && !inProject(s, S.filter)) {
@@ -704,7 +719,7 @@ export function reveal(id) {
   // A card further down than the pages shown so far: show pages up to it.
   if (sec in page) {
     const { forLater, done, archived } = groups();
-    const at = { secForLater: forLater, secDone: done, secArchived: archived }[sec].findIndex((t) => (t.runs || [t]).some((r) => r.id === id));
+    const at = { secForLater: forLater, secDone: done, secArchived: archived }[sec].findIndex((t) => (t.runs || [t]).some((r) => r.id === s.id));
     if (at >= page[sec]) page[sec] = Math.ceil((at + 1) / PAGE) * PAGE;
   }
   renderFeed();

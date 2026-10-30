@@ -156,6 +156,13 @@ export const PARTS = {
   'delegate.live': '.team-live .tl-row',
   'delegate.open': '.sub-task .sub-open',
   'task.from': '.ask .ask-from',
+  // A delegate's task opened by itself: the arrow on its report that opens it, its row under the
+  // lead in the list, the note in place of its follow-up box, and the open task's trail of the
+  // tasks above it (each opens that task).
+  'delegate.go': '.sub .sub-go',
+  'delegate.row': '#feed .item.is-sub',
+  'delegate.dock': '.it-body .sub-dock',
+  'split.trail': '#splitHead .sh-trail',
   'launcher.worktree': '#wtBtn',
   // Goal (Done when): the launcher's toggle and its line under the prompt.
   'launcher.goal': '#goalBtn',

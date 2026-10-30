@@ -143,6 +143,7 @@ export function renderBody(id, { fresh }) {
     $('.earlier', body).onclick = () => ((n.showAll = true), renderBody(id, { fresh: false }));
     wireGoalSlot($('.goal-slot', body), id);
     renderDock(id);
+    if (s.parentId) subDock(body, s);
     placePr(body);
   }
 
@@ -353,6 +354,18 @@ export function placePr(body) {
     const dock = $('.it-dock', body);
     if (dock.firstElementChild !== strip) dock.prepend(strip);
   }
+}
+
+// A subagent opened by itself: its lead hands it work, so instead of a follow-up box the dock
+// sends you to the lead (its Ship, Rerun and Done are the lead's too: hidden, subagents.css).
+function subDock(body, s) {
+  body.classList.add('is-sub');
+  const name = s.member ? `@${s.member}` : 'This delegate';
+  const go = el(`<div class="sub-dock"><span>${icon('agent')}${esc(name)} takes work from its lead: ask it more from there.</span><button class="ghost xs">${icon('back')}<span>Go to the lead</span></button></div>`);
+  $('button', go).onclick = () => {
+    revealTask(s.parentId);
+  };
+  $('.it-dock', body).append(go);
 }
 
 // The full transcript or the presentation, for one card. The turn being read keeps its place: its

@@ -18,7 +18,7 @@
 
 import { esc } from '../md.js';
 import * as bus from '../core/bus.js';
-import { $, $$, beforePaint, icon } from '../core/dom.js';
+import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { inGrid, isForLater, load, MOBILE, needsYou, S, save } from '../core/state.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
@@ -34,6 +34,7 @@ import { leavePlan, paintPlan, planShown } from './plan-view.js';
 import { leaveStuff, paintStuff, stuffShown } from './stuff.js';
 import { openUpcoming, upcoming, upcomingByDay, upcomingRow } from './later.js';
 import { paintGoal } from './goal.js';
+import { backTarget, trailOf } from './lineage.js';
 import { planLine } from './budget.js';
 import { feedbackOn, openFeedback } from './feedback.js';
 
@@ -108,6 +109,9 @@ export function goHome({ focus = true } = {}) {
 // Back (Esc, the head's ×, the stacked page's Back, the phone's Back): a crew job goes back to its
 // member's thread, the thread home. Stacked, home is the list.
 export function goBack({ focus = false } = {}) {
+  // A delegate's task goes back up to the task it was opened from (its lead), wherever it is.
+  const up = splitOpen() && backTarget(splitOpen());
+  if (up) return void reveal(up);
   if (crewBack()) return;
   if (!isStacked()) return goHome({ focus });
   leaveCrew();
@@ -399,9 +403,9 @@ export function paintHead(s) {
   const stacked = isStacked();
   const html = `
     <div class="sh-row">
-      ${stacked ? backBtn(s) : crumb(s) || qDot(s)}
+      ${stacked ? backBtn(s) : ''}${trailHtml(s)}${stacked ? '' : crumb(s) || (trailOf(s).length ? '' : qDot(s))}
       <h2 class="sh-title" title="${MOBILE ? '' : 'Rename (M)'}">${esc(s.title)}</h2>
-      <span class="sh-acts">${slotHtml('split.head', s)}${panelBtn()}${stacked ? '' : `<button class="icon-btn sh-close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}</span>
+      <span class="sh-acts">${slotHtml('split.head', s)}${panelBtn()}${stacked ? '' : `<button class="icon-btn sh-close" title="${esc(closeLabel(s))}" aria-label="Close">${icon('x')}</button>`}</span>
     </div>`;
   if (h.dataset.h !== html) (h.innerHTML = html), (h.dataset.h = html);
   paintDetails(s, pill);
@@ -416,9 +420,48 @@ function panelBtn() {
 }
 
 function backBtn(s) {
-  const m = s?.crew && S.crewOpen === s.crew.id && !isForLater(s) && memberById(s.crew.id);
-  const label = m ? `Back to ${m.name}` : 'Back to tasks';
+  const up = backTarget(s.id);
+  const m = !up && s?.crew && S.crewOpen === s.crew.id && !isForLater(s) && memberById(s.crew.id);
+  const label = up ? `Back to “${S.sessions.get(up).title}”` : m ? `Back to ${m.name}` : 'Back to tasks';
   return `<button class="icon-btn sh-back" title="${esc(label)}" aria-label="${esc(label)}">${icon('back')}</button>`;
+}
+
+const closeLabel = (s) => {
+  const up = backTarget(s.id);
+  return up ? `Back to “${S.sessions.get(up).title}” (Esc)` : 'Close: back to New task (Esc)';
+};
+
+// The tasks above a delegate's task (its lead, the task a crew job was done for, and theirs), each
+// a way up: the nearest one by name, any further up behind "…". Esc goes back one.
+function trailHtml(s) {
+  const t = trailOf(s);
+  if (!t.length) return '';
+  const near = t.at(-1);
+  const up = (p, cls = '') =>
+    p.here
+      ? `<button class="sh-up${cls}" data-up="${esc(p.id)}" title="${esc(p.id === backTarget(s.id) ? `Back to “${p.title}” (Esc)` : `Open “${p.title}”`)}">${icon('agent')}<span>${esc(p.title)}</span></button>`
+      : `<span class="sh-up off${cls}" title="${esc(`“${p.title}” isn’t here anymore`)}">${icon('agent')}<span>${esc(p.title)}</span></span>`;
+  const more = t.length > 1 ? `<button class="sh-up more" data-trail aria-haspopup="menu" title="${esc(t.slice(0, -1).map((p) => p.title).join(' › '))}">…</button>${icon('chevron', 'sh-sep')}` : '';
+  return `<nav class="sh-trail" aria-label="Delegated from">${more}${up(near)}${icon('chevron', 'sh-sep')}</nav>`;
+}
+
+// "…": every task further up, the top one first.
+function trailMenu(btn) {
+  const s = S.sessions.get(splitOpen());
+  const t = s ? trailOf(s).slice(0, -1) : [];
+  if (!t.length) return;
+  const r = btn.getBoundingClientRect();
+  const menu = el(`<div class="menu trail-menu" role="menu" style="top:${r.bottom + 6}px;left:${r.left}px">
+      ${t.map((p, i) => `<button role="menuitem" ${p.here ? `data-up="${esc(p.id)}"` : 'disabled'} style="padding-left:${10 + i * 12}px">${icon('agent')}<span>${esc(p.title)}</span></button>`).join('')}
+    </div>`);
+  menu.onclick = (e) => {
+    const b = e.target.closest('button[data-up]');
+    if (!b) return;
+    close();
+    reveal(b.dataset.up);
+  };
+  const close = popover(menu, { anchor: btn });
+  menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - 8 - menu.offsetWidth))}px`;
 }
 
 // A crew member's job: the member, as a way back to its thread (Esc too).
@@ -550,6 +593,10 @@ $('#splitNew').onclick = () => goHome();
 $('#splitHead').addEventListener('click', (e) => {
   if (e.target.closest('.sh-close')) return goBack({ focus: true });
   if (e.target.closest('.sh-back')) return goBack();
+  const up = e.target.closest('[data-up]');
+  if (up) return reveal(up.dataset.up);
+  const more = e.target.closest('[data-trail]');
+  if (more) return trailMenu(more);
 });
 $('#splitHead').addEventListener('dblclick', (e) => {
   const id = $('#splitHead').dataset.id;

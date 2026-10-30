@@ -114,7 +114,7 @@ test('comments on an answer (the tray, the block button, the bubble, the card, t
 test('the follow-up box’s Delegate button and the Delegate popover are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'composer.team': { hide: true } } }), []);
   // The Delegate popover: its lead strip and the delegates' place chips can be restyled or hidden.
-  assert.deepEqual(problems({ ...base0, parts: { 'delegate.lead': { hide: true }, 'delegate.place': { style: { color: 'red' } }, 'delegate.panel': { style: { color: 'red' } }, 'delegate.live': { style: { color: 'red' } }, 'delegate.open': { hide: true }, 'task.from': { hide: true } } }), []);
+  assert.deepEqual(problems({ ...base0, parts: { 'delegate.lead': { hide: true }, 'delegate.place': { style: { color: 'red' } }, 'delegate.panel': { style: { color: 'red' } }, 'delegate.live': { style: { color: 'red' } }, 'delegate.open': { hide: true }, 'task.from': { hide: true }, 'delegate.go': { hide: true }, 'delegate.row': { style: { color: 'red' } }, 'delegate.dock': { hide: true }, 'split.trail': { style: { color: 'red' } } } }), []);
   assert.deepEqual(normalizeSpell({ ...base0, parts: { 'composer.team': { style: { color: 'red' } } } }).spell.parts['composer.team'].style, { color: 'red' });
 });
 

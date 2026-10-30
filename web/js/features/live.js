@@ -20,6 +20,7 @@ import { openSettings } from './settings.js';
 import { renderPrStrip } from './ship.js';
 import { renderOverlapStrip } from './overlaps.js';
 import { onChildSummary } from './team.js';
+import { keepSubs } from './lineage.js';
 import { onActivity } from './turns.js';
 import { applySpells, spellEvent } from './spells.js';
 import { loadUpdate, renderUpdate } from './update.js';
@@ -135,7 +136,9 @@ document.addEventListener('visibilitychange', () => {
 
 export const loadSessions = shared(async () => {
   const list = await api('/sessions');
+  const prev = S.sessions;
   S.sessions = new Map(list.filter((s) => !S.deleting.has(s.id)).map((s) => [s.id, s]));
+  keepSubs(prev); // subagents opened by themselves aren't in the list
   for (const id of S.open) if (!S.sessions.has(id)) S.open.delete(id);
   saveOpen();
   keepInPlace(feedAnchor(), renderFeed);
