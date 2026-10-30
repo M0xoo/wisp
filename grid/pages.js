@@ -804,6 +804,7 @@ export function shareViewPage({ share, task, run = null, look }) {
   </main>
   <aside class="sv-side it-bar" id="svSide"><i class="sk sk-pill"></i><i class="sk sk-line"></i><i class="sk sk-line short"></i></aside>
 </div>
+<div class="toasts" id="toasts"></div>
 <script type="application/json" id="shareData">${json}</script>
 <script type="module" src="/js/share-view.js"></script>
 </body></html>`;

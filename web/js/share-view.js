@@ -7,6 +7,7 @@
 import { esc, md } from './md.js';
 import { el, icon, renderPresentation } from './blocks.js';
 import { DAY_TIME, fmtDate, STATUS_LABEL } from './core/format.js';
+import { toast } from './ui/toast.js';
 
 const data = JSON.parse(document.getElementById('shareData').textContent);
 const { share, task, run, base } = data;
@@ -21,15 +22,9 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const heroOf = (t) => (t?.presentation?.blocks || []).find((b) => b?.type === 'hero');
 const statusOf = (t) => (t?.status === 'error' ? 'blocked' : t?.status === 'stopped' ? 'partial' : heroOf(t)?.status || 'done');
 
-// Buttons in a report (Next, actions) act on the task in wisp: here they say how to get it there.
-let hintTimer = 0;
-function hint() {
-  const h = document.querySelector('.sv-hint') || document.body.appendChild(el('<div class="sv-hint toast" role="status"></div>'));
-  h.innerHTML = `${icon('info')}<span>Import the task into wisp to carry it on: copy the link and paste it in New task.</span>`;
-  h.hidden = false;
-  clearTimeout(hintTimer);
-  hintTimer = setTimeout(() => (h.hidden = true), 4200);
-}
+// Buttons in a report (Next, actions) act on the task in wisp: here a toast, wisp's own, says how
+// to get it there, with the link to copy.
+const hint = () => toast('Import the task into wisp to carry it on: copy the link and paste it in New task.', { action: { label: 'Copy link', run: copyLink } });
 const ctxFor = (t) => ({ session: { id: `share-${share.id}`, turns: [] }, turn: t, isLatest: false, reply: hint, draft: hint });
 
 // A turn's delegated runs: the lead's "N delegated tasks" cards, each opening its run's page.
@@ -113,9 +108,7 @@ function render() {
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView({ block: 'start' });
 }
 
-document.addEventListener('click', async (e) => {
-  const b = e.target.closest('.sv-copy');
-  if (!b) return;
+async function copyLink() {
   try {
     await navigator.clipboard.writeText(share.url);
   } catch {
@@ -127,6 +120,10 @@ document.addEventListener('click', async (e) => {
   }
   for (const x of document.querySelectorAll('.sv-copy span')) x.textContent = 'Copied: paste it in wisp';
   setTimeout(() => document.querySelectorAll('.sv-copy span').forEach((x) => (x.textContent = 'Copy link')), 2200);
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.sv-copy')) copyLink();
 });
 
 render();
