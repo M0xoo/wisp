@@ -133,9 +133,11 @@ body.wisp-mobile .topbar .brand:active { opacity: 0.6; }
 body.wisp-mobile .topbar .me-btn .sf-av { width: 30px; height: 30px; font-size: 13px; }
 body.wisp-mobile .topbar .me-btn .sf-av.out { background: var(--surface); }
 body.wisp-mobile .topbar .me-btn .sf-av .i { width: 16px; height: 16px; }
-body.wisp-mobile .topbar .search-btn { position: relative; color: var(--ink-2); }
-body.wisp-mobile .topbar .search-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); z-index: -1; }
-body.wisp-mobile .topbar .search-btn .i { width: 16px; height: 16px; }
+body.wisp-mobile .topbar :is(.search-btn, .stuff-top) { position: relative; color: var(--ink-2); }
+body.wisp-mobile .topbar :is(.search-btn, .stuff-top)::after { content: ''; position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; translate: -50% -50%; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line-2); z-index: -1; }
+body.wisp-mobile .topbar :is(.search-btn, .stuff-top) .i { width: 16px; height: 16px; }
+/* Pressed while My Stuff is open. */
+body.wisp-mobile .topbar .stuff-top.on { color: var(--accent); }
 body.wisp-mobile .launcher :is(.icon-btn, .tog-btn, .mode-btn, .send) { min-width: 44px; height: 44px; }
 body.wisp-mobile .launcher .runners { height: 46px; }
 body.wisp-mobile .launcher .runners .runner-btn { height: 44px; }

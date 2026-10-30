@@ -737,10 +737,15 @@ export function leaveStuff() {
   save('wisp.stuffOpen', false);
 }
 
-$('#splitStuff')?.addEventListener('click', () => {
-  if (stuffShown()) goBack();
-  else openStuff();
-});
+for (const b of $$('#splitStuff, #stuffTop')) {
+  b.addEventListener('click', () => {
+    if (stuffShown()) goBack();
+    else openStuff();
+  });
+}
+// The phone app hides the box beside New task (the floating New task stands in for that row), so
+// My Stuff sits in its top bar instead.
+if (MOBILE) $('#stuffTop')?.removeAttribute('hidden');
 
 // --- what's shown -----------------------------------------------------------------------------------
 
@@ -977,12 +982,12 @@ export function paintStuff() {
   paintBody();
 }
 
-// The box beside New task: pressed while the page is open.
+// The box beside New task (and the phone's top bar button): pressed while the page is open.
 function paintButton() {
-  const b = $('#splitStuff');
-  if (!b) return;
-  b.classList.toggle('on', stuffShown());
-  b.setAttribute('aria-pressed', stuffShown());
+  for (const b of $$('#splitStuff, #stuffTop')) {
+    b.classList.toggle('on', stuffShown());
+    b.setAttribute('aria-pressed', stuffShown());
+  }
 }
 
 function setHtml(node, html) {

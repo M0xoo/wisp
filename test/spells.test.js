@@ -284,7 +284,7 @@ test('Org: its button, page, chart, cards and details are parts; its header take
 test('My Stuff: its box, page, filters, cards and Save buttons are parts; its header takes buttons; view, group and cardWidth are props', () => {
   const ok = {
     ...base0,
-    parts: { 'stuff.button': { hide: true }, 'stuff.launch': { style: { borderRadius: '6px' } }, 'stuff.public': { hide: true }, 'stuff.block.public': { hide: true }, 'stuff.frame.publish': { hide: true }, 'stuff.page': { style: { background: 'var(--surface)' } }, 'stuff.filters': { hide: true }, 'stuff.card': { style: { borderRadius: '6px' } }, 'stuff.save': { hide: true } },
+    parts: { 'stuff.button': { hide: true }, 'stuff.topButton': { hide: true }, 'stuff.launch': { style: { borderRadius: '6px' } }, 'stuff.public': { hide: true }, 'stuff.block.public': { hide: true }, 'stuff.frame.publish': { hide: true }, 'stuff.page': { style: { background: 'var(--surface)' } }, 'stuff.filters': { hide: true }, 'stuff.card': { style: { borderRadius: '6px' } }, 'stuff.save': { hide: true } },
     buttons: [{ slot: 'stuff.head', icon: 'stuff', label: 'Moodboard', do: { open: 'https://example.com' } }],
   };
   assert.deepEqual(problems(ok), []);
