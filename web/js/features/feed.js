@@ -186,9 +186,13 @@ export function renderFeed() {
       nodes.sort((a, b) => at(a) - at(b));
     }
     nodes.forEach((card, i) => {
-      // Only touch the DOM when the order actually changed: moving a node
-      // would blur a composer the user is typing in.
-      if (box.children[i] !== card) box.insertBefore(card, box.children[i] || null);
+      // Only touch the DOM when the order actually changed: moving a node blurs what's focused in
+      // it, so that gets the focus back (the open task's terminal: Working to Needs you as its CLI
+      // ends, and the next key would be wisp's shortcut instead of the terminal's).
+      if (box.children[i] === card) return;
+      const had = card.contains(document.activeElement) ? document.activeElement : null;
+      box.insertBefore(card, box.children[i] || null);
+      had?.focus({ preventScroll: true });
     });
     while (box.children.length > nodes.length) box.lastElementChild.remove();
   };

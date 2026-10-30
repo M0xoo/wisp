@@ -15,7 +15,7 @@ import { $, el, icon } from '../core/dom.js';
 import { MOBILE, S } from '../core/state.js';
 import { esc } from '../md.js';
 import { toastError } from '../ui/toast.js';
-import { isSplit } from './split.js';
+import { isSplit, isStacked } from './split.js';
 import { agentName } from './runners.js';
 import { slotHtml, spellProp } from './spells.js';
 import { ask } from '../ui/confirm.js';
@@ -182,6 +182,24 @@ function tuiShow(id, { starting = false } = {}) {
   tuiView.focus();
   if (!starting && !t.es) connect(t);
   return t;
+}
+
+// The cell grid a terminal session started now gets: its terminal fills the task's body, which
+// lies on #splitStage's box. Sent with the launch, so the CLI draws its first screen at the size
+// it's shown at rather than reflowing a 100×30 one ({} when there's no pane to measure). From
+// home the stage is hidden: its box is the main pane's under where the task's header goes.
+let sizer = null;
+export function launchSize() {
+  if (!sizer) {
+    const host = el(`<div class="tui-term tm-sizer" aria-hidden="true" inert>${SCREEN_HTML}</div>`);
+    document.body.append(host);
+    sizer = new TermView(host);
+  }
+  const main = $('#splitMain').getBoundingClientRect();
+  const head = $('#splitHead').offsetHeight || (isStacked() ? 57 : 60);
+  Object.assign(sizer.root.style, { left: `${main.left}px`, top: `${main.top + head}px`, width: `${main.width}px`, height: `${main.height - head}px` });
+  sizer.root.classList.toggle('touch', TOUCH.matches || MOBILE);
+  return sizer.size();
 }
 
 // --- one terminal ---------------------------------------------------------------------------
