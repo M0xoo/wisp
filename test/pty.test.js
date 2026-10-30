@@ -3,6 +3,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -76,6 +77,16 @@ test('Terms: runs on a terminal, takes input and a new size, replays its output 
   assert.equal(terms.input('s1', 'x'), false);
   assert.ok(terms.close('s1'));
   assert.equal(terms.get('s1'), null);
+});
+
+test('Terms: a big paste goes in whole while the program prints (no hang)', { skip: win || !python() }, async () => {
+  const terms = new Terms({ track: null });
+  const t = terms.open('paste', { argv: ['cat'], cwd: tmp('pty-paste') });
+  let text = '';
+  for (let i = 0; i < 4000; i++) text += `pasted line ${i} ${'x'.repeat(40)}\r`;
+  terms.input('paste', text);
+  await waitFor(() => t.out.includes('pasted line 3999'), 15000);
+  terms.closeAll();
 });
 
 test('Terms: a Claude Code session that started wisp does not leak into its terminals', { skip: win || !python() }, async () => {
@@ -296,6 +307,66 @@ test('Screen: a resize keeps what is on screen and the cursor on it', () => {
   assert.equal(s.y, 1);
   s.resize(6, 4);
   assert.deepEqual(rows(s), ['a', 'b', 'c', 'd'], 'the scrollback comes back down');
+});
+
+test('Screen: a full scrollback drops its oldest rows and keeps scrolling in place', () => {
+  const s = new Screen(8, 3);
+  let out = '';
+  for (let i = 0; i < 5010; i++) out += `\x1b[${i % 2 ? 44 : 0}m${i}\r\n`;
+  s.write(out);
+  assert.equal(s.back.length, 5000);
+  assert.equal(s.dropped, 8);
+  assert.equal(s.text(s.back[0]), '8');
+  assert.equal(s.text(s.back.at(-1)), '5007');
+  assert.deepEqual(rows(s), ['5008', '5009', '']);
+  // The row that comes in at the bottom is blank, in the background in use (here: blue).
+  assert.ok(s.screen[2].c.every((c) => c === ' ') && s.screen[2].p.every((p) => p.bg === 4));
+  assert.equal(new Set([...s.back, ...s.screen]).size, 5003, 'no row is in two places');
+});
+
+test('Screen: synchronized output, focus reports and the modes a program asks about', () => {
+  const replies = [];
+  const s = new Screen(10, 3, { onReply: (r) => replies.push(r) });
+  s.write('\x1b[?2026h');
+  assert.ok(s.modes.sync && s.syncAt > 0);
+  s.write('\x1b[?2026$p\x1b[?2026l\x1b[?2026$p\x1b[?1004h\x1b[?1004$p\x1b[?9999$p\x1b[4$p');
+  assert.equal(s.modes.sync, false);
+  assert.equal(s.modes.focus, true);
+  assert.deepEqual(replies, ['\x1b[?2026;1$y', '\x1b[?2026;2$y', '\x1b[?1004;1$y', '\x1b[?9999;0$y', '\x1b[4;0$y']);
+});
+
+test('Terms: numbered input goes in in order, a gap is skipped, and output is kept to its limit', async () => {
+  const typed = [];
+  const fake = () => {
+    const c = new EventEmitter();
+    c.stdout = new EventEmitter();
+    c.stderr = new EventEmitter();
+    c.stdin = { write: (d) => typed.push(d), on() {} };
+    c.stdio = [null, null, null, { write() {}, on() {} }];
+    c.kill = () => {};
+    return c;
+  };
+  let child;
+  const terms = new Terms({ spawnFn: () => (child = fake()), track: null });
+  const t = terms.open('s', { argv: ['x'], cwd: '/' });
+  terms.input('s', 'b', { seq: 1, from: 'p1' });
+  terms.input('s', 'Z', { seq: 0, from: 'p2' });
+  assert.deepEqual(typed, ['Z'], 'b waits for 0');
+  terms.input('s', 'a', { seq: 0, from: 'p1' });
+  terms.input('s', 'a', { seq: 0, from: 'p1' });
+  assert.deepEqual(typed, ['Z', 'a', 'b'], 'in order, a resend once');
+  terms.input('s', 'plain');
+  assert.equal(typed.at(-1), 'plain', 'unnumbered (an older page) goes straight in');
+  terms.input('s', 'd', { seq: 3, from: 'p1' });
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.equal(typed.at(-1), 'd', 'seq 2 never came: d goes in after a second');
+  // Output past the limit is cut at an escape sequence or a line, not in the middle of one.
+  child.stdout.emit('data', Buffer.from('38;5;1mtext'));
+  child.stdout.emit('data', Buffer.from(`\x1b[31mzz\r\n${'x'.repeat((1 << 20) - 12)}`));
+  assert.ok(t.out.startsWith('\x1b[31mzz\r\nxx'));
+  for (let i = 0; i < 3000; i++) child.stdout.emit('data', Buffer.from(`${'y'.repeat(999)}\n`));
+  assert.ok(t.out.length <= 1 << 20 && t.out.startsWith('y') && t.out.endsWith('y\n'));
+  terms.closeAll();
 });
 
 test('keyBytes: what keys send', () => {

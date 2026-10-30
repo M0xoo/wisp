@@ -669,7 +669,7 @@ export function register(r, app) {
     one(async (c, s) => {
       const body = await c.body();
       if (app.terms.get(s.id)?.code !== null) return c.send(404, { error: 'This task has no terminal open.' });
-      if (typeof body.data === 'string') app.terms.input(s.id, body.data);
+      if (typeof body.data === 'string') app.terms.input(s.id, body.data, body);
       if (body.cols && body.rows) app.terms.resize(s.id, body.cols, body.rows);
       c.send(200, { ok: true });
     }),

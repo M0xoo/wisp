@@ -14,6 +14,7 @@ import { shq } from './util.js';
 const KEEP = 1 << 20; // characters of output replayed to a page that attaches later
 const GONE_MS = 10 * 60_000; // an exited terminal is forgotten after this
 const PING_MS = 25_000; // keeps proxies (a machine's tunnel, the grid's edge) from timing the stream out
+const GAP_MS = 1000; // a numbered key that never came (its send failed) is waited for this long
 export const ACTIVE_MS = 15 * 60_000; // a terminal used this recently keeps a cloud computer awake
 
 // Sessions with a terminal running, for their summaries (term: true), here and on other devices.
@@ -36,31 +37,45 @@ if pid == 0:
         sys.stderr.write('wisp: %s: %s\\r\\n' % (sys.argv[3], e.strerror))
         os._exit(127)
 size(fd, rows, cols)
+# Typed input waits here until the terminal takes it: blocking on a write to it while the program
+# blocks on printing (nobody reading its output) would hang both.
+os.set_blocking(fd, False)
 def put(f, data):
     while data:
         n = os.write(f, data)
         data = data[n:]
 ctl = b''
+typed = b''
 watch = [fd, 0, 3]
 while True:
     try:
-        ready = select.select(watch, [], [])[0]
+        ready, writable, _ = select.select(watch, [fd] if typed else [], [])
     except InterruptedError:
         continue
     if fd in ready:
         try:
             data = os.read(fd, 65536)
+        except BlockingIOError:
+            data = None
         except OSError:
             data = b''
-        if not data:
+        if data == b'':
             break
-        put(1, data)
+        if data:
+            put(1, data)
+    if fd in writable:
+        try:
+            typed = typed[os.write(fd, typed[:4096]):]
+        except BlockingIOError:
+            pass
+        except OSError:
+            typed = b''
     if 0 in ready:
         data = os.read(0, 65536)
         if not data:
             os.kill(pid, signal.SIGHUP)
             break
-        put(fd, data)
+        typed += data
     if 3 in ready:
         data = os.read(3, 1024)
         if not data:
@@ -109,6 +124,20 @@ export function ptyCommand(argv, { cols = 100, rows = 30, platform = process.pla
 // the user's own settings.
 export const PARENT_SESSION_ENV = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_EXECPATH', 'CLAUDE_PID'];
 
+// t's output as one string of at most KEEP characters. Cut from the start of a line or an escape
+// sequence near the limit, so a replay doesn't begin with half of one printed as text.
+function keep(t) {
+  let out = t.chunks.length === 1 ? t.chunks[0] : t.chunks.join('');
+  if (out.length > KEEP) {
+    const from = out.length - KEEP;
+    const near = out.slice(from, from + 4096).search(/[\n\x1b]/);
+    out = out.slice(near < 0 ? from : from + near + (out[from + near] === '\n' ? 1 : 0));
+  }
+  t.chunks = out ? [out] : [];
+  t.kept = out.length;
+  return out;
+}
+
 const clampSize = (n, lo, hi, d) => (Number.isFinite(Number(n)) ? Math.min(hi, Math.max(lo, Math.round(Number(n)))) : d);
 
 export class Terms {
@@ -138,11 +167,21 @@ export class Terms {
     delete env.NO_COLOR;
     for (const k of PARENT_SESSION_ENV) delete env[k];
     const child = this.spawnFn(command, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
-    const t = { id, child, cwd, cols, rows, resizable, out: '', code: null, startedAt: Date.now(), usedAt: Date.now(), clients: new Set(), timer: null };
+    const t = {
+      id, child, cwd, cols, rows, resizable, code: null, startedAt: Date.now(), usedAt: Date.now(), clients: new Set(), timer: null,
+      // What it printed: chunks, joined and cut to KEEP only when read or twice too long (cutting
+      // on every chunk copied the whole megabyte each time).
+      chunks: [], kept: 0,
+      get out() {
+        return keep(this);
+      },
+    };
     const dec = new StringDecoder('utf8');
     const emit = (text) => {
       if (!text) return;
-      t.out = (t.out + text).slice(-KEEP);
+      t.chunks.push(text);
+      t.kept += text.length;
+      if (t.kept > 2 * KEEP) keep(t);
       t.usedAt = Date.now();
       const frame = `event: data\ndata: ${JSON.stringify(text)}\n\n`;
       for (const res of t.clients) res.write(frame);
@@ -176,7 +215,8 @@ export class Terms {
       res.end(`event: gone\ndata: {}\n\n`);
       return;
     }
-    res.write(`event: hello\ndata: ${JSON.stringify({ cols: t.cols, rows: t.rows, resizable: t.resizable })}\n\n`);
+    // ordered: numbered input goes in in order (input()), so the page needn't wait between sends.
+    res.write(`event: hello\ndata: ${JSON.stringify({ cols: t.cols, rows: t.rows, resizable: t.resizable, ordered: true })}\n\n`);
     res.write(`event: data\ndata: ${JSON.stringify(t.out)}\n\n`); // always, even empty: the page replays it
     if (t.code !== null) return res.end(`event: exit\ndata: ${JSON.stringify({ code: t.code })}\n\n`);
     t.clients.add(res);
@@ -184,11 +224,36 @@ export class Terms {
     res.on('close', () => (clearInterval(ping), t.clients.delete(res)));
   }
 
-  input(id, data) {
+  // Typed text. A page sends keys without waiting for the last send to answer (each round trip to a
+  // cloud computer would hold up the next key): numbered (seq, counted per page: from), they may
+  // arrive out of order and go in in order. A gap (a send that failed) is skipped after GAP_MS.
+  input(id, data, { seq, from } = {}) {
     const t = this.map.get(id);
     if (!t || t.code !== null) return false;
     t.usedAt = Date.now();
-    t.child.stdin.write(String(data));
+    if (!Number.isInteger(seq) || typeof from !== 'string') {
+      t.child.stdin.write(String(data));
+      return true;
+    }
+    t.senders ||= new Map();
+    let q = t.senders.get(from);
+    if (!q) {
+      if (t.senders.size >= 8) t.senders.delete(t.senders.keys().next().value);
+      t.senders.set(from, (q = { next: 0, held: new Map(), timer: null }));
+    }
+    if (seq < q.next) return true; // sent again
+    q.held.set(seq, String(data));
+    const flush = (skip) => {
+      if (skip && q.held.size) q.next = Math.min(...q.held.keys());
+      while (q.held.has(q.next)) {
+        if (t.code === null) t.child.stdin.write(q.held.get(q.next));
+        q.held.delete(q.next++);
+      }
+      clearTimeout(q.timer);
+      q.timer = q.held.size ? setTimeout(() => flush(true), GAP_MS) : null;
+      q.timer?.unref?.();
+    };
+    flush(false);
     return true;
   }
 
@@ -222,6 +287,7 @@ export class Terms {
     const t = this.map.get(id);
     if (!t) return;
     clearTimeout(t.timer);
+    for (const q of t.senders?.values() || []) clearTimeout(q.timer);
     for (const res of t.clients) res.end(`event: gone\ndata: {}\n\n`);
     this.map.delete(id);
     if (this.track?.delete(id)) this.onChange(id);
