@@ -555,6 +555,11 @@ export function renderLauncher() {
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet
     const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : undefined));
+    // A terminal session (/terminal, or Settings → General) opens at once, still starting up: its
+    // terminal is where you carry on, so there's nothing to wait for on the prompt page. The server
+    // decides (services/tui.js); this is its guess for the things the page knows.
+    const asTerminal = targets.length === 1 && !cmp.length && !toCrew.length && !goal && !typedGoal && !(team.length && canLead(runner.agent)) && (terminalAsk(prompt) !== null || S.config.defaults.terminalSessions === 'on');
+    if (asTerminal) S.sessions.get(pending[0]).tui = true;
     if (cmp.length) (compare = []), paintCompare();
     ta.value = '';
     S.drafts.delete('home');
@@ -568,10 +573,11 @@ export function renderLauncher() {
     }
     renderFeed();
     const ghost = S.nodes.get(pending[0])?.card;
-    showLaunched(btn, ghost);
+    if (asTerminal) expand(pending[0]);
+    else showLaunched(btn, ghost);
     // The phone's prompt page has closed onto the list: say it went (no keyboard popping back up).
-    const sent = MOBILE ? sentNote(toCrew[0]?.name || agentName(runner.agent)) : null;
-    if (!MOBILE) ta.focus();
+    const sent = MOBILE && !asTerminal ? sentNote(toCrew[0]?.name || agentName(runner.agent)) : null;
+    if (!MOBILE && !asTerminal) ta.focus();
     try {
       for (const [i, t] of targets.entries()) {
         if (!t.clone) continue;
@@ -596,6 +602,9 @@ export function renderLauncher() {
         if (r.status === 'rejected' && !(r.reason.hold && results.length === 1)) toast(`${esc(placeName(targets[i].k))}: ${esc(r.reason.message)}`, { tone: 'bad' });
       });
       const started = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+      // Still on its placeholder: the real task takes its place in the main pane.
+      const opened = pending.some((id) => S.open.has(id));
+      if (started[0]?.id) handOver(pending[0], started[0].id);
       for (const id of pending) S.sessions.delete(id);
       for (const x of started.flatMap((y) => y.group || [y])) {
         if (x.id) S.sessions.set(x.id, x);
@@ -605,8 +614,9 @@ export function renderLauncher() {
       keepInPlace(feedAnchor(), renderFeed);
       sent?.landed(started);
       // A terminal session (Settings → General) opens at once: its terminal is where you carry on.
-      if (started.length === 1 && started[0].tui) expand(started[0].id);
+      if (started.length === 1 && started[0].tui && !asTerminal) expand(started[0].id);
       if (!started.length) {
+        if (opened) goHome(); // the prompt comes back where it was typed
         goalBack();
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));
         tray.restore(files);
@@ -622,8 +632,10 @@ export function renderLauncher() {
       }
       askNotify();
     } catch (err) {
+      const opened = pending.some((id) => S.open.has(id));
       for (const id of pending) S.sessions.delete(id);
       renderFeed();
+      if (opened) goHome();
       sent?.landed([]);
       if (!err.shown) return goalBack(), toastError(err);
       // The clone failed (its toast says why): the task goes back in the box.
@@ -983,7 +995,7 @@ function launchedFx(from, to) {
 let pendingSeq = 0;
 function addPending(prompt, { project: p, m, also = [] }, { agent, model, effort, account }, live = 'Starting up') {
   const id = `pending-${++pendingSeq}`;
-  const line = plain(prompt).split('\n')[0].replace(/\s+/g, ' ');
+  const line = plain(terminalAsk(prompt) ?? prompt).split('\n')[0].replace(/\s+/g, ' '); // the server drops /terminal too
   const now = Date.now();
   S.sessions.set(id, {
     id,
@@ -1040,7 +1052,14 @@ export async function launchBehind({ prompt, cwd, runner, machine }, request) {
 export function dropPending(s) {
   if (s.pending || s.parentId) return;
   // A job you gave a crew member replaces that member's placeholder (crew.js sendJob), nothing else.
-  for (const x of S.sessions.values()) if (x.pending && (s.crew ? x.crew?.id === s.crew.id && s.crew.job === 'task' : !x.crew && x.projectId === s.projectId)) return S.sessions.delete(x.id);
+  for (const x of S.sessions.values()) if (x.pending && (s.crew ? x.crew?.id === s.crew.id && s.crew.job === 'task' : !x.crew && x.projectId === s.projectId)) return handOver(x.id, s.id), S.sessions.delete(x.id);
+}
+
+// A placeholder open in the main pane (a terminal session, opened as it starts up): the real task
+// opens there in its place when its card is drawn (feed.js item).
+function handOver(pendingId, id) {
+  if (!S.open.delete(pendingId)) return;
+  S.open.add(id);
 }
 
 // A new card lands in Working, below everything in "Needs you", so it's often off-screen. Scroll

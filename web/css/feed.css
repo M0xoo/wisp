@@ -47,7 +47,7 @@
 .item.open { border-color: var(--line-2); box-shadow: var(--shadow-2); }
 .item.st-done:not(.open) { background: transparent; }
 /* a launch the server hasn't confirmed yet: shown at once, can't be opened */
-.item.pending { opacity: 0.75; }
+.item.pending > .it-head { opacity: 0.75; } /* not its open body: a terminal session starting up */
 .item.pending .it-head { cursor: default; }
 .item.pending .chev { visibility: hidden; }
 .item.arrived { animation: arrive 1.4s var(--ease); }
