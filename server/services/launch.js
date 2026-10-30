@@ -14,6 +14,9 @@ import { crewJobOf } from '../crew.js';
 import { goalCommand, normalizeGoal } from '../goal.js';
 import { holdMessage } from '../guard.js';
 import { bad, expand, MODES, newId } from '../util.js';
+import { attachmentNote } from '../adapters/common.js';
+import { openTui, startsInTerminal, tuiReply } from './tui.js';
+import { terminalAsk } from '../../web/js/slash-text.js';
 
 export const MAX_COMPARE = 4;
 export const MAX_ALSO = 8; // extra folders one task may work in
@@ -49,6 +52,9 @@ export function createLaunch(app) {
   async function launch(body, origin = null, { crew = null, unattended = false } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
     crew ||= crewJobOf(body.crewJob);
+    // "/terminal fix it": a terminal session (Babysitting mode) whatever the setting says.
+    const asTerminal = terminalAsk(body.prompt);
+    if (asTerminal !== null) body = { ...body, prompt: asTerminal, tui: true, tuiAsked: true };
     // "/goal all tests pass" as the whole prompt: that's the goal, and the task is to reach it.
     const asGoal = !body.goal && goalCommand(body.prompt);
     if (asGoal) body = { ...body, goal: asGoal, prompt: asGoal };
@@ -116,6 +122,9 @@ export function createLaunch(app) {
         hold = null;
       }
     }
+    // Terminal sessions (Settings → General): the agent's own CLI in the page, started on the prompt.
+    const tui = startsInTerminal(body, { on: d.terminalSessions === 'on', agent: runners[0].agent, origin, crew, kind, goal, comparing, team: subagents.length > 0, hold });
+    if (body.tuiAsked && !tui) throw bad(`/terminal starts one task on one harness, in a terminal on ${process.platform === 'win32' ? 'macOS or Linux (not Windows)' : 'this computer'}: not with a goal, a team, compare runs, a crew member, or while it waits near your usage limit.`);
     if (moved) {
       const made = await app.mover.unpack([cwd, ...also], moved.packs, { id: ids[0], title: moved.title || body.prompt });
       trees = [made[0]];
@@ -150,7 +159,9 @@ export function createLaunch(app) {
         return made.map((worktree) => ({ cwd: dir, ...(worktree && { worktree }) }));
       }),
     );
-    return runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    const made = runners.map((r, i) => runner.create({ id: ids[i], prompt: body.prompt, cwd, also: extras.map((x) => x[i]), ...r, mode, attachments, worktree: trees[i], groupId, origin, subagents, kind, goal, hold, tui, ...(crew && !i && { crew }), ...(kind && { title: `Spell: ${String(body.prompt).trim().split('\n')[0].slice(0, 60)}` }), ...(r.route && { auto: { strategy }, scout: resolved.scout || null }) }));
+    if (tui) openTui(app, made[0], { prompt: String(body.prompt).trim() + attachmentNote(attachments), cols: body.cols, rows: body.rows });
+    return made;
   }
 
   // Where a launch runs: body.machine ('' = here), else a project folder that only exists on a
@@ -187,7 +198,8 @@ export function createLaunch(app) {
     const routed = await app.auto.resolve(body, machines.agentsOf(mid) || [], { team: !!(body.subagents?.length || body.preset), place: machines.get(mid).name });
     const routes = [routed.route, ...(routed.compare || []).map((c) => c.route)];
     // The machine runs Auto's check and repair on these picks (an older wisp there ignores them).
-    const sendBody = { ...routed };
+    // Terminal sessions follow this wisp's setting, wherever the task runs.
+    const sendBody = { ...routed, tui: body.tui ?? store.config.defaults.terminalSessions === 'on' };
     delete sendBody.scout;
     if (!sendBody.compare?.length && !body.compare) delete sendBody.compare;
     const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
@@ -227,6 +239,7 @@ export function createLaunch(app) {
       }
     }
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+    if (s.tui) return tuiReply(app, s, String(text).trim() + attachmentNote(attachments));
     return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run, team, hold });
   }
 

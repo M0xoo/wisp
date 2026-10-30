@@ -32,6 +32,7 @@ export default {
   efforts: ['low', 'medium', 'high', 'xhigh'],
 
   // trusted: a folder wisp made (scratch, worktree), which it would otherwise stop to ask about.
+  typesPrompt: true, // its TUI takes no first prompt on the command line: terminal sessions type it in
   resumeCommand({ resumeId, model, effort, trusted = false }) {
     return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--reasoning-effort', effort] : []), ...(trusted ? ['--trust'] : [])];
   },

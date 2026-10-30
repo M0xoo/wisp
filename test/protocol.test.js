@@ -30,6 +30,15 @@ test('the block docs repeat the rules where agents look them up', () => {
   assert.match(SYSTEM_PROMPT, /Rare: if every answer has one/);
 });
 
+test('wisp blocks off: a plain markdown answer, with no block anywhere in the prompt', () => {
+  for (const p of [systemPrompt({ blocks: false }), systemPrompt({ askTool: null, blocks: false }), systemPrompt({ blocks: false, apps: true, extraBlocks: [{ type: 'x', doc: 'x', spell: 's' }] })]) {
+    assert.match(p, /## Your final message\n\nEnd with a short answer in plain markdown, no `wisp` block/);
+    assert.doesNotMatch(p.replace('no `wisp` block', ''), /```wisp|"type":|"(question|task|stuff)" block|### Blocks/);
+    assert.match(p, /Verify your work/, 'the rest of the protocol stays');
+  }
+  assert.match(systemPrompt({ askTool: null, blocks: false }), /stop before acting on it and end by asking it, with 2–4 options/);
+});
+
 test('the example answer follows the rules and is valid JSON', () => {
   const m = SYSTEM_PROMPT.match(/```wisp\n([\s\S]*?)\n```/);
   const { blocks } = JSON.parse(m[1]);

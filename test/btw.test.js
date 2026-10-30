@@ -47,11 +47,17 @@ test('the / menu offers the commands a half-typed one could be', () => {
   assert.deepEqual(names('hi /b'), []);
 });
 
-test('the new-task box offers /goal but not /btw (no run to ask on the side yet)', () => {
+test('the new-task box offers /goal and /terminal but not /btw (no run to ask on the side yet)', () => {
   const names = (t) => page.slashMatches(t, page.HOME_SLASH).map((c) => c.name);
-  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback', 'bug']);
+  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback', 'bug', 'terminal']);
   assert.deepEqual(names('/b'), ['bug']);
+  assert.deepEqual(names('/t'), ['terminal']);
   assert.match(page.HOME_SLASH.find((c) => c.name === 'goal').hint, /Start a task/);
+  assert.ok(!page.SLASH.some((c) => c.name === 'terminal'), 'a follow-up box has a task already');
+  assert.equal(page.terminalAsk('/terminal fix the login bug'), 'fix the login bug');
+  assert.equal(page.terminalAsk('  /Terminal  '), '');
+  assert.equal(page.terminalAsk('/terminals'), null);
+  assert.equal(page.terminalAsk('open /terminal'), null);
 });
 
 const session = {

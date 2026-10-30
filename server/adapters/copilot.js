@@ -40,8 +40,8 @@ export default {
   models: [{ id: '', label: 'Default', hint: 'Whatever Copilot is set to' }],
   efforts: ['low', 'medium', 'high', 'xhigh'],
 
-  resumeCommand({ resumeId, model, effort }) {
-    return [BIN, ...(resumeId ? [`--resume=${resumeId}`] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--reasoning-effort', effort] : [])];
+  resumeCommand({ resumeId, model, effort, prompt }) {
+    return [BIN, ...(resumeId ? [`--resume=${resumeId}`] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--reasoning-effort', effort] : []), ...(prompt ? ['-i', prompt] : [])];
   },
   trust: (dir) => trustFolder(dir),
 

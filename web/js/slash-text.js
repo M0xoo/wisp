@@ -8,8 +8,20 @@ export const SLASH = [
   { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or what you wish it did', bare: true }, // alone: opens the dialog
   { name: 'bug', args: 'what happened', hint: 'Report a bug in wisp to the wisp team', bare: true }, // alone: opens the dialog on Something broke
 ];
-// The new-task box: there's no run to ask on the side yet, and a goal starts a task.
-export const HOME_SLASH = SLASH.filter((c) => c.name !== 'btw').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c));
+// The new-task box: there's no run to ask on the side yet, and a goal starts a task. /terminal starts
+// one in the agent's own terminal, whatever Settings → Babysitting mode says.
+export const HOME_SLASH = [
+  ...SLASH.filter((c) => c.name !== 'btw').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c)),
+  { name: 'terminal', args: 'task', hint: 'Start it in the agent’s own terminal (Babysitting mode)' },
+];
+
+// The task in "/terminal fix the login bug" ('' for a bare /terminal), or null when it isn't one.
+// The server reads it the same way (services/launch.js), for the CLI and the phone.
+const TERMINAL_CMD = /^\/terminal(?:\s+|$)/i;
+export function terminalAsk(text) {
+  const t = String(text || '').trim();
+  return TERMINAL_CMD.test(t) ? t.replace(TERMINAL_CMD, '').trim() : null;
+}
 
 const BTW_CMD = /^\/btw(?:\s+|$)/i;
 export const isBtw = (text) => BTW_CMD.test(String(text || '').trimStart());

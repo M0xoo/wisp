@@ -45,9 +45,9 @@ export default {
   fork: true, // run({ resumeId, fork }) answers on a copy of the session (/btw)
   models: [{ id: '', label: 'Default', hint: 'Whatever opencode is set to' }],
 
-  resumeCommand({ resumeId, model }) {
+  resumeCommand({ resumeId, model, prompt }) {
     // The TUI has no --variant flag; the effort only applies to `run`.
-    return [BIN, ...(resumeId ? ['--session', resumeId] : []), ...(model ? ['--model', model] : [])];
+    return [BIN, ...(resumeId ? ['--session', resumeId] : []), ...(model ? ['--model', model] : []), ...(prompt ? ['--prompt', prompt] : [])];
   },
 
   // How to get it, shown in Settings → Agents and the picker while it isn't found (this OS's steps).

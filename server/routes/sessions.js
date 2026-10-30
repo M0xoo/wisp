@@ -22,6 +22,7 @@ import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
 import { bad, clip, expand, MODES } from '../util.js';
 import { APP_MAX_STATE } from '../../web/js/app-doc.js';
 import { watchDoc } from '../watch.js';
+import { TAKEOVER_NOTE, tuiArgv } from '../services/tui.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -290,8 +291,9 @@ export function register(r, app) {
       if (!text?.trim()) return c.send(400, { error: 'text required' });
       notTour(s, 'follow up');
       if (s.kind === 'reminder') return c.send(409, { error: 'A reminder has no agent to follow up with. Start a new task instead.' });
-      // Two agents on one conversation would trample each other.
-      if (app.terms.get(s.id)?.code === null && btwQuestion(text) === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
+      // Two agents on one conversation would trample each other. A terminal session's follow-up is
+      // typed into its terminal (services/tui.js).
+      if (app.terms.get(s.id)?.code === null && !s.tui && btwQuestion(text) === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
       // "@Ada what do you make of this?": Ada answers on the task, under the message; the task's
       // own agent isn't interrupted. Members named further in join its team for this follow-up on.
@@ -621,14 +623,16 @@ export function register(r, app) {
   // A folder wisp made (a no-folder task's scratch folder, a worktree) is one the user never opened
   // the agent in, so its interactive CLI would stop at "Do you trust this folder?" first: wisp
   // answers yes for it. The user's own folders keep the CLI's question.
+  // A terminal session (services/tui.js) opens its CLI again the same way, even with no conversation
+  // to resume yet. A take over tells the agent to drop the wisp block (TAKEOVER_NOTE).
   const takeover = (fn) =>
     one(async (c, s) => {
       const adapter = adapters[s.agent];
-      if (!adapter?.resumeCommand || !s.agentSessionId) return c.send(400, { error: 'This session cannot be resumed in a terminal.' });
+      if (!adapter?.resumeCommand || (!s.agentSessionId && !s.tui)) return c.send(400, { error: 'This session cannot be resumed in a terminal.' });
       const trusted = store.isScratch(s.cwd) || !!s.worktree?.cwd;
-      const argv = adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort, dirs: alsoDirs(s), cwd: workdir(s), trusted });
       await ensureTrees(s);
-      if (trusted) adapter.trust?.(workdir(s));
+      const argv = s.tui ? tuiArgv(app, s).argv : adapter.resumeCommand({ resumeId: s.agentSessionId, model: s.model, effort: s.effort, dirs: alsoDirs(s), cwd: workdir(s), trusted, systemPrompt: TAKEOVER_NOTE });
+      if (trusted && !s.tui) adapter.trust?.(workdir(s));
       const command = `cd ${shq(workdir(s))} && ${argv.map(shq).join(' ')}`;
       c.send(200, { command, ...(await fn(s, argv, c)) });
     });
@@ -639,7 +643,7 @@ export function register(r, app) {
     takeover(async (s, argv, c) => {
       const body = await c.body();
       const d = store.config.defaults;
-      const inline = body.inline === true || inWisp(d.terminal || defaultTerminal());
+      const inline = body.inline === true || !!s.tui || inWisp(d.terminal || defaultTerminal());
       if (inline && !ptySupported()) throw bad('Taking over inside wisp needs macOS or Linux on the computer the task runs on. Pick a terminal app in Settings → General.');
       // Already open in the page: show it again, the agent in it carries on.
       if (inline && app.terms.get(s.id)?.code === null) return { inline };

@@ -37,6 +37,7 @@ import { paintGoal } from './goal.js';
 import { backTarget, trailOf } from './lineage.js';
 import { planLine } from './budget.js';
 import { feedbackOn, openFeedback } from './feedback.js';
+import { follow as followTerm } from './term.js';
 
 const wide = matchMedia(`(min-width: ${SPLIT_MIN_WIDTH}px)`);
 const SIDE_W = 340;
@@ -354,6 +355,7 @@ export function paintSplit() {
   // now (the body's scroll is restored right after); otherwise the next frame, before it paints.
   if (shown) measure();
   else beforePaint(measure);
+  followTerm(); // a task's terminal comes with it (term.js)
 }
 
 // Stacked: a page over the list while something's open. It slides in when you open it (not on the

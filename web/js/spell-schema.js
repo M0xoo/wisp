@@ -509,6 +509,10 @@ export const SETTINGS = {
   apps: ['on', 'off'],
   // Watch agents work: agents may put a page beside their task and keep it current (wisp_watch).
   watch: ['on', 'off'],
+  // Terminal sessions: a task you start is the agent's own CLI in a terminal in the page (server/services/tui.js).
+  terminalSessions: ['on', 'off'],
+  // wisp blocks: agents end with a wisp block (cards), or off, a plain markdown answer.
+  blocks: ['on', 'off'],
   // "in 5 min …" / "remind me … in 1 h" in a prompt schedules it (web/js/when.js).
   readTimes: ['on', 'off'],
   // At a usage limit: wait for the window's reset and carry on in the same conversation, or ask.

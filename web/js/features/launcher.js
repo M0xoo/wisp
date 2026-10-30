@@ -14,7 +14,7 @@ import { toast, toastError } from '../ui/toast.js';
 import { acceptFiles, attachTray, autosize } from './attachments.js';
 import { openAutomations, recipeParams, runRecipe } from './automations.js';
 import { cloneById, clones } from './clones.js';
-import { renderFeed, reveal } from './feed.js';
+import { expand, renderFeed, reveal } from './feed.js';
 import { feedbackCommand, isFeedback } from './feedback.js';
 import { slashMenu } from './slash.js';
 import { connectMachine, offlineToast, openMachines } from './machines.js';
@@ -30,7 +30,7 @@ import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
-import { goalAsk, HOME_SLASH, isGoalDrop, SPELL_HINT, spellAsk } from '../slash-text.js';
+import { goalAsk, HOME_SLASH, isGoalDrop, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
@@ -477,6 +477,8 @@ export function renderLauncher() {
       return box.goalOpen?.();
     }
     if (typedGoal && isGoalDrop(typedGoal)) return toast('No goal to drop yet: <b>/goal drop</b> works in a task’s reply box.');
+    // /terminal <task>: in the agent's own terminal (the server reads it, launch.js), opened at once.
+    if (terminalAsk(prompt) === '') return toast('Say what to do after /terminal, like “/terminal fix the login bug”');
     // One run per place picked under "Run on", all in the picked project: a place that has no
     // checkout of it yet gets one first (the server clones it there).
     const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(), clone: cloneById(pickId()), also: ownPick() ? alsoIds().map(projectById).filter(Boolean) : [] }));
@@ -602,6 +604,8 @@ export function renderLauncher() {
       }
       keepInPlace(feedAnchor(), renderFeed);
       sent?.landed(started);
+      // A terminal session (Settings → General) opens at once: its terminal is where you carry on.
+      if (started.length === 1 && started[0].tui) expand(started[0].id);
       if (!started.length) {
         goalBack();
         if (!ta.value) ((ta.value = prompt), ta.dispatchEvent(new Event('input')));

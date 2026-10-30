@@ -132,3 +132,23 @@ test('Interactive answers is on by default; off keeps app blocks out of the agen
   assert.doesNotMatch(await run('pick a colour again'), /"type":"app"/);
   await call('PATCH', '/config', { defaults: { apps: 'on' } });
 });
+
+test('wisp blocks off: agents are asked for plain text, and their plain answer is not a slip', async () => {
+  const run = async (prompt) => {
+    const { json: s } = await call('POST', '/sessions', { prompt, cwd: makeRepo(), agent: 'claude' });
+    await until(async () => (await call('GET', `/sessions/${s.id}`)).json.turns?.at(-1)?.status === 'done', { timeout: 20_000 });
+    const rec = records(RECORD, 'claude').at(-1);
+    return { system: rec.argv[rec.argv.indexOf('--append-system-prompt') + 1], turn: (await call('GET', `/sessions/${s.id}`)).json.turns.at(-1) };
+  };
+  await call('PATCH', '/config', { defaults: { blocks: 'off' } });
+  try {
+    const { system, turn } = await run('reply in plain text');
+    assert.match(system, /no `wisp` block/);
+    assert.doesNotMatch(system, /### Blocks/);
+    assert.equal(turn.plain, true);
+    assert.equal(turn.presentation.fallback, undefined, 'no "answered in plain text instead" note');
+  } finally {
+    await call('PATCH', '/config', { defaults: { blocks: 'on' } });
+  }
+  assert.match((await run('with blocks')).system, /### Blocks/);
+});

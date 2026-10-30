@@ -762,6 +762,14 @@ test('the panel’s Changes: opening on it, its parts, generated files unfolded;
   assert.ok(p.some((x) => /generated/.test(x)), p.join('\n'));
 });
 
+test('terminal sessions and wisp blocks: on or off, nothing else', () => {
+  for (const key of ['terminalSessions', 'blocks']) {
+    for (const v of ['on', 'off']) assert.deepEqual(problems({ ...base0, settings: { [key]: v } }), []);
+    const bad = problems({ ...base0, settings: { [key]: 'maybe' } });
+    assert.ok(bad.some((x) => new RegExp(`settings\\.${key}`).test(x) && /on \| off/.test(x)), bad.join('\n'));
+  }
+});
+
 test('watch: the setting, the panel opening on it, its parts and the eye icon', () => {
   for (const watch of ['on', 'off']) assert.deepEqual(problems({ ...base0, settings: { watch } }), []);
   const bad = problems({ ...base0, settings: { watch: 'sometimes' } });

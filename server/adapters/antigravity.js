@@ -44,6 +44,7 @@ export default {
 
   // trusted: a folder wisp made (scratch, worktree), which it would otherwise stop to ask about.
   // agy has no --trust; --settings is for this session only, and only the folder itself counts.
+  typesPrompt: true, // its TUI takes no first prompt on the command line: terminal sessions type it in
   resumeCommand({ resumeId, model, effort, cwd, trusted = false }) {
     const trust = trusted && cwd ? ['--settings', JSON.stringify({ trustedWorkspaces: [realDir(cwd)] })] : [];
     return [BIN, ...(resumeId ? ['--conversation', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : []), ...trust];

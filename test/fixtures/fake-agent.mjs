@@ -124,15 +124,17 @@ if (name === 'agy' && argv[0] === 'models') {
 
 // On a terminal (take over in wisp): a little prompt that echoes each line, in colour, until /exit.
 if (process.stdin.isTTY && process.stdout.isTTY) {
-  const id = flag('--resume') || flag('--session') || flag('--conversation') || '';
+  const id = flag('--resume') || flag('--session-id') || flag('--session') || flag('--conversation') || '';
+  // A terminal session's first prompt: after `--` (claude), else the last word.
+  const first = argv.includes('--') ? argv[argv.indexOf('--') + 1] : '';
   // Raw before the prompt shows: input typed at it would otherwise meet a cooked terminal, which
   // turns its \r into \n, and the line would never be answered.
   process.stdin.setRawMode(true);
   process.stdin.setEncoding('utf8');
-  process.stdout.write(`\x1b[1mfake ${name}\x1b[0m interactive · session ${id} · ${process.stdout.columns}x${process.stdout.rows}\r\n\x1b[36m>\x1b[0m `);
+  process.stdout.write(`\x1b[1mfake ${name}\x1b[0m interactive · session ${id} · ${process.stdout.columns}x${process.stdout.rows}\r\n${first ? `you said: \x1b[32m${first}\x1b[0m\r\n` : ''}\x1b[36m>\x1b[0m `);
   let line = '';
   process.stdin.on('data', (d) => {
-    for (const ch of d) {
+    for (const ch of d.replace(/\x1b\[20[01]~/g, '')) {
       if (ch === '\r') {
         if (line === '/exit') process.exit(0);
         process.stdout.write(`\r\nyou said: \x1b[32m${line}\x1b[0m\r\n\x1b[36m>\x1b[0m `);

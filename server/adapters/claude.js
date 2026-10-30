@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
 import { claudeLimits } from '../budget.js';
+import { PARENT_SESSION_ENV } from '../pty.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 let BIN = DEFAULT_BIN;
@@ -127,9 +128,34 @@ export default {
   ],
   efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
 
-  // Interactive command to take over a session in a terminal.
-  resumeCommand({ resumeId, model, effort, dirs = [] }) {
-    return [BIN, ...(resumeId ? ['--resume', resumeId] : []), ...(model ? ['--model', model] : []), ...(effort ? ['--effort', effort] : []), ...dirs.flatMap((d) => ['--add-dir', d])];
+  // Interactive command to take over a session in a terminal, or (terminal sessions) to start one
+  // with its first prompt: sessionId names the new conversation, so wisp can resume it later.
+  // The prompt goes after `--`: --add-dir takes every word after it.
+  resumeCommand({ resumeId, sessionId, model, effort, dirs = [], mode, systemPrompt, prompt }) {
+    return [
+      BIN,
+      ...(resumeId ? ['--resume', resumeId] : sessionId ? ['--session-id', sessionId] : []),
+      ...(model ? ['--model', model] : []),
+      ...(effort ? ['--effort', effort] : []),
+      ...(PERMISSION_MODES[mode] ? ['--permission-mode', PERMISSION_MODES[mode]] : []),
+      ...(systemPrompt ? ['--append-system-prompt', systemPrompt] : []),
+      ...dirs.flatMap((d) => ['--add-dir', d]),
+      ...(prompt ? ['--', prompt] : []),
+    ];
+  },
+  sessionIds: true, // resumeCommand({ sessionId }) picks the new conversation's id
+  // Whether claude kept conversation id: one that exited at a start-up question never saved it.
+  // Kept in <config>/projects/<cwd with every non-alphanumeric as ->/<id>.jsonl; every project is
+  // looked through too, in case that naming changes.
+  hasSession(id, cwd, env = process.env) {
+    const root = path.join(env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'projects');
+    const file = `${id}.jsonl`;
+    if (cwd && fs.existsSync(path.join(root, realDir(cwd).replace(/[^a-zA-Z0-9]/g, '-'), file))) return true;
+    try {
+      return fs.readdirSync(root).some((d) => fs.existsSync(path.join(root, d, file)));
+    } catch {
+      return false;
+    }
   },
   trust: (dir) => trustFolder(dir),
 
@@ -189,8 +215,7 @@ export default {
     prompt += attachmentNote(attachments, 'Read images and PDFs with the Read tool');
 
     const env = { ...process.env, ...accountEnv };
-    delete env.CLAUDECODE; // don't let a parent Claude Code session leak into the child
-    delete env.CLAUDE_CODE_ENTRYPOINT;
+    for (const k of PARENT_SESSION_ENV) delete env[k]; // don't let a parent Claude Code session leak into the child
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
     let sawResult = false;

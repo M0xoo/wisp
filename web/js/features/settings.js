@@ -115,6 +115,10 @@ export function openSettings(opts) {
               <div class="sx-ctl"><input class="input mono" name="terminalCommand" value="${esc(d.terminalCommand || '')}" placeholder="alacritty --working-directory {cwd} -e {cmd}" spellcheck="false"></div></div>
           </div>
           <div class="sx-group">
+            ${row('Babysitting mode (Terminals)', 'Each task you send opens straight in the agent’s own terminal, already working on your prompt, instead of wisp’s cards. Follow-ups are typed there, and opening the task again resumes it', '<button class="switch" id="tuiOn" role="switch"></button>')}
+            ${row('wisp blocks', 'Agents end with wisp’s cards: diffs, test runs, previews, next steps. Off, they answer in plain text, which also reads cleaner when you take over', '<button class="switch" id="blocksOn" role="switch"></button>')}
+          </div>
+          <div class="sx-group">
             ${row('Worktree per task', 'Each task gets its own branch from origin/main, in git repos', '<button class="switch" id="wtDefault" role="switch"></button>')}
             ${row('Auto-fix PR conflicts', 'Without waiting for a click on Fix conflicts: when a shipped PR conflicts with its base, the task merges the base in, resolves it and pushes', '<button class="switch" id="fixConflicts" role="switch"></button>')}
             ${row('Read times in prompts', 'A prompt that starts with a time (“in 5 min …”, “tomorrow at 9 …”) or says “remind me … in 1 hour” is scheduled for then. A chip under the box shows the time before you send', '<button class="switch" id="readTimes" role="switch"></button>')}
@@ -569,6 +573,24 @@ export function openSettings(opts) {
     }
   };
   paintWo();
+  // Terminal sessions and wisp blocks: on/off settings, saved at once and put back if refused.
+  const onOff = (sel, key, isOn) => {
+    const sw = $(sel, node);
+    const paint = () => sw.setAttribute('aria-checked', isOn(S.config.defaults[key]));
+    sw.onclick = async () => {
+      const was = S.config.defaults[key];
+      S.config.defaults[key] = isOn(was) ? 'off' : 'on';
+      paint();
+      const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { [key]: S.config.defaults[key] } } }));
+      if (!saved) {
+        S.config.defaults[key] = was;
+        paint();
+      }
+    };
+    paint();
+  };
+  onOff('#tuiOn', 'terminalSessions', (v) => v === 'on');
+  onOff('#blocksOn', 'blocks', (v) => v !== 'off');
   const ap = $('#appsOn', node);
   const paintAp = () => ap.setAttribute('aria-checked', S.config.defaults.apps !== 'off');
   ap.onclick = async () => {
@@ -697,7 +719,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', limitHold: '.hold-seg' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', limitHold: '.hold-seg' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

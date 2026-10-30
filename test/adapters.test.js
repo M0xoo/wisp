@@ -230,6 +230,15 @@ for (const id of Object.keys(BIN)) {
       if (id === 'claude') assert.deepEqual(adapters[id].resumeCommand({ resumeId: 'r1', dirs: [web] }).slice(-2), ['--add-dir', web], 'take over gets them too');
     });
 
+  test(`${id}: a terminal session starts the interactive CLI on its first prompt`, () => {
+    const a = adapters[id];
+    const argv = a.resumeCommand({ prompt: 'fix the login bug', sessionId: 'uuid-1', mode: 'plan', systemPrompt: 'note', dirs: ['/w'] });
+    if (a.typesPrompt) return assert.ok(!argv.includes('fix the login bug'), 'typed in instead');
+    assert.ok(argv.includes('fix the login bug'), argv.join(' '));
+    assert.ok(!a.resumeCommand({ resumeId: 'r1' }).includes(undefined));
+    if (id === 'claude') assert.deepEqual(argv.slice(1), ['--session-id', 'uuid-1', '--permission-mode', 'plan', '--append-system-prompt', 'note', '--add-dir', '/w', '--', 'fix the login bug']);
+  });
+
   test(`${id}: follow-ups resume the session without re-sending the protocol`, async () => {
     const events = await run(id, { resumeId: 'prev-1', prompt: 'and add a test' }).done;
     const rec = records(RECORD, BIN[id]).at(-1);
