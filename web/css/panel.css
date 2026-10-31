@@ -414,7 +414,8 @@ body.split.stack #feed .item.open .pr-strip:not(.ship-run) .pr-go .i { width: 15
 .cx-row .badge { width: 18px; height: 18px; font-size: 10.5px; border-radius: 5px; }
 /* The folder shrinks first, cut from its start; then the name, from its end. */
 .cx-row .path { flex: 1 1 auto; display: flex; min-width: 0; font-size: 12px; }
-.cx-row .path .dir { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+/* At least its ellipsis and last slash ("…/"): squeezed thinner, one dot of the ellipsis read as "./". */
+.cx-row .path .dir { flex: 0 1000 auto; min-width: 2ch; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .cx-row .path .base { flex: 0 1 auto; min-width: 3ch; overflow: hidden; text-overflow: ellipsis; }
 .cx-file.gone .path .base { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
 .cx-row .rev-tag { flex: none; font-size: 11px; padding: 0 5px; }

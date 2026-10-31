@@ -254,6 +254,28 @@ try {
     p.clean();
   });
 
+  await check('WEB-44', 'side panel Changes: a long folder is cut to …/, never a bare ./', async () => {
+    const t = await launch({ prompt: 'fix the add function' });
+    const s = await settled(t.id);
+    const deep = path.join(s.worktree?.cwd || s.cwd, 'web/css/components/a-very-long-folder-name-for-testing/another-really-long-folder');
+    fs.mkdirSync(deep, { recursive: true });
+    fs.writeFileSync(path.join(deep, 'a-file-with-a-rather-long-name-indeed.css'), '.a { color: red; }\n');
+    await p.locator(`.item[data-id="${t.id}"] .it-head`).click();
+    await p.locator(`.item[data-id="${t.id}"] [data-a="changes"]`).filter({ visible: true }).first().click();
+    const dir = p.locator('.pn-changes .cx-row .dir').filter({ visible: true }).first();
+    await dir.waitFor({ timeout: 8000 });
+    // The folder shrinks first; it must keep room for its "…/" (a sliver shows one dot: "./").
+    const { width, need } = await dir.evaluate((d) => {
+      const c = document.createElement('canvas').getContext('2d');
+      c.font = getComputedStyle(d).font;
+      return { width: d.getBoundingClientRect().width, need: c.measureText('…/').width };
+    });
+    ok(width + 0.5 >= need, `the folder is ${width.toFixed(1)}px wide, "…/" needs ${need.toFixed(1)}px`);
+    await p.shot('changes');
+    await press(p, 'Escape');
+    p.clean();
+  });
+
   await check('WEB-12', 'command palette', async () => {
     await press(p, process.platform === 'darwin' ? 'Meta+k' : 'Control+k');
     await p.locator('.palette input').waitFor();
