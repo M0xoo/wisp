@@ -48,7 +48,10 @@ its thread; its work never mixes with your tasks.
   hands it a job (it shows *Starting up* at once; `@` brings another member in as a delegate of that
   job). Beside the thread on a wide pane (folded above it otherwise): schedule and next check-in, jobs
   at once, project, computer, harness, mode, delegates, the actions, the notebook, the brief, and the
-  tasks it's part of.
+  tasks it's part of. In the phone app, dragging the thread to the left brings those in as an
+  *About Ada* page with Back, the way a task's side panel comes in (side-panel.md → Swipe, the same
+  feel and numbers, `panel-swipe.js`); dragging it right, Back or the phone's Back return to the
+  thread. `crew.page.swipe: false` turns it off; the page is the `crew.about` part.
 - **When it needs you**: the row and its face say so, a notification names it, and either opens the
   thread at that job, where you answer without opening anything else. Answering is optimistic: the
   job carries on at once and goes back to asking if the server refuses.
