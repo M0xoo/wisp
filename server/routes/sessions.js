@@ -11,11 +11,11 @@ import { btwQuestion } from '../btw.js';
 import { goalView } from '../goal.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
 import { execCommand } from '../proc.js';
-import { ensureWorktree, removeWorktree } from '../git.js';
+import { ensureWorktree, removeWorktree, worktreeSource } from '../git.js';
 import { MIME } from '../http/static.js';
-import { sendFile } from '../http/respond.js';
+import { prepared, sendFile } from '../http/respond.js';
 import { blocksToMarkdown, sessionToMarkdown } from '../render.js';
-import { alsoDirs, summarize, workdir } from '../runner.js';
+import { alsoDirs, listSummary, summarize, workdir } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
 import { crewMentions, taggedDelegate } from '../crew.js';
 import { ptySupported } from '../pty.js';
@@ -129,11 +129,26 @@ export function register(r, app) {
   const seen = new Map(); // id -> { hash, seq }
   const gone = new Map(); // id -> seq it went at
   let forgot = 0; // the newest removal no longer kept: a token older than it can't be diffed
+  // A summary's hash, once per summary (listSummary keeps them while their task is unchanged).
+  const hashes = new WeakMap();
+  const hashOf = (x) => {
+    let h = hashes.get(x);
+    if (!h) hashes.set(x, (h = createHash('sha1').update(JSON.stringify(x)).digest('base64url')));
+    return h;
+  };
+  // The whole list as last sent: the same summaries in the same order are the same answer, its
+  // text, ETag and compressed copies made once (respond.js prepared).
+  let lastList = { items: [], body: null };
+  const sameList = (list) => {
+    const a = lastList.items;
+    if (a.length !== list.length || list.some((x, i) => x !== a[i])) lastList = { items: list, body: prepared(list) };
+    return lastList.body;
+  };
   const listDelta = (list, since) => {
     const now = new Set();
     for (const x of list) {
       now.add(x.id);
-      const hash = createHash('sha1').update(JSON.stringify(x)).digest('base64url');
+      const hash = hashOf(x);
       const was = seen.get(x.id);
       if (was?.hash !== hash) seen.set(x.id, { hash, seq: ++seq });
       gone.delete(x.id);
@@ -158,7 +173,7 @@ export function register(r, app) {
     // Subagent sessions belong to their lead; ?children=1 lists them too.
     // Sessions on machines too (the last ones seen, for a machine that's offline), unless another
     // wisp asks (?here=1): it wants this one's own, or two that list each other would ask in circles.
-    const here = store.all().filter((x) => (!x.parentId && !x.delegated) || q.children).map((x) => summarize(x, store));
+    const here = store.all().filter((x) => (!x.parentId && !x.delegated) || q.children).map((x) => listSummary(x, store));
     let list = [...here, ...(q.here ? [] : await machines.sessions(q))].sort((a, b) => b.updatedAt - a.updatedAt);
     if (q.state) list = list.filter((x) => q.state.split(',').includes(x.state));
     if (q.agent) list = list.filter((x) => x.agent === q.agent);
@@ -169,7 +184,15 @@ export function register(r, app) {
     if (q.archived !== undefined) list = list.filter((x) => x.archived === (q.archived === 'true' || q.archived === '1'));
     if (Number(q.limit) > 0) list = list.slice(0, Number(q.limit));
     if (since !== undefined) return c.send(200, Object.keys(q).length ? { token: '', full: list } : listDelta(list, since)); // a filtered list isn't the one diffed
-    c.send(200, list);
+    c.send(200, Object.keys(q).length ? list : sameList(list));
+  });
+  // A task being typed (the launcher): its repo fetched now, so the launch doesn't wait on the
+  // network for its worktree's base (git.js keeps a fetch for a minute). Answers at once.
+  r.route('POST', '/launch/warm', async (c) => {
+    const { cwd } = await c.body();
+    const dir = typeof cwd === 'string' && cwd ? expand(cwd) : '';
+    if (dir && store.config.defaults.worktree !== 'off' && !store.isScratch(dir) && fs.existsSync(dir)) worktreeSource(dir).catch(() => {});
+    c.send(200, { ok: true });
   });
   r.route('POST', '/sessions', async (c) => {
     const body = await c.body();

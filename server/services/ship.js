@@ -17,6 +17,9 @@ const PR_POLL_MS = 60_000;
 const PR_FAST_POLL_MS = 10_000; // while GitHub is still working something out: checks running, mergeability unknown, a push just landed
 const PR_TICK_MS = 5_000;
 const SHIP_RECHECK_MS = 5_000;
+const BOOT_CHECKS = 2; // worktree checks at once after a restart
+const BOOT_DELAY_MS = 1500;
+const BOOT_PAUSE_MS = 20;
 const MAX_CONFLICT_FIXES = 3; // per task, so a base that keeps moving can't run up the bill
 
 export const conflictPrompt = (s) => {
@@ -76,7 +79,7 @@ export function createShip(app) {
     if (checks.has(s.id)) return void checks.set(s.id, 'again');
     checks.set(s.id, true);
     checkedAt.set(s.id, Date.now());
-    check(s)
+    return check(s)
       .catch(() => {})
       .finally(() => {
         const again = checks.get(s.id) === 'again';
@@ -319,7 +322,22 @@ export function createShip(app) {
     delete s.shipping; // a ship cut short by a restart isn't running anymore
     if (s.conflictFix?.step === 'pushing') Object.assign(s.conflictFix, { step: 'failed', why: 'wisp restarted while pushing the fix.' });
   }
-  for (const s of store.all()) if (hasTrees(s) && !s.archived && s.pr?.state !== 'MERGED') recheck(s);
+  // Hundreds of worktree tasks checked at once spawned thousands of gits at boot, and each spawn
+  // holds the event loop for about a millisecond: the page's first requests waited seconds. So
+  // once the page has loaded, two at a time with a pause between, newest first (they're the ones
+  // on screen); a card opened meanwhile checks its own.
+  const due = store
+    .all()
+    .filter((s) => hasTrees(s) && !s.archived && s.pr?.state !== 'MERGED')
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const pause = () => new Promise((r) => setTimeout(r, BOOT_PAUSE_MS).unref?.());
+  const drain = async () => {
+    for (let s; (s = due.shift()); await pause()) if (store.get(s.id) === s) await recheck(s); // not one deleted meanwhile
+  };
+  const bootTimer = setTimeout(() => {
+    for (let i = 0; i < BOOT_CHECKS; i++) drain();
+  }, BOOT_DELAY_MS);
+  bootTimer.unref?.();
 
   // Open PRs are checked every minute, and every few seconds while their state is still settling,
   // so a check finishing or a pushed fix clearing the conflict shows up quickly.
@@ -339,5 +357,5 @@ export function createShip(app) {
   }, PR_TICK_MS);
   timer.unref();
 
-  return { recheck, refreshPr, fixConflicts, draft, shipAll, mergeAll, prsOf, details, attach, stop: () => clearInterval(timer) };
+  return { recheck, refreshPr, fixConflicts, draft, shipAll, mergeAll, prsOf, details, attach, stop: () => (clearInterval(timer), clearTimeout(bootTimer), (due.length = 0)) };
 }

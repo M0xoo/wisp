@@ -6,7 +6,14 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { sameRepo } from './git.js';
 import { parsePresentation } from './protocol.js';
-import { writeJsonAtomic } from './util.js';
+import { activityFacts, lightFacts } from './usage.js';
+import { VERSION, writeJsonAtomic } from './util.js';
+
+// Text to a file so a crash mid-write never leaves half of it: a tmp file, then rename.
+function writeAtomic(file, text) {
+  fs.writeFileSync(`${file}.tmp`, text);
+  fs.renameSync(`${file}.tmp`, file);
+}
 
 const DEFAULT_CONFIG = {
   projects: [], // [{ id, name, path, color, addedAt, machine?, repo?, copies? }]: see projectFor()
@@ -31,21 +38,45 @@ export const HERE = 'here';
 
 export const PROJECT_COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'indigo'];
 
+// A task's file is mostly its turns' activity, file changes and raw answers (about 85% of the
+// bytes): nothing on the list needs them. Each save also writes the rest of the task to
+// sessions/.light/<id>.json, stamped with the full file's mtime and size; a start reads those
+// instead, and a turn's heavy fields load from the full file the first time anything reads them
+// (a getter on the turn), so reading or saving a task always sees all of it.
+const HEAVY = ['activity', 'changes', 'raw'];
+const LIGHT = '.light';
+
 export class Store {
   constructor(home = process.env.WISP_HOME || path.join(os.homedir(), '.wisp')) {
     this.home = home;
     this.dir = path.join(home, 'sessions');
+    this.lightDir = path.join(this.dir, LIGHT);
     this.shots = path.join(home, 'shots');
-    fs.mkdirSync(this.dir, { recursive: true });
+    fs.mkdirSync(this.lightDir, { recursive: true });
     this.sessions = new Map();
     this.timers = new Map();
+    this.lazy = new Map(); // session -> [{ turn, keys }] whose heavy fields are still on disk
+    this.writes = new Map(); // file -> the number of its latest write: an older one landing late is dropped
+    this.inflight = new Map(); // id -> session, written in the background right now
+    this.rev = new WeakMap(); // session -> saves so far (summaries are kept per rev: runner.js listSummary)
+    this.epoch = 0; // bumped by what changes other tasks' summaries: config, a task added or gone, a subagent's save
     this.config = this.#loadConfig();
 
+    const stale = [];
     for (const f of fs.readdirSync(this.dir)) {
       if (!f.endsWith('.json')) continue;
       try {
-        const s = JSON.parse(fs.readFileSync(path.join(this.dir, f), 'utf8'));
-        reparse(s);
+        let s = this.#readLight(f);
+        if (!s) {
+          s = JSON.parse(fs.readFileSync(path.join(this.dir, f), 'utf8'));
+          stale.push(s);
+        }
+        // A light file written by this version already has its turns parsed by this parser.
+        if (s[LIGHT] !== VERSION) {
+          reparse(s);
+          if (s[LIGHT] !== undefined) stale.push(s); // its light file, written again by this version
+        }
+        delete s[LIGHT];
         this.sessions.set(s.id, s);
         // Backfill: follow-ups queued before items had ids can't be cancelled without one.
         const ids = (s.queue || []).filter((q) => !q.id).map((q) => (q.id = randomUUID().replace(/-/g, '').slice(0, 12)));
@@ -53,6 +84,70 @@ export class Store {
         if ((s.turns || []).map((t) => this.keepImages(s, t)).some(Boolean) || ids.length) this.save(s, { now: true });
       } catch (err) {
         console.warn(`wisp: skipping unreadable session ${f}: ${err.message}`);
+      }
+    }
+    // Tasks with no light file yet (or one older than their file or this version): written behind the
+    // start, so the next one is quick.
+    if (stale.length) {
+      const t = setTimeout(() => {
+        for (const s of stale) if (this.sessions.get(s.id) === s && !this.timers.has(s.id) && !this.inflight.has(s.id)) this.#writeLight(s);
+      }, 2000);
+      t.unref?.();
+    }
+  }
+
+  // The task from its light file, if that matches its full file; its heavy fields wait on disk.
+  #readLight(f) {
+    let st;
+    let light;
+    try {
+      st = fs.statSync(path.join(this.dir, f));
+      light = JSON.parse(fs.readFileSync(path.join(this.lightDir, f), 'utf8'));
+    } catch {
+      return null;
+    }
+    if (light?.mtimeMs !== st.mtimeMs || light.size !== st.size || !Array.isArray(light.session?.turns)) return null;
+    const s = light.session;
+    s[LIGHT] = light.v || '';
+    const lazy = [];
+    s.turns.forEach((turn, i) => {
+      const keys = (light.lazy?.[i] || []).filter((k) => HEAVY.includes(k));
+      if (!keys.length) return;
+      lazy.push({ turn, keys });
+      if (light.facts?.[i]) lightFacts.set(turn, light.facts[i]); // the usage stats' counts
+      for (const k of keys)
+        Object.defineProperty(turn, k, {
+          configurable: true,
+          enumerable: true,
+          get: () => (this.#hydrate(s), turn[k]),
+          set: (v) => (this.#hydrate(s), (turn[k] = v)),
+        });
+    });
+    if (lazy.length) this.lazy.set(s, lazy);
+    return s;
+  }
+
+  // The heavy fields of a task loaded from the light file, read from its full file now.
+  #hydrate(s) {
+    const lazy = this.lazy.get(s);
+    if (!lazy) return;
+    this.lazy.delete(s);
+    let full = null;
+    try {
+      full = JSON.parse(fs.readFileSync(path.join(this.dir, `${s.id}.json`), 'utf8'));
+    } catch {
+      // gone (deleted meanwhile): what's left is empty
+    }
+    const turns = full?.turns || [];
+    const byId = new Map(turns.map((t, i) => [t?.id ?? i, t]));
+    for (const { turn, keys } of lazy) {
+      lightFacts.delete(turn);
+      const src = byId.get(turn.id ?? s.turns.indexOf(turn));
+      for (const k of keys) {
+        if (!Object.getOwnPropertyDescriptor(turn, k)?.get) continue; // deleted or replaced meanwhile
+        const v = src?.[k] ?? (k === 'raw' ? undefined : []);
+        if (v === undefined) delete turn[k];
+        else Object.defineProperty(turn, k, { value: v, writable: true, enumerable: true, configurable: true });
       }
     }
   }
@@ -92,6 +187,7 @@ export class Store {
   }
 
   saveConfig() {
+    this.epoch++; // projects, names and colours are on every summary
     // Atomic: a crash mid-write used to leave a cut-off config.json, which loads as the defaults
     // (no projects, recipes, triggers or machines) and is then saved over.
     writeJsonAtomic(path.join(this.home, 'config.json'), this.config, 2);
@@ -183,29 +279,109 @@ export class Store {
   }
 
   put(session) {
+    if (!this.sessions.has(session.id)) this.epoch++;
     this.sessions.set(session.id, session);
     this.save(session);
   }
 
-  // Debounced write so streaming activity doesn't hammer the disk.
+  // Debounced write so streaming activity doesn't hammer the disk. The text is made at once, the
+  // file written on the thread pool (now: right here, for a flush or a crash-sensitive step).
   save(session, { now = false } = {}) {
+    this.rev.set(session, (this.rev.get(session) || 0) + 1);
+    // A subagent's or crew job's state shows on its lead's row: every summary is made again.
+    if (session.parentId || session.delegated || session.crew || session.relay) this.epoch++;
     clearTimeout(this.timers.get(session.id));
     const write = () => {
       this.timers.delete(session.id);
       if (!this.sessions.has(session.id)) return;
-      const file = path.join(this.dir, `${session.id}.json`);
-      writeJsonAtomic(file, session);
+      this.#write(session, now);
     };
     if (now) write();
     else this.timers.set(session.id, setTimeout(write, 400));
   }
 
+  #write(session, now) {
+    const { id } = session;
+    const file = path.join(this.dir, `${id}.json`);
+    const json = JSON.stringify(session); // reads every heavy field: a light task loads them first
+    const light = this.#lightJson(session);
+    const n = (this.writes.get(file) || 0) + 1;
+    this.writes.set(file, n);
+    const land = () => {
+      try {
+        const st = fs.statSync(file);
+        writeAtomic(path.join(this.lightDir, `${id}.json`), `{"mtimeMs":${st.mtimeMs},"size":${st.size},${light}}`);
+      } catch {}
+    };
+    if (now) {
+      this.inflight.delete(id);
+      writeAtomic(file, json);
+      return land();
+    }
+    this.inflight.set(id, session);
+    const tmp = `${file}.${n}.tmp`;
+    fs.writeFile(tmp, json, (err) => {
+      // Only the latest write lands, and never for a task deleted meanwhile.
+      if (err || this.writes.get(file) !== n || this.sessions.get(id) !== session) return fs.rm(tmp, { force: true }, () => {});
+      this.inflight.delete(id);
+      try {
+        fs.renameSync(tmp, file);
+        land();
+      } catch {}
+    });
+  }
+
+  // The task without its heavy fields, and which turns had which: the inside of its light file.
+  #lightJson(session) {
+    const lazy = [];
+    const facts = [];
+    const turns = (session.turns || []).map((t, i) => {
+      const keys = HEAVY.filter((k) => k in t);
+      if (!keys.length) return t;
+      lazy[i] = keys;
+      // Still on disk itself (written again before it was read): its counts as they were loaded.
+      facts[i] = Object.getOwnPropertyDescriptor(t, 'activity')?.get ? lightFacts.get(t) || null : this.#factsOf(t);
+      const rest = {}; // by key, not Object.entries: that would read (and load) the heavy ones
+      for (const k of Object.keys(t)) if (!HEAVY.includes(k)) rest[k] = t[k];
+      return rest;
+    });
+    return `"v":${JSON.stringify(VERSION)},"lazy":${JSON.stringify(lazy)},"facts":${JSON.stringify(facts)},"session":${JSON.stringify({ ...session, turns })}`;
+  }
+
+  // A turn's usage counts, made again only when its activity grew (a finished turn's never does).
+  #facts = new WeakMap();
+  #factsOf(t) {
+    const n = t.activity?.length || 0;
+    const kept = this.#facts.get(t);
+    if (kept?.n === n && kept.list === t.activity) return kept.f;
+    const f = activityFacts(t);
+    this.#facts.set(t, { n, list: t.activity, f });
+    return f;
+  }
+
+  // A task loaded in full (no light file yet): its light file, so the next start reads that.
+  #writeLight(session) {
+    const file = path.join(this.dir, `${session.id}.json`);
+    try {
+      const st = fs.statSync(file);
+      writeAtomic(path.join(this.lightDir, `${session.id}.json`), `{"mtimeMs":${st.mtimeMs},"size":${st.size},${this.#lightJson(session)}}`);
+    } catch {}
+  }
+
   delete(id) {
     clearTimeout(this.timers.get(id));
+    this.timers.delete(id);
     const cwd = this.sessions.get(id)?.cwd;
     if (this.isScratch(cwd)) fs.rmSync(cwd, { recursive: true, force: true }); // a folder-less task's files go with it
+    const s = this.sessions.get(id);
+    if (s) this.lazy.delete(s);
     this.sessions.delete(id);
-    fs.rmSync(path.join(this.dir, `${id}.json`), { force: true });
+    this.inflight.delete(id);
+    this.epoch++;
+    const file = path.join(this.dir, `${id}.json`);
+    this.writes.set(file, (this.writes.get(file) || 0) + 1); // one in the background doesn't land
+    fs.rmSync(file, { force: true });
+    fs.rmSync(path.join(this.lightDir, `${id}.json`), { force: true });
     fs.rmSync(path.join(this.shots, id), { recursive: true, force: true });
   }
 
@@ -275,8 +451,9 @@ export class Store {
     return changed;
   }
 
+  // On the way out: what's waiting to be written, and what's being written in the background, now.
   flush() {
-    for (const id of [...this.timers.keys()]) {
+    for (const id of new Set([...this.timers.keys(), ...this.inflight.keys()])) {
       const s = this.sessions.get(id);
       if (s) this.save(s, { now: true });
     }

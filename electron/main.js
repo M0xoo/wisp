@@ -2,7 +2,7 @@
 // the window loads the same UI the browser mode serves.
 
 import { app, BrowserWindow, shell, nativeTheme, Menu, dialog, ipcMain, clipboard } from 'electron';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,15 +13,30 @@ const URL_BASE = `http://localhost:${PORT}`;
 const DEV = process.env.WISP_DEV === '1';
 
 // Apps launched from Finder/Dock get a minimal PATH, so `claude` (nvm, homebrew,
-// ~/.local/bin…) wouldn't be found. Borrow the PATH from the user's login shell.
+// ~/.local/bin…) wouldn't be found. Borrow the PATH from the user's login shell. That shell takes
+// half a second or more (nvm, oh-my-zsh), so the app starts on the PATH it read last time and asks
+// the shell again behind it (fresh: true when its PATH changed).
+const PATH_FILE = () => path.join(app.getPath('userData'), 'shell-path');
 function inheritShellPath() {
-  if (process.platform === 'win32') return;
+  if (process.platform === 'win32') return null;
+  let saved = '';
   try {
-    const sh = process.env.SHELL || '/bin/zsh';
-    const out = execFileSync(sh, ['-ilc', 'printf "__WISP__%s__WISP__" "$PATH"'], { encoding: 'utf8', timeout: 5000 });
-    const m = out.match(/__WISP__(.*)__WISP__/);
-    if (m?.[1]) process.env.PATH = m[1];
+    saved = fs.readFileSync(PATH_FILE(), 'utf8');
   } catch {}
+  if (saved) process.env.PATH = saved;
+  const sh = process.env.SHELL || '/bin/zsh';
+  const fresh = new Promise((resolve) => {
+    execFile(sh, ['-ilc', 'printf "__WISP__%s__WISP__" "$PATH"'], { encoding: 'utf8', timeout: 5000 }, (err, out) => {
+      const p = String(out || '').match(/__WISP__(.*)__WISP__/)?.[1];
+      if (!p || p === saved) return resolve(false);
+      process.env.PATH = p;
+      try {
+        fs.writeFileSync(PATH_FILE(), p);
+      } catch {}
+      resolve(true);
+    });
+  });
+  return { saved: !!saved, fresh };
 }
 
 if (DEV) app.commandLine.appendSwitch('remote-debugging-port', process.env.WISP_DEBUG_PORT || '9339');
@@ -157,8 +172,11 @@ app.whenReady().then(async () => {
       { role: 'windowMenu' },
     ]),
   );
-  inheritShellPath();
+  const shellPath = inheritShellPath();
+  if (shellPath && !shellPath.saved) await shellPath.fresh; // the first open: nothing saved yet
   await ensureServer();
   createWindow();
+  // The shell's PATH differs from the saved one (a CLI installed since): look for harnesses again.
+  if (shellPath?.saved) shellPath.fresh.then((changed) => changed && server?.auto.detect({ fresh: true }).then(() => server.broadcast('agents', {}))).catch(() => {});
   if (DEV) watchForDev();
 });

@@ -8,6 +8,9 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
   <!-- Light / dark from the first paint: the last one seen (web/js/features/theme.js). -->
   <script>try { var t = JSON.parse(localStorage.getItem('wisp.theme')); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}</script>
+  <!-- The lists boot needs, asked for now rather than once every module has loaded (web/js/core/api.js
+       takes them). Not in the phone app: it asks for what changed since its cached list. -->
+  <script>if (!/\bwispMobile\b/.test(navigator.userAgent) && window.fetch) window.wispBoot = { '/config': fetch('/api/config'), '/machines': fetch('/api/machines'), '/sessions': fetch('/api/sessions'), '/agents': fetch('/api/agents') };</script>
   <!-- Order matters: later files override earlier ones (responsive comes before the feature sheets, as it always has). -->
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">

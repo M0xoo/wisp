@@ -5,19 +5,34 @@ import fs from 'node:fs';
 import zlib from 'node:zlib';
 
 const MAX_BODY = 2e6;
-// Bigger answers go gzipped to a client that takes it. The task list is hundreds of KB and the
-// phone gets it through an SSH tunnel; level 1 is most of the saving (about 6x) for little CPU,
-// and off the event loop: a full session can be megabytes.
+// Bigger answers go compressed to a client that takes it. The task list is hundreds of KB and the
+// phone gets it through an SSH tunnel. Brotli at quality 4 when the client takes it (every browser
+// does): smaller than gzip at level 1 and as fast (a 2 MB task: 134 KB in 5 ms, against 559 KB in
+// 10 ms), else gzip at level 1; both off the event loop, since a full session can be megabytes.
 const GZIP_MIN = 8 * 1024;
+const BROTLI = (size) => ({ params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: size } });
+
+// The encoding to answer with: br, gzip or none.
+export const encodingFor = (req) => {
+  const ae = req?.headers['accept-encoding'] || '';
+  return /\bbr\b/.test(ae) ? 'br' : /\bgzip\b/.test(ae) ? 'gzip' : null;
+};
+
+// A JSON answer made once and sent again while it holds (the task list): its text, ETag and
+// compressed copies are kept on it.
+const PREPARED = Symbol('prepared');
+export const prepared = (body) => ({ [PREPARED]: true, json: JSON.stringify(body), etag: null, out: {} });
 
 export function send(res, status, body) {
-  const json = JSON.stringify(body);
+  const p = body?.[PREPARED] ? body : null;
+  const json = p ? p.json : JSON.stringify(body);
   // A big read answered again unchanged (a task opened again, the lists after a reconnect): the
   // browser keeps the last answer and asks with If-None-Match, so the tunnel carries a 304
   // instead of the body. no-cache: it always asks; private: nothing in between keeps it.
   const req = res.req;
   if (status === 200 && json !== undefined && json.length >= GZIP_MIN && req?.method === 'GET') {
-    const etag = `W/"${crypto.createHash('sha1').update(json).digest('base64url')}"`;
+    const etag = p?.etag || `W/"${crypto.createHash('sha1').update(json).digest('base64url')}"`;
+    if (p) p.etag = etag;
     res.setHeader('etag', etag);
     res.setHeader('cache-control', 'private, no-cache');
     if (req.headers['if-none-match'] === etag) {
@@ -25,19 +40,24 @@ export function send(res, status, body) {
       return res.end();
     }
   }
-  if (json === undefined || json.length < GZIP_MIN || !/\bgzip\b/.test(res.req?.headers['accept-encoding'] || '')) {
+  const enc = json !== undefined && json.length >= GZIP_MIN && encodingFor(req);
+  if (!enc) {
     res.writeHead(status, { 'content-type': 'application/json' });
     return res.end(json);
   }
   res.gzipping = true; // answered: the headers go out with the compressed body
-  zlib.gzip(json, { level: 1 }, (err, gz) => {
+  const done = (err, out) => {
+    if (!err && p) p.out[enc] = out;
     if (err) {
       res.writeHead(status, { 'content-type': 'application/json' });
       return res.end(json);
     }
-    res.writeHead(status, { 'content-type': 'application/json', 'content-encoding': 'gzip', vary: 'accept-encoding' });
-    res.end(gz);
-  });
+    res.writeHead(status, { 'content-type': 'application/json', 'content-encoding': enc, vary: 'accept-encoding' });
+    res.end(out);
+  };
+  if (p?.out[enc]) return done(null, p.out[enc]);
+  if (enc === 'br') zlib.brotliCompress(json, BROTLI(Buffer.byteLength(json)), done);
+  else zlib.gzip(json, { level: 1 }, done);
 }
 
 export function readJson(req) {

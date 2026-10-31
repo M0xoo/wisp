@@ -154,11 +154,27 @@ function relaysOf(s, store) {
   return relays.length ? { relays } : {};
 }
 
+// GET /sessions summarizes every task on each call (hundreds of them): each task's summary is
+// kept until it's saved again (store.rev), something every row shows changes (store.epoch: the
+// config, a task added or gone, a subagent's save) or the fields a change without a save would
+// touch move. Only for the list: other callers get a fresh one they may change.
+const listed = new WeakMap();
+export function listSummary(s, store) {
+  if (!store?.rev) return summarize(s, store);
+  const key = `${store.rev.get(s) || 0}.${store.epoch}.${openTerms.has(s.id)}.${s.updatedAt}.${s.state}.${s.unread}.${s.archived}.${!!s.ask}.${s.turns.length}.${s.turns.at(-1)?.status}`;
+  const kept = listed.get(s);
+  if (kept?.key === key) return kept.sum;
+  const sum = summarize(s, store);
+  listed.set(s, { key, sum });
+  return sum;
+}
+
 export function summarize(s, store) {
   const project = store?.projectFor(s.cwd);
   const last = s.turns.at(-1);
   const hero = heroOf(last?.presentation);
-  const lastAct = last?.activity?.findLast?.((a) => a.kind !== 'text');
+  // Only a running turn's last step is shown (and reading activity loads a task's heavy fields: store.js).
+  const lastAct = last?.status === 'running' ? last.activity?.findLast?.((a) => a.kind !== 'text') : null;
   // A lead blocked on its subagents says who it's waiting for.
   const busy = last?.status === 'running' ? (last.delegations || []).filter((d) => store?.get(d.sessionId)?.turns.find((t) => t.id === d.turnId)?.status === 'running') : [];
   const waitingOn = busy.length ? `Waiting on ${[...new Set(busy.map((d) => d.name))].join(', ')}` : '';

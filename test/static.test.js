@@ -1,4 +1,4 @@
-// The page's files (server/http/static.js): kept in memory, gzipped, revalidated by ETag, and
+// The page's files (server/http/static.js): kept in memory, compressed, revalidated by ETag, and
 // index.html preloads the module graph and names its build for the phone's service worker.
 
 import { test, before, after } from 'node:test';
@@ -40,14 +40,32 @@ test('files carry an ETag and an unchanged one costs a 304', async () => {
   assert.equal(b.body.length, 0);
 });
 
+// Compressed on the thread pool after the first read: plain until it's ready.
+async function compressed(path, ae, enc) {
+  for (let i = 0; i < 100; i++) {
+    const r = await get(path, { 'accept-encoding': ae });
+    if (r.headers['content-encoding'] === enc) return r;
+    await new Promise((done) => setTimeout(done, 50));
+  }
+  throw new Error(`${path} never came ${enc}`);
+}
+
 test('text is gzipped for browsers that take it, plain for those that don’t', async () => {
   const plain = await get('/css/base.css');
-  const gz = await get('/css/base.css', { 'accept-encoding': 'gzip, deflate' });
+  const gz = await compressed('/css/base.css', 'gzip, deflate', 'gzip');
   assert.equal(plain.headers['content-encoding'], undefined);
   assert.equal(gz.headers['content-encoding'], 'gzip');
   assert.equal(gz.headers.vary, 'accept-encoding');
   assert.ok(gz.body.length < plain.body.length);
   assert.equal(zlib.gunzipSync(gz.body).toString(), plain.body.toString());
+});
+
+test('text goes brotli’d to a browser that takes it, once it’s compressed', async () => {
+  const plain = await get('/css/split.css');
+  const br = await compressed('/css/split.css', 'gzip, deflate, br', 'br');
+  assert.equal(zlib.brotliDecompressSync(br.body).toString(), plain.body.toString());
+  const gz = await compressed('/css/split.css', 'gzip, deflate', 'gzip');
+  assert.ok(br.body.length < gz.body.length);
 });
 
 test('index.html preloads every module app.js imports and names its build', async () => {
@@ -94,8 +112,8 @@ test('the service worker is served, and paths outside web/ are not', async () =>
   assert.match(escape.headers['content-type'], /text\/html/);
 });
 
-// The API's JSON (server/http/respond.js): big answers go gzipped to a client that asks for it.
-test('big JSON answers are gzipped when the client takes it, small ones and others go plain', async () => {
+// The API's JSON (server/http/respond.js): big answers go compressed to a client that asks for it.
+test('big JSON answers are brotli’d or gzipped when the client takes it, small ones and others go plain', async () => {
   const { send } = await import('../server/http/respond.js');
   const big = { items: Array.from({ length: 2000 }, (_, i) => ({ id: i, title: `task ${i}` })) };
   const api = http.createServer((req, res) => send(res, 200, req.url === '/big' ? big : { ok: true }));
@@ -113,8 +131,12 @@ test('big JSON answers are gzipped when the client takes it, small ones and othe
         .end();
     });
   try {
-    const gz = await raw('/big', { 'accept-encoding': 'gzip, deflate, br' });
+    const br = await raw('/big', { 'accept-encoding': 'gzip, deflate, br' });
+    assert.equal(br.headers['content-encoding'], 'br');
+    assert.deepEqual(JSON.parse(zlib.brotliDecompressSync(br.body)), big);
+    const gz = await raw('/big', { 'accept-encoding': 'gzip, deflate' });
     assert.equal(gz.headers['content-encoding'], 'gzip');
+    assert.ok(br.body.length < gz.body.length);
     assert.equal(gz.headers['content-type'], 'application/json');
     assert.deepEqual(JSON.parse(zlib.gunzipSync(gz.body)), big);
     assert.ok(gz.body.length < JSON.stringify(big).length / 3);

@@ -76,7 +76,7 @@ export async function checkBuild() {
   if (build === mine) return fillShell();
   const reload = async () => {
     remember();
-    await caches.delete(SHELL).catch(() => {});
+    await dropUnversioned().catch(() => {});
     location.reload();
   };
   if (!touched) return reload();
@@ -85,12 +85,29 @@ export async function checkBuild() {
   toast('wisp was updated on this computer', { action: { label: 'Reload', run: reload }, timeout: 15_000 });
 }
 
+// A new build keeps the files it shares with the last one: scripts and stylesheets are named by
+// their content (?v=, server/http/static.js), so one that didn't change has the same URL and is
+// already here, and the reload onto the new build fetches only what changed (a few files, not
+// all 150 through the tunnel). The page and anything not named by content go.
+async function dropUnversioned() {
+  const cache = await caches.open(SHELL);
+  await Promise.all((await cache.keys()).filter((r) => !new URL(r.url).searchParams.has('v')).map((r) => cache.delete(r)));
+}
+
 // The first open loads before the service worker is in charge, so it caches nothing: put what this
 // page loaded in its cache now (the browser's own cache answers most of it), so the next open
-// needs no network at all.
+// needs no network at all. Files of older builds this page no longer names go.
 async function fillShell() {
   const cache = await caches.open(SHELL).catch(() => null);
   if (!cache) return;
+  const named = new Set([
+    ...Object.values(JSON.parse(document.querySelector('script[type="importmap"]')?.textContent || '{}').imports || {}),
+    ...[...document.querySelectorAll('[href*="?v="], [src*="?v="]')].map((e) => e.getAttribute('href') || e.getAttribute('src')),
+  ]);
+  for (const r of await cache.keys()) {
+    const u = new URL(r.url);
+    if (u.searchParams.has('v') && !named.has(u.pathname + u.search)) cache.delete(r).catch(() => {});
+  }
   const files = performance
     .getEntriesByType('resource')
     .map((r) => new URL(r.name))

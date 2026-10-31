@@ -42,7 +42,20 @@ const MAX_CACHED = 4e6; // bigger files (videos) are streamed, not held in memor
 
 const hash = (buf) => crypto.createHash('sha1').update(buf).digest('base64url').slice(0, 20);
 
-// path -> { mtimeMs, size, body, gz, etag }. Keyed on the file's stat, so an edit shows at once.
+// Text is compressed on the thread pool, gzip first and then brotli at its best (about 13% smaller
+// than gzip over all of web/, two seconds of CPU once per start), one file at a time so the pool
+// stays free for the rest of the server and a start doesn't hold the first requests: each is
+// served as soon as it's ready, plain until then.
+const BROTLI = { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } };
+let gzips = Promise.resolve();
+let brotlis = Promise.resolve();
+const compress = (entry, body) => {
+  gzips = gzips.then(() => new Promise((done) => zlib.gzip(body, { level: 9 }, (err, gz) => done(!err && (entry.gz = gz)))));
+  brotlis = brotlis.then(() => new Promise((done) => zlib.brotliCompress(body, BROTLI, (err, br) => done(!err && (entry.br = br)))));
+  return entry;
+};
+
+// path -> { mtimeMs, size, body, gz, br, etag }. Keyed on the file's stat, so an edit shows at once.
 const files = new Map();
 function read(p) {
   const st = fs.statSync(p);
@@ -50,7 +63,8 @@ function read(p) {
   if (f && f.mtimeMs === st.mtimeMs && f.size === st.size) return f;
   const body = fs.readFileSync(p);
   const ext = path.extname(p);
-  const entry = { mtimeMs: st.mtimeMs, size: st.size, body, etag: `"${hash(body)}"`, gz: TEXT.has(ext) && body.length > 1024 ? zlib.gzipSync(body) : null };
+  const entry = { mtimeMs: st.mtimeMs, size: st.size, body, etag: `"${hash(body)}"`, gz: null, br: null, text: TEXT.has(ext) && body.length > 1024 };
+  if (entry.text) compress(entry, body);
   files.set(p, entry);
   return entry;
 }
@@ -103,7 +117,7 @@ function index() {
     .replace(/(href|src)="(\/(?:css|js)\/[^"?]+)"/g, (m, attr, u) => (isFile(path.join(WEB, u)) ? `${attr}="${versioned(u)}"` : m))
     .replace('</head>', `${head}\n</head>`);
   const body = Buffer.from(html);
-  page = { build, body, etag: `"${build}"`, gz: zlib.gzipSync(body) };
+  page = compress({ build, body, etag: `"${build}"`, text: true }, body);
   return page;
 }
 function webFiles(dir = WEB) {
@@ -134,15 +148,24 @@ export function serveStatic(req, res, pathname) {
   const forGood = file && v && v === version(file);
   const headers = { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': forGood ? 'public, max-age=31536000, immutable' : 'no-cache', etag: f.etag };
   if (!file) headers['x-wisp-build'] = f.build;
-  if (f.gz) headers.vary = 'accept-encoding';
+  if (f.text) headers.vary = 'accept-encoding';
   if (req.headers['if-none-match'] === f.etag) {
     res.writeHead(304, headers);
     return res.end();
   }
-  const gzip = f.gz && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
-  if (gzip) headers['content-encoding'] = 'gzip';
-  const body = gzip ? f.gz : f.body;
+  const ae = req.headers['accept-encoding'] || '';
+  const enc = f.br && /\bbr\b/.test(ae) ? 'br' : f.gz && /\bgzip\b/.test(ae) ? 'gzip' : null;
+  if (enc) headers['content-encoding'] = enc;
+  const body = enc === 'br' ? f.br : enc === 'gzip' ? f.gz : f.body;
   headers['content-length'] = body.length;
   res.writeHead(200, headers);
   res.end(req.method === 'HEAD' ? undefined : body);
+}
+
+// Right after the server is up: the page and every file it names read, hashed and compressed, so
+// the first open doesn't wait on that (about 60 ms).
+export function warmStatic() {
+  try {
+    index();
+  } catch {}
 }

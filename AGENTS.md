@@ -6,6 +6,8 @@ this covers how the code is laid out and the rules a change has to follow.
 ## Layout
 
 - `server/`: the Node server (no dependencies). `index.js` boots it, `routes/` is the HTTP API,
+  `store.js` keeps each task in `sessions/<id>.json` and a light copy in `sessions/.light/` that a
+  start reads (turns' `activity`, `changes` and `raw` load from the full file when first read),
   `runner.js` runs sessions, `adapters/` has one file per harness, `spells.js` validates and stores
   spells, `spell-guide.js` is the reference the *Cast a spell* agent reads, `crew.js` runs the crew
   (named long-lived agents: their schedule, queue, memory and `@Name` mentions; their jobs are tasks).

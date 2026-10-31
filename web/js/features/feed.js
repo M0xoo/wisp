@@ -4,7 +4,7 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import * as bus from '../core/bus.js';
-import { $, $$, el, icon } from '../core/dom.js';
+import { $, $$, beforePaint, el, icon } from '../core/dom.js';
 import { ago, agoLong, STATUS_LABEL, timeAttrs } from '../core/format.js';
 import { HERE, isForLater, MOBILE, needsYou, S, save, saveOpen } from '../core/state.js';
 import { setForLater, taskDone, taskMenu, toggleDone } from './actions.js';
@@ -93,9 +93,10 @@ export function groups() {
 }
 
 // Done and Archived can hold hundreds of tasks: they show a page of cards and add the next
-// page as the user scrolls to the end of the list. The headings count every one. The phone shows
-// a third as many at a time: each card it holds is restyled whenever a page opens over the list.
-const PAGE = MOBILE ? 20 : 60;
+// page as the user scrolls toward the end of the list (800px ahead). The headings count every
+// one. A page is a few screens of rows, so unfolding Done builds no more than that; the phone's
+// is smaller still: each card it holds is restyled whenever a page opens over the list.
+const PAGE = MOBILE ? 20 : 30;
 const page = { secForLater: PAGE, secDone: PAGE, secArchived: PAGE };
 const moreObserver = new IntersectionObserver(
   (entries) => {
@@ -300,8 +301,9 @@ function item(s) {
         carryDock(s.id);
         if (S.open.has(s.id)) paintSplit();
         // Ready to type the follow-up once it's shown (j / k keep the keys in the list). Not on a
-        // page of its own: a phone's keyboard would cover the task it just opened.
-        Promise.resolve(S.open.has(s.id) || expand(s.id)).then(() => isStacked() || focusReply(s.id));
+        // page of its own: a phone's keyboard would cover the task it just opened. Just before the
+        // frame: focusing lays the page out, once, with the rest of what the open changed.
+        Promise.resolve(S.open.has(s.id) || expand(s.id)).then(() => isStacked() || beforePaint(() => focusReply(s.id)));
         return;
       }
       toggle(s.id);

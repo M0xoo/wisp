@@ -40,7 +40,7 @@ import { Guard } from './guard.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
 import { send, eventStream } from './http/respond.js';
-import { serveStatic } from './http/static.js';
+import { serveStatic, warmStatic } from './http/static.js';
 import { trustedProxy } from './http/trust.js';
 import { previewPort, previewRequest, previewUpgrade } from './http/preview.js';
 import { createAuto } from './services/auto.js';
@@ -495,6 +495,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.computer.start();
 
   app.auto.detect().catch(() => {});
+  // The page's files, ready before the window asks (not under `node --test`: hundreds of servers).
+  if (!process.env.NODE_TEST_CONTEXT) setImmediate(warmStatic);
   const { telemetry } = app;
   if (telemetry.enabled) {
     if (store.config.defaults.telemetryNotice !== 'seen') console.log('wisp sends anonymous usage stats and error reports (no prompts, paths or code). Opt out: Settings, or WISP_TELEMETRY=0 / DO_NOT_TRACK=1.');
@@ -503,5 +505,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, broadcast: app.broadcast, routes };
 }
