@@ -238,3 +238,15 @@ Never send builds to someone's own phone as part of QA.
   springs back. The diff scrolls first and only then does a right swipe go back. The swipe reopens
   Shell without the keyboard. Scrolling never moves the panel; Back returns to the task, then the
   list. A tap after a swipe doesn't press what was under the finger.
+
+### MOB-26 Swipe a crew member's thread for its About page
+- **Run:** Manual on the Pixel (debug APK); `qa/mobile.mjs`'s page can drive it with CDP touch events.
+- **Steps:** open a crew member; drag the thread slowly to the left past half way and let go; scroll
+  the About page; drag it to the right; drag a little and let go; flick both ways; open About again
+  and tap its Back, then again and press the phone's Back; open About and tap one of its *Part of*
+  tasks. In light and dark.
+- **Expected:** the About page (facts, actions, notebook, brief, kit) tracks the finger with the
+  thread sliding and dimming under it; past 40% or on a flick it finishes, short of it it springs
+  back. Scrolling never moves it. Back (its own or the phone's) returns to the thread, a second Back to
+  the list. A task opened from it opens normally and Back from it doesn't land on a stale About page.
+  The reply box never takes the swipe.

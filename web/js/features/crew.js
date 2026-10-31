@@ -17,6 +17,7 @@ import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { fmtDuration } from '../blocks.js';
 import { HERE, isForLater, launch, load, MOBILE, S, save } from '../core/state.js';
 import { canSaveForLater, setForLater } from './actions.js';
+import { onBack } from '../ui/back.js';
 import { overlay } from '../ui/overlay.js';
 import { popover } from '../ui/popover.js';
 import { ask } from '../ui/confirm.js';
@@ -484,6 +485,7 @@ export function paintCrewView() {
   // at once stacked them, one under the other, and under home).
   for (const n of $$(':scope > .crew-view', $('#splitMain'))) {
     if (n === v?.node) continue;
+    views.get(n.dataset.crew)?.about(false); // its About page goes with it, and its Back entry
     n.hidden = true;
     n.removeAttribute('id');
   }
@@ -496,6 +498,14 @@ export function paintCrewView() {
   for (const r of $$('.cr-row.open', box)) r.classList.toggle('open', !!S.crewOpen && r.closest('.cr-member').dataset.crew === S.crewOpen);
 }
 export const crewViewShown = () => isSplit() && !!S.crewOpen && !splitOpen();
+
+// The phone app's About page, swiped in over the open thread (panel-swipe.js): its layers are the
+// thread's head and body, which slide under it.
+const shownView = () => (crewViewShown() ? views.get(S.crewOpen) : null);
+export const aboutShown = () => shownView()?.page.hidden === false;
+export const aboutPage = () => shownView()?.page;
+export const aboutLayers = () => (shownView() ? [shownView().head, shownView().scroller] : []);
+export const showAbout = (on) => shownView()?.about(on);
 
 // --- actions --------------------------------------------------------------------------------------
 
@@ -813,9 +823,15 @@ function buildView(id) {
           </div>
         </form>
       </div>
+      <aside class="cv-page" hidden>
+        <header class="cv-top cv-page-top"><button class="icon-btn sh-back" data-a="about-back" title="Back to the thread" aria-label="Back to the thread">${icon('back')}</button><h2 class="sh-title"></h2></header>
+        <div class="cv-page-scroll"><div class="cv-side"></div></div>
+      </aside>
     </section>`);
   const thread = $('.cv-thread', node);
+  const head = $('.cv-top', node);
   const scroller = $('.cv-scroll', node);
+  const page = $('.cv-page', node);
   const ta = $('.cv-input', node);
   const about = $('.cv-about', node);
   let show = SHOW;
@@ -850,7 +866,7 @@ function buildView(id) {
         <button class="icon-btn" data-a="more" title="More" aria-label="More">${icon('dots')}</button>
         ${split && !stacked ? `<button class="icon-btn" data-a="close" title="${crewHooks.back ? 'Close: back to Org (Esc)' : 'Close: back to New task (Esc)'}" aria-label="Close">${icon('x')}</button>` : ''}
       </span>`;
-    const hd = $('.cv-top', node);
+    const hd = head;
     const hkey = top.replace(/<svg[\s\S]*?<\/svg>/, `[${st.mood}:${m.avatar}]`);
     if (hd.dataset.h !== hkey) (hd.innerHTML = top), (hd.dataset.h = hkey);
     ta.placeholder = `Give ${m.name} a job… (@ to bring in someone else)`;
@@ -901,7 +917,12 @@ function buildView(id) {
     // Its cadence, unless the head already says the same (an idle member's status is its cadence).
     const how = [cadenceText(m), m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · ');
     $('summary', about).innerHTML = `${icon('info')}About ${esc(m.name)}<span>${how === statusLine(m, st).text ? '' : esc(how)}</span>${icon('chevron', 'chev')}`;
-    paintSide(m, st, $('.cv-side', node));
+    paintSide(m, st, $('.cv-side', about));
+    // Its About page, while it's in: the same details, a page of their own.
+    if (!page.hidden) {
+      $('.sh-title', page).textContent = `About ${m.name}`;
+      paintSide(m, st, $('.cv-side', page));
+    }
 
     // Seen here: its reports are read.
     if (!node.hidden && node.isConnected)
@@ -937,6 +958,7 @@ function buildView(id) {
       closeMember();
       return back?.();
     }
+    if (a === 'about-back') return showPage(false);
     if (a === 'checkin') return checkIn(id);
     if (a === 'pause') return togglePause(id);
     if (a === 'edit') return crewEditor({ member: m });
@@ -1032,7 +1054,21 @@ function buildView(id) {
   about.addEventListener('toggle', () => {
     if (!node.classList.contains('wide')) about.dataset.user = about.open ? '1' : '';
   });
-  return { node, paint, reveal, focus: () => !MOBILE && ta.focus({ preventScroll: true }) };
+  // The About page (the phone app, swiped in): it takes one Back entry, so Back returns to the thread.
+  let aboutBack = null;
+  const showPage = (on) => {
+    if (page.hidden === !on) return;
+    page.hidden = !on;
+    if (on) {
+      $('.cv-page-scroll', page).scrollTop = 0;
+      paint();
+      aboutBack = onBack(() => {
+        aboutBack = null;
+        showPage(false);
+      });
+    } else if (aboutBack) (aboutBack(), (aboutBack = null));
+  };
+  return { node, head, scroller, page, paint, reveal, about: showPage, focus: () => !MOBILE && ta.focus({ preventScroll: true }) };
 }
 
 // A job opened in full: the task, under its member in the list (and in the main pane in split view).

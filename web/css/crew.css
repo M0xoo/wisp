@@ -501,6 +501,14 @@ body.wisp-mobile .cv-sent { height: 36px; }
 body.wisp-mobile .cv-about > summary { min-height: 44px; }
 body.wisp-mobile .cv-side .ghost.sm { min-width: 44px; min-height: 44px; justify-content: center; }
 body.wisp-mobile .cv-side .link.xs { display: inline-flex; align-items: center; min-height: 44px; margin-block: -12px; }
+/* Its About page: swiped in over the thread (panel-swipe.js), the details column as a page with
+   Back. Sideways is the swipe's, the browser keeps vertical scrolling (and a code block's own). */
+.cv-page { position: fixed; z-index: 6; top: var(--vv-top, 0); left: 0; width: 100vw; height: var(--vv-h, 100dvh); display: flex; flex-direction: column; background: var(--bg); }
+.cv-page[hidden] { display: none; }
+.cv-page-top .sh-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-page-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 24px calc(24px + env(safe-area-inset-bottom)); }
+.cv-page.pn-drag { box-shadow: -1px 0 0 var(--line), var(--shadow-2); }
+body.wisp-mobile.stack-page .crew-view :is(.cv-top, .cv-scroll), body.wisp-mobile .cv-page, body.wisp-mobile .cv-page-scroll { touch-action: pan-y pinch-zoom; }
 
 /* ---------- sharing (crew-share.js): Share, Import and its review, a spell member's review ---------- */
 .crew-share { width: min(520px, 100%); }

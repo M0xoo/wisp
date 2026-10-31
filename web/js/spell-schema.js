@@ -86,6 +86,7 @@ export const PARTS = {
   'crew.page': '.crew-view',
   'crew.thread': '.crew-view .cv-thread',
   'crew.details': '.crew-view .cv-about',
+  'crew.about': '.crew-view .cv-page', // the phone app's About page, swiped in over the thread
   'crew.compose': '.crew-view .cv-dock',
   'crew.editor': '.crew-edit',
   // Its skills and instructions files (the section in its details), and the editor for one.
@@ -413,6 +414,7 @@ export const PART_PROPS = {
   'split.main': { readWidth: 'px' },
   'split.details': { width: 'px' },
   'split.home': { greeting: 'string' },
+  'crew.page': { swipe: 'bool' }, // false stops swiping a thread left bringing in its About page (the phone app)
   'crew.record': { tips: 'bool' }, // the suggestion line under a member's numbers (on)
   'section.crew': { rows: 'int' }, // full rows shown when nobody's busy (2); the rest fold
   'org.chart': { movable: 'bool' }, // cards can be moved by hand (on); off keeps the automatic tiers

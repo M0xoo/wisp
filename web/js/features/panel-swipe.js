@@ -3,13 +3,16 @@
 // follows the finger, the task slides a little under it and dims; letting go past 40% of the way
 // (or on a quick flick) finishes the move from where the finger left it, at the finger's speed,
 // otherwise it springs back. It opens on what it last showed.
+// A crew member's thread does the same with its About page (crew.js), the column beside the
+// thread on a wide pane.
 // Only the app (MOBILE), like the list's swipes (swipe.js): a phone browser keeps its own gestures.
-// A spell turns it off (panel: swipe false).
+// A spell turns it off (panel: swipe false; crew.page: swipe false).
 // Only transform and opacity move while the finger does, so the frames stay on the compositor.
 
 import { $, el } from '../core/dom.js';
 import { MOBILE } from '../core/state.js';
 import { close, lastTab, openPanel, panelShown, sidePanel } from './panel.js';
+import { aboutLayers, aboutPage, aboutShown, showAbout } from './crew.js';
 import { spellProp } from './spells.js';
 import { isStacked, splitOpen, stackPage } from './split.js';
 
@@ -30,6 +33,27 @@ let settling = null; // the move finishing after a lift: { done, timer }
 // The task's page under the panel: its head and its body.
 const taskLayers = () => [$('.split-main'), $('#feed .item.open > .it-body')].filter(Boolean);
 
+// What a swipe brings in, and over what: the page, whether it's in, the layers under it (a
+// swipe on them brings it in), and how it comes and goes.
+const PAGES = [
+  {
+    off: () => spellProp('panel', 'swipe') === false,
+    shown: panelShown,
+    page: () => sidePanel,
+    under: () => (stackPage() && splitOpen() ? taskLayers() : []),
+    open: () => openPanel(splitOpen(), lastTab(), { swipe: true }),
+    close,
+  },
+  {
+    off: () => spellProp('crew.page', 'swipe') === false,
+    shown: aboutShown,
+    page: aboutPage,
+    under: () => (stackPage() ? aboutLayers() : []),
+    open: () => showAbout(true),
+    close: () => showAbout(false),
+  },
+];
+
 // Inside something that scrolls sideways and can still go the finger's way (a diff, a code
 // block, the key row): that scroll is the finger's, not ours.
 function scrollsSideways(t, dx, stop) {
@@ -41,13 +65,17 @@ function scrollsSideways(t, dx, stop) {
 }
 
 function start(e) {
-  if (!MOBILE || e.pointerType !== 'touch' || !e.isPrimary || g || settling || !isStacked() || spellProp('panel', 'swipe') === false) return;
+  if (!MOBILE || e.pointerType !== 'touch' || !e.isPrimary || g || settling || !isStacked()) return;
   if (e.clientX < EDGE || e.clientX > innerWidth - EDGE) return;
   const t = e.target;
   if (t.closest('input, textarea, select, [contenteditable="true"], dialog, .popover, .pk-slider, .cq-grip')) return;
-  const open = panelShown();
-  if (open ? !sidePanel.contains(t) : !(stackPage() && splitOpen() && taskLayers().some((n) => n.contains(t)))) return;
-  g = { open, id: e.pointerId, x0: e.clientX, y0: e.clientY, t, on: false, trail: [], w: 0, x: 0, raf: 0, layers: [] };
+  for (const p of PAGES) {
+    if (p.off()) continue;
+    const open = p.shown();
+    if (open ? !p.page().contains(t) : !p.under().some((n) => n.contains(t))) continue;
+    g = { p, open, id: e.pointerId, x0: e.clientX, y0: e.clientY, t, on: false, trail: [], w: 0, x: 0, raf: 0, page: null, layers: [] };
+    return;
+  }
 }
 
 function move(e) {
@@ -58,7 +86,7 @@ function move(e) {
     if (Math.abs(dy) > SLOP && Math.abs(dy) >= Math.abs(dx)) return (g = null); // a scroll
     if (Math.abs(dx) < SLOP || Math.abs(dx) < Math.abs(dy) * 1.5) return;
     // Left brings the panel in, right takes it away; the other way isn't ours.
-    if ((dx < 0) === g.open || scrollsSideways(g.t, dx, g.open ? sidePanel : document.body)) return (g = null);
+    if ((dx < 0) === g.open || scrollsSideways(g.t, dx, g.open ? g.p.page() : document.body)) return (g = null);
     begin(g);
     g.x0 = e.clientX; // no jump of the slop's 10px when it takes hold
   }
@@ -80,18 +108,19 @@ function move(e) {
 // here on only its position changes.
 function begin(t) {
   t.on = true;
-  if (!t.open) openPanel(splitOpen(), lastTab(), { swipe: true });
+  if (!t.open) t.p.open();
   t.w = innerWidth; // stacked it's the whole window; measuring it would lay the page out here, mid-frame
-  t.layers = taskLayers();
-  sidePanel.after(scrim);
-  for (const n of [sidePanel, scrim, ...t.layers]) n.classList.add('pn-drag');
+  t.page = t.p.page();
+  t.layers = t.p.under();
+  t.page.after(scrim);
+  for (const n of [t.page, scrim, ...t.layers]) n.classList.add('pn-drag');
   place(t, t.open ? 0 : t.w);
 }
 
 // x: how far the panel is from fully over the task (0 is open, w is gone).
 function place(t, x) {
   const p = 1 - x / t.w;
-  sidePanel.style.transform = `translate3d(${x}px, 0, 0)`;
+  t.page.style.transform = `translate3d(${x}px, 0, 0)`;
   scrim.style.opacity = (DIM * p).toFixed(3);
   const back = `translate3d(${(-BEHIND * t.w * p).toFixed(1)}px, 0, 0)`;
   for (const n of t.layers) n.style.transform = back;
@@ -118,13 +147,13 @@ function settle(t, shown, v) {
   const to = shown ? 0 : t.w;
   const left = Math.abs(to - t.x);
   const ms = Math.round(Math.min(320, Math.max(140, left / Math.max(Math.abs(v), t.w / 300))));
-  for (const n of [sidePanel, scrim, ...t.layers]) n.style.transition = `transform ${ms}ms ${EASE}, opacity ${ms}ms ${EASE}`;
+  for (const n of [t.page, scrim, ...t.layers]) n.style.transition = `transform ${ms}ms ${EASE}, opacity ${ms}ms ${EASE}`;
   place(t, to);
   const done = () => {
     clearTimeout(settling?.timer);
     settling = null;
-    if (!shown && panelShown()) close(); // hidden first, so it never flashes back over the task
-    for (const n of [sidePanel, scrim, ...t.layers]) {
+    if (!shown && t.p.shown()) t.p.close(); // hidden first, so it never flashes back over the task
+    for (const n of [t.page, scrim, ...t.layers]) {
       n.classList.remove('pn-drag');
       n.style.transform = n.style.transition = n.style.opacity = '';
     }

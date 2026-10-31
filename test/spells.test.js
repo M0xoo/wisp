@@ -325,7 +325,7 @@ test('a scheduled task\'s page and queued follow-ups: parts, and a header that t
 test('the crew: its section, rows, faces, page and editor are parts; the page takes buttons, not panels', () => {
   const ok = {
     ...base0,
-    parts: { 'section.crew': { style: { fontSize: '12px' } }, 'crew.row': { style: { padding: '2px' } }, 'crew.avatar': { style: { borderRadius: '8px' } }, 'crew.page': { style: { width: '900px' } }, 'crew.editor': { hide: false }, 'crew.editor.events': { hide: true } },
+    parts: { 'section.crew': { style: { fontSize: '12px' } }, 'crew.row': { style: { padding: '2px' } }, 'crew.avatar': { style: { borderRadius: '8px' } }, 'crew.page': { style: { width: '900px' } }, 'crew.editor': { hide: false }, 'crew.editor.events': { hide: true }, 'crew.about': { style: { background: 'var(--surface)' } } },
     buttons: [{ slot: 'crew.page', icon: 'crew', label: 'Standup', do: { open: 'https://example.com' } }],
   };
   assert.deepEqual(problems(ok), []);
@@ -334,6 +334,9 @@ test('the crew: its section, rows, faces, page and editor are parts; the page ta
   assert.ok(schema.ICONS.includes('crew') && schema.ICONS.includes('pause') && schema.ICONS.includes('user'));
   assert.ok(problems({ ...base0, buttons: [{ slot: 'crew.page', panel: 'x' }] }).length);
   assert.ok(problems({ ...base0, parts: { 'crew.nope': { hide: true } } }).some((x) => /crew\.nope/.test(x)));
+  // The phone app's swipe to the About page is a switch.
+  assert.deepEqual(problems({ ...base0, parts: { 'crew.page': { props: { swipe: false } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'crew.page': { props: { swipe: 'no' } } } }).some((x) => /swipe: bool/.test(x)));
   // Skills and instructions: the section and its editor.
   assert.deepEqual(problems({ ...base0, parts: { 'crew.kit': { hide: true }, 'crew.kitEditor': { style: { width: '900px' } }, 'crew.notebookEditor': { style: { width: '900px' } }, 'crew.kitGenerate': { hide: true }, 'crew.offer': { style: { padding: '4px' } }, 'turn.kitOffer': { hide: true } } }), []);
   assert.ok(problems({ ...base0, parts: { 'crew.kits': { hide: true } } }).some((x) => /crew\.kits/.test(x)));
