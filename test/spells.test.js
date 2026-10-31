@@ -389,6 +389,12 @@ test('the viewer\'s previous / next arrows are a part', () => {
   assert.ok(problems({ ...base0, parts: { 'viewer.nav': { props: { size: 4 } } } }).some((x) => /viewer\.nav/.test(x)));
 });
 
+test('a map in a reply is a part, its map can be made taller, and map is a built-in block', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['map.head'] }, parts: { 'map.stage': { style: { minHeight: '480px' } }, 'map.list': { style: { maxHeight: '200px' } } } }), []);
+  assert.ok(problems({ ...base0, parts: { 'map.stage': { props: { zoom: 4 } } } }).some((x) => /map\.stage/.test(x)));
+  assert.ok(schema.BUILTIN_BLOCKS.includes('map'));
+});
+
 test('a preview in a reply is a part, its stage can be made taller, and preview is a built-in block', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['preview.foot'] }, parts: { 'preview.stage': { style: { maxHeight: '900px' } } } }), []);
   assert.ok(problems({ ...base0, parts: { 'preview.stage': { props: { size: 4 } } } }).some((x) => /preview\.stage/.test(x)));

@@ -10,6 +10,7 @@ import { ask } from './ui/confirm.js';
 import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
 import { appBlock } from './app-frame.js';
 import { previewBlock } from './preview-frame.js';
+import { embedUrl, mapPlaces, mapZoom, openUrl, routeUrl } from './map-spec.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -887,6 +888,66 @@ R.video = (b, ctx) => {
 
 // A web page the agent pointed at, live in a sandboxed frame at the screen size it picked (preview-frame.js).
 R.preview = (b, ctx) => previewBlock(b, ctx);
+
+// map: places on a Google map (map-spec.js). The embed shows one place at a time: the list under it
+// picks which, and each row opens its place in Google Maps. Picking only moves `.on` and the frame's
+// src, so the list never shifts.
+const mapPicked = new Map(); // key -> index, so a re-render keeps the place the user picked
+R.map = (b, ctx) => {
+  const places = mapPlaces(b);
+  if (!places.length) return el(`<div class="b-map card mp-bad">${icon('warn')}<span><b>${esc(b.title || 'Map')}</b> has no address to show.</span></div>`);
+  const key = `${ctx.session?.id || ''}:${ctx.turn?.id || ''}:${ctx.turn?.presentation?.blocks?.indexOf(b) ?? ''}`;
+  let at = Math.min(mapPicked.get(key) || 0, places.length - 1);
+  const zoom = mapZoom(b);
+  const route = b.route && routeUrl(places);
+  const many = places.length > 1;
+  const node = el(`
+    <figure class="b-map card${many ? ' many' : ''}">
+      ${
+        b.title || many || route
+          ? `<div class="mp-head">
+        <span class="mp-title">${icon('pin')}<b>${esc(b.title || 'Places')}</b>${many ? `<i>${places.length} places</i>` : ''}</span>
+        ${route ? `<a class="ghost xs mp-route" href="${esc(route)}" target="_blank" rel="noopener noreferrer" title="Directions through every place, in order, in Google Maps">${icon('arrow')}<span>Route</span></a>` : ''}
+      </div>`
+          : ''
+      }
+      <div class="mp-stage"><div class="pv-wait"></div></div>
+      <ol class="mp-list">${places
+        .map(
+          (p, i) => `<li class="mp-place" data-i="${i}">
+          <button type="button" class="mp-pick" ${many ? '' : 'tabindex="-1"'} title="${many ? 'Show it on the map' : ''}">
+            <span class="mp-k">${many ? i + 1 : icon('pin')}</span>
+            <span class="mp-main">${p.name ? `<b>${esc(p.name)}</b>` : ''}<span class="mp-addr">${esc(p.address || (p.name ? '' : p.q) || `${p.lat}, ${p.lng}`)}</span>${p.note ? `<span class="mp-note">${inlineMd(p.note)}</span>` : ''}</span>
+          </button>
+          <a class="mp-open" href="${esc(openUrl(p))}" target="_blank" rel="noopener noreferrer" title="Open in Google Maps" aria-label="Open ${esc(p.name || p.address || 'it')} in Google Maps">${icon('external')}<span>Open in Google Maps</span></a>
+        </li>`,
+        )
+        .join('')}</ol>
+      ${b.caption ? `<figcaption class="mp-foot">${inlineMd(b.caption)}</figcaption>` : ''}
+    </figure>`);
+  const stage = node.querySelector('.mp-stage');
+  const frame = document.createElement('iframe');
+  frame.setAttribute('loading', 'lazy');
+  frame.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
+  frame.setAttribute('allowfullscreen', '');
+  frame.addEventListener('load', () => stage.classList.add('loaded'));
+  stage.prepend(frame);
+  const show = (i) => {
+    at = i;
+    mapPicked.set(key, i);
+    const p = places[i];
+    for (const li of node.querySelectorAll('.mp-place')) li.classList.toggle('on', +li.dataset.i === i);
+    frame.title = `Map of ${p.name || p.address || p.q}`;
+    stage.classList.remove('loaded');
+    frame.src = embedUrl(p, zoom);
+  };
+  show(at);
+  node.querySelector('.mp-list').addEventListener('click', (e) => {
+    const li = e.target.closest('.mp-pick')?.closest('.mp-place');
+    if (li && many && +li.dataset.i !== at) show(+li.dataset.i);
+  });
+  return node;
+};
 
 // A markdown file the agent wrote: its opening as a page, fading out, with Full screen (ui/reader.js)
 // and Show in folder. The text was kept with the turn (Store.keepDocs), so it reads as it was then.

@@ -2,6 +2,7 @@
 // webhooks, chat apps. Lossy by design (no animation, no syntax colours), never throws.
 
 import { diffLines, hunks } from '../web/js/diff.js';
+import { mapPlaces, openUrl, routeUrl } from '../web/js/map-spec.js';
 
 const STATUS = { done: '✅ Done', partial: '🟡 Partly done', blocked: '⛔ Blocked', info: 'ℹ️ Report' };
 const CHANGE = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R' };
@@ -81,6 +82,11 @@ const R = {
   image: (b) => `🖼️ \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
   preview: (b) => `🌐 ${str(b.url)}${b.device ? ` (${b.device})` : ''}${b.caption || b.title ? ` — ${b.caption || b.title}` : ''}`,
   video: (b) => `🎬 \`${str(b.path || b.src)}\`${b.caption ? ` — ${b.caption}` : ''}`,
+  map: (b) => {
+    const ps = mapPlaces(b);
+    const route = b.route && routeUrl(ps);
+    return `**📍 ${str(b.title) || 'Places'}**${route ? ` · [Route](${route})` : ''}\n${ps.map((p, i) => `${i + 1}. ${p.name ? `**${p.name}** — ` : ''}[${p.address || p.q}](${openUrl(p)})${p.note ? ` — ${p.note}` : ''}`).join('\n')}${b.caption ? `\n\n${str(b.caption)}` : ''}`;
+  },
   doc: (b) => `📄 **${str(b.title) || `\`${str(b.path)}\``}**${b.title && b.path ? ` \`${str(b.path)}\`` : ''}${b.caption ? ` — ${b.caption}` : ''}${b.text ? `\n\n<details><summary>Show the file</summary>\n\n${str(b.text)}\n\n</details>` : ''}`,
   stuff: (b) => `📦 **${str(b.title) || 'Something in My Stuff'}** (My Stuff \`${str(b.id)}\`)${b.note ? ` — ${str(b.note)}` : ''}`,
   task: (b) => `🔗 **${str(b.title) || 'A wisp task'}** (wisp task \`${str(b.id)}\`)${b.note ? ` — ${str(b.note)}` : ''}`,

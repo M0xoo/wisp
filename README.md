@@ -320,7 +320,7 @@ wisp/
 
 ### Presentation blocks
 
-`hero` · `markdown` · `steps` · `stats` · `files` · `tree` · `diff` · `code` · `tests` · `commits` · `graph` · `terminal` · `compare` · `flow` · `chart` · `checklist` · `callout` · `image` · `video` · `preview` · `question` · `actions` · `next`
+`hero` · `markdown` · `steps` · `stats` · `files` · `tree` · `diff` · `code` · `tests` · `commits` · `graph` · `terminal` · `compare` · `flow` · `chart` · `checklist` · `callout` · `image` · `video` · `preview` · `map` · `question` · `actions` · `next`
 
 ## Adding a harness
 

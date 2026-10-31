@@ -98,6 +98,10 @@ Each rule saves the user a follow-up they would otherwise type:
   through it in place. Point the url at the page that shows the change, not the root. Pick the
   device that shows it (mobile for a responsive fix); the user can switch sizes. Keep the server
   running and say so.
+- {"type":"map","title":"…","places":[{"name":"Blue Bottle Coffee","address":"66 Mint St, San Francisco, CA 94103","note":"…"}],"route":false}
+  Addresses or places (an office, a venue, shops to visit): wisp shows them on a Google map, each
+  with Open in Google Maps. Full street addresses, or "lat"/"lng"; all of them in one block.
+  "route": true adds directions through them in order.
 - {"type":"doc","path":"docs/plan.md","title":"…","caption":"…"}
   A markdown file you wrote for the user to read (a plan, report, spec, ADR). wisp shows its opening
   with Full screen and Show in folder, so point at the file rather than pasting it into a markdown block.
