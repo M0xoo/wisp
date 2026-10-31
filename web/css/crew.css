@@ -740,9 +740,11 @@ body.split #orgView { flex: 1; }
 .org-top .sh-acts .ghost.sm .i { width: 13px; height: 13px; }
 
 /* the chart and, on a wide pane, the details beside it; narrower, under it, one scroll */
-.org-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.org-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .org-view.wide .org-body { display: grid; grid-template-columns: minmax(0, 1fr) 300px; overflow: hidden; }
-.org-chart { position: relative; min-width: 0; padding: 14px 24px 40px; outline: none; }
+/* A chart wider than the pane (cards placed on a wider screen) scrolls sideways on its own: the
+   page, the hint and the details under it stay put. */
+.org-chart { position: relative; flex: none; min-width: 0; padding: 14px 24px 40px; overflow-x: auto; overscroll-behavior-x: contain; outline: none; }
 .org-view.wide .org-chart { overflow: auto; }
 body.stack .org-chart { padding: 12px 16px 32px; }
 body.stack .org-top { padding-left: 12px; padding-right: 8px; }
@@ -751,7 +753,7 @@ body.stack .org-side { padding: 18px 16px 28px; }
 .org-view.wide .org-side { overflow-y: auto; border-top: 0; border-left: 1px solid var(--line); }
 
 /* the line over the chart: how it works, then what picking does (kept one line tall so nothing moves) */
-.org-hint { display: grid; place-items: center; min-height: 48px; margin: 0 auto 14px; max-width: 720px; padding: 6px 14px; border-radius: var(--radius); font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; }
+.org-hint { position: sticky; left: 0; display: grid; place-items: center; min-height: 48px; margin: 0 auto 14px; max-width: 720px; padding: 6px 14px; border-radius: var(--radius); font-size: 12.5px; line-height: 1.45; color: var(--muted); text-align: center; }
 .org-hint .link { font-size: inherit; }
 /* stacked, a hint can take a third line on a narrow phone: keep room for it so selecting moves nothing */
 body.stack .org-hint { min-height: calc(2.9em + 12px); }
