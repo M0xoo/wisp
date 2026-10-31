@@ -115,7 +115,7 @@ export async function callSpell(spell, fn, args = []) {
 // What a script may return as blocks: the built-in ones that only show things, and apps (a page
 // run sandboxed, app-frame.js). Links in actions become markdown links; images, questions and
 // follow-up buttons are dropped.
-const SHOW_BLOCKS = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tree', 'code', 'compare', 'flow', 'chart', 'checklist', 'callout', 'terminal', 'tests', 'commits']);
+const SHOW_BLOCKS = new Set(['hero', 'markdown', 'steps', 'stats', 'files', 'tree', 'code', 'compare', 'flow', 'chart', 'checklist', 'callout', 'terminal', 'tests', 'commits', 'map']);
 export function cleanBlocks(v) {
   const list = Array.isArray(v) ? v : v && typeof v === 'object' ? [v] : [];
   if (JSON.stringify(list).length > 200_000) return [{ type: 'callout', tone: 'warn', title: 'Too much to show', text: 'The spell returned more than 200 KB.' }];

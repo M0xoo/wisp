@@ -15,7 +15,7 @@
 const KIND = {
   hero: 'Summary', markdown: 'Text', steps: 'Steps', stats: 'Numbers', files: 'Files', tree: 'Files', diff: 'Diff', code: 'Code',
   compare: 'Comparison', flow: 'Flow', chart: 'Chart', terminal: 'Terminal', tests: 'Tests', commits: 'Commits', graph: 'Branches',
-  checklist: 'Checklist', callout: 'Callout', image: 'Image', video: 'Video', preview: 'Preview', doc: 'Doc', task: 'Task', app: 'App',
+  checklist: 'Checklist', callout: 'Callout', image: 'Image', video: 'Video', preview: 'Preview', map: 'Map', doc: 'Doc', task: 'Task', app: 'App',
 };
 
 const base = (p) => String(p).split('/').pop();

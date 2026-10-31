@@ -334,6 +334,12 @@ const final = (answer) => {
       { type: 'image', path: 'shot.png', caption: 'The login page after five wrong tries' },
       { type: 'next', items: ['Make the limit configurable', 'Add the limiter to /reset-password'] },
     );
+  // MAPS: several places on a map with a route, and one address on its own (screenshots).
+  if (stdin.includes('MAPS'))
+    blocks.push(
+      { type: 'map', title: 'Coffee near the office', route: true, places: [{ name: 'Blue Bottle Coffee', address: '66 Mint St, San Francisco, CA 94103', note: 'Opens at 7, quiet upstairs' }, { name: 'Sightglass', address: '270 7th St, San Francisco, CA 94103' }, { name: 'Ritual Coffee Roasters', address: '1026 Valencia St, San Francisco, CA 94110', note: 'Closes at 6' }] },
+      { type: 'map', address: 'Avenue de Rhodanie 2, 1007 Lausanne', caption: 'Where the meetup is' },
+    );
   // CAST: a Cast a spell task hands its spell back.
   if (stdin.includes('CAST')) blocks.push({ type: 'spell', spell: FAKE_SPELL });
   // A crew member's job (its brief is in the system prompt): CREWQUIET makes a check-in say it
