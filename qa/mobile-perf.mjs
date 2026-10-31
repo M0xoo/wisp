@@ -108,7 +108,7 @@ const HOME = { page: `document.body.classList.contains('stack-page') && ${vis('#
 
 const { chromium } = playwright();
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
-const report = { when: new Date().toISOString(), sessions: src ? fs.readdirSync(path.join(home, 'sessions')).length : TASKS, profiles: [] };
+const report = { when: new Date().toISOString(), sessions: src ? fs.readdirSync(path.join(home, 'sessions')).filter((f) => f.endsWith('.json')).length : TASKS, profiles: [] };
 
 try {
   for (const prof of PROFILES) {

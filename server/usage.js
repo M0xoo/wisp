@@ -15,6 +15,23 @@ const outcome = (t) => {
   return hero?.status === 'blocked' || hero?.status === 'partial' ? hero.status : 'done';
 };
 
+// What these stats count in a turn's activity: its questions, approvals asked for, and tool calls
+// by day and kind. A task loaded from its light file (server/store.js) has them there
+// (lightFacts), so the stats don't load every task's activity from disk.
+const NOT_TOOLS = new Set(['text', 'error', 'answer']);
+export const lightFacts = new WeakMap(); // turn -> activityFacts(turn), while its activity is on disk
+export function activityFacts(t) {
+  const f = { asks: 0, approvals: 0, tools: {} };
+  for (const a of t.activity || []) {
+    if (a?.kind === 'ask') (f.asks++, /^Needs your OK/.test(a.label || '') && f.approvals++);
+    if (!a?.kind || NOT_TOOLS.has(a.kind)) continue;
+    const k = `${dayKey(a.t || t.startedAt)}|${a.kind}`;
+    f.tools[k] = (f.tools[k] || 0) + 1;
+  }
+  return f;
+}
+const factsOf = (t) => lightFacts.get(t) || activityFacts(t);
+
 function bucket() {
   return { turns: 0, cost: 0, priced: 0, inputTokens: 0, outputTokens: 0, durationMs: 0, done: 0, questions: 0 };
 }
@@ -26,7 +43,7 @@ function add(b, t) {
   b.outputTokens += st.outputTokens || 0;
   b.durationMs += t.endedAt && t.startedAt ? t.endedAt - t.startedAt : 0;
   if (outcome(t) === 'done') b.done++;
-  b.questions += (t.activity || []).filter((a) => a.kind === 'ask').length + ((t.presentation?.blocks || []).some((x) => x?.type === 'question') ? 1 : 0);
+  b.questions += factsOf(t).asks + ((t.presentation?.blocks || []).some((x) => x?.type === 'question') ? 1 : 0);
 }
 const finish = (b) => ({ ...b, cost: Math.round(b.cost * 10000) / 10000, successRate: b.turns ? b.done / b.turns : null, avgMs: b.turns ? Math.round(b.durationMs / b.turns) : 0 });
 
@@ -81,11 +98,10 @@ export function usage(sessions, { days = 30, now = Date.now(), project = () => n
 // Tool calls across sessions, for the agent-facing `wisp_stats` tool: how often each kind of
 // action ran (run, read, edit, search, web, …), per harness, project and day. Kinds are wisp's
 // normalized activity kinds, not the harness's own tool names. Spend and success come from usage().
-const NOT_TOOLS = new Set(['text', 'error', 'answer']);
 const tally = () => ({ calls: 0, kinds: {} });
-const count = (b, kind) => {
-  b.calls++;
-  b.kinds[kind] = (b.kinds[kind] || 0) + 1;
+const count = (b, kind, n = 1) => {
+  b.calls += n;
+  b.kinds[kind] = (b.kinds[kind] || 0) + n;
 };
 const ranked = (m) => [...m.values()].sort((a, b) => b.calls - a.calls);
 
@@ -114,13 +130,13 @@ export function toolStats(sessions, { days = 30, now = Date.now(), project = () 
       const pk = p?.id || s.cwd;
       if (!byAgent.has(agent)) byAgent.set(agent, { agent, ...tally() });
       if (!byProject.has(pk)) byProject.set(pk, { id: p?.id || null, name: p?.name || String(s.cwd || '').split(/[\\/]/).pop(), ...tally() });
-      for (const a of t.activity || []) {
-        if (!a?.kind || NOT_TOOLS.has(a.kind)) continue;
-        count(total, a.kind);
-        count(byAgent.get(agent), a.kind);
-        count(byProject.get(pk), a.kind);
-        const d = byDay.get(dayKey(a.t || t.startedAt));
-        if (d) count(d, a.kind);
+      for (const [k, n] of Object.entries(factsOf(t).tools)) {
+        const [day, kind] = k.split('|');
+        count(total, kind, n);
+        count(byAgent.get(agent), kind, n);
+        count(byProject.get(pk), kind, n);
+        const d = byDay.get(day);
+        if (d) count(d, kind, n);
       }
     }
   }
@@ -191,8 +207,9 @@ function jobOf(s) {
   let result;
   if (s.turns) result = turns.at(-1)?.status === 'running' || turns.at(-1)?.status === 'held' || !last ? 'running' : outcome(last);
   else result = s.state === 'running' || s.status === 'running' ? 'running' : s.status === 'partial' || s.status === 'blocked' ? s.status : 'done';
-  const acts = turns.flatMap((t) => t.activity || []).filter((a) => a?.kind === 'ask');
-  const approvals = acts.filter((a) => /^Needs your OK/.test(a.label || '')).length;
+  const facts = turns.map(factsOf);
+  const approvals = facts.reduce((n, f) => n + f.approvals, 0);
+  const asks = facts.reduce((n, f) => n + f.asks, 0);
   const j = {
     id: s.id,
     title: s.title || '',
@@ -202,7 +219,7 @@ function jobOf(s) {
     quiet: s.turns ? quietJob(s) : false,
     later: s.forLater?.by === 'crew',
     approvals,
-    questions: acts.length - approvals + ended.filter(asked).length,
+    questions: asks - approvals + ended.filter(asked).length,
     // Yours, on its job: not wisp's own rounds, and not an answer to a question it asked.
     followups: s.turns ? turns.slice(1).filter((t, i) => t.by !== 'wisp' && t.by !== 'later' && !asked(turns[i])).length : s.followups || 0,
     pr: s.pr?.state === 'merged' ? 'merged' : s.pr?.state === 'open' ? 'open' : '',

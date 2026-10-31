@@ -6,6 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
+import { execFileSync } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 import { installFakeBins, makeClone, makeRepo, records, tmp, until, isolateAgentConfigs } from './helpers.js';
@@ -83,6 +84,22 @@ test('a launch in a git repo runs in its own worktree on a branch from origin/ma
   // The presentation tells API callers where the changes are.
   const p = await api(`/sessions/${s.id}/presentation`);
   assert.match(p.markdown, new RegExp(`branch \`${wt.branch}\``));
+});
+
+test('typing a task fetches its repo ahead of the launch (POST /launch/warm)', async () => {
+  const repo = makeClone();
+  // Someone else pushes: this checkout's origin/main is now behind.
+  const other = tmp('other');
+  execFileSync('git', ['clone', '-q', repo.remote, other]);
+  fs.writeFileSync(path.join(other, 'b.js'), 'b\n');
+  for (const a of [['add', '.'], ['-c', 'user.email=t@e.com', '-c', 'user.name=t', 'commit', '-qm', 'b'], ['push', '-q', 'origin', 'main']]) execFileSync('git', a, { cwd: other });
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: other, encoding: 'utf8' }).trim();
+  assert.notEqual(repo.git('rev-parse', 'origin/main'), head);
+  assert.deepEqual(await api('/launch/warm', { body: { cwd: repo.dir } }), { ok: true });
+  await until(() => repo.git('rev-parse', 'origin/main') === head);
+  // Anything else is ignored.
+  assert.deepEqual(await api('/launch/warm', { body: { cwd: tmp('plain') } }), { ok: true });
+  assert.deepEqual(await api('/launch/warm', { body: {} }), { ok: true });
 });
 
 test('worktree: false, plan mode, and folders that are not repos run in place', async () => {

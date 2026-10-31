@@ -148,6 +148,7 @@ export function openapi({ version, port }) {
         patch: { summary: 'Rename or recolor', requestBody: body({ type: 'object', properties: { name: { type: 'string' }, color: { type: 'string' } } }), responses: { 200: json(ref('Project')), 404: err[404] } },
         delete: { summary: 'Remove the project (sessions are kept)', responses: { 200: ok, 404: err[404] } },
       },
+      '/launch/warm': { post: { summary: 'A task is being typed for this folder: fetch its repo now, so the launch starts without waiting on the network', requestBody: body({ type: 'object', properties: { cwd: { type: 'string' } } }), responses: { 200: ok } } },
       '/sessions': {
         get: {
           summary: 'List sessions, newest first',

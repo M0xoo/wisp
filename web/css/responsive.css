@@ -243,6 +243,8 @@ body.wisp-mobile .trail-bar:has(> .link.xs, .tb-tools > *) > .grow { flex-basis:
 body.wisp-mobile .trail-bar > .link.xs + .tb-tools { margin-left: -14px; }
 
 /* A long list (Done holds hundreds once scrolled through): rows off screen skip style, layout and
-   paint, so a page opening over the list doesn't restyle all of them. Not the open task's row: its
-   body is fixed over the page, and containment would hold it inside the row. */
-body.wisp-mobile #feed .item:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 88px; }
+   paint, so a page opening over the list doesn't restyle all of them (on a desktop, unfolding Done
+   or opening a task beside it). Not the open task's row: its body is fixed over the page, and
+   containment would hold it inside the row. */
+#feed .item:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+body.wisp-mobile #feed .item:not(.open) { contain-intrinsic-size: auto 88px; }

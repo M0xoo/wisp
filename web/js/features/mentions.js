@@ -32,7 +32,8 @@ export function mentionBox(ta) {
     set: (v) => {
       const d = decode(v);
       ta.mentions = d.mentions;
-      NATIVE.set.call(ta, d.text);
+      // The same text again (an empty box cleared on every open) changes nothing but costs a restyle.
+      if (shown() !== d.text) NATIVE.set.call(ta, d.text);
       paint();
     },
   });

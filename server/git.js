@@ -25,6 +25,12 @@ function findGit() {
       continue;
     }
     if (process.platform !== 'darwin' || bin !== '/usr/bin/git') return bin;
+    // The developer folder xcode-select points at, read from its link: xcrun takes ~200 ms, which
+    // blocked the server at boot.
+    try {
+      const real = path.join(fs.realpathSync('/var/db/xcode_select_link'), 'usr', 'bin', 'git');
+      if (fs.statSync(real).isFile()) return real;
+    } catch {}
     try {
       const real = execFileSync('/usr/bin/xcrun', ['--find', 'git'], { stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString().trim();
       if (real && fs.existsSync(real)) return real;
@@ -157,13 +163,19 @@ export async function ensureWorktree(wt) {
 // base for good, so only commits after that one are new (its remote branch is often deleted).
 export async function worktreeStatus(wt, { merged } = {}) {
   if (!wt || !fs.existsSync(wt.path)) return { exists: false, dirty: 0, ahead: 0, unpushed: 0 };
-  const porcelain = await quiet(git(wt.path, ['status', '--porcelain']));
-  const ahead = Number(await quiet(git(wt.path, ['rev-list', '--count', `${wt.baseRef}..HEAD`]))) || 0;
-  const known = (ref) => quiet(git(wt.path, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]));
-  const pushed = merged && (await known(merged)) ? merged : wt.remote && `refs/remotes/${wt.remote}/${wt.branch}`;
-  const tracked = pushed && (await known(pushed));
-  const unpushed = tracked ? Number(await quiet(git(wt.path, ['rev-list', '--count', `${pushed}..HEAD`]))) || 0 : ahead;
-  return { exists: true, dirty: porcelain ? porcelain.split('\n').length : 0, ahead, unpushed };
+  // Every task with a worktree is checked after a restart, hundreds of them: as few gits as
+  // possible, side by side. A count past a ref that isn't there fails, and the next one is tried.
+  const count = (ref) => git(wt.path, ['rev-list', '--count', `${ref}..HEAD`]).then((n) => Number(n) || 0, () => null);
+  const since = async (refs) => {
+    for (const ref of refs.filter(Boolean)) {
+      const n = await count(ref);
+      if (n !== null) return n;
+    }
+    return null;
+  };
+  const [porcelain, base, pushed] = await Promise.all([quiet(git(wt.path, ['status', '--porcelain'])), count(wt.baseRef), since([merged, wt.remote && `refs/remotes/${wt.remote}/${wt.branch}`])]);
+  const ahead = base || 0;
+  return { exists: true, dirty: porcelain ? porcelain.split('\n').length : 0, ahead, unpushed: pushed ?? ahead };
 }
 
 // force: drop uncommitted work too. The branch goes only when nothing would be lost with it.

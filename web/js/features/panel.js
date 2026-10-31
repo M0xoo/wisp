@@ -116,7 +116,7 @@ function paint() {
   panel.classList.toggle('touch', TOUCH.matches || MOBILE);
   // The PR shown in full: the task's own PR row would say it twice.
   document.body.classList.toggle('panel-pr', on && tabOf() === 'pr');
-  paintWidth();
+  if (on) paintWidth(); // hidden, its width means nothing
   paintBtn();
   paintTaskBtns(on ? tabOf() : null);
   paintPageBack(on && isStacked());
@@ -140,7 +140,11 @@ function paintWidth() {
   // Only the side-by-side grid uses it; stacked (the phone) the panel is the page, and reading
   // innerWidth there forces a layout on every page change.
   if (isStacked()) return;
-  const max = Math.max(MIN_W, innerWidth - (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--side-w')) || 340) * (squeezed() ? 0 : 1) - TASK_MIN);
+  // --side-w from the root's own style (split.js sets it there): the computed style would restyle
+  // the page first, on every task opened.
+  const root = document.documentElement;
+  const side = parseFloat(root.style.getPropertyValue('--side-w') || getComputedStyle(root).getPropertyValue('--side-w')) || 340;
+  const max = Math.max(MIN_W, innerWidth - side * (squeezed() ? 0 : 1) - TASK_MIN);
   const w = Math.round(Math.min(Math.max(pref.w ?? spellProp('panel', 'width') ?? PANEL_W, MIN_W), max));
   // A custom property on the root restyles the whole page: only when it changes.
   if (w !== paintWidth.w) document.documentElement.style.setProperty('--panel-w', `${(paintWidth.w = w)}px`);

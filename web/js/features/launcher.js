@@ -52,6 +52,17 @@ const GENERAL = { id: null, name: 'General', path: '', color: 'slate', scratch: 
 const storedPick = () => launch.picks[''];
 const pickId = () => storedPick() || NO_FOLDER;
 const projectOf = () => (pickId() === NO_FOLDER ? GENERAL : projectById(pickId()));
+
+// A task being typed here: the server fetches its repo now (POST /launch/warm), so Enter doesn't
+// wait on the network for the worktree's base. At most every 30 s a folder (a fetch is good for a minute).
+let warmed = { path: '', at: 0 };
+function warmLaunch() {
+  const p = launch.where.includes('') && projectOf();
+  const dir = p && !p.scratch && pathAt(p, '');
+  if (!dir || (dir === warmed.path && Date.now() - warmed.at < 30_000)) return;
+  warmed = { path: dir, at: Date.now() };
+  api('/launch/warm', { method: 'POST', body: { cwd: dir } }).catch(() => {});
+}
 const alsoIds = () => launch.also[''] || [];
 const chosen = (id) => id === pickId() || alsoIds().includes(id);
 const ownPick = () => !!projectById(pickId());
@@ -157,7 +168,7 @@ export function renderLauncher() {
   acceptFiles(box, ta, tray);
   autosize(ta, (spellProp('launcher.input', 'maxRows') || 0) * 24 || undefined);
   ta.value = S.drafts.get('home') || '';
-  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen(), pv?.refresh()));
+  ta.addEventListener('input', () => (S.drafts.set('home', ta.value), paintSaveRecipe(), readWhen(), pv?.refresh(), warmLaunch()));
   // A shared task's link pasted in the box: its card, and Enter imports it (features/share.js).
   const shareRow = $('.l-share', box);
   ta.parentNode.before(shareRow);

@@ -1,8 +1,9 @@
 // The phone app's service worker (registered only there: web/js/features/cache.js). wisp's page
 // comes through an SSH tunnel, so the page and its files are served from this cache at once, and
-// the page is fetched behind it. The cache only ever holds one build (x-wisp-build,
-// server/http/static.js), so files from two versions never mix: when the server has a new one, the
-// page drops the cache and reloads onto it (startShell in cache.js).
+// the page is fetched behind it. Scripts and stylesheets are named by their content (?v=,
+// server/http/static.js), so two builds' files never mix: when the server has a new build (x-wisp-build),
+// the page drops the cached page and whatever isn't named that way, keeps the files the new build
+// still names, and reloads onto it (checkBuild in cache.js).
 // The API (/api/…) is never cached here, nor a wisp Grid's own paths (/_grid/…: its sign-in link
 // and waking page must reach the grid).
 

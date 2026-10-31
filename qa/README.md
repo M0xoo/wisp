@@ -41,6 +41,7 @@ so a wisp.app you have open keeps its single-instance lock.
 | desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
 | mobile | 4540–4549 |
 | mobile-perf | 4550 (`PERF_PORT`) |
+| desktop-perf | 4551 (`PERF_PORT`) |
 | grid | 8090 (`QA_GRID_PORT`) |
 
 They can run at the same time.
@@ -64,3 +65,12 @@ Each script prints a line per scenario id and exits non-zero on a failure. Scree
 logs and `<surface>.json` (id, pass/fail, error, time) go to `qa/out/` (`QA_OUT` to move it;
 gitignored). A failing web check leaves `web-fail-<id>.png`. Look at the screenshots, not just the
 exit code: layout regressions at phone width or in dark mode don't throw.
+
+## Speed in a desktop browser
+
+As `qa/mobile-perf.mjs` does for the phone app, `node qa/desktop-perf.mjs` times the page at
+1440×900 (the desktop app shows the same page): wisp's start, the cold load (first paint, the list, requests and bytes) and a reload, then
+Done unfolded, tasks opened and opened again, New task, typing in the prompt box, the avatar menu,
+Settings, search and a launch, each from the click or key to the frame that shows it, with a CPU
+profile's top functions, in `qa/out/desktop-perf.json`. `PERF_SESSIONS=~/.wisp/sessions` runs it on
+a copy of real tasks, `PERF_CPU=4` on a slowed CPU.

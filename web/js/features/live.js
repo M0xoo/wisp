@@ -123,10 +123,10 @@ export function connect() {
     if (helloed) loadConfig().then(() => bus.emit('config'), () => {});
     else loadConfig.since(firstStream).catch(() => {});
     if (helloed) bus.emit('stuff'); // My Stuff may have changed while the stream was down
+    fresh(loadMachines); // before helloed is set: the first one shares boot's request
     helloed = true;
     checkBuild();
     loadUpdate();
-    fresh(loadMachines);
   });
 }
 
