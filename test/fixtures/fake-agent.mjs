@@ -171,6 +171,24 @@ if (process.env.FAKE_RECORD) {
 // FAKE_LIMITS: claude reports this rate_limit_info first (its usage windows, server/budget.js).
 if (process.env.FAKE_LIMITS && name === 'claude' && !retro && !btw) out({ type: 'rate_limit_event', rate_limit_info: JSON.parse(process.env.FAKE_LIMITS) });
 
+// A plain answer in this harness's own output shape (side questions, goal checks).
+function answer(text, id) {
+  if (name === 'codex') {
+    out({ type: 'thread.started', thread_id: id });
+    out({ type: 'item.completed', item: { id: 'b1', type: 'agent_message', text } });
+    out({ type: 'turn.completed', usage: { input_tokens: 4, cached_input_tokens: 0, output_tokens: 2 } });
+  } else if (name === 'opencode') {
+    const base = { sessionID: id, timestamp: Date.now() };
+    out({ ...base, type: 'step_start', part: { type: 'step-start', messageID: 'b1' } });
+    out({ ...base, type: 'text', part: { type: 'text', messageID: 'b1', text } });
+    out({ ...base, type: 'step_finish', part: { type: 'step-finish', messageID: 'b1', tokens: { input: 4, output: 2 }, cost: 0 } });
+  } else {
+    // claude and cursor-agent share the shape: an init, then the result.
+    out({ type: 'system', subtype: 'init', session_id: id });
+    out({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: id, duration_ms: 4, num_turns: 1, total_cost_usd: 0.002 });
+  }
+}
+
 if (retro) {
   out({ type: 'system', subtype: 'init', session_id: 'retro-session' });
   out({ type: 'result', subtype: 'success', is_error: false, result: process.env.FAKE_RETRO || '{}', session_id: 'retro-session' });
@@ -186,21 +204,7 @@ if (btw) {
   if (process.env.FAKE_BTW === 'slow') await new Promise((r) => setTimeout(r, 3000));
   const question = stdin.split('## Side question\n\n').pop().trim();
   const text = process.env.FAKE_BTW_ANSWER || `Side answer (${forked ? 'forked' : 'digest'}): ${question}`;
-  const id = `${name}-btw`;
-  if (name === 'codex') {
-    out({ type: 'thread.started', thread_id: id });
-    out({ type: 'item.completed', item: { id: 'b1', type: 'agent_message', text } });
-    out({ type: 'turn.completed', usage: { input_tokens: 4, cached_input_tokens: 0, output_tokens: 2 } });
-  } else if (name === 'opencode') {
-    const base = { sessionID: id, timestamp: Date.now() };
-    out({ ...base, type: 'step_start', part: { type: 'step-start', messageID: 'b1' } });
-    out({ ...base, type: 'text', part: { type: 'text', messageID: 'b1', text } });
-    out({ ...base, type: 'step_finish', part: { type: 'step-finish', messageID: 'b1', tokens: { input: 4, output: 2 }, cost: 0 } });
-  } else {
-    // claude and cursor-agent share the shape: an init, then the result.
-    out({ type: 'system', subtype: 'init', session_id: id });
-    out({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: id, duration_ms: 4, num_turns: 1, total_cost_usd: 0.002 });
-  }
+  answer(text, `${name}-btw`);
   process.exit(0);
 }
 
@@ -212,12 +216,13 @@ if (stdin.includes('You check whether a coding agent reached its goal')) {
   const goal = stdin.split('<goal>')[1]?.split('</goal>')[0] || '';
   const n = (stdin.split('Earlier checks:')[1] || '').split('\n').filter((l) => l.startsWith('- round')).length + 1;
   const after = Number(/\[met after (\d+)\]/.exec(goal)?.[1] || 0);
-  const verdict = /\[impossible\]/.test(goal) ? 'impossible' : after && n >= after ? 'met' : 'not_yet';
+  // A judge (several check one goal): "[judge codex: met]" is how that harness votes.
+  const judged = new RegExp(`\\[judge ${name}: (met|not_yet|impossible)\\]`).exec(goal)?.[1];
+  const verdict = judged || (/\[impossible\]/.test(goal) ? 'impossible' : after && n >= after ? 'met' : 'not_yet');
   // FAKE_GOAL_SCRIPT: JSON [{ why, next, progress }] per check, for screenshots.
   const said = JSON.parse(process.env.FAKE_GOAL_SCRIPT || '[]')[n - 1] || {};
   const text = JSON.stringify({ verdict, why: said.why || `check ${n}: ${verdict}`, next: verdict === 'not_yet' ? said.next || `do part ${n + 1}` : '', progress: said.progress ?? Math.min(100, n * 30), evidence: verdict === 'met' ? ['math.js: add is fixed'] : [] });
-  out({ type: 'system', subtype: 'init', session_id: 'goal-check' });
-  out({ type: 'result', subtype: 'success', is_error: false, result: text, session_id: 'goal-check' });
+  answer(text, 'goal-check');
   process.exit(0);
 }
 

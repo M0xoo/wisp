@@ -41,6 +41,14 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
 - **Moves**: your Stop → paused (a Stop during a check lands the task at once); your follow-up
   keeps the goal and drops a check in flight; an interrupt is not a Stop; a restart pauses it;
   Auto's hand-over gives the goal to the new run (`handed` here).
+- **Judges**: `goal.judges = [{ agent, model, effort, name } | { crew, name }]` (up to 5) and
+  `goal.vote = all | majority | any` (default majority). With judges, each runs the same check
+  (`askJson` on its own harness, model and thinking level; a crew member on theirs, told its role)
+  at once, and each check stores `votes[]`. Met: at least *all* / *more than half* / *one* of the
+  judges say met. Can't be done: a majority say so. A judge that can't answer votes for nothing
+  (so it holds back All); none answering → paused, *couldn't check*. The check's `why` is the tally
+  (*2 of 3 judges say met (all must agree)*) and the first dissenter's reason; `next` joins the
+  dissenters' next steps, by name. A PUT without `judges` keeps them; `[]` clears them.
 - **Not for** subagents, delegates, crew jobs, spells, the tour.
 
 ## UX
@@ -53,6 +61,14 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
   goal* / *New goal*). Enter in the line, or Send, sets it: alone, or with the message (`goal` on
   `POST /sessions/:id/reply`, set after the reply so it's checked after that turn). A goal going:
   lit, and it opens **Edit goal…**. The open line keeps the folded box open; Esc closes it.
+- **Judges** (`web/js/features/judges.js`): a *Judges* button at the end of the launcher's Done
+  when line and in the Set / Edit goal popover, the Delegate button's look (faces and *3 judges ·
+  All*, icon-only on a phone). Its popover: *Met when* All · Majority · Any with the rule in words
+  (*2 of 3 must say it’s met*), a row per judge (the harness picker, or a crew member's face and
+  role), *Add judge* (a menu with your crew when you have one), Clear. The launcher's picks are
+  remembered (`defaults.goalJudges`, `goalVote`). In the band, after the condition: each judge's
+  face tinted by its last vote (met green, can't red, no answer faded) and *2/3*; the tooltip has
+  each judge's vote and why.
 - **Band** on top of the open task (sticky on a wide pane), two fixed rows so nothing jumps:
   the mark, *Done when*, the condition (one line), the state, a menu; then a 120px progress track
   (the last check's estimate, last round's as a shadow behind it, the delta beside it), the round,
@@ -68,5 +84,6 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
 - **Notification**: once, at the end: *… reached its goal in 4 rounds* / *can’t reach its goal* /
   *paused its goal*, with the last check.
 - **Spells**: `goal.band` (slot and part), `goal.text`, `goal.track`, `goal.check`, `card.goal`,
-  `launcher.goal`, `launcher.goalLine`, `composer.goal`, `composer.goalLine`, the `target` icon. A spell's old `goalRounds` loads
+  `launcher.goal`, `launcher.goalLine`, `launcher.goalJudges`, `composer.goal`, `composer.goalLine`,
+  `goal.judges`, the `target` and `judge` icons. A spell's old `goalRounds` loads
   with a warning.

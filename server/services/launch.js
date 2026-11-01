@@ -59,7 +59,7 @@ export function createLaunch(app) {
     const asGoal = !body.goal && goalCommand(body.prompt);
     if (asGoal) body = { ...body, goal: asGoal, prompt: asGoal };
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
-    // goal: { text, max }: the task keeps going until it holds (server/goal.js).
+    // goal: { text, judges?, vote? }: the task keeps going until it holds (server/goal.js).
     const goal = !crew && !body.delegated && body.kind !== 'spell' ? normalizeGoal(body.goal) : null;
     // kind 'spell': Cast a spell. The agent changes wisp, not a project: an empty scratch folder of
     // its own, one run. Edits mode, not Plan: Claude's Plan mode refuses MCP tools (the spell tools),

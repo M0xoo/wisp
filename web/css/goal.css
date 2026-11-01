@@ -90,6 +90,64 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .lg-keys { flex: none; font-size: 11.5px; color: var(--faint); white-space: nowrap; }
 @media (hover: none) { .lg-keys { display: none; } }
 
+/* Judges (web/js/features/judges.js): the Done when line's button, their votes in the band. */
+.l-goal .judges-btn { flex: none; }
+.judges-btn .tb-label { max-width: 150px; }
+/* In the band's second row, after the percentage: faces with a dot for each vote, and the count. */
+.gb-judges { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border-radius: 8px; color: var(--ink-2); }
+.gb-judges:hover { background: var(--bg-2); }
+.gb-judges:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--accent-soft), inset 0 0 0 1px var(--accent); }
+.gb-judges .ts-m { position: relative; overflow: visible; box-shadow: 0 0 0 1.5px var(--surface-2); }
+.gb-judges .ts-m::after { content: ''; position: absolute; right: -2px; bottom: -2px; width: 7px; height: 7px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--surface-2); background: transparent; }
+.gb-judges .ts-m.v-met::after { background: var(--good); }
+.gb-judges .ts-m.v-impossible::after { background: var(--bad); }
+.gb-judges .ts-m.v-not_yet::after { background: var(--warn); }
+.gb-judges .ts-m.v-unchecked { opacity: 0.5; filter: grayscale(1); }
+.gbj-n { min-width: 3.2ch; font-size: 12.5px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+/* Each judge's vote and why, from the band. */
+.menu.jv-pop { z-index: 60; width: min(380px, calc(100vw - 16px)); padding: 6px; }
+.jv-h { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px 8px; }
+.jv-h b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.jv-h small { font-size: 12.5px; color: var(--muted); }
+.jv-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px; border-radius: 8px; }
+.jv-face { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.jv-face > :not(.cr-av) { display: block; width: 13px; height: 13px; }
+.jv-face .mono { background: currentColor; -webkit-mask: var(--logo) center / contain no-repeat; mask: var(--logo) center / contain no-repeat; }
+.jv-face { color: var(--ink); }
+.jv-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.jv-text b { font-size: 13px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jv-text small { font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.jv-vote { flex: none; display: inline-flex; align-items: center; gap: 4px; min-width: 96px; justify-content: flex-end; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.jv-vote .i { width: 13px; height: 13px; }
+.jv-row.v-met .jv-vote { color: var(--good); }
+.jv-row.v-impossible .jv-vote { color: var(--bad); }
+.jv-row.v-not_yet .jv-vote { color: color-mix(in srgb, var(--warn) 85%, var(--ink)); }
+/* The editor: Delegate's popover; rows rise in only when added, never on a repaint. */
+.judges-pop { z-index: 70; }
+.judges-pop .tp-row { animation: none; }
+.judges-pop .tp-row.fresh { animation: rise 0.25s var(--ease) both; }
+.judges-pop .tp-head { align-items: center; }
+.jp-vote { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0 14px 10px; }
+.jp-k { flex: none; font-size: 12.5px; font-weight: 500; color: var(--muted); }
+.jp-vote .pk-seg { flex: none; }
+.jp-vote.off .pk-seg { opacity: 0.5; }
+.jp-vote.off .pk-seg button { cursor: default; }
+.jp-rule { font-size: 12.5px; color: var(--muted); }
+.jp-row .tp-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.jp-row.crew .tp-top { grid-template-columns: auto minmax(0, 1fr) auto; }
+.jp-row .tp-top .grow { display: none; }
+.jp-row .tp-runner { justify-self: start; max-width: 100%; }
+.jp-row .tp-crew { min-width: 0; }
+.jp-row .tp-crew :is(b, small) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu.jp-add-menu { min-width: 280px; max-width: min(360px, calc(100vw - 16px)); z-index: 80; }
+.goal-pop .gp-judges { height: 30px; }
+/* A phone: in the Edit goal popover the editor takes its place, with Done to go back. */
+.judges-pop.sheet { max-height: calc(100vh - 16px); }
+/* The phone app: fingers, not pointers. */
+body.wisp-mobile :is(.l-goal .judges-btn, .goal-pop .gp-judges, .judges-pop .tp-del, .judges-pop .jp-done) { min-height: 44px; min-width: 44px; }
+body.wisp-mobile .jp-vote .pk-seg button { min-height: 40px; padding: 0 12px; }
+body.wisp-mobile .gb-judges { height: 44px; }
+
 /* Set goal… / Edit goal…: a popover by what asked. */
 .menu.goal-pop { z-index: 60; width: min(380px, calc(100vw - 16px)); padding: 14px; }
 .goal-pop .gp-k { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
@@ -110,7 +168,10 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
   .gb-k { display: none; }
   .gb-state { min-width: 0; }
   .gb-sub { flex-wrap: wrap; height: auto; padding: 9px 6px 9px 0; row-gap: 7px; }
-  .gb-track { width: 96px; }
+  .gb-track { width: 64px; }
+  .gb-pct { min-width: 0; }
+  .gb-sub { gap: 8px; }
+  .gb-judges { padding: 0 4px; }
   .gb-check { flex-basis: 100%; order: 9; }
   .l-goal input, .goal-pop textarea { font-size: 16px; } /* iOS doesn't zoom into a 16px field */
   /* The prompt box's line: the icon names it. */

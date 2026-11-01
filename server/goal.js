@@ -3,7 +3,12 @@
 // isn't met, the task goes back to its agent with what's missing. There's no cap on rounds: it lands in
 // your queue once the goal is met, can't be met, or goes in circles (design/goals.md).
 //
-// State lives on the session as `goal`: { text, round, status, setAt, endedAt?, why?, checks[], fresh? }
+// Judges: with `judges` set, each of them checks the work on its own (any harness, model and
+// thinking level, or a crew member on theirs) and the goal is met only when their votes agree by
+// `vote`: all of them, a majority, or any one.
+//
+// State lives on the session as `goal`: { text, round, status, setAt, endedAt?, why?, checks[], fresh?, judges?, vote?, bench? }
+// bench: bumped each time the judges change; a check's votes count only for the bench that cast them
 // fresh: where the checks start that count toward a stall (set on Resume)
 // status: working (the agent is on a round) · checking · met · impossible · paused
 //         · out (goals from before rounds were unlimited: ran out of them; Resume carries on)
@@ -16,6 +21,7 @@ import { check as runCheck } from './check.js';
 import { diffOf } from './judge.js';
 import { heroOf } from './protocol.js';
 import { bad, clip } from './util.js';
+import { adapters } from './adapters/index.js';
 import { workdir } from './runner.js';
 
 const MAX_TEXT = 1000;
@@ -26,6 +32,11 @@ const MAX_DIFF = 20_000;
 
 export const ENDED = new Set(['met', 'impossible', 'out', 'handed']);
 const VERDICTS = new Set(['met', 'not_yet', 'impossible']);
+const MAX_JUDGES = 5;
+// How the judges' votes add up to "met". Can't be done always takes a majority of them.
+export const VOTES = { all: 'All', majority: 'Majority', any: 'Any' };
+const majorityOf = (n) => Math.floor(n / 2) + 1;
+export const votesNeeded = (vote, n) => (vote === 'all' ? n : vote === 'any' ? 1 : majorityOf(n));
 
 const GOAL_CMD = /^\/goal(?:\s+|$)/i;
 // The condition in "/goal all tests pass" ('' for a bare /goal), or null when the text isn't one.
@@ -34,13 +45,46 @@ export function goalCommand(text) {
   return GOAL_CMD.test(t) ? t.replace(GOAL_CMD, '').trim() : null;
 }
 
-// { text } from a request body, or null for none. Throws on a bad one. An old client's `max` is ignored.
+// { text, judges?, vote? } from a request body, or null for none. Throws on a bad one. judges is
+// left out when the body doesn't say (an edit keeps the ones it had); [] clears them. An old
+// client's `max` is ignored.
 export function normalizeGoal(g) {
   if (g == null || g === false) return null;
   const text = String(typeof g === 'string' ? g : g.text ?? '').trim();
   if (!text) return null;
   if (text.length > MAX_TEXT) throw bad(`A goal is at most ${MAX_TEXT} characters.`);
-  return { text };
+  const out = { text };
+  if (typeof g === 'object' && g.judges != null) out.judges = normalizeJudges(g.judges);
+  if (typeof g === 'object' && g.vote != null) {
+    if (!Object.hasOwn(VOTES, g.vote)) throw bad(`vote must be one of ${Object.keys(VOTES).join(', ')}.`);
+    out.vote = g.vote;
+  }
+  return out;
+}
+
+// Each judge: a harness with its model and thinking level, or a crew member (who brings theirs).
+export function normalizeJudges(list) {
+  if (!Array.isArray(list)) throw bad('judges must be a list.');
+  if (list.length > MAX_JUDGES) throw bad(`A goal has at most ${MAX_JUDGES} judges.`);
+  return list.map((j) => {
+    if (!j || typeof j !== 'object') throw bad('Each judge is { agent, model, effort } or { crew }.');
+    const name = clip(String(j.name || '').replace(/\s+/g, ' ').trim(), 40);
+    if (j.crew) return { crew: String(j.crew).slice(0, 64), ...(name && { name }) };
+    const agent = String(j.agent || '');
+    if (!adapters[agent]) throw bad(`A judge needs a harness wisp knows (${Object.keys(adapters).join(', ')}), not “${agent || 'none'}”.`);
+    return { agent, model: String(j.model || '').slice(0, 120), effort: String(j.effort || '').slice(0, 20), ...(name && { name }) };
+  });
+}
+
+// Keep the judges on the goal only when there are some; the vote only with them.
+// Different judges (or another rule) start the stall count over and set the old votes aside.
+export function withJudges(goal, judges, vote) {
+  const was = JSON.stringify([goal.judges || [], goal.judges ? goal.vote : null]);
+  delete goal.judges;
+  delete goal.vote;
+  if (judges?.length) Object.assign(goal, { judges, vote: vote || 'majority' });
+  if (JSON.stringify([goal.judges || [], goal.judges ? goal.vote : null]) !== was && goal.checks?.length) Object.assign(goal, { bench: (goal.bench || 0) + 1, fresh: goal.checks.length });
+  return goal;
 }
 
 // What the agent hears about its goal, every turn.
@@ -54,14 +98,15 @@ export function goalNote(s) {
 export function goalView(g) {
   if (!g) return undefined;
   const last = g.checks.at(-1);
-  return { text: g.text, status: g.status, round: g.round, ...(g.why && { why: g.why }), ...(g.held && { held: g.held }), setAt: g.setAt, ...(g.endedAt && { endedAt: g.endedAt }), checks: g.checks.slice(-50).map(({ round, verdict, why, next, progress, at, tests }) => ({ round, verdict, why, ...(next && { next }), ...(progress != null && { progress }), ...(tests && { tests }), at })), ...(last && { last: { verdict: last.verdict, why: last.why } }) };
+  return { text: g.text, ...(g.judges && { judges: g.judges, vote: g.vote }), status: g.status, round: g.round, ...(g.why && { why: g.why }), ...(g.held && { held: g.held }), setAt: g.setAt, ...(g.endedAt && { endedAt: g.endedAt }), checks: g.checks.slice(-50).map(({ round, verdict, why, next, progress, at, tests, tally }) => ({ round, verdict, why, ...(next && { next }), ...(progress != null && { progress }), ...(tests && { tests }), ...(tally && { tally }), at })), ...(last && { last: { verdict: last.verdict, why: last.why, ...(last.tally && { tally: last.tally }), ...(last.votes && (last.bench || 0) === (g.bench || 0) && { votes: last.votes.map(({ name, verdict, why }) => ({ name, verdict, why })) }) } }) };
 }
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 export class Goals {
   // deps: { store, runner, agents(), defaults(), projectOf(session), track?(event, props),
-  //         hold?(session) → what holds back automations on its account, schedule?(session, entry) → Later.add }
+  //         hold?(session) → what holds back automations on its account, schedule?(session, entry) → Later.add,
+  //         crew?(id) → a crew member, for one who judges }
   constructor(deps) {
     Object.assign(this, deps);
     this.tokens = new Map(); // sessionId -> the check in flight; a move by the user cancels it
@@ -71,7 +116,7 @@ export class Goals {
   attach(session, goal, { by = 'user' } = {}) {
     const g = normalizeGoal(goal);
     if (!g) return null;
-    session.goal = { ...g, round: 1, status: 'working', setAt: Date.now(), by, checks: [] }; // from: the first turn, set as it starts
+    session.goal = withJudges({ text: g.text, round: 1, status: 'working', setAt: Date.now(), by, checks: [] }, g.judges, g.vote); // from: the first turn, set as it starts
     return session.goal;
   }
 
@@ -88,7 +133,9 @@ export class Goals {
     this.#unhold(session);
     // Editing the words of a goal still being worked on keeps its rounds; anything else starts over.
     const keep = prev && !ENDED.has(prev.status) && prev.status !== 'paused';
-    session.goal = keep ? { ...prev, ...g, status: prev.status === 'checking' ? 'working' : prev.status, why: undefined } : { ...g, round: 1, status: 'working', setAt: Date.now(), by: 'user', checks: [], ...(kick && { from: session.turns.at(-1)?.id }) };
+    const next = keep ? { ...prev, text: g.text, status: prev.status === 'checking' ? 'working' : prev.status, why: undefined } : { text: g.text, round: 1, status: 'working', setAt: Date.now(), by: 'user', checks: [], ...(kick && { from: session.turns.at(-1)?.id }) };
+    // Judges the request didn't name stay as they were (a typed /goal only changes the words).
+    session.goal = withJudges(next, g.judges !== undefined ? g.judges : prev?.judges, g.vote || prev?.vote);
     this.#note(session, `Goal set: ${g.text}`);
     if (kick) this.#kick(session);
     return session.goal;
@@ -192,7 +239,7 @@ export class Goals {
     if (!g || ENDED.has(g.status)) return null;
     this.tokens.delete(session.id);
     Object.assign(g, { status: 'handed', endedAt: Date.now() });
-    return { text: g.text };
+    return { text: g.text, ...(g.judges && { judges: g.judges, vote: g.vote }) };
   }
 
   #pauseQuiet(session, why) {
@@ -215,7 +262,7 @@ export class Goals {
     }
     if (!live()) return;
     const changed = (turn.changes || []).length;
-    const entry = { turnId: turn.id, round: g.round, at: Date.now(), verdict: v?.verdict || 'unchecked', why: v?.why || 'No model could check the goal.', ...(v?.next && { next: v.next }), ...(v?.progress != null && { progress: v.progress }), ...(v?.tests && { tests: v.tests }), changed };
+    const entry = { turnId: turn.id, round: g.round, at: Date.now(), verdict: v?.verdict || 'unchecked', why: v?.why || 'No model could check the goal.', ...(v?.next && { next: v.next }), ...(v?.progress != null && { progress: v.progress }), ...(v?.tests && { tests: v.tests }), ...(v?.tally && { tally: v.tally }), ...(v?.votes && { votes: v.votes, bench: g.bench || 0 }), changed };
     g.checks.push(entry);
     if (g.checks.length > 50) {
       const cut = g.checks.length - 50;
@@ -232,6 +279,7 @@ export class Goals {
     if (entry.verdict === 'met') return done('met', 'Goal check: met');
     if (entry.verdict === 'impossible') return done('impossible', 'Goal check: can’t be done', entry.why);
     if (entry.verdict === 'unchecked') {
+      if (!v && g.judges) entry.why = 'None of the judges could check the goal.';
       Object.assign(g, { status: 'paused', why: entry.why });
       this.runner.note(session, turn, { kind: 'goal', label: 'Goal check: couldn’t check' });
       this.tokens.delete(session.id);
@@ -308,21 +356,61 @@ export class Goals {
     const base = (g.from && session.turns.find((t) => t.id === g.from)?.checkpoint?.commit) || session.worktree?.head || 'HEAD';
     const diff = diffOf(dir, base);
     const agents = this.agents();
+    if (g.judges) return this.#judge(session, turn, g, { agents, dir, tests, diff });
     const pick = cheapest(agents) || (agents.some((a) => a.id === session.agent && a.available) ? { agent: session.agent, model: session.model || '' } : null);
     const j = await askJson({ agents, prompt: checkPrompt(session, turn, g, { tests, diff }), cwd: dir, timeoutMs: CHECK_MS, pick });
-    if (!j || !VERDICTS.has(j.verdict)) return null;
-    const progress = Number(j.progress);
-    const failing = tests?.verdict === 'fail';
-    const evidence = Array.isArray(j.evidence) ? j.evidence.filter((e) => typeof e === 'string' && e.trim()) : [];
-    // A "met" needs what the checker saw for itself, and tests that don't disagree.
-    const verdict = j.verdict === 'met' && (failing || !evidence.length) ? 'not_yet' : j.verdict;
-    const overruled = verdict !== j.verdict;
+    return readVerdict(j, tests);
+  }
+
+  // Every judge checks on its own, at once; their votes decide. A judge that can't answer (not
+  // installed, timed out, left the crew) votes for nothing, so with All it holds the goal back:
+  // when only those hold it back the agent has nothing to fix, so the goal pauses for you.
+  async #judge(session, turn, g, { agents, dir, tests, diff }) {
+    const n = g.judges.length;
+    const votes = await Promise.all(
+      g.judges.map(async (judge) => {
+        const c = judge.crew ? this.crew?.(judge.crew) : null;
+        const name = judge.name || c?.name || judge.agent || 'A crew member';
+        if (judge.crew && !c) return { name, crew: judge.crew, verdict: 'unchecked', why: `${name} left your crew.` };
+        let run = c ? { agent: c.agent, model: c.model || '', effort: c.effort || '' } : judge;
+        // A crew member on Auto: the pick Auto would make for this check.
+        if (run.agent === 'auto') {
+          const pick = this.runner.routeAuto?.(`Check whether this goal holds: ${g.text}`, { cwd: dir });
+          run = pick ? { agent: pick.agent, model: pick.model || '', effort: pick.effort || '' } : cheapest(agents) || run;
+        }
+        const vote = { name, agent: run.agent, ...(run.model && { model: run.model }), ...(judge.crew && { crew: judge.crew }) };
+        if (!agents.find((a) => a.id === run.agent)?.available) return { ...vote, verdict: 'unchecked', why: `${name} isn't installed here.` };
+        const j = await askJson({ agents, prompt: checkPrompt(session, turn, g, { tests, diff, judge: { name, role: c?.role, n } }), cwd: dir, timeoutMs: CHECK_MS, pick: run }).catch(() => null);
+        const v = readVerdict(j, tests);
+        if (!v) return { ...vote, verdict: 'unchecked', why: `${name} didn't answer.` };
+        return { ...vote, verdict: v.verdict, why: v.why, ...(v.next && { next: v.next }), ...(v.progress != null && { progress: v.progress }) };
+      }),
+    );
+    const answered = votes.filter((v) => v.verdict !== 'unchecked');
+    if (!answered.length) return null;
+    const count = (verdict) => votes.filter((v) => v.verdict === verdict).length;
+    const need = votesNeeded(g.vote, n);
+    const met = count('met');
+    const rule = n === 1 ? 'the judge decides' : g.vote === 'all' ? 'all must agree' : g.vote === 'any' ? 'one is enough' : `${need} of ${n} must agree`;
+    const tally = `${met} of ${n} judge${n === 1 ? '' : 's'} say met (${rule})`;
+    const named = (v) => (n > 1 ? `${v.name}: ${v.why}` : v.why);
+    const shared = { tally, votes, ...(tests && tests.verdict !== 'skip' && { tests: { verdict: tests.verdict, command: tests.command } }) };
+    if (met >= need) return { ...shared, verdict: 'met', why: clip(named(votes.find((v) => v.verdict === 'met')), 300), next: '', progress: 100 };
+    if (count('impossible') >= majorityOf(n)) return { ...shared, verdict: 'impossible', why: clip(named(votes.find((v) => v.verdict === 'impossible')), 300), next: '', progress: null };
+    const against = votes.filter((v) => v.verdict === 'not_yet' || v.verdict === 'impossible');
+    // Held back only by judges that didn't answer: nothing for the agent to do.
+    if (!against.length) {
+      const silent = votes.filter((v) => v.verdict === 'unchecked');
+      return { ...shared, verdict: 'unchecked', why: clip(`${tally}: ${silent.map((v) => v.why).join(' ')}`, 300) };
+    }
+    const est = against.map((v) => v.progress).filter((x) => x != null);
     return {
-      verdict,
-      why: clip(overruled ? (failing ? `The tests fail: ${tests.newFailures?.length || tests.failed || 'some'} new failure${(tests.newFailures?.length || tests.failed) === 1 ? '' : 's'} in ${tests.command || 'the tests'}` : `The check couldn't point at anything that shows it: ${String(j.why || '').trim()}`) : String(j.why || '').trim() || (verdict === 'met' ? 'The goal holds.' : 'Not there yet.'), 300),
-      next: verdict === 'not_yet' ? clip(String(j.next || '').trim() || (failing ? `Make ${tests.command || 'the tests'} pass again.` : ''), 400) : '',
-      progress: Number.isFinite(progress) ? Math.max(0, Math.min(overruled ? 95 : 100, Math.round(progress))) : verdict === 'met' ? 100 : null,
-      ...(tests && tests.verdict !== 'skip' && { tests: { verdict: tests.verdict, command: tests.command } }),
+      ...shared,
+      verdict: 'not_yet',
+      why: clip(against.map(named).join(' · '), 300),
+      next: clip([...new Set(against.filter((v) => v.next).map((v) => (n > 1 ? `${v.name}: ${v.next}` : v.next)))].join(' · '), 400),
+      // The dissenters' estimate: the judges that are satisfied don't pull the bar up.
+      progress: est.length ? Math.min(...est) : null,
     };
   }
 
@@ -332,10 +420,28 @@ export class Goals {
   }
 }
 
-function checkPrompt(s, turn, g, { tests, diff }) {
+// A checker's reply as a verdict: { verdict, why, next, progress, tests }, or null when it said
+// nothing usable. A "met" needs what the checker saw for itself, and tests that don't disagree.
+function readVerdict(j, tests) {
+  if (!j || !VERDICTS.has(j.verdict)) return null;
+  const progress = Number(j.progress);
+  const failing = tests?.verdict === 'fail';
+  const evidence = Array.isArray(j.evidence) ? j.evidence.filter((e) => typeof e === 'string' && e.trim()) : [];
+  const verdict = j.verdict === 'met' && (failing || !evidence.length) ? 'not_yet' : j.verdict;
+  const overruled = verdict !== j.verdict;
+  return {
+    verdict,
+    why: clip(overruled ? (failing ? `The tests fail: ${tests.newFailures?.length || tests.failed || 'some'} new failure${(tests.newFailures?.length || tests.failed) === 1 ? '' : 's'} in ${tests.command || 'the tests'}` : `The check couldn't point at anything that shows it: ${String(j.why || '').trim()}`) : String(j.why || '').trim() || (verdict === 'met' ? 'The goal holds.' : 'Not there yet.'), 300),
+    next: verdict === 'not_yet' ? clip(String(j.next || '').trim() || (failing ? `Make ${tests.command || 'the tests'} pass again.` : ''), 400) : '',
+    progress: Number.isFinite(progress) ? Math.max(0, Math.min(overruled ? 95 : 100, Math.round(progress))) : verdict === 'met' ? 100 : null,
+    ...(tests && tests.verdict !== 'skip' && { tests: { verdict: tests.verdict, command: tests.command } }),
+  };
+}
+
+function checkPrompt(s, turn, g, { tests, diff, judge }) {
   const hero = heroOf(turn.presentation);
   const history = g.checks.slice(-4).map((c) => `- round ${c.round}: ${c.verdict}: ${c.why}`).join('\n');
-  return `You check whether a coding agent reached its goal. Your working directory is the project it works in: open the files, read the code, look at git status and diffs. Don't take the agent's word for anything you can check yourself.
+  return `You check whether a coding agent reached its goal.${judge ? ` You are ${judge.name}${judge.role ? ` (${judge.role})` : ''}, ${judge.n > 1 ? `one of ${judge.n} judges who each check on their own; the goal counts as met only if enough of you agree` : 'the judge of this goal'}.` : ''} Your working directory is the project it works in: open the files, read the code, look at git status and diffs. Don't take the agent's word for anything you can check yourself.
 
 <goal>
 ${g.text}
@@ -368,6 +474,7 @@ function continuePrompt(g, c) {
   return [
     `wisp checked your work against the goal and it isn't met yet (round ${g.round} starts now).`,
     `Goal: ${g.text}`,
+    c.tally ? `Judges: ${c.tally}.` : '',
     `What's missing: ${c.why}`,
     c.next ? `Next: ${c.next}` : '',
     'Keep working until the goal is met, and check it yourself before you finish. If it turns out it can’t be done, stop and say exactly why, with the hero’s status "blocked".',
