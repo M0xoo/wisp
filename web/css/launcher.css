@@ -38,7 +38,13 @@
 @keyframes nudge { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
 .l-in { align-self: flex-start; font-size: 12.5px; line-height: 27px; color: var(--faint); margin-right: 2px; }
 /* narrow (a phone): Other folder… is its icon (the title names it), so the chips keep one line */
-@container launcher (max-width: 480px) { .l-projects > .l-in, .lp-chip.add:not(:only-child) span { display: none; } }
+@container launcher (max-width: 480px) {
+  .l-projects > .l-in, .lp-chip.add:not(:only-child) span { display: none; }
+  .lp-chip.add.pick:not(:only-child) { width: 27px; padding: 0; justify-content: center; }
+}
+/* Other folder… as its icon alone: a circle, not an oval */
+.lp-chip.add.pick:not(:has(> span)) { width: 27px; padding: 0; justify-content: center; }
+body.wisp-mobile .launcher .lp-chip.add.pick:is(:not(:only-child), :not(:has(> span))) { width: 44px; } /* the app's chips are 44px tall */
 .lp-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 27px; padding: 0 10px; border-radius: 99px;
   font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line); transition: all 0.15s;
@@ -112,6 +118,10 @@ body:has(.launcher.docked:is(:focus-within, :has(.open))) .to-top { display: non
 /* the place is named like its neighbours (Full auto, Subagents), which open menus without a chevron too */
 .l-bar .where-btn .chev { display: none; }
 .l-bar > :not(.runners) { flex: none; }
+/* one height for the bar: every hover and lit pill lines up with Send and the harness pill */
+.l-bar > :is(.icon-btn, .mode-btn) { height: 30px; min-width: 30px; }
+.l-bar > .icon-btn { width: 30px; }
+.l-bar > .mode-btn { padding: 0 7px; justify-content: center; }
 .l-bar .grow { flex: 1; }
 /* harness pill(s): "vs" rides on the end of it; each harness added joins the same pill behind a
    "vs" of its own (hover: ×, removes it), and the end button turns into a + for the next one */

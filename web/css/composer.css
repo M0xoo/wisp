@@ -61,6 +61,8 @@
 .menu .rot-down { rotate: 90deg; }
 .c-hint { flex: 1; font-size: 11.5px; color: var(--faint); }
 .c-bar .mode-btn { height: 30px; min-width: 30px; padding: 0 8px; }
+/* Attach and Start later as 30px squares, the height of everything else in the bar */
+.c-bar > .icon-btn { width: 30px; height: 30px; }
 .c-bar .mode-btn.changed { background: var(--bg-2); }
 .t-mode { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 5px; font: 500 11.5px var(--sans); color: var(--muted); border: 1px solid var(--line); }
 .t-mode .i { width: 12px; height: 12px; }
@@ -125,7 +127,7 @@
 
 /* harness · model for the next follow-up: a quiet logo, spelled out once it's switched */
 .c-runner {
-  display: inline-flex; align-items: center; height: 30px; min-width: 30px; padding: 0 4px; border-radius: 8px; gap: 0;
+  display: inline-flex; align-items: center; justify-content: center; height: 30px; min-width: 30px; padding: 0 4px; border-radius: 8px; gap: 0;
   font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s;
 }
 .c-runner .rb-logo { margin-right: 0; background: transparent; }

@@ -1,6 +1,7 @@
 /* ---------- worktrees, compare, ship it ---------- */
+/* 7px around a 16px icon: an icon-only toggle is a 30px square, like Send and the harness pill */
 .tog-btn {
-  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 8px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 30px; min-width: 30px; padding: 0 7px; border-radius: 9px;
   font-size: 12.5px; color: var(--muted); transition: background 0.15s, color 0.15s;
 }
 .tog-btn:hover { background: var(--bg-2); color: var(--ink); }

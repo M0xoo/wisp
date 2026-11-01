@@ -44,12 +44,12 @@ body.split #stuffView { flex: 1; }
 .sf-kind.on { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); background: var(--accent-soft); }
 .sf-kind.on i { color: var(--accent-ink); }
 .sf-opts { flex: none; display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.sf-opt { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 9px; border-radius: 8px; font-size: 12.5px; color: var(--muted); }
+.sf-opt { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; min-width: 30px; padding: 0 8px; border-radius: 8px; font-size: 12.5px; color: var(--muted); }
 .sf-opt .i { width: 14px; height: 14px; }
 .sf-opt:hover { background: var(--bg-2); color: var(--ink); }
 .sf-opt.sf-star.on { color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); }
 .sf-seg { display: inline-flex; padding: 2px; border: 1px solid var(--line-2); border-radius: 9px; }
-.sf-seg button { display: grid; place-items: center; width: 28px; height: 24px; border-radius: 6px; color: var(--faint); }
+.sf-seg button { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: var(--faint); }
 .sf-seg button .i { width: 14px; height: 14px; }
 .sf-seg button:hover { color: var(--ink); }
 .sf-seg button.on { background: var(--bg-2); color: var(--ink); }
@@ -259,6 +259,7 @@ body.split #stuffView { flex: 1; }
   .sf-body { padding: 0 14px 48px; }
   .cv-top.stuff-top { padding-left: 14px; padding-right: 10px; }
   .cv-top.stuff-top .sh-acts .ghost.sm span { display: none; }
+  .cv-top.stuff-top .sh-acts .ghost.sm { width: 32px; padding: 0; justify-content: center; }
   .sf-opt span { display: none; }
   .stuff-view.list .st-meta { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title sub' 'from from'; padding-right: 12px; }
   .stuff-view.list .st-note { display: none; }
@@ -272,6 +273,7 @@ body.split #stuffView { flex: 1; }
 }
 body.wisp-mobile .st-tools button { width: 40px; height: 40px; }
 body.wisp-mobile .sf-kind, body.wisp-mobile .sf-opt { height: 40px; }
+body.wisp-mobile .sf-opt { min-width: 40px; }
 body.electron.mac.split.stack .stuff-view .cv-top { padding-left: 98px; }
 
 @media (prefers-reduced-motion: reduce) {

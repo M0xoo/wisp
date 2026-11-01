@@ -14,7 +14,7 @@
 }
 .ghost:hover { background: var(--bg-2); color: var(--ink); }
 .ghost.on { color: var(--good); }
-.ghost.sm { height: 28px; font-size: 13px; }
+.ghost.sm { height: 30px; font-size: 13px; } /* the height of .primary.sm: Cancel and Save side by side line up */
 .ghost.xs { height: 24px; padding: 0 6px; border-radius: 7px; }
 .ghost.danger:hover { color: var(--bad); background: var(--del-bg); }
 .icon-btn {

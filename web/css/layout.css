@@ -62,7 +62,7 @@
 }
 .p-chip:hover { background: var(--bg-2); color: var(--ink-2); }
 .p-chip.on { background: var(--surface); border-color: var(--line-2); color: var(--ink); font-weight: 500; }
-.p-chip.add { padding: 0 6px; }
+.p-chip.add { width: 26px; padding: 0; justify-content: center; } /* its + alone: a circle as tall as the chips */
 .p-chip.add .i { width: 14px; height: 14px; }
 .p-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--pc); display: inline-block; flex: none; }
 .p-run { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }

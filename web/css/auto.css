@@ -66,6 +66,9 @@
 .apv-sk { width: 88px; height: 10px; border-radius: 99px; }
 .auto-pv .i { width: 12px; height: 12px; color: var(--warn); }
 .runners.cmp .apv-l, .runners.many .auto-pv { display: none; }
+/* comparing, the pick is its logo alone: even room either side of it */
+.runners.cmp .auto-pv { padding: 0 5px; }
+.runners.cmp .auto-pv .rb-logo { margin-right: 0; }
 /* With the preview on, the pick says more than the goal: the goal moves to the button's tooltip and
    the popover, and the pill keeps its room for "Auto" and the pick. */
 .runners.pv-on .rb-m { display: none; }
@@ -77,11 +80,15 @@
 /* a phone: the pick's logo alone, and Auto's chevron goes (the pick is the next thing to tap) */
 @container launcher (max-width: 520px) {
   .apv-l, .apv-sk { display: none; }
-  .auto-pv { padding: 0 6px 0 7px; }
+  .auto-pv { padding: 0 5px; } /* the pick's logo alone: a 28px square */
   .auto-pv .rb-logo { margin-right: 0; }
   .runners.pv-on .runner-btn .chev { display: none; }
+  /* Auto's spark alone: centred in a square, not pushed left by the room the chevron had */
+  .runners.pv-on .runner-btn { padding: 0 3px; }
+  .runners.pv-on .runner-btn .rb-logo { margin-right: 0; }
 }
 body.wisp-mobile .launcher .runners .auto-pv { height: 44px; }
+body.wisp-mobile .launcher .runners :is(.auto-pv, .runner-btn) { min-width: 44px; justify-content: center; } /* logo-only, a full touch target */
 @media (prefers-reduced-motion: reduce) { .auto-pv .sk { animation: none; } }
 
 /* its popover: why, the odds and cost, what's worth a try, the other picks, and a Never rule */
