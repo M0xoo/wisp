@@ -7,6 +7,7 @@ import { el } from '../core/dom.js';
 import { SLASH, slashMatches } from '../slash-text.js';
 import { feedbackOn } from './feedback.js';
 import { activeSpells } from './spells.js';
+import './after-pick.js'; // the task picker after "/after "
 
 // Register before the box's own Enter handler: picking a command must not send it.
 export function slashMenu(ta, host, base = SLASH) {

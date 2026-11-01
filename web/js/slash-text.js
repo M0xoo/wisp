@@ -7,6 +7,8 @@ export const SLASH = [
   { name: 'spell', args: 'what to change', hint: 'Cast a spell: change wisp itself' },
   { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or what you wish it did', bare: true }, // alone: opens the dialog
   { name: 'bug', args: 'what happened', hint: 'Report a bug in wisp to the wisp team', bare: true }, // alone: opens the dialog on Something broke
+  { name: 'draft', args: 'task', hint: 'Save a new task to Drafts, to start when you want' },
+  { name: 'after', args: 'task, then prompt', hint: 'Start a new task once that task is done' },
 ];
 // The new-task box: there's no run to ask on the side yet, and a goal starts a task. /terminal starts
 // one in the agent's own terminal, whatever Settings → Babysitting mode says.
@@ -48,6 +50,28 @@ export function goalAsk(text) {
   return GOAL_CMD.test(t) ? t.replace(GOAL_CMD, '').trim() : null;
 }
 export const isGoalDrop = (rest) => /^(drop|clear|off|none)$/i.test(rest || '');
+
+// The task in "/draft fix the login bug" ('' for a bare /draft), or null when it isn't one.
+const DRAFT_CMD = /^\/draft(?:\s+|$)/i;
+export function draftAsk(text) {
+  const t = String(text || '').trim();
+  return DRAFT_CMD.test(t) ? t.replace(DRAFT_CMD, '').trim() : null;
+}
+
+// "/after <task> <prompt>": the task as a mention (`@[Title](wisp:<id>)`, what the box's task
+// picker and a pasted id put in), a bare id, `wisp:<id>` or a `#/s/<id>` link, then the new task's
+// prompt. → { id, prompt } ('' for what's missing), or null when it isn't one.
+const AFTER_CMD = /^\/after(?:\s+|$)/i;
+const AFTER_TASK = /^(?:@\[[^\]\n]{1,200}\]\(wisp:([a-z0-9]{6,40})\)|(?:wisp:)?([a-f0-9]{12})|\S*#\/s\/([a-z0-9]{6,40})\/?)(?=\s|$)/;
+export function afterAsk(text) {
+  const t = String(text || '').trim();
+  if (!AFTER_CMD.test(t)) return null;
+  const rest = t.replace(AFTER_CMD, '');
+  const m = AFTER_TASK.exec(rest);
+  if (!m) return { id: '', prompt: rest.trim() };
+  return { id: m[1] || m[2] || m[3], prompt: rest.slice(m[0].length).trim() };
+}
+export const AFTER_HINT = 'Pick the task after /after (type to search, or paste its ID), then what to do: “/after Fix login write the release notes”';
 
 // The commands a half-typed "/b" could be. Only while the box holds nothing but the command.
 export function slashMatches(text, list = SLASH) {

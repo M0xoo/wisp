@@ -73,6 +73,8 @@ export const PARTS = {
   'plan.prompt': '.plan-view .pv-box',
   'plan.details': '.plan-view .pv-side', // its details column (a bar over the box when narrow)
   'plan.actions': '.plan-view .pv-side .it-actions', // Start now, Change start time…, Delete
+  'section.drafts': '#secDrafts', // tasks saved with /draft, not started yet
+  'drafts.row': '#secDrafts .plan-row',
   'section.forLater': '#secForLater', // finished tasks (and crew jobs) saved to look at again
   'section.done': '#secDone',
   'section.heading': '#feed .f-group > h4',

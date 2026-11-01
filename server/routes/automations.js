@@ -96,11 +96,13 @@ export function register(r, app) {
 
   // Later (server/later.js): tasks and reminders set for a time ("in 5 min run the e2e suite",
   // "remind me to review the PR in 1 h"). POST { kind: 'task', at | in, prompt, cwd, agent, … } or
-  // { kind: 'reminder', at | in, text, from? }. PATCH { at | in, text | prompt } or { now: true }.
+  // { kind: 'reminder', at | in, text, from? }. A task with draft: true instead of a time waits in
+  // Drafts; with after: <task id>, it starts once that task is done (/draft, /after).
+  // PATCH { at | in, text | prompt } or { now: true }.
   r.route('GET', '/later', (c) => c.send(200, app.later.plans));
   r.route('POST', '/later', async (c) => {
-    const { kind, at, in: inMin, text, from, ...body } = await c.body();
-    c.send(201, app.later.plan(kind === 'reminder' ? { kind, at, in: inMin, text, from } : { kind: 'task', at, in: inMin, body }));
+    const { kind, at, in: inMin, text, from, draft, after, ...body } = await c.body();
+    c.send(201, app.later.plan(kind === 'reminder' ? { kind, at, in: inMin, text, from } : { kind: 'task', at, in: inMin, draft, after, body }));
   });
   r.route('PATCH', '/later/:id', async (c) => {
     const out = await app.later.editPlan(c.params.id, await c.body());

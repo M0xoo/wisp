@@ -32,7 +32,7 @@ test('spellAsk reads "/spell …" in the launcher and follow-ups', () => {
 
 test('the / menu offers the commands a half-typed one could be', () => {
   const names = (t) => page.slashMatches(t).map((c) => c.name);
-  assert.deepEqual(names('/'), ['btw', 'goal', 'spell', 'feedback', 'bug']);
+  assert.deepEqual(names('/'), ['btw', 'goal', 'spell', 'feedback', 'bug', 'draft', 'after']);
   assert.deepEqual(names('/g'), ['goal']);
   assert.equal(page.goalAsk('/goal all tests pass'), 'all tests pass');
   assert.equal(page.goalAsk('/goal'), '');
@@ -47,9 +47,24 @@ test('the / menu offers the commands a half-typed one could be', () => {
   assert.deepEqual(names('hi /b'), []);
 });
 
+test('/draft and /after read their task, and /after the task it waits for', () => {
+  assert.equal(page.draftAsk('/draft fix the login bug'), 'fix the login bug');
+  assert.equal(page.draftAsk('/Draft'), '');
+  assert.equal(page.draftAsk('/drafts'), null);
+  assert.equal(page.draftAsk('a /draft'), null);
+  // Picked (a mention), pasted (the id, wisp:<id>, a link) or typed: the id, then the prompt.
+  assert.deepEqual(page.afterAsk('/after @[Fix login](wisp:abcdef123456) write the notes'), { id: 'abcdef123456', prompt: 'write the notes' });
+  assert.deepEqual(page.afterAsk('/after abcdef123456 bump it'), { id: 'abcdef123456', prompt: 'bump it' });
+  assert.deepEqual(page.afterAsk('/after wisp:abcdef123456 bump it'), { id: 'abcdef123456', prompt: 'bump it' });
+  assert.deepEqual(page.afterAsk('/after http://localhost:3000/#/s/abcdef123456 go\nand more'), { id: 'abcdef123456', prompt: 'go\nand more' });
+  assert.deepEqual(page.afterAsk('/after write the notes'), { id: '', prompt: 'write the notes' });
+  assert.deepEqual(page.afterAsk('/after'), { id: '', prompt: '' });
+  assert.equal(page.afterAsk('/aftermath'), null);
+});
+
 test('the new-task box offers /goal and /terminal but not /btw (no run to ask on the side yet)', () => {
   const names = (t) => page.slashMatches(t, page.HOME_SLASH).map((c) => c.name);
-  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback', 'bug', 'terminal']);
+  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback', 'bug', 'draft', 'after', 'terminal']);
   assert.deepEqual(names('/b'), ['bug']);
   assert.deepEqual(names('/t'), ['terminal']);
   assert.match(page.HOME_SLASH.find((c) => c.name === 'goal').hint, /Start a task/);

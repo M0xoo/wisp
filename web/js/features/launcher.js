@@ -35,7 +35,7 @@ import { historyStep, remember } from '../prompt-history.js';
 import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
 import { parseWhen } from '../when.js';
-import { addPlan, aheadLabel, timeMenu, whenTip } from './later.js';
+import { addPlan, aheadLabel, planAsk, planSaid, timeMenu, whenTip } from './later.js';
 import { launcherGoal, launcherGoalHtml } from './goal.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { autoPreview } from './auto-preview.js';
@@ -402,7 +402,7 @@ export function renderLauncher() {
     clearTimeout(whenTimer);
     if (!ta.value.trim()) notTime = false;
     const text = ta.value;
-    const ok = !armed && S.config.defaults?.readTimes !== 'off' && !notTime && !spellAsk(text.trim()) && !spellSlash(text.trim()) && !isFeedback(text.trim()) && !addressedTo(text).members.length;
+    const ok = !armed && S.config.defaults?.readTimes !== 'off' && !notTime && !spellAsk(text.trim()) && !spellSlash(text.trim()) && !isFeedback(text.trim()) && !planAsk(text.trim()) && !addressedTo(text).members.length;
     if (!ok || !parseWhen(text)) return (when = null), paintWhen();
     whenTimer = setTimeout(() => ((when = parseWhen(ta.value)), paintWhen()), 250);
   };
@@ -494,6 +494,9 @@ export function renderLauncher() {
     if (typedGoal && isGoalDrop(typedGoal)) return toast('No goal to drop yet: <b>/goal drop</b> works in a task’s reply box.');
     // /terminal <task>: in the agent's own terminal (the server reads it, launch.js), opened at once.
     if (terminalAsk(prompt) === '') return toast('Say what to do after /terminal, like “/terminal fix the login bug”');
+    // /draft <task>: kept in Drafts until you start it. /after <task> <prompt>: starts once that task is done.
+    const held = planAsk(prompt);
+    if (held?.error) return toast(held.error);
     // One run per place picked under "Run on", all in the picked project: a place that has no
     // checkout of it yet gets one first (the server clones it there).
     const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(), clone: cloneById(pickId()), also: ownPick() ? alsoIds().map(projectById).filter(Boolean) : [] }));
@@ -505,10 +508,10 @@ export function renderLauncher() {
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
     // For later: a task (or a reminder) that starts at that time, kept by wisp until then.
-    if (now) armed = null; // Alt+Enter: now, whatever time was set
+    if (now || held) armed = null; // Alt+Enter: now, whatever time was set; a draft or /after has none
     // A time set with the clock that went by while you typed: pick another, the draft waits.
     if (!at && passed()) return paintWhen(), pickTime();
-    const w = now ? null : at ? { at, rest: prompt, reminder: false } : armed ? { at: armed.at, rest: prompt, reminder: false } : when;
+    const w = held ? { rest: held.rest, how: held.how, reminder: false } : now ? null : at ? { at, rest: prompt, reminder: false } : armed ? { at: armed.at, rest: prompt, reminder: false } : when;
     if (w) {
       const t = targets[0];
       if (!t.project) return toast('Pick a project that’s ready first: this one is still cloning.', { tone: 'bad' });
@@ -527,13 +530,14 @@ export function renderLauncher() {
       const body = w.reminder
         ? { text: w.rest }
         : { prompt: w.rest, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, agent: r.agent, mode: over?.mode || curMode, model: r.model, effort: r.effort, account: r.account || undefined, attachments: attachments.length ? attachments : undefined, worktree: S.config.defaults.worktree === 'off' ? false : undefined, subagents: team.length && canLead(r.agent) ? team : undefined };
-      const p = await addPlan(w.reminder ? 'reminder' : 'task', w.at, body);
+      const said = w.how && planSaid(w.how); // before it's added: an /after task already done starts at once
+      const p = await addPlan(w.reminder ? 'reminder' : 'task', w.at, body, w.how);
       if (!p) {
         tray.restore(files);
         if (!ta.value) (armed = was), (ta.value = prompt), ta.dispatchEvent(new Event('input'));
         return;
       }
-      return toast(`${w.reminder ? 'Reminds you' : 'Starts'} ${esc(aheadLabel(w.at))}`);
+      return toast(said || `${w.reminder ? 'Reminds you' : 'Starts'} ${esc(aheadLabel(w.at))}`);
     }
     // Delegates on machines that aren't connected: connecting now has them ready by the first delegation.
     for (const m of team) if (m.machine && m.machine !== 'here' && machineById(m.machine)?.state === 'off') connectMachine(m.machine);

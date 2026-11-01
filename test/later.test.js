@@ -165,6 +165,59 @@ test('plans: a task starts when due; a reminder becomes a task with no agent', a
   assert.equal(srv.store.config.later.length, 0);
 });
 
+test('/draft: a task with no time waits in Drafts until you start it or give it a time', async () => {
+  const cwd = makeRepo();
+  const p = await api('/later', { kind: 'task', draft: true, prompt: 'tidy the README', cwd, agent: 'claude', worktree: false });
+  assert.equal(p.draft, true);
+  assert.equal(p.at, undefined);
+  await srv.later.tick(); // never due by itself
+  assert.equal(srv.store.config.later.length, 1);
+  assert.ok(!((await api('/status')).nextWakeAt > Date.now() + 40 * 86400_000), 'a draft wakes nothing');
+  // A time: it's scheduled instead.
+  const moved = await api(`/later/${p.id}`, { in: 30 }, 'PATCH');
+  assert.equal(moved.draft, undefined);
+  assert.ok(moved.at > Date.now());
+  await api(`/later/${p.id}`, null, 'DELETE');
+  // Start now: it launches.
+  const q = await api('/later', { kind: 'task', draft: true, prompt: 'write the changelog', cwd, agent: 'claude', worktree: false });
+  const out = await api(`/later/${q.id}`, { now: true }, 'PATCH');
+  assert.equal(out.session.origin.kind, 'later');
+  assert.equal(srv.store.config.later.length, 0);
+});
+
+test('/after: a task starts once the task it waits for is marked done', async () => {
+  const s = await task('fix the login bug');
+  await assert.rejects(api('/later', { kind: 'task', after: 'nope', prompt: 'x', cwd: makeRepo() }), /Say which task/);
+  await assert.rejects(api('/later', { kind: 'task', after: 'abcdef123456', prompt: 'x', cwd: makeRepo() }), /No task with that id/);
+  const p = await api('/later', { kind: 'task', after: s.id, prompt: 'write the release notes', cwd: makeRepo(), agent: 'claude', worktree: false });
+  assert.deepEqual(p.after, { id: s.id, title: s.title });
+  await srv.later.tick();
+  assert.equal(srv.store.config.later.length, 1, 'not done yet: it waits');
+  await api(`/sessions/${s.id}`, { state: 'done' }, 'PATCH');
+  const started = await until(() => srv.store.all().find((x) => x.turns[0]?.prompt === 'write the release notes'));
+  assert.equal(started.origin.kind, 'later');
+  assert.match(started.origin.name, /^After /);
+  assert.equal(srv.store.config.later.length, 0);
+  await ended(started.id);
+
+  // Already done: it starts at once.
+  await api('/later', { kind: 'task', after: s.id, prompt: 'bump the version', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await until(() => srv.store.all().find((x) => x.turns[0]?.prompt === 'bump the version'));
+  assert.equal(srv.store.config.later.length, 0);
+
+  // The task it waited for went before it was done: it waits in Drafts instead.
+  const t = await task('refactor auth');
+  await api('/later', { kind: 'task', after: t.id, prompt: 'update the docs', cwd: makeRepo(), agent: 'claude', worktree: false });
+  await api(`/sessions/${t.id}`, null, 'DELETE');
+  await until(() => !srv.store.get(t.id));
+  await srv.later.tick();
+  const d = srv.store.config.later.find((x) => x.title === 'update the docs');
+  assert.equal(d.draft, true);
+  assert.equal(d.after, undefined);
+  assert.equal(d.lost.why, 'deleted');
+  await api(`/later/${d.id}`, null, 'DELETE');
+});
+
 test('files go with a scheduled task and a scheduled follow-up', async () => {
   const upload = async (name) => (await fetch(`${base}/api/uploads?name=${name}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: 'notes' }).then((r) => r.json())).id;
   const cwd = makeRepo();

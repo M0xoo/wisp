@@ -206,6 +206,9 @@ export function renderFeed() {
   // follow-ups to come, soonest first.
   const plansShown = planRows();
   place($('#secScheduled'), scheduled, plansShown);
+  // Drafts (/draft): tasks written down to start when you want, newest first.
+  const draftsShown = planRows('drafts');
+  place($('#secDrafts'), [], draftsShown);
   place($('#secForLater'), forLater);
   // What a crew member filed there unread could go unseen (nothing pings for it): the heading says so.
   const fresh = forLater.filter((s) => s.unread && s.forLater.by === 'crew').length;
@@ -225,7 +228,7 @@ export function renderFeed() {
   const keys = new Set(tasks.map((t) => t.key));
   for (const [key, g] of S.tasks) if (!keys.has(key)) (g.card.remove(), S.tasks.delete(key));
 
-  const empty = !needs.length && !working.length && !scheduled.length && !plansShown.length && !forLater.length && !done.length && !archived.length;
+  const empty = !needs.length && !working.length && !scheduled.length && !plansShown.length && !draftsShown.length && !forLater.length && !done.length && !archived.length;
   $('#feedEmpty').hidden = !empty;
   if (empty)
     $('#feedEmpty').innerHTML = `<div class="orb big"><i></i><i></i><i></i></div><p>${S.filter === 'all' ? 'Nothing yet. Describe a task above and send it off.' : 'Nothing in this project yet.'}</p>`;
