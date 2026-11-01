@@ -252,7 +252,7 @@ function paintMachines() {
   // The whole row opens it (data-row: what a tap does); its settings are behind ⋯. "Open" is quiet:
   // the solid button is kept for the one row that needs a step from you (Connect, Try again).
   // Where a row stands is a dot and a word under its name, never a dead button.
-  const opening_ = `<button class="ghost m-go" disabled type="button"><span class="spin"></span>Opening</button>`;
+  const opening_ = `<button class="ghost m-go busy" disabled type="button"><span class="spin"></span>Opening</button>`;
   const openBtn = `<button class="ghost m-go go" data-a="open" type="button">Open ${icon('arrow')}</button>`;
   const more = (m) => `<button class="icon m-more" data-a="edit" type="button" aria-label="${esc(`${nameOf(m)}: settings`)}">${icon('dots')}</button>`;
   // Each account its own tint of the accent, the same every time, so two "M"s still tell apart.
