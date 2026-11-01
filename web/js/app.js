@@ -11,7 +11,7 @@ import { MOBILE, S, setAgents } from './core/state.js';
 import { combo } from './ui/kbd.js';
 import { openAutomations } from './features/automations.js';
 import { openPalette } from './features/commands.js';
-import { renderFeed, reveal, scheduleRefetch, syncUrl, toggleSection } from './features/feed.js';
+import { keepFromSnapshot, renderFeed, reveal, scheduleRefetch, syncUrl, toggleSection } from './features/feed.js';
 import { focusLauncher, renderLauncher } from './features/launcher.js';
 import { recall, startShell, syncing } from './features/cache.js';
 import { connect, loadConfig, loadSessions, setConfig } from './features/live.js';
@@ -121,6 +121,7 @@ function paintSnapshot(snap) {
   S.sessions = new Map(snap.sessions.map((s) => [s.id, s]));
   S.listToken = snap.listToken || ''; // what changed since this list is all the server sends (live.js)
   for (const [id, s] of snap.full || []) if (S.open.has(id)) S.full.set(id, s);
+  keepFromSnapshot(snap.kept);
   renderFeed();
   renderLauncher();
   bus.emit('agents');

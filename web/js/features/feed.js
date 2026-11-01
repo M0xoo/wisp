@@ -19,6 +19,7 @@ import { prOf, prPill, shipPill } from './ship.js';
 import { overlapPill } from './overlaps.js';
 import { teamStack } from './team.js';
 import { renderBody, VISIBLE_TURNS } from './turns.js';
+import { snapshotKept } from './cache.js';
 import { slotHtml } from './spells.js';
 import { swipesDone } from './swipe.js';
 import { toastError } from '../ui/toast.js';
@@ -163,6 +164,7 @@ const subOpen = (t) => runIds(t).some((id) => subsUnder(id).some((c) => S.open.h
 bus.on('agents', () => renderFeed());
 
 export function renderFeed() {
+  document.getElementById('feedSkel')?.remove(); // index.html's placeholder rows
   pruneSubs();
   const { needs, working, scheduled, forLater, done, archived } = groups();
   // extra: rows that aren't tasks (Scheduled's plans), placed among them by their time.
@@ -607,7 +609,7 @@ export async function expand(id, { scroll = true } = {}) {
   // task takes its place (launcher.js handOver). Nothing to fetch yet.
   const s = S.sessions.get(id);
   if (!n.body && s?.pending) n.body = el(`<div class="it-body"><div class="tui-term"><div class="tm-screen"><div class="tm-wait" aria-live="polite"><span class="tm-wait-l">${esc(s.live || 'Starting up')}…</span><i></i><i></i><i></i><i></i></div></div></div></div>`);
-  if (!n.body) n.body = el(`<div class="it-body"><div class="it-loading"><span class="orb tiny"></span>Loading…</div></div>`);
+  if (!n.body) n.body = el(PLACEHOLDER);
   if (!n.body.isConnected) n.card.append(n.body);
   placeCollapseAll();
   paintSplit();
@@ -633,6 +635,14 @@ export async function expand(id, { scroll = true } = {}) {
   prefetchAround(id);
 }
 
+// A task opened before its copy is here (on a slow link, seconds): its bar, prompt and answer as
+// placeholders the size of the real ones, not a "Loading…" line. Its bar takes the real pills at
+// once (split.js paintDetails); renderBody replaces it.
+const PLACEHOLDER = `<div class="it-body it-skel" aria-busy="true" aria-label="Loading">
+  <div class="it-bar"><div class="it-props"><i class="sk sk-chip short"></i><i class="sk sk-chip tiny"></i></div><span class="sk-acts">${'<i class="sk sk-btn"></i>'.repeat(5)}</span><div class="it-slot"></div><i class="sk sk-door"></i></div>
+  <div class="sk-turns"><div class="ask"><i class="sk sk-line"></i><i class="sk sk-line short"></i></div><div class="sk-ans"><i class="sk sk-head"></i><i class="sk sk-line"></i><i class="sk sk-line"></i><i class="sk sk-line mid"></i></div></div>
+</div>`;
+
 // Tasks loaded but not open, newest last: the last ones closed, and the ones fetched ahead.
 const KEPT_MAX = 20;
 const kept = new Map();
@@ -641,6 +651,15 @@ function keep(id, s) {
   kept.set(id, s);
   if (kept.size > KEPT_MAX) kept.delete(kept.keys().next().value);
 }
+// The phone's snapshot keeps them too (features/cache.js), so after Android stopped the app the
+// tasks just read open at once, and are refreshed behind.
+snapshotKept(() => [...kept]);
+export function keepFromSnapshot(list) {
+  for (const [id, s] of list || []) if (S.sessions.has(id) && !kept.has(id) && !S.full.has(id)) keep(id, s);
+}
+// A task's copy that hasn't come in this long is given up on and asked for again (retryLater): a
+// connection that died without saying so would hold it, and everything waiting on it, for good.
+const TASK_TIMEOUT = 45_000;
 
 // Fetched ahead of the click, so the task opens with nothing to wait for: the row under the pointer
 // (after a short hover, not on the way past it), the one pressed, and in split view the rows on
@@ -651,7 +670,7 @@ const FRESH_MS = 2000;
 function prefetch(id, { low = false } = {}) {
   const s = S.sessions.get(id);
   if (!s || s.pending || S.full.has(id) || kept.has(id) || fetching.has(id)) return;
-  const p = api(taskUrl(id), { priority: low ? 'low' : 'high' })
+  const p = api(taskUrl(id), { priority: low ? 'low' : 'high', timeout: TASK_TIMEOUT })
     .then((full) => S.sessions.has(id) && !S.full.has(id) && keep(id, full))
     .catch(() => {})
     .finally(() => fetching.delete(id));
@@ -756,10 +775,29 @@ export function wholeTask(id) {
   if (S.open.has(id)) fetchFull(id);
 }
 
-export async function fetchFull(id) {
+// One request per task at a time: on a slow link (a running task's turns, a reconnect, a tap)
+// asks pile up behind each other and an older answer could land after a newer one. Asked again
+// while one is out, it goes once more when that one is back.
+const loading = new Map(); // id -> { p, again }
+export function fetchFull(id) {
+  const l = loading.get(id);
+  if (l) {
+    l.again = true;
+    return l.p;
+  }
+  const me = { again: false };
+  me.p = fetchOnce(id).finally(() => {
+    loading.delete(id);
+    if (me.again && S.open.has(id)) fetchFull(id);
+  });
+  loading.set(id, me);
+  return me.p;
+}
+
+async function fetchOnce(id) {
   let s;
   try {
-    s = await api(taskUrl(id));
+    s = await api(taskUrl(id), { timeout: TASK_TIMEOUT });
   } catch (err) {
     // Gone on the server: close it. Anything else is the connection (a phone back from the
     // background waits for its tunnel): keep it open and try again, or its body says Loading

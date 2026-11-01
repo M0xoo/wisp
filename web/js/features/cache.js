@@ -27,18 +27,33 @@ export function recall() {
   }
 }
 
+// The tasks read lately or fetched ahead (feed.js), newest last: the next open shows them at once too.
+const KEPT_BUDGET = 1_000_000; // characters of JSON: localStorage holds about 5 MB per origin
+let keptOf = () => [];
+export function snapshotKept(fn) {
+  keptOf = fn;
+}
+
 // What the next open paints first. Written when the app goes to the background or leaves the page,
 // not on every live event.
 export function remember() {
   if (!SNAPSHOT || !S.sessions.size) return;
   const full = [...S.open].map((id) => [id, S.full.get(id)]).filter(([, s]) => s && JSON.stringify(s).length < MAX_FULL);
-  const snap = { at: Date.now(), config: S.config, machines: S.machines, sessions: [...S.sessions.values()], listToken: S.listToken, full };
+  const kept = [];
+  let room = KEPT_BUDGET;
+  for (const [id, s] of keptOf().reverse()) {
+    const size = JSON.stringify(s).length;
+    if (size > room) continue;
+    room -= size;
+    kept.unshift([id, s]);
+  }
+  const snap = { at: Date.now(), config: S.config, machines: S.machines, sessions: [...S.sessions.values()], listToken: S.listToken, full, kept };
   try {
     localStorage.setItem(KEY, JSON.stringify(snap));
   } catch {
     // Over the storage quota: the list alone still makes the first paint.
     try {
-      localStorage.setItem(KEY, JSON.stringify({ ...snap, full: [] }));
+      localStorage.setItem(KEY, JSON.stringify({ ...snap, full: [], kept: [] }));
     } catch {}
   }
 }
@@ -113,5 +128,7 @@ async function fillShell() {
     .map((r) => new URL(r.name))
     .filter((u) => u.origin === location.origin && !u.pathname.startsWith('/api/'))
     .map((u) => u.pathname + u.search);
-  await Promise.all(['/', ...new Set(files)].map(async (url) => (await cache.match(url)) || cache.add(url).catch(() => {})));
+  // '/' as the worker asks for it (web/sw.js page), not the first open's boot page.
+  const ask = (url) => (url === '/' ? new Request('/', { headers: { 'x-wisp-sw': '1' } }) : url);
+  await Promise.all(['/', ...new Set(files)].map(async (url) => (await cache.match(url)) || cache.add(ask(url)).catch(() => {})));
 }

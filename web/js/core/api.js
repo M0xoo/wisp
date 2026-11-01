@@ -8,12 +8,15 @@ const early = (path) => {
   return r?.catch(() => null);
 };
 
-export async function api(path, { method = 'GET', body, priority } = {}) {
+// timeout (ms): give up on a request that's still out by then. On a phone a dead connection can
+// look open for minutes, and a load others wait on (an open task's copy) would hold them all.
+export async function api(path, { method = 'GET', body, priority, timeout } = {}) {
   const r =
     (method === 'GET' && (await early(path))) ||
     (await fetch(`/api${path}`, {
       method,
       priority, // a fetch ahead goes 'low', so the one waited for isn't queued behind it
+      signal: timeout ? AbortSignal.timeout(timeout) : undefined,
       // The server only accepts JSON on non-GET requests (CSRF guard), even body-less DELETEs.
       headers: method !== 'GET' ? { 'content-type': 'application/json' } : {},
       body: body !== undefined ? JSON.stringify(body) : undefined,

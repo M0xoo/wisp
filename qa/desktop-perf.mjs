@@ -68,7 +68,7 @@ const probe = () => {
 const vis = (sel) => `[...document.querySelectorAll(${JSON.stringify(sel)})].some((e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')`;
 const opened = (id) => ({
   page: `document.querySelector('#splitHead')?.dataset.id === ${JSON.stringify(id)}`,
-  content: `!!document.querySelector('.item.open .it-body .turns, .item.open .it-body .tui-term') && !document.querySelector('.item.open .it-loading')`,
+  content: `!!document.querySelector('.item.open .it-body .turns, .item.open .it-body .tui-term') && !document.querySelector('.item.open :is(.it-loading, .it-skel)')`,
 });
 const menuOpen = `[...document.querySelectorAll('.menu, .pop, [role="menu"], [role="dialog"], dialog[open], .overlay')].some((e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && getComputedStyle(e).opacity > 0.01)`;
 

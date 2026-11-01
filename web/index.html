@@ -9,8 +9,19 @@
   <!-- Light / dark from the first paint: the last one seen (web/js/features/theme.js). -->
   <script>try { var t = JSON.parse(localStorage.getItem('wisp.theme')); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch {}</script>
   <!-- The lists boot needs, asked for now rather than once every module has loaded (web/js/core/api.js
-       takes them). Not in the phone app: it asks for what changed since its cached list. -->
-  <script>if (!/\bwispMobile\b/.test(navigator.userAgent) && window.fetch) window.wispBoot = { '/config': fetch('/api/config'), '/machines': fetch('/api/machines'), '/sessions': fetch('/api/sessions'), '/agents': fetch('/api/agents') };</script>
+       takes them). The phone app asks for what changed since its cached list: only with none yet
+       (its first open of a computer, where the modules come slowest) does it ask here, for all of it. -->
+  <script>(function () {
+    if (!window.fetch) return;
+    var m = /\bwispMobile\b/.test(navigator.userAgent), list = '/sessions';
+    if (m) {
+      var c = new URLSearchParams(location.search).get('m') || sessionStorage.getItem('wisp.computer') || '';
+      try { if (localStorage.getItem('wisp.snapshot.' + (c || 'here'))) return; } catch (e) { return; }
+      list = '/sessions?since=';
+    }
+    window.wispBoot = { '/config': fetch('/api/config'), '/machines': fetch('/api/machines'), '/agents': fetch('/api/agents') };
+    window.wispBoot[list] = fetch('/api' + list);
+  })();</script>
   <!-- Order matters: later files override earlier ones (responsive comes before the feature sheets, as it always has). -->
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">
@@ -179,6 +190,9 @@
         </section>
       </div>
       <div class="sp-feedtop" id="spFeedTop" hidden></div>
+      <!-- First paint, before the scripts and the list are in (a phone's first open of a computer over
+           a slow link is seconds): rows the shape of the real ones. The first renderFeed removes it. -->
+      <div class="feed-skel" id="feedSkel" aria-hidden="true"><i class="sk sk-line fs-sec"></i><div class="fs-row"><i class="sk fs-dot"></i><span class="fs-main"><i class="sk sk-line fs-title"></i><i class="sk sk-line fs-sub"></i></span><i class="sk sk-line fs-time"></i></div><div class="fs-row"><i class="sk fs-dot"></i><span class="fs-main"><i class="sk sk-line fs-title"></i><i class="sk sk-line fs-sub"></i></span><i class="sk sk-line fs-time"></i></div><div class="fs-row"><i class="sk fs-dot"></i><span class="fs-main"><i class="sk sk-line fs-title"></i><i class="sk sk-line fs-sub"></i></span><i class="sk sk-line fs-time"></i></div><div class="fs-row"><i class="sk fs-dot"></i><span class="fs-main"><i class="sk sk-line fs-title"></i><i class="sk sk-line fs-sub"></i></span><i class="sk sk-line fs-time"></i></div><div class="fs-row"><i class="sk fs-dot"></i><span class="fs-main"><i class="sk sk-line fs-title"></i><i class="sk sk-line fs-sub"></i></span><i class="sk sk-line fs-time"></i></div></div>
       <div class="feed" id="feed">
         <section class="f-group needs" id="secNeeds" hidden><h4 class="sec-toggle" role="button" tabindex="0" aria-expanded="true"><svg class="i chev"><use href="#i-chevron"/></svg><span class="sec-name">Needs you</span><span class="n"></span></h4><div class="f-list"></div></section>
         <!-- The crew (features/crew.js): named agents that stay on hand, pinned above Working. -->

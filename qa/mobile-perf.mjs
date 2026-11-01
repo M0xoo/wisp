@@ -32,6 +32,8 @@ const PROFILES = [
   { name: 'remote', cpu: 4, rtt: 250, down: 5, up: 2 },
   // A bad connection: a weak signal, or a relay on the other side of the world.
   { name: 'bad', cpu: 4, rtt: 600, down: 1, up: 0.5 },
+  // Chrome DevTools' "3G" preset (once "Slow 3G"): 2 s per request, 400 kbit/s both ways.
+  { name: '3g', cpu: 4, rtt: 2000, down: 0.4, up: 0.4 },
 ].filter((p) => !process.env.PERF_PROFILES || process.env.PERF_PROFILES.split(',').includes(p.name));
 const TASKS = Number(process.env.PERF_TASKS || 8);
 
@@ -101,7 +103,7 @@ const probe = () => {
 const vis = (sel) => `[...document.querySelectorAll(${JSON.stringify(sel)})].some((e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')`;
 const OPENED = {
   page: `document.body.classList.contains('stack-page') && ${vis('#splitStage')}`,
-  content: `!!document.querySelector('.item.open .it-body .turns, .item.open .it-body .tui-term') && !document.querySelector('.item.open .it-loading')`,
+  content: `!!document.querySelector('.item.open .it-body .turns, .item.open .it-body .tui-term') && !document.querySelector('.item.open :is(.it-loading, .it-skel)')`,
 };
 const LIST = { page: `!document.body.classList.contains('stack-page')` };
 const HOME = { page: `document.body.classList.contains('stack-page') && ${vis('#splitHome')}` };
@@ -192,7 +194,7 @@ try {
     await cdp.send('Profiler.start');
 
     // Done unfolded, as someone going through finished tasks has it.
-    if (await page.locator('#secDone.collapsed').count())
+    if (await page.locator('#secDone.collapsed .sec-toggle').isVisible())
       await step('unfold Done', { page: `!document.querySelector('#secDone.collapsed') && document.querySelectorAll('#secDone .item[data-id]').length > 0` }, () => page.locator('#secDone .sec-toggle').tap());
     // The first rows, and the heaviest of the first 40 (a long transcript), so both kinds are timed.
     const shown = await page.evaluate(() => [...document.querySelectorAll('#feed .item[data-id]:not(.pending)')].filter((e) => e.getClientRects().length).slice(0, 40).map((e) => e.dataset.id));
@@ -261,7 +263,7 @@ try {
       await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
       await page.waitForTimeout(1500);
       const offOpen = await step('stress: open a task offline', { page: OPENED.page }, () => tapIt(`.item[data-id="${away}"] .it-head`));
-      offOpen.shown = await page.evaluate(() => (document.querySelector('.item.open .it-body .turns') ? 'content (kept)' : document.querySelector('.item.open .it-loading') ? 'Loading…' : 'other'));
+      offOpen.shown = await page.evaluate(() => (document.querySelector('.item.open .it-body .turns') ? 'content (kept)' : document.querySelector('.item.open :is(.it-loading, .it-skel)') ? 'Loading…' : 'other'));
       await page.waitForTimeout(3000);
       await step('stress: connection back', { page: OPENED.content }, () =>
         cdp.send('Network.emulateNetworkConditions', { offline: false, latency: prof.rtt, downloadThroughput: ((prof.down || 40) * 1024 * 1024) / 8, uploadThroughput: ((prof.up || 10) * 1024 * 1024) / 8 }).then(() => page.evaluate(() => window.__t0 ??= performance.now())),
