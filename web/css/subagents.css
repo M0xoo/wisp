@@ -27,7 +27,8 @@
 .it-side .team-stack { margin-right: 2px; }
 
 /* launcher button + its member stack */
-.tb-stack { display: inline-flex; align-items: center; flex: none; }
+/* isolate: the faces' z-index stays inside, so a sticky Send (a scrolling phone bar) covers them */
+.tb-stack { display: inline-flex; align-items: center; flex: none; isolation: isolate; }
 .tb-stack .ts-m { width: 18px; height: 18px; z-index: calc(6 - var(--i)); }
 .tb-stack .ts-more { font: 600 9px var(--mono); color: var(--muted); }
 .tb-stack .ts-m + .ts-m { margin-left: -4px; }
