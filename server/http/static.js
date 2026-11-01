@@ -215,7 +215,7 @@ const urlOf = (p) => '/' + path.relative(WEB, p).split(path.sep).join('/');
 const versioned = (u) => `${u}?v=${version(path.join(WEB, u))}`;
 
 // The stylesheets index.html links, in its order, as one file: /css/all.css?v=<its content>.
-const SHEETS = /(?:[ \t]*<link rel="stylesheet" href="\/css\/[^"?]+\.css">\n)+/;
+const SHEETS = /(?:[ \t]*<link rel="stylesheet" href="\/css\/[^"?]+\.css">\r?\n)+/; // \r: Windows checks index.html out with CRLF
 const CSS_ALL = '/css/all.css';
 let sheets = null;
 function allCss(html) {
