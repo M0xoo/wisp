@@ -124,6 +124,22 @@ test('/goal in a follow-up sets one on an idle task and goes after it; /goal dro
   await assert.rejects(api(`/sessions/${s.id}/goal`, {}, 'DELETE'), /no goal/);
 });
 
+test('a follow-up with a goal sends the message and checks the goal after that turn, not the one before', async () => {
+  const s = await api('/sessions', { prompt: 'look around', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  await landed(s.id);
+  await api(`/sessions/${s.id}/reply`, { text: 'now tidy it up', goal: { text: 'it is tidy [met after 1]' } });
+  const done = await landed(s.id);
+  assert.equal(done.turns.length, 2, 'the follow-up ran, and its turn met the goal: no round sent back');
+  assert.equal(done.turns[1].prompt, 'now tidy it up');
+  assert.equal(done.goal.status, 'met');
+  assert.equal(done.goal.checks.length, 1);
+  assert.equal(done.goal.checks[0].turnId, done.turns[1].id);
+  const { records } = await import('./helpers.js');
+  const rs = records(process.env.FAKE_RECORD, 'claude').filter((r) => JSON.stringify(r).includes('now tidy it up'));
+  assert.ok(rs.some((r) => JSON.stringify(r).includes('it is tidy')), "the follow-up's run was told the goal");
+  await assert.rejects(api(`/sessions/${s.id}/reply`, { text: 'again', goal: { text: 'x'.repeat(1001) } }), /at most 1000/);
+});
+
 test('/goal right after a turn lands, while its CLI is still on its way out, is still checked', async () => {
   process.env.FAKE_LINGER = '2000'; // under the 3 s linger, so the run is still live when the goal is set
   try {

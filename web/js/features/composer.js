@@ -3,7 +3,7 @@
 
 import { esc } from '../md.js';
 import { btwQuestion, goalAsk, isBtw, isGoalDrop, SPELL_HINT, spellAsk } from '../slash-text.js';
-import { editGoal, goalAction, setGoal } from './goal.js';
+import { editGoal, goalAction, paintReplyGoal, replyGoalHtml, setGoal, showGoal, takeReplyGoal, wireReplyGoal } from './goal.js';
 import { api } from '../core/api.js';
 import { $, el, icon } from '../core/dom.js';
 import { here, S, saveOpen } from '../core/state.js';
@@ -93,12 +93,14 @@ export function renderDock(id) {
       <ul class="c-queued"></ul>
       <div class="c-hold" role="group" aria-label="Near the usage limit" aria-live="polite" hidden></div>
       <textarea class="reply" rows="1" spellcheck="false"></textarea>
+      ${replyGoalHtml()}
       <div class="c-bar">
         <button class="icon-btn c-attach" title="Attach files">${icon('clip')}</button>
         <button class="mode-btn c-mode" aria-haspopup="menu"></button>
         <button class="c-runner" aria-haspopup="dialog"></button>
         <button class="c-place" aria-haspopup="menu" hidden></button>
         <button class="team-btn c-team" aria-haspopup="dialog" hidden></button>
+        <button class="icon-btn c-goal" aria-pressed="false" hidden>${icon('target')}</button>
         <span class="c-hint"></span>
         <button class="ghost sm c-ship" data-a="ship" aria-label="Ship it" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
         <button class="ghost sm c-done" data-a="done" aria-label="Mark done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
@@ -139,10 +141,12 @@ export function renderDock(id) {
     pickReplyPlace(id, placeBtn);
   };
   ta.value = S.drafts.get(id) || '';
+  wireReplyGoal(id, comp, ta);
   ta.addEventListener('input', () => {
     S.drafts.set(id, ta.value);
     if (!ta.value.trim()) notTime.delete(id);
     paintSide(id);
+    paintReplyGoal(id);
     readWhen(id);
   });
   const laterBtn = $('.c-later', comp);
@@ -485,6 +489,7 @@ export function updateDock(id) {
   paintReplyRunner(id, $('.c-runner', n.card));
   paintReplyPlace(id, $('.c-place', n.card));
   paintReplyTeam(id, $('.c-team', n.card));
+  paintReplyGoal(id);
   renderQueued(s, $('.c-queued', n.card), name);
   const q = $('.c-queue', n.card);
   q.hidden = tour || s.state !== 'running';
@@ -545,6 +550,12 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   const s = S.full.get(id);
   const n = S.nodes.get(id);
   text = (text || '').trim();
+  // The Done when line on its own: the goal is set, and an idle task is checked against it at once.
+  if (s && !text && !commentCount(id)) {
+    const g = takeReplyGoal(id);
+    if (g) setGoal(id, g.text).then((ok) => ok || g.undo());
+    return;
+  }
   // Comments on the answer go out on their own too: Enter in an empty box sends them.
   if (!s || (!text && !commentCount(id))) return;
   const ta = n && $('.reply', n.card);
@@ -648,15 +659,26 @@ export async function sendReply(id, text, { confirm = false } = {}) {
   S.replyRunners.delete(id);
   S.replyTeams.delete(id);
   const files = n?.tray?.take();
+  // The Done when line goes with the message: the goal is checked after the turn it starts.
+  const withGoal = takeReplyGoal(id);
+  const unGoal = withGoal ? showGoal(id, withGoal.text, { sending: true }) : null;
   const undo = startOptimistic(id, text, files, { answering, mode, run, team: team?.team });
   try {
-    await (answering
+    const out = await (answering && !withGoal
       ? api(`/sessions/${id}/answer`, { method: 'POST', body: { text } })
-      : api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(confirm && { confirmLimit: true }) } }));
+      : api(`/sessions/${id}/reply`, { method: 'POST', body: { text, attachments, queue: queueing(), mode, ...run, ...(team && { subagents: team.team }), ...(withGoal && { goal: { text: withGoal.text } }), ...(confirm && { confirmLimit: true }) } }));
+    // A wisp on another computer from before goals rode on follow-ups sends it but drops the goal.
+    if (withGoal && !out?.goal) {
+      unGoal();
+      withGoal.undo();
+      toast(`${icon('target')} Sent, but that computer’s wisp couldn’t take the goal: update it, or use Set goal…`);
+    }
     // A queued follow-up shows in the list above the box (renderQueued): no toast, no count.
     if (undo) scheduleRefetch(id); // the summary that follows says "running" too, so it won't refetch by itself
   } catch (err) {
     undo?.();
+    unGoal?.();
+    withGoal?.undo();
     restoreComments(id, notes);
     // Give the message back, unless the user has already started typing another one.
     if (ta?.isConnected && !ta.value) ((ta.value = said), ta.dispatchEvent(new Event('input')));

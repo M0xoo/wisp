@@ -178,17 +178,29 @@ export async function goalAction(id, action) {
   }
 }
 
-export async function setGoal(id, text) {
+// The goal shows on the task at once; the returned undo puts the one before back.
+// sending: a follow-up goes with it, so the goal waits for that turn instead of a check now.
+export function showGoal(id, text, { sending = false } = {}) {
   const s = S.sessions.get(id);
-  if (!s) return;
+  if (!s) return () => {};
   const prev = s.goal;
-  s.goal = { ...(prev && LIVE.has(prev.status) ? prev : { round: 1, checks: [], setAt: Date.now() }), text, status: s.state === 'running' && prev?.status !== 'checking' ? 'working' : 'checking' };
+  s.goal = { ...(prev && LIVE.has(prev.status) ? prev : { round: 1, checks: [], setAt: Date.now() }), text, status: sending || (s.state === 'running' && prev?.status !== 'checking') ? 'working' : 'checking' };
   repaint(id);
+  return () => {
+    if (S.sessions.get(id) === s) (prev ? (s.goal = prev) : delete s.goal), repaint(id);
+  };
+}
+
+// true once the server has it; false when it refused (the page is put back and says why).
+export async function setGoal(id, text) {
+  const undo = showGoal(id, text);
   try {
     await api(`/sessions/${id}/goal`, { method: 'PUT', body: { text } });
+    return true;
   } catch (err) {
-    if (S.sessions.get(id) === s) (prev ? (s.goal = prev) : delete s.goal), repaint(id);
+    undo();
     toastError(err);
+    return false;
   }
 }
 
@@ -293,3 +305,95 @@ export function launcherGoal(box, ta) {
 }
 
 export const launcherGoalHtml = () => `<div class="l-goal" hidden><span class="lg-k">${icon('target')}<span>Done when</span></span><input type="text" spellcheck="false" placeholder="all tests pass and it works on a phone" aria-label="Done when"></div>`;
+
+// The reply box's Goal (composer.js): a goal for a task that's already going. With none (or one
+// that ended), it opens a "Done when" line over the bar, the launcher's: Enter there, or Send, sets
+// it, with the message if there is one. With a goal still going it's lit and opens Edit goal….
+// The line's text survives a reload, as the launcher's does; open or not doesn't.
+const lineOpen = new Set(); // task ids whose line is open
+const ENDED_UI = new Set(['met', 'impossible', 'out', 'handed']);
+const goingOn = (g) => !!g && !ENDED_UI.has(g.status);
+const goalDraft = (id) => `goal:${id}`;
+
+export const replyGoalHtml = () => `<div class="l-goal c-goal-line" hidden><span class="lg-k">${icon('target')}<span>Done when</span></span><input type="text" spellcheck="false" placeholder="all tests pass and it works on a phone" aria-label="Done when"><span class="lg-keys">Enter sets it</span></div>`;
+
+export function wireReplyGoal(id, comp, ta) {
+  const btn = $('.c-goal', comp);
+  const line = $('.c-goal-line', comp);
+  const input = $('input', line);
+  input.value = S.drafts.get(goalDraft(id)) || '';
+  btn.onclick = () => {
+    const s = S.sessions.get(id);
+    if (goingOn(s?.goal)) return editGoal(id, btn);
+    openReplyGoal(id, !lineOpen.has(id));
+  };
+  input.addEventListener('input', () => {
+    S.drafts.set(goalDraft(id), input.value);
+    paintReplyGoal(id);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      openReplyGoal(id, false);
+      ta.focus();
+    }
+    if (e.key === 'Enter' && !e.isComposing) {
+      e.preventDefault();
+      $('.send', comp).click(); // the message too, if there is one
+    }
+  });
+  paintReplyGoal(id);
+}
+
+export function openReplyGoal(id, on) {
+  const comp = $('.composer', S.nodes.get(id)?.card);
+  if (on) lineOpen.add(id);
+  else lineOpen.delete(id);
+  paintReplyGoal(id);
+  if (!comp) return;
+  if (on) (comp.classList.add('awake'), $('.c-goal-line input', comp).focus());
+}
+
+export function paintReplyGoal(id) {
+  const comp = $('.composer', S.nodes.get(id)?.card);
+  const btn = comp && $('.c-goal', comp);
+  if (!btn) return;
+  const s = S.sessions.get(id);
+  const g = s?.goal;
+  const can = goalActions(s).length > 0 && !S.full.get(id)?.tui;
+  const live = goingOn(g);
+  if (!can || live) lineOpen.delete(id);
+  const open = lineOpen.has(id);
+  const line = $('.c-goal-line', comp);
+  btn.hidden = !can;
+  btn.classList.toggle('on', live || open);
+  btn.setAttribute('aria-pressed', live || open);
+  const label = live ? 'Edit goal…' : open ? 'Send without a goal' : g ? 'New goal' : 'Add a goal';
+  btn.setAttribute('aria-label', label);
+  btn.title = live ? `Done when: ${g.text}\nEdit goal…` : open ? 'Send without a goal' : `${label}: keep going until a condition holds (wisp checks after every round)`;
+  line.hidden = !open;
+  comp.classList.toggle('g-on', open);
+  $('.lg-keys', line).textContent = $('.reply', comp).value.trim() ? 'Sent with your message' : 'Enter sets it';
+}
+
+// What Send takes with the message: { text } while the line is open and filled, or null. Taking it
+// closes the line; the returned undo opens it again with the text, if a send fails.
+export function takeReplyGoal(id) {
+  if (!lineOpen.has(id)) return null;
+  const comp = $('.composer', S.nodes.get(id)?.card);
+  const input = comp && $('.c-goal-line input', comp);
+  const text = input?.value.trim();
+  if (!text) return null;
+  input.value = '';
+  S.drafts.delete(goalDraft(id));
+  openReplyGoal(id, false);
+  return {
+    text,
+    undo: () => {
+      if (input.isConnected && !input.value) input.value = text;
+      S.drafts.set(goalDraft(id), text);
+      openReplyGoal(id, true);
+    },
+  };
+}

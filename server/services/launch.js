@@ -11,7 +11,7 @@ import { fill, positional } from '../recipes.js';
 import { summarize } from '../runner.js';
 import { normalizeTeam } from '../subagents.js';
 import { crewJobOf } from '../crew.js';
-import { goalCommand, normalizeGoal } from '../goal.js';
+import { goalCommand, goalView, normalizeGoal } from '../goal.js';
 import { holdMessage } from '../guard.js';
 import { bad, expand, MODES, newId } from '../util.js';
 import { attachmentNote } from '../adapters/common.js';
@@ -216,7 +216,8 @@ export function createLaunch(app) {
   // A follow-up from anywhere (UI, CLI, phone). An archived session may have lost its worktree.
   // One that starts with /btw is a side question instead: the run carries on (see askBtw).
   // limit: Ask near the limit (server/guard.js). { confirm: true }: you said yes; { auto: true }: a
-  // trigger's or crew member's, held rather than refused.
+  // trigger's or crew member's, held rather than refused. { goal }: the follow-up also sets the
+  // task's goal (the reply box's Done when line), checked after the turn it starts.
   async function replyTo(s, text, attachments = [], queue, mode, run, team, limit = {}) {
     const question = btwQuestion(text);
     if (question !== null) return { btw: await askBtw(s, question, attachments) };
@@ -227,6 +228,9 @@ export function createLaunch(app) {
       for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
       return { goal: app.goals.set(s, goal) };
     }
+    const withGoal = normalizeGoal(limit.goal);
+    if (withGoal && (s.parentId || s.delegated || s.agent === 'wisp')) throw bad('Only a task of your own can have a goal.', 409);
+    if (withGoal && s.tui) throw bad('This task runs in a terminal: set its goal with /goal there, or Set goal… in More.', 409);
     let hold = null;
     // An answer to the agent's question goes into the run already going: nothing new starts.
     if (app.guard && !s.ask && !s.parentId && !s.delegated) {
@@ -240,7 +244,17 @@ export function createLaunch(app) {
     }
     for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
     if (s.tui) return tuiReply(app, s, String(text).trim() + attachmentNote(attachments));
-    return runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run, team, hold });
+    // Before the reply, so the turn it starts tells the agent and is where the goal's changes are
+    // measured from; nothing is checked now (the turn before isn't what the goal is about).
+    const prevGoal = s.goal;
+    if (withGoal) app.goals.set(s, withGoal, { kick: false });
+    try {
+      const out = runner.reply(s, text, attachments, { queue: queue ?? store.config.defaults.followUp === 'queue', mode, run, team, hold });
+      return withGoal ? { ...out, goal: goalView(s.goal) } : out;
+    } catch (err) {
+      if (withGoal) prevGoal ? (s.goal = prevGoal) : delete s.goal;
+      throw err;
+    }
   }
 
   // /btw: answered by a read-only run of its own, next to the task's run (server/btw.js).

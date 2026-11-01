@@ -191,6 +191,8 @@ export const PARTS = {
   'composer.harness': '.composer .c-runner',
   'composer.place': '.composer .c-place',
   'composer.team': '.composer .c-team',
+  'composer.goal': '.composer .c-goal',
+  'composer.goalLine': '.composer .c-goal-line',
   'composer.hint': '.composer .c-hint',
   'composer.ship': '.composer .c-ship',
   'composer.done': '.composer .c-done',
