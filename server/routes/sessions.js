@@ -24,6 +24,7 @@ import { bad, clip, expand, MODES } from '../util.js';
 import { APP_MAX_STATE } from '../../web/js/app-doc.js';
 import { watchDoc } from '../watch.js';
 import { TAKEOVER_NOTE, tuiArgv } from '../services/tui.js';
+import { terminalAsk } from '../../web/js/slash-text.js';
 
 export const MAX_WAIT_S = 290; // long-poll cap per request; clients loop (fetch drops headers after 300s)
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -200,7 +201,13 @@ export function register(r, app) {
     const o = body.origin;
     const origin = o && ['recipe', 'trigger', 'telegram', 'task'].includes(o.kind) ? { kind: o.kind, id: String(o.id || ''), name: String(o.name || '') } : null;
     // "@Ada check the deploy": a job for Ada (each member named first gets it), not a task of its own.
-    const t = !body.machine && !body.kind ? tagged(String(body.prompt || '')) : { all: [], lead: [] };
+    let t = !body.machine && !body.kind ? tagged(String(body.prompt || '')) : { all: [], lead: [] };
+    // "/terminal …" (or "@Ada /terminal …"): one task in your own terminal, so the members named go
+    // unused, neither given the job nor made delegates (launch.js drops a goal, team and compare too).
+    if (terminalAsk(t.lead.length ? t.rest : body.prompt) !== null) {
+      if (t.lead.length) body.prompt = t.rest;
+      t = { all: [], lead: [] };
+    }
     if (t.lead.length) {
       if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
       const jobs = [];

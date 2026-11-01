@@ -33,6 +33,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **`/terminal` no longer refuses a task with a goal, a team or a crew member.** Typing `/terminal …` with *Done when* set, delegates picked, compare runs added or `@Ada` in the prompt used to show an error and keep the prompt. Now it starts the task in your terminal and leaves those out: you drive the agent there yourself. It's still refused where no terminal can open (Windows, or a harness that can't resume its sessions).
+
 - **Delegate faces no longer cover Send on the phone.** When the New task bar scrolled under the Send button, the delegates' faces showed on top of it; Send now covers them.
 - **Round spinners in the Android app.** The spinner on **Opening** was squeezed into a flat oval (the button was too narrow for it and the word); it stays round now, and every spinner on the computers screen is an arc on a faint ring.
 

@@ -187,8 +187,28 @@ test('/terminal: one task in its terminal with Babysitting mode off, the command
   await t.until(/you said: .*fix the login bug/);
   t.close();
   assert.equal((await api(`/sessions/${s.id}/term`, { method: 'DELETE' })).ok, true);
-  // It can't be one with what wisp has to drive itself: refused, before any worktree is made.
-  await assert.rejects(api('/sessions', { body: { prompt: '/terminal ship it', cwd: repo, agent: 'claude', goal: { text: 'tests pass' } } }), (e) => e.status === 400 && /\/terminal starts one task/.test(e.message));
+  // What wisp would have to drive itself (a goal, a team, compare runs) goes unused: still one task in its terminal.
+  const x = await api('/sessions', { body: { prompt: '/terminal ship it', cwd: repo, agent: 'claude', worktree: false, goal: { text: 'tests pass' }, subagents: [{ name: 'Rev', agent: 'claude' }], compare: [{ agent: 'claude' }] } });
+  assert.equal(x.tui, true);
+  assert.equal(x.term, true);
+  assert.equal(x.group, undefined);
+  const fx = await api(`/sessions/${x.id}`);
+  assert.equal(fx.goal, undefined);
+  assert.deepEqual(fx.subagents || [], []);
+  assert.equal(fx.turns[0].prompt, 'ship it');
+  assert.equal((await api(`/sessions/${x.id}/term`, { method: 'DELETE' })).ok, true);
+  // A crew member named first or later neither gets the job nor joins as a delegate.
+  const m = await api('/crew', { body: { name: 'Ada', role: 'Helper', agent: 'claude', cwd: repo } });
+  for (const prompt of ['@Ada /terminal check it', '/terminal ask @Ada to check it']) {
+    const y = await api('/sessions', { body: { prompt, cwd: repo, agent: 'claude', worktree: false } });
+    assert.equal(y.tui, true, prompt);
+    assert.equal(y.crew, undefined, prompt);
+    const fy = await api(`/sessions/${y.id}`);
+    assert.deepEqual(fy.subagents || [], [], prompt);
+    assert.match(fy.turns[0].prompt, /check it$/);
+    assert.equal((await api(`/sessions/${y.id}/term`, { method: 'DELETE' })).ok, true);
+  }
+  await api(`/crew/${m.id}`, { method: 'DELETE' });
 });
 
 // Reads a task's terminal stream until re matches; fails rather than waits for ever.
