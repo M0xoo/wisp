@@ -197,5 +197,19 @@ public class MainActivity extends BridgeActivity {
             if (id == null || id.isEmpty()) return;
             Alerts.task(MainActivity.this, id, title == null ? "wisp" : title, body == null ? "" : body);
         }
+
+        // Download (web/js/ui/image.js): the answer comes back as a `wisp-saved` event with this id.
+        @JavascriptInterface
+        public void save(String id, String url, String name) {
+            Saves.save(MainActivity.this, url == null ? "" : url, name, (where, error) -> {
+                JSONObject d = new JSONObject();
+                try {
+                    d.put("id", id);
+                    d.put("where", where);
+                    d.put("error", error);
+                } catch (org.json.JSONException ignored) {}
+                js("window.dispatchEvent(new CustomEvent('wisp-saved', { detail: " + d + " }))");
+            });
+        }
     }
 }

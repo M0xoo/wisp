@@ -1,6 +1,7 @@
 import { MOBILE } from '../core/state.js';
 import { icon } from '../core/dom.js';
 import { toast } from './toast.js';
+import { esc } from '../md.js';
 
 // Copy or save a picture from a reply, the way Slack, ChatGPT or Linear do: a small bar on the
 // picture (on hover) and in the viewer. Clipboards only reliably take PNG, so anything else is
@@ -66,7 +67,31 @@ export async function copyImage(src, btn) {
   }
 }
 
+// The phone app's WebView ignores `<a download>`: an app new enough saves it natively
+// (MainActivity's wispAndroid.save, to Pictures, Movies or Download/wisp) and answers with a
+// `wisp-saved` event. An older app has no Download at all.
+const app = typeof window !== 'undefined' ? window.wispAndroid : null;
+export const CAN_SAVE = !MOBILE || typeof app?.save === 'function';
+const saving = new Map();
+let saves = 0;
+if (MOBILE && CAN_SAVE) {
+  addEventListener('wisp-saved', (e) => {
+    const { id, where, error } = e.detail || {};
+    const name = saving.get(id);
+    if (name === undefined) return;
+    saving.delete(id);
+    if (error) toast(`Couldn’t save ${esc(name)}: ${esc(error)}`, { tone: 'bad' });
+    else if (where) toast(`Saved to ${esc(where)}`);
+  });
+}
+
 export async function saveImage(src, name) {
+  if (MOBILE) {
+    const id = `s${++saves}`;
+    saving.set(id, name);
+    app.save(id, new URL(src, location.href).href, name);
+    return;
+  }
   const a = document.createElement('a');
   a.download = name;
   try {
@@ -85,11 +110,10 @@ export async function saveImage(src, name) {
   if (a.href.startsWith('blob:')) setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 
-// The buttons, for the picture's own bar and the viewer's. The phone app's WebView can't save
-// files, so it only copies there.
+// The buttons, for the picture's own bar and the viewer's.
 export const imageButtons = () => `
   <button class="img-copy" title="Copy image" aria-label="Copy image">${icon('copy')}</button>
-  ${MOBILE ? '' : `<button class="img-save" title="Download" aria-label="Download">${icon('download')}</button>`}`;
+  ${CAN_SAVE ? `<button class="img-save" title="Download" aria-label="Download">${icon('download')}</button>` : ''}`;
 
 // Wires those buttons inside `root` to the picture at `src`.
 export function bindImageButtons(root, src, alt) {
