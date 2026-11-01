@@ -303,6 +303,8 @@ test('the task list answers ?since= with only what changed, and the whole list w
   const a = await api('/sessions', { body: { prompt: 'Fix add()', cwd: repo.dir, agent: 'claude' } });
   const b = await api('/sessions', { body: { prompt: 'Fix sub()', cwd: repo.dir, agent: 'claude' } });
   await Promise.all([settled(a.id), settled(b.id)]);
+  // Their worktrees are checked after they settle (toShip): wait, or that change lands mid-test.
+  await until(async () => ((await api('/sessions')).filter((x) => x.id === a.id || x.id === b.id).every((x) => x.toShip) ? true : null));
   const first = await api('/sessions?since=');
   assert.ok(first.token && first.full.some((x) => x.id === a.id));
   const same = await api(`/sessions?since=${first.token}`);
