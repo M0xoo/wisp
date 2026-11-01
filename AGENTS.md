@@ -25,7 +25,9 @@ this covers how the code is laid out and the rules a change has to follow.
   seen (`web/js/features/cache.js`); `server/http/static.js` stamps index.html with the build
   that tells them it's stale, preloads app.js's static imports, and names every script and
   stylesheet by its content (`?v=`, modules through an import map) so they're cached for good (a new
-  module needs nothing).
+  module needs nothing). Round trips cost most over the tunnel (HTTP/1.1, six at a time): the stylesheets
+  go as one (`/css/all.css`), the phone's first open loads its modules only once the service worker
+  has unpacked them all from one request (`/_pack`), and modules go without their comment lines.
 - `grid/`: wisp Grid (`wisp grid …`), wisp for many people on a server: sign-in (Google, GitHub,
   OIDC), the edge that serves `<handle>.<domain>`, hostd that starts and stops each user's wisp,
   boxd (`grid/boxd.js`: the root helper that runs their containers; Node built-ins only, imports

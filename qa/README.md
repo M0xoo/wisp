@@ -50,14 +50,15 @@ They can run at the same time.
 
 `node qa/mobile-perf.mjs` times page changes as the app's WebView sees them (Done unfolded, tasks
 opened and left with Back, New task) on a laptop, a slowed CPU (`pixel`) and a far-away tunnel
-(`remote`: 250 ms per request, 5 Mbit/s; `bad`: 600 ms, 1 Mbit/s): tap to painted frame, the slow frames and the scripts in
+(`remote`: 250 ms per request, 5 Mbit/s; `bad`: 600 ms, 1 Mbit/s; `3g`: Chrome's 3G preset, 2 s, 400 kbit/s): tap to painted frame, the slow frames and the scripts in
 them, the requests, the buttons in a task and the top bar, how soon a touched button or row looks
 pressed, and a CPU profile's top functions, in `qa/out/mobile-perf.json`.
 `PERF_SESSIONS=~/.wisp/sessions` runs it on a copy of real tasks (and that wisp's projects).
 `PERF_STRESS=4000` with it clones them into 4,000 tasks plus a task of 400 turns and one with a
 huge prompt and answer (`qa/stress-data.mjs`), and adds the stress steps: those opened and read,
 the list flung, search typed into, a 130 KB prompt pasted, the connection lost and back. The `bad`
-profile is 600 ms per request at 1 Mbit/s.
+profile is 600 ms per request at 1 Mbit/s. Chrome's throttling applies to the page, not its service
+worker, so the phone's first open (whose modules the worker fetches) looks faster there than it is.
 
 ## Results
 

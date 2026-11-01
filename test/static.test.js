@@ -5,7 +5,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import zlib from 'node:zlib';
-import { moduleGraph, serveStatic } from '../server/http/static.js';
+import fs from 'node:fs';
+import { blankComments, moduleGraph, serveStatic } from '../server/http/static.js';
 
 let server;
 let base;
@@ -95,10 +96,19 @@ test('index.html names scripts and styles by content, and those URLs are cached 
   assert.match(map['/js/features/spell-actions.js'], /\?v=/);
   assert.ok(html.indexOf('type="importmap"') < html.indexOf('rel="modulepreload"'), 'the map comes before any module loads');
   assert.ok(html.includes(`<script type="module" src="${map['/js/app.js']}">`));
-  const css = /href="(\/css\/base\.css\?v=[\w-]+)"/.exec(html)[1];
+  // The stylesheets as one file, in index.html's order.
+  assert.deepEqual(html.match(/<link rel="stylesheet"[^>]*>/g).length, 1);
+  const css = /href="(\/css\/all\.css\?v=[\w-]+)"/.exec(html)[1];
   const kept = await get(css);
   assert.equal(kept.status, 200);
+  assert.match(kept.headers['content-type'], /text\/css/);
   assert.equal(kept.headers['cache-control'], 'public, max-age=31536000, immutable');
+  const text = kept.body.toString();
+  const order = [...fs.readFileSync(new URL('../web/index.html', import.meta.url), 'utf8').matchAll(/<link rel="stylesheet" href="(\/css\/[^"]+)">/g)].map((m) => m[1]);
+  assert.ok(order.length > 10);
+  assert.deepEqual([...text.matchAll(/^\/\* (\/css\/[^ ]+) \*\/$/gm)].map((m) => m[1]), order);
+  assert.ok(text.includes(fs.readFileSync(new URL('../web/css/split.css', import.meta.url), 'utf8')));
+  assert.equal((await get('/css/all.css?v=old')).headers['cache-control'], 'no-cache');
   // A stale or made-up version isn't this content: asked about every time, as without one.
   assert.equal((await get('/css/base.css?v=old')).headers['cache-control'], 'no-cache');
   assert.equal((await get('/css/base.css')).headers['cache-control'], 'no-cache');
@@ -149,4 +159,53 @@ test('big JSON answers are brotli’d or gzipped when the client takes it, small
   } finally {
     api.close();
   }
+});
+
+// The phone app's first open (no service worker in charge yet) gets the page without its modules;
+// they load once the worker has unpacked /_pack, every module in one request.
+test('the phone’s first open waits for its service worker, which gets every module in one request', async () => {
+  const phone = { 'user-agent': 'Mozilla/5.0 (Linux; Android 15) Chrome/141.0 Mobile Safari/537.36 wispMobile' };
+  const boot = await get('/', phone);
+  const html = boot.body.toString();
+  assert.ok(!/<script type="module"/.test(html), 'no module loads before the worker is in charge');
+  assert.ok(!html.includes('<link rel="modulepreload"'));
+  assert.match(html, /serviceWorker/);
+  assert.match(html, /type="importmap"/);
+  assert.match(boot.headers.vary, /x-wisp-sw/);
+  // The worker's own copy (and every other browser's) is the usual page, under another ETag.
+  const sw = await get('/', { ...phone, 'x-wisp-sw': '1' });
+  assert.match(sw.body.toString(), /<script type="module" src="\/js\/app\.js\?v=/);
+  assert.notEqual(sw.headers.etag, boot.headers.etag);
+  assert.equal(sw.headers['x-wisp-build'], boot.headers['x-wisp-build']);
+
+  const map = JSON.parse(/<script type="importmap">([^<]*)<\/script>/.exec(html)[1]).imports;
+  const r = await get('/_pack', { 'accept-encoding': 'br' });
+  assert.equal(r.headers['content-encoding'], 'br');
+  assert.equal(r.headers['cache-control'], 'no-store');
+  const pack = JSON.parse(zlib.brotliDecompressSync(r.body));
+  assert.deepEqual(Object.keys(pack).sort(), Object.values(map).sort(), 'every module the page names, by its versioned URL');
+  assert.equal(pack[map['/js/core/api.js']], (await get(map['/js/core/api.js'])).body.toString());
+  // After an update: only what the worker doesn't have yet.
+  const have = Object.values(map).filter((u) => u !== map['/js/app.js']).map((u) => u.split('v=')[1]);
+  const part = JSON.parse((await get(`/_pack?have=${have.join(',')}`)).body);
+  assert.deepEqual(Object.keys(part), [map['/js/app.js']]);
+});
+
+test('modules go without their comment lines, line for line, and anything unclear goes as it is', async () => {
+  const src = fs.readFileSync(new URL('../web/js/core/api.js', import.meta.url), 'utf8');
+  const served = (await get('/js/core/api.js')).body.toString();
+  assert.ok(served.length < src.length);
+  assert.equal(served.split('\n').length, src.split('\n').length, 'line numbers match the source');
+  assert.ok(!/^\s*\/\//m.test(served));
+  const cases = [
+    ['a();\n  // gone\nb();', 'a();\n\nb();'],
+    ['x = `\n// in a template\n`;\n// gone', 'x = `\n// in a template\n`;\n'],
+    ['x = `${ {a: 1}.a }\n// in a template`;', 'x = `${ {a: 1}.a }\n// in a template`;'],
+    ['r = /[`]\\//g;\n// gone\ny = `a`;', 'r = /[`]\\//g;\n\ny = `a`;'],
+    ['s = "// a string"; // kept: not a whole line\n', 's = "// a string"; // kept: not a whole line\n'],
+    ['a = b / 2 / c;\n// gone', 'a = b / 2 / c;\n'],
+    ['/* a\n// inside a block comment\n*/', '/* a\n// inside a block comment\n*/'],
+    ['bad = `never closed\n// kept', 'bad = `never closed\n// kept'],
+  ];
+  for (const [input, out] of cases) assert.equal(blankComments(input), out, input);
 });

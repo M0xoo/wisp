@@ -197,6 +197,13 @@ test('accounts: the picker row, the button part, the details initial and the Set
   assert.ok(problems({ ...base0, ui: { hide: ['picker.account'] } }).some((x) => /picker\.account/.test(x)));
 });
 
+test('the loading placeholders (the list before it’s in, a task before its copy is) are parts', () => {
+  const parts = ['list.placeholder', 'split.placeholder'];
+  for (const part of parts) assert.ok(schema.PARTS[part], part);
+  assert.deepEqual(problems({ ...base0, parts: { 'split.placeholder': { style: { opacity: '0.6' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['split.placeHolder'] } }).some((x) => /split\.placeHolder/.test(x)));
+});
+
 test('Auto\'s preview: the chip, its popover, the alternatives and suggestion, and Settings → Auto\'s sources and rules are parts', () => {
   const parts = ['launcher.autoPreview', 'autoPreview.panel', 'autoPreview.alternatives', 'autoPreview.suggest', 'router.sources', 'router.rules'];
   for (const part of parts) assert.ok(schema.PARTS[part], part);

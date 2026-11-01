@@ -274,6 +274,8 @@ export const PARTS = {
   // under the PR's that opens it as a page (where it runs, and whether yours is still running).
   'split.shell': 'body.split #feed .item.open .it-actions > .it-shell',
   'split.shellDoor': 'body.split #feed .item.open .it-bar > .shell-door',
+  'list.placeholder': '#feedSkel', // the list's rows before it's in (a slow first open)
+  'split.placeholder': 'body.split #feed .item.open > .it-skel', // a task opened before its copy is here
   'split.watch': 'body.split #feed .item.open .it-actions > .it-watch',
   'split.changes': 'body.split #feed .item.open .it-actions > .it-changes',
   // Narrow, the row that pins at the top once the task's bar has scrolled away: the state, the
