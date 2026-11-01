@@ -5,7 +5,7 @@ import { md, esc, inlineMd, highlight, langOf } from './md.js';
 import { diffLines, hunks, countChanges } from './diff.js';
 import { load, MOBILE, save, S } from './core/state.js';
 import { agoLong, STATUS_LABEL } from './core/format.js';
-import { imageButtons, bindImageButtons, imageName, saveImage } from './ui/image.js';
+import { imageButtons, bindImageButtons, imageName, saveImage, CAN_SAVE } from './ui/image.js';
 import { ask } from './ui/confirm.js';
 import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
 import { appBlock } from './app-frame.js';
@@ -850,7 +850,7 @@ R.image = (b, ctx) => {
 // A video the agent made or recorded, played in place with the browser's own controls.
 R.video = (b, ctx) => {
   const src = /^https?:/.test(b.src || '') ? b.src : ctx.fileUrl(b.path || b.src || '');
-  const dl = MOBILE ? '' : `<button class="img-save" title="Download" aria-label="Download">${icon('download')}</button>`;
+  const dl = CAN_SAVE ? `<button class="img-save" title="Download" aria-label="Download">${icon('download')}</button>` : '';
   // Full screen is wisp's viewer, with the reply's other pictures and videos: the button here, and
   // the player's own (or a double-click), which hands over to it.
   const full = `<button class="img-full" title="Full screen" aria-label="Full screen">${icon('expand')}</button>`;

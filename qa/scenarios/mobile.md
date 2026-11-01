@@ -250,3 +250,14 @@ Never send builds to someone's own phone as part of QA.
   back. Scrolling never moves it. Back (its own or the phone's) returns to the thread, a second Back to
   the list. A task opened from it opens normally and Back from it doesn't land on a stale About page.
   The reply box never takes the swipe.
+
+### MOB-27 Download a picture, a video or a My Stuff file
+- **Run:** Emulator or the Pixel (debug APK); `adb reverse` a local wisp and drive its page over CDP.
+- **Steps:** in an answer with a picture (a fake agent's `SHOWCASE`) tap the picture's Download; open
+  it full screen and tap Download there; tap Download on a video; in My Stuff, Download a file from
+  its row and from its ⋯ menu. Tap the same picture's Download twice. Ask for a path that's gone.
+  On Android 8 or 9, tap Download once.
+- **Expected:** one tap saves it: a toast *Saved to Pictures/wisp* (videos *Movies/wisp*, other files
+  *Download/wisp*), and the gallery shows it with no permission asked. A second save of the same file is
+  named `… (1)`. A file that's gone says *Couldn’t save … the computer answered 404*. On Android 8 and 9
+  the share sheet opens with the file instead. An app older than the computer's wisp shows no Download.

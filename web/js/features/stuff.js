@@ -26,7 +26,7 @@ import { clampToViewport, popover, TOUCH } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { viewImage } from '../ui/viewer.js';
 import { readDoc } from '../ui/reader.js';
-import { copyImage } from '../ui/image.js';
+import { copyImage, saveImage, CAN_SAVE } from '../ui/image.js';
 import { collapse, renderFeed, reveal as revealTask } from './feed.js';
 import { goBack, goHome, isSplit, isStacked, splitOpen } from './split.js';
 import { cleanTitle } from '../mention-text.js';
@@ -574,6 +574,7 @@ document.addEventListener('click', (e) => {
 });
 
 function download(it) {
+  if (MOBILE) return saveImage(fileUrl(it, true), it.name);
   const a = el(`<a href="${fileUrl(it, true)}" download="${esc(it.name)}" hidden></a>`);
   document.body.append(a);
   a.click();
@@ -642,7 +643,7 @@ function itemMenu(it, at, anchor = null) {
     app && it.db && it.data && ['resetdata', 'rerun', 'Reset data'],
     ['mention', 'agent', 'Use in a new task'],
     canCopy(it) && ['copy', 'copy', it.kind === 'link' ? 'Copy link' : 'Copy'],
-    !app && it.kind !== 'link' && !MOBILE && ['download', 'download', 'Download'],
+    !app && it.kind !== 'link' && CAN_SAVE && ['download', 'download', 'Download'],
     ['star', 'star', it.starred ? 'Unstar' : 'Star'],
     ['edit', 'pen', 'Edit details…'],
     it.prev && ['restore', 'rerun', `Restore the version of ${when(it.prev.at)}`],
@@ -1089,7 +1090,7 @@ function paintCard(card, it) {
     ? ''
     : `<div class="st-tools">
         ${canCopy(it) ? `<button class="st-copy" data-a="copy" title="${it.kind === 'link' ? 'Copy link' : 'Copy'}" aria-label="Copy">${icon('copy')}</button>` : ''}
-        ${it.kind !== 'link' && it.kind !== 'app' && !MOBILE ? `<button data-a="download" title="Download" aria-label="Download">${icon('download')}</button>` : ''}
+        ${it.kind !== 'link' && it.kind !== 'app' && CAN_SAVE ? `<button data-a="download" title="Download" aria-label="Download">${icon('download')}</button>` : ''}
         <button class="st-more" data-a="more" title="More" aria-label="More" aria-haspopup="menu">${icon('dots')}</button>
         <button class="st-star ${it.starred ? 'on' : ''}" data-a="star" title="${it.starred ? 'Unstar (S)' : 'Star (S)'}" aria-label="${it.starred ? 'Unstar' : 'Star'}" aria-pressed="${!!it.starred}">${icon('star')}</button>
       </div>`;
