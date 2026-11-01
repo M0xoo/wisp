@@ -258,6 +258,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     // Automations stop at: a round past it waits for the reset, as a scheduled follow-up.
     hold: (s) => app.reserve.forTask(s),
     schedule: (s, entry) => app.later.add(s, entry),
+    crew: (id) => app.crew?.get(id), // a crew member who judges a goal, on their own harness
   });
   app.installer = createInstaller(app);
   runner.on('started', ({ session }) => {

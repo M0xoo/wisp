@@ -764,6 +764,12 @@ test('goals: the band, its parts, the row pill and the launcher line are parts; 
   assert.ok(!('goalRounds' in spellReference().settings));
 });
 
+test("goals: the judges' votes in the band and the launcher's Judges button are parts; judge is an icon", () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.goalJudges'] }, parts: { 'goal.judges': { style: { opacity: '0.8' } } } }), []);
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'goal.band', label: 'Second opinion', icon: 'judge', do: { open: 'https://example.com' } }] }), []);
+  assert.ok(problems({ ...base0, parts: { 'goal.judges': { props: { lines: 2 } } } }).some((x) => /goal\.judges/.test(x)));
+});
+
 test('the side panel: its parts, width, opening tab and bot comments as props, a head slot; the verdict is not a part', () => {
   const ok = {
     ...base0,

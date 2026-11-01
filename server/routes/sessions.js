@@ -456,16 +456,16 @@ export function register(r, app) {
     { doc: false },
   );
 
-  // The task's goal (server/goal.js): PUT { text, max } sets or replaces it (an idle task goes after
-  // it at once), PATCH { action: 'pause' | 'resume' }, DELETE drops it.
+  // The task's goal (server/goal.js): PUT { text, judges?, vote? } sets or replaces it (an idle task
+  // goes after it at once; judges left out keep the ones it had), PATCH { action: 'pause' | 'resume' }, DELETE drops it.
   r.route(
     'PUT',
     '/sessions/:id/goal',
     one(async (c, s) => {
-      const { text, max } = await c.body();
+      const { text, judges, vote } = await c.body();
       notTour(s, 'set a goal');
       for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
-      c.send(200, { goal: goalView(app.goals.set(s, { text, max })) });
+      c.send(200, { goal: goalView(app.goals.set(s, { text, judges, vote })) });
     }),
   );
   r.route(

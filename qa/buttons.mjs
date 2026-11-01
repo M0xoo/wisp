@@ -27,11 +27,11 @@ fs.mkdirSync(SHEETS, { recursive: true });
 const APP_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Mobile Safari/537.36 wispMobile';
 
 // Known and meant: the crew header's + and Org sit inside its toggle row; on a phone the prompt
-// bar scrolls under a pinned Send; menus and toasts lie over the page.
+// bar scrolls under a pinned Send; menus, popovers and toasts lie over the page.
 const ALLOWED = [
   /#secCrew > h4\.sec-toggle ⟷ #secCrew > button\.cr-(add|org)/,
   /button#launch\.send.*overlap|overlap.*button#launch\.send/,
-  /⟷ .*(\.menu|#toasts|\.picker|\.pop)/,
+  /⟷ .*(\.menu|#toasts|\.picker|\.pop|\.team-pop)/, // Delegate's and Judges' popovers too
   /^row-heights button\.cr-add=\d+ button\.cr-org=\d+ h4\.sec-toggle/, // the header row they sit in
   // the harness pill's + and vs: segments as tall as the pill's inside, as narrow as they can be
   /\.runners > button(#\w+)?\.vs-btn.* \| not-square/,
@@ -137,7 +137,7 @@ const w = await startWisp({ port: PORT, extraEnv: { FAKE_DELAY: '300' } });
 const launch = async (body) => (await api(w.url, '/api/sessions', { cwd: w.repo, agent: 'claude', ...body })).json;
 const tasks = [];
 for (const prompt of ['Fix the login bug', 'Write docs for the API', 'Refactor the store']) tasks.push(await launch({ prompt }));
-const goal = await launch({ prompt: 'Make the tests pass', goal: { text: 'all tests pass' } });
+const goal = await launch({ prompt: 'Make the tests pass', goal: { text: 'all tests pass', judges: [{ agent: 'claude', name: 'Claude Code' }, { agent: 'codex', name: 'Codex' }], vote: 'all' } });
 await api(w.url, '/api/crew', { name: 'Ada', role: 'Reviews every PR', cwd: w.repo, agent: 'claude' });
 await until(async () => {
   const all = await Promise.all([...tasks, goal].map(async (t) => (await api(w.url, `/api/sessions/${t.id}`)).json?.state));
@@ -177,6 +177,8 @@ const VIEWS = {
   task: first(),
   'task.goal': open(goal.id),
   'task.goal-menu': async (p) => (await open(goal.id)(p), await click(p, '.gb-more')),
+  'task.goal-judges': async (p) => (await open(goal.id)(p), await click(p, '.gb-more'), await click(p, '.menu [data-a="goal-set"]'), await click(p, '.goal-pop .gp-judges')),
+  'home.goal-judges': async (p) => (await home(p), await click(p, '#goalBtn'), await click(p, '#judgesBtn')),
   'task.composer': async (p) => (await first()(p), await click(p, '.it-dock .composer textarea')),
   'task.composer-goal': async (p) => (await first()(p), await click(p, '.it-dock .composer textarea'), await click(p, '.it-dock .c-goal')),
   'task.transcript': async (p) => (await first()(p), await click(p, '.tx-toggle')),

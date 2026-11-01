@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
-const { goalCommand, normalizeGoal, goalNote } = await import('../server/goal.js');
+const { goalCommand, normalizeGoal, goalNote, goalView, withJudges } = await import('../server/goal.js');
 
 // The server is set up before the first test: a top-level await after a test lets Node run the
 // root's after hook before this before hook, and the open server keeps the run from ending.
@@ -165,4 +165,97 @@ test('a launch that is just /goal makes the condition the task; pause lands it a
   await new Promise((r) => setTimeout(r, 300));
   assert.equal((await api(`/sessions/${s.id}`)).turns.length, n, 'nothing more after a pause');
   await assert.rejects(api(`/sessions/${s.id}/goal`, { text: '' }, 'PUT'), /Say what has to be true/);
+});
+
+test('judges: normalizeGoal reads them and refuses bad ones', () => {
+  assert.deepEqual(normalizeGoal({ text: 'x', judges: [{ agent: 'codex', model: 'm', effort: 'high', name: ' Codex ' }, { crew: 'c1' }], vote: 'all' }), { text: 'x', judges: [{ agent: 'codex', model: 'm', effort: 'high', name: 'Codex' }, { crew: 'c1' }], vote: 'all' });
+  assert.equal(normalizeGoal({ text: 'x' }).judges, undefined, 'left out: an edit keeps the ones it had');
+  assert.deepEqual(normalizeGoal({ text: 'x', judges: [] }).judges, []);
+  assert.throws(() => normalizeGoal({ text: 'x', judges: [{ agent: 'nope' }] }), /harness wisp knows/);
+  assert.throws(() => normalizeGoal({ text: 'x', judges: Array(6).fill({ agent: 'claude' }) }), /at most 5 judges/);
+  assert.throws(() => normalizeGoal({ text: 'x', vote: 'most' }), /vote must be one of all, majority, any/);
+});
+
+const JUDGES = [{ agent: 'claude', name: 'Claude' }, { agent: 'codex', name: 'Codex' }, { agent: 'opencode', name: 'opencode' }];
+const VOTES = '[judge claude: met] [judge codex: met] [judge opencode: not_yet]';
+
+test('judges: a majority of them saying met meets the goal, each vote is kept', async () => {
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: `it works ${VOTES}`, judges: JUDGES } });
+  assert.equal(s.goal.vote, 'majority', 'majority by default');
+  const done = await landed(s.id);
+  assert.equal(done.goal.status, 'met');
+  assert.equal(done.turns.length, 1);
+  const c = done.goal.checks[0];
+  assert.equal(c.tally, '2 of 3 judges say met (2 of 3 must agree)');
+  assert.equal(c.progress, 100);
+  const sum = await summary(s.id);
+  assert.deepEqual(sum.goal.last.votes.map((v) => v.verdict), ['met', 'met', 'not_yet'], 'the band gets the last votes');
+  assert.equal(sum.goal.checks[0].votes, undefined, "the summary's checks go without their votes");
+  assert.deepEqual(c.votes.map((v) => [v.name, v.agent, v.verdict]), [['Claude', 'claude', 'met'], ['Codex', 'codex', 'met'], ['opencode', 'opencode', 'not_yet']]);
+  // Each judge ran on its own harness and was told it's one of three.
+  const { records } = await import('./helpers.js');
+  for (const bin of ['claude', 'codex', 'opencode']) assert.ok(records(process.env.FAKE_RECORD, bin).some((r) => /You are .*one of 3 judges/.test(r.stdin)), bin);
+});
+
+test('judges: with All, one dissent keeps it going and says what that judge wants', async () => {
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: `it works ${VOTES}`, judges: JUDGES, vote: 'all' } });
+  const done = await landed(s.id);
+  assert.notEqual(done.goal.status, 'met');
+  const c = done.goal.checks[0];
+  assert.equal(c.verdict, 'not_yet');
+  assert.equal(c.tally, '2 of 3 judges say met (all must agree)');
+  assert.equal(c.why, 'opencode: check 1: not_yet', "what's missing is the dissenter's reason");
+  assert.equal(c.next, 'opencode: do part 2', "only the dissenter's next step");
+  assert.match(done.turns[1].prompt, /Judges: 2 of 3 judges say met \(all must agree\)\.\s+What's missing: opencode: check 1/);
+});
+
+test('judges: with Any, one met is enough; a majority saying impossible ends it', async () => {
+  const any = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'x [judge codex: met] [judge claude: not_yet]', judges: JUDGES.slice(0, 2), vote: 'any' } });
+  assert.equal((await landed(any.id)).goal.status, 'met');
+  const no = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits', goal: { text: 'x [judge claude: impossible] [judge codex: impossible] [judge opencode: met]', judges: JUDGES, vote: 'all' } });
+  assert.equal((await landed(no.id)).goal.status, 'impossible');
+});
+
+test('judges: an edit without judges keeps them, [] clears them, a bad vote is refused', async () => {
+  const s = await api('/sessions', { prompt: 'do it', cwd: makeRepo(), agent: 'claude', mode: 'edits' });
+  await landed(s.id);
+  let r = await api(`/sessions/${s.id}/goal`, { text: 'a [met after 1]', judges: JUDGES.slice(0, 1), vote: 'any' }, 'PUT');
+  assert.deepEqual([r.goal.judges.length, r.goal.vote], [1, 'any']);
+  await landed(s.id);
+  r = await api(`/sessions/${s.id}/goal`, { text: 'b [met after 1]' }, 'PUT');
+  assert.deepEqual([r.goal.judges.length, r.goal.vote], [1, 'any']);
+  await landed(s.id);
+  r = await api(`/sessions/${s.id}/goal`, { text: 'c [met after 1]', judges: [] }, 'PUT');
+  assert.equal(r.goal.judges, undefined);
+  await landed(s.id);
+  await assert.rejects(api(`/sessions/${s.id}/goal`, { text: 'd', vote: 'most' }, 'PUT'), /vote must be one of/);
+});
+
+test('judges: a crew member on Auto judges on the pick Auto makes; one that left the crew holds All back and the goal pauses', async () => {
+  const cwd = makeRepo();
+  const crew = await api('/crew', { name: 'Vera', role: 'Reviewer', cwd, agent: 'auto' });
+  const m = crew.member || crew;
+  const s = await api('/sessions', { prompt: 'do it', cwd, agent: 'claude', mode: 'edits', goal: { text: 'x [judge claude: met] [judge codex: met] [judge opencode: met]', judges: [{ crew: m.id }, { agent: 'codex' }], vote: 'all' } });
+  let done = await landed(s.id);
+  assert.equal(done.goal.status, 'met', JSON.stringify(done.goal.checks.at(-1)));
+  // A member who's gone: only they hold All back, so there's nothing for the agent to fix.
+  const t = await api('/sessions', { prompt: 'do it', cwd, agent: 'claude', mode: 'edits', goal: { text: 'x [judge codex: met]', judges: [{ crew: 'gone', name: 'Ghost' }, { agent: 'codex' }], vote: 'all' } });
+  done = await landed(t.id);
+  assert.equal(done.goal.status, 'paused');
+  assert.equal(done.turns.length, 1, 'no empty round sent back');
+  assert.match(done.goal.why, /1 of 2 judges say met \(all must agree\): Ghost left your crew\./);
+});
+
+test('judges: changing them sets the old votes aside and starts the stall count over', () => {
+  const vote = [{ name: 'Codex', agent: 'codex', verdict: 'met', why: 'ok', next: '', progress: 100 }];
+  const g = { text: 'x', round: 2, status: 'working', setAt: 1, checks: [{ round: 1, verdict: 'not_yet', why: 'no', tally: '1 of 2 judges say met', votes: vote, bench: 0, at: 2 }], judges: [{ agent: 'codex' }, { agent: 'claude' }], vote: 'all' };
+  assert.deepEqual(goalView(g).last.votes, [{ name: 'Codex', verdict: 'met', why: 'ok' }]);
+  assert.equal(goalView(g).checks[0].votes, undefined);
+  withJudges(g, g.judges, 'all');
+  assert.equal(g.bench, undefined, 'the same judges: nothing changes');
+  withJudges(g, [{ agent: 'codex' }], 'all');
+  assert.deepEqual([g.bench, g.fresh], [1, 1]);
+  assert.equal(goalView(g).last.votes, undefined, "the old bench's votes aren't shown");
+  withJudges(g, [{ agent: 'codex' }], 'any');
+  assert.equal(g.bench, 2, 'another rule is a change too');
 });

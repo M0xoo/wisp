@@ -1,7 +1,8 @@
 // Goals (server/goal.js): a task that keeps going until a condition holds. Here: the band on top of
 // the open task (what it's going for, how far the last check put it, what the check said), the
 // row's pill, the popover that sets one, and its actions under the same names everywhere:
-// Set goal… / Edit goal…, Pause goal, Resume goal, Drop goal (design/goals.md).
+// Set goal… / Edit goal…, Pause goal, Resume goal, Drop goal (design/goals.md). Judges (who
+// checks it, and how their votes add up) are picked with features/judges.js.
 
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
@@ -12,6 +13,7 @@ import { toast, toastError } from '../ui/toast.js';
 import { fmtDuration } from '../blocks.js';
 import { whenLabel } from '../core/format.js';
 import { slotHtml } from './spells.js';
+import { judgesEditor, liveJudges, paintJudgesBtn, votesHtml, votesPopover } from './judges.js';
 
 const LIVE = new Set(['working', 'checking']);
 // The state, in the band's fixed column. The row's pill has the round instead; the band's second
@@ -75,6 +77,7 @@ function bandHtml(s) {
       <div class="gb-row gb-sub">
         <span class="gb-track" title="${esc(history || 'Not checked yet')}" style="--p:${p ?? 0}%;--was:${was ?? 0}%"><i class="gb-was"></i><i class="gb-fill"></i></span>
         <span class="gb-pct">${p == null ? '–' : `${p}%`}${delta ? `<small class="${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
+        ${votesHtml(g)}
         ${ended ? '' : `<span class="gb-round">Round ${g.round}</span>`}
         <span class="gb-check"${g.held && g.why ? ` title="${esc(g.why)}"` : ''}>${checkLine(g)}</span>
         ${primary}${slotHtml('goal.band', S.sessions.get(s.id))}
@@ -110,6 +113,7 @@ export function wireGoalSlot(slot, id) {
     const b = e.target.closest('[data-g]');
     if (!b) return;
     if (b.dataset.g === 'menu') goalMenu(id, b);
+    else if (b.dataset.g === 'judges') S.sessions.get(id)?.goal && votesPopover(S.sessions.get(id).goal, b);
     else goalAction(id, b.dataset.g);
   });
   slot.addEventListener('dblclick', (e) => {
@@ -171,7 +175,7 @@ export async function goalAction(id, action) {
   try {
     if (action === 'drop') await api(`/sessions/${id}/goal`, { method: 'DELETE', body: {} });
     else await api(`/sessions/${id}/goal`, { method: 'PATCH', body: { action } });
-    if (action === 'drop') toast(`${icon('target')} Goal dropped`, { action: { label: 'Undo', run: () => setGoal(id, prev.text) } });
+    if (action === 'drop') toast(`${icon('target')} Goal dropped`, { action: { label: 'Undo', run: () => setGoal(id, prev.text, prev.judges ? { judges: prev.judges, vote: prev.vote } : {}) } });
   } catch (err) {
     if (S.sessions.get(id) === s) (s.goal = prev), (s.later = prevLater), repaint(id);
     toastError(err);
@@ -180,11 +184,20 @@ export async function goalAction(id, action) {
 
 // The goal shows on the task at once; the returned undo puts the one before back.
 // sending: a follow-up goes with it, so the goal waits for that turn instead of a check now.
-export function showGoal(id, text, { sending = false } = {}) {
+// judges: { judges, vote } to set them ([] clears them); left out, the goal keeps its own.
+export function showGoal(id, text, { sending = false, judges = {} } = {}) {
   const s = S.sessions.get(id);
   if (!s) return () => {};
   const prev = s.goal;
-  s.goal = { ...(prev && LIVE.has(prev.status) ? prev : { round: 1, checks: [], setAt: Date.now() }), text, status: sending || (s.state === 'running' && prev?.status !== 'checking') ? 'working' : 'checking' };
+  const next = { ...(prev && LIVE.has(prev.status) ? prev : { round: 1, checks: [], setAt: Date.now(), ...(prev?.judges && { judges: prev.judges, vote: prev.vote }) }), text, status: sending || (s.state === 'running' && prev?.status !== 'checking') ? 'working' : 'checking' };
+  if (judges.judges) {
+    delete next.judges;
+    delete next.vote;
+    if (judges.judges.length) Object.assign(next, { judges: judges.judges, vote: judges.vote || 'majority' });
+    // Other judges: the last votes were someone else's (the server sets them aside too).
+    if (JSON.stringify([prev?.judges || [], prev?.vote]) !== JSON.stringify([next.judges || [], next.vote]) && next.last) next.last = { ...next.last, votes: undefined };
+  }
+  s.goal = next;
   repaint(id);
   return () => {
     if (S.sessions.get(id) === s) (prev ? (s.goal = prev) : delete s.goal), repaint(id);
@@ -192,10 +205,10 @@ export function showGoal(id, text, { sending = false } = {}) {
 }
 
 // true once the server has it; false when it refused (the page is put back and says why).
-export async function setGoal(id, text) {
-  const undo = showGoal(id, text);
+export async function setGoal(id, text, judges = {}) {
+  const undo = showGoal(id, text, { judges });
   try {
-    await api(`/sessions/${id}/goal`, { method: 'PUT', body: { text } });
+    await api(`/sessions/${id}/goal`, { method: 'PUT', body: { text, ...judges } });
     return true;
   } catch (err) {
     undo();
@@ -214,17 +227,30 @@ export function editGoal(id, anchor) {
       <label class="gp-k" for="goalText">${icon('target')}Done when</label>
       <textarea id="goalText" rows="3" spellcheck="false" placeholder="all tests pass and the page works on a phone"></textarea>
       <p class="gp-hint">wisp checks after every round, reading the code and running the tests, and sends it back with what’s missing.</p>
-      <div class="gp-foot"><span class="grow"></span><button class="ghost sm" data-a="no">Cancel</button><button class="primary sm" data-a="yes">${s.goal ? 'Save goal' : 'Set goal'}</button></div>
+      <div class="gp-foot"><button class="tog-btn team-btn judges-btn gp-judges" aria-haspopup="dialog"></button><span class="grow"></span><button class="ghost sm" data-a="no">Cancel</button><button class="primary sm" data-a="yes">${s.goal ? 'Save goal' : 'Set goal'}</button></div>
     </div>`);
   const ta = $('textarea', node);
   ta.value = s.goal?.text || '';
+  // Judges: the goal's own; a new goal starts from the launcher's picks.
+  let judges = s.goal ? s.goal.judges || [] : liveJudges(S.config.defaults.goalJudges);
+  let vote = (s.goal ? s.goal.vote : S.config.defaults.goalVote) || 'majority';
+  const jBtn = $('.gp-judges', node);
+  paintJudgesBtn(jBtn, judges, vote);
   const go = () => {
     const text = ta.value.trim();
     if (!text) return ta.focus();
     close();
-    setGoal(id, text);
+    setGoal(id, text, { judges, vote });
   };
   node.onclick = (e) => {
+    if (e.target.closest('.gp-judges')) {
+      judgesEditor(jBtn, { judges, vote, over: node }, (list, rule) => {
+        judges = list;
+        vote = rule;
+        paintJudgesBtn(jBtn, judges, vote);
+      });
+      return;
+    }
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'no') close();
     if (a === 'yes') go();
@@ -235,7 +261,7 @@ export function editGoal(id, anchor) {
       go();
     }
   });
-  const close = popover(node, { anchor, capture: true });
+  const close = popover(node, { anchor, capture: true, keep: '.judges-pop, .picker, .jp-add-menu' });
   const r = anchor?.isConnected ? anchor.getBoundingClientRect() : null;
   const w = node.offsetWidth;
   const h = node.offsetHeight;
@@ -255,6 +281,21 @@ export function launcherGoal(box, ta) {
   const input = $('input', line);
   let on = false; // every prompt starts without a goal: the user turns it on for this one
   input.value = S.drafts.get('home-goal') || '';
+  // Judges: remembered like Delegate, so they stay set for the next goal until you clear them.
+  const jBtn = $('#judgesBtn', box);
+  let judges = liveJudges(S.config.defaults.goalJudges);
+  let vote = S.config.defaults.goalVote || 'majority';
+  const paintJudges = () => paintJudgesBtn(jBtn, judges, vote);
+  paintJudges();
+  jBtn.onclick = () => {
+    judgesEditor(jBtn, { judges, vote }, (list, rule) => {
+      judges = list;
+      vote = rule;
+      Object.assign(S.config.defaults, { goalJudges: judges, goalVote: vote });
+      paintJudges();
+      api('/config', { method: 'PATCH', body: { defaults: { goalJudges: judges, goalVote: vote } } }).catch(() => {});
+    });
+  };
   const paint = () => {
     btn.classList.toggle('on', on);
     btn.setAttribute('aria-pressed', on);
@@ -287,7 +328,7 @@ export function launcherGoal(box, ta) {
       toast(`${icon('target')} No goal: Done when is empty`);
       return null;
     }
-    return { text };
+    return { text, ...(judges.length && { judges, vote }) };
   };
   box.goalTaken = (goal) => {
     if (!goal) return () => {};
@@ -304,7 +345,7 @@ export function launcherGoal(box, ta) {
   };
 }
 
-export const launcherGoalHtml = () => `<div class="l-goal" hidden><span class="lg-k">${icon('target')}<span>Done when</span></span><input type="text" spellcheck="false" placeholder="all tests pass and it works on a phone" aria-label="Done when"></div>`;
+export const launcherGoalHtml = () => `<div class="l-goal" hidden><span class="lg-k">${icon('target')}<span>Done when</span></span><input type="text" spellcheck="false" placeholder="all tests pass and it works on a phone" aria-label="Done when"><button class="tog-btn team-btn judges-btn" id="judgesBtn" aria-haspopup="dialog"></button></div>`;
 
 // The reply box's Goal (composer.js): a goal for a task that's already going. With none (or one
 // that ended), it opens a "Done when" line over the bar, the launcher's: Enter there, or Send, sets

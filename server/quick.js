@@ -23,7 +23,7 @@ export function cheapest(agents) {
   return null;
 }
 
-// Resolves with the parsed JSON object from the reply, or null (no harness, timeout, no JSON).
+// pick: { agent, model, effort? }. Resolves with the parsed JSON object from the reply, or null (no harness, timeout, no JSON).
 export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheapest(agents) }) {
   if (!pick || !adapters[pick.agent]) return Promise.resolve(null);
   return new Promise((resolve) => {
@@ -35,7 +35,7 @@ export function askJson({ agents, prompt, cwd, timeoutMs = 90_000, pick = cheape
         cwd,
         mode: 'plan',
         model: pick.model,
-        effort: '',
+        effort: pick.effort || '',
         systemPrompt: 'You are a helper inside wisp. Answer with one JSON object and nothing else.',
         accountEnv: sideEnv(pick.agent),
         attachments: [],
