@@ -117,9 +117,6 @@ body.wisp-mobile .gb-more { width: 44px; height: 44px; }
 .ask-goal b { font-weight: 600; margin-right: 4px; }
 .ask-goal span { display: block; margin-top: 2px; color: var(--muted); font-size: 13px; }
 
-/* A phone's prompt box: Goal goes to its icon, and the bar's buttons give up a little padding so
-   Send stays inside the box with Goal there too. */
-@container launcher (max-width: 520px) {
-  .l-bar .goal-btn > span { display: none; }
-  .l-bar > :is(.tog-btn, .icon-btn, .mode-btn) { padding-inline: 5px; min-width: 0; }
-}
+/* A phone's prompt box: Goal goes to its icon, a 30px square like its neighbours (lit, a narrower
+   box read as squeezed); the bar scrolls with Send pinned when they don't all fit. */
+@container launcher (max-width: 520px) { .l-bar .goal-btn > span { display: none; } }

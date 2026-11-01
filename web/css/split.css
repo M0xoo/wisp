@@ -26,6 +26,7 @@ body.split .topbar .brand { height: 32px; margin-right: auto; }
 body.split .topbar .sp-top { order: 1; }
 body.split .topbar .search-btn { order: 2; width: 32px; padding: 0; justify-content: center; border-color: transparent; background: none; }
 body.split .topbar .search-btn:hover { background: var(--bg-2); }
+body.split:not(.wisp-mobile) .topbar .search-btn { height: 32px; } /* the height of the sidebar and avatar buttons beside it (the app's are 44px) */
 body.split .topbar .search-btn :is(span, kbd) { display: none; }
 body.split .topbar .me-btn { order: 3; }
 /* the sidebar button sits at the list's inner edge, and stays at that edge once the list is hidden */
@@ -335,6 +336,9 @@ body:has(:is(textarea, input, [contenteditable="true"]):focus) .ts-badge::after 
 .sh-title[contenteditable='true'] { white-space: normal; background: var(--surface-2); box-shadow: 0 0 0 3px var(--accent-soft); padding: 0 4px; cursor: text; }
 .split-head.st-done .sh-title { color: var(--ink-2); } /* done, but still the heading you read */
 .sh-acts { flex: none; display: flex; align-items: center; gap: 4px; }
+/* the head's buttons share the icon buttons' 32px; one whose label folds away is a 32px square */
+.sh-acts > :is(.ghost.sm, .primary.sm) { height: 32px; }
+.sh-acts > .ghost.sm:not(:has(> span:not([hidden]))) { width: 32px; padding: 0; justify-content: center; }
 body.electron.split .split-head { -webkit-app-region: drag; }
 body.electron.split .split-head :is(button, a, .sh-title) { -webkit-app-region: no-drag; }
 /* With the list hidden the top bar's buttons float over the header's corner, and a drag region

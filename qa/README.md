@@ -38,6 +38,7 @@ so a wisp.app you have open keeps its single-instance lock.
 | Script | Ports |
 |---|---|
 | web | 4493 (`QA_WEB_PORT`) |
+| buttons | 4497 (`QA_BUTTONS_PORT`) |
 | desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
 | mobile | 4540–4549 |
 | mobile-perf | 4550 (`PERF_PORT`) |
@@ -45,6 +46,17 @@ so a wisp.app you have open keeps its single-instance lock.
 | grid | 8090 (`QA_GRID_PORT`) |
 
 They can run at the same time.
+
+## Every button, every state
+
+`node qa/buttons.mjs` opens 36 views of the page (New task and its menus, a task with its goal,
+composer, transcript, Changes and More, crew, My Stuff, the palette, every Settings pane) at 1440,
+1000 and 390px, light and dark, plus the phone app's page, and measures each visible button at
+rest, hovered and keyboard-focused. It fails on an icon-only button that isn't square or whose icon
+is off-centre, a centred label with uneven padding, buttons in one bar with boxes of different
+heights, a label clipped without `…`, and buttons that overlap. Every measurement goes to
+`qa/out/buttons.json`, and a contact sheet per view (each button at rest, hovered, focused) to
+`qa/out/buttons/`. `QUICK=1` measures at rest only; `WIDTHS=390 THEMES=dark` narrows it.
 
 ## Speed in the phone app
 

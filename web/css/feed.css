@@ -175,6 +175,8 @@ body.split #feed .item.open > .it-skel .sk-turns { padding-left: 0; padding-righ
 /* Split view's details only: what the card head says, spell buttons, and names for the icon actions. */
 .it-props, .it-slot { display: none; }
 .it-actions .it-lbl { display: none; font-style: normal; }
+/* icon-only there: a square hover box around the icon (the details column gives them names and a row) */
+.it-actions .ghost.xs { min-width: 24px; padding: 0 4px; justify-content: center; }
 /* Mark done is green like Reopen: the step that ends a task is easy to spot */
 .it-done, .it-done:hover { color: var(--good); }
 .it-body .earlier { display: block; margin: 4px 0 0 18px; }

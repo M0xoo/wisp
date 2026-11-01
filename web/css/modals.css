@@ -150,7 +150,8 @@ body.wisp-mobile .lb-open { display: none; }
 .plist { margin-top: 18px; display: flex; flex-direction: column; gap: 4px; }
 .prow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 11px; transition: background 0.15s; }
 .prow:hover { background: var(--surface-2); }
-.swatch { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; }
+.swatch { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; }
+.prow .premove { width: 28px; height: 28px; } /* the row's two buttons, colour and remove, one size */
 .swatch:hover { background: var(--bg-2); }
 .swatch .p-dot { width: 12px; height: 12px; }
 .prow-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
