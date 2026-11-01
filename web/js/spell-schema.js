@@ -347,6 +347,12 @@ export const PARTS = {
   // …its Automations stop at row, and Where it went: the tasks that used most of an account's longest window.
   'settings.autoStop': '.sx-budget .sx-row:has(.us-stop)',
   'budget.where': '.sx-budget .bg-where',
+  // …a harness's own Automations stop at row, the Drain watch row, and its card on an account.
+  'settings.autoStopBy': '.sx-budget .us-by-row',
+  'settings.drainWatch': '.sx-budget .sx-row:has(#drainWatch)',
+  'budget.drain': '.sx-budget .bg-drain',
+  // …and the Check Codex while work waits row.
+  'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
   // The harness picker: how full a window at or past your Ask near the limit line is (server/guard.js).
   // The hold row and the held card aren't parts: they need you, like a due reminder.
   'harness.usage': '.rp-usage',
@@ -530,6 +536,14 @@ export const SETTINGS = {
   // Automations stop at: check-ins, triggers, goal rounds and agents' follow-ups wait once an
   // account is past this percent of a usage window, until it resets (server/budget.js).
   autoStop: ['off', '50', '75', '90'],
+  // …a harness's own line, or same (follow autoStop). ChatGPT and Codex share one allowance.
+  autoStopClaude: ['same', 'off', '50', '75', '90'],
+  autoStopCodex: ['same', 'off', '50', '75', '90'],
+  // Check Codex while work waits: ask Codex's app-server how a waiting account's windows stand, so an
+  // early reset lets that work go (server/live-limits.js).
+  liveLimits: ['on', 'off'],
+  // Drain watch: warn when an account's recent runs take twice its usual share of a window per unit of work.
+  drainWatch: ['on', 'off'],
   // Ask near the limit: before a run would take a 5-hour or weekly window past this share (server/guard.js).
   limitHold: ['off', '80', '90', '95'],
 };

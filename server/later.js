@@ -86,7 +86,7 @@ export class Later {
   // attachments: upload ids, sent with it when it goes (they stay on disk until then).
   // goal: the goal round it starts (by 'wisp': a round that waits for the plan, server/goal.js).
   // held: { why, until }: it waits for the plan (Automations stop at).
-  add(s, { text, remind = false, by = 'user', attachments, goal, held, ...when }) {
+  add(s, { text, remind = false, by = 'user', attachments, goal, held, limit, ...when }) {
     if (s.parentId || s.delegated) throw bad('A subagent can’t schedule follow-ups: its lead can.');
     if (s.kind === 'reminder') throw bad('That’s a reminder: snooze it instead.');
     if (s.agent === 'wisp') throw bad('This is the tour — launch a real wisp to schedule things.');
@@ -94,7 +94,7 @@ export class Later {
     if (s.later.length >= PER_TASK) throw bad(`A task can have ${PER_TASK} follow-ups scheduled at most. Cancel one first.`);
     const agent = by !== 'user';
     if (agent && (s.laterChain || 0) >= CHAIN_MAX) throw bad(`That's ${CHAIN_MAX} scheduled follow-ups in a row with no word from the user. Don't schedule another: report where things stand, and the user can follow up.`);
-    const entry = { id: newId(), at: whenOf(when, { now: this.now(), max: agent ? AGENT_MAX_MS : MAX_MS }), text: textOf(text, remind ? 'What to remind you about' : 'The follow-up'), by, setAt: this.now(), ...(remind && { remind: true }), ...(by === 'wisp' && Number.isInteger(goal) && { goal }), ...(held && { held }) };
+    const entry = { id: newId(), at: whenOf(when, { now: this.now(), max: agent ? AGENT_MAX_MS : MAX_MS }), text: textOf(text, remind ? 'What to remind you about' : 'The follow-up'), by, setAt: this.now(), ...(remind && { remind: true }), ...(by === 'wisp' && Number.isInteger(goal) && { goal }), ...(held && { held }), ...(by === 'wisp' && limit && { limit }) };
     const files = !remind && Array.isArray(attachments) ? attachments.filter((a) => typeof a === 'string').slice(0, 20) : [];
     if (files.length) entry.attachments = files;
     s.later.push(entry);
@@ -371,6 +371,39 @@ export class Later {
       }
       await Promise.resolve(this.fire(s, l)).catch((err) => console.warn(`wisp: later: ${err.message}`));
     }
+  }
+
+  // A window of agent's `account` reset early (server/budget.js onReset): what waits on that plan
+  // goes now. A follow-up moved by Automations stop at (held), one waiting at a limit (limit, Wait
+  // for the reset) and a run held near the limit (server/guard.js) come due; the next tick sends
+  // them, and checks again first (the weekly window can still hold after the 5-hour one reset).
+  // free(agent, account): nothing holds that account now. → how many came forward.
+  pullForward(agent, account, free) {
+    if (!free(agent, account)) return 0;
+    const now = this.now();
+    let n = 0;
+    for (const s of this.store.all()) {
+      if (s.archived) continue;
+      let moved = false;
+      const t = s.turns?.at(-1);
+      if (t?.status === 'held' && t.held?.agent === agent && (t.held.account || 'default') === account && t.held.until > now) {
+        t.held.until = now;
+        moved = true;
+      }
+      const mine = s.agent === agent && (s.account || 'default') === account;
+      for (const l of s.later || []) {
+        const waits = (l.held && mine) || (l.limit?.agent === agent && (l.limit.account || 'default') === account);
+        if (!waits || l.at <= now) continue;
+        l.at = now;
+        delete l.held;
+        moved = true;
+      }
+      if (!moved) continue;
+      s.later?.sort((a, b) => a.at - b.at);
+      n++;
+      this.changed(s);
+    }
+    return n;
   }
 
   // Moved to the reset of the window that holds it back; Send now still sends it at once.

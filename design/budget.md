@@ -6,7 +6,8 @@ and can let a task wait for the reset instead of stopping.
 
 ## Where the numbers come from
 
-Nothing is asked of the provider. wisp reads what the CLI already reports on every run:
+wisp reads what the CLI already reports on every run (the one exception: *Check Codex while work
+waits*, below):
 
 | Harness | Source | Windows |
 |---|---|---|
@@ -99,3 +100,63 @@ turn.
 - Budget of tasks on other machines (each machine keeps its own `budget.json`).
 - Auto at a limit with nothing else to run doesn't wait yet: it settles and the card asks.
 - A launch onto an account that's used up could offer *Start at the reset* (Later plan).
+
+## A line per harness
+
+ChatGPT and Codex are moving to one shared allowance (OpenAI's email, 2026-10-31; HN 50320588,
+r/codex 1xku32u, codex#58530), so people want unattended Codex runs to leave some for their chats.
+`defaults.autoStopClaude` / `autoStopCodex` (`same` | `off` | `50` | `75` | `90`; unset is `same`)
+override `autoStop` for that harness: `stopFor(defaults, agent)` (`server/budget.js`, `STOP_KEYS`),
+used by `app.reserve.check`. A harness with no row follows `autoStop`. Settings shows a row for each
+reporting harness that's here (`.us-by-row`), and each account's bars mark its own line
+(`.bg-acct.stops`, `--stop`).
+
+## Drain watch
+
+People see a plan suddenly empty faster for the same work and can't prove it (r/ClaudeAI 1xh3yyu,
+r/cursor 1xkubzj, codex#58520). `defaults.drainWatch` (`on` | `off`, off by default).
+
+- **Samples.** `record()` adds a close reading's move to `acc.run[id]` (the same moves Ask near the
+  limit learns from); `spend(agent, account, units, { failed })` closes it as one run:
+  `acc.drain[id]` keeps `{ at, du, units, failed? }`, at most 40 per window, two weeks. Runs at the
+  same time share the move between two readings: the first to end takes it, which evens out.
+- **`drain(agent, account)`**: per window, the runs of the last two hours against the ones before
+  (within two weeks). Usual needs 5 runs and 3 points moved, recent 2 runs and 5 points (the CLI
+  reports whole percents). At 2× or more the usual share per unit, the fastest window:
+  `{ id, label, ratio, since, runs, units, du, usual, failed: { runs, du } }`. Units are Claude
+  Code's reported cost, else tokens (`unitsOf`), so a ratio only compares an account with itself.
+- **Dismiss** (`POST /agents/{id}/drain/dismiss { account, window }`) stores `drainSeen[id]`; the
+  card stays hidden until a run after it.
+- **Where it shows.** `Budget.view` carries `drain`; `/agents` drops it unless the switch is on. The
+  card sits in the account's block (`.bg-drain`), with Copy report (`drainReport`, UTC times, for a
+  ticket) and Dismiss (optimistic, rolled back with a toast). `onDrain` sends the phone
+  `drainWhy()` at most every two hours per window, when ntfy or Telegram is on.
+- **Terms.** It only reads what the CLI already reports and changes nothing about where runs go.
+
+## Early resets
+
+OpenAI hands out banked Codex resets with no notice (r/codex 1xkq1f9, 1xkapax; codex#58520). Held
+work used to wait for the old `resetsAt`, because nothing runs while held to tell wisp otherwise.
+Design by Sana (2026-11-01).
+
+- **Seen**: `resetEarly(was, next, now)` in `Budget.record`: the old reset hadn't come, the new one
+  is more than 10 minutes later, and `used` fell by 0.25 or more (or under 5% from at least 10%).
+  Codex's drifting "in n seconds" alone never counts. `acc.early[id] = { at, resetsAt }`; the view
+  gives `earlyAt` while it's the same period (*Reset early 10:12 · resets …*). `onReset(agent,
+  account, ids)`.
+- **Released**: `app.resetEarly` (server/index.js), only when nothing holds the account now
+  (`reserve.check` null and no full window): `Later.pullForward` brings due a held follow-up
+  (`held`, on the task's own account), one waiting at a limit (`limit: { agent, account }`, set by
+  `runner.waitAtLimit`) and a held run (`turn.held.until`); the next tick checks again before it
+  sends. `Crew.release` / `Triggers.release` drop `held` (now with `agent`) so the rows stop saying
+  skipped. The phone hears `↻ Codex reset early` with the count.
+- **Live read** (`server/live-limits.js`, `defaults.liveLimits`, off by default): every minute a
+  tick looks at each Codex account (`accounts.list`, its own `CODEX_HOME`) with work waiting on it
+  (`waitingOn`), at most every 10 minutes: `codex app-server`, `initialize`, `account/rateLimits/read`,
+  then the process goes (15 s timeout; on errors back off ×2 up to an hour). `codexLive` maps the
+  answer (`rateLimitsByLimitId.codex`, camelCase) to `codexLimits`, and `Budget.record` does the rest.
+  Nothing waiting: no traffic. Never `account/rateLimitResetCredit/consume`: a credit is the user's
+  to spend. Claude Code has no free read (its `rate_limit_event` comes only inside a model call, and a
+  private OAuth endpoint with a scraped token is off-limits): it keeps learning with its next run.
+- **Terms**: reads the account the work would run on and nothing else; never switches accounts or
+  spends a reset.

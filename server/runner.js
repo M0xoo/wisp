@@ -1401,7 +1401,7 @@ export class Runner extends EventEmitter {
     delete turn.background;
     turn.stats = ev.stats || null;
     this.guard?.changed?.(turn.agent || session.agent); // its cost counts in the next estimate
-    this.budget?.spend?.(turn.agent || session.agent, session.account || 'default', unitsOf(turn.stats));
+    this.budget?.spend?.(turn.agent || session.agent, session.account || 'default', unitsOf(turn.stats), { failed: !!ev.isError && !ev.stopped });
     delete session.ask;
     if (this.stopping.delete(session.id)) ev = { ...ev, stopped: true };
     const interrupted = ev.stopped && this.interrupting.has(session.id);

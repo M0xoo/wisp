@@ -253,10 +253,21 @@ body.wisp-mobile .lb-open { display: none; }
 .bg-win.warn .bg-t { color: var(--warn); }
 .bg-win:last-child .bg-t { margin-bottom: 0; }
 .bg-empty { margin: 0; padding: 12px 14px; font-size: 12.5px; color: var(--muted); }
-/* Automations stop at: a thin mark across each bar where they stop */
-.bg-list.stops .bg-bar { position: relative; overflow: visible; }
-.bg-list.stops .bg-bar i { overflow: hidden; }
-.bg-list.stops .bg-bar::after { content: ''; position: absolute; top: -3px; bottom: -3px; left: var(--stop); width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink-2); opacity: 0.55; }
+/* Automations stop at: a thin mark across each bar where they stop (each harness has its own line) */
+.bg-acct.stops .bg-bar { position: relative; overflow: visible; }
+.bg-acct.stops .bg-bar i { overflow: hidden; }
+.bg-acct.stops .bg-bar::after { content: ''; position: absolute; top: -3px; bottom: -3px; left: var(--stop); width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink-2); opacity: 0.55; }
+/* A harness's own Automations stop at line, under the row for all of them */
+.us-by-name { display: inline-flex; align-items: center; gap: 7px; }
+/* Drain watch: a card in the account's block, under its bars */
+.bg-drain { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: color-mix(in srgb, var(--warn) 7%, transparent); }
+.bg-di { flex: none; display: inline-flex; width: 16px; height: 16px; margin-top: 1px; color: var(--warn); }
+.bg-di .i { width: 16px; height: 16px; }
+.bg-dt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.bg-dt b { font-weight: 500; font-size: 13px; }
+.bg-dt small { font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+.bg-da { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.bg-da .i { width: 13px; height: 13px; }
 /* Where it went: the tasks that used most of the account's longest window, in the bars' columns */
 .bg-where { grid-column: 1 / -1; display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; column-gap: 10px; row-gap: 1px; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--line); }
 .bg-wh { grid-column: 1 / -1; margin-bottom: 3px; font-size: 11.5px; color: var(--faint); }

@@ -1,7 +1,10 @@
 // Plan budget: how much of each account's usage windows is gone (Claude's 5-hour and weekly ones,
 // Codex's), from what the CLI itself reports on every run, and when you'd run out at this pace.
 // Nothing is asked of the provider: Claude prints a rate_limit_event in its stream, Codex writes
-// rate_limits into its session file. A window whose reset has passed reads as fresh.
+// rate_limits into its session file. A window whose reset has passed reads as fresh. The one
+// exception: while Codex work waits for a reset, wisp may ask Codex's app-server how the windows
+// stand (server/live-limits.js, Settings → Usage → Check Codex while work waits), so a reset that
+// comes early (OpenAI's banked resets) lets that work go at once: onReset.
 //
 // ~/.wisp/budget.json: { [agent]: { [account]: { at, windows: { [id]: { used, resetsAt, ms } },
 // learn: { [id]: { du, units } }, acks: { [id]: { resetsAt, line } } } } }
@@ -16,6 +19,8 @@
 //
 // learn and acks are Ask near the limit's (server/guard.js): how far the window moved while wisp's
 // runs worked, against the units of work they did, and the line you last said yes at.
+// drain is Drain watch's (defaults.drainWatch): the same move per run, kept run by run for two weeks,
+// so a plan that suddenly moves much faster for the same work stands out (drain(), design/budget.md).
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -34,14 +39,33 @@ const ORDER = Object.keys(WINDOWS);
 // Settings → Usage → Automations stop at: 'off', or the percent of a window.
 export const STOP_AT = ['off', '50', '75', '90'];
 export const stopAtOf = (v) => (STOP_AT.includes(String(v)) && String(v) !== 'off' ? Number(v) / 100 : null);
+// The same, for one harness: its own line, or 'same' (unset) to follow Automations stop at. ChatGPT
+// and Codex share one allowance, so a Codex line lower than Claude's leaves room for your chats.
+export const STOP_KEYS = { claude: 'autoStopClaude', codex: 'autoStopCodex' };
+export const STOP_BY = ['same', ...STOP_AT];
+export const stopFor = (defaults = {}, agent) => {
+  const own = defaults[STOP_KEYS[agent]];
+  return stopAtOf(STOP_AT.includes(own) ? own : defaults.autoStop);
+};
 // Two reports of the same window period: Codex's reset can drift when it only says "in n seconds".
 const samePeriod = (a, b) => !!a && !!b && Math.abs(a - b) < 10 * 60_000;
+// A window that reset before its time (a banked reset): its old reset hadn't come, now much less is
+// used, and the new reset is a period later. Codex's drifting "in n seconds" alone never counts.
+export const resetEarly = (was, next, now) =>
+  !!was?.resetsAt && was.resetsAt > now && !!next.resetsAt && next.resetsAt - was.resetsAt > 10 * 60_000 && (was.used - next.used >= 0.25 || (next.used < 0.05 && was.used >= 0.1));
 const MAX_LEDGER = 100; // turns remembered per account between two reports
 const MAX_WINDOWS = 6; // a CLI that starts reporting dozens doesn't grow the file
 const clamp = (n) => Math.min(1, Math.max(0, n));
 const LEARN_GAP = 30 * 60_000; // readings further apart than this may hide use outside wisp
 const LEARN_MIN = 0.02; // two points moved before a rate counts (the CLI reports whole percents)
 const LEARN_KEEP = 0.3; // past this many points, halve: the rate follows the recent runs
+// Drain watch: the runs of the last two hours against the two weeks before them.
+const DRAIN_KEEP = 40; // runs remembered per window
+const DRAIN_AGE = 14 * 864e5;
+const DRAIN_RECENT = 2 * H;
+const DRAIN_RATIO = 2; // this many times the usual share per unit of work
+const DRAIN_MIN = { runs: 5, du: 0.03 }; // what "usual" needs before it means anything
+const DRAIN_NOW = { runs: 2, du: 0.05 }; // and the recent runs (the CLI reports whole percents)
 const toMs = (s) => (Number.isFinite(s) && s > 0 ? (s < 1e12 ? s * 1000 : s) : null); // seconds or ms
 
 function readJson(file) {
@@ -106,6 +130,15 @@ export function codexLimits(rl) {
   return { windows, ...((rl.rate_limit_reached_type || full) && { rejected: full?.id || windows[0].id }) };
 }
 
+// What Codex's app-server answers to account/rateLimits/read → codexLimits' input (its own fields
+// in camelCase), or null. The codex limit, not another one (premium) it may also list.
+export function codexLive(res) {
+  const rl = res?.rateLimitsByLimitId?.codex || res?.rateLimits;
+  if (!rl || typeof rl !== 'object') return null;
+  const w = (x) => x && Number.isFinite(x.usedPercent) && { used_percent: x.usedPercent, window_minutes: x.windowDurationMins, resets_at: x.resetsAt };
+  return codexLimits({ primary: w(rl.primary), secondary: w(rl.secondary), rate_limit_reached_type: rl.rateLimitReachedType || null });
+}
+
 // The rate_limits Codex wrote last into a thread's session file (CODEX_HOME/sessions/yyyy/mm/dd/
 // rollout-…-<thread>.jsonl), or null. A resumed thread keeps its first day's file: look back a month.
 export function codexRollout(threadId, { home = path.join(os.homedir(), '.codex'), now = Date.now() } = {}) {
@@ -139,7 +172,7 @@ function lastRateLimits(file) {
       if (!lines[i].includes('"rate_limits"')) continue;
       try {
         const rl = JSON.parse(lines[i])?.payload?.rate_limits;
-        if (rl) return rl;
+        if (rl && (rl.primary || rl.secondary)) return rl; // a line for another limit (premium) has neither
       } catch {}
     }
   } catch {
@@ -152,11 +185,15 @@ function lastRateLimits(file) {
 export class Budget {
   // onChange(): a number the page shows moved (wisp broadcasts 'agents').
   // onShare(sessionId, turnId, { agent, account, window, used, resetsAt }): a turn's part of a move.
-  constructor(home, { now = () => Date.now(), onChange = () => {}, onShare = () => {} } = {}) {
+  // onDrain(agent, account, drain): a run ended while the account drains (Drain watch).
+  // onReset(agent, account, ids): those windows reset before the time they last gave.
+  constructor(home, { now = () => Date.now(), onChange = () => {}, onShare = () => {}, onDrain = () => {}, onReset = () => {} } = {}) {
     this.file = path.join(home, 'budget.json');
     this.now = now;
     this.onChange = onChange;
     this.onShare = onShare;
+    this.onDrain = onDrain;
+    this.onReset = onReset;
     this.state = readJson(this.file) || {};
   }
 
@@ -177,6 +214,7 @@ export class Budget {
     const now = this.now();
     const share = this.#sharers(agent, account, acc.at, now);
     let moved = false;
+    const early = [];
     // Readings close together come from runs at work: what moved in between is theirs (Ask near
     // the limit learns its rate from it). Use outside wisp in that time counts too, which only
     // makes wisp ask a little sooner.
@@ -189,8 +227,13 @@ export class Budget {
       if (close && was && was.resetsAt === next.resetsAt && next.used > was.used) {
         const l = ((acc.learn ||= {})[w.id] ||= { du: 0, units: 0 });
         l.du += next.used - was.used;
+        (acc.run ||= {})[w.id] = (acc.run[w.id] || 0) + next.used - was.used; // this run's, until spend()
       }
       if (!was || Math.round(was.used * 100) !== Math.round(next.used * 100) || was.resetsAt !== next.resetsAt) moved = true;
+      if (resetEarly(was, next, now)) {
+        (acc.early ||= {})[w.id] = { at: now, resetsAt: next.resetsAt };
+        early.push(w.id);
+      }
       // How far it moved since the last report: in a new period, all of what's used now.
       const d = !was ? 0 : samePeriod(was.resetsAt, next.resetsAt) ? next.used - was.used : was.resetsAt && was.resetsAt <= now ? next.used : 0;
       if (d > 0 && share.length) for (const [k, part] of share) this.onShare(k.sid, k.tid, { agent, account, window: w.id, used: d * part, resetsAt: next.resetsAt });
@@ -199,6 +242,7 @@ export class Budget {
     acc.at = now;
     this.save();
     if (moved) this.onChange();
+    if (early.length) this.onReset(agent, account, early);
   }
 
   // --- where it went: the turns that ran on an account between two of its reports ---------------
@@ -271,16 +315,65 @@ export class Budget {
       .sort((a, b) => rank(a.id) - rank(b.id));
   }
 
-  // A run on the account ended: its units of work count against what the windows moved.
-  spend(agent, account, units) {
+  // A run on the account ended: its units of work count against what the windows moved. failed: it
+  // ended in an error (Drain watch says how much of the plan those still took).
+  spend(agent, account, units, { failed = false } = {}) {
     const acc = this.state[agent]?.[account || 'default'];
     if (!acc || !(units > 0)) return;
+    const now = this.now();
     for (const id of Object.keys(acc.windows || {})) {
       const l = ((acc.learn ||= {})[id] ||= { du: 0, units: 0 });
       l.units += units;
       if (l.du > LEARN_KEEP) (l.du /= 2), (l.units /= 2);
+      // Runs at the same time share what moved in between: the first to end takes it. Over a few
+      // runs that evens out, which is all Drain watch needs.
+      const list = ((acc.drain ||= {})[id] ||= []).filter((x) => x.at > now - DRAIN_AGE);
+      list.push({ at: now, du: Math.max(0, acc.run?.[id] || 0), units, ...(failed && { failed: true }) });
+      acc.drain[id] = list.slice(-DRAIN_KEEP);
     }
+    delete acc.run;
     this.save();
+    const d = this.drain(agent, account);
+    if (d) {
+      this.onChange();
+      this.onDrain(agent, account || 'default', d);
+    }
+  }
+
+  // Drain watch: the window whose last two hours of runs took DRAIN_RATIO times or more its usual
+  // share per unit of work, or null. { id, label, ratio, since, runs, units, du, usual, failed:
+  // { runs, du } }. Dismissed (drainSeen) until a run after that says so again.
+  drain(agent, account) {
+    const acc = this.state[agent]?.[account || 'default'];
+    const now = this.now();
+    let best = null;
+    for (const [id, all] of Object.entries(acc?.drain || {})) {
+      const list = all.filter((x) => x.at > now - DRAIN_AGE);
+      const recent = list.filter((x) => x.at > now - DRAIN_RECENT);
+      const before = list.filter((x) => x.at <= now - DRAIN_RECENT);
+      const sum = (xs, k) => xs.reduce((t, x) => t + x[k], 0);
+      const [bu, bd, ru, rd] = [sum(before, 'units'), sum(before, 'du'), sum(recent, 'units'), sum(recent, 'du')];
+      if (before.length < DRAIN_MIN.runs || bd < DRAIN_MIN.du || !(bu > 0)) continue;
+      if (recent.length < DRAIN_NOW.runs || rd < DRAIN_NOW.du || !(ru > 0)) continue;
+      if (acc.drainSeen?.[id] >= recent.at(-1).at) continue;
+      const usual = bd / bu;
+      const ratio = rd / ru / usual;
+      if (ratio < DRAIN_RATIO || (best && best.ratio >= ratio)) continue;
+      const failed = recent.filter((x) => x.failed);
+      const w = acc.windows?.[id];
+      best = { id, label: WINDOWS[id]?.label || labelOf(w?.ms), ratio, since: recent[0].at, runs: recent.length, units: ru, du: rd, usual, failed: { runs: failed.length, du: sum(failed, 'du') } };
+    }
+    return best;
+  }
+
+  // Hide that window's drain card until a later run shows it again.
+  dismissDrain(agent, account, id) {
+    const acc = this.state[agent]?.[account || 'default'];
+    if (!acc?.drain?.[id]) return false;
+    (acc.drainSeen ||= {})[id] = this.now();
+    this.save();
+    this.onChange();
+    return true;
   }
 
   // What a unit of work takes of the window, from the runs so far (kept across resets), or null.
@@ -315,10 +408,12 @@ export class Budget {
         .map(([id, w]) => {
           const fresh = w.resetsAt && w.resetsAt <= now;
           const used = fresh ? 0 : w.used;
-          return { id, label: WINDOWS[id]?.label || labelOf(w.ms), used, resetsAt: fresh ? null : w.resetsAt, hitAt: fresh ? null : paceOf({ ...w, used }, now), ms: w.ms || null };
+          const e = acc.early?.[id];
+          return { id, label: WINDOWS[id]?.label || labelOf(w.ms), used, resetsAt: fresh ? null : w.resetsAt, hitAt: fresh ? null : paceOf({ ...w, used }, now), ms: w.ms || null, ...(e && !fresh && samePeriod(e.resetsAt, w.resetsAt) && { earlyAt: e.at }) };
         })
         .sort((a, b) => rank(a.id) - rank(b.id));
-      if (windows.length) out.push({ account, at: acc.at || null, windows });
+      const drain = this.drain(agent, account);
+      if (windows.length) out.push({ account, at: acc.at || null, windows, ...(drain && { drain }) });
     }
     return out;
   }
@@ -333,6 +428,17 @@ const labelOf = (ms) => (!ms ? 'Usage' : ms >= 24 * H ? `${Math.round(ms / (24 *
 export function holdWhy(h, name, label = '') {
   const win = h.label.charAt(0).toLowerCase() + h.label.slice(1);
   return `${name}${label ? ` (${label})` : ''}’s ${win} window is at ${Math.round(h.used * 100)}%, past your ${Math.round(h.stop * 100)}%`;
+}
+
+// Drain watch's words, for the phone (the page writes its own): "Since 14:05, 4 runs took 18% of
+// Claude Code’s 5-hour window for $2.10 of work: 3.1× its usual share per unit of work …".
+export const unitWords = (agent, u) => (agent === 'claude' ? `$${u.toFixed(2)}` : `${u >= 0.1 ? u.toFixed(1) : u.toFixed(2)}M tokens`);
+export function drainWhy(d, name, label = '', agent = name === 'Claude Code' ? 'claude' : '') {
+  const at = new Date(d.since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const win = d.label.charAt(0).toLowerCase() + d.label.slice(1);
+  const p = (x) => `${Math.round(x * 100)}%`;
+  const failed = d.failed?.runs ? ` ${d.failed.runs} of them ended in an error and still took ${p(d.failed.du)}.` : '';
+  return `Since ${at}, ${d.runs} runs took ${p(d.du)} of ${name}${label ? ` (${label})` : ''}’s ${win} window for ${unitWords(agent, d.units)} of work: ${d.ratio.toFixed(1)}× its usual share per unit of work over the last two weeks.${failed} Settings → Usage → Plan budget has the details and Copy report.`;
 }
 
 // A turn's part of a window's move, added to what it already has there (turn.plan, runner.js).

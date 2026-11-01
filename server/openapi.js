@@ -88,6 +88,14 @@ export function openapi({ version, port }) {
         },
       },
       '/tools': { get: { summary: 'What Ship it needs here: git installed, gh installed and signed in to GitHub (signedIn null when unknown), with setup (tip, command, url) for this OS when missing', responses: { 200: json({ type: 'object' }) } } },
+      '/agents/{aid}/drain/dismiss': {
+        parameters: [{ name: 'aid', in: 'path', required: true, schema: { type: 'string' } }],
+        post: {
+          summary: 'Drain watch: hide the card for an account’s window until a later run shows it again',
+          requestBody: body({ type: 'object', required: ['window'], properties: { account: { type: 'string', description: 'default: the CLI’s own' }, window: { type: 'string', description: 'five_hour, seven_day, …' } } }),
+          responses: { 200: json({ type: 'object' }), 404: json(ref('Error')) },
+        },
+      },
       '/agents/recheck': { post: { summary: 'Detect harnesses and models again, here and on every online machine', responses: { 200: json({ type: 'array', items: ref('Agent') }) } } },
       '/feedback': {
         post: {
