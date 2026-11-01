@@ -252,11 +252,11 @@ export function openapi({ version, port }) {
       },
       '/later': {
         get: { summary: 'Tasks and reminders scheduled for later (they start when due)', responses: { 200: json({ type: 'array', items: { type: 'object' } }) } },
-        post: { summary: 'Schedule a task ({ kind: "task", at | in, prompt, cwd, agent, … as POST /sessions }) or a reminder ({ kind: "reminder", at | in, text })', requestBody: body({ type: 'object' }), responses: { 201: json({ type: 'object' }), 400: err[400] } },
+        post: { summary: 'Schedule a task ({ kind: "task", at | in, prompt, cwd, agent, … as POST /sessions }) or a reminder ({ kind: "reminder", at | in, text }). A task with draft: true instead of a time waits in Drafts; with after: <task id> it starts once that task is done', requestBody: body({ type: 'object' }), responses: { 201: json({ type: 'object' }), 400: err[400] } },
       },
       '/later/{lid}': {
         parameters: [{ name: 'lid', in: 'path', required: true, schema: { type: 'string' } }],
-        patch: { summary: 'Change when it runs ({ at | in }), its text or prompt, or start it now ({ now: true })', requestBody: body({ type: 'object' }), responses: { 200: json({ type: 'object' }), 400: err[400], 404: err[404] } },
+        patch: { summary: 'Change when it runs ({ at | in }; a draft or a task waiting for another gets that time instead), its text or prompt, or start it now ({ now: true })', requestBody: body({ type: 'object' }), responses: { 200: json({ type: 'object' }), 400: err[400], 404: err[404] } },
         delete: { summary: 'Cancel a scheduled task or reminder', responses: { 200: ok, 404: err[404] } },
       },
       '/triggers': {

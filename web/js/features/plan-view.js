@@ -1,5 +1,6 @@
 // A scheduled task or reminder that hasn't started yet (a plan, later.js), opened from its row in
-// Scheduled: Wait until the reset near the usage limit and Start later both leave one. It opens in
+// Scheduled (or Drafts): Wait until the reset near the usage limit, Start later, /draft and /after
+// leave one. It opens in
 // the main pane like the Org page (stacked: a page over the list, with Back), and is where you change
 // what it will say: the prompt is a box, saved when you leave it (Save, ⌘Enter, clicking away,
 // Start now, closing the page). Start now, Change time… and Delete are the row menu's, by the same
@@ -18,7 +19,7 @@ import { autosize } from './attachments.js';
 import { projectLabel } from './places.js';
 import { MODES, modelBadge } from './runners.js';
 import { slotHtml } from './spells.js';
-import { aheadLabel, cancelPlan, editPlan, movePlan, plans, startPlan, timeMenu, whenTip } from './later.js';
+import { afterTitle, aheadLabel, cancelPlan, editPlan, movePlan, planIcon, plans, startPlan, timeLabel, timeMenu, whenTip } from './later.js';
 
 S.planOpen = null; // not kept over a reload: by then it may well have started
 let view = null;
@@ -158,7 +159,7 @@ function paintHead(p) {
   const stacked = isStacked();
   const task = isTask(p);
   const html = `<div class="sh-row">
-      ${stacked ? `<button class="icon-btn sh-back" data-a="close" title="Back to tasks" aria-label="Back to tasks">${icon('back')}</button>` : `<span class="q-dot auto">${icon(task ? 'clock' : 'bell')}</span>`}
+      ${stacked ? `<button class="icon-btn sh-back" data-a="close" title="Back to tasks" aria-label="Back to tasks">${icon('back')}</button>` : `<span class="q-dot auto">${icon(planIcon(p))}</span>`}
       <h2 class="sh-title" title="${esc(textOf(p))}">${esc(task ? p.title : p.text)}</h2>
       <span class="sh-acts">${slotHtml('plan.head', null)}${stacked ? '' : `<button class="icon-btn sh-close" data-a="close" title="Close: back to New task (Esc)" aria-label="Close">${icon('x')}</button>`}</span>
     </div>`;
@@ -173,7 +174,13 @@ function paintSide(p) {
   const task = isTask(p);
   const project = task && S.config.projects?.find((x) => x.path === b.cwd);
   const mode = task && MODES.find((m) => m.id === b.mode);
-  const props = `<span class="pill later-pill pv-when" title="${esc(whenTip(p.at))}">${icon(task ? 'clock' : 'bell')}<span>${task ? 'Starts' : 'At'} ${esc(aheadLabel(p.at))}</span></span>
+  // When: its time, the task it waits for (/after), or that it's a draft until you start it.
+  const when = p.draft
+    ? `<span class="pill later-pill pv-when" title="${esc(p.lost ? `It was waiting for “${p.lost.title}”, ${p.lost.why} before it was done` : 'Starts when you start it')}">${icon('pen')}<span>Draft</span></span>`
+    : p.after
+      ? `<span class="pill later-pill pv-when" title="Starts once that task is marked done">${icon('queue')}<span>After “${esc(afterTitle(p))}”</span></span>`
+      : `<span class="pill later-pill pv-when" title="${esc(whenTip(p.at))}">${icon(task ? 'clock' : 'bell')}<span>${task ? 'Starts' : 'At'} ${esc(aheadLabel(p.at))}</span></span>`;
+  const props = `${when}
     ${task ? modelBadge(b.agent || 'auto', b.model, b.effort, null, b.account) : ''}
     ${mode ? `<span class="pv-fact pv-mode m-${mode.id}" title="${esc(mode.hint)}">${icon(mode.icon)}<span>${esc(mode.label)}</span></span>` : ''}
     ${project ? projectLabel({ project: project.name }) : task && b.scratch ? `<span class="pv-fact">${icon('folder')}<span>Scratch folder</span></span>` : ''}
@@ -184,7 +191,7 @@ function paintSide(p) {
   const pr = $('.it-props', side);
   if (pr.dataset.h !== props) (pr.innerHTML = props), (pr.dataset.h = props);
   const acts = `<button class="ghost xs pv-now" data-a="now">${icon(task ? 'play' : 'bell')}<span>${task ? 'Start now' : 'Remind me now'}</span></button>
-    <button class="ghost xs" data-a="time" title="${task ? 'Change start time…' : 'Change time…'}">${icon('clock')}<i class="it-lbl">${task ? 'Change start time…' : 'Change time…'}</i></button>
+    <button class="ghost xs" data-a="time" title="${timeLabel(p)}">${icon('clock')}<i class="it-lbl">${timeLabel(p)}</i></button>
     <button class="ghost xs" data-a="delete" title="${task ? 'Delete' : 'Delete reminder'}">${icon('trash')}<i class="it-lbl">${task ? 'Delete' : 'Delete reminder'}</i></button>`;
   const ac = $('.it-actions', side);
   if (ac.dataset.h !== acts) (ac.innerHTML = acts), (ac.dataset.h = acts);

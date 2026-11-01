@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Drafts, and tasks that start after another.** Type **/draft** and a task in New task (or in any task's reply box) to save it without starting it: it waits in the new **Drafts** section, above *For later*. Click it to edit the prompt, then **Start now**, **Start later…** or **Delete**. Type **/after**, pick a task (a menu searches your tasks as you type; pasting a task's ID works too), then the prompt: the new task waits in *Scheduled* and starts once that task is marked done (at once if it already is). From a task's reply box it runs in that task's project, on its harness. If the task it waits for is deleted or archived first, it moves to Drafts. API: `draft: true` or `after: <task id>` instead of a time on `POST /later`. Spells: the `section.drafts` and `drafts.row` parts.
+
 - **Pull to refresh your computers.** On the Android app's first screen, pull the list down from the top and let go to ask your grids again at once, instead of waiting for the next refresh: a computer you just switched on shows *Online* right away. A circle follows your finger, fills as you pull, and spins until the grid answers.
 
 - **Download on the phone.** The Android app now has **Download** on pictures and videos in answers, in the full-screen viewer, and on files in My Stuff (it was hidden there because the app couldn't save files). Pictures go to *Pictures/wisp* and videos to *Movies/wisp*, where the gallery shows them. Other files go to *Download/wisp*. No storage permission is needed. On Android 8 and 9 the file opens the share sheet instead. Over a cloud computer the download uses the app's sign-in. If the app is older than the computer's wisp, the button stays hidden.

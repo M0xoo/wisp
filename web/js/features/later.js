@@ -6,11 +6,13 @@
 import { esc } from '../md.js';
 import { api } from '../core/api.js';
 import { $, $$, el, icon } from '../core/dom.js';
-import { fmtDate } from '../core/format.js';
+import { ago, fmtDate } from '../core/format.js';
 import { S } from '../core/state.js';
 import { clampToViewport, popover, refocus } from '../ui/popover.js';
 import { toast, toastError } from '../ui/toast.js';
 import { parseWhen } from '../when.js';
+import { AFTER_HINT, afterAsk, draftAsk } from '../slash-text.js';
+import { cleanTitle } from '../mention-text.js';
 import { avatarHtml, crewList, openMember } from './crew.js';
 import { renderFeed, reveal } from './feed.js';
 import { openAutomations } from './automations.js';
@@ -306,7 +308,12 @@ export function snooze(id, anchor, point) {
 
 // --- plans: tasks and reminders that don't exist yet -----------------------------------------
 
-export const plans = () => (S.config.later || []).slice().sort((a, b) => a.at - b.at);
+// Drafts (/draft) and tasks waiting for another (/after) have no time: after the timed ones.
+const atOf = (p) => p.at ?? Number.MAX_SAFE_INTEGER;
+export const plans = () => (S.config.later || []).slice().sort((a, b) => atOf(a) - atOf(b) || a.setAt - b.setAt);
+export const isDraft = (p) => !!p?.draft;
+// What a /after task waits for, by its title now (it may have been renamed since).
+export const afterTitle = (p) => S.sessions.get(p.after?.id)?.title || p.after?.title || 'a task';
 
 function setPlans(list) {
   S.config.later = list;
@@ -314,11 +321,12 @@ function setPlans(list) {
 }
 
 // body: what POST /sessions would get, or { text } for a reminder. Resolves the plan, or null.
-export async function addPlan(kind, at, body) {
-  const temp = { id: `tmp${Date.now()}`, kind, at, setAt: Date.now(), ...(kind === 'task' ? { body, title: body.prompt.split('\n')[0].slice(0, 80) } : { text: body.text }) };
+// how: { draft: true } (no time: Drafts) or { after: { id, title } } (starts once that task is done).
+export async function addPlan(kind, at, body, how = {}) {
+  const temp = { id: `tmp${Date.now()}`, kind, ...(how.draft ? { draft: true } : how.after ? { after: how.after } : { at }), setAt: Date.now(), ...(kind === 'task' ? { body, title: body.prompt.split('\n')[0].slice(0, 80) } : { text: body.text }) };
   setPlans([...(S.config.later || []), temp]);
   try {
-    const p = await api('/later', { method: 'POST', body: { kind, at, ...body } });
+    const p = await api('/later', { method: 'POST', body: { kind, ...(how.draft ? { draft: true } : how.after ? { after: how.after.id } : { at }), ...body } });
     setPlans([...(S.config.later || []).filter((x) => x !== temp && x.id !== p.id), p]);
     return p;
   } catch (err) {
@@ -337,7 +345,8 @@ export async function cancelPlan(p) {
     setPlans(was);
     return toastError(err);
   }
-  toast(p.kind === 'task' ? 'Deleted' : 'Reminder deleted', { action: { label: 'Undo', run: () => addPlan(p.kind, Math.max(p.at, Date.now() + 61_000), p.kind === 'task' ? p.body : { text: p.text, from: p.from }) } });
+  const how = p.draft ? { draft: true } : p.after ? { after: p.after } : {};
+  toast(p.kind === 'task' ? 'Deleted' : 'Reminder deleted', { action: { label: 'Undo', run: () => addPlan(p.kind, Math.max(p.at || 0, Date.now() + 61_000), p.kind === 'task' ? p.body : { text: p.text, from: p.from }, how) } });
 }
 
 // Resolves true once it started (its task opens), false when the server refused.
@@ -370,9 +379,10 @@ export async function editPlan(p, text) {
   }
 }
 
+// A draft or a /after task given a time becomes a scheduled one.
 export async function movePlan(p, at) {
   const was = S.config.later || [];
-  setPlans(was.map((x) => (x.id === p.id ? { ...x, at } : x)));
+  setPlans(was.map((x) => (x.id === p.id ? (({ draft, after, lost, ...rest }) => ({ ...rest, at }))(x) : x)));
   await api(`/later/${p.id}`, { method: 'PATCH', body: { at } }).catch((err) => (setPlans(was), toastError(err)));
 }
 
@@ -387,7 +397,7 @@ export function planMenu(e, p, anchor) {
       <p class="lp-what">${esc(task ? p.body.prompt : p.text)}</p>
       <button data-a="open">${icon('pen')}${task ? 'Edit task' : 'Edit reminder'}</button>
       <button data-a="now">${icon(task ? 'play' : 'bell')}${task ? 'Start now' : 'Remind me now'}</button>
-      <button data-a="time">${icon('clock')}${task ? 'Change start time…' : 'Change time…'}</button>
+      <button data-a="time">${icon('clock')}${timeLabel(p)}</button>
       <button data-a="cancel" class="danger">${icon('trash')}${task ? 'Delete' : 'Delete reminder'}</button>
     </div>`);
   menu.onclick = (ev) => {
@@ -403,31 +413,68 @@ export function planMenu(e, p, anchor) {
   clampToViewport(menu, x, y);
 }
 
-// The rows of plans in the Scheduled section, above its task cards. Same columns as a card's head,
-// with the start time where a card has its age. Rows stay in place on a refresh (dataset.h).
-// Kept nodes, so a refresh doesn't re-insert (and replay) them; feed.js places them among the cards.
-const planNodes = new Map();
-export function planRows() {
-  const list = plans();
+// "/draft <task>" and "/after <task> <prompt>" in a prompt box: a task that waits, in Drafts or
+// for that task to be done. → null (neither), { error } (say what's missing) or { rest, how } for
+// addPlan. Only a task on this computer can be waited for: its wisp is the one that sees it done.
+export function planAsk(text) {
+  const draft = draftAsk(text);
+  if (draft !== null) return draft ? { rest: draft, how: { draft: true } } : { error: 'Say what the task is after /draft, like “/draft fix the login bug”' };
+  const after = afterAsk(text);
+  if (!after) return null;
+  if (!after.id || !after.prompt) return { error: AFTER_HINT };
+  const t = S.sessions.get(after.id);
+  if (!t || t.pending) return { error: 'No task with that ID here. Pick it after /after, or paste its ID (right-click a task → Copy task ID).' };
+  if (t.machine) return { error: `/after waits for tasks on this computer: that one runs on ${esc(t.machine.name || 'another machine')}.` };
+  if (t.kind === 'reminder') return { error: 'That’s a reminder, not a task to wait for.' };
+  return { rest: after.prompt, how: { after: { id: t.id, title: cleanTitle(t.title) } } };
+}
+export const planSaid = (how) => (how.draft ? 'Saved to Drafts' : S.sessions.get(how.after.id)?.state === 'done' ? `<b>${esc(how.after.title)}</b> is already done: it starts now` : `Starts once <b>${esc(how.after.title)}</b> is done`);
+
+// Change time… names what a time does to it: a draft or a /after task gets one instead.
+export const timeLabel = (p) => (p.kind !== 'task' ? 'Change time…' : p.draft || p.after ? 'Start later…' : 'Change start time…');
+
+// A plan's glyph and the line under its title.
+export const planIcon = (p) => (p.kind !== 'task' ? 'bell' : p.draft ? 'pen' : p.after ? 'queue' : 'clock');
+const runLine = (p) => [agentName(p.body.agent || 'auto'), MODES.find((m) => m.id === p.body.mode)?.label].filter(Boolean).join(' · ');
+function planSub(p) {
+  if (p.kind !== 'task') return 'Reminder';
+  if (p.after) return `After “${afterTitle(p)}” is done · ${runLine(p)}`;
+  if (p.lost) return `Was waiting for “${p.lost.title}”, ${p.lost.why} before it was done · ${runLine(p)}`;
+  return runLine(p);
+}
+
+// The rows of plans: in Scheduled (timed, and /after) above its task cards, and in Drafts. Same
+// columns as a card's head, with the start time (a draft: when it was saved) where a card has its
+// age. Rows stay in place on a refresh (dataset.h). Kept nodes, so a refresh doesn't re-insert (and
+// replay) them; feed.js places them among the cards. One set of nodes per section.
+const planNodes = { scheduled: new Map(), drafts: new Map() };
+export function planRows(where = 'scheduled') {
+  const nodes = planNodes[where];
+  const list = plans().filter((p) => isDraft(p) === (where === 'drafts'));
   const want = new Map(list.map((p) => [p.id, p]));
-  for (const [id, n] of planNodes) if (!want.has(id)) (n.remove(), planNodes.delete(id));
+  for (const [id, n] of nodes) if (!want.has(id)) (n.remove(), nodes.delete(id));
   const rows = [];
   list.forEach((p) => {
     const task = p.kind === 'task';
     const project = task && S.config.projects?.find((x) => x.path === p.body.cwd);
+    const time = p.draft
+      ? `<span class="q-time" title="${esc(`Saved ${fmtDate(p.setAt, FULL)}`)}">${esc(ago(p.setAt))}</span>`
+      : p.after
+        ? `<span class="q-time" title="${esc(`Starts once “${afterTitle(p)}” is marked done`)}">after</span>`
+        : `<span class="q-time" title="${esc(whenTip(p.at))}">${esc(aheadLabel(p.at))}</span>`;
     const html = `
-      <span class="q-dot auto">${icon(task ? 'clock' : 'bell')}</span>
+      <span class="q-dot auto">${icon(planIcon(p))}</span>
       <span class="it-main">
         <span class="it-title" title="${esc(task ? p.body.prompt : p.text)}">${esc(task ? p.title : p.text)}</span>
-        <span class="it-sub">${task ? esc([agentName(p.body.agent || 'auto'), MODES.find((m) => m.id === p.body.mode)?.label].filter(Boolean).join(' · ')) : 'Reminder'}</span>
+        <span class="it-sub">${esc(planSub(p))}</span>
       </span>
       <span class="it-side">
         ${task && project ? projectLabel({ project: project.name, color: project.color, projectId: project.id }) : ''}
-        <span class="q-time" title="${esc(whenTip(p.at))}">${esc(aheadLabel(p.at))}</span>
+        ${time}
         <span class="it-quick-gap" aria-hidden="true"></span>
         ${icon('chevron', 'chev')}
       </span>`;
-    let n = planNodes.get(p.id);
+    let n = nodes.get(p.id);
     if (!n) {
       n = el(`<div class="item plan-row c-${project?.color || 'slate'}" data-plan="${esc(p.id)}"><div class="it-head" role="button" tabindex="0"></div></div>`);
       const head = $('.it-head', n);
@@ -440,11 +487,12 @@ export function planRows() {
       head.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') (e.preventDefault(), openPlan(n.dataset.plan));
       });
-      planNodes.set(p.id, n);
+      nodes.set(p.id, n);
     }
     const head = $('.it-head', n);
     if (head.dataset.h !== html) (head.dataset.h = html), (head.innerHTML = html);
-    n.dataset.at = p.at;
+    // feed.js sorts by this: /after tasks after everything timed (oldest first), drafts newest first.
+    n.dataset.at = p.at ?? (p.draft ? Number.MAX_SAFE_INTEGER - p.setAt : 9e15 + p.setAt);
     n.classList.toggle('sel', planShown() && S.planOpen === p.id);
     rows.push(n);
   });
@@ -457,7 +505,7 @@ export function planRows() {
 // crew check-ins and wake-ups, and schedule triggers. Soonest first.
 export function upcoming() {
   const out = [];
-  for (const p of plans()) out.push({ kind: p.kind, at: p.at, title: p.kind === 'task' ? p.title : p.text, sub: p.kind === 'task' ? 'Scheduled task' : 'Reminder', plan: p });
+  for (const p of plans().filter((x) => x.at)) out.push({ kind: p.kind, at: p.at, title: p.kind === 'task' ? p.title : p.text, sub: p.kind === 'task' ? 'Scheduled task' : 'Reminder', plan: p });
   for (const s of S.sessions.values()) {
     if (s.archived || !s.later?.length) continue;
     for (const l of s.later) out.push({ kind: l.remind ? 'reminder' : 'followup', at: l.at, title: s.title, sub: laterLine(l)[1], id: s.id, crew: s.crew, ...(l.held && { held: true }) });

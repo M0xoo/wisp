@@ -255,7 +255,7 @@ export function register(r, app) {
       const was = s.state;
       if (body.state === 'done' && s.state !== 'running') s.state = 'done';
       if (body.state === 'done' && s.state === 'done') app.later.done(s); // the agent's own wake-ups go; yours stay
-      if (s.state === 'done' && was !== 'done') app.triggers?.taskEvent('done', s);
+      if (s.state === 'done' && was !== 'done') app.triggers?.taskEvent('done', s), app.later?.taskDone(s); // and what waited for it (/after) starts
       if (body.state === 'review' && s.state === 'done') s.state = 'review';
       if (typeof body.unread === 'boolean') s.unread = body.unread;
       // Moved to another place by the wisp that shows it (services/move.js): where it went.

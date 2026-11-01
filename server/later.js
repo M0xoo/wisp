@@ -5,6 +5,10 @@
 //   reminder   a session.later entry with remind: true brings that task back to Needs you with its
 //              text (s.reminder); a plan { kind: 'reminder' } becomes a small task of its own
 //   task       a plan { kind: 'task', body }: a launch body, started when due
+//   draft      a plan { kind: 'task', draft: true, body } with no time: /draft keeps it in Drafts until
+//              you start it (or give it a time)
+//   after      a plan { kind: 'task', after: { id, title }, body } with no time: /after starts it once
+//              that task is done (a task that went, or was put away unfinished, leaves it a draft)
 // Plans live in config.later (they have no task yet); follow-ups live on their task, so they move,
 // sync and go with it. Nothing waits on a timer: tick() looks every 20 s, and after a restart what
 // came due while wisp was off fires once, marked late (or, a day late, lands in Needs you instead).
@@ -21,6 +25,9 @@ const MISSED_MS = 24 * 3600_000; // later than this: you decide, it doesn't just
 const PER_TICK = 3; // a restart with a backlog doesn't start a dozen runs at once
 const TICK_MS = 20_000;
 const TEXT_MAX = 4000;
+// Plans with no time (drafts, /after) sort after the timed ones, oldest first.
+const atOf = (p) => p.at ?? Number.MAX_SAFE_INTEGER;
+const byTime = (a, b) => atOf(a) - atOf(b) || a.setAt - b.setAt;
 // The follow-up that carries a task on after a usage limit: the limit card's Wait until, and wisp's
 // own with Settings → Wait for the reset on. The page knows the card was answered by this text.
 export const LIMIT_CARRY_ON = 'Carry on from where the last run stopped at the usage limit.';
@@ -52,6 +59,8 @@ export function clock(t, now = Date.now()) {
   if (day(t) === day(now - 86400_000)) return `yesterday ${hm}`;
   return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${hm}`;
 }
+
+const titleOf = (prompt) => prompt.split('\n')[0].slice(0, 80);
 
 // What the page and machines see of a task's follow-ups.
 // held: { why, until }: Automations stop at moved it to the reset (the page says Waits for your plan).
@@ -205,23 +214,46 @@ export class Later {
   // --- plans: a task or a reminder that doesn't exist yet -------------------------------------
 
   // { kind: 'task', body: launch body } or { kind: 'reminder', text, from?: { id, title } }.
-  plan({ kind, body, text, from, ...when }) {
+  // A task may have no time instead: draft: true (Drafts), or after: a task id (starts once it's done).
+  plan({ kind, body, text, from, draft, after, ...when }) {
     if (kind !== 'task' && kind !== 'reminder') throw bad('kind must be task or reminder.');
-    const at = whenOf(when, { now: this.now() });
-    const p = { id: newId(), kind, at, setAt: this.now() };
+    if ((draft || after) && kind !== 'task') throw bad('Only a task can be a draft, or wait for another task.');
+    const p = { id: newId(), kind, setAt: this.now() };
+    if (draft === true) p.draft = true;
+    else if (after) p.after = this.#afterOf(after);
+    else p.at = whenOf(when, { now: this.now() });
     if (kind === 'task') {
       if (!body || typeof body !== 'object') throw bad('body required: the task to start.');
       const { prompt, ...rest } = body;
       p.body = { ...rest, prompt: textOf(prompt, 'prompt') };
-      p.title = p.body.prompt.split('\n')[0].slice(0, 80);
+      p.title = titleOf(p.body.prompt);
     } else {
       p.text = textOf(text, 'What to remind you about');
       if (from?.id) p.from = { id: String(from.id).slice(0, 60), title: String(from.title || '').slice(0, 200) };
     }
     this.plans.push(p);
-    this.plans.sort((a, b) => a.at - b.at);
+    this.plans.sort(byTime);
     this.configChanged();
+    // Already done: it starts now, not on the next tick.
+    if (p.after && this.store.get(p.after.id)?.state === 'done') queueMicrotask(() => this.taskDone(this.store.get(p.after.id)));
     return p;
+  }
+
+  // after: a task id (or { id }) here, not one still working on another machine.
+  #afterOf(after) {
+    const id = String(after?.id ?? after).trim();
+    if (!/^[a-z0-9]{6,40}$/.test(id)) throw bad('Say which task it waits for: its id.');
+    const s = this.store.get(id);
+    if (!s) throw bad('No task with that id here: /after waits for a task on this computer.', 404);
+    if (s.kind === 'reminder') throw bad('That’s a reminder, not a task to wait for.');
+    return { id, title: String(s.title || 'Untitled task').slice(0, 200) };
+  }
+
+  // A task was marked done: what waited for it starts.
+  taskDone(s) {
+    if (!s || s.state !== 'done') return [];
+    const due = this.plans.filter((p) => p.after?.id === s.id);
+    return due.map((p) => this.#runPlan(p).catch((err) => console.warn(`wisp: later: ${err.message}`)));
   }
 
   getPlan(id) {
@@ -233,10 +265,16 @@ export class Later {
   async editPlan(id, body) {
     const p = this.getPlan(id);
     if (body.now === true) return this.#runPlan(p);
-    if (body.at !== undefined || body.in !== undefined) p.at = whenOf(body, { now: this.now() });
+    // A time: a draft (or one waiting for a task) is scheduled now instead.
+    if (body.at !== undefined || body.in !== undefined) {
+      p.at = whenOf(body, { now: this.now() });
+      delete p.draft;
+      delete p.after;
+      delete p.lost;
+    }
     if (body.text !== undefined && p.kind === 'reminder') p.text = textOf(body.text);
-    if (body.prompt !== undefined && p.kind === 'task') (p.body.prompt = textOf(body.prompt, 'prompt')), (p.title = p.body.prompt.split('\n')[0].slice(0, 80));
-    this.plans.sort((a, b) => a.at - b.at);
+    if (body.prompt !== undefined && p.kind === 'task') (p.body.prompt = textOf(body.prompt, 'prompt')), (p.title = titleOf(p.body.prompt));
+    this.plans.sort(byTime);
     this.configChanged();
     return p;
   }
@@ -254,11 +292,12 @@ export class Later {
     this.configChanged();
     if (p.kind === 'reminder') return { session: this.#reminderTask(p) };
     try {
-      const [s] = await this.launch(p.body, { kind: 'later', id: p.id, name: 'Scheduled' });
+      const [s] = await this.launch(p.body, { kind: 'later', id: p.id, name: p.draft ? 'Draft' : p.after ? `After ${p.after.title}` : 'Scheduled' });
       return { session: s };
     } catch (err) {
       // It couldn't start (the folder went, a harness was removed): say so where you'll see it.
-      return { session: this.#reminderTask({ ...p, text: `Couldn’t start “${p.title}” at the time you set: ${err.message}`, failed: true }) };
+      const when = p.draft ? 'from Drafts' : p.after ? `after “${p.after.title}”` : 'at the time you set';
+      return { session: this.#reminderTask({ ...p, text: `Couldn’t start “${p.title}” ${when}: ${err.message}`, failed: true }) };
     }
   }
 
@@ -324,6 +363,21 @@ export class Later {
         continue;
       }
       await this.#runPlan(p).catch((err) => console.warn(`wisp: later: ${err.message}`));
+    }
+    // Waiting for a task: done (marked while this missed it) starts it; gone, or put away
+    // unfinished, it can't happen any more, so it waits in Drafts for you.
+    for (const p of this.plans.filter((x) => x.after)) {
+      const t = this.store.get(p.after.id);
+      if (t?.state === 'done') {
+        if (fired >= PER_TICK) return;
+        fired++;
+        await this.#runPlan(p).catch((err) => console.warn(`wisp: later: ${err.message}`));
+      } else if (!t || t.archived) {
+        p.draft = true;
+        p.lost = { ...p.after, why: t ? 'archived' : 'deleted' };
+        delete p.after;
+        this.configChanged();
+      }
     }
     for (const s of this.store.all()) {
       // A run held near the limit (server/guard.js) goes at the window's reset (or, when wisp
@@ -418,7 +472,7 @@ export class Later {
   // Only what can go then, never in the past, or a host would never let an idle wisp stop.
   nextAt() {
     const now = this.now();
-    const ats = this.plans.map((p) => p.at);
+    const ats = this.plans.filter((p) => p.at).map((p) => p.at);
     for (const s of this.store.all()) if (s.later?.length && !s.archived && (s.later[0].remind || !s.ask)) ats.push(s.later[0].at);
     const next = ats.sort((a, b) => a - b)[0];
     return next ? Math.max(next, now + MIN_MS) : null;

@@ -237,6 +237,10 @@ test('every task-list section and its folding heading are parts', () => {
   assert.ok(problems({ ...base0, ui: { hide: ['section.waiting'] } }).length);
 });
 
+test('drafts: the section and its rows are parts', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['section.drafts'] }, parts: { 'drafts.row': { style: { opacity: '0.8' } } } }), []);
+});
+
 test('for later: the section and the row button are parts; forLater is a button action and a hook action', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.forLater', 'card.quickLater'] }, parts: { 'section.forLater': { style: { opacity: '0.9' } } } }), []);
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'Park', icon: 'bookmark', do: { forLater: true } }], hooks: [{ on: 'turn.finished', if: { testsFailed: false }, do: { forLater: true } }] }), []);

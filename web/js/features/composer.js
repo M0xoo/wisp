@@ -18,7 +18,7 @@ import { feedbackCommand, isFeedback } from './feedback.js';
 import { mentionBox } from './mentions.js';
 import { connectMachine } from './machines.js';
 import { placeMenu } from './place-menu.js';
-import { machineById, placeName } from './places.js';
+import { machineById, pathAt, placeName, projectById } from './places.js';
 import { runnerPicker } from './runner-picker.js';
 import { accountMark, accountOf, agentById, agentName, DEFAULT_MODE, effortLabel, effortsFor, harnessesAt, harnessLogo, modeMenu, MODES, runnerTip, savedAccount, savedEffort, savedModel } from './runners.js';
 import { feedAnchor, keepFollowing, keepInPlace, watching } from './scroll.js';
@@ -30,7 +30,7 @@ import { spellSlash } from './launcher.js';
 import { cast } from './spell-ui.js';
 import { canLead, copiesOf, memberLabel, paintTeamBtn, teamEditor } from './team.js';
 import { parseWhen } from '../when.js';
-import { aheadLabel, followUpItems, scheduleFollowUp, timeMenu, whenTip } from './later.js';
+import { addPlan, aheadLabel, followUpItems, planAsk, planSaid, scheduleFollowUp, timeMenu, whenTip } from './later.js';
 import { keyedRows, queuedItems } from './queued.js';
 import { hideHold, holdNow, showHold } from './hold.js';
 import { commentCount, commentTray, paintCommentTray, restoreComments, takeComments, withPending } from './comments.js';
@@ -595,6 +595,22 @@ export async function sendReply(id, text, { confirm = false } = {}) {
       n?.tray?.restore(files);
     };
     return askCrew(id, text, to.members, to.rest, { attachments, restore });
+  }
+  // /draft <task> and /after <task> <prompt>: a new task in this one's project, on its harness,
+  // that waits in Drafts or for that task to be done. Nothing is sent to this task.
+  const held = planAsk(text);
+  if (held) {
+    if (held.error) return toast(held.error);
+    if (ta) ((ta.value = ''), ta.dispatchEvent(new Event('input')));
+    S.drafts.delete(id);
+    const t = S.sessions.get(id) || s; // the summary: its project and place
+    const k = t.machine?.id || '';
+    const project = projectById(t.projectId);
+    const body = { prompt: held.rest, cwd: t.scratch ? undefined : (project && pathAt(project, k)) || t.cwd, scratch: t.scratch || undefined, machine: k || undefined, agent: t.agent, model: t.model, effort: t.effort, mode: t.mode, account: t.account };
+    const said = planSaid(held.how);
+    const p = await addPlan('task', null, body, held.how);
+    if (!p) return ta?.isConnected && !ta.value && ((ta.value = text), ta.dispatchEvent(new Event('input')));
+    return toast(said);
   }
   // /spell <what to change>: cast a spell (a task of its own) instead of sending a follow-up.
   const ask = spellAsk(text);
