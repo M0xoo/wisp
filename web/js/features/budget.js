@@ -4,6 +4,9 @@
 // when a number moves, so the pane repaints with the harness list.
 // With Automations stop at set, each bar marks that line and a window past it says automations
 // wait; under each account, Where it went: the tasks that used most of its longest window.
+// A harness can have its own line (autoStopClaude, autoStopCodex), else it follows Automations stop at.
+// Drain watch (defaults.drainWatch): a card on an account whose plan moves much faster than usual for
+// the same work (server/budget.js drain()), with Copy report and Dismiss.
 
 import { esc } from '../md.js';
 import { icon } from '../core/dom.js';
@@ -14,9 +17,19 @@ import { holdLine } from '../limit-hold.js';
 
 const REPORTS = new Set(['claude', 'codex']); // harnesses whose CLI says how much is gone
 export const STOP_AT = ['off', '50', '75', '90']; // Automations stop at (server/budget.js STOP_AT)
+export const STOP_KEYS = { claude: 'autoStopClaude', codex: 'autoStopCodex' }; // its own line (STOP_BY)
+export const STOP_BY = ['same', ...STOP_AT];
 
-// The share of a window where automations stop (0.75), or null when they never do.
-export const stopAt = () => (STOP_AT.includes(S.config.defaults?.autoStop) && S.config.defaults.autoStop !== 'off' ? Number(S.config.defaults.autoStop) / 100 : null);
+// The share of a window where automations stop on this harness (0.75), or null when they never do.
+export function stopAt(agent) {
+  const d = S.config.defaults || {};
+  const v = STOP_AT.includes(d[STOP_KEYS[agent]]) ? d[STOP_KEYS[agent]] : d.autoStop;
+  return STOP_AT.includes(v) && v !== 'off' ? Number(v) / 100 : null;
+}
+
+// Units of work as the CLI reports them: Claude Code's cost, else tokens (server/budget.js unitsOf).
+const unitWords = (agent, u) => (agent === 'claude' ? `$${u.toFixed(2)}` : `${u >= 0.1 ? u.toFixed(1) : u.toFixed(2)}M tokens`);
+const lower = (s) => s.charAt(0).toLowerCase() + s.slice(1);
 
 // "18%", and "<1%" for a share too small to round to one.
 export const pct = (x) => (x > 0 && x < 0.005 ? '<1%' : `${Math.round(x * 100)}%`);
@@ -26,6 +39,7 @@ function windowLine(w, stop) {
   if (!w.resetsAt) return 'New window';
   if (w.used >= 1) return `Used up · resets ${whenLabel(w.resetsAt)}`;
   if (stop && w.used >= stop) return `Automations wait · resets ${whenLabel(w.resetsAt)}`;
+  if (w.earlyAt) return `Reset early ${whenLabel(w.earlyAt)} · resets ${whenLabel(w.resetsAt)}`;
   if (w.hitAt) return `Resets ${whenLabel(w.resetsAt)} · at this pace, runs out ${whenLabel(w.hitAt)}`;
   return `Resets ${whenLabel(w.resetsAt)}`;
 }
@@ -46,11 +60,41 @@ function whereHtml(w) {
   return `<div class="bg-where"><small class="bg-wh">Where the ${esc(label)} window went</small>${rows.join('')}</div>`;
 }
 
+// Drain watch's card on an account: how much faster, since when, and what that much work usually takes.
+function drainHtml(a, b) {
+  const d = b.drain;
+  if (!d || S.config.defaults?.drainWatch !== 'on') return '';
+  const failed = d.failed?.runs ? ` ${d.failed.runs} of them ended in an error and still took ${pct(d.failed.du)}.` : '';
+  return `<div class="bg-drain" role="status">
+    <span class="bg-di">${icon('warn')}</span>
+    <div class="bg-dt">
+      <b>Using your plan ${d.ratio.toFixed(1)}× faster than usual</b>
+      <small>Since ${esc(whenLabel(d.since))}, ${d.runs} runs took ${pct(d.du)} of the ${esc(lower(d.label))} window for ${esc(unitWords(a.id, d.units))} of work. That much work usually takes ${pct(d.usual * d.units)}.${failed}</small>
+      <span class="bg-da"><button type="button" class="ghost sm" data-drain="copy" data-window="${esc(d.id)}">${icon('copy')}Copy report</button><button type="button" class="ghost sm" data-drain="dismiss" data-window="${esc(d.id)}">Dismiss</button></span>
+    </div>
+  </div>`;
+}
+
+// What Copy report puts on the clipboard: the numbers in words, for a support ticket.
+export function drainReport(a, b, acc) {
+  const d = b.drain;
+  const w = b.windows.find((x) => x.id === d.id);
+  return [
+    `Plan usage report (from wisp, ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC)`,
+    `Harness: ${a.name}${acc ? ` (${acc.label})` : ''}`,
+    `Window: ${d.label}${w ? `, now at ${pct(w.used)}${w.resetsAt ? `, resets ${new Date(w.resetsAt).toISOString().slice(0, 16).replace('T', ' ')} UTC` : ''}` : ''}`,
+    `Since ${new Date(d.since).toISOString().slice(0, 16).replace('T', ' ')} UTC: ${d.runs} runs, ${unitWords(a.id, d.units)} of work${a.id === 'claude' ? ' (the cost Claude Code reports)' : ''}, took ${pct(d.du)} of the window.`,
+    `Over the 14 days before, the same amount of work took ${pct(d.usual * d.units)}: these runs used the window ${d.ratio.toFixed(1)}× faster per unit of work.`,
+    ...(d.failed?.runs ? [`${d.failed.runs} of these runs ended in an error and still took ${pct(d.failed.du)}.`] : []),
+    'Measured from the usage percentages the CLI reports on each run (whole percents). Use of the same plan outside wisp in that time counts too.',
+  ].join('\n');
+}
+
 // agents: S.agents. '' when no harness here reports its windows (the pane hides the group).
 export function budgetHtml(agents) {
-  const stop = stopAt();
   const out = [];
   for (const a of agents) {
+    const stop = stopAt(a.id);
     const many = a.accounts?.length > 1;
     for (const b of a.budget || []) {
       const acc = many ? a.accounts.find((x) => x.id === b.account) : null;
@@ -66,9 +110,10 @@ export function budgetHtml(agents) {
           </div>`;
         })
         .join('');
-      out.push(`<div class="bg-acct" data-agent="${esc(a.id)}" data-acc="${esc(b.account)}">
+      out.push(`<div class="bg-acct${stop ? ' stops' : ''}" data-agent="${esc(a.id)}" data-acc="${esc(b.account)}"${stop ? ` style="--stop:${stop * 100}%"` : ''}>
         <b class="bg-name"><span class="model-logo">${harnessLogo(a.id)}</span>${esc(a.name)}${acc ? `<span class="bg-acc">${esc(acc.label)}</span>` : ''}</b>
         ${wins}
+        ${drainHtml(a, b)}
         ${whereHtml(b.where)}
       </div>`);
     }

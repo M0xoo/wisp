@@ -56,7 +56,10 @@ export function register(r, app) {
       const budget = (app.guard?.view(a.id) || app.budget?.view(a.id) || []).map((b) => {
         const w = b.windows.filter((x) => x.resetsAt && x.used > 0).sort((x, y) => (y.ms || 0) - (x.ms || 0))[0];
         const where = w && whereItWent(app.store.all(), a.id, b.account, w.id, w.resetsAt);
-        return where ? { ...b, where: { window: w.id, label: w.label, used: w.used, ...where } } : b;
+        // Drain watch (Settings → Usage) is off by default: no card, and the API says nothing either.
+        const { drain, ...rest } = b;
+        const out = { ...rest, ...(drain && app.store.config.defaults.drainWatch === 'on' && { drain }) };
+        return where ? { ...out, where: { window: w.id, label: w.label, used: w.used, ...where } } : out;
       });
       return { ...a, ...(app.accounts?.supports(a.id) && { accounts: app.accounts.view(a.id) }), ...(budget.length && { budget }) };
     });
@@ -66,6 +69,12 @@ export function register(r, app) {
   r.route('POST', '/agents/recheck', async (c) => {
     const [agents] = await Promise.all([app.auto.detect({ fresh: true }), machines.recheckAgents()]);
     c.send(200, withAccounts(agents));
+  });
+  // Drain watch's card: Dismiss hides it until a later run shows the drain again.
+  r.route('POST', '/agents/:id/drain/dismiss', async (c) => {
+    const b = await c.body();
+    if (!app.budget?.dismissDrain(c.params.id, String(b.account || 'default'), String(b.window || ''))) return c.send(404, { error: 'No such window.' });
+    c.send(200, { ok: true });
   });
   // git and gh, for Ship it: installed, gh signed in to GitHub, and how to get what's missing.
   r.route('GET', '/tools', async (c) => c.send(200, await tools()));

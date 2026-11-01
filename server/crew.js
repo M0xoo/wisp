@@ -502,6 +502,15 @@ export class Crew {
     return m.held?.until > this.now() ? { why: m.held.why, until: m.held.until } : null;
   }
 
+  // A window of this harness reset early (server/budget.js onReset): members skipped for its plan
+  // stop saying so; their next check-in comes on schedule, and checks the plan again.
+  release(agent) {
+    const was = this.list.filter((m) => m.held && (m.held.agent || m.agent) === agent);
+    for (const m of was) delete m.held;
+    if (was.length) this.#changed();
+    return was.length;
+  }
+
   // What else starts its jobs: the kinds of the triggers that are on and send it work.
   on(m) {
     return [...new Set((this.store.config.triggers || []).filter((t) => t.crew === m.id && t.enabled).map((t) => t.kind))];
@@ -780,7 +789,7 @@ export class Crew {
     // Held for the plan (Automations stop at): skipped, not failed. Skips in a row share one line
     // of its log, so a member on a 15-minute schedule doesn't fill it.
     if (err.held) {
-      m.held = { at: this.now(), why: err.message, until: err.held.until };
+      m.held = { at: this.now(), why: err.message, until: err.held.until, agent: err.held.agent };
       const top = m.log[0];
       if (top?.skipped) Object.assign(top, { at: this.now(), skipped: top.skipped + 1, summary: truncate(err.message, 160) });
       else m.log.unshift({ at: this.now(), job: w.job, title: 'Skipped: waits for the plan', summary: truncate(err.message, 160), status: 'partial', skipped: 1 });

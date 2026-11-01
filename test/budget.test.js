@@ -95,8 +95,9 @@ test('codex: primary and secondary from its session file, named by their length'
   const day = path.join(home, 'sessions', '2026', '10', '24'); // a resumed thread keeps its first day's file
   fs.mkdirSync(day, { recursive: true });
   const line = (pct) => JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', rate_limits: { primary: { used_percent: pct, window_minutes: 300, resets_at: 1792982400 } } } });
-  fs.writeFileSync(path.join(day, 'rollout-2026-10-24T09-00-00-abc-123.jsonl'), [line(10), '{"type":"event_msg","payload":{"type":"agent_message"}}', line(35), ''].join('\n'));
-  assert.equal(codexRollout('abc-123', { home, now }).primary.used_percent, 35, 'the last one written');
+  const premium = JSON.stringify({ type: 'event_msg', payload: { type: 'token_count', rate_limits: { limit_id: 'premium', primary: null, secondary: null } } });
+  fs.writeFileSync(path.join(day, 'rollout-2026-10-24T09-00-00-abc-123.jsonl'), [line(10), '{"type":"event_msg","payload":{"type":"agent_message"}}', line(35), premium, ''].join('\n'));
+  assert.equal(codexRollout('abc-123', { home, now }).primary.used_percent, 35, 'the last one written (not another limit’s, with no windows)');
   assert.equal(codexRollout('nope', { home, now }), null);
   assert.equal(codexRollout('../etc', { home, now }), null, 'only an id');
 });
@@ -384,6 +385,9 @@ test('where it went, end to end: a run’s report gives the turns before it thei
   const R = Math.round((Date.now() + 4 * 24 * H) / 1000);
   const report = (used) => JSON.stringify({ status: 'allowed', unifiedWindows: { five_hour: { utilization: 0.05, resetsAt: Math.round((Date.now() + 3 * H) / 1000) }, seven_day: { utilization: used, resetsAt: R } } });
   const cwd = makeRepo();
+  // A plan of its own: the 80% the tests before left would read as an early reset, and send the
+  // follow-ups they left waiting (app.resetEarly), which would take part of the move.
+  delete srv.budget.state.claude;
   try {
     process.env.FAKE_LIMITS = report(0.3);
     const a = await api('/sessions', { prompt: 'fix the add bug please', title: 'Fix the add bug', cwd, agent: 'claude', worktree: false });
@@ -404,5 +408,174 @@ test('where it went, end to end: a run’s report gives the turns before it thei
     assert.ok(where.traced < where.used, 'the rest ran outside wisp, or before it kept track');
   } finally {
     delete process.env.FAKE_LIMITS;
+  }
+});
+
+const { stopFor, drainWhy } = await import('../server/budget.js');
+
+test('a harness’s own Automations stop at line: same (or unset) follows autoStop, anything else wins', () => {
+  assert.equal(stopFor({ autoStop: '75' }, 'claude'), 0.75);
+  assert.equal(stopFor({ autoStop: '75', autoStopClaude: 'same' }, 'claude'), 0.75);
+  assert.equal(stopFor({ autoStop: '75', autoStopCodex: '50' }, 'codex'), 0.5);
+  assert.equal(stopFor({ autoStop: '75', autoStopCodex: 'off' }, 'codex'), null, 'off for Codex only');
+  assert.equal(stopFor({ autoStop: '75', autoStopCodex: 'off' }, 'claude'), 0.75);
+  assert.equal(stopFor({ autoStop: 'off', autoStopCodex: '90' }, 'codex'), 0.9);
+  assert.equal(stopFor({ autoStop: '75', autoStopCodex: '80' }, 'codex'), 0.75, 'not a choice: the row above');
+  assert.equal(stopFor({ autoStop: '50' }, 'opencode'), 0.5, 'a harness without its own row');
+});
+
+test('Drain watch: two hours of runs taking twice their usual share per unit of work stand out; dismiss hides it until the next run', () => {
+  let now = 1_000 * H;
+  const drains = [];
+  const b = new Budget(tmp('budget-drain'), { now: () => now, onDrain: (agent, account, d) => drains.push([agent, account, d.id]) });
+  let used = 0.1;
+  const R = now + 6 * 24 * H;
+  // A run: the reading before it, the one it reports 10 minutes later, then its units of work.
+  const run = (du, units, opts) => {
+    b.record('claude', 'default', { windows: [{ id: 'seven_day', used, resetsAt: R, ms: 7 * 24 * H }] });
+    now += 10 * 60_000;
+    used += du;
+    b.record('claude', 'default', { windows: [{ id: 'seven_day', used, resetsAt: R, ms: 7 * 24 * H }] });
+    b.spend('claude', 'default', units, opts);
+  };
+  for (let i = 0; i < 6; i++) run(0.01, 1), (now += 3 * H); // usual: 1 point per $1
+  assert.equal(b.drain('claude', 'default'), null, 'nothing recent yet');
+  run(0.03, 1);
+  assert.equal(b.drain('claude', 'default'), null, 'one run is not a pattern');
+  now += 20 * 60_000;
+  run(0.03, 1, { failed: true });
+  const d = b.drain('claude', 'default');
+  assert.equal(d.id, 'seven_day');
+  assert.equal(d.runs, 2);
+  assert.ok(Math.abs(d.ratio - 3) < 1e-6, `3× the usual (${d.ratio})`);
+  assert.ok(Math.abs(d.du - 0.06) < 1e-9 && d.units === 2);
+  assert.deepEqual([d.failed.runs, Math.round(d.failed.du * 100)], [1, 3], 'the run that failed still took 3%');
+  assert.deepEqual(drains, [['claude', 'default', 'seven_day']], 'told once per run that shows it');
+  assert.equal(b.view('claude')[0].drain.id, 'seven_day', 'on the harness list');
+  assert.match(drainWhy(d, 'Claude Code', '', 'claude'), /2 runs took 6% of Claude Code’s weekly window for \$2\.00 of work: 3\.0× its usual share .*1 of them ended in an error and still took 3%/);
+  assert.equal(b.dismissDrain('claude', 'default', 'seven_day'), true);
+  assert.equal(b.drain('claude', 'default'), null, 'dismissed');
+  assert.equal(b.dismissDrain('claude', 'default', 'five_hour'), false, 'no such window');
+  now += 5 * 60_000;
+  run(0.03, 1);
+  assert.equal(b.drain('claude', 'default')?.runs, 3, 'a later run shows it again');
+  now += 4 * H; // two quiet hours later, the burst is history
+  assert.equal(b.drain('claude', 'default'), null);
+  // Not twice as fast: no card.
+  run(0.015, 1);
+  now += 5 * 60_000;
+  run(0.015, 1);
+  assert.equal(b.drain('claude', 'default'), null, 'about 1.5×');
+  assert.equal(b.drain('codex', 'default'), null, 'an account with no runs');
+});
+
+test('per-harness stop and Drain watch reach the server: fixed choices, holds by harness, the card only with the switch on', async () => {
+  await assert.rejects(api('/config', { defaults: { autoStopCodex: '80' } }, 'PATCH'), /autoStopCodex must be one of same, off, 50, 75, 90/);
+  await assert.rejects(api('/config', { defaults: { drainWatch: 'yes' } }, 'PATCH'), /drainWatch must be on or off/);
+  seedPlan(); // Claude Code's weekly at 80%
+  try {
+    await api('/config', { defaults: { autoStop: 'off', autoStopClaude: '75' } }, 'PATCH');
+    assert.equal(srv.later.hold({ agent: 'claude', account: 'default' })?.window, 'seven_day', 'Claude’s own line holds');
+    await api('/config', { defaults: { autoStop: '75', autoStopClaude: 'off' } }, 'PATCH');
+    assert.equal(srv.later.hold({ agent: 'claude', account: 'default' }), null, 'off for Claude, whatever the row above says');
+    await api('/config', { defaults: { autoStopClaude: 'same' } }, 'PATCH');
+    assert.equal(srv.later.hold({ agent: 'claude', account: 'default' })?.window, 'seven_day', 'same: the row above');
+    // A drain on the account: on the harness list only with Drain watch on.
+    const acc = srv.budget.state.claude.default;
+    const t = Date.now();
+    acc.drain = { seven_day: [...Array.from({ length: 6 }, (_, i) => ({ at: t - (10 + i) * H, du: 0.01, units: 1 })), { at: t - 30 * 60_000, du: 0.04, units: 1 }, { at: t - 10 * 60_000, du: 0.04, units: 1 }] };
+    delete acc.drainSeen;
+    const card = async () => (await api('/agents')).find((a) => a.id === 'claude').budget.find((x) => x.account === 'default').drain;
+    assert.equal(await card(), undefined, 'off by default');
+    await api('/config', { defaults: { drainWatch: 'on' } }, 'PATCH');
+    assert.equal(Math.round((await card()).ratio), 4);
+    await assert.rejects(api('/agents/claude/drain/dismiss', { window: 'nope' }), (e) => e.status === 404);
+    await api('/agents/claude/drain/dismiss', { window: 'seven_day' });
+    assert.equal(await card(), undefined, 'dismissed');
+  } finally {
+    await api('/config', { defaults: { autoStop: 'off', autoStopClaude: 'same', drainWatch: 'off' } }, 'PATCH');
+  }
+});
+
+const { codexLive, resetEarly } = await import('../server/budget.js');
+
+test('an early reset: much less used and a new period, before the old reset; Codex’s drift alone isn’t one', () => {
+  const now = 1_000 * H;
+  const was = { used: 0.8, resetsAt: now + 3 * 24 * H };
+  assert.equal(resetEarly(was, { used: 0.02, resetsAt: now + 7 * 24 * H }, now), true, 'a banked reset');
+  assert.equal(resetEarly(was, { used: 0.5, resetsAt: now + 7 * 24 * H }, now), true, '30 points back');
+  assert.equal(resetEarly(was, { used: 0.02, resetsAt: was.resetsAt + 2 * 60_000 }, now), false, 'drift of a few minutes');
+  assert.equal(resetEarly(was, { used: 0.7, resetsAt: now + 7 * 24 * H }, now), false, 'barely lower');
+  assert.equal(resetEarly({ used: 0.8, resetsAt: now - H }, { used: 0, resetsAt: now + 7 * 24 * H }, now), false, 'its reset had passed: the normal roll');
+  assert.equal(resetEarly({ used: 0.03, resetsAt: now + H }, { used: 0, resetsAt: now + 6 * H }, now), false, 'nothing was used to begin with');
+  assert.equal(resetEarly(undefined, { used: 0, resetsAt: now + H }, now), false);
+
+  // Budget says so, once, and the window carries when it happened.
+  let t = now;
+  const resets = [];
+  const b = new Budget(tmp('budget-early'), { now: () => t, onReset: (...a) => resets.push(a) });
+  b.record('codex', 'default', { windows: [{ id: 'seven_day', used: 0.8, resetsAt: now + 3 * 24 * H, ms: 7 * 24 * H }] });
+  t += H;
+  b.record('codex', 'default', { windows: [{ id: 'seven_day', used: 0.01, resetsAt: t + 7 * 24 * H, ms: 7 * 24 * H }] });
+  assert.deepEqual(resets, [['codex', 'default', ['seven_day']]]);
+  assert.equal(b.view('codex')[0].windows[0].earlyAt, t);
+  t += H;
+  b.record('codex', 'default', { windows: [{ id: 'seven_day', used: 0.03, resetsAt: now + H + 7 * 24 * H, ms: 7 * 24 * H }] });
+  assert.equal(resets.length, 1, 'the next report of the same period isn’t another');
+  assert.equal(b.view('codex')[0].windows[0].earlyAt, now + H, 'still says when');
+});
+
+test('codex: what its app-server reads live becomes the same windows a run reports', () => {
+  const res = { rateLimits: { limitId: 'premium', primary: null }, rateLimitsByLimitId: { codex: { limitId: 'codex', primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 1792982400 }, secondary: { usedPercent: 100, windowDurationMins: 10080, resetsAt: 1793192400 }, rateLimitReachedType: 'rate_limit_reached' } } };
+  assert.deepEqual(codexLive(res), { windows: [{ id: 'five_hour', used: 0.12, resetsAt: 1792982400_000, ms: 5 * H }, { id: 'seven_day', used: 1, resetsAt: 1793192400_000, ms: 7 * 24 * H }], rejected: 'seven_day' });
+  assert.equal(codexLive({ rateLimits: { primary: { usedPercent: 40, windowDurationMins: 43200, resetsAt: 1794875575 } } }).windows[0].id, 'w43200m', 'no per-limit list: rateLimits');
+  assert.equal(codexLive(null), null);
+  assert.equal(codexLive({ rateLimits: { primary: null, secondary: null } }), null);
+});
+
+test('early reset, end to end: a follow-up held for the plan and one waiting at a limit go at once; Check Codex while work waits reads only then', async () => {
+  const R = seedPlan(); // Claude Code's weekly at 80%
+  await api('/config', { defaults: { autoStop: '75' } }, 'PATCH');
+  try {
+    const s = await api('/sessions', { prompt: 'fix the add bug please', cwd: makeRepo(), agent: 'claude', worktree: false });
+    await ended(s.id, 'review');
+    await until(() => !srv.runner.live.has(s.id));
+    const live = srv.store.get(s.id);
+    srv.later.add(live, { text: 'look at CI again', by: 'agent', in: 2 });
+    for (const l of live.later) l.at = Date.now() - 1000;
+    await srv.later.tick();
+    assert.equal(live.later[0].at, R, 'held for the plan');
+    // The weekly window resets early (a run's report, or a live read): the follow-up goes now.
+    srv.budget.record('claude', 'default', { windows: [{ id: 'seven_day', used: 0.02, resetsAt: Date.now() + 7 * 24 * H, ms: 7 * 24 * H }] });
+    const x = await until(async () => {
+      const y = await api(`/sessions/${s.id}`);
+      return y.turns.length === 2 && y.turns[1].status === 'done' && y;
+    }, { timeout: 30_000 });
+    assert.equal(x.turns[1].prompt, 'look at CI again');
+    assert.equal(x.later, undefined);
+    // One waiting at a limit (Wait for the reset) on another account comes due when that one resets.
+    const lim = srv.later.add(srv.store.get(s.id), { text: 'carry on', by: 'wisp', in: 600, limit: { agent: 'claude', account: 'work' } });
+    assert.equal(srv.later.pullForward('claude', 'default', () => true), 0, 'another account: stays');
+    assert.equal(srv.later.pullForward('claude', 'work', () => false), 0, 'still held there: stays');
+    assert.equal(srv.later.pullForward('claude', 'work', () => true), 1);
+    assert.ok(lim.at <= Date.now());
+    srv.store.get(s.id).later = undefined;
+
+    // Check Codex while work waits: off, or nothing waiting on Codex, reads nothing.
+    let reads = 0;
+    srv.liveLimits.read = async () => (reads++, { rateLimits: { primary: { usedPercent: 3, windowDurationMins: 300, resetsAt: Math.floor(Date.now() / 1000) + 5 * 3600 } } });
+    assert.equal(await srv.liveLimits.tick(), 0);
+    await api('/config', { defaults: { liveLimits: 'on' } }, 'PATCH');
+    await assert.rejects(api('/config', { defaults: { liveLimits: 'yes' } }, 'PATCH'), /liveLimits must be on or off/);
+    assert.equal(await srv.liveLimits.tick(), 0, 'nothing waits on Codex');
+    const c = srv.store.get(s.id);
+    c.later = [{ id: 'l1', at: Date.now() + 3600_000, text: 'go on', by: 'wisp', setAt: Date.now(), limit: { agent: 'codex', account: 'default' } }];
+    assert.equal(await srv.liveLimits.tick(), 1);
+    assert.equal(reads, 1);
+    assert.equal(srv.budget.windows('codex', 'default')[0].used, 0.03, 'its windows, as Codex said');
+    assert.equal(await srv.liveLimits.tick(), 0, 'not again for 10 minutes');
+    c.later = undefined;
+  } finally {
+    await api('/config', { defaults: { autoStop: 'off', liveLimits: 'off' } }, 'PATCH');
   }
 });

@@ -35,7 +35,8 @@ import { createComputer } from './services/computer.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
-import { Budget, addShare, holdWhy, stopAtOf } from './budget.js';
+import { Budget, addShare, holdWhy, stopFor, drainWhy } from './budget.js';
+import { createLiveLimits, readCodex } from './live-limits.js';
 import { Guard } from './guard.js';
 import { DEFAULT_PORT, VERSION } from './util.js';
 import { Routes } from './http/router.js';
@@ -108,6 +109,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // How much of each account's usage windows is gone (server/budget.js): Settings → Usage and the
   // limit card's reset time. The page hears of a change with the harness list, at most every 2 s.
   let budgetTimer = null;
+  let drainSent = null; // agent@account:window → when the phone last heard of it
   const budget = new Budget(store.home, {
     onChange: () => {
       budgetTimer ||= setTimeout(() => {
@@ -116,6 +118,21 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       }, 2000);
       budgetTimer.unref?.();
     },
+    // Drain watch (Settings → Usage, off by default): the phone hears of it once per two hours per
+    // window, when ntfy or Telegram is set up. The card itself comes with the harness list.
+    onDrain: (agent, account, d) => {
+      if (store.config.defaults.drainWatch !== 'on' || !app.remote?.on) return;
+      const key = `${agent}@${account}:${d.id}`;
+      const last = (drainSent ||= new Map()).get(key);
+      if (last && Date.now() - last < 2 * 3600_000) return;
+      drainSent.set(key, Date.now());
+      const name = adapters[agent]?.name || agent;
+      const label = accounts.multi(agent) ? accounts.get(agent, account)?.label : '';
+      app.remote.send({ title: `⚠️ ${name} is using your plan ${d.ratio.toFixed(1)}× faster`, text: drainWhy(d, name, label, agent) }).catch((err) => console.warn(`wisp: phone: ${err.message}`));
+    },
+    // A window reset before its time (a banked reset): what waits on that plan goes now. After the
+    // report that showed it has been handled (it may come in the middle of a run's events).
+    onReset: (agent, account, ids) => setImmediate(() => app.resetEarly?.(agent, account, ids)),
     // A turn's part of a window's move: kept on the turn, for its task's details and Where it went.
     onShare: (sid, tid, share) => {
       const s = store.get(sid);
@@ -367,21 +384,49 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   // usage window, and goes on at the reset. null: it can run. See design/budget.md.
   app.reserve = {
     check(agent, account = '') {
-      const h = budget.hold(agent, account || runner.accountOf(agent), stopAtOf(store.config.defaults.autoStop));
+      const h = budget.hold(agent, account || runner.accountOf(agent), stopFor(store.config.defaults, agent));
       return h && { ...h, why: holdWhy(h, adapters[agent]?.name || agent, accounts.multi(agent) ? accounts.get(agent, h.account)?.label : '') };
     },
     forTask: (s) => app.reserve.check(s.agent, s.account || 'default'),
   };
   // At a usage limit with Settings → Wait for the reset on: the task carries on in the same
-  // conversation once the window resets. null: it asks you (the limit card) as before.
+  // conversation once the window resets. null: it asks you (the limit card) as before. limit: which
+  // plan it waits on, so an early reset of that one sends it sooner (app.resetEarly).
   runner.waitAtLimit = (s, at) => {
     if (store.config.defaults.limitWait !== 'on') return null;
     try {
-      return app.later.add(s, { text: LIMIT_CARRY_ON, by: 'wisp', at: Math.max(at, Date.now() + 61_000) });
+      return app.later.add(s, { text: LIMIT_CARRY_ON, by: 'wisp', at: Math.max(at, Date.now() + 61_000), limit: { agent: s.turns.at(-1)?.agent || s.agent, account: s.account || 'default' } });
     } catch {
       return null; // a subagent, five already waiting, ten in a row: the card asks instead
     }
   };
+  // A window of agent's account reset early (server/budget.js onReset, from a run's report or from
+  // Check Codex while work waits): follow-ups and held runs on that plan come due now, crew members
+  // and triggers skipped for it stop saying so, and the phone hears how many started.
+  const planFree = (agent, account) => !app.reserve.check(agent, account) && !budget.resetAt(agent, account);
+  app.resetEarly = (agent, account) => {
+    const n = app.later.pullForward(agent, account, planFree);
+    if (!planFree(agent, account)) return n; // another window still holds it (the weekly one, say)
+    app.crew?.release(agent);
+    app.triggers?.release(agent);
+    if (n) app.later.tick().catch((err) => console.warn(`wisp: later: ${err.message}`));
+    const name = adapters[agent]?.name || agent;
+    const label = accounts.multi(agent) ? ` (${accounts.get(agent, account)?.label || account})` : '';
+    if (n && app.remote?.on) app.remote.send({ title: `↻ ${name}${label} reset early`, text: `Its plan reset before its time. ${n} task${n === 1 ? '' : 's'} waiting on it start${n === 1 ? 's' : ''} now.` }).catch((err) => console.warn(`wisp: phone: ${err.message}`));
+    return n;
+  };
+  // Work that waits on an account's plan: a held run, a follow-up moved to the reset or waiting at a
+  // limit, a crew member or trigger skipped for it. Check Codex while work waits asks only then.
+  const waitingOn = (agent, account) =>
+    store.all().some((s) => {
+      if (s.archived) return false;
+      const t = s.turns?.at(-1);
+      if (t?.status === 'held' && t.held?.agent === agent && (t.held.account || 'default') === account) return true;
+      const mine = s.agent === agent && (s.account || 'default') === account;
+      return !!s.later?.some((l) => (l.held && mine) || (l.limit?.agent === agent && (l.limit.account || 'default') === account));
+    }) ||
+    ((account === runner.accountOf(agent) || account === 'default') && ((store.config.crew || []).some((m) => m.held?.until > Date.now() && (m.held.agent || m.agent) === agent) || (store.config.triggers || []).some((t) => t.held?.until > Date.now() && t.held.agent === agent)));
+  app.liveLimits = createLiveLimits({ store, budget, accounts, waiting: waitingOn, read: (env) => readCodex({ bin: adapters.codex?.binary?.(), env }) });
   // A spell's crew members join and leave the crew with it (server/crew-share.js).
   app.spells.onChange = () => {
     syncSpellCrew(app);
@@ -462,6 +507,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.crew.stop();
     app.later.stop();
     app.remote.stop();
+    app.liveLimits.stop();
     app.machines.stop(); // the tunnels go; wisp over there keeps running, agents and all
     app.ship.stop();
     app.overlaps.stop();
@@ -491,6 +537,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.crew.start();
   app.later.start();
   app.remote.start();
+  app.liveLimits.start();
   app.machines.start();
   app.computer.start();
 
@@ -505,5 +552,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, machines: app.machines, computer: app.computer, auto: app.auto, broadcast: app.broadcast, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, auto: app.auto, broadcast: app.broadcast, routes };
 }

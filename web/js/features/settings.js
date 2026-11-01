@@ -32,7 +32,7 @@ import { HOLD_DEFAULT, HOLD_LINES } from '../limit-hold.js';
 import { crewRecord } from './crew-record.js';
 import { crewList } from './crew.js';
 import { connectorsPane } from './connectors.js';
-import { budgetHtml, stopAt, STOP_AT } from './budget.js';
+import { budgetHtml, drainReport, STOP_AT, STOP_BY, STOP_KEYS } from './budget.js';
 import { reveal } from './feed.js';
 import { spellsPane } from './spell-ui.js';
 import { setTheme, themePref } from './theme.js';
@@ -203,6 +203,16 @@ export function openSettings(opts) {
           <div class="sx-group sx-budget">
             <div class="bg-list"></div>
             ${row('Automations stop at', 'Check-ins, triggers, goal rounds and agents’ own follow-ups wait once an account passes this much of a window, and go on after it resets. What you start always runs', `<fieldset class="pk-seg us-stop" aria-label="Automations stop at">${STOP_AT.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</fieldset>`)}
+            ${Object.entries(STOP_KEYS)
+              .map(([id, k]) => {
+                const name = esc(S.agents.find((x) => x.id === id)?.name || id);
+                const desc = id === 'codex' ? 'Its own line. ChatGPT and Codex are moving to one shared allowance: a lower line here leaves the rest for your chats' : 'Its own line. Same follows Automations stop at';
+                const seg = `<fieldset class="pk-seg us-by" data-key="${k}" aria-label="Automations stop at, ${name}">${STOP_BY.map((v) => `<button type="button" data-v="${v}">${v === 'same' ? 'Same' : v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</fieldset>`;
+                return `<div class="sx-row us-by-row" data-agent="${id}"><div class="sx-text"><b class="us-by-name"><span class="model-logo">${harnessLogo(id)}</span>${name}</b><small>${desc}</small></div><div class="sx-ctl">${seg}</div></div>`;
+              })
+              .join('')}
+            ${row('Check Codex while work waits', 'While work waits for a Codex plan, wisp asks Codex every 10 minutes how its windows stand (nothing is spent). A reset that comes early, like a banked one, lets that work go at once', '<button class="switch" id="liveLimits" role="switch"></button>', 'us-live')}
+            ${row('Drain watch', 'Warns here, and on your phone when it’s set up, when an account’s last two hours of runs took twice or more its usual share of a window for the same work. Copy report puts the numbers in words for a support ticket', '<button class="switch" id="drainWatch" role="switch"></button>')}
             ${row('Ask near the limit', 'Before a task would take a 5-hour or weekly window past this, wisp asks first. Scheduled runs and crew jobs wait in Needs you', `<span class="pk-seg hold-seg">${HOLD_LINES.map((v) => `<button type="button" data-v="${v}">${v === 'off' ? 'Off' : `${v}%`}</button>`).join('')}</span>`)}
             ${row('Wait for the reset', 'At a usage limit, the task waits under Scheduled and carries on in the same conversation when the window resets. Off: it stops and asks you', '<button class="switch" id="limitWait" role="switch"></button>')}
           </div>
@@ -476,14 +486,36 @@ export function openSettings(opts) {
     const html = budgetHtml(S.agents);
     if (list.dataset.h !== html) (list.innerHTML = html), (list.dataset.h = html);
     list.hidden = !html;
-    const stop = stopAt();
-    list.classList.toggle('stops', !!stop);
-    list.style.setProperty('--stop', stop ? `${stop * 100}%` : '');
+    // A harness's own line shows only for one that's here and reports its windows.
+    $$('.us-by-row', node).forEach((r) => (r.hidden = !S.agents.some((a) => a.id === r.dataset.agent && a.available)));
+    $('.us-live', node).hidden = !S.agents.some((a) => a.id === 'codex' && a.available);
   };
   paintBudget();
   bus.on('agents', paintBudget, { node });
-  // A task in Where it went opens it.
-  $('.bg-list', node).addEventListener('click', (e) => {
+  // A task in Where it went opens it. Drain watch's card: Copy report, and Dismiss (instant, back
+  // with a toast if the server refuses).
+  $('.bg-list', node).addEventListener('click', async (e) => {
+    const dr = e.target.closest('[data-drain]');
+    if (dr) {
+      const box = dr.closest('.bg-acct');
+      const a = S.agents.find((x) => x.id === box.dataset.agent);
+      const b = a?.budget?.find((x) => x.account === box.dataset.acc);
+      if (!b?.drain) return;
+      if (dr.dataset.drain === 'copy') {
+        await copy(drainReport(a, b, a.accounts?.length > 1 ? a.accounts.find((x) => x.id === b.account) : null), dr);
+        toast('Report copied');
+        return;
+      }
+      const was = b.drain;
+      delete b.drain;
+      paintBudget();
+      const ok = await tryApi(() => api(`/agents/${encodeURIComponent(a.id)}/drain/dismiss`, { method: 'POST', body: { account: b.account, window: dr.dataset.window } }));
+      if (!ok) {
+        b.drain = was;
+        paintBudget();
+      }
+      return;
+    }
     const t = e.target.closest('[data-session]');
     if (!t) return;
     close();
@@ -512,6 +544,66 @@ export function openSettings(opts) {
   };
   paintStop();
   bus.on('config', paintStop, { node });
+  // A harness's own line: Same follows the row above. Instant, rolled back on a refusal.
+  const paintBy = () => {
+    $$('.us-by', node).forEach((f) => {
+      const v = STOP_BY.includes(S.config.defaults[f.dataset.key]) ? S.config.defaults[f.dataset.key] : 'same';
+      $$('button', f).forEach((b) => {
+        b.classList.toggle('on', b.dataset.v === v);
+        b.setAttribute('aria-pressed', b.dataset.v === v);
+      });
+    });
+    paintBudget();
+  };
+  $$('.us-by', node).forEach((f) => {
+    f.onclick = async (e) => {
+      const b = e.target.closest('[data-v]');
+      const k = f.dataset.key;
+      const was = S.config.defaults[k] || 'same';
+      if (!b || b.dataset.v === was) return;
+      S.config.defaults[k] = b.dataset.v;
+      paintBy();
+      const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { [k]: b.dataset.v } } }));
+      if (!saved) {
+        S.config.defaults[k] = was;
+        paintBy();
+      }
+    };
+  });
+  paintBy();
+  bus.on('config', paintBy, { node });
+  // Check Codex while work waits: instant, rolled back on a refusal.
+  const ll = $('#liveLimits', node);
+  const paintLl = () => ll.setAttribute('aria-checked', S.config.defaults.liveLimits === 'on');
+  ll.onclick = async () => {
+    const was = S.config.defaults.liveLimits;
+    S.config.defaults.liveLimits = was === 'on' ? 'off' : 'on';
+    paintLl();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { liveLimits: S.config.defaults.liveLimits } } }));
+    if (!saved) {
+      S.config.defaults.liveLimits = was;
+      paintLl();
+    }
+  };
+  paintLl();
+  // Drain watch: instant; the card comes with the harness list once it's on.
+  const dw = $('#drainWatch', node);
+  const paintDw = () => dw.setAttribute('aria-checked', S.config.defaults.drainWatch === 'on');
+  dw.onclick = async () => {
+    const was = S.config.defaults.drainWatch;
+    S.config.defaults.drainWatch = was === 'on' ? 'off' : 'on';
+    paintDw();
+    paintBudget();
+    const saved = await tryApi(() => api('/config', { method: 'PATCH', body: { defaults: { drainWatch: S.config.defaults.drainWatch } } }));
+    if (!saved) {
+      S.config.defaults.drainWatch = was;
+      paintDw();
+      paintBudget();
+      return;
+    }
+    api('/agents').then((list) => (setAgents(list), bus.emit('agents')), () => {});
+  };
+  paintDw();
   // Ask near the limit (features/hold.js): instant, rolled back on a refusal. The bars repaint with
   // the line (budget.js tone), and the harness list brings the new lines on its next broadcast.
   const holdSetting = () => (HOLD_LINES.includes(S.config.defaults.limitHold) ? S.config.defaults.limitHold : HOLD_DEFAULT);
@@ -719,7 +811,7 @@ export function openSettings(opts) {
   $('#openMemory', node).onclick = () => openMemory({ host: host('memory') });
   $$('[data-auto]', node).forEach((b) => (b.onclick = () => openAutomations({ tab: b.dataset.auto, host: host('automations') })));
   // Settings a spell sets are locked while it's on: the row says which spell, and links to Spells.
-  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', limitHold: '.hold-seg' };
+  const LOCKABLE = { theme: '.theme-seg', transcript: '#txDefault', worktree: '#wtDefault', fixConflicts: '#fixConflicts', apps: '#appsOn', watch: '#watchOn', terminalSessions: '#tuiOn', blocks: '#blocksOn', readTimes: '#readTimes', learn: '#learn', editor: 'select[name="editor"]', terminal: 'select[name="terminal"]', notify: '#notif', limitWait: '#limitWait', autoStop: '.us-stop', autoStopClaude: '.us-by[data-key="autoStopClaude"]', autoStopCodex: '.us-by[data-key="autoStopCodex"]', drainWatch: '#drainWatch', liveLimits: '#liveLimits', limitHold: '.hold-seg' };
   const paintLocks = () => {
     for (const n of $$('.sp-lock', node)) n.remove();
     for (const [key, sel] of Object.entries(LOCKABLE)) {

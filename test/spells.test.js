@@ -269,6 +269,14 @@ test('ask near the limit: limitHold is a setting with its lines; the harness pic
   for (const sel of Object.values(schema.PARTS)) assert.ok(!/\.(c-hold|l-hold|b-held|st-held)\b/.test(sel), `${sel} must not be a part: a held send needs you`);
 });
 
+test('a harness’s own stop line and Drain watch are settings; their rows and the drain card are parts', () => {
+  assert.deepEqual(problems({ ...base0, settings: { autoStopCodex: '50', autoStopClaude: 'same', drainWatch: 'on', liveLimits: 'on' } }), []);
+  assert.ok(problems({ ...base0, settings: { liveLimits: 'sometimes' } }).some((x) => /liveLimits/.test(x)));
+  assert.ok(problems({ ...base0, settings: { autoStopCodex: '80' } }).some((x) => /autoStopCodex/.test(x) && /same \| off \| 50 \| 75 \| 90/.test(x)));
+  assert.ok(problems({ ...base0, settings: { drainWatch: 'yes' } }).some((x) => /drainWatch/.test(x) && /on \| off/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['budget.drain', 'settings.drainWatch', 'settings.liveLimits'] }, parts: { 'settings.autoStopBy': { style: { opacity: '0.8' } } } }), []);
+});
+
 test('Automations stop at (autoStop) is a setting; its row, Where it went and a task’s plan share are parts', () => {
   assert.deepEqual(problems({ ...base0, settings: { autoStop: '75' } }), []);
   assert.deepEqual(problems({ ...base0, settings: { autoStop: 'off' } }), []);

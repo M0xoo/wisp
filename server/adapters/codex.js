@@ -56,6 +56,7 @@ export default {
   name: 'Codex',
   askTool: 'mcp__wisp__ask_user',
   fork: true, // run({ resumeId, fork }) answers on a copy of the conversation (/btw)
+  binary: () => BIN, // the one detect() found, for `codex app-server` (server/live-limits.js)
   models: [{ id: '', label: 'Default', hint: 'Whatever Codex is set to' }],
   efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'],
 

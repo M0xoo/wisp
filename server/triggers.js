@@ -236,7 +236,7 @@ export class Triggers {
     } catch (err) {
       // Automations stop at held it back: not a failure. The row says it skipped, and why.
       if (err.held) {
-        t.held = { at: this.now(), why: String(err.message).slice(0, 300), until: err.held.until };
+        t.held = { at: this.now(), why: String(err.message).slice(0, 300), until: err.held.until, agent: err.held.agent };
         t.lastError = '';
         return null;
       }
@@ -252,6 +252,18 @@ export class Triggers {
   // The crew editor's "Also starts when" (kinds: MEMBER_KINDS): one trigger of each kind sends the
   // member work. One already there (your own prompt, a branch) stays, switched on; a kind left out
   // goes. A CI watcher that watched the member's old folder follows it (prevCwd). All or nothing.
+  // A window of this harness reset early (server/budget.js onReset): rows skipped for its plan stop
+  // saying so. The next event runs as usual, and checks the plan again.
+  release(agent) {
+    const was = (this.store.config.triggers || []).filter((t) => t.held && t.held.agent === agent);
+    for (const t of was) delete t.held;
+    if (was.length) {
+      this.store.saveConfig();
+      this.onChange();
+    }
+    return was.length;
+  }
+
   syncMember(m, kinds, { prevCwd = m.cwd } = {}) {
     const ctx = { recipes: this.store.config.recipes, crew: this.store.config.crew };
     const want = new Set((Array.isArray(kinds) ? kinds : []).filter((k) => MEMBER_KINDS.has(k)));
