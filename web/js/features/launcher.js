@@ -502,8 +502,12 @@ export function renderLauncher() {
     const targets = launch.where.map((k) => ({ k, m: k ? machineById(k) : null, project: projectOf(), clone: cloneById(pickId()), also: ownPick() ? alsoIds().map(projectById).filter(Boolean) : [] }));
     if (!targets[0].project && !targets[0].clone) return openProjects({ focusAdd: true });
     // "@Ada …" is a job for Ada, in her own folder: sent once, wherever else the box points.
-    const toCrew = addressedTo(prompt).members;
-    if (toCrew.length) targets.length = 1;
+    // "/terminal …" (also "@Ada /terminal …"): one task on one place, in your own terminal; the
+    // crew named, Done when, the team and compare runs go unused (the server drops them too).
+    const addr = addressedTo(prompt);
+    const typedTerm = terminalAsk(addr.members.length ? addr.rest : prompt) !== null;
+    const toCrew = typedTerm ? [] : addr.members;
+    if (toCrew.length || typedTerm) targets.length = 1;
     const off = targets.find((t) => t.m && !usable(t.m));
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
@@ -577,14 +581,14 @@ export function renderLauncher() {
     // A terminal session (/terminal, or Settings → General) opens at once, still starting up: its
     // terminal is where you carry on, so there's nothing to wait for on the prompt page. The server
     // decides (services/tui.js); this is its guess for the things the page knows.
-    const asTerminal = targets.length === 1 && !cmp.length && !toCrew.length && !goal && !typedGoal && !(team.length && canLead(runner.agent)) && (terminalAsk(prompt) !== null || S.config.defaults.terminalSessions === 'on');
+    const asTerminal = targets.length === 1 && (typedTerm || (!cmp.length && !toCrew.length && !goal && !typedGoal && !(team.length && canLead(runner.agent)) && S.config.defaults.terminalSessions === 'on'));
     if (asTerminal) S.sessions.get(pending[0]).tui = true;
     if (cmp.length) (compare = []), paintCompare();
     ta.value = '';
     S.drafts.delete('home');
     ta.dispatchEvent(new Event('input'));
     // A terminal session starts at the size of the pane it opens in (measured before home leaves it).
-    const cells = S.config.defaults.terminalSessions === 'on' || terminalAsk(prompt) !== null ? launchSize() : {};
+    const cells = S.config.defaults.terminalSessions === 'on' || typedTerm ? launchSize() : {};
     leaveHome();
     save('wisp.sent', remember(load('wisp.sent', []), prompt));
     sentAt = null;
@@ -613,7 +617,7 @@ export function renderLauncher() {
         targets.map((t) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && !cmp.length ? false : undefined, compare: cmp.length ? cmp : undefined, subagents: team.length && canLead(runner.agent) ? team : undefined, goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, compare: cmp.length && !typedTerm ? cmp : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
           }),
         ),
       );

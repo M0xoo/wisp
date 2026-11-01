@@ -52,11 +52,12 @@ export function createLaunch(app) {
   async function launch(body, origin = null, { crew = null, unattended = false } = {}) {
     // crewJob: a job the wisp that owns a crew member sent here, with the member's note (server/crew.js).
     crew ||= crewJobOf(body.crewJob);
-    // "/terminal fix it": a terminal session (Babysitting mode) whatever the setting says.
+    // "/terminal fix it": a terminal session (Babysitting mode) whatever the setting says. What a
+    // terminal can't do goes unused (a goal, a team, compare runs): you drive it yourself there.
     const asTerminal = terminalAsk(body.prompt);
-    if (asTerminal !== null) body = { ...body, prompt: asTerminal, tui: true, tuiAsked: true };
+    if (asTerminal !== null) body = { ...body, prompt: asTerminal, tui: true, tuiAsked: true, goal: undefined, compare: undefined, subagents: undefined, preset: undefined };
     // "/goal all tests pass" as the whole prompt: that's the goal, and the task is to reach it.
-    const asGoal = !body.goal && goalCommand(body.prompt);
+    const asGoal = !body.goal && !body.tuiAsked && goalCommand(body.prompt);
     if (asGoal) body = { ...body, goal: asGoal, prompt: asGoal };
     if (!String(body.prompt || '').trim()) throw bad('prompt required');
     // goal: { text, judges?, vote? }: the task keeps going until it holds (server/goal.js).
@@ -81,7 +82,7 @@ export function createLaunch(app) {
     // A launch routed by another wisp (this is a machine) arrives with its route: Auto's steps
     // (check, repair) still run here, where the files are.
     const isRoute = (x) => x && typeof x === 'object' && typeof x.key === 'string';
-    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route }, ...(resolved.compare || [])].slice(0, MAX_COMPARE).map((r, i) => {
+    const runners = [{ agent: resolved.agent, model: resolved.model, effort: resolved.effort, route: resolved.route ?? body.route }, ...(resolved.compare || [])].slice(0, body.tuiAsked ? 1 : MAX_COMPARE).map((r, i) => {
       const agent = r.agent || (i ? d.agent : '') || 'claude';
       if (!adapters[agent]) throw bad(`unknown agent: ${agent}`);
       // account: which of the harness's accounts (server/accounts.js); none = your last pick, else the first free.
@@ -92,7 +93,7 @@ export function createLaunch(app) {
       const h = app.reserve?.check(runners[0].agent, runners[0].account);
       if (h) throw Object.assign(bad(h.why, 409), { held: h });
     }
-    const strategy = ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
+    const strategy = body.tuiAsked ? 'single' : ['single', 'best2', 'compare'].includes(resolved.autoStrategy) ? resolved.autoStrategy : runners.length > 1 ? 'compare' : 'single';
     const mode = MODES.has(body.mode) ? body.mode : 'auto';
     // Worktrees are on by default in git repos (off in Plan mode: nothing gets written). Compare
     // runs need one each, or the harnesses would edit the same files.
@@ -124,7 +125,9 @@ export function createLaunch(app) {
     }
     // Terminal sessions (Settings → General): the agent's own CLI in the page, started on the prompt.
     const tui = startsInTerminal(body, { on: d.terminalSessions === 'on', agent: runners[0].agent, origin, crew, kind, goal, comparing, team: subagents.length > 0, hold });
-    if (body.tuiAsked && !tui) throw bad(`/terminal starts one task on one harness, in a terminal on ${process.platform === 'win32' ? 'macOS or Linux (not Windows)' : 'this computer'}: not with a goal, a team, compare runs, a crew member, or while it waits near your usage limit.`);
+    // Typed /terminal: refused only where no terminal can open. A crew job, schedule or spell that
+    // says it, or one held near your usage limit, runs as wisp drives it (nobody's at its terminal).
+    if (body.tuiAsked && !tui && !origin && !crew && !kind && !hold) throw bad(`/terminal opens the agent's own CLI in a terminal, on ${process.platform === 'win32' ? 'macOS or Linux (not Windows)' : `a harness that can resume its sessions (${adapters[runners[0].agent]?.name || runners[0].agent} can't)`}.`);
     if (moved) {
       const made = await app.mover.unpack([cwd, ...also], moved.packs, { id: ids[0], title: moved.title || body.prompt });
       trees = [made[0]];
