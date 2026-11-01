@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Pull to refresh your computers.** On the Android app's first screen, pull the list down from the top and let go to ask your grids again at once, instead of waiting for the next refresh: a computer you just switched on shows *Online* right away. A circle follows your finger, fills as you pull, and spins until the grid answers.
+
 - **Download on the phone.** The Android app now has **Download** on pictures and videos in answers, in the full-screen viewer, and on files in My Stuff (it was hidden there because the app couldn't save files). Pictures go to *Pictures/wisp* and videos to *Movies/wisp*, where the gallery shows them. Other files go to *Download/wisp*. No storage permission is needed. On Android 8 and 9 the file opens the share sheet instead. Over a cloud computer the download uses the app's sign-in. If the app is older than the computer's wisp, the button stays hidden.
 
 - **Add a goal to a task that's already going.** The reply box has a **Goal** button (the target) beside the team picker. On a task without a goal it opens the same *Done when* line as New task: press Enter there to set the goal on its own (an idle task is checked at once), or send a message with it and the goal is checked after that follow-up's turn. While a goal is going the button is lit and opens **Edit goal…**; after one is met it starts a new one. Esc closes the line, and its text survives a reload. API: `goal: { text }` on `POST /sessions/:id/reply`. Spells: the `composer.goal` and `composer.goalLine` parts.

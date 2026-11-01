@@ -504,6 +504,7 @@ async function gridPost(url, body, token) {
 async function refreshComputers() {
   const grids = machines.filter((m) => isGrid(m) && !m.signedOut);
   if (opening || !grids.length) return; // on its way out, a repaint would only flicker
+  const seq = ++refreshSeq;
   const was = JSON.stringify(grids.map((m) => [m.signedOut, m.computers, m.who]));
   await Promise.all(
     grids
@@ -512,7 +513,9 @@ async function refreshComputers() {
           const r = await fetch(`${m.grid}/api/computers`, { headers: { authorization: `Bearer ${m.token}` }, signal: AbortSignal.timeout(8000) });
           if (r.status === 401) m.signedOut = true;
           if (!r.ok) return;
-          m.computers = ((await r.json()).computers || []).map(({ id, name, online }) => ({ id, name, online }));
+          const list = ((await r.json()).computers || []).map(({ id, name, online }) => ({ id, name, online }));
+          if (seq !== refreshSeq) return; // a newer call is asking: its answer is the one to keep
+          m.computers = list;
           // Signed in before the list said who: ask once.
           if (!m.who) {
             const me = await fetch(`${m.grid}/api/me`, { headers: { authorization: `Bearer ${m.token}` }, signal: AbortSignal.timeout(8000) });
@@ -534,6 +537,82 @@ let refreshTimer = null;
 function watchComputers() {
   clearInterval(refreshTimer);
   refreshTimer = document.visibilityState === 'visible' ? setInterval(refreshComputers, REFRESH_MS) : null;
+}
+
+// A pull and the 10 s tick can overlap: only the latest call's answer paints, or a slow tick
+// would put back the list a pull just replaced.
+let refreshSeq = 0;
+
+// Pull down at the top of the list to refresh it now instead of waiting for the next tick: the
+// circle follows the finger (with some drag), and past PULL_AT it spins until the grids answer.
+const PULL_AT = 72;
+const PULL_MAX = 120;
+function wirePull() {
+  const ptr = $('#ptr');
+  let y0 = null;
+  let x0 = 0;
+  let d = 0;
+  let busy = false;
+  const show = (px, spin = false) => {
+    ptr.style.setProperty('--pull', `${px}px`);
+    ptr.style.setProperty('--turn', `${Math.min(px / PULL_AT, 1) * 270}deg`);
+    ptr.classList.toggle('on', px > 0);
+    ptr.classList.toggle('armed', px >= PULL_AT);
+    ptr.classList.toggle('spin', spin);
+  };
+  addEventListener(
+    'touchstart',
+    (e) => {
+      if (busy) return;
+      // A second finger ends a pull: put the circle away.
+      if (d) show(0);
+      // Only from the very top, one finger, nothing over the list (a sheet drags itself), and only
+      // when there's a grid to ask: SSH computers have nothing to refresh.
+      const askable = !opening && machines.some((m) => isGrid(m) && !m.signedOut);
+      y0 = askable && scrollY <= 0 && e.touches.length === 1 && !$('dialog[open]') ? e.touches[0].clientY : null;
+      x0 = e.touches[0].clientX;
+      d = 0;
+      if (y0 !== null) ptr.classList.add('drag');
+    },
+    { passive: true },
+  );
+  addEventListener(
+    'touchmove',
+    (e) => {
+      if (y0 === null) return;
+      const dy = e.touches[0].clientY - y0;
+      // A sideways or upward swipe isn't a pull.
+      if (!d && (dy <= 0 || Math.abs(e.touches[0].clientX - x0) > dy)) {
+        if (Math.abs(dy) > 8 || Math.abs(e.touches[0].clientX - x0) > 8) y0 = null;
+        return;
+      }
+      d = Math.min(PULL_MAX, dy * 0.5);
+      show(d);
+    },
+    { passive: true },
+  );
+  const end = async () => {
+    ptr.classList.remove('drag');
+    if (y0 === null) return;
+    y0 = null;
+    if (d < PULL_AT) {
+      show(0);
+      return;
+    }
+    busy = true;
+    navigator.vibrate?.(8);
+    show(64, true);
+    try {
+      // At least a beat of spinning, so a fast answer still reads as "checked".
+      await Promise.all([refreshComputers(), new Promise((r) => setTimeout(r, 500))]);
+    } finally {
+      watchComputers(); // the next tick counts from now
+      show(0);
+      busy = false;
+    }
+  };
+  addEventListener('touchend', end, { passive: true });
+  addEventListener('touchcancel', end, { passive: true });
 }
 
 // Into a cloud computer's wisp, or one of your computers on its grid (cid): a fresh one-time link
@@ -1011,6 +1090,7 @@ async function boot() {
 function wire() {
   sortOrder();
   wireTips();
+  wirePull();
   paint();
   $('#machines').addEventListener('click', (e) => {
     // A tap on the row itself (not one of its buttons, nor the steps under it) does what its button does.
