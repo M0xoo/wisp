@@ -221,8 +221,20 @@ details.keys[open] { gap: 10px; }
 .primary.sm { min-height: 48px; padding: 8px 16px; font-size: 15px; border-radius: 12px; }
 .why summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 8px 0; }
 .why code { display: block; margin-top: 4px; font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+/* Pull to refresh: a round chip that comes down from the top with the finger; its arc grows to a
+   full turn at the point where letting go refreshes, then spins until the grids answer. The page
+   itself doesn't stretch (overscroll-behavior), so only the chip moves. */
+html { overscroll-behavior-y: none; }
+.ptr { position: fixed; top: 0; left: 50%; z-index: 5; width: 40px; height: 40px; margin: -48px 0 0 -20px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); border: 1px solid var(--line); box-shadow: var(--shadow-2); color: var(--muted); opacity: 0; pointer-events: none; transform: translateY(var(--pull, 0px)); transition: transform 0.25s var(--ease), opacity 0.2s, color 0.15s; }
+.ptr.drag { transition: opacity 0.2s, color 0.15s; }
+.ptr.on { opacity: 1; }
+.ptr.armed, .ptr.spin { color: var(--accent); }
+.ptr-arc { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; border-top-color: currentColor; border-right-color: currentColor; transform: rotate(var(--turn, 0deg)); }
+.ptr.spin .ptr-arc { border-color: color-mix(in srgb, currentColor 22%, transparent); border-top-color: currentColor; animation: spin 0.7s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* A spinner cut to 0.01ms flickers at random angles: hold the arc still instead. */
+  .ptr.spin .ptr-arc { animation: none !important; }
 }
 
 /* wisp Cloud (a wisp Grid): sign in with a code, then it's a computer like the others. */

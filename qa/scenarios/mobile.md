@@ -261,3 +261,15 @@ Never send builds to someone's own phone as part of QA.
   *Download/wisp*), and the gallery shows it with no permission asked. A second save of the same file is
   named `… (1)`. A file that's gone says *Couldn’t save … the computer answered 404*. On Android 8 and 9
   the share sheet opens with the file instead. An app older than the computer's wisp shows no Download.
+
+### MOB-28 Pull the computers list down to refresh it
+- **Run:** Emulator, or `npm run preview` in `mobile/` with touch emulation (route the grid's
+  `/api/computers`).
+- **Preconditions:** signed in to a grid with one of your computers listed *Offline*.
+- **Steps:** bring that computer online; at the top of *Your computers*, pull down a little and let go;
+  then pull down past the point where the circle's arc is full (it turns accent) and let go. Pull with a
+  sheet open, and pull from halfway down a long list.
+- **Expected:** the short pull springs back and asks nothing. The long one spins the circle until the grid
+  answers (at least half a second) and the row turns *Online* without waiting for the 10 s refresh. The
+  page itself doesn't stretch or glow. A sheet, a scroll that isn't at the top, or a sideways swipe never
+  starts a pull.
