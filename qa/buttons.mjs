@@ -178,6 +178,7 @@ const VIEWS = {
   'task.goal': open(goal.id),
   'task.goal-menu': async (p) => (await open(goal.id)(p), await click(p, '.gb-more')),
   'task.composer': async (p) => (await first()(p), await click(p, '.it-dock .composer textarea')),
+  'task.composer-goal': async (p) => (await first()(p), await click(p, '.it-dock .composer textarea'), await click(p, '.it-dock .c-goal')),
   'task.transcript': async (p) => (await first()(p), await click(p, '.tx-toggle')),
   'task.changes': async (p) => (await first()(p), await p.keyboard.press('d'), await p.waitForTimeout(600)),
   'task.more': async (p) => (await first()(p), await click(p, '.it-actions [data-a="more"]')),

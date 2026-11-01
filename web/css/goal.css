@@ -81,6 +81,15 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .l-goal input { flex: 1; min-width: 0; height: 28px; border: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink); outline: 0; }
 .l-goal input::placeholder { color: var(--faint); }
 
+/* The reply box: Goal in its bar (lit while the task has a goal going, or the line is open), and
+   the same "Done when" line between the message and the bar. */
+.c-bar > .c-goal { color: var(--muted); }
+.c-bar > .c-goal:hover { color: var(--ink); }
+.c-bar > .c-goal.on, .c-bar > .c-goal.on:hover { color: var(--accent-ink); background: var(--accent-soft); }
+.composer .c-goal-line { margin: 2px 0 6px; padding-right: 10px; background: var(--surface); }
+.lg-keys { flex: none; font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+@media (hover: none) { .lg-keys { display: none; } }
+
 /* Set goal… / Edit goal…: a popover by what asked. */
 .menu.goal-pop { z-index: 60; width: min(380px, calc(100vw - 16px)); padding: 14px; }
 .goal-pop .gp-k { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink); }

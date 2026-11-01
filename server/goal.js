@@ -77,7 +77,9 @@ export class Goals {
 
   // Set or replace the goal from the task (PUT, or /goal in a follow-up). An idle task is checked
   // at once (it may already be met) and goes on from there; a running one is checked after its turn.
-  set(session, goal) {
+  // kick: false: a follow-up that goes with it starts next, so nothing is checked now, and `from` is
+  // left for that turn to fill (Runner#startTurn), which also hands the agent the goal.
+  set(session, goal, { kick = true } = {}) {
     if (session.parentId || session.delegated || session.agent === 'wisp') throw bad('Only a task of your own can have a goal.', 409);
     const prev = session.goal;
     const g = normalizeGoal(goal);
@@ -86,9 +88,9 @@ export class Goals {
     this.#unhold(session);
     // Editing the words of a goal still being worked on keeps its rounds; anything else starts over.
     const keep = prev && !ENDED.has(prev.status) && prev.status !== 'paused';
-    session.goal = keep ? { ...prev, ...g, status: prev.status === 'checking' ? 'working' : prev.status, why: undefined } : { ...g, round: 1, status: 'working', setAt: Date.now(), by: 'user', checks: [], from: session.turns.at(-1)?.id };
+    session.goal = keep ? { ...prev, ...g, status: prev.status === 'checking' ? 'working' : prev.status, why: undefined } : { ...g, round: 1, status: 'working', setAt: Date.now(), by: 'user', checks: [], ...(kick && { from: session.turns.at(-1)?.id }) };
     this.#note(session, `Goal set: ${g.text}`);
-    this.#kick(session);
+    if (kick) this.#kick(session);
     return session.goal;
   }
 

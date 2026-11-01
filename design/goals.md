@@ -48,6 +48,11 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
 - **Launcher**: *Goal* in the bar (icon only on a phone) opens a *Done when* line under the prompt.
   On/off and the text
   survive a reload; an empty line launches without a goal and says so in a toast.
+- **Reply box**: *Goal* (the target, icon only) in its bar, after the team picker. No goal, or one
+  that ended: it opens the launcher's *Done when* line between the message and the bar (*Add a
+  goal* / *New goal*). Enter in the line, or Send, sets it: alone, or with the message (`goal` on
+  `POST /sessions/:id/reply`, set after the reply so it's checked after that turn). A goal going:
+  lit, and it opens **Edit goal…**. The open line keeps the folded box open; Esc closes it.
 - **Band** on top of the open task (sticky on a wide pane), two fixed rows so nothing jumps:
   the mark, *Done when*, the condition (one line), the state, a menu; then a 120px progress track
   (the last check's estimate, last round's as a shadow behind it, the delta beside it), the round,
@@ -63,5 +68,5 @@ each check `{ turnId, round, verdict, why, next?, progress?, tests?, changed, at
 - **Notification**: once, at the end: *… reached its goal in 4 rounds* / *can’t reach its goal* /
   *paused its goal*, with the last check.
 - **Spells**: `goal.band` (slot and part), `goal.text`, `goal.track`, `goal.check`, `card.goal`,
-  `launcher.goal`, `launcher.goalLine`, the `target` icon. A spell's old `goalRounds` loads
+  `launcher.goal`, `launcher.goalLine`, `composer.goal`, `composer.goalLine`, the `target` icon. A spell's old `goalRounds` loads
   with a warning.
