@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
+import { sideAsk } from '../side.js';
 import { createWorktree, worktreeSource, ensureWorktree, removeWorktree } from '../git.js';
 import { qualify } from '../machines.js';
 import { fill, positional } from '../recipes.js';
@@ -230,8 +231,12 @@ export function createLaunch(app) {
   async function replyTo(s, text, attachments = [], queue, mode, run, team, limit = {}) {
     const question = btwQuestion(text);
     if (question !== null) return { btw: await askBtw(s, question, attachments) };
+    // /side <message>: a side discussion of its own about this task (server/side.js).
+    const side = sideAsk(text);
+    if (side !== null) return { side: await app.forker.side(s, { prompt: side, attachments: attachments.map((a) => a.id) }) };
     // /goal <condition> sets the task's goal (and goes after it); /goal drop drops it.
     const goal = goalCommand(text);
+    if ((goal !== null || normalizeGoal(limit.goal)) && s.sideOf) throw bad('A side discussion only talks the work over: set the goal on the main task.', 409);
     if (goal !== null) {
       if (/^(drop|clear|off|none)$/i.test(goal)) return { goal: app.goals.drop(s) ? null : undefined, dropped: true };
       for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);

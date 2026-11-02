@@ -41,6 +41,12 @@ export async function forkOn(s, v) {
   toast(`Forked into <b>${esc(out.title)}</b>`);
 }
 
+// A side discussion about the task (/side), opened like one you typed.
+export async function sideOn(s, v) {
+  const { startSide } = await import('./side.js');
+  return startSide(s.id, v.prompt, { agent: v.agent, model: v.model, effort: v.effort });
+}
+
 export function recipe(name) {
   const loose = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '');
   const r = (S.config.recipes || []).find((x) => x.id === name || loose(x.name) === loose(name));

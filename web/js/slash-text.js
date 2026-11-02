@@ -3,6 +3,7 @@
 
 export const SLASH = [
   { name: 'btw', args: 'question', hint: 'Ask on the side. The agent keeps working' },
+  { name: 'side', args: 'what to talk over', hint: 'Talk it over on a page of its own. It reads the work, changes nothing' },
   { name: 'goal', args: 'what has to be true', hint: 'Keep going until it holds. /goal drop stops', bare: true }, // alone: opens the goal's popover
   { name: 'spell', args: 'what to change', hint: 'Cast a spell: change wisp itself' },
   { name: 'feedback', args: 'note', hint: 'Tell the wisp team what works or what you wish it did', bare: true }, // alone: opens the dialog
@@ -10,10 +11,10 @@ export const SLASH = [
   { name: 'draft', args: 'task', hint: 'Save a new task to Drafts, to start when you want' },
   { name: 'after', args: 'task, then prompt', hint: 'Start a new task once that task is done' },
 ];
-// The new-task box: there's no run to ask on the side yet, and a goal starts a task. /terminal starts
+// The new-task box: there's no run to ask on the side (or talk over) yet, and a goal starts a task. /terminal starts
 // one in the agent's own terminal, whatever Settings → Babysitting mode says.
 export const HOME_SLASH = [
-  ...SLASH.filter((c) => c.name !== 'btw').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c)),
+  ...SLASH.filter((c) => c.name !== 'btw' && c.name !== 'side').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c)),
   { name: 'terminal', args: 'task', hint: 'Start it in the agent’s own terminal (Babysitting mode)' },
   { name: 'sandbox', args: 'task', hint: 'Run it in a fresh box of its own on your wisp Grid' },
 ];
@@ -43,6 +44,15 @@ export function btwQuestion(text) {
   const t = String(text || '').trim();
   return BTW_CMD.test(t) ? t.replace(BTW_CMD, '').trim() : null;
 }
+
+// The opening message in "/side why did it pick sqlite?" ('' for a bare /side), or null when it
+// isn't one. The server reads it the same way (server/side.js), for the CLI and the phone.
+const SIDE_CMD = /^\/side(?:\s+|$)/i;
+export function sideAsk(text) {
+  const t = String(text || '').trim();
+  return SIDE_CMD.test(t) ? t.replace(SIDE_CMD, '').trim() : null;
+}
+export const SIDE_HINT = 'Say what to talk over after /side, like “/side why did it pick sqlite?”';
 
 // What to change in "/spell a floating PR button" ('' for a bare /spell), or null when it isn't one.
 const SPELL_CMD = /^\/spell(?:\s+|$)/i;

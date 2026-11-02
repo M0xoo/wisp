@@ -276,6 +276,8 @@ export async function runAction(spell, action, ctx = {}) {
         return m.rerunOn(need(), { ...v, prompt: v.prompt ? fill(v.prompt) : '' });
       case 'fork':
         return m.forkOn(need(), { ...v, prompt: fill(v.prompt) });
+      case 'side':
+        return m.sideOn(need(), { ...v, prompt: fill(v.prompt) });
       case 'recipe':
         return m.recipe(fill(v));
       case 'ship':

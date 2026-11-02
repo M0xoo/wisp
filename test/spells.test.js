@@ -268,6 +268,14 @@ test('forks: a fork button acts on the card\'s task, its chips, turn button and 
   assert.ok(schema.ICONS.includes('fork'));
 });
 
+test('side discussions: a side button acts on the card\'s task, its chips are parts, /side is built in', () => {
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'card.menu', icon: 'comment', label: 'Review it', do: { side: { prompt: 'Review what it changed so far', agent: 'codex' } } }] }), []);
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { side: { agent: 'codex' } } }] }).some((x) => /side needs a prompt: what the side discussion should talk over/.test(x)));
+  assert.ok(problems({ ...base0, buttons: [{ slot: 'card.menu', label: 'x', do: { side: { prompt: 'p', mode: 'auto' } } }] }).some((x) => /side takes no mode: a side discussion only reads/.test(x)));
+  assert.ok(problems({ ...base0, slash: [{ name: 'side', do: { toast: 'hi' } }] }).some((x) => /\/side is built in/.test(x)));
+  assert.deepEqual(problems({ ...base0, parts: { 'card.sideOf': { style: { color: 'red' } }, 'card.sides': { style: { fontWeight: '700' } }, 'card.sidePill': { style: { color: 'red' } } }, ui: { hide: ['turn.sideStart'] } }), []);
+});
+
 test('the usage-limit card under a turn\'s hero is not a part: it asks you something', () => {
   assert.equal(schema.PARTS['turn.limit'], undefined, 'a limit asks you what next: never a part a spell could hide');
 });

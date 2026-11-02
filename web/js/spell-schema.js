@@ -247,13 +247,18 @@ export const PARTS = {
   // a turn's Fork from this turn button and the line where a fork's own turns start.
   'card.forkedFrom': '#feed .it-meta .m.fork-from',
   'card.forks': '#feed .it-meta .m.forks',
+  // Side discussions (/side): a side discussion's link to the task it's about, and that task's count of them.
+  'card.sideOf': '#feed .it-meta .m.side-of',
+  'card.sides': '#feed .it-meta .m.sides',
+  'card.sidePill': '#feed .it-head .pill.side-pill', // "Side" on a side discussion's row
+  'turn.sideStart': '#feed .turn .side-line', // the line above a side discussion's first message
   'card.setupWarn': '#feed .it-meta .m.setup-warn', // a worktree's .worktreeinclude copy or setup step failed
   'mention.picker': '.menu.cr-pick', // @ in a prompt box: crew, My Stuff and files
   'form.select': '.kit-sel', // a list's button in dialogs and Settings (ui/select.js)
   'form.selectMenu': '.menu.kit-menu', // its options
   'mention.file': '.cr-pick .fl-pick', // a file in it
   'turn.fork': '#feed .tb-fork',
-  'turn.forkStart': '#feed .fork-line',
+  'turn.forkStart': '#feed .fork-line:not(.side-line)',
   // Split view only (body.split): the task list on one side, the open task on the other.
   sidebar: 'body.split .feed-wrap',
   // The top bar is the sidebar's head. The foot is gone: what it held (you on the grid, Get the app,
@@ -532,6 +537,7 @@ export const ACTIONS = {
   launch: { kind: 'acts', doc: '{ "launch": { "prompt": "…", "agent": "", "mode": "plan", "cwd": "" } } start a new task (cwd empty = the current project)' },
   rerun: { kind: 'acts', doc: '{ "rerun": { "agent": "codex", "model": "", "effort": "", "mode": "plan", "prompt": "optional, defaults to the task\'s first request" } } run the card\'s task again as a new task on another harness' },
   fork: { kind: 'acts', doc: '{ "fork": { "prompt": "Try it with a lookup table instead", "agent": "", "model": "", "effort": "", "mode": "" } } fork the card\'s task from its latest turn: a new task with its conversation and a copy of its work, on its own branch, that does what prompt says (agent, model, effort, mode: optional, the task\'s own by default)' },
+  side: { kind: 'acts', doc: '{ "side": { "prompt": "Review what it changed so far", "agent": "", "model": "", "effort": "" } } start a side discussion about the card\'s task (as /side does): a read-only task of its own, on a page of its own, that reads the task\'s work and hears its latest state with every message, and changes nothing (agent, model, effort: optional, the task\'s own by default)' },
   recipe: { kind: 'acts', doc: '{ "recipe": "name" } run a recipe' },
   ship: { kind: 'acts', doc: '{ "ship": true } open Ship it for the card\'s task' },
   done: { kind: 'acts', doc: '{ "done": true } mark the card\'s task done' },

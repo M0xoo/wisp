@@ -6,11 +6,14 @@
 //   work     a worktree of its own on a new branch, with the work as it stood after that turn
 //            (git.js forkWork): the folder now for the latest turn, else the next turn's checkpoint.
 //   link     the fork points at the original (forkedFrom) and the original lists its forks.
+//
+// A side discussion (/side, server/side.js) is the read-only cousin: a new task with no history and
+// no work of its own, that reads the original's folder and hears its latest state every message.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
-import { forkWork } from '../git.js';
+import { ensureWorktree, forkWork } from '../git.js';
 import { summarize, workdir } from '../runner.js';
 import { bad, MODES, newId } from '../util.js';
 
@@ -42,6 +45,7 @@ export function createFork(app) {
   async function fork(s, { prompt, turnId, agent, model, effort, mode, attachments = [] } = {}) {
     if (s.agent === 'wisp') throw bad('This is the tour — launch a real wisp to fork it.');
     if (s.parentId || s.delegated) throw bad('A subagent’s run can’t be forked: fork its lead’s task.');
+    if (s.sideOf) throw bad('A side discussion has no work of its own to fork: fork its main task.', 409);
     if (s.kind) throw bad(s.kind === 'spell' ? 'A spell can’t be forked: cast another one.' : 'Only a task with an agent can be forked.');
     prompt = String(prompt || '').trim();
     if (!prompt) throw bad('Say what the fork should do.');
@@ -101,5 +105,33 @@ export function createFork(app) {
     return summarize(session, store);
   }
 
-  return { fork };
+  // /side: a side discussion about s. body: { prompt, agent?, model?, effort?, attachments? }.
+  async function side(s, { prompt, agent, model, effort, attachments = [] } = {}) {
+    if (s.agent === 'wisp') throw bad('This is the tour — launch a real wisp to talk it over.');
+    if (s.parentId || s.delegated) throw bad('A subagent’s run has no side discussions: start one on its lead’s task.');
+    if (s.sideOf) throw bad('This is a side discussion already: carry on here, or start another from the main task.', 409);
+    if (s.kind === 'reminder') throw bad('A reminder has no work to talk over.');
+    prompt = String(prompt || '').trim();
+    if (!prompt) throw bad('Say what to talk over after /side, like “/side why did it pick sqlite?”');
+    const run = { agent: agent || s.agent, model: model ?? (agent && agent !== s.agent ? '' : s.model || ''), effort: effort ?? (agent && agent !== s.agent ? '' : s.effort || '') };
+    if (!adapters[run.agent]) throw bad(`unknown agent: ${run.agent}`);
+    if (!(await listAgents()).some((a) => a.id === run.agent && a.available)) throw bad(`${adapters[run.agent].name} isn’t installed here. Pick another harness for the side discussion.`);
+    // It reads the work where it is: an archived task's clean worktree comes back first.
+    for (const x of [s, ...(s.also || [])]) await ensureWorktree(x.worktree);
+    const session = runner.create({
+      prompt,
+      cwd: s.cwd,
+      ...run,
+      mode: 'plan',
+      attachments: app.uploads.resolve(attachments),
+      sideOf: { id: s.id, title: s.title, cwd: workdir(s) },
+    });
+    s.sides = [...(s.sides || []), session.id];
+    store.save(s);
+    app.sessionChanged(s);
+    app.telemetry?.track('side_task', { agent: run.agent, running: runner.live.has(s.id) });
+    return summarize(session, store);
+  }
+
+  return { fork, side };
 }

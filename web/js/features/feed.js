@@ -474,13 +474,16 @@ export function headPills(s, pill) {
       ${termPill(s)}${pill}
       ${laterPill(s)}
       ${s.queued ? `<span class="q-queued" title="Follow-ups queued">+${s.queued}</span>` : ''}
-      ${goalPill(s)}${autoPill(s)}${overlapPill(s)}
+      ${goalPill(s)}${autoPill(s)}${overlapPill(s)}${sidePill(s)}
       ${s.shipping ? shipPill(s) : prOf(s) ? prPill(prOf(s), s.conflictFix) : ''}
       ${s.kind === 'reminder' ? '' : s.team?.length ? teamStack(s.agent, s.team) : modelBadge(s.agent, s.model, s.effort, s.route?.switched ? null : s.route, s.account, crewFace(s))}
       ${s.machine ? machinePill(s.machine) : ''}
       ${projectLabel(s)}
       ${s.pending ? '' : slotHtml('card.head', s)}`;
 }
+
+// A side discussion (/side) says so in the list: its title alone reads like any task's.
+const sidePill = (s) => (s.sideOf ? `<span class="pill side-pill" title="${esc(`Side discussion of “${S.sessions.get(s.sideOf.id)?.title || s.sideOf.title}”: it reads that task's work and changes nothing`)}">${icon('comment')}Side</span>` : '');
 
 // What Auto found after the run: its own test check, the best-of-2 pick, a hand-over.
 function autoPill(s) {

@@ -88,12 +88,14 @@ function checkAction(a, where, p, { hook = false, panels = new Set(), data = new
     case 'launchWith':
     case 'rerun':
     case 'fork':
+    case 'side':
     case 'launch': {
       const x = obj(v) || {};
       const out = {};
       for (const f of ['agent', 'model', 'effort', 'mode', 'text', 'prompt', 'cwd']) if (x[f] !== undefined) out[f] = f === 'prompt' || f === 'text' ? truncate(String(x[f]), 4000) : str(x[f], 200);
       if (out.mode && !['plan', 'edits', 'auto'].includes(out.mode)) p.at_(where, 'mode must be plan, edits or auto');
-      if ((k === 'launch' || k === 'fork') && !out.prompt) p.at_(where, `${k} needs a prompt: what the ${k === 'fork' ? 'fork should try' : 'task should do'}`);
+      if ((k === 'launch' || k === 'fork' || k === 'side') && !out.prompt) p.at_(where, `${k} needs a prompt: what the ${{ fork: 'fork should try', side: 'side discussion should talk over' }[k] || 'task should do'}`);
+      if (k === 'side' && out.mode) p.at_(where, 'side takes no mode: a side discussion only reads');
       return { [k]: out };
     }
   }
@@ -329,7 +331,7 @@ export function normalizeSpell(raw) {
     const where = `slash[${i}]`;
     const name = String(x.name || '').replace(/^\//, '').toLowerCase();
     if (!/^[a-z][a-z0-9-]{1,20}$/.test(name)) p.at_(where, 'name: lowercase letters, digits and dashes');
-    if (['btw', 'feedback', 'bug', 'spell'].includes(name)) p.at_(where, `/${name} is built in`);
+    if (['btw', 'side', 'feedback', 'bug', 'spell'].includes(name)) p.at_(where, `/${name} is built in`);
     return { name, args: str(x.args, 40), hint: str(x.hint, 80), do: checkAction(x.do, where, p, ctx) };
   });
 
@@ -444,6 +446,7 @@ export function describeSpell(s) {
       launchWith: () => `launches with ${Object.entries(v).filter(([k2, x]) => x && k2 !== 'text').map(([, x]) => x).join(' · ')}`,
       launch: () => `starts a task: “${clip(v.prompt, 50)}”`,
       fork: () => `forks the task to “${clip(v.prompt, 50)}”${v.agent ? ` on ${v.agent}` : ''}`,
+      side: () => `starts a side discussion: “${clip(v.prompt, 50)}”${v.agent ? ` on ${v.agent}` : ''}`,
       rerun: () => `reruns the task on ${[v.agent, v.model, v.mode].filter(Boolean).join(' · ') || 'another harness'}`,
       recipe: () => `runs the recipe ${v}`,
       ship: () => 'opens Ship it',

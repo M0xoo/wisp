@@ -129,7 +129,7 @@ export function wireGoalSlot(slot, id) {
 
 // The goal's actions, the same everywhere: More, right-click, ⌘K and the band's own menu.
 export function goalActions(s) {
-  if (!s || s.parentId || s.agent === 'wisp' || s.pending || s.kind === 'reminder' || s.delegated) return [];
+  if (!s || s.parentId || s.agent === 'wisp' || s.pending || s.kind === 'reminder' || s.delegated || s.sideOf) return [];
   const g = s.goal;
   if (!g) return [{ a: 'goal-set', label: 'Set goal…', icon: 'target' }];
   return [

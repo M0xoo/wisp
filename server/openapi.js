@@ -529,6 +529,14 @@ export function openapi({ version, port }) {
           responses: { 201: json(ref('Summary')), 400: err[400], 404: err[404], 409: json(ref('Error'), 'Nothing to fork there yet') },
         },
       },
+      '/sessions/{id}/side': {
+        parameters: [id],
+        post: {
+          summary: 'Start a side discussion (/side) about the task: a read-only task of its own (Plan mode, no history, no work of its own) that reads the task’s folder and hears its latest state with every message. Its summary has sideOf; the task lists it in sides',
+          requestBody: body({ type: 'object', required: ['text'], properties: { text: { type: 'string', description: 'The opening message; a leading /side is dropped' }, agent: { type: 'string' }, model: { type: 'string' }, effort: { type: 'string' }, attachments: { type: 'array', items: { type: 'string' } } } }),
+          responses: { 201: json(ref('Summary')), 400: err[400], 404: err[404], 409: json(ref('Error'), 'It is a side discussion already') },
+        },
+      },
       '/sessions/{id}/rollback': {
         parameters: [id],
         post: {

@@ -33,6 +33,7 @@ import { signIn } from './connectors.js';
 import { crewFace, paintOffers } from './crew.js';
 import { keepCtx, stuffBlock } from './stuff.js';
 import { paintMarks, sentComments } from './comments.js';
+import { sideChips, sideLine, sidesMenu } from './side.js';
 
 export function ctxFor(s, turn, isLatest) {
   return {
@@ -134,6 +135,8 @@ export function renderBody(id, { fresh }) {
       if (a === 'fork-src') revealTask(S.full.get(id)?.forkedFrom?.id);
       if (a === 'share') import('./share.js').then((m) => m.shareTask(id));
       if (a === 'forks') forksMenu(id, e.target.closest('button'));
+      if (a === 'side-of') revealTask(S.full.get(id)?.sideOf?.id);
+      if (a === 'sides') sidesMenu(id, e.target.closest('button'));
     });
     // Narrow, the bar scrolls away with the task, and once its actions are gone the mini row pins
     // in their place: one row that does what the bar's buttons do.
@@ -220,6 +223,8 @@ export function renderBody(id, { fresh }) {
       // A fork's own turns start under a line: the ones above came with it from the original.
       // On a narrow pane the bar has no room for Forked from: the line names the original instead.
       if (t.id === forkStart) node.prepend(forkLine(s.forkedFrom));
+      // A side discussion says what it is above its first message, with the way back.
+      if (s.sideOf && t.id === s.turns[0]?.id) node.prepend(sideLine(s.sideOf));
       // An imported task's own turns start under a line too: the ones above came with the share.
       if (t.id === sharedStart) node.prepend(el(`<div class="fork-line"><span>${icon('share')}<i>Imported from ${esc(s.sharedFrom.name || s.sharedFrom.handle || 'a share')}: your turns start here</i></span></div>`));
       if (prev) prev.node.replaceWith(node);
@@ -318,6 +323,7 @@ export function paintMeta(id) {
     ${s.moved?.from ? `<span class="m" title="${esc(`This task ran on ${s.moved.from} before it moved here, with its work and history`)}">${icon('server')}From ${esc(s.moved.from)}</span>` : ''}
     ${s.movedTo?.id ? `<button class="m moved-to" data-a="moved" title="This task carries on as a new session on ${esc(s.movedTo.place)}">${icon('server')}Continues on ${esc(s.movedTo.place)}</button>` : ''}
     ${s.forkedFrom ? (S.sessions.has(s.forkedFrom.id) ? `<button class="m fork-from" data-a="fork-src" title="${esc(`Open “${forkTitle(s.forkedFrom)}”, the task this one was forked from`)}">` : `<span class="m fork-from" title="The task this one was forked from was deleted">`) + `${icon('fork')}<span>Forked from <b>${esc(forkTitle(s.forkedFrom))}</b></span>${S.sessions.has(s.forkedFrom.id) ? '</button>' : '</span>'}` : ''}
+    ${sideChips(s, summary)}
     ${s.sharedFrom ? `<a class="m fork-from" href="${esc(s.sharedFrom.url)}" target="_blank" rel="noreferrer" title="${esc(`Shared by ${s.sharedFrom.name || s.sharedFrom.handle}${s.sharedFrom.skills?.length ? `\nWith their skills: ${s.sharedFrom.skills.join(', ')}` : ''}\nOpen the shared page`)}">${icon('share')}<span>From <b>${esc(s.sharedFrom.handle ? `@${s.sharedFrom.handle}` : s.sharedFrom.name)}</b></span></a>` : ''}
     ${summary.shared ? `<button class="m forks" data-a="share" title="${esc(`Shared${summary.shared.locked ? ' with a passkey' : ''}: ${summary.shared.url}`)}">${icon('share')}Shared</button>` : ''}
     ${forks.length ? `<button class="m forks" data-a="forks" title="${forks.length > 1 ? 'Tasks forked from this one' : 'Open the task forked from this one'}"${forks.length > 1 ? ' aria-haspopup="menu"' : ''}>${icon('fork')}${forks.length} fork${forks.length > 1 ? 's' : ''}</button>` : ''}

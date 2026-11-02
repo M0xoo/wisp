@@ -39,6 +39,8 @@ import { addToCrew, cadenceLabel, crewEditor, crewList, memberById, openCrew } f
 import { importCrew, shareMember } from './crew-share.js';
 import { crewRecord, trackRecord } from './crew-record.js';
 
+import { sideable, sideDraft } from './side.js';
+
 const STATE_LABEL = { running: 'Working', waiting: 'Asking', review: 'Review', done: 'Done' };
 
 // Run something on a session's card, expanding it first if the action needs the body.
@@ -81,6 +83,7 @@ function paletteItems() {
     items.push({ group: g, label: 'Take over', sub, icon: 'terminal', keywords: 'terminal take over carry on yourself cli', kbd: 'T', run: () => takeOver(id) });
     items.push({ group: g, label: 'Rerun…', sub, icon: 'rerun', kbd: '⇧R', keywords: 'retry again restart model harness', run: () => rerun(id) });
     if (forkable(cur)) items.push({ group: g, label: 'Fork…', sub, icon: 'fork', kbd: '⇧F', keywords: 'branch copy duplicate try another way split', run: () => forkTask(id) });
+    if (sideable(cur)) items.push({ group: g, label: 'Side discussion…', sub, icon: 'comment', keywords: 'side talk discuss review explain ask read-only /side', run: () => sideDraft(id) });
     if (shippable(cur)) items.push({ group: g, label: shipLabel(cur), sub, icon: 'send', kbd: 'S', keywords: 'commit push pull request pr github', run: () => shipDialog(id) });
     if (mergeLabel(cur)) items.push({ group: g, label: mergeLabel(cur), sub, icon: 'check', keywords: 'squash github', run: () => mergePr(id) });
     if (reviewLabel(cur)) items.push({ group: g, label: reviewLabel(cur), sub, icon: 'merge', kbd: 'P', keywords: 'pull request checks ci reviews comments github side panel', run: () => openPanel(id, 'pr') });

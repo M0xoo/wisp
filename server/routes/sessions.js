@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
+import { sideAsk } from '../side.js';
 import { goalView } from '../goal.js';
 import { searchTasks } from '../search.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
@@ -386,11 +387,12 @@ export function register(r, app) {
       if (s.kind === 'reminder') return c.send(409, { error: 'A reminder has no agent to follow up with. Start a new task instead.' });
       // Two agents on one conversation would trample each other. A terminal session's follow-up is
       // typed into its terminal (services/tui.js).
-      if (app.terms.get(s.id)?.code === null && !s.tui && btwQuestion(text) === null) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
+      const aside = btwQuestion(text) !== null || sideAsk(text) !== null; // /btw and /side leave the task's run alone
+      if (app.terms.get(s.id)?.code === null && !s.tui && !aside) return c.send(409, { error: 'This task is open in a terminal. Carry on there, or end the terminal first.' });
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
       // "@Ada what do you make of this?": Ada answers on the task, under the message; the task's
       // own agent isn't interrupted. Members named further in join its team for this follow-up on.
-      const t = btwQuestion(text) === null && !machine ? tagged(text.trim()) : { all: [], lead: [] };
+      const t = !aside && !machine ? tagged(text.trim()) : { all: [], lead: [] };
       if (t.lead.length) {
         if (!t.rest) throw bad(`Tell ${t.lead.map((m) => m.name).join(' and ')} what to do after the name.`);
         const asked = [];
@@ -406,7 +408,8 @@ export function register(r, app) {
       }
       // machine: carry the task on on a machine instead (services/move.js). '' is here, where it is.
       // A /btw side question never moves it.
-      if (typeof machine === 'string' && machine && btwQuestion(text) === null) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));
+      if (typeof machine === 'string' && machine && s.sideOf) throw bad('A side discussion stays with its main task: move that one instead.', 409);
+      if (typeof machine === 'string' && machine && !aside) return c.send(200, await app.mover.move(s.id, machine, { text: text.trim(), attachments, mode, agent, model, effort, team }));
       // agent / model / effort / account: run this follow-up (and the ones after it) on another harness, model or account.
       const run = agent !== undefined || model !== undefined || effort !== undefined || account !== undefined ? await followUpRun(s, { agent, model, effort, account }) : undefined;
       c.send(200, await launcher.replyTo(s, text.trim(), app.uploads.resolve(attachments), queue, mode, run, team, { confirm: confirmLimit === true, goal }));
@@ -421,6 +424,17 @@ export function register(r, app) {
       const { prompt, turnId, agent, model, effort, mode, attachments } = await c.body();
       if (mode !== undefined && !MODES.has(mode)) return c.send(400, { error: 'mode must be plan, edits or auto.' });
       c.send(201, await app.forker.fork(s, { prompt, turnId, agent, model, effort, mode, attachments }));
+    }),
+  );
+
+  // Side discussion (/side): a read-only task of its own about this one (server/side.js).
+  r.route(
+    'POST',
+    '/sessions/:id/side',
+    one(async (c, s) => {
+      const { text, prompt, agent, model, effort, attachments } = await c.body();
+      const said = sideAsk(text ?? prompt) ?? String(text ?? prompt ?? '');
+      c.send(201, await app.forker.side(s, { prompt: said, agent, model, effort, attachments }));
     }),
   );
 

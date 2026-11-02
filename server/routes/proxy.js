@@ -3,6 +3,7 @@
 
 import os from 'node:os';
 import { btwQuestion } from '../btw.js';
+import { sideAsk } from '../side.js';
 import { pipeFrom } from '../http/respond.js';
 import { splitId, qualify } from '../machines.js';
 import { defaultTerminal, inWisp, openInTerminal, shq } from '../terminal.js';
@@ -68,7 +69,7 @@ export function register(r, app) {
     const body = m === 'GET' ? undefined : await c.body();
     // A follow-up that moves the task here or to another machine (services/move.js).
     if (action === 'reply' && typeof body?.machine === 'string') {
-      if (body.machine !== mid && btwQuestion(body.text) === null) return c.send(200, await app.mover.move(c.params.id, body.machine, { ...body, text: String(body.text || '').trim() }));
+      if (body.machine !== mid && btwQuestion(body.text) === null && sideAsk(body.text) === null) return c.send(200, await app.mover.move(c.params.id, body.machine, { ...body, text: String(body.text || '').trim() }));
       delete body.machine;
     }
     // A new team: members on other machines are carried there from here (services/relay.js).
