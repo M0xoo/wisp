@@ -1165,6 +1165,70 @@ claude remote-control      # press space for a QR code, scan it with the Claude 
     },
 
     {
+      slug: 'argonauts-code-vs-wisp',
+      topic: 'agents',
+      title: 'Argonauts Code vs wisp: two ways to run a crew of coding agents',
+      h1: 'Argonauts Code and wisp compared',
+      card: 'Both run Claude Code, Codex and more as one crew on your plans. One lives in your terminal, the other in a browser, an app and your phone.',
+      description: 'Argonauts Code and wisp both run the agent CLIs you already pay for as a crew. Where each one runs, which agents it drives, how it checks work and guards secrets, and when to pick which.',
+      lede: 'Argonauts Code and wisp both run the coding agents you already have, Claude Code, Codex, OpenCode and Antigravity among them, as one crew on your own plans, each task in its own git worktree. Argonauts Code is a terminal app that plans, builds and reviews inside one run. wisp is a queue of tasks you reach from a browser, a desktop app or your phone, on any of your computers or a cloud box.',
+      shot: ['app', 'The wisp task list: tasks that need you, a Compare group of Claude Code and Codex, and a finished report open beside it'],
+      body: `
+    <section>
+      <h2 id="table">Side by side</h2>
+      <div class="table"><table>
+        <thead><tr><th></th><th>Argonauts Code</th><th>wisp</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Where you use it</th><td>A terminal app, in the look of Claude Code’s</td><td>A web page, a desktop app (macOS, Windows, Linux), any phone browser and an Android app</td></tr>
+          <tr><th scope="row">Runs on</th><td>macOS and Linux, in the repo you start it in</td><td>macOS, Windows and Linux; your other computers over SSH; your own wisp on a server (wisp Cloud, or your own Grid)</td></tr>
+          <tr><th scope="row">Agents</th><td>Claude Code, Codex, Antigravity (<code>agy</code>), OpenCode; local and OpenAI-compatible model servers to review and judge</td><td>Claude Code, Codex, Cursor, OpenCode, Antigravity, Grok, Copilot</td></tr>
+          <tr><th scope="row">A team on one request</th><td>Workflows: Captain, Orchestrator, Council (agents agree on a plan you approve), maker-checker, best-of-n, draft-and-vote, or your own in TOML</td><td>Delegate (a lead agent hands parts to other harnesses and computers) and Compare (one task on two harnesses, keep the better)</td></tr>
+          <tr><th scope="row">Crew</th><td>Roles in a run: main agent, workers, reviewers, a judge</td><td>Named agents with a brief, a schedule and a notebook that take jobs over days and answer to <code>@Name</code></td></tr>
+          <tr><th scope="row">Checking the work</th><td>Your checks before the merge, a reviewer from another provider by default, <code>/goal</code></td><td>A <i>Done when</i> goal checked after every round (tests, then a read-only model on the diff), with up to five judges voting All, Majority or Any</td></tr>
+          <tr><th scope="row">Plan usage</th><td>Each subscription’s usage in <code>/model</code> and the bottom line; falls back to another CLI at a limit</td><td>Plan budget per account and per task, <i>Automations stop at</i>, and a row on home when a weekly window is about to reset unused; never switches accounts by itself</td></tr>
+          <tr><th scope="row">Secrets</th><td>Agents kept out of <code>.env</code>, keys and logins by its sandbox; known key patterns redacted from its log</td><td><code>.env</code> values shown as <code>KEY=••••</code> on every screen, with <b>Reveal</b> per view; the agent still reads the file</td></tr>
+          <tr><th scope="row">Make it yours</th><td>Settings files and workflows in TOML</td><td>Spells: JSON that changes wisp’s own screens, buttons and reports while it runs</td></tr>
+          <tr><th scope="row">Licence</th><td>Apache-2.0</td><td>MIT, the Grid server included</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted">From Argonauts Code’s README and source at v0.2.2, checked 3 November 2026. It moves fast: check before you choose.</p>
+    </section>
+
+    <section>
+      <h2 id="argonauts">What Argonauts Code is best at</h2>
+      <p>One request, one careful run, without leaving the terminal. Its workflows are steps its own code enforces: Council has several agents answer alone, then agree on a plan you approve before anything is built, and every task is reviewed by another provider than the one that wrote it. Its sandbox keeps agents away from your keys and <code>.env</code> files, and when every model is local, nothing leaves your machine. If you live in one terminal on one repo and want a team on each request, it fits well.</p>
+    </section>
+
+    <section>
+      <h2 id="wisp">What wisp adds</h2>
+      <ul class="doc-list">
+        <li><b>Everywhere you are.</b> The same wisp in a browser tab, the desktop app, a phone browser or the Android app. Questions and finished tasks also reach you on ntfy or Telegram.</li>
+        <li><b>Agents that keep going with the laptop shut.</b> Run tasks on a desktop or server through Machines, or on <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>: your own wisp on a server that sleeps when nothing runs. <a href="/guides/self-host-wisp-grid.html">Run your own Grid</a> for a team, with sign-in and a sandbox per person.</li>
+        <li><b>A queue, not a session.</b> Many tasks at once, sorted into <i>Needs you</i>, <i>Working</i> and <i>Done</i>, each ending in a short report with the real diff and the tests, and <b>Ship it</b> to open the PR.</li>
+        <li><b>A crew that works on its own.</b> Crew members check in on a schedule, keep a notebook between jobs and hand work to each other. See <a href="/guides/organize-your-ai-agent-crew.html">Organize your crew</a>.</li>
+        <li><b>Judges on a goal.</b> Up to five agents on any harness check the work after every round, and the goal is met only when they agree the way you picked.</li>
+        <li><b>Your plans, used well.</b> Plan budget shows where each window went, task by task. When a weekly window resets within a day with a fifth or more left, home says so with <b>Use Codex</b> (or Claude Code).</li>
+        <li><b>Secrets off the screen.</b> <code>.env</code> values are masked in activity, diffs, Changes and command output before they reach the page, so a screen share or a phone over someone’s shoulder shows <code>KEY=••••</code>.</li>
+        <li><b>Change wisp itself.</b> Ask for a button, a panel or a new look, and an agent writes it as a <a href="/guides/customize-wisp-with-spells.html">spell</a> you try in the window and keep.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2 id="both">Use both</h2>
+      <p>They don’t conflict: both start the agent CLIs on your computer, each task in its own worktree. Hand a big design call to a Council in your terminal, and keep the day’s other tasks, your crew and your phone in wisp.</p>
+      ${sh('npx wisp-agents')}
+    </section>
+`,
+      faq: [
+        ['Is wisp a terminal app?', 'No. wisp runs a small server and you use it in a browser, the desktop app or your phone. Take over opens any task’s own harness session in a terminal, inside wisp or in your terminal app.'],
+        ['Do both use my own plans?', 'Yes. Neither resells model usage: each agent runs on the account it’s signed in with, and that plan’s limits apply.'],
+        ['Can wisp have agents review each other?', 'Yes, two ways: judges on a goal check every round, and Delegate lets a lead agent hand a review to another harness. wisp has no fixed plan-then-vote workflow like Council.'],
+        ['Does wisp keep agents out of my .env?', 'No. wisp hides the values on screen; the agent still reads the file, since it usually needs it. Keep secrets out of a repo you don’t want an agent to read.'],
+      ],
+      related: ['multi-agent-coding', 'make-claude-code-keep-going-until-tests-pass', 'remote-coding-agent-apps-compared'],
+    },
+
+    {
       slug: 'self-host-wisp-grid',
       topic: 'cloud',
       title: 'Self-host coding agents for your team with wisp Grid',

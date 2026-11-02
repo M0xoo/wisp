@@ -147,6 +147,22 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **Integrations** | An MCP server (`wisp mcp`), an agent skill, a scriptable CLI, a JS SDK, an OpenAPI-described HTTP API, and webhooks. Hand tasks to wisp from Claude Code, Codex, opencode, Cursor, scripts or CI. |
 | **No runtime dependencies** | The server uses only Node built-ins. Electron is needed only for the desktop app. |
 
+### wisp and Argonauts Code
+
+[Argonauts Code](https://github.com/sheng-tse/argonauts-code) (Apache-2.0) also runs Claude Code, Codex, Antigravity and OpenCode as one crew on your own plans. It's a terminal app built around one request at a time: workflows like Council have agents agree on a plan you approve, then build and review each other's work, and its sandbox keeps agents out of your `.env` and keys. wisp is a queue of tasks you reach from anywhere:
+
+| | Argonauts Code | wisp |
+|---|---|---|
+| Where you use it | Terminal (macOS, Linux) | Browser, desktop app (macOS, Windows, Linux), phone browser, Android app |
+| Where agents run | The repo you start it in | This computer, your other computers, or your own wisp on a server ([wisp Cloud](#wisp-cloud), or your own Grid) |
+| Crew | Roles in a run (main, workers, reviewers, judge) | Named agents with a schedule and a notebook, working over days ([Crew](#crew)) |
+| Checking the work | Your checks, a reviewer from another provider, `/goal` | *Done when* goals with up to five judges voting All, Majority or Any ([Goals](#goals)) |
+| Plan usage | Each subscription's usage as it goes | Plan budget per account and task, and a row on home when a weekly window would reset unused ([Usage](#usage)) |
+| Secrets | Agents kept out of `.env`; known key patterns redacted from its log | `.env` values shown as `KEY=••••` on every screen, with **Reveal**; the agent still reads the file |
+| Changing it | Settings and workflows in TOML | [Spells](#spells) that change wisp's own screens while it runs |
+
+They don't conflict, and you can use both. More in [Argonauts Code and wisp compared](https://trywisp.dev/guides/argonauts-code-vs-wisp.html).
+
 ## CLI
 
 The CLI talks to a running wisp, or starts one if none is running. It works from any folder:
