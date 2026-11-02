@@ -1,6 +1,6 @@
 /* Comments on an answer (features/comments.js): the bubble over selected words, the button on a
-   block, pinning a spot, the marks, the note card, the tray over the follow-up box and the sent
-   ones on a prompt. */
+   block, pinning a spot, a diff line's + in the side panel's Changes, the marks, the note card, the
+   tray over the follow-up box and the sent ones on a prompt. */
 
 .presentation > .blk { position: relative; scroll-margin-top: 24px; }
 
@@ -60,18 +60,46 @@
 /* Marks: a number at the end of the words, a pin on the spot, a tag on a whole block. */
 .cmt-mark {
   position: absolute; z-index: 2; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
-  border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; line-height: 1;
+  border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11.5px; font-weight: 600; line-height: 1;
   box-shadow: 0 0 0 2px var(--surface); cursor: pointer; font-variant-numeric: tabular-nums;
 }
 .cmt-mark:hover { background: var(--accent-ink); }
 .cmt-tag { min-width: 16px; height: 16px; font-size: 10.5px; }
-.cmt-pin { min-width: 24px; height: 24px; border-radius: 12px 12px 12px 3px; translate: -3px -21px; font-size: 12px; box-shadow: 0 0 0 2px var(--surface), var(--shadow-2); }
+.cmt-pin { min-width: 24px; height: 24px; border-radius: 12px 12px 12px 3px; translate: -3px -21px; font-size: 12.5px; box-shadow: 0 0 0 2px var(--surface), var(--shadow-2); }
 .cmt-pin.cmt-draft { animation: cmt-drop 0.28s var(--ease) both !important; }
 @keyframes cmt-drop { from { opacity: 0; translate: -3px -36px; } }
 .cmt-corner { top: -9px; left: -9px; }
 .blk.cmt-whole > :first-child { box-shadow: 0 0 0 1px var(--accent); }
 .cmt-mark.cmt-flash { animation: cmt-flash 0.9s var(--ease) !important; }
 @keyframes cmt-flash { 30% { box-shadow: 0 0 0 2px var(--surface), 0 0 0 8px color-mix(in srgb, var(--accent) 35%, transparent); } }
+
+/* A diff's lines in the side panel's Changes: the + sits over the sign of the line under the
+   pointer, out of the flow, so the code never moves; the number is the target on touch. */
+/* Room at the gutter's left for a comment's mark, on every numbered diff: adding one moves nothing. */
+.cx-diff:not(.nonum) td.no { padding-left: 24px; }
+.cx-diff tr[data-ln] > td.no { position: relative; cursor: pointer; }
+.cx-diff tr[data-ln] > td.no:hover { color: var(--accent-ink); }
+.cx-diff tr[data-ln] > td.sign { position: relative; }
+.cmt-line-add {
+  position: absolute; z-index: 2; top: 50%; left: 50%; translate: -50% -50%; display: grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 5px; color: var(--on-accent); background: var(--accent);
+  opacity: 0; transform: scale(0.85); transition: opacity 0.12s, transform 0.12s var(--ease); pointer-events: none;
+}
+.cmt-line-add .i { width: 12px; height: 12px; }
+.cmt-line-add:hover { background: var(--accent-ink); }
+.cx-diff tr:hover > td > .cmt-line-add, .cmt-line-add:focus-visible { opacity: 1; transform: none; pointer-events: auto; }
+/* The first and last rows have 6px more padding: keep the + and the mark on their line. */
+.cx-diff tbody:first-child > tr:first-child > td > :is(.cmt-line-add, .cmt-line) { top: calc(50% + 3px); }
+.cx-diff tbody:last-child > tr:last-child > td > :is(.cmt-line-add, .cmt-line) { top: calc(50% - 3px); }
+.cx-diff tbody:first-child:last-child > tr:first-child:last-child > td > :is(.cmt-line-add, .cmt-line) { top: 50%; }
+/* Lines a comment is about, and the ones its open card is about. */
+/* Commented lines are lit in their number and sign only: the code keeps its added / removed tint */
+.cx-diff tr.cmt-lit > :is(td.no, td.sign) { background-image: linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent)); }
+.cx-diff tr.cmt-lit-draft > :is(td.no, td.sign) { background-image: linear-gradient(color-mix(in srgb, var(--accent) 28%, transparent), color-mix(in srgb, var(--accent) 28%, transparent)); }
+.cx-diff tr.cmt-lit-draft > td.src { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 30%, transparent), inset 0 -1px 0 color-mix(in srgb, var(--accent) 30%, transparent); }
+/* Its mark: the number at the gutter's left, clear of the line number. */
+.cmt-mark.cmt-line { left: 3px; top: 50%; translate: 0 -50%; height: 16px; min-width: 16px; padding: 0 4px; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { .cmt-line-add { transition: none; } }
 
 /* The note card. */
 .cmt-card {
@@ -82,10 +110,15 @@
 .cmt-head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; color: var(--muted); }
 .cmt-n {
   flex: none; display: grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+  background: var(--accent); color: var(--on-accent); font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums;
 }
 .cmt-on, .cmt-on q { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink-2); }
 .cmt-on i { font-style: normal; font-weight: 400; color: var(--faint); }
+/* A diff line: its file and number, then the code. */
+.cmt-file { font: 11.5px var(--mono); }
+.cmt-head .cmt-on-line { flex: none; max-width: 60%; }
+.cmt-code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; font: 11.5px var(--mono); color: var(--ink-2); }
+.cmt-hint { margin: -2px 0 0; font-size: 11.5px; color: var(--faint); }
 .cmt-at { margin-left: auto; flex: none; font-family: var(--mono); font-size: 11.5px; color: var(--faint); }
 /* A text comment is named by its words. */
 .cmt-head q { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-style: italic; }
@@ -98,17 +131,26 @@
 /* On a phone it's a sheet at the bottom, over the keyboard. */
 .cmt-card.cmt-sheet { inset: auto 0 0 0; max-height: 70vh; width: auto; max-width: none; border-radius: 16px 16px 0 0; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
 
-/* The tray over the follow-up box. */
-.cmt-tray { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 116px; overflow-y: auto; }
+/* The tray over the follow-up box: a line with Send comments, then the rows. */
+.cmt-tray { margin: 0 0 6px; display: flex; flex-direction: column; gap: 2px; }
 .cmt-tray[hidden] { display: none; }
+.cmt-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding-left: 8px; font-size: 11.5px; color: var(--faint); }
+.cmt-for { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmt-send { flex: none; }
+.cmt-send .i { width: 13px; height: 13px; }
+/* Words in the box: Send takes both. It keeps its room, so the box doesn't move as you type. */
+.cmt-tray.typing .cmt-send { visibility: hidden; }
+.cmt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 116px; overflow-y: auto; }
 .cmt-row { position: relative; flex: none; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 30px 0 8px; border-radius: 8px; background: var(--bg-2); }
 /* Only a row just added comes in; the others stay as they are. */
 .cmt-row.cmt-new { animation: cmt-in 0.18s var(--ease); }
 .cmt-body { display: flex; align-items: baseline; gap: 6px; min-width: 0; flex: 1; height: 100%; align-items: center; text-align: left; font-size: 13px; color: var(--ink); white-space: nowrap; }
 .cmt-body .cmt-say { flex: 0 1 auto; }
-.cmt-body .cmt-on { flex: 1 1 0; min-width: 40px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.cmt-body .cmt-on { flex: 1 1 0; min-width: 40px; font-size: 12.5px; font-weight: 400; color: var(--muted); }
 .cmt-body .cmt-on::before { content: '· '; color: var(--faint); }
-@media (pointer: coarse) { .cmt-row { height: 44px; } .cmt-tray { max-height: 140px; } }
+@media (pointer: coarse) { .cmt-row { height: 44px; } .cmt-list { max-height: 140px; } }
+body.wisp-mobile .cmt-bar { height: 44px; }
+body.wisp-mobile .cmt-send { min-height: 44px; }
 .cmt-body q, .ask-note q, .cmt-on q { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-style: italic; }
 .cmt-say { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmt-say i { color: var(--faint); }
@@ -122,6 +164,10 @@
 .ask-note { display: flex; align-items: flex-start; gap: 8px; }
 .ask-note .cmt-n { margin-top: 1px; }
 .an-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; min-width: 0; flex: 1; font-size: 13px; }
-.an-body .cmt-on { font-size: 12px; color: var(--muted); }
+.an-body .cmt-on { font-size: 12.5px; color: var(--muted); }
 .an-body .cmt-say { flex-basis: 100%; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
 .t-prompt .t-cm { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; color: var(--accent); }
+/* The keyboard's line (comments.js): lit like a hovered one, its + showing */
+.cx-diff tr.kb-line > :is(td.no, td.sign) { background-image: linear-gradient(color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 16%, transparent)); }
+.cx-diff tr.kb-line > td > .cmt-line-add { opacity: 1; transform: none; pointer-events: auto; }
+.cx-diff .diff-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

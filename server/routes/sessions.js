@@ -9,6 +9,7 @@ import path from 'node:path';
 import { adapters, listAgents } from '../adapters/index.js';
 import { btwQuestion } from '../btw.js';
 import { goalView } from '../goal.js';
+import { searchTasks } from '../search.js';
 import { cleanupCheckpoints, revertFileChange, rollbackToTurn } from '../checkpoint.js';
 import { execCommand } from '../proc.js';
 import { ensureWorktree, removeWorktree, worktreeSource } from '../git.js';
@@ -189,6 +190,12 @@ export function register(r, app) {
   });
   // A task being typed (the launcher): its repo fetched now, so the launch doesn't wait on the
   // network for its worktree's base (git.js keeps a fetch for a minute). Answers at once.
+  // Past work, by its words: titles, prompts and answers (search.js), newest first.
+  r.route('GET', '/search', (c) => {
+    const limit = Math.min(100, Math.max(1, Number(c.query.get('limit')) || 30));
+    c.send(200, { hits: searchTasks(store.all(), c.query.get('q') || '', { limit }) });
+  });
+
   r.route('POST', '/launch/warm', async (c) => {
     const { cwd } = await c.body();
     const dir = typeof cwd === 'string' && cwd ? expand(cwd) : '';
@@ -282,7 +289,7 @@ export function register(r, app) {
       if (s.state === 'done' || s.archived) app.retro.schedule(s, 0); // finished with it: learn now
       // Archived: a clean worktree goes (its branch stays, a follow-up brings it back).
       // discardWorktree: a compare run you didn't keep; its changes go too.
-      if (s.archived) app.shells?.close(s.id); // its shell in the side panel goes with it
+      if (s.archived) (app.shells?.close(s.id), app.runs?.stop(s.id)); // its shell and app in the side panel go with it
       if (!runner.live.has(s.id) && (s.archived || body.discardWorktree))
         for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: !!body.discardWorktree, branch: !!body.discardWorktree && !x.pr && 'force' });
       app.sessionChanged(s);
@@ -309,6 +316,7 @@ export function register(r, app) {
         app.terms.close(s.id);
         app.shells?.close(s.id);
         await app.sandbox?.leadGone(s.id); // its delegates' sandboxes (services/sandbox.js)
+        await app.runs?.stop(s.id);
         store.delete(s.id);
         app.overlaps?.dropped(s);
         app.broadcast('removed', { id: s.id });

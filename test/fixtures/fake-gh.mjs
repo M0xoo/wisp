@@ -2,7 +2,7 @@
 // issue list, gist create). Pull requests live in a JSON file; merging really pushes the PR head to the base
 // branch of the repo's origin, so the "sync your local main" step has something to fetch.
 //
-//   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [], review, mergeable, reviewComments } (created if missing)
+//   FAKE_GH_STATE  JSON file: { prs: {}, runs: [], issues: [], checks: [], review, mergeable, reviewComments, signedOut } (created if missing)
 //   FAKE_RECORD    directory; each call appends { argv, cwd } to gh.jsonl
 
 import { execFileSync } from 'node:child_process';
@@ -74,8 +74,15 @@ if (a === 'pr' && b === 'create') {
   const open = Object.values(state.prs).filter((p) => argv.includes('--state') ? p.state === flag('--state').toUpperCase() : true);
   console.log(JSON.stringify(open.map((p) => ({ number: p.number, title: p.title, url: p.url, state: p.state, repository: { nameWithOwner: 'acme/repo' } }))));
 } else if (a === 'issue' && b === 'list') {
+  if (state.signedOut) fail('To get started with GitHub CLI, please run:  gh auth login');
   if (typeof state.issues === 'string') console.log(state.issues); // a broken reply
-  else console.log(JSON.stringify((state.issues || []).filter((i) => (i.labels || []).includes(flag('--label')))));
+  else if (flag('--label')) console.log(JSON.stringify((state.issues || []).filter((i) => (i.labels || []).includes(flag('--label')))));
+  else {
+    // New task's Issue picker: every open one (--search matches the title), labels as gh gives them.
+    const q = (flag('--search') || '').toLowerCase();
+    const list = (state.issues || []).filter((i) => !q || i.title.toLowerCase().includes(q)).slice(0, Number(flag('--limit')) || 30);
+    console.log(JSON.stringify(list.map((i) => ({ ...i, labels: (i.labels || []).map((l) => (typeof l === 'string' ? { name: l } : l)) }))));
+  }
 } else if (a === 'gist' && b === 'create') {
   // Kept in the state file (its files, and whether it was public) so tests can read it back.
   const f = argv[2];

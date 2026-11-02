@@ -57,6 +57,17 @@ select:not([multiple]) {
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
   background-position: calc(100% - 14px) 50%, calc(100% - 10px) 50%; background-size: 4px 4px; background-repeat: no-repeat;
 }
+/* The kit's list (ui/select.js): a select's button, the same box as one, its options in a .menu */
+.kit-sel {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 32px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line-2);
+  background: var(--field-bg, var(--surface-2)); color: var(--ink); font: 13px/1.4 var(--sans); text-align: left; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.kit-sel > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kit-sel > .chev { flex: none; width: 12px; height: 12px; color: var(--muted); transform: rotate(90deg); }
+.kit-sel:hover { border-color: color-mix(in srgb, var(--ink) 14%, var(--line-2)); }
+.kit-sel:focus-visible, .kit-sel[aria-expanded='true'] { outline: 0; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-soft); }
+.kit-sel:disabled { opacity: 0.55; cursor: not-allowed; }
+.kit-menu { max-height: min(320px, 60vh); overflow-y: auto; }
 .field { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .field .i { width: 14px; height: 14px; flex: none; }
 .field > input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: none; font: inherit; color: var(--ink); }

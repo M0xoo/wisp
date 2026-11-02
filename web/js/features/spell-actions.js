@@ -61,7 +61,7 @@ export async function exec(id, command) {
     action: {
       label: 'Output',
       run: () => {
-        const node = el(`<div class="modal sp-panel"><header><h2>${icon('terminal')} ${esc(command)}</h2><button class="icon-btn close">${icon('x')}</button></header><pre class="code sp-out"><code>${esc(out.output || '(no output)')}</code></pre></div>`);
+        const node = el(`<div class="modal sp-panel"><header><h2>${icon('terminal')} ${esc(command)}</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header><pre class="code sp-out"><code>${esc(out.output || '(no output)')}</code></pre></div>`);
         const close = overlay(node);
         $('.close', node).onclick = close;
       },

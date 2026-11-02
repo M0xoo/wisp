@@ -1,14 +1,15 @@
-# The side panel: Changes, PR, Shell and Watch
+# The side panel: Changes, PR, Shell, Preview and Watch
 
 A third column in split view, on the task's far side from the list, for doing things with what an
 agent made without leaving wisp. It shows one thing at a time: **Changes**, every file the task
 changed with its diff; **PR**, the task's pull request without the noise; **Shell**, a real shell in
-the task's folder on whichever computer ran the task; **Watch**, the page its agent keeps (below).
+the task's folder on whichever computer ran the task; **Preview**, the task's app run from its
+worktree; **Watch**, the page its agent keeps (below).
 Code and CSS call it the *side panel*. On screen it has no name of its own: its head is its tabs.
 
 **Tabs inside the panel, doors on the task.** The task is still the main thing, and each view is
 reached from the task (its buttons, its PR row, the menus, the keys). Once the panel is open its
-head is a segmented switch, **Changes · PR #412 · Shell · Watch**, so you move between them without
+head is a segmented switch, **Changes · PR #412 · Shell · Preview · Watch**, so you move between them without
 going back to the task. The order is fixed; Watch, the only one that comes and goes (once there's a
 page), is last so the others never move. No counts on the tabs: a number changing as you watch
 would shift them.
@@ -19,6 +20,73 @@ would shift them.
   tab is icon-only (32px, `title`) at once. On phones it fills the page's head after Back: text
   only, equal widths, 40px; switching swaps the page in place (no `stack-in`, no new Back entry).
 - It opens on Changes until you've picked another (`wisp.panel`, `panel.tab`).
+
+## Editing a file
+
+Changes is also where you fix a line yourself (`editor.js`). Each file row has a pencil (*Edit
+here*, also in its ⋯), except deleted and binary files. The editor covers the panel, head included
+(its own 42px head: Back, the path in `--mono` cut at the start, *Saved / Unsaved / Saving…*, then
+**Save**), so there's one thing on screen and Back is where the tabs were.
+
+- **The browser's own text box.** The code is highlighted (`highlight`, the diff's colours) in a
+  `<pre>` under a transparent `<textarea>`: selection, IME, spellcheck off, undo and the caret are
+  native. Line numbers sit in a sticky gutter. 12.5px mono at 1.6, like the diff.
+- **Save is instant and safe.** ⌘S or Save says *Saved* at once and rolls back to *Unsaved* with a
+  red toast if the server refuses. The server refuses while the agent works on the task, and when
+  the file changed since it was opened (the hash it was read with): then a warn line offers
+  **Load theirs** or **Keep mine**, never a silent overwrite.
+- **Esc goes back to Changes**, asking (`ask`, by Back) when there's unsaved work. The editor
+  belongs to its task: moving to another task hides it, and coming back shows it as you left it.
+- **Any file, any line.** *Open file…* (Changes' summary, ⌘K *Open a file…*, ⌘P in the editor) is the
+  palette over the folder's files, changed ones first, and once three letters are typed an *In
+  files* group of matching lines (`GET /grep?q=`), each opening at its line. ⌘-click (Ctrl-click) a
+  name or F12 opens where it's defined. With a language server for the file (`server/lsp.js`:
+  found on PATH, in the repo's `node_modules/.bin`, or wisp's `~/.wisp/lsp`), its answers lead:
+  definition, ⇧F12 references, hover (a quiet card above the name, mono), F2 rename across files
+  (saved file, idle agent), and problems: the line number wavy-underlined in `--bad` / `--warn`
+  with the message as its tip, and *n problems* in the head listing them. Without one, the text
+  search answers (`GET /grep?def=`) and a note offers *Install TypeScript support* once (Not now
+  remembers).
+- **Revert a hunk, or the file.** In a git diff every hunk (the lines between two *n unchanged
+  lines* gaps) has **Revert** on its first line at the visible right edge: sticky inside the
+  sideways scroll and out of the flow, so the code never moves. It shows on hover or focus
+  anywhere on the hunk (each hunk is its own `tbody`), always on touch, and is 44px to tap in the
+  app (the pill stays the line's height). The file's `⋯` has **Revert file…**, which asks first
+  (`ask`, danger, *Revert file*): a changed or deleted file comes back as the merge-base has it
+  (`git checkout <merge-base> -- path`), an added one is removed. Both are instant: the hunk's rows
+  (or the file's row) go at once, `POST /sessions/:id/changes/revert` puts it back
+  (`server/hunks.js`: the file's lines there must still be the hunk's, and the hunk the one the
+  page showed), then Changes reloads; refused, it comes back with a red toast. The server refuses
+  while the agent works (*The agent is working on this task: wait for it, or stop it.*) and when
+  the hunk moved (*This part changed since you looked: Changes is up to date now.*, and it
+  reloads). The toast says *Reverted* with **Undo**: the text the file had just before (read with
+  `GET /source` first, so it's exact) saved back through `PUT /source` with the hash the revert
+  left, or restored / removed for a file that came or went. Added and deleted files, binaries and
+  hunks cut short (*Show more*, or past what git sent) have no hunk Revert: revert the file.
+- **Stage and commit**, as VS Code's Source Control and the Codex app's review pane (`changes.js`,
+  `server/stage.js`). Only in a worktree's git diff. Each file row has a stage toggle before Viewed:
+  **+** (*Stage file*) while it has changes to stage, **−** on `--accent-soft` (*Unstage file*,
+  `aria-pressed`) once all of it is staged, an accent dot on the **+** when part of it is. It's an
+  icon, never a box, so it can't be read as Viewed's tick; a committed file keeps its empty room, so
+  Viewed and the rest never move. Each hunk's head row has **Stage** / **Unstage** before Revert,
+  as wide as *Unstage* either way, shown like Revert (hover or focus, always on touch, 44px in the
+  app); a committed hunk has none. Under the summary, while anything is staged or still to stage,
+  the commit row: a one-line `.field` *Commit message* (focused empty, it takes the task's title,
+  selected) with *2 staged* inside it at the right (*Commits all 3* when nothing is staged), then
+  **Commit** (Enter or ⌘Enter). Everything is instant: the toggle, the hunk's button and the count
+  flip at once, `POST /sessions/:id/changes/stage` (`{ path, hunk?, key?, unstage? }`) or
+  `/changes/commit` (`{ message, all? }`) runs, then Changes reloads; refused, it flips back with a
+  red toast. Committing clears the box at once (the text comes back if git refuses) and toasts
+  *Committed abc1234*. A hunk is matched to git's own: Stage applies the hunks of `git diff` (index
+  → folder) that fall in it to the index, Unstage the hunks of `git diff --cached` backwards; a hunk
+  with nothing left to move, or that changed since (its key), is refused with 409 and Changes
+  reloads. The server refuses while the agent works, like Revert. On a touch phone (stacked) the pencil
+  makes room for the toggle (*Edit here* is in ⋯). ⌘K on a task: *Commit staged changes…* opens
+  Changes with the box focused. `GET /changes` says per file `staged` / `unstaged` (untracked counts
+  as unstaged) and per hunk `hunkStage`.
+- Spells: `panel.changes.edit`, `panel.changes.open`, `panel.editor`, `panel.editor.code`,
+  `panel.editor.save`, `panel.changes.revertHunk`, `panel.changes.viewed`, `panel.changes.viewedCount`,
+  `panel.changes.stage`, `panel.changes.stageHunk`, `panel.changes.commit`.
 
 ## Layout
 
@@ -135,6 +203,17 @@ diff.* A diff of the project folder would hold the user's own work too.
 4. **A diff** opens under its row (`.b-diff.bare` rows, numbered by the new file; captured edits are
    snippets, so unnumbered with a gap row between). Its row sticks to the top while you read it.
    Past 300 lines, *Show 940 more lines*. A rename starts with *Renamed from old.js*.
+5. **Comments on lines** (`comments.js`), as on GitHub: a **+** over the sign of the line under the
+   pointer (absolute, so the code never moves), or the line number clicked or tapped; shift-click
+   (touch: tap while the card is open) a second line for the lines between. Same card, tray and
+   numbering as comments on an answer; the mark sits at the gutter's left, the lines lit with
+   `--accent` at 12%. Only numbered lines (a git diff): captured edits have none.
+6. **Viewed**, as on GitHub: each file row has a box and *Viewed* at its right, before the pencil
+   (a real button, `aria-pressed`; the box alone in stacked panels, 44px in the app). Ticking it
+   folds the file and dims its row (path, numbers and badge in `--faint`); the toggle keeps its
+   width either way, so nothing moves. It's kept per task in this browser (`wisp.viewed`, the last
+   100 tasks) against the file's diff: when the diff changes the file is unviewed again. The
+   summary says *2 of 7 viewed* (tabular) once one is; **Expand all** skips viewed files.
 
 **States:** the skeleton is the summary and six rows in their real shapes. Empty while the agent
 works: *No changes yet. Files show here as Claude Code edits them.*; finished: *This task didn't
@@ -152,8 +231,8 @@ sideways scroll. A new file fades in on its own row.
 file list (which keeps showing that turn's diffs with its Revert). A page the agent puts up doesn't
 take Changes' place: its Watch tab appears.
 
-**Later:** Revert a file to the base from its `⋯`; a PR file row opening Changes at that file;
-*This turn* / *All turns*; comments on a diff line sent to the agent; before/after for images.
+**Later:** a PR file row opening Changes at that file;
+*This turn* / *All turns*; before/after for images.
 
 ## PR
 
@@ -319,7 +398,8 @@ keyboard hints anywhere on this page (`.key-hint`).
 
 | Thing | Text |
 |---|---|
-| Head (tabs) | *Changes*, *PR #412* / *PRs* / *PR*, *Shell*, *Watch* |
+| Head (tabs) | *Changes*, *PR #412* / *PRs* / *PR*, *Shell*, *Preview*, *Watch* |
+| Preview | *Run*, *Run again*, *Starting · npm run dev*, *Running · localhost:41664*, *Pick element*, *Logs*, *Restart*, *Stop app*, *Open in browser*, *Exited with code 1*; actions *Run app* / *Stop app* |
 | Changes | *7 files +15 −7 vs main* · *edits wisp saw* · *Expand all* / *Collapse all* · *1 generated file* · *Show 940 more lines* · *Show changes* (`D`) · *All changes in this task* |
 | Task's ways in | *Shell* (action row; on phones the door, *Running on Studio*), the PR row |
 | Head toggle | *Show side panel (])* / *Hide side panel (])* |
@@ -370,17 +450,66 @@ The page an agent keeps beside its task while it works (`wisp_watch`, `server/wa
 - **Phones:** a page over the task with Back, never pushed by itself: the working card's **Watch**
   is the way in. Copy is 40px.
 
+## Preview
+
+The task's app, run from its worktree and shown beside it (`server/runs.js`, `web/js/features/run.js`),
+as Conductor's Run script or Vibe Kanban's dev-server preview. The tab sits after Shell, only on a
+task with a worktree (that never changes for a task, so nothing moves); Watch stays last.
+
+- **How it runs:** `.wisp/worktree.json`'s `run` (and optional `port`), else a guess from
+  package.json (`npm run dev`, else `npm start`), else what you type. In the worktree, with `PORT`
+  set to a port wisp keeps for the task while it's free (41000 + its id's hash) unless the config
+  sets one, and `BROWSER=none`. Its own process group: **Stop** ends what it started (Windows:
+  `taskkill /T`). Deleting or archiving the task, or quitting wisp, stops it. The last 2000 lines of
+  output are kept, colours stripped. Its address is the first local URL it prints, else `PORT`.
+- **Not running:** the intro (`i-play`, *Run the app from this task's folder and see it here.*), a
+  *Command* label, the command in a `.input.mono` box and a primary **Run**. The line under it says
+  where the command came from: *From `.wisp/worktree.json`*, or *From package.json: a guess. Set
+  `run` in `.wisp/worktree.json` to fix it.* Your edits to the box are kept per task.
+- **Running:** a 36px bar under the place line: a dot (amber, pulsing, *Starting · `npm run dev`*
+  until the port answers; then green, *Running · localhost:41664*), then **Pick element**
+  (`i-target`), **Logs** (`i-terminal`, pressed while open), **Restart** (`i-replay`), **Stop**
+  (`i-stop`, red on hover) and **Open in browser** (`i-external`, the app's own address). Until it
+  answers, its output fills the frame's place (never an empty box); then the frame. **Logs** opens
+  the output under the frame (38%, the terminal's `--term-*` colours), following the end.
+- **Failed** (it exited on its own): `i-warn` *Exited with code 1* (or *Stopped by SIGKILL*), its last
+  12 lines in the terminal's colours, the command box and **Run again**.
+- **Instant:** Run shows the bar at once, Stop the empty state at once; a refusal puts it back with a
+  red toast. While shown it asks every second until the app answers (or while Logs are open), else
+  every 4s; hidden, never.
+- **The frame** loads the app through a small proxy wisp opens for it on a port of its own
+  (42000 + hash): the same app with `X-Frame-Options` and CSP `frame-ancestors` dropped and one
+  script added to its pages; websockets (live reload) pass through. Its own origin, like the app:
+  wisp's API stays out of its reach. On a grid box it loads at the box's preview address; a
+  machine's task, or the phone app (it reaches wisp through a tunnel), gets a line saying the
+  address is the task's computer's and may not load here, and no Pick.
+- **Pick element** is enabled once the page's script says hello (it says so again after each load).
+  Pressed: the pointer outlines the element under it in `--accent` with its `tag.class` above; a
+  click names it in the task's reply box, added under what's there, and focuses it:
+  *In the preview, `<button class="primary">` "Save" (selector: `main > form > button.primary`):*.
+  Escape or Pick again ends it. Stacked, the page goes back to the task first.
+- **Actions:** *Run app* / *Stop app* (`i-play` / `i-stop`) in More, the right-click menu and ⌘K.
+  *Run app* opens Preview and runs the last command, the config's or the guess; with nothing to go
+  on, or after a failure, it opens Preview on that.
+- **Phones:** the fifth segment of the page's head (equal widths); the bar is 44px with 40px
+  buttons.
+
 ## Spells
 
 - Changes: `PARTS` `panel.changes`, `panel.changes.summary`, `panel.changes.list`, `split.changes`
   (the action row's button); `PART_PROPS` `panel.tab` takes `changes`, and `panel.changes`
-  `{ generated: bool }` lists generated files unfolded.
+  `{ generated: bool }` lists generated files unfolded; `panel.changes.comment` (a line's **+**) and
+  `panel.changes.commentMark` (a commented line's number); `panel.changes.revertHunk` (a hunk's
+  Revert), `panel.changes.viewed` (a file's Viewed toggle) and `panel.changes.viewedCount` (*2 of 7
+  viewed*); `panel.changes.stage` (a file's Stage toggle), `panel.changes.stageHunk` (a hunk's Stage /
+  Unstage) and `panel.changes.commit` (the commit row).
 - `SLOTS`: `panel.head`, buttons in its head. It acts on the task, so it also goes in
   `CARD_SLOTS` and `BUTTON_SLOTS`.
 - `PARTS`: `panel`, `panel.tabs` (its tabs again), `panel.place`, `panel.shell`, `panel.pr`, `panel.checks`,
-  `panel.conversation`, `panel.files`, `panel.watch`, `watch.caption`, `watch.run`, `split.watch`. The verdict and Merge stay out of `PARTS`: a spell can't hide
+  `panel.conversation`, `panel.files`, `panel.watch`, `watch.caption`, `watch.run`, `split.watch`,
+  `panel.preview`, `panel.preview.bar`, `panel.preview.run`, `panel.preview.pick`, `panel.preview.logs`. The verdict and Merge stay out of `PARTS`: a spell can't hide
   what decides a merge.
-- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`changes` | `pr` | `shell` | `watch`), `panel.swipe` (`bool`: swiping
+- `PART_PROPS`: `panel.width` (`px`), `panel.tab` (`changes` | `pr` | `shell` | `preview` | `watch`), `panel.swipe` (`bool`: swiping
   brings it in and out in the phone app), `panel.pr.bots` (`bool`: show bot comments unfolded).
 - `ICONS`: `panel`, `eye`.
 - `SETTINGS`: `watch` (`on` | `off`): agents are offered `wisp_watch`.
@@ -395,7 +524,7 @@ phone doors and pages (with `^C` and the ran-here chips on touch), spells.
 1. **Ran-here chips on desktop** (touch screens get them in v1, see **Phones**).
 2. Several shells per task, as chips named after their foreground process.
 3. **Ports:** when something in the shell listens on a port, a chip *localhost:5173*. On a remote
-   or cloud computer it opens through wisp's proxy.
+   or cloud computer it opens through wisp's proxy. (Preview covers the app you run on purpose.)
 4. Check history: this check's last five runs on the branch, as dots, to tell a flaky check from a
    broken one.
 5. A review comment's `file:line` jumps to that diff in the transcript when the task touched it.

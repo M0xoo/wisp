@@ -15,8 +15,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { until } from '../test/helpers.js';
-import { api, CHROME, OUT, playwright, startWisp } from './lib.mjs';
+import { CHROME, OUT, playwright } from './lib.mjs';
+import { click, NOT_IN_APP, seededWisp, views as viewsOf } from './views.mjs';
 
 const PORT = Number(process.env.QA_BUTTONS_PORT) || 4497;
 const WIDTHS = (process.env.WIDTHS || '1440,1000,390').split(',').map(Number);
@@ -133,69 +133,9 @@ function measure(state, only) {
 }
 
 // ---- a QA wisp with something in every place a button can be ----
-const w = await startWisp({ port: PORT, extraEnv: { FAKE_DELAY: '300' } });
-const launch = async (body) => (await api(w.url, '/api/sessions', { cwd: w.repo, agent: 'claude', ...body })).json;
-const tasks = [];
-for (const prompt of ['Fix the login bug', 'Write docs for the API', 'Refactor the store']) tasks.push(await launch({ prompt }));
-const goal = await launch({ prompt: 'Make the tests pass', goal: { text: 'all tests pass', judges: [{ agent: 'claude', name: 'Claude Code' }, { agent: 'codex', name: 'Codex' }], vote: 'all' } });
-await api(w.url, '/api/crew', { name: 'Ada', role: 'Reviews every PR', cwd: w.repo, agent: 'claude' });
-await until(async () => {
-  const all = await Promise.all([...tasks, goal].map(async (t) => (await api(w.url, `/api/sessions/${t.id}`)).json?.state));
-  return all.every((s) => ['review', 'done', 'waiting'].includes(s));
-}, { timeout: 60_000, what: 'the seeded tasks to settle' });
+const { w, tasks, goal } = await seededWisp(PORT);
+const VIEWS = viewsOf({ tasks, goal });
 
-// ---- the views: each one leaves the page in a state with buttons to check ----
-const click = async (p, sel) => {
-  await p.locator(sel).first().click({ force: true });
-  await p.waitForTimeout(450);
-};
-const home = async (p) => {
-  if (!(await p.isVisible('#goalBtn'))) await click(p, '#promptFab:visible, #splitNew:visible');
-};
-const open = (id) => async (p) => {
-  await click(p, `#feed .item[data-id="${id}"] .it-head`);
-  await p.waitForTimeout(500);
-};
-const first = () => open(tasks[0].id);
-const settings = (pane) => async (p) => {
-  await click(p, '#meBtn');
-  await click(p, '#settingsBtn');
-  if (pane) await click(p, `button[role="tab"][data-pane="${pane}"]`);
-};
-const VIEWS = {
-  home,
-  'home.goal-on': async (p) => (await home(p), await click(p, '#goalBtn')),
-  'home.worktree-off': async (p) => (await home(p), await click(p, '#wtBtn')),
-  'home.typed': async (p) => (await home(p), await p.fill('#prompt', 'Fix the flaky test in the store')),
-  'home.mode-menu': async (p) => (await home(p), await click(p, '#mode')),
-  'home.runner': async (p) => (await home(p), await click(p, '#runner')),
-  'home.auto-preview': async (p) => (await home(p), await click(p, '#autoPv:visible')),
-  'home.compare': async (p) => (await home(p), await click(p, '#compareBtn:visible')),
-  'home.where': async (p) => (await home(p), await click(p, '#whereBtn')),
-  'home.team': async (p) => (await home(p), await click(p, '#teamBtn')),
-  'home.later': async (p) => (await home(p), await click(p, '#launchLater')),
-  task: first(),
-  'task.goal': open(goal.id),
-  'task.goal-menu': async (p) => (await open(goal.id)(p), await click(p, '.gb-more')),
-  'task.goal-judges': async (p) => (await open(goal.id)(p), await click(p, '.gb-more'), await click(p, '.menu [data-a="goal-set"]'), await click(p, '.goal-pop .gp-judges')),
-  'home.goal-judges': async (p) => (await home(p), await click(p, '#goalBtn'), await click(p, '#judgesBtn')),
-  'task.composer': async (p) => (await first()(p), await click(p, '.it-dock .composer textarea')),
-  'task.composer-goal': async (p) => (await first()(p), await click(p, '.it-dock .composer textarea'), await click(p, '.it-dock .c-goal')),
-  'task.transcript': async (p) => (await first()(p), await click(p, '.tx-toggle')),
-  'task.changes': async (p) => (await first()(p), await p.keyboard.press('d'), await p.waitForTimeout(600)),
-  'task.more': async (p) => (await first()(p), await click(p, '.it-actions [data-a="more"]')),
-  'task.right-click': async (p) => (await p.locator(`#feed .item[data-id="${tasks[1].id}"] .it-head`).click({ button: 'right' }), await p.waitForTimeout(400)),
-  crew: async (p) => click(p, '#secCrew .cr-row:not(.cr-empty)'),
-  'crew.add': async (p) => click(p, '#secCrew .cr-add'),
-  projects: async (p) => click(p, '#manageProjects'),
-  stuff: async (p) => click(p, '#splitStuff:visible, .stuff-top:visible'),
-  'me-menu': async (p) => click(p, '#meBtn'),
-  palette: async (p) => (await p.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k'), await p.waitForTimeout(400)),
-  ...Object.fromEntries(['general', 'notifications', 'agents', 'auto', 'machines', 'cloud', 'memory', 'automations', 'spells', 'usage', 'privacy'].map((n) => [`settings.${n}`, settings(n)])),
-};
-
-// The phone app has neither: projects come with its Computers, and wisp Cloud is its Computers screen.
-const NOT_IN_APP = new Set(['projects', 'settings.cloud']);
 const { chromium } = playwright();
 const browser = await chromium.launch({ executablePath: CHROME });
 const results = [];
@@ -212,6 +152,8 @@ for (const { theme, width, app } of runs) {
     if (app && NOT_IN_APP.has(view)) continue;
     const at = `${view}@${width}-${theme}${app ? '-app' : ''}`;
     try {
+      // Each view from a clean page: a panel or task left open (kept in localStorage) would cover the next
+      await p.evaluate(() => localStorage.clear()).catch(() => {});
       await p.goto(w.url);
       await p.waitForTimeout(900);
       // A task left open on a phone stays open over the list: back to it first.

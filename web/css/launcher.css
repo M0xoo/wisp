@@ -47,11 +47,17 @@
 body.wisp-mobile .launcher .lp-chip.add.pick:is(:not(:only-child), :not(:has(> span))) { width: 44px; } /* the app's chips are 44px tall */
 .lp-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 27px; padding: 0 10px; border-radius: 99px;
-  font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line); transition: all 0.15s;
+  font-size: 12.5px; color: var(--ink-2); border: 1px solid var(--line); transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .lp-chip:hover { border-color: var(--line-2); background: var(--surface-2); }
 .lp-chip.on { background: var(--bg-2); border-color: var(--line-2); color: var(--ink); font-weight: 500; }
 #wtBtn[hidden] { display: none; }
+/* Issue (features/issues.js): an action at the end of the project row, a chip's height; on a narrow
+   screen its icon. The phone app has it in its bar instead, which scrolls sideways (launcher.js). */
+.l-projects .lp-issue { height: 27px; padding: 0 9px; font-size: 12.5px; vertical-align: top; }
+.l-projects .lp-issue .i { width: 14px; height: 14px; }
+@container launcher (max-width: 480px) { .l-projects .lp-issue span { display: none; } .l-projects .lp-issue { width: 27px; min-width: 27px; padding: 0; } }
+.launcher.docked:not(:focus-within) .lp-issue { display: none; }
 .lp-chip.none .i { width: 13px; height: 13px; color: var(--muted); }
 .lp-chip.none.on .i { color: var(--ink); }
 .lp-chip.add { color: var(--muted); border-style: dashed; }
@@ -385,3 +391,9 @@ button.setup-cmd code { min-width: 0; overflow: hidden; text-overflow: ellipsis;
 /* The picker's sign-in (features/agent-login.js): the panel sits under the pane's text. */
 .pk-signin .sx-login { margin: 4px 0 0; width: 100%; }
 .pk-signin .sx-login-ctl { margin-right: 0; }
+/* The first run (launcher.js firstRun): the prompt, how it runs and Send; the rest behind More options */
+.launcher:not(.first-run) .l-more { display: none; }
+.launcher.first-run :is(#whereBtn, #compareBtn, #teamBtn, .issue-btn, #goalBtn, #wtBtn, #launchLater) { display: none; }
+/* First run on a phone the bar has room again: the mode says Full auto beside its icon, so two
+   sparkles never stand side by side unnamed */
+@container launcher (max-width: 520px) { .launcher.first-run .l-bar .mode-btn span { display: inline; } }

@@ -39,6 +39,7 @@ so a wisp.app you have open keeps its single-instance lock.
 |---|---|
 | web | 4493 (`QA_WEB_PORT`) |
 | buttons | 4497 (`QA_BUTTONS_PORT`) |
+| ui-audit | 4498 (`QA_AUDIT_PORT`) |
 | desktop | 4520–4529 (`QA_DESKTOP_PORT` for the first app, 4521) |
 | mobile | 4540–4549 |
 | mobile-perf | 4550 (`PERF_PORT`) |
@@ -57,6 +58,19 @@ is off-centre, a centred label with uneven padding, buttons in one bar with boxe
 heights, a label clipped without `…`, and buttons that overlap. Every measurement goes to
 `qa/out/buttons.json`, and a contact sheet per view (each button at rest, hovered, focused) to
 `qa/out/buttons/`. `QUICK=1` measures at rest only; `WIDTHS=390 THEMES=dark` narrows it.
+
+## Every view, every size: the scorecard's numbers
+
+`node qa/ui-audit.mjs` opens the same views as `buttons.mjs` (`qa/views.mjs`: New task and its menus
+and pickers, a task with its goal, panels, dialogs and menus, crew and Org, My Stuff, the palette,
+every Settings pane) at 1440, 1000 and 390px, at 390px on a touch screen and in the phone app,
+light and dark, each in a fresh browser. In each it fails on an axe-core `wcag2a`/`wcag2aa`
+violation, more than five font sizes (design/ui.md → Type), sideways overflow, a short label (≤ 24
+characters) cut with `…`, and in the app a control under 44px. With a dialog open it measures the
+dialog. Needs axe-core beside Playwright (`npm i --prefix /tmp/wisp-qa-pw playwright-core axe-core`).
+Results go to `qa/out/ui-audit.json`, with a screenshot of each view that has an issue in
+`qa/out/ui-audit/`. `WIDTHS=1440,app THEMES=dark VIEWS=home,task` narrows it. This is what
+`design/scorecard.md` rows 3, 9, 13 and 14 are measured with.
 
 ## Speed in the phone app
 

@@ -8,7 +8,7 @@ import { S } from '../core/state.js';
 import { overlay } from '../ui/overlay.js';
 import { expand, renderFeed, reveal, setFocus } from './feed.js';
 
-const SHOWN = 2; // rows on the card; the rest are a click away, so the warning stays small
+const SHOWN = 2; // overlaps named in the follow-up's own words (the strip shows one); the rest are a click away
 
 const titleOf = (o) => S.sessions.get(o.id)?.title || o.title || 'another task';
 const clashes = (o) => !!o.conflicts?.length;
@@ -25,14 +25,14 @@ export function overlapPill(s) {
   if (!all?.length || s.pending) return '';
   const clash = all.some(clashes);
   const tip = all.map((o) => `“${titleOf(o)}”: ${line(o)}`).join('\n');
-  return `<span class="pill overlap${clash ? ' clash' : ''}" title="${esc(tip)}">${icon('merge')}<span class="ov-l">${clash ? 'Clash' : 'Overlap'}${all.length > 1 ? ` ×${all.length}` : ''}</span></span>`;
+  return `<span class="pill overlap${clash ? ' clash' : ''}" title="${esc(tip)}">${icon('merge')}<span class="ov-l">${clash ? 'Clash' : 'Overlap'}</span>${all.length > 1 ? `<span class="ov-n">×${all.length}</span>` : ''}</span>`;
 }
 
 // Clashes first: they're the ones to sort out before shipping.
 const ranked = (s) => [...(s?.overlaps || [])].sort((x, y) => clashes(y) - clashes(x));
-const row = (o) => `<div class="ov-row">${icon('merge')}
+const row = (o, more = '') => `<div class="ov-row">${icon('merge')}
       <span class="ov-text"><b>${clashes(o) ? 'Clashes with' : 'Overlaps with'} “${esc(titleOf(o))}”</b> <span class="ov-files">${esc(line(o))}</span></span>
-      <button class="ghost xs" data-ov="${esc(o.id)}" title="Open that task">Open</button></div>`;
+      ${more}<button class="ghost xs" data-ov="${esc(o.id)}" title="Open that task">Open</button></div>`;
 function openTask(other) {
   if (!other || !S.sessions.has(other)) return;
   reveal(other);
@@ -52,8 +52,11 @@ export function renderOverlapStrip(id) {
   node.hidden = !all.length;
   if (!all.length) return void (node.innerHTML = '');
   node.classList.toggle('clash', all.some(clashes));
-  const rest = all.length - SHOWN;
-  node.innerHTML = all.slice(0, SHOWN).map(row).join('') + (rest > 0 ? `<button class="link xs ov-more" data-ov-all>+ ${rest} more task${rest > 1 ? 's' : ''}${all.slice(SHOWN).some(clashes) ? ', with clashes' : ''}</button>` : '');
+  // One line: the first (a clash leads), and "+ n more" on it for the dialog with them all. Two rows
+  // and a line under them took ~60px above the reply box, a quarter of a phone's screen.
+  const rest = all.length - 1;
+  const more = rest > 0 ? `<button class="link xs ov-more" data-ov-all title="All the tasks that change the same files">+${rest} more${all.slice(1).some(clashes) ? ', with clashes' : ''}</button>` : '';
+  node.innerHTML = row(all[0], more);
   node.onclick = (e) => {
     // The card's own click handling mustn't see it: it would close the dialog as it opens.
     if (e.target.closest('[data-ov-all], [data-ov]')) e.stopPropagation();

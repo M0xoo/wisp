@@ -111,6 +111,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | | |
 |---|---|
 | **Fire and forget** | Launch a task from the UI or from any folder with `wisp "…"`. Each folder becomes a project. |
+| **Start from an issue** | New task's **Issue** button lists the project's open GitHub issues (and the Linear issues assigned to you, with a Linear connector); pick one and the prompt says *Fix #123*, with its link and text. |
 | **Presentations, not transcripts** | Agents end with structured blocks that render as an animated, skimmable report. |
 | **The full transcript, if you want it** | Off by default. Settings → General → *Full transcript*, or a card's **Transcript** button (`V`), shows the agent's messages and every step on a timeline. Click a step to see its output or diff. The presentation still renders as blocks at the end. |
 | **Live questions** | Agents get an `ask_user` tool, so they can pause mid-run. Your answer goes straight back to the running agent. |
@@ -127,7 +128,7 @@ From there you can **follow up**, **answer its questions**, **take it over** in 
 | **Attachments** | Paste screenshots or drop images, video, logs, or PDFs into the launcher. |
 | **Learns as you go** | After a session goes quiet, a background retro records your preferences and the agent's lessons (a mistake and the way that worked), globally and per project. Later runs get them in their prompt. See [Learning](#learning). |
 | **One task, several folders** | ⌘-click a second project in the launcher (or its **+**) and one agent works in both, e.g. the API and the web app that uses it. Each git repo gets its own worktree, and **Ship it** opens a PR in each. |
-| **A worktree per task** | In a git repo each task gets its own worktree and branch from `origin/main`, so parallel agents never collide. |
+| **A worktree per task** | In a git repo each task gets its own worktree and branch from `origin/main`, so parallel agents never collide. It brings what git ignores: the files `.worktreeinclude` lists (gitignore-style; without one, the root's `.env` files), and runs the repo's setup from `.wisp/worktree.json` (`{ "setup": ["npm ci"] }`) or Cursor's `.cursor/worktrees.json`, with `ROOT_WORKTREE_PATH` set. Add `"run": "npm run dev"` (and optionally `"port": 5173`) and the side panel's **Preview** runs the app from the worktree and shows it beside the task, with an element picker for the reply box. |
 | **Ship it** | One click commits, pushes and opens the PR. The card follows CI and reviews; **Merge** squash-merges and syncs your local main. |
 | **Clash warnings** | Two active tasks (Working or Needs you) in one repo changing the same files are flagged on both cards, with the files, before you ship or merge either. When merging both would really conflict (checked with `git merge-tree`, uncommitted edits included), the warning says so and names the conflicting files. |
 | **Delegate** | Give the lead agent a team on other harnesses and other machines (e.g. Claude Code hands tests to Codex ×3 and a refactor to Claude on your GPU box). It delegates through a `delegate` tool; their edits land in its worktree. See [Delegate](#delegate). |
@@ -217,6 +218,7 @@ console.log((await wisp.wait(s.id)).state, (await wisp.presentation(s.id)).markd
 - **HTTP API**: `GET /api/openapi.json`. The new routes are `/api/health`, `/api/sessions/:id/wait` (long-poll), `/api/sessions/:id/presentation` (blocks + markdown), and filters on `/api/sessions`.
 - **Discovery**: the running server writes `~/.wisp/server.json` (`url`, `port`, `pid`, `version`).
 - **Webhooks**: `PATCH /api/config {"webhooks":[…]}`. wisp POSTs `session.finished` and `session.waiting` with the presentation as markdown.
+- **Webhook triggers** (Settings → Automations → *Webhook triggers*, off by default): a trigger can start a task when something outside calls its secret URL, `POST /api/hooks/<token>`. *When a webhook is called*: the JSON or form body fills the prompt (`{{body.ref}}`, `{{text}}`), optionally signed with an HMAC sha256 secret. *When someone mentions wisp in Slack*: the URL is your Slack app's Events API request URL (signing secret checked, one channel, an optional keyword). *When a Linear issue is created*: a Linear webhook (Linear-Signature checked, an optional label). At most one task per trigger every 30 s; the editor lists the last five calls. On this computer the URL is local, so put a tunnel in front; on wisp Cloud it's public.
 
 ## Keyboard shortcuts
 

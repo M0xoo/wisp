@@ -812,7 +812,18 @@ export async function startGrid(cfg, { log = (m) => console.log(m) } = {}) {
       return redirect(res, cfg.publicUrl, { 'set-cookie': setCookie(names.wisp, '', 0) });
     }
 
-    const who = edgeAuth(req, user, box, row);
+    // A trigger's secret URL (wisp's POST /api/hooks/<token>): Slack, Linear or anything else
+    // calls it without signing in. It goes through (waking the wisp), and wisp checks the token
+    // and the signature itself; at most 120 a minute from one address.
+    const hook = req.method === 'POST' && /^\/api\/hooks\/[\w-]{20,64}$/.test(p);
+    if (hook) {
+      try {
+        limit(`hook|${clientIp(req)}`, 120);
+      } catch (err) {
+        return json(res, err.status || 429, { error: err.message });
+      }
+    }
+    const who = hook ? { via: 'hook', user } : edgeAuth(req, user, box, row);
     if (!who) {
       if (wantsHtml(req)) return redirect(res, `${back}${back.includes('?') ? '&' : '?'}path=${encodeURIComponent(p + url.search)}`);
       return json(res, 401, { error: 'Sign in again.' });

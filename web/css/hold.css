@@ -21,5 +21,6 @@
 .pill.st-held { --tone: var(--warn); }
 
 /* The harness picker: how full a window at or past your line is (in place of the model count). */
-.pk-text small.rp-usage { color: var(--warn); font-variant-numeric: tabular-nums; }
-.pk-seg b.rp-usage { font: 600 11px var(--sans); color: var(--warn); font-variant-numeric: tabular-nums; }
+.pk-text small.rp-usage { color: var(--muted); font-variant-numeric: tabular-nums; } /* how much of the plan is gone: plain */
+.pk-text small.rp-usage.warn { color: var(--warn); } /* at or past your line */
+.pk-seg b.rp-usage { font: 600 11.5px var(--sans); color: var(--warn); font-variant-numeric: tabular-nums; }

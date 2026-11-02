@@ -100,6 +100,8 @@ function opens(a, t, live) {
 // How far into the turn a step came, shown on hover.
 const since = (a, t) => (a.t && t.startedAt ? `<time class="tx-t" title="Since the turn started">${fmtDuration(Math.max(0, a.t - t.startedAt))}</time>` : '');
 
+// A row that opens is itself a button: its Open in editor is then a pointer shortcut, not a
+// button inside a button (the step's file has Open in editor in Changes too).
 function stepHtml(a, k, t, live) {
   const more = opens(a, t, live);
   // The command itself, unless the label already is it ("Running ls; …" when there was no description).
@@ -114,7 +116,7 @@ function stepHtml(a, k, t, live) {
       ${cmd ? `<code class="tx-cmd">${esc(cmd)}</code>` : ''}
       ${n ? `<span class="nums"><span class="plus">+${n.add}</span><span class="minus">−${n.del}</span></span>` : ''}
       ${since(a, t)}
-      ${a.file && (a.kind === 'read' || a.kind === 'edit') ? `<button class="tx-open" title="Open in editor" aria-label="Open in editor">${icon('external')}</button>` : ''}
+      ${a.file && (a.kind === 'read' || a.kind === 'edit') ? (more ? `<span class="tx-open" title="Open in editor" aria-hidden="true">${icon('external')}</span>` : `<button class="tx-open" title="Open in editor" aria-label="Open in editor">${icon('external')}</button>`) : ''}
       ${more ? icon('chevron', 'chev') : ''}
     </div>
   </li>`;

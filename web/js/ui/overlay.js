@@ -8,7 +8,10 @@ let backDone = null; // the phone's Back closes whichever dialog is showing (ui/
 export function overlay(node, { onClose } = {}) {
   const o = $('#overlay');
   o.innerHTML = '';
+  // A dialog's × is an icon: it says Close to a screen reader too
+  for (const b of node.querySelectorAll('button.close:not([aria-label])')) b.setAttribute('aria-label', b.title || 'Close');
   o.append(node);
+  import('./select.js').then((m) => m.kitSelects(node)); // its lists in wisp's own menu kit (desktop); loaded on use: tests load this module without a page
   o.hidden = false;
   requestAnimationFrame(() => o.classList.add('on'));
   backDone ||= onBack(() => o.close?.());

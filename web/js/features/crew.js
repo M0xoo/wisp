@@ -1090,7 +1090,8 @@ function paintSide(m, st, side) {
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
     // Paired on one line each so the column fits a window without scrolling.
     ['folder', `${project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')} · ${SANDBOX_LABEL[m.sandbox] || (m.machine ? placeName(m.machine) : HERE)}`],
-    [`logo:${m.agent}`, `${agentName(m.agent)}${m.agent === 'auto' ? '' : ` · ${m.model || 'Default model'}`} · ${MODES.find((x) => x.id === m.mode)?.label || 'Full auto'}`],
+    // No "Default model": it said nothing and cut the mode to "Full…" (the tip still names it)
+    [`logo:${m.agent}`, `${agentName(m.agent)}${m.agent === 'auto' || !m.model ? '' : ` · ${m.model}`} · ${MODES.find((x) => x.id === m.mode)?.label || 'Full auto'}`, `${agentName(m.agent)}${m.agent === 'auto' ? '' : ` · ${m.model || 'Default model'}`} · ${MODES.find((x) => x.id === m.mode)?.label || 'Full auto'}`],
   ];
   const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');
   const html = `
@@ -1602,17 +1603,47 @@ export function addressedTo(text) {
 let picker = null; // { ta, close, list, act, start }
 const NATIVE = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
 
+// Files for @: the task's folder in its reply box, the project picked in New task. Fetched once a
+// minute per place; the picker paints again when they come.
+const fileLists = new Map(); // url -> { at, files, p }
+function filesFor(ta) {
+  const id = ta.closest('.item[data-id]')?.dataset.id;
+  const project = ta.id === 'prompt' && launch.picks[''] && launch.picks[''] !== 'none' && launch.where.length === 1 && !launch.where[0] ? launch.picks[''] : null;
+  const url = id && S.sessions.get(id)?.agent !== 'wisp' ? `/sessions/${id}/files` : project ? `/files?project=${encodeURIComponent(project)}` : null;
+  if (!url) return [];
+  const got = fileLists.get(url);
+  if (!got || Date.now() - got.at > 60_000) {
+    const p = (got?.p && !got.files ? got.p : api(url).then((r) => r.files, () => []))
+      .then((files) => {
+        fileLists.set(url, { at: Date.now(), files });
+        if (picker?.ta === ta || document.activeElement === ta) pickerFor(ta);
+      });
+    if (!got) fileLists.set(url, { at: Date.now(), files: null, p });
+  }
+  return got?.files || [];
+}
+// A path typed after @: its name first, then anywhere in it
+function fileMatches(files, q, n) {
+  if (!q) return [];
+  const hit = (f) => {
+    const name = f.slice(f.lastIndexOf('/') + 1).toLowerCase();
+    return name.startsWith(q) ? 3 : f.toLowerCase().startsWith(q) ? 2 : f.toLowerCase().includes(q) ? 1 : 0;
+  };
+  return files.map((f) => [f, hit(f)]).filter(([, h]) => h).sort((a, b) => b[1] - a[1] || a[0].length - b[0].length).slice(0, n).map(([f]) => f);
+}
+
 function pickerFor(ta) {
-  if (!ta?.mentions || (!crewList().length && !stuffCount())) return closePicker();
+  if (!ta?.mentions) return closePicker();
   const caret = ta.selectionStart;
   if (caret !== ta.selectionEnd) return closePicker();
   const before = NATIVE.get.call(ta).slice(0, caret); // what the box shows, not the stored form
-  const m = before.match(/(^|[\s(])@([\p{L}\p{N}._-]{0,24})$/u);
+  const m = before.match(/(^|[\s(])@([\p{L}\p{N}._\/-]{0,80})$/u);
   if (!m) return closePicker();
   const q = m[2].toLowerCase();
-  const crew = rankCrew(crewList().filter((x) => x.id !== ta.dataset.crew && (!q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q)))).slice(0, 6);
-  const stuff = stuffMatches(q, crew.length ? 5 : 8);
-  const list = [...crew.map((m) => ({ kind: 'crew', id: m.id, title: m.name, m })), ...stuff.map((it) => ({ kind: 'stuff', id: it.id, title: cleanTitle(it.title), it }))];
+  const crew = q.includes('/') ? [] : rankCrew(crewList().filter((x) => x.id !== ta.dataset.crew && (!q || x.name.toLowerCase().startsWith(q) || handleOf(x.name).startsWith(q) || x.role?.toLowerCase().includes(q)))).slice(0, 6);
+  const stuff = q.includes('/') ? [] : stuffMatches(q, crew.length ? 5 : 8);
+  const files = fileMatches(filesFor(ta), q, crew.length || stuff.length ? 5 : 8);
+  const list = [...crew.map((m) => ({ kind: 'crew', id: m.id, title: m.name, m })), ...stuff.map((it) => ({ kind: 'stuff', id: it.id, title: cleanTitle(it.title), it })), ...files.map((f) => ({ kind: 'file', id: f, title: f }))];
   if (!list.length) return closePicker();
   const start = caret - m[2].length - 1;
   if (!picker || picker.ta !== ta) {
@@ -1627,12 +1658,15 @@ function pickerFor(ta) {
   }
   Object.assign(picker, { list, start, act: Math.min(picker.act, list.length - 1) });
   const row = (x, i) =>
-    x.kind === 'crew'
+    x.kind === 'file'
+      ? `<button type="button" class="cr-pick-row fl-pick${i === picker.act ? ' act' : ''}" data-i="${i}" role="option"><span class="fl-ic">${icon('file')}</span><span class="cr-main"><b>${esc(x.id.slice(x.id.lastIndexOf('/') + 1))}</b>${x.id.includes('/') ? `<small>${esc(x.id.slice(0, x.id.lastIndexOf('/')))}</small>` : ''}</span></button>`
+      : x.kind === 'crew'
       ? `<button type="button" class="cr-pick-row${i === picker.act ? ' act' : ''}" data-i="${i}" role="option">${avatarHtml(x.m, { size: 24, dot: false })}<span class="cr-main"><b>${esc(x.m.name)}</b>${x.m.role ? `<small>${esc(x.m.role)}</small>` : ''}</span></button>`
       : `<button type="button" class="cr-pick-row st-pick${i === picker.act ? ' act' : ''}" data-i="${i}" role="option">${stuffThumbHtml(x.it)}<span class="cr-main"><b>${esc(x.it.title)}</b><small>${esc(stuffSub(x.it))}</small></span></button>`;
   picker.node.innerHTML = [
     crew.length ? `<div class="wm-h">Crew <small>↵ to tag · a message that starts with them is theirs</small></div>${crew.map((x, i) => row(list[i], i)).join('')}` : '',
     stuff.length ? `<div class="wm-h">My Stuff <small>the agent gets the file</small></div>${stuff.map((x, i) => row(list[crew.length + i], crew.length + i)).join('')}` : '',
+    files.length ? `<div class="wm-h">Files <small>the agent reads it first</small></div>${files.map((x, i) => row(list[crew.length + stuff.length + i], crew.length + stuff.length + i)).join('')}` : '',
   ].join('');
   // Under the box where there's room, else over it.
   const r = ta.getBoundingClientRect();
@@ -1651,7 +1685,8 @@ function choose(i) {
   const m = p?.list[i];
   if (!m) return;
   const { ta } = p;
-  if (!ta.mentions.some((x) => x.id === m.id)) ta.mentions.push({ id: m.id, title: m.title, kind: m.kind });
+  // A file goes in as its path (@src/a.js), the way the harnesses read a file mention
+  if (m.kind !== 'file' && !ta.mentions.some((x) => x.id === m.id)) ta.mentions.push({ id: m.id, title: m.title, kind: m.kind });
   ta.focus();
   ta.setSelectionRange(p.start, ta.selectionStart);
   closePicker();

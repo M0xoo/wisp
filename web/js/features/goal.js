@@ -22,6 +22,9 @@ const STATE = { working: 'Working', checking: 'Checking', met: 'Goal met', impos
 
 export const goalLive = (g) => !!g && LIVE.has(g.status);
 const lastProgress = (g, back = 0) => g?.checks?.filter((c) => c.progress != null).at(-1 - back)?.progress ?? null;
+// What the bar and ring draw: the checker's estimate, but never full before the goal is met (a full
+// bar beside "0/1" and "Stalled" said two things at once).
+const shownProgress = (g, back = 0) => (g?.status === 'met' && !back ? 100 : lastProgress(g, back) == null ? null : Math.min(lastProgress(g, back), 99));
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 // A ring that fills with the last check's progress: the row's glyph and the band's mark.
@@ -36,7 +39,7 @@ export function goalPill(s) {
   const g = s.goal;
   if (!g || s.pending) return '';
   const tip = `Done when: ${g.text}\n${STATE[g.status] || ''}${g.last ? ` · ${g.last.why}` : ''}`;
-  return `<span class="pill goal-pill g-${g.status}" title="${esc(tip)}">${ring(g.status === 'met' ? 100 : lastProgress(g))}<span class="gp-n">${g.round}</span></span>`;
+  return `<span class="pill goal-pill g-${g.status}" title="${esc(tip)}">${ring(shownProgress(g))}<span class="gp-n">${g.round}</span></span>`;
 }
 
 // What the band's second line says, by state.
@@ -45,11 +48,13 @@ function checkLine(g) {
   const spent = g.endedAt && g.setAt ? fmtDuration(g.endedAt - g.setAt) : '';
   if (g.status === 'met') return `<b>Met in ${plural(g.round, 'round')}</b>${esc([spent, last?.why].filter(Boolean).join(' · '))}`;
   if (g.status === 'impossible') return `<b>Why</b>${esc(g.why || last?.why || '')}`;
-  if (g.status === 'out') return `<b>Stopped at ${lastProgress(g) ?? 0}%</b>${last ? esc(last.why) : ''}`;
+  if (g.status === 'out') return `<b>Stopped at ${shownProgress(g) ?? 0}%</b>${last ? esc(last.why) : ''}`;
   // Goals from before rounds were unlimited could run out of them.
   // Automations stop at held the next round back: it goes on by itself at the plan's reset.
   if (g.status === 'paused' && g.held) return `<b>Round ${g.round} goes on ${esc(whenLabel(g.held))}</b>${esc(g.why || '')}`;
-  if (g.status === 'paused') return `<b>${esc(g.why || 'Paused')}</b>${last ? esc(last.why) : ''}`;
+  // Why it paused is the news; the check's own words are on the round wisp sent back, under the band.
+  if (g.status === 'paused' && g.why) return `<b>${esc(g.why)}</b>`;
+  if (g.status === 'paused') return `<b>Paused</b>${last ? esc(last.why) : ''}`;
   if (g.status === 'handed') return '<b>Another run carries it on</b>';
   if (g.status === 'checking') return last ? `<b>Last check</b>${esc(last.why)}` : '<b>First check under way</b>';
   if (!last) return '<b>First check after this round</b>';
@@ -57,10 +62,11 @@ function checkLine(g) {
 }
 
 // The band: fixed two rows, so a round starting or a check landing never moves what's under it.
+// The check line's tip is the whole line where it's cut: checkLine is escaped already, so without its tags it's a safe attribute.
 function bandHtml(s) {
   const g = s.goal;
-  const p = g.status === 'met' ? 100 : lastProgress(g);
-  const was = lastProgress(g, 1);
+  const p = shownProgress(g);
+  const was = shownProgress(g, 1);
   const delta = p != null && was != null && p !== was ? p - was : null;
   const ended = !LIVE.has(g.status);
   const primary = ['paused', 'out'].includes(g.status) ? `<button class="ghost xs gb-go" data-g="resume">${icon('play')}Resume goal</button>` : '';
@@ -79,7 +85,7 @@ function bandHtml(s) {
         <span class="gb-pct">${p == null ? '–' : `${p}%`}${delta ? `<small class="${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '+' : '−'}${Math.abs(delta)}</small>` : ''}</span>
         ${votesHtml(g)}
         ${ended ? '' : `<span class="gb-round">Round ${g.round}</span>`}
-        <span class="gb-check"${g.held && g.why ? ` title="${esc(g.why)}"` : ''}>${checkLine(g)}</span>
+        <span class="gb-check" title="${g.held && g.why ? esc(g.why) : checkLine(g).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}${g.status === 'paused' && !g.held && g.why && g.checks?.at(-1)?.why ? ` · ${esc(g.checks.at(-1).why)}` : ''}">${checkLine(g)}</span>
         ${primary}${slotHtml('goal.band', S.sessions.get(s.id))}
       </div>
     </section>`;

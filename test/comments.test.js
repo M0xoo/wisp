@@ -2,7 +2,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { blockLabel, readComments, withComments } from '../web/js/comment-text.js';
+import { blockLabel, lineComment, readComments, withComments } from '../web/js/comment-text.js';
 
 test('a block is named by its kind and which one', () => {
   assert.equal(blockLabel({ type: 'diff', file: 'server/auth.js' }), 'Diff · server/auth.js');
@@ -73,4 +73,95 @@ test('a prompt that only looks like comments shows as it was typed', () => {
   assert.deepEqual(readComments('fix the bug'), { notes: [], rest: 'fix the bug' });
   const odd = '<comments>\nnot a numbered comment\n</comments>\n\nhi';
   assert.deepEqual(readComments(odd), { notes: [], rest: odd });
+});
+
+// Rows as the side panel's Changes has them: { op, text, a: old number, b: new number }.
+const ROWS = [
+  { op: ' ', text: 'function login(user) {', a: 40, b: 40 },
+  { op: '-', text: '  if (!user) return', a: 41 },
+  { op: '+', text: '  if (!user) return deny()', b: 41 },
+  { op: '+', text: '', b: 42 },
+  { op: ' ', text: '  const ttl = 60', a: 42, b: 43 },
+];
+
+test('a diff line is named by its file and number, as the file is now', () => {
+  const one = lineComment('server/auth.js', [ROWS[4]]);
+  assert.deepEqual(one, { kind: 'line', file: 'server/auth.js', side: 'new', from: 43, to: 43, mixed: false, quote: '  const ttl = 60', label: 'server/auth.js:43' });
+  const added = lineComment('server/auth.js', ROWS.slice(2, 4));
+  assert.equal(added.label, 'server/auth.js:41–42');
+  assert.equal(added.quote, '  if (!user) return deny()\n');
+  // Only removed: its old number, and it says so.
+  const gone = lineComment('server/auth.js', [ROWS[1]]);
+  assert.equal(gone.side, 'old');
+  assert.equal(gone.label, 'server/auth.js:41');
+  // Removed and added together: numbered by the new lines, each line marked.
+  const mixed = lineComment('server/auth.js', ROWS);
+  assert.equal(mixed.label, 'server/auth.js:40–43');
+  assert.equal(mixed.quote, '  function login(user) {\n-   if (!user) return\n+   if (!user) return deny()\n+ \n    const ttl = 60');
+  // A long range is cut; its numbers say the rest.
+  const long = lineComment('a.js', Array.from({ length: 60 }, (_, i) => ({ op: '+', text: `x${i}`, b: i + 1 })));
+  assert.equal(long.label, 'a.js:1–60');
+  assert.equal(long.quote.split('\n').length, 40);
+  assert.equal(long.quote.split('\n').at(-1), '…');
+});
+
+test('comments on diff lines go out with the file, the lines and the code', () => {
+  const text = withComments(
+    [
+      { ...lineComment('server/auth.js', [ROWS[4]]), note: 'Make this configurable.' },
+      { ...lineComment('server/auth.js', [ROWS[1]]), note: 'Why drop this?' },
+      { ...lineComment('server/auth.js', ROWS.slice(1, 3)), note: '' },
+      { ...lineComment('web/"odd".js', ROWS.slice(2, 4)), note: 'Two lines' },
+    ],
+    'Then run the tests.',
+  );
+  assert.equal(
+    text,
+    [
+      '<comments>',
+      '1. On "server/auth.js", line 43:',
+      '>   const ttl = 60',
+      'Make this configurable.',
+      '',
+      '2. On "server/auth.js", removed line 41 (numbered as before the change):',
+      '>   if (!user) return',
+      'Why drop this?',
+      '',
+      '3. On "server/auth.js", line 41 (removed lines marked -, added +):',
+      '> -   if (!user) return',
+      '> +   if (!user) return deny()',
+      '',
+      `4. On "web/'odd'.js", lines 41–42:`,
+      '>   if (!user) return deny()',
+      '> ',
+      'Two lines',
+      '</comments>',
+      '',
+      'Then run the tests.',
+    ].join('\n'),
+  );
+});
+
+test('a sent prompt reads diff-line comments back, next to the others', () => {
+  const sent = withComments(
+    [
+      { ...lineComment('server/auth.js', ROWS.slice(2, 4)), note: 'Shorter,\nplease.' },
+      { ...lineComment('server/auth.js', [ROWS[1]]), note: 'Keep it' },
+      { label: 'Text', kind: 'text', quote: 'line one', note: 'ok' },
+    ],
+    'And the docs.',
+  );
+  const { notes, rest } = readComments(sent);
+  assert.equal(rest, 'And the docs.');
+  assert.deepEqual(
+    notes.map(({ n, label, file, kind, side, from, to, quote, note }) => ({ n, label, file, kind, side, from, to, quote, note })),
+    [
+      { n: 1, label: 'server/auth.js:41–42', file: 'server/auth.js', kind: 'line', side: 'new', from: 41, to: 42, quote: '  if (!user) return deny()\n', note: 'Shorter,\nplease.' },
+      { n: 2, label: 'server/auth.js:41', file: 'server/auth.js', kind: 'line', side: 'old', from: 41, to: 41, quote: '  if (!user) return', note: 'Keep it' },
+      { n: 3, label: 'Text', file: undefined, kind: 'text', side: undefined, from: undefined, to: undefined, quote: 'line one', note: 'ok' },
+    ],
+  );
+  // A blank line of code whose trailing space was trimmed on the way still reads as code.
+  const trimmed = sent.replace(/^> $/m, '>');
+  assert.equal(readComments(trimmed).notes[0].quote, '  if (!user) return deny()\n');
 });

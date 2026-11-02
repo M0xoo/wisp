@@ -33,6 +33,8 @@ const FULL_TIME = { weekday: 'short', year: 'numeric', month: 'short', day: 'num
 export const agoLong = (t) => (ago(t) === 'now' ? 'just now' : `${ago(t)} ago`);
 export const timeAttrs = (t) => `title="${fmtDate(t, FULL_TIME)}"`;
 export const DAY_TIME = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+// A turn's time: today's is just "23:42" (the date said nothing and pushed the prompt over); the tip has it all.
+export const turnTime = (t) => `<time ${timeAttrs(t)}>${fmtDate(t, new Date().toDateString() === new Date(t).toDateString() ? SHORT_TIME : DAY_TIME)}</time>`;
 
 export const whenLabel = (t) => {
   if (!t) return '';

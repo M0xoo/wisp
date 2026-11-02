@@ -394,10 +394,11 @@ function paintQuick() {
 // always named, this computer too, so a list across places reads the same on every row.
 function runLine(s) {
   if (!s.agent || s.agent === 'wisp' || s.kind === 'reminder') return '';
-  const model = (s.model && agentById(s.agent)?.models?.find((m) => m.id === s.model)?.label) || s.model || 'Default model';
+  const model = (s.model && agentById(s.agent)?.models?.find((m) => m.id === s.model)?.label) || s.model;
   const where = s.machine?.name || HERE;
-  const tip = [agentName(s.agent), model, s.effort && `${effortLabel(s.effort)} thinking`, `on ${where}`].filter(Boolean).join(' · ');
-  return `<span class="it-run" title="${esc(tip)}"><i class="ir-logo">${harnessLogo(s.agent)}</i><span class="ir-h">${esc(agentName(s.agent))}</span><span class="ir-m">${esc(model)}</span><span class="ir-w">${icon(s.machine ? 'server' : 'laptop')}<span>${esc(where)}</span></span></span>`;
+  const tip = [agentName(s.agent), model || 'Default model', s.effort && `${effortLabel(s.effort)} thinking`, `on ${where}`].filter(Boolean).join(' · ');
+  // "Default model" says nothing on a row and cut the place to "This compu…": the tip keeps it
+  return `<span class="it-run" title="${esc(tip)}"><i class="ir-logo">${harnessLogo(s.agent)}</i><span class="ir-h">${esc(agentName(s.agent))}</span>${model ? `<span class="ir-m">${esc(model)}</span>` : ''}<span class="ir-w">${icon(s.machine ? 'server' : 'laptop')}<span>${esc(where)}</span></span></span>`;
 }
 
 // Every feed render repaints every head: rewrite one only when it would change, so an unchanged
@@ -454,8 +455,9 @@ function quickDone(s, open) {
 // the columns line up; touch has no hover, so there it isn't drawn at all (feed.css).
 function quickLater(s, open) {
   if (s.pending || s.archived || s.parentId || (open && !isSplit())) return '<span class="it-later-gap" aria-hidden="true"></span>'; // a subagent's row: its lead is the task
-  if (isForLater(s)) return `<button class="it-later on" data-a="quick-later" title="Unsave (L)" aria-label="Unsave">${icon('bookmark')}</button>`;
-  if (s.state === 'review') return `<button class="it-later" data-a="quick-later" title="Save for later (L)" aria-label="Save for later">${icon('bookmark')}</button>`;
+  // A pointer shortcut like Mark done's: a button inside the row's button is a nested control (axe); keys have L, More has it
+  if (isForLater(s)) return `<span class="it-later on" data-a="quick-later" title="Unsave (L)" aria-hidden="true">${icon('bookmark')}</span>`;
+  if (s.state === 'review') return `<span class="it-later" data-a="quick-later" title="Save for later (L)" aria-hidden="true">${icon('bookmark')}</span>`;
   return '<span class="it-later-gap" aria-hidden="true"></span>';
 }
 

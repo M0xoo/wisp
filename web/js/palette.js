@@ -6,7 +6,7 @@ import { splitQuery, tagScore } from './tags.js';
 // ⌘K command palette: one input over a grouped list of sessions, projects and
 // actions. Generic over its items; app.js decides what's in it and what runs.
 //
-// item: { id, group, label, sub?, icon?, dot?, kbd?, keywords?, tags?, run, rank?, at?, fill? }
+// item: { id, group, label, sub?, subHtml? (sub as safe HTML), icon?, dot?, kbd?, keywords?, tags?, run, rank?, at?, fill? }
 // `at` (ms) is when the item was last touched: recent items score higher (fuzzy.js recency).
 // `tags`: topic words (tags.js); "#auth" in the query keeps only items tagged auth. `fill`: picking
 // the item types that into the input instead of running anything (a topic narrows the search).
@@ -14,17 +14,32 @@ import { splitQuery, tagScore } from './tags.js';
 
 const GROUP_LIMIT = 6;
 
-export function palette({ items, overlay, placeholder = 'Search tasks, #topics, projects and actions…' }) {
+// deep(q): more items for a query, from the server (past work by its words); they follow the rest,
+// once they come, so nothing above them moves (one with an id already listed isn't shown twice).
+// loading: rows in their real shapes until close.set({ items, notice }) brings the list; notice is a
+// line of HTML over it (why it's empty, and what fixes that). cls and label name the dialog.
+export function palette({ items, overlay, deep, placeholder = 'Search tasks, #topics, projects and actions…', loading = false, cls = '', label = 'Command palette' }) {
   const node = el(`
-    <div class="palette" role="dialog" aria-label="Command palette">
+    <div class="palette${cls ? ` ${esc(cls)}` : ''}" role="dialog" aria-label="${esc(label)}">
       <div class="pal-input">${icon('search')}<input type="text" placeholder="${esc(placeholder)}" spellcheck="false" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="palList"></div>
+      <div class="pal-notice" role="status" hidden></div>
       <div class="pal-list" id="palList" role="listbox"></div>
       <footer class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></footer>
     </div>`);
   const input = node.querySelector('input');
   const list = node.querySelector('.pal-list');
+  const status = node.querySelector('.pal-notice');
+  // The note over the list (why it's empty, what fixes it) sits outside the listbox: only options in there
+  const paintNotice = (html) => {
+    if (status.dataset.h !== html) (status.innerHTML = html), (status.dataset.h = html);
+    status.hidden = !html;
+  };
   let shown = [];
   let sel = 0;
+  let extra = { q: '', items: [] }; // deep()'s answer for the query it was asked
+  let asking = 0;
+  let waiting = loading;
+  let notice = '';
 
   const results = (q) => {
     if (!q.trim()) {
@@ -48,14 +63,35 @@ export function palette({ items, overlay, placeholder = 'Search tasks, #topics, 
     // Best match first, but keep groups together, ordered by their best hit.
     hits.sort(byScore);
     const order = [...new Set(hits.map((h) => h.it.group))];
-    return order.flatMap((g) => hits.filter((h) => h.it.group === g).slice(0, 12));
+    const listed = new Set(hits.map((h) => h.it.id).filter(Boolean));
+    const deepHits = extra.q === q.trim() ? extra.items.filter((it) => !it.id || !listed.has(it.id)).map((it) => ({ it, idx: [] })) : [];
+    return [...order.flatMap((g) => hits.filter((h) => h.it.group === g).slice(0, 12)), ...deepHits];
+  };
+  // Asked once typing pauses; an answer for words no longer in the box is dropped.
+  const ask = () => {
+    const q = input.value.trim();
+    clearTimeout(asking);
+    if (!deep || q.length < 3 || q.startsWith('#')) return;
+    asking = setTimeout(async () => {
+      const got = await deep(q).catch(() => []);
+      if (input.value.trim() !== q || !node.isConnected) return;
+      extra = { q, items: got };
+      render();
+    }, 160);
   };
 
   const render = () => {
+    if (waiting) {
+      shown = [];
+      list.innerHTML = SKELETON;
+      return;
+    }
     shown = results(input.value);
     sel = Math.min(sel, Math.max(0, shown.length - 1));
+    paintNotice(notice);
+    list.setAttribute('role', shown.length ? 'listbox' : 'presentation');
     if (!shown.length) {
-      list.innerHTML = `<div class="pal-empty">No results for “${esc(input.value.trim())}”</div>`;
+      list.innerHTML = notice && !input.value.trim() ? '' : `<div class="pal-empty">No results for “${esc(input.value.trim())}”</div>`;
       return;
     }
     let group = null;
@@ -67,7 +103,7 @@ export function palette({ items, overlay, placeholder = 'Search tasks, #topics, 
           <span class="pal-lead">${lead}</span>
           <span class="pal-label">${highlight(it.label, idx, esc)}</span>
           ${!it.fill && it.tags?.length && input.value.trim() ? tagsHtml(it.tags, hit) : ''}
-          ${it.sub ? `<span class="pal-sub">${esc(it.sub)}</span>` : ''}
+          ${it.subHtml || it.sub ? `<span class="pal-sub">${it.subHtml || esc(it.sub)}</span>` : ''}
           ${it.kbd ? `<span class="pal-kbd">${it.kbd.split(' ').map((k) => `<kbd>${esc(k)}</kbd>`).join('')}</span>` : ''}
         </div>`;
       })
@@ -103,7 +139,12 @@ export function palette({ items, overlay, placeholder = 'Search tasks, #topics, 
     setTimeout(() => hit.it.run(), 0);
   };
 
-  input.addEventListener('input', () => ((sel = 0), render(), (list.scrollTop = 0)));
+  input.addEventListener('input', () => {
+    sel = 0;
+    render();
+    list.scrollTop = 0;
+    ask();
+  });
   input.addEventListener('keydown', (e) => {
     const ctrl = e.ctrlKey && !e.metaKey;
     if (e.key === 'ArrowDown' || (ctrl && (e.key === 'n' || e.key === 'j'))) move(sel + 1);
@@ -126,8 +167,20 @@ export function palette({ items, overlay, placeholder = 'Search tasks, #topics, 
 
   render();
   input.focus();
+  // The list once it's in (a loading palette), and the notice over it.
+  close.set = ({ items: next, notice: html = '' }) => {
+    items = next;
+    notice = html;
+    waiting = false;
+    render();
+  };
   return close;
 }
+
+// A loading list: a group line and rows the size of real ones.
+const SKELETON = `<div class="pal-sk-wrap" aria-hidden="true"><i class="sk pal-sk-group"></i>${[64, 48, 72, 40, 58, 52]
+  .map((w) => `<div class="pal-sk"><i class="sk pal-sk-lead"></i><span class="pal-sk-lines"><i class="sk pal-sk-label" style="width:${w}%"></i><i class="sk pal-sk-sub"></i></span></div>`)
+  .join('')}</div>`;
 
 // Up to three of a task's topics, the ones the query found first and marked.
 function tagsHtml(tags, hit) {

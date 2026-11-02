@@ -52,6 +52,7 @@
 .it-meta .m.also { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2); }
 .it-meta .m .i { width: 12px; height: 12px; flex: none; color: var(--faint); }
 .it-meta .m.moved-to { color: var(--accent-ink); cursor: pointer; }
+.it-meta .m.setup-warn { color: var(--warn); } /* .worktreeinclude or the setup step went wrong (its tooltip says how) */
 .it-meta .m.moved-to:hover { text-decoration: underline; }
 /* A fork names the task it came from (a link); the original counts its forks */
 .it-meta .m.fork-from, .it-meta .m.forks { color: var(--ink-2); }
@@ -114,7 +115,7 @@ body.split:not(.pane-wide) .it-meta .m.forks { order: -1; }
 .ship-route + .ship-route { margin-top: -6px; }
 .ship-field { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 0; }
 .ship-field > span { font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
-.ship-field select { width: 100%; }
+.ship-field :is(select, .kit-sel) { width: 100%; }
 .ship-check { display: flex; margin-top: 10px; }
 .ship-foot { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .ship-foot > .muted { margin-right: auto; }
@@ -215,7 +216,9 @@ body.split.pane-wide .it-bar > .it-props > .pill.overlap.clash { color: var(--wa
 body.split.pane-wide .it-bar > .it-props > .pill.overlap .i { width: 13px; height: 13px; margin-left: 1px; color: var(--tone); }
 /* Phones: the icon alone keeps the title its room; the open card spells it out */
 @media (max-width: 520px) { .pill.overlap .ov-l { display: none; } .pill.overlap { padding: 0 6px; } }
-.ov-more { align-self: flex-start; margin: 1px 0 1px 21px; color: var(--ink-2); }
+/* A row in the list: the icon and its count (the tooltip names them), so the preview beside it has room */
+body.split #feed .it-head .pill.overlap .ov-l { display: none; }
+.ov-more { flex: none; margin: 0; color: var(--ink-2); white-space: nowrap; } /* on the row, before Open */
 .ov-more:hover { color: var(--ink); }
 .ov-modal { width: min(560px, calc(100vw - 32px)); }
 .ov-modal .hint { margin: -6px 0 12px; }

@@ -93,7 +93,7 @@ export function openMachines({ host, focusAdd = false, focusGrid = false } = {})
   // A cloud computer doesn't SSH out: how to reach it through the grid instead.
   if (inGrid()) return import('./settings.js').then((m) => m.openSettings({ pane: 'machines' }));
   const node = el(`<div class="modal machines-modal">
-      <header><h2>Machines</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Machines</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <div class="mc-body">
         <p class="mem-lede">Run tasks on another computer you own: a desktop at home, a server, a cloud VM. Its tasks show up here next to this computer’s, and keep going when this one sleeps.</p>
         <section class="sx-group mc-grid"></section>

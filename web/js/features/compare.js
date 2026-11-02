@@ -38,7 +38,7 @@ export async function compareView(id) {
   const fulls = (await Promise.all(group.map((g) => api(`/sessions/${g.id}`).catch(() => null)))).filter(Boolean);
   const node = el(`
     <div class="modal compare-modal">
-      <header><h2>Compare</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Compare</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <p class="cmp-prompt">${mentionHtml(esc(fulls[0]?.turns[0]?.prompt || ''))}</p>
       <div class="cmp-grid" style="--n:${fulls.length}"></div>
     </div>`);

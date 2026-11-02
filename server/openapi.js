@@ -268,6 +268,14 @@ export function openapi({ version, port }) {
         patch: { summary: 'Edit, enable or disable a trigger', requestBody: body(ref('Trigger')), responses: { 200: json(ref('Trigger')), 400: err[400] } },
         delete: { summary: 'Delete a trigger', responses: { 200: ok } },
       },
+      '/hooks/{token}': {
+        parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string' }, description: 'A webhook, Slack or Linear trigger’s token' }],
+        post: {
+          summary: 'Start a trigger’s task from outside wisp (Settings → Automations → Webhook triggers; off: 404). No sign-in: the token is the check, then the signature (webhook: optional HMAC sha256; slack: X-Slack-Signature within 5 minutes; linear: Linear-Signature). Slack’s url_verification gets its challenge back. At most one task per trigger every 30 s. The task starts after the answer',
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object' } }, 'application/x-www-form-urlencoded': { schema: { type: 'object' } } } },
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, skipped: { type: 'string' }, challenge: { type: 'string' } } }, 'Answered with nothing started: filtered out, a duplicate, or Slack’s url_verification'), 202: json({ type: 'object', properties: { ok: { type: 'boolean' }, accepted: { type: 'boolean' } } }, 'Accepted: the task starts'), 401: json(ref('Error'), 'The signature is missing or wrong, or too old'), 404: err[404], 429: json({ type: 'object' }, 'Another task started less than 30 s ago') },
+        },
+      },
       '/triggers/{tid}/run': { parameters: [{ name: 'tid', in: 'path', required: true, schema: { type: 'string' } }], post: { summary: 'Fire a schedule now, or poll a watcher now (firing for anything new)', responses: { 200: json({ type: 'object', properties: { started: { type: 'array', items: ref('Summary') }, trigger: ref('Trigger') } }) } } },
       '/crew': {
         get: { summary: 'Your crew: long-lived agents with a name, role, avatar, brief, schedule and memory (notebook, log). Their work runs as tasks (jobs, `crew` on a session summary); running counts jobs now, nextAt is the next check-in', responses: { 200: json({ type: 'array', items: ref('CrewMember') }) } },
@@ -613,8 +621,74 @@ export function openapi({ version, port }) {
         delete: { summary: 'End the shell', responses: { 200: ok } },
       },
       '/sessions/{id}/open-shell': { parameters: [id], post: { summary: 'Open the task’s folder in the terminal app from Settings (on a machine: signed in over SSH)', responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, dir: { type: 'string' } } }), 409: json(ref('Error')) } } },
+      '/sessions/{id}/run': {
+        parameters: [id],
+        get: { summary: 'The app run from the task’s folder for the side panel’s Preview (server/runs.js): command, running, ready (its port answers), port (PORT it got), url (the local address it printed, else the port), proxyUrl (the same app, framable, with the element picker), exitCode, signal, stopped, tail (its last lines). config is how to run it when nothing runs yet: .wisp/worktree.json’s run and port, or a guess from package.json (source: config | package.json); canRun is false for a task without a folder', responses: { 200: json({ type: 'object', properties: { command: { type: ['string', 'null'] }, running: { type: 'boolean' }, ready: { type: 'boolean' }, port: { type: ['integer', 'null'] }, url: { type: ['string', 'null'] }, proxyUrl: { type: ['string', 'null'] }, exitCode: { type: ['integer', 'null'] }, tail: { type: 'string' }, config: { type: ['object', 'null'], properties: { command: { type: 'string' }, port: { type: ['integer', 'null'] }, source: { enum: ['config', 'package.json'] } } }, canRun: { type: 'boolean' } } }), 404: err[404] } },
+        post: {
+          summary: 'Run the app in the task’s folder (its worktree), with PORT set to a free port wisp picks for the task (or the config’s port), in a process group of its own. command defaults to the config’s or the guess; restart stops the one running first (else a running app is left as it is)',
+          requestBody: body({ type: 'object', properties: { command: { type: 'string' }, restart: { type: 'boolean' } } }),
+          responses: { 200: json({ type: 'object' }), 400: err[400], 409: json(ref('Error'), 'The task has no folder') },
+        },
+        delete: { summary: 'Stop the app and everything it started', responses: { 200: ok } },
+      },
+      '/sessions/{id}/run/log': { parameters: [id], get: { summary: 'Server-sent events from the app’s output: hello (the run), lines (a JSON array of new lines; the first event holds the last 2000), exit ({ code, signal }), gone', responses: { 200: { description: 'text/event-stream', content: { 'text/event-stream': { schema: { type: 'string' } } } } } } },
       '/sessions/{id}/check-log': { parameters: [id, { name: 'url', in: 'query', required: true, schema: { type: 'string' } }], get: { summary: 'The last lines of a failing GitHub Actions job’s log (the check’s details URL), for asking the agent to fix it', responses: { 200: json({ type: 'object', properties: { log: { type: 'string' } } }) } } },
-      '/sessions/{id}/changes': { parameters: [id], get: { summary: 'What the task changed since its branch left the base (committed or not, new files included), each file with its hunks. files is null without a worktree: the page shows the edits wisp captured', responses: { 200: json({ type: 'object', properties: { base: { type: 'string' }, at: { type: 'string', description: 'The merge-base commit' }, files: { type: 'array', nullable: true, items: { type: 'object', properties: { path: { type: 'string' }, from: { type: 'string' }, status: { type: 'string', enum: ['A', 'M', 'D', 'R'] }, add: { type: 'integer' }, del: { type: 'integer' }, binary: { type: 'boolean' }, generated: { type: 'boolean' }, rows: { type: 'array', items: { type: 'object' } }, more: { type: 'integer' } } } }, untracked: { type: 'integer', description: 'New files past the first 200, not listed' } } }), 404: err[404] } } },
+      '/sessions/{id}/changes': { parameters: [id], get: { summary: 'What the task changed since its branch left the base (committed or not, new files included), each file with its hunks. files is null without a worktree: the page shows the edits wisp captured', responses: { 200: json({ type: 'object', properties: { base: { type: 'string' }, at: { type: 'string', description: 'The merge-base commit' }, files: { type: 'array', nullable: true, items: { type: 'object', properties: { path: { type: 'string' }, from: { type: 'string' }, status: { type: 'string', enum: ['A', 'M', 'D', 'R'] }, add: { type: 'integer' }, del: { type: 'integer' }, binary: { type: 'boolean' }, generated: { type: 'boolean' }, rows: { type: 'array', items: { type: 'object' } }, more: { type: 'integer' }, staged: { type: 'boolean', description: 'Has changes in the index' }, unstaged: { type: 'boolean', description: 'Has changes not staged yet (untracked counts)' }, hunkStage: { type: 'array', description: 'Per hunk of rows (modified files with something staged or to stage): { staged, unstaged }', items: { type: 'object', properties: { staged: { type: 'boolean' }, unstaged: { type: 'boolean' } } } } } } }, staged: { type: 'integer', description: 'How many files have staged changes' }, untracked: { type: 'integer', description: 'New files past the first 200, not listed' } } }), 404: err[404] } } },
+      '/sessions/{id}/changes/revert': {
+        parameters: [id],
+        post: {
+          summary: 'Put a file of Changes back as it was at the merge-base: one hunk of its diff (hunk, the index in its rows between gaps), or the whole file (modified and deleted files from the merge-base, added ones removed). restore puts a file back as it was before a revert (text, or null to remove it): Undo. Refused while the agent works on the task, and with 409 when the hunk changed since key',
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['path'], properties: { path: { type: 'string', description: 'As /changes names it' }, hunk: { type: 'integer', minimum: 0 }, key: { type: 'string', description: 'The hunk’s rows as the page saw them (hashed), so a moved hunk is refused' }, restore: { type: ['string', 'null'] }, hash: { type: 'string', description: 'With restore: the sha1 the file had after the revert' } } } } } },
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, hash: { type: 'string', nullable: true, description: 'sha1 of the file now (null: it is gone), for PUT /source or restore' } } }), 400: err[400], 404: err[404], 409: { description: 'The agent is working, or the part changed since you looked' } },
+        },
+      },
+      '/sessions/{id}/changes/stage': {
+        parameters: [id],
+        post: {
+          summary: 'Stage a file of Changes (git add), or one hunk of its diff (the matching hunks of git diff applied to the index); unstage takes it back out (git restore --staged, or the hunk applied backwards). Refused while the agent works on the task, and with 409 when the hunk changed since key or has nothing left to move',
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['path'], properties: { path: { type: 'string', description: 'As /changes names it' }, hunk: { type: 'integer', minimum: 0 }, key: { type: 'string', description: 'The hunk’s rows as the page saw them (hashed)' }, unstage: { type: 'boolean' } } } } } },
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' } } }), 400: err[400], 404: err[404], 409: { description: 'The agent is working, no worktree, or the part changed since you looked' } },
+        },
+      },
+      '/sessions/{id}/changes/commit': {
+        parameters: [id],
+        post: {
+          summary: 'Commit what is staged in the task’s worktree (all: stage everything first). 400 on an empty message or nothing staged; refused while the agent works on the task',
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['message'], properties: { message: { type: 'string' }, all: { type: 'boolean' } } } } } },
+          responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, sha: { type: 'string', description: 'The new commit, short' } } }), 400: err[400], 404: err[404], 409: { description: 'The agent is working, no worktree, or git refused (a hook, no author)' } },
+        },
+      },
+      '/issues': {
+        get: {
+          summary: 'Open issues to start a task from: a project’s on GitHub (through gh, its origin remote), or the Linear issues assigned to you when a Linear connector has an API key. Kept for a minute per project and search. A problem (gh missing or signed out, no GitHub remote, no Linear key) comes back as error and fix beside an empty list',
+          parameters: [{ name: 'project', in: 'query', schema: { type: 'string' }, description: 'Project id (GitHub)' }, { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Search words (gh issue list --search; a Linear title match)' }, { name: 'source', in: 'query', schema: { type: 'string', enum: ['github', 'linear', 'jira'], default: 'github' } }],
+          responses: { 200: json({ type: 'object', properties: { source: { type: 'string' }, repo: { type: 'string' }, linear: { type: 'boolean', description: 'A Linear connector has an API key' }, error: { type: 'string' }, fix: { type: 'string', enum: ['install', 'signin', 'remote', 'linear', 'project'] }, issues: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, ref: { type: 'string', description: '#123, or ENG-123 on Linear' }, number: { oneOf: [{ type: 'integer' }, { type: 'string' }] }, title: { type: 'string' }, url: { type: 'string' }, labels: { type: 'array', items: { type: 'string' } }, assignee: { type: 'string' }, body: { type: 'string', description: 'Its first 4000 characters' }, updatedAt: { type: 'string', nullable: true } } } } } }), 400: err[400], 404: err[404] },
+        },
+      },
+      '/search': {
+        get: {
+          summary: 'Past work by its words: every word must be in one title, prompt or answer of a task; newest tasks first, up to three turns each',
+          parameters: [{ name: 'q', in: 'query', required: true, schema: { type: 'string' } }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } }],
+          responses: { 200: json({ type: 'object', properties: { hits: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, turn: { type: 'string', nullable: true }, where: { type: 'string', enum: ['title', 'prompt', 'answer'] }, snippet: { type: 'string' }, at: { type: 'integer' } } } } } }) },
+        },
+      },
+      '/sessions/{id}/files': { parameters: [id], get: { summary: 'The task folder’s files as git lists them (tracked, and new ones not ignored), for Open file… in the panel’s editor. More than 20,000: the first ones and how many more', responses: { 200: json({ type: 'object', properties: { files: { type: 'array', items: { type: 'string' } }, more: { type: 'integer' }, git: { type: 'boolean' } } }), 404: err[404] } } },
+      '/files': { get: { summary: 'A project’s files on this computer, as git lists them (tracked, and new ones not ignored), for @ in New task. More than 20,000: the first ones and how many more', parameters: [{ name: 'project', in: 'query', required: true, schema: { type: 'string' } }], responses: { 200: json({ type: 'object', properties: { files: { type: 'array', items: { type: 'string' } }, more: { type: 'integer' }, git: { type: 'boolean' } } }), 404: err[404] } } },
+      '/sessions/{id}/lsp': {
+        parameters: [id],
+        post: {
+          summary: 'Language intelligence for the editor from a language server found for the file (TypeScript/JavaScript, Python, Go, Rust): where a name is defined, every use, hover text, diagnostics. lsp is null when none is installed (install says which wisp can install)',
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['op', 'path'], properties: { op: { type: 'string', enum: ['definition', 'references', 'hover', 'diagnostics', 'rename', 'completion'] }, newName: { type: 'string', description: 'rename: the new name; the server writes every file it changes (refused while the agent works)' }, path: { type: 'string' }, text: { type: 'string', description: 'The editor’s copy (unsaved edits too); the file on disk without it' }, line: { type: 'integer' }, col: { type: 'integer' } } } } } },
+          responses: { 200: json({ type: 'object', properties: { lsp: { type: 'string', nullable: true }, install: { type: 'string', nullable: true }, hits: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, line: { type: 'integer' }, col: { type: 'integer' }, text: { type: 'string' } } } }, hover: { type: 'string' }, diagnostics: { type: 'array', items: { type: 'object' } } } }), 400: err[400], 404: err[404] },
+        },
+      },
+      '/lsp/install': { post: { summary: 'Install the npm language servers wisp knows (typescript-language-server, pyright) into <home>/lsp for the editor', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['lang'], properties: { lang: { type: 'string', enum: ['ts', 'py'] } } } } } }, responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' } } }), 400: err[400] } } },
+      '/sessions/{id}/grep': { parameters: [id], get: { summary: 'Search the task folder’s files (git grep, case-insensitive text), or with def= find where a name is defined (a declaring keyword before it, or a function assigned to it). At most 60 hits', parameters: [{ name: 'q', in: 'query', schema: { type: 'string' } }, { name: 'def', in: 'query', schema: { type: 'string' } }], responses: { 200: json({ type: 'object', properties: { hits: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, line: { type: 'integer' }, text: { type: 'string' } } } }, git: { type: 'boolean' } } }), 400: err[400], 404: err[404] } } },
+      '/sessions/{id}/source': {
+        parameters: [id],
+        get: { summary: 'A file of the task’s folder (its worktree, or the project folder without one) as text, for the side panel’s editor', parameters: [{ name: 'path', in: 'query', required: true, schema: { type: 'string' }, description: 'Relative to the folder, as /changes names it' }], responses: { 200: json({ type: 'object', properties: { path: { type: 'string' }, text: { type: 'string' }, hash: { type: 'string', description: 'sha1 of the file, to send back with PUT' } } }), 404: err[404], 413: { description: 'Over 1 MB' }, 415: { description: 'Not text' } } },
+        put: { summary: 'Save a file of the task’s folder. Refused while the agent works on the task, and with 409 (and the file’s text and hash now) when it changed since hash', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['path', 'text'], properties: { path: { type: 'string' }, text: { type: 'string' }, hash: { type: 'string' } } } } } }, responses: { 200: json({ type: 'object', properties: { ok: { type: 'boolean' }, hash: { type: 'string' } } }), 404: err[404], 409: { description: 'The agent is working, or the file changed since you opened it' } } },
+      },
       '/sessions/{id}/prs': { parameters: [id], get: { summary: 'Every PR of the task in full: each check, reviewers, comments and reviews (bots marked), inline threads, files changed', responses: { 200: json({ type: 'object', properties: { prs: { type: 'array', items: { type: 'object' } } } }), 404: err[404] } } },
       '/uploads': {
         post: {
@@ -820,15 +894,23 @@ export function openapi({ version, port }) {
             id: { type: 'string' },
             crew: { type: 'string', description: 'A crew member id: the work goes to them as a job (cwd may then be empty for a schedule or a task watcher)' },
             name: { type: 'string' },
-            kind: { enum: ['schedule', 'ci', 'issues', 'finished', 'done'], description: 'finished: a task finished a turn; done: a task was marked done' },
+            kind: { enum: ['schedule', 'ci', 'issues', 'finished', 'done', 'webhook', 'slack', 'linear'], description: 'finished: a task finished a turn; done: a task was marked done; webhook, slack, linear: its URL (POST /hooks/{token}) was called' },
             enabled: { type: 'boolean' },
             cwd: { type: 'string', description: 'finished/done: only tasks in this project; empty = the crew member’s project, or any' },
-            prompt: { type: 'string', description: 'Template; ci gets {id} {name} {branch} {sha} {url}, issues get {number} {title} {body} {url} {author}, finished/done get {id} {title} {summary} {branch} {cwd}' },
+            prompt: { type: 'string', description: 'Template; ci gets {id} {name} {branch} {sha} {url}, issues get {number} {title} {body} {url} {author}, finished/done get {id} {title} {summary} {branch} {cwd}; webhook gets {{body.a.b}} {{text}}, slack {{text}} {{user}} {{channel}}, linear {{title}} {{url}} {{description}} {{identifier}}' },
             recipeId: { type: 'string', description: 'Run this recipe instead of prompt' },
             params: { type: 'object' },
             cron: { type: 'string', description: 'schedule: when, in words ("every monday") or 5-field cron, local time; stored as cron' },
             branch: { type: 'string', description: 'ci: only failures on this branch' },
-            label: { type: 'string', description: 'issues: the label to watch' },
+            label: { type: 'string', description: 'issues: the label to watch; linear: only issues with this label (empty: any)' },
+            token: { type: 'string', readOnly: true, description: 'webhook/slack/linear: the secret part of its URL, /api/hooks/{token}' },
+            regenerate: { type: 'boolean', writeOnly: true, description: 'A new token: the old URL stops working' },
+            secret: { type: ['string', 'null'], writeOnly: true, description: 'webhook: signs deliveries (HMAC sha256 of the body, optional); slack: the app’s signing secret; linear: the webhook’s signing secret. Never sent back (hasSecret); left out it stays, null clears it' },
+            hasSecret: { type: 'boolean', readOnly: true },
+            header: { type: 'string', description: 'webhook: the header carrying the signature (default X-Hub-Signature-256), hex or sha256=hex' },
+            channel: { type: 'string', description: 'slack: the channel id (C0123456789) whose mentions and messages start tasks' },
+            keyword: { type: 'string', description: 'slack: only messages with this word' },
+            deliveries: { type: 'array', readOnly: true, description: 'webhook/slack/linear: the last five calls', items: { type: 'object', properties: { at: { type: 'integer' }, result: { enum: ['started', 'skipped', 'rejected'] }, why: { type: 'string' }, session: { type: ['string', 'null'] } } } },
             every: { type: 'integer', description: 'ci/issues: minutes between polls' },
             agent: { type: 'string' },
             model: { type: 'string' },

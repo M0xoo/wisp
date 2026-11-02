@@ -156,6 +156,8 @@ body.wisp-mobile .composer:focus-within .c-bar > .send { box-shadow: -10px 0 8px
    between the bar's other lines. */
 body.wisp-mobile .it-bar .ghost.xs { min-width: 44px; height: 44px; padding: 4px; justify-content: center; border-radius: 12px; background-clip: content-box; }
 body.wisp-mobile .it-bar > .it-actions { margin: -6px 0 -6px -12px; }
+body.wisp-mobile.split.stack:not(.pane-wide) .it-bar > .it-actions { margin: 0 -6px; }
+body.wisp-mobile.split.stack:not(.pane-wide) .it-actions .ghost.xs { height: auto; min-height: 52px; padding: 4px 2px; background-clip: border-box; }
 body.wisp-mobile .it-quick { width: 44px; height: 44px; margin: -10px -12px -10px 0; }
 body.wisp-mobile .it-quick-gap { width: 32px; }
 /* The rest of what a thumb taps: section folds, Crew's +, the overlap's Open and
@@ -169,6 +171,9 @@ body.wisp-mobile #secCrew > .cr-add { top: 0; right: 0; width: 44px; height: 44p
   .org-pick::before { inset: -14px; }
 }
 body.wisp-mobile .ov-row .ghost.xs { height: 44px; }
+/* 44px to the thumb, the same room in the layout: the negative margin gives back what the height adds */
+body.wisp-mobile :is(.ask .more-btn, .ov-more) { min-height: 44px; margin-block: -12.5px; } /* 19px links */
+body.wisp-mobile .gb-go { min-height: 44px; margin-block: -10px; } /* a 24px button */
 body.wisp-mobile .tests-cmd .run-tests { min-height: 44px; }
 body.wisp-mobile .trail-bar :is(.tb-acts, .tb-btn, .link.xs, .rate-btn) { min-height: 44px; min-width: 44px; justify-content: center; }
 body.wisp-mobile :is(.ask-card, .b-question) .opt { min-height: 44px; }
@@ -232,8 +237,8 @@ body.wisp-mobile .to-top { top: auto; left: auto; right: 12px; bottom: calc(84px
 /* Type: a phone reads at arm's length. Titles 15, lines under them 13, small print 12. */
 body.wisp-mobile .it-title { font-size: 15px; }
 body.wisp-mobile :is(.it-sub, .q-live) { font-size: 13px; }
-body.wisp-mobile .it-run { font-size: 12px; line-height: 18px; }
-body.wisp-mobile :is(.q-time, .q-proj, .pill) { font-size: 12px; }
+body.wisp-mobile .it-run { font-size: 12.5px; line-height: 18px; }
+body.wisp-mobile :is(.q-time, .q-proj, .pill) { font-size: 12.5px; }
 body.wisp-mobile .f-group h4 { font-size: 13px; }
 body.wisp-mobile .trail-bar { font-size: 13px; }
 body.wisp-mobile .tb-l { display: inline; }
@@ -248,3 +253,36 @@ body.wisp-mobile .trail-bar > .link.xs + .tb-tools { margin-left: -14px; }
    containment would hold it inside the row. */
 #feed .item:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 64px; }
 body.wisp-mobile #feed .item:not(.open) { contain-intrinsic-size: auto 88px; }
+
+/* The phone app: every control a thumb can hit is 44px (qa/ui-audit.mjs checks each view). Rows grow;
+   small inline buttons keep their look and take the room with a min-height. */
+body.wisp-mobile :is(.sh-task, .t-fold, .tx-row, .pk-h, .m.cv-dlg) { min-height: 44px; }
+body.wisp-mobile :is(.l-goal input, .c-goal-line input, .composer-goal input, .pal-input input) { min-height: 44px; }
+body.wisp-mobile .topbar .brand { min-height: 44px; display: inline-flex; align-items: center; }
+body.wisp-mobile #moreProjects { height: 44px; }
+body.wisp-mobile #toasts :is(.t-act, .t-x) { min-width: 44px; min-height: 44px; }
+body.wisp-mobile .pk-seg button, body.wisp-mobile .side-panel.stacked .pn-tabs button { min-height: 44px; }
+body.wisp-mobile :is(.modal, .menu, .picker, .goal-pop, .team-pop, .pop) :is(.primary.sm, .ghost.sm, .runner-btn, .mode-btn, .input, .icon-btn.close) { min-height: 44px; }
+body.wisp-mobile :is(.modal, .goal-pop, .team-pop) .icon-btn.close { min-width: 44px; }
+body.wisp-mobile .side-panel :is(.cx-more, .cx-edit, .icon-btn.xs) { width: 44px; height: 44px; }
+body.wisp-mobile .side-panel .cx-viewed { min-width: 44px; height: 44px; }
+/* A hunk's Revert: 44px to tap, the pill it shows the line's height, centred on it. */
+body.wisp-mobile .side-panel .cx-hk-rev { height: 44px; min-width: 64px; } /* its head row grows to hold it */
+body.wisp-mobile .side-panel .cx-hk-stage { height: 44px; min-width: 72px; }
+body.wisp-mobile .side-panel .cx-stage { height: 44px; }
+body.wisp-mobile .side-panel :is(.cx-cm-field, .cx-cm-go) { height: 44px; }
+body.wisp-mobile .side-panel .ghost.xs { min-height: 44px; }
+body.wisp-mobile :is(.crew-view, .cv-col, .pal-list) .link.xs { min-width: 44px; justify-content: center; }
+body.wisp-mobile label.check { min-height: 44px; } /* the box is small; its line takes the tap */
+/* Settings and dialogs in the app: switches keep their 34×20 look in a 44px hit (a clear border), and
+   lists, fields, chips and segments take a thumb */
+body.wisp-mobile .switch { box-sizing: content-box; border: 12px solid transparent; border-left-width: 5px; border-right-width: 5px; border-radius: 15px / 22px; margin: -12px -5px; background-clip: padding-box; }
+body.wisp-mobile :is(.sx select, .modal input:not([type=checkbox]):not([type=radio]), .modal select, .chip-tog, .sp-qr, .sx .ghost.xs, .sf-opt) { min-height: 44px; }
+body.wisp-mobile :is(.sx .seg button, .sx [role=radiogroup] button, .pk-seg button, .rr-run :is(.runner-btn, .mode-btn), .modal .runner-btn, .modal .mode-btn, .sf-opt, .stuff-view .seg button) { min-width: 44px; min-height: 44px; }
+body.wisp-mobile :is(.goal-pop, .stuff-view) .link { min-height: 44px; display: inline-flex; align-items: center; }
+body.wisp-mobile .sf-seg button { width: 44px; height: 44px; } body.wisp-mobile .sf-q { min-height: 44px; }
+body.wisp-mobile .im-row .icon-btn { width: 44px; height: 44px; } body.wisp-mobile .im-row .ghost.xs { min-height: 44px; }
+body.wisp-mobile .tp-clear { min-width: 44px; min-height: 44px; justify-content: center; } body.wisp-mobile .sp-pbar .send { width: 44px; height: 44px; }
+body.wisp-mobile .side-panel .pn-place { height: auto; min-height: 44px; } /* its ⋯ is 44px here: the line grows to hold it */
+body.wisp-mobile .pn-run :is(.primary.sm, .ghost.sm, .ghost.xs, .icon-btn) { min-height: 44px; } /* the Preview bar and its Run */
+body.wisp-mobile .mem-tabs button { min-height: 44px; } /* Automations and Memory: Recipes · Triggers */

@@ -111,6 +111,46 @@ test('comments on an answer (the tray, the block button, the bubble, the card, t
   assert.ok(schema.ICONS.includes('comment'));
 });
 
+test('comments on a diff’s lines (the + in the gutter, the mark) and the tray’s Send comments are parts', () => {
+  const parts = { 'panel.changes.comment': { hide: true }, 'panel.changes.commentMark': { style: { borderRadius: '4px' } }, 'composer.sendComments': { hide: true } };
+  assert.deepEqual(problems({ ...base0, parts }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.changes.comment', 'panel.changes.commentMark'] } }), []);
+  assert.equal(schema.PARTS['panel.changes.comment'], '#sidePanel .cmt-line-add');
+  const p = problems({ ...base0, parts: { 'panel.changes.lineComment': { hide: true } } });
+  assert.ok(p.some((x) => /panel\.changes\.lineComment: not a part/.test(x)), p.join('\n'));
+});
+
+test('webhook triggers: the switch is a setting, its row and a hook’s URL and last calls are parts', () => {
+  assert.deepEqual(problems({ ...base0, settings: { webhookTriggers: 'on' } }), []);
+  assert.ok(problems({ ...base0, settings: { webhookTriggers: 'yes' } }).some((x) => /webhookTriggers/.test(x)));
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.webhookTriggers', 'automations.deliveries'] }, parts: { 'automations.hookUrl': { style: { fontSize: '12.5px' } } } }), []);
+  assert.equal(schema.PARTS['automations.hookUrl'], '.auto-modal .au-hook');
+  assert.equal(schema.PARTS['automations.deliveries'], '.auto-modal .au-deliv');
+  assert.ok(problems({ ...base0, ui: { hide: ['automations.hook'] } }).some((x) => /automations\.hook isn't a part/.test(x)));
+});
+
+test('reviewing in Changes: a hunk’s Revert, the Viewed toggle and its count are parts', () => {
+  const parts = { 'panel.changes.revertHunk': { style: { color: 'var(--bad)' } }, 'panel.changes.viewed': { hide: true }, 'panel.changes.viewedCount': { style: { fontSize: '12.5px' } } };
+  assert.deepEqual(problems({ ...base0, parts }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.changes.revertHunk', 'panel.changes.viewed', 'panel.changes.viewedCount'] } }), []);
+  assert.equal(schema.PARTS['panel.changes.revertHunk'], '#sidePanel .cx-hk-rev');
+  assert.equal(schema.PARTS['panel.changes.viewed'], '#sidePanel .cx-viewed');
+  assert.equal(schema.PARTS['panel.changes.viewedCount'], '#sidePanel .cx-seen');
+  const p = problems({ ...base0, parts: { 'panel.changes.revert': { hide: true } } });
+  assert.ok(p.some((x) => /panel\.changes\.revert: not a part/.test(x)), p.join('\n'));
+});
+
+test('staging in Changes: a file’s Stage toggle, a hunk’s Stage and the commit row are parts', () => {
+  const parts = { 'panel.changes.stage': { style: { color: 'var(--good)' } }, 'panel.changes.stageHunk': { hide: true }, 'panel.changes.commit': { style: { background: 'var(--surface-2)' } } };
+  assert.deepEqual(problems({ ...base0, parts }), []);
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.changes.stage', 'panel.changes.stageHunk', 'panel.changes.commit'] } }), []);
+  assert.equal(schema.PARTS['panel.changes.stage'], '#sidePanel .cx-stage');
+  assert.equal(schema.PARTS['panel.changes.stageHunk'], '#sidePanel .cx-hk-stage');
+  assert.equal(schema.PARTS['panel.changes.commit'], '#sidePanel .cx-commit');
+  const p = problems({ ...base0, parts: { 'panel.changes.commitBox': { hide: true } } });
+  assert.ok(p.some((x) => /panel\.changes\.commitBox: not a part/.test(x)), p.join('\n'));
+});
+
 test('the follow-up box’s Delegate button and the Delegate popover are parts spells can restyle or hide', () => {
   assert.deepEqual(problems({ ...base0, parts: { 'composer.team': { hide: true } } }), []);
   // The Delegate popover: its lead strip and the delegates' place chips can be restyled or hidden.
@@ -820,4 +860,30 @@ test('watch: the setting, the panel opening on it, its parts and the eye icon', 
   assert.deepEqual(problems({ ...base0, parts: { panel: { props: { tab: 'watch' } }, 'panel.watch': { style: { background: 'var(--surface)' } }, 'watch.caption': { style: { fontSize: '13px' } } }, ui: { hide: ['watch.run', 'split.watch'] } }), []);
   assert.ok(problems({ ...base0, parts: { 'watch.caption': { props: { lines: 2 } } } }).some((x) => /watch\.caption/.test(x)));
   assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'split.head', icon: 'eye', label: 'Look', do: { copy: '{id}' } }] }), []);
+});
+
+test('preview: the panel opening on it, its section, bar, Run, Pick and logs are parts', () => {
+  assert.deepEqual(problems({ ...base0, parts: { panel: { props: { tab: 'preview' } }, 'panel.preview': { style: { background: 'var(--surface)' } }, 'panel.preview.bar': { style: { fontSize: '13px' } }, 'panel.preview.run': { style: { borderRadius: '6px' } } }, ui: { hide: ['panel.preview.pick', 'panel.preview.logs'] } }), []);
+  const bad = problems({ ...base0, parts: { panel: { props: { tab: 'app' } } } });
+  assert.ok(bad.some((x) => /panel/.test(x) && /preview/.test(x)), bad.join('\n'));
+  assert.ok(problems({ ...base0, ui: { hide: ['panel.preview.stop'] } }).some((x) => /panel\.preview\.stop isn't a part/.test(x)));
+});
+
+test('first run: New task\'s More options is a part', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.more'] }, parts: { 'launcher.more': { style: { color: 'var(--accent)' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['launcher.moreOptions'] } }).some((x) => /launcher\.moreOptions isn't a part/.test(x)));
+});
+
+test('start from an issue: New task\'s Issue button and the issue picker are parts, with the issue icon', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['launcher.issue'] }, parts: { 'issues.picker': { style: { borderRadius: '6px' } } } }), []);
+  assert.equal(schema.PARTS['launcher.issue'], '#launcher .issue-btn');
+  assert.equal(schema.PARTS['issues.picker'], '.palette.issues');
+  assert.ok(schema.ICONS.includes('issue'));
+  assert.deepEqual(problems({ ...base0, buttons: [{ slot: 'launcher.bar', icon: 'issue', label: 'Bugs', do: { prompt: 'Fix the open bugs' } }] }).filter((x) => /icon/.test(x)), []);
+  assert.ok(problems({ ...base0, parts: { 'launcher.issues': { hide: true } } }).some((x) => /launcher\.issues/.test(x)));
+});
+
+test('the side panel editor: Edit here, the editor, its code and Save are parts', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.changes.edit', 'panel.changes.open', 'card.setupWarn', 'mention.file', 'form.selectMenu', 'panel.editor.problems', 'panel.editor.hover'] }, parts: { 'form.select': { style: { borderRadius: '6px' } }, 'panel.editor.code': { style: { fontSize: '13px' } }, 'panel.editor.save': { style: { color: 'var(--accent)' } }, 'panel.editor': { style: { background: 'var(--bg-2)' } } } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['panel.edit'] } }).some((x) => /panel\.edit isn't a part/.test(x)));
 });

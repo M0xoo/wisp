@@ -17,6 +17,7 @@ import { Telemetry } from './telemetry.js';
 import { Updater } from './update.js';
 import { Preferences, Retro } from './preferences.js';
 import { Terms } from './pty.js';
+import { Runs } from './runs.js';
 import { Spells, overlayDefaults } from './spells.js';
 import { createSpellData } from './spells-data.js';
 import { setSpellBlocks } from './render.js';
@@ -74,20 +75,25 @@ import * as uploadRoutes from './routes/uploads.js';
 import * as stuffRoutes from './routes/stuff.js';
 import * as settingsRoutes from './routes/settings.js';
 import * as automationRoutes from './routes/automations.js';
+import * as hookRoutes from './routes/hooks.js';
+import { HOOK_PATH } from './hooks.js';
 import * as machineRoutes from './routes/machines.js';
 import * as cloudRoutes from './routes/cloud.js';
 import * as proxyRoutes from './routes/proxy.js';
 import * as sessionRoutes from './routes/sessions.js';
 import * as shipRoutes from './routes/ship.js';
 import * as workspaceRoutes from './routes/workspace.js';
+import * as lspRoutes from './routes/lsp.js';
+import { stopAll as stopLanguageServers } from './lsp.js';
 import * as spellRoutes from './routes/spells.js';
 import * as crewRoutes from './routes/crew.js';
 import * as connectorRoutes from './routes/connectors.js';
+import * as issueRoutes from './routes/issues.js';
 
 export { API_VERSION };
 
 // Order matters only where patterns overlap: the machine proxy claims <id>@<machine> first.
-const ROUTES = [metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, spellRoutes, crewRoutes, connectorRoutes];
+const ROUTES = [hookRoutes, metaRoutes, autoRoutes, internalRoutes, controlRoutes, uploadRoutes, stuffRoutes, settingsRoutes, automationRoutes, machineRoutes, cloudRoutes, proxyRoutes, sessionRoutes, shipRoutes, workspaceRoutes, lspRoutes, spellRoutes, crewRoutes, connectorRoutes, issueRoutes];
 
 // Idle keep-alive connections are closed by the client first (Node's fetch: 4s, browsers: longer
 // but they retry). With Node's 5s default the two raced, and a request sent on a socket the
@@ -314,6 +320,8 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   });
   // A shell in the task's folder, in the panel beside it: one per task, apart from a take over's.
   app.shells = new Terms({ track: null });
+  // The app run from a task's folder, for the panel's Preview (server/runs.js): one per task.
+  app.runs = new Runs();
   app.sendFeedback = createFeedback(app);
   // The crew: long-lived agents with a schedule and memory, whose jobs are tasks (server/crew.js).
   app.crew = new Crew({
@@ -468,8 +476,11 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       const p = previews && previewPort(req.headers, port);
       return p ? previewRequest(req, res, p) : send(res, 404, { error: 'not found' });
     }
-    if (!viaProxy && !allowedHosts.has(req.headers.host)) return send(res, 403, { error: 'forbidden host' });
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
+    // A trigger's secret URL (server/hooks.js) is called from outside (Slack, Linear, a tunnel's
+    // host): its token stands in for the guard below, and the route checks it and the signature.
+    const hook = req.method === 'POST' && HOOK_PATH.test(String(req.url).split('?')[0]);
+    if (!hook && !viaProxy && !allowedHosts.has(req.headers.host)) return send(res, 403, { error: 'forbidden host' });
+    if (!hook && req.method !== 'GET' && req.method !== 'HEAD') {
       const origin = req.headers.origin;
       if (viaProxy ? !proxy.originOk(req) : origin && !allowedHosts.has(origin.replace(/^https?:\/\//, ''))) return send(res, 403, { error: 'forbidden origin' });
       const ct = String(req.headers['content-type'] || '');
@@ -510,6 +521,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     } catch {}
     app.retro.stop();
     app.apps.stopAll();
+    stopLanguageServers();
     app.triggers.stop();
     app.crew.stop();
     app.later.stop();
@@ -524,6 +536,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.agentLogin.stop();
     app.terms.closeAll();
     app.shells.closeAll();
+    app.runs.closeAll();
     for (const s of store.all()) runner.stop(s);
     store.flush();
     app.telemetry.persist();

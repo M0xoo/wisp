@@ -102,7 +102,7 @@ export function renderDock(id) {
         <button class="team-btn c-team" aria-haspopup="dialog" hidden></button>
         <button class="icon-btn c-goal" aria-pressed="false" hidden>${icon('target')}</button>
         <span class="c-hint"></span>
-        <button class="ghost sm c-ship" data-a="ship" aria-label="Ship it" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it</span></button>
+        <button class="ghost sm c-ship" data-a="ship" aria-label="Ship it" title="Commit, push and open a pull request (S)" hidden>${icon('send')}<span>Ship it…</span></button>
         <button class="ghost sm c-done" data-a="done" aria-label="Mark done" title="Mark done (E)">${icon('done')}<span>Mark done</span></button>
         <button class="ghost xs c-queue" aria-pressed="false" hidden>${icon('queue')}<span>Queue</span><i class="c-switch"></i></button>
         <button class="icon-btn c-later" aria-label="Send later" title="Send later" aria-haspopup="menu">${icon('clock')}</button>

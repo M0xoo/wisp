@@ -185,7 +185,7 @@ export async function cast(prompt) {
 export function openCast(prefill = '') {
   const node = el(`
     <form class="modal sp-cast">
-      <header><h2>${icon('wizard')} Cast a spell</h2><button type="button" class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${icon('wizard')} Cast a spell</h2><button type="button" class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <p class="hint">Say what to change in wisp: a button, a panel, a block for agents, a different look, how agents behave. An agent writes it as a spell; you see a preview, try it and keep it. Nothing changes until you do.</p>
       <textarea class="textarea" rows="3" placeholder="A floating button that opens all my PRs…" spellcheck="false"></textarea>
       <div class="sp-examples">${EXAMPLES.slice(0, 6).map((x) => `<button type="button" class="sp-qr">${esc(x)}</button>`).join('')}</div>
@@ -241,7 +241,7 @@ export async function reviewImport(body) {
   }
   const node = el(`
     <div class="modal sp-review">
-      <header><h2>${icon('wizard')} ${esc(r.spell.name)} <span class="sp-ver">v${esc(r.spell.version)}</span></h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${icon('wizard')} ${esc(r.spell.name)} <span class="sp-ver">v${esc(r.spell.version)}</span></h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       ${r.spell.author ? `<p class="hint">By ${esc(r.spell.author)}</p>` : ''}
       ${r.spell.description ? `<p>${esc(r.spell.description)}</p>` : ''}
       <div class="sp-review-kind">${kindBadge(r.kind)}<span>${esc(KIND[r.kind]?.[1] || '')}</span></div>

@@ -73,10 +73,9 @@ export function renderPrStrip(id) {
   const prs = prsOf(s);
   const pr = prs[0]?.pr;
   const several = prs.length > 1;
-  const shipped = shippedPrs(s);
   $$('[data-a="ship"]:not(.im-row *)', n.body).forEach((b) => {
     b.hidden = !shippable(s);
-    $('span', b).textContent = severalRepos(s) ? (shipped.some((x) => x.pr.state === 'OPEN') ? 'Push to PRs' : shipped.length ? 'Ship again' : 'Ship it') : s.pr?.state === 'OPEN' ? `Push to #${s.pr.number}` : s.pr ? 'Ship again' : 'Ship it';
+    $('span', b).textContent = shipLabel(s); // the menus' and ⌘K's words, so the action has one name
   });
   // Started here, or elsewhere (another tab, the API): the server's stage moves the track along.
   const run = ships.get(id) || (s.shipping && { steps: s.shipping.update ? ['push', 'pr'] : ['commit', 'push', 'pr'], step: 'push' });
@@ -185,7 +184,7 @@ function shipSkel(s) {
   const pr = shippedPrs(s)[0]?.pr;
   const route = (b) => `<p class="ship-route">${icon('branch')}<code>${esc(b || 'branch')}</code>${icon('arrow')}<i class="sk sk-code"></i><i class="sk sk-meta"></i></p>`;
   return `
-      <header><h2>${open ? (repos > 1 ? `Push to ${repos} PRs` : `Push to PR #${pr.number}`) : repos > 1 ? `Ship it to ${repos} repos` : 'Ship it'}</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${open ? (repos > 1 ? `Push to ${repos} PRs` : `Push to PR #${pr.number}`) : repos > 1 ? `Ship it to ${repos} repos` : 'Ship it'}</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       ${(branches(s).length ? branches(s) : ['']).map(route).join('')}
       <label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><span class="input sk-box"><i class="sk sk-title"></i></span></label>
       ${open ? '' : `<label class="ship-field"><span>Pull request description</span><span class="textarea sk-box sk-area"><i class="sk"></i><i class="sk"></i><i class="sk sk-short"></i></span></label>
@@ -224,7 +223,7 @@ export async function shipDialog(id) {
   // Filled in place: the modal node stays, so its entry animation doesn't play again.
   node.classList.remove('loading');
   node.innerHTML = `
-      <header><h2>${open ? (info.repos ? `Push to ${repos.length} PRs` : `Push to PR #${info.pr.number}`) : info.repos ? `Ship it to ${repos.length} repos` : 'Ship it'}</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>${open ? (info.repos ? `Push to ${repos.length} PRs` : `Push to PR #${info.pr.number}`) : info.repos ? `Ship it to ${repos.length} repos` : 'Ship it'}</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       ${repos.map(route).join('')}
       ${info.dirty ? `<label class="ship-field"><span>Commit message${open ? '' : ' · PR title'}</span><input class="input" name="title" spellcheck="false" maxlength="100"></label>` : ''}
       ${open ? '' : `<label class="ship-field"><span>Pull request description</span><textarea class="textarea mono" name="body" rows="9" spellcheck="false"></textarea></label>

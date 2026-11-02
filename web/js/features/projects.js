@@ -171,7 +171,7 @@ const COLORS = ['violet', 'teal', 'amber', 'rose', 'sky', 'lime', 'orange', 'ind
 export async function openProjects({ focusAdd = false, machine = null, host } = {}) {
   const node = el(`
     <div class="modal projects-modal">
-      <header><h2>Projects</h2><button class="icon-btn close">${icon('x')}</button></header>
+      <header><h2>Projects</h2><button class="icon-btn close" title="Close" aria-label="Close">${icon('x')}</button></header>
       <div class="mem-tabs where"></div>
       <div class="add-row">
         <div class="field lg mono path-input">
@@ -365,7 +365,7 @@ export async function openProjects({ focusAdd = false, machine = null, host } = 
             const spots = at.map((k) => `<span class="pplace" title="${esc(k ? `${pathAt(p, k)} on ${placeName(k)}` : pathAt(p, k))}">${icon(k ? 'server' : 'laptop')}${esc(placeName(k))}</span>`).join('');
             return `<div class="prow c-${p.color}" data-id="${p.id}">
               <button class="swatch" title="Change colour"><i class="p-dot"></i></button>
-              <div class="prow-main"><input class="pname" value="${esc(p.name)}"><span class="ppath">${S.machines.length ? spots : esc(tilde(p.path))}</span></div>
+              <div class="prow-main"><input class="pname" value="${esc(p.name)}" aria-label="Project name"><span class="ppath">${S.machines.length ? spots : esc(tilde(p.path))}</span></div>
               <span class="pcount">${n} task${n === 1 ? '' : 's'}</span>
               <button class="icon-btn premove" title="Remove from wisp (files untouched)">${icon('trash')}</button>
             </div>`;
