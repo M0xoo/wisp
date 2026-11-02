@@ -59,6 +59,8 @@
 .wm-note.warn { color: var(--warn); }
 .place-menu .wm-check { border-radius: 50%; }
 .place-menu .wm-row[disabled] { opacity: 0.45; cursor: default; }
+/* A sentence, not an address (a crew member's sandbox rows): plain text that wraps. */
+.wm-row.wm-prose .wm-name small { font-family: var(--sans); white-space: normal; }
 .p-chip .p-where { width: 11px; height: 11px; color: var(--muted); }
 .projects-modal .where { margin-bottom: 12px; }
 .projects-modal .where .i { width: 13px; height: 13px; color: var(--muted); }
@@ -209,6 +211,37 @@
 .cl-wait { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
 .cl-wait .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 .sx-cloud > .hint { margin-top: 10px; }
+
+/* Settings → Cloud → Sandboxes (features/sandbox.js): /sandbox's boxes and their Claude sign-in. */
+.sx-sandbox:not(:empty) { margin-top: 14px; }
+.sx-sandbox > .hint { margin-top: 10px; }
+.sbx-card .sx-text b .sx-state { margin-left: 6px; font-weight: 400; }
+.sbx-card .sx-text small.bad { color: var(--bad); }
+.sbx-card .sx-login { margin-left: 14px; }
+.sbx-card .sx-login .bad { color: var(--bad); }
+.sbx-env { border-top: 1px solid var(--line); padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.sbx-env-h { display: flex; flex-direction: column; gap: 2px; }
+.sbx-env-h b { font-weight: 600; font-size: 13px; }
+.sbx-env-h small { font-size: 12px; color: var(--muted); }
+.sbx-keys { display: flex; flex-wrap: wrap; gap: 6px; }
+.sbx-key { display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.sbx-key .icon-btn { width: 22px; height: 22px; }
+.sbx-key .icon-btn .i { width: 12px; height: 12px; }
+.sbx-env-add { display: flex; gap: 6px; flex-wrap: wrap; }
+.sbx-env-add .input { flex: 1; min-width: 120px; }
+.sbx-env-add .input[name=key] { flex: 0 1 180px; }
+.sbx-list { border-top: 1px solid var(--line); }
+.sbx-list-h { padding: 10px 14px 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.sbx-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-width: 0; }
+.sbx-row + .sbx-row { border-top: 1px solid var(--line); }
+.sbx-ico { position: relative; flex: none; display: inline-flex; color: var(--muted); }
+.sbx-ico .i { width: 16px; height: 16px; }
+.sbx-ico .mc-dot { position: absolute; right: -2px; bottom: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); box-shadow: 0 0 0 2px var(--surface); }
+.sbx-ico .mc-dot.st-online { background: var(--good); }
+.sbx-ico .mc-dot.st-error { background: var(--bad); }
+.sbx-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sbx-name b { font-weight: 500; font-size: 13px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sbx-name small { font-size: 12px; color: var(--muted); }
 
 /* Settings → Cloud: signing in to the agents on a cloud computer (features/agent-login.js). */
 .cl-agents { grid-column: 2 / -1; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }

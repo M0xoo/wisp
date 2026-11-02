@@ -102,6 +102,9 @@ export function createSecrets(db, { dataDir, env = process.env }) {
       const k = dek(userId, { create: false });
       return k ? ungcm(k, row.sealed, `${userId}|${purpose}`).toString('utf8') : null;
     },
+    drop(userId, purpose) {
+      db.run('DELETE FROM user_secrets WHERE user_id = ? AND purpose = ?', userId, purpose);
+    },
     // The user's secret for purpose, made once.
     ensure(userId, purpose, make = () => token('', 32)) {
       const have = this.open(userId, purpose);

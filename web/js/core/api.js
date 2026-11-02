@@ -22,7 +22,7 @@ export async function api(path, { method = 'GET', body, priority, timeout } = {}
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }));
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { status: r.status, ...(j.hold && { hold: j.hold }) }); // hold: Ask near the limit (server/guard.js)
+  if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { status: r.status, ...(j.hold && { hold: j.hold }), ...(j.sandboxLogin && { sandboxLogin: true }) }); // hold: Ask near the limit (server/guard.js); sandboxLogin: services/sandbox.js
   return j;
 }
 

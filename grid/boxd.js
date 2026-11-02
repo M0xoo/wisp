@@ -44,12 +44,19 @@ export const containerName = (user) => `wisp-u-${user.id}`;
 const KILL_AFTER_MS = 10_000;
 const MAX_LINE = 64 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+const SANDBOX_ID = /-sb-[a-f0-9]{8}$/;
 const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const SIZE = /^\d{1,12}[bkmg]?$/i;
 
 // `docker run` for one user's wisp. Attached (no -d) with --rm: the docker process lives as long as
 // the container, so whoever started it watches it like any child.
-export function containerRun({ image, runtime, network, memory, memorySwap, cpus, pids, resolv = null, envFile = null, name, port, home }) {
+// sandbox (grid/sandboxes.js), under gVisor only: started as root with Docker's default capabilities
+// by the image's wisp-sandbox-init, which keeps a root helper for the agent's sudo (apt-get) and runs
+// wisp as the box's user. That root is gVisor's, not the host's. Under runc a sandbox is locked down
+// like any box. A bigger /dev/shm for its browser either way.
+export const sandboxRoot = (runtime) => runtime === 'runsc';
+export function containerRun({ image, runtime, network, memory, memorySwap, cpus, pids, resolv = null, envFile = null, name, port, home, sandbox = false }) {
+  const root = sandbox && sandboxRoot(runtime);
   return {
     cmd: 'docker',
     args: [
@@ -60,12 +67,15 @@ export function containerRun({ image, runtime, network, memory, memorySwap, cpus
       // Only this box's loopback reaches it, on the same port number inside, so Host headers match.
       '-p', `127.0.0.1:${port}:${port}`,
       '--memory', String(memory), '--memory-swap', String(memorySwap), '--cpus', String(cpus), '--pids-limit', String(pids),
-      '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+      // Root in a sandbox still goes without raw sockets, device nodes and the audit log.
+      ...(root ? ['--cap-drop', 'NET_RAW', '--cap-drop', 'MKNOD', '--cap-drop', 'AUDIT_WRITE'] : ['--cap-drop', 'ALL', '--security-opt', 'no-new-privileges']),
+      ...(sandbox ? ['--shm-size', '512m'] : []),
       '-v', `${home}:/home/wisp`, '-w', '/home/wisp',
       // Its secrets come from a 0600 file, never the command line, which `ps` shows everyone.
       ...(envFile ? ['--env-file', envFile] : []),
       '-e', 'HOME=/home/wisp', '-e', 'WISP_HOST=0.0.0.0',
-      image, 'node', '/opt/wisp/bin/wisp.js', '--no-open', '--port', String(port),
+      ...(root ? ['--user', '0'] : []),
+      image, ...(root ? ['/usr/local/sbin/wisp-sandbox-init'] : []), 'node', '/opt/wisp/bin/wisp.js', '--no-open', '--port', String(port),
     ],
   };
 }
@@ -123,7 +133,8 @@ export function checkRun(req, defaults = CONTAINER) {
   if (!Number.isInteger(pids) || pids < 16 || pids > 1_000_000) throw new Error(`run: pids "${l.pids}" isn’t a process limit.`);
   const dns = req.dns ?? defaults.dns;
   if (!Array.isArray(dns) || !dns.length || dns.length > 4 || !dns.every((x) => net.isIP(String(x)))) throw new Error('run: dns is a list of 1 to 4 IP addresses.');
-  return { id, port, env, limits: { memory: String(l.memory), memorySwap: String(l.memorySwap), cpus, pids }, dns: dns.map(String) };
+  // A sandbox only by its id's shape (<user>-sb-<8 hex>, grid/sandboxes.js): a user's own box never.
+  return { id, port, env, limits: { memory: String(l.memory), memorySwap: String(l.memorySwap), cpus, pids }, dns: dns.map(String), sandbox: req.sandbox === true && SANDBOX_ID.test(id) };
 }
 
 const isRealDir = (p) => {
@@ -198,7 +209,7 @@ export function createBoxd({ boxes = BOXD.boxes, data = BOXD.data, image = CONTA
     const envFile = path.join(dir, 'env');
     writeEnvFile(envFile, r.env);
     if (conn.destroyed) return null; // the grid gave up while this got ready
-    const { args } = containerRun({ image, runtime, network, ...r.limits, resolv, envFile, name, port: r.port, home });
+    const { args } = containerRun({ image, runtime, network, ...r.limits, resolv, envFile, name, port: r.port, home, sandbox: r.sandbox });
     const child = spawn(docker, args, { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let exited = false;
     const entry = {

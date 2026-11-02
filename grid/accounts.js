@@ -364,7 +364,7 @@ export function createAccounts({ db, cfg, secrets, onAudit = () => {} }) {
         .replace(/^-+|-+$/g, '')
         .slice(0, 20)
         .replace(/-+$/, '')
-        .replace(/^(p\d+)$/, '$1-pc') || 'computer'; // "p5173--<handle>" is a preview's address
+        .replace(/^(p\d+|sb-[a-f0-9]{8})$/, '$1-pc') || 'computer'; // "p5173--<handle>" is a preview's address, "sb-<id>--<handle>" a sandbox's
     let label = `${slug}--${dev.user.handle}`;
     for (let k = 2; db.get('SELECT 1 FROM computers WHERE label = ?', label) || byHandle(label); k++) label = `${slug}-${k}--${dev.user.handle}`;
     const c = { id: randomBytes(6).toString('hex'), user_id: dev.user.id, device_id: dev.device.id, name: n, label, created_at: now(), last_seen_at: null };

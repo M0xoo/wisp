@@ -316,6 +316,7 @@ export const PARTS = {
   'panel.conversation': '#sidePanel .pn-talk',
   'panel.files': '#sidePanel .pn-files',
   'panel.watch': '#sidePanel .pn-watch',
+  'panel.browser': '#sidePanel .pn-browser', // a sandboxed task's browser, live
   'watch.caption': '#sidePanel .wt-cap',
   'watch.run': '#sidePanel .wt-run',
   // Settings: the dialog, its list of sections, and the head with the pane's name and close button.
@@ -340,6 +341,7 @@ export const PARTS = {
   'settings.cloud.computer': '.cl-card',
   'settings.cloud.signin': '.cl-signin',
   'settings.cloud.add': '.cl-add', // Add an account, once you have one (opens the sign-in)
+  'settings.cloud.sandboxes': '.sbx-card', // Sandboxes: /sandbox's boxes and the Claude sign-in they start with
   // Settings → Connect, on a cloud computer: how to open it through its grid.
   'settings.connect': '.sx-connect',
   // Settings → Agents: signing in to a harness (its link, code and paste box).
@@ -438,7 +440,7 @@ export const PART_PROPS = {
   term: { fontSize: 'int' },
   // tab: what it opens on (the toggle, ]), until you open another; swipe: false stops swiping a
   // task page left (and the panel right) bringing it in and out in the phone app
-  panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'watch'], swipe: 'bool' },
+  panel: { width: 'px', tab: ['changes', 'pr', 'shell', 'watch', 'browser'], swipe: 'bool' },
   'panel.changes': { generated: 'bool' }, // lockfiles and build output listed, not folded under one row (off)
   'panel.pr': { bots: 'bool' }, // bots' comments shown, not folded under one row (off)
 };
@@ -473,7 +475,7 @@ export function styleProblem(prop, value) {
 export const TOKENS = ['--accent', '--accent-ink', '--accent-soft', '--bg', '--bg-2', '--surface', '--surface-2', '--ink', '--ink-2', '--muted', '--faint', '--line', '--line-2', '--good', '--bad', '--warn', '--info', '--radius', '--sans', '--mono', '--display', '--shadow-1', '--shadow-2'];
 
 // Icons from the page's sprite (#i-<name>).
-export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge'];
+export const ICONS = ['check', 'x', 'skip', 'minus', 'plus', 'chevron', 'arrow', 'external', 'expand', 'file', 'folder', 'dots', 'copy', 'download', 'branch', 'github', 'info', 'warn', 'ask', 'comment', 'lock', 'pen', 'spark', 'wizard', 'stop', 'merge', 'send', 'enter', 'queue', 'clip', 'terminal', 'done', 'archive', 'trash', 'settings', 'read', 'search', 'web', 'agent', 'plan', 'tool', 'stats', 'rerun', 'replay', 'transcript', 'text', 'back', 'update', 'menu', 'bolt', 'clock', 'laptop', 'server', 'cloud', 'thumb-up', 'thumb-down', 'play', 'split', 'feed', 'bell', 'sun', 'moon', 'phone', 'tablet', 'rotate', 'pause', 'grip', 'crew', 'org', 'user', 'target', 'plug', 'fork', 'bookmark', 'bug', 'panel', 'shell', 'stuff', 'star', 'image', 'grid', 'app', 'eye', 'share', 'pin', 'judge', 'box'];
 
 // What a button, chip, command, slash command or hook can do. kind: what the review says about it.
 //   safe: changes nothing outside the page · acts: does something for you, only when you click

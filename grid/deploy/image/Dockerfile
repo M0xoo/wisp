@@ -27,6 +27,25 @@ RUN mkdir -p /opt/agents \
  && chmod -R a+rX /opt/agents \
  && cursor-agent --version && grok --version && agy --version
 
+# A browser agents drive and you watch (wisp-desktop: Xvfb, Chromium, noVNC on 6080), Playwright's
+# MCP server for it (wisp-browser-mcp, the Browser connector in a sandbox), pip, and sudo. sudo only
+# works in a sandbox: boxd starts one as root under gVisor (wisp-sandbox-init), whose root helper
+# (rootd.mjs) is what this sudo talks to; gVisor doesn't honour setuid binaries. A cloud computer's
+# box has no helper, no capabilities and no-new-privileges.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends chromium xvfb x11vnc x11-xserver-utils xdotool novnc websockify fonts-liberation fonts-noto-core fonts-wqy-microhei fonts-noto-color-emoji python3-pip python3-venv \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+RUN npm install -g @playwright/mcp && npm cache clean --force && command -v playwright-mcp
+# apt and apt-get remember what a sandbox installs (secure_path puts /usr/local/sbin first under sudo).
+COPY grid/deploy/image/sandbox/apt grid/deploy/image/sandbox/apt-get /usr/local/sbin/
+COPY grid/deploy/image/sandbox/wisp-desktop grid/deploy/image/sandbox/wisp-browser-mcp grid/deploy/image/sandbox/sudo /usr/local/bin/
+COPY grid/deploy/image/sandbox/wisp-sandbox-init /usr/local/sbin/
+COPY grid/deploy/image/sandbox/rootd.mjs /usr/local/lib/wisp/
+COPY grid/deploy/image/sandbox/wisp.html /usr/share/novnc/
+# What the agent installs without root lands in the home, which stays: npm -g, pip.
+ENV NPM_CONFIG_PREFIX=/home/wisp/.local PIP_USER=1 PIP_BREAK_SYSTEM_PACKAGES=1 PATH=/home/wisp/.local/bin:$PATH
+
 COPY package.json /opt/wisp/
 COPY bin /opt/wisp/bin
 COPY server /opt/wisp/server

@@ -4,7 +4,7 @@
 
 import { esc } from '../md.js';
 import { icon } from '../core/dom.js';
-import { HERE, S } from '../core/state.js';
+import { HERE, inGrid, S } from '../core/state.js';
 
 export const projectById = (id) => S.config.projects.find((p) => p.id === id);
 
@@ -19,7 +19,9 @@ export function projectLabel(s) {
   const names = [s.project, ...also.map((a) => a.project)];
   return `<span class="q-proj multi" title="${esc(`One task in ${names.length} folders: ${names.join(', ')}`)}">${esc(s.project)}<span class="q-also ${also.length === 1 ? `c-${also[0].color}` : ''}">${also.length === 1 ? `+ ${esc(also[0].project)}` : `+${also.length}`}</span></span>`;
 }
-export const placeName = (k) => (k ? machineById(k)?.name || 'machine' : HERE);
+// 'sandbox': a place, not a machine: a box of its own on your grid for a delegate (services/sandbox.js).
+export const SANDBOX_KEY = 'sandbox';
+export const placeName = (k) => (k === SANDBOX_KEY ? 'Sandbox' : k ? machineById(k)?.name || 'machine' : HERE);
 export const recentFirst = (a, b) => (b.lastUsedAt || b.addedAt) - (a.lastUsedAt || a.addedAt);
 // Every project, on every place: one that isn't on a place yet gets cloned there on first use.
 export const projects = () => [...S.config.projects].sort(recentFirst);
@@ -30,7 +32,11 @@ export const placesOf = (p) => (p ? [placeOf(p), ...Object.keys(p.copies || {}).
 
 // A machine runs its own wisp; this one signs in over SSH, tunnels to it and shows its sessions
 // as <id>@<machine>. Any project runs there; the launch clones it there first if it has to.
-export const machineById = (id) => S.machines.find((m) => m.id === id);
+export const machineById = (id) => S.machines.find((m) => m.id === id) || S.sandboxes.find((m) => m.id === id);
+// The grid accounts signed in here (their cloud computers): not your other computers, not sandboxes.
+export const cloudAccounts = () => S.machines.filter((m) => m.kind === 'grid' && !m.computer);
+// Whether wisp here can make sandboxes: signed in to a grid, or a cloud computer (its own grid).
+export const canSandbox = () => inGrid() || cloudAccounts().length > 0;
 // A cloud computer asleep still takes tasks: sending one wakes it.
 export const usable = (m) => m?.state === 'online' || m?.state === 'asleep';
 const machineOnline = (id) => usable(machineById(id));
@@ -47,6 +53,12 @@ export const projectTitle = (p) => {
 
 export function machinePill(mt) {
   const on = machineOnline(mt.id);
+  if (mt.sandbox) {
+    // Still being made (a launch's placeholder): no address yet, and not greyed out.
+    const host = String(mt.target || '').replace(/^sb-[a-f0-9]+--[^.]+\./, '');
+    const up = !mt.target || on;
+    return `<span class="q-machine ${up ? '' : 'off'}" title="Runs in a sandbox${host ? ` on ${esc(host)}` : ''}, deleted with this task${up ? '' : ' · asleep'}">${icon('box')}<span>Sandbox</span></span>`;
+  }
   return `<span class="q-machine ${on ? '' : 'off'}" title="Runs on ${esc(mt.name)} (${esc(mt.target)})${on ? '' : ' · not connected'}">${icon('server')}<span>${esc(mt.name)}</span></span>`;
 }
 

@@ -64,9 +64,13 @@ test('/draft and /after read their task, and /after the task it waits for', () =
 
 test('the new-task box offers /goal and /terminal but not /btw (no run to ask on the side yet)', () => {
   const names = (t) => page.slashMatches(t, page.HOME_SLASH).map((c) => c.name);
-  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback', 'bug', 'draft', 'after', 'terminal']);
+  assert.deepEqual(names('/'), ['goal', 'spell', 'feedback', 'bug', 'draft', 'after', 'terminal', 'sandbox']);
   assert.deepEqual(names('/b'), ['bug']);
   assert.deepEqual(names('/t'), ['terminal']);
+  assert.deepEqual(names('/sa'), ['sandbox']);
+  assert.equal(page.sandboxAsk('/sandbox try the build'), 'try the build');
+  assert.equal(page.sandboxAsk('/sandbox'), '');
+  assert.equal(page.sandboxAsk('/sandboxes'), null);
   assert.match(page.HOME_SLASH.find((c) => c.name === 'goal').hint, /Start a task/);
   assert.ok(!page.SLASH.some((c) => c.name === 'terminal'), 'a follow-up box has a task already');
   assert.equal(page.terminalAsk('/terminal fix the login bug'), 'fix the login bug');

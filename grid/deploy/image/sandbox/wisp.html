@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- The live view of a sandbox's browser (wisp's Browser tab): noVNC's own client, without its
+     toolbar, scaled to the frame, connecting again by itself. Served by websockify next to noVNC. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sandbox browser</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  #screen { position: fixed; inset: 0; }
+  #msg { position: fixed; inset: 0; display: grid; place-items: center; color: #aaa; font: 13px system-ui, sans-serif; pointer-events: none; }
+  #msg[hidden] { display: none; }
+</style>
+</head>
+<body>
+<div id="screen"></div>
+<div id="msg">Connecting to the sandbox’s browser…</div>
+<script type="module">
+  import RFB from './core/rfb.js';
+  const msg = document.getElementById('msg');
+  const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/websockify`;
+  function connect() {
+    const rfb = new RFB(document.getElementById('screen'), url);
+    rfb.scaleViewport = true;
+    rfb.background = '#111';
+    rfb.addEventListener('connect', () => (msg.hidden = true));
+    rfb.addEventListener('disconnect', () => {
+      msg.hidden = false;
+      msg.textContent = 'Reconnecting…';
+      setTimeout(connect, 1500);
+    });
+  }
+  connect();
+</script>
+</body>
+</html>

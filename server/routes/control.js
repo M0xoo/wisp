@@ -38,7 +38,13 @@ export function register(r, app) {
   const machineOf = (key) => {
     const k = String(key ?? '').trim();
     if (!k || /^(here|local|this computer)$/i.test(k)) return null;
-    const m = machines.list.find((x) => x.id === k) || machines.list.find((x) => x.name?.toLowerCase() === k.toLowerCase());
+    // A sandbox: a place a delegate gets a box of its own in (services/sandbox.js), not a machine.
+    if (/^sandbox$/i.test(k)) {
+      if (!app.sandbox?.available()) throw new Error('Sandboxes need a wisp Grid: the user signs in to one in Settings → Cloud.');
+      return { id: 'sandbox', name: 'Sandbox', sandbox: true };
+    }
+    // A /sandbox task's own sandbox is that task's, not a place to send work.
+    const m = machines.list.find((x) => !x.sandbox && x.id === k) || machines.list.find((x) => !x.sandbox && x.name?.toLowerCase() === k.toLowerCase());
     if (!m) throw new Error(`No machine “${k}”. wisp_available lists the user's machines.`);
     return m;
   };
@@ -82,7 +88,7 @@ export function register(r, app) {
         const models = (a.models || []).map((m) => m.id).filter(Boolean);
         return `- **${a.id}** (${a.name}${a.version ? ` ${a.version}` : ''})${models.length ? `: models ${models.slice(0, 15).join(', ')}${models.length > 15 ? ', …' : ''}` : ''}${a.efforts?.length ? `; thinking ${a.efforts.join(', ')}` : ''}`;
       };
-      const view = machines.view();
+      const view = machines.view().filter((m) => !m.sandbox);
       const machine = (m) => {
         const on = m.state === 'online';
         const list = (m.remote?.agents || []).filter((a) => a.available).map((a) => a.id);
@@ -105,6 +111,7 @@ export function register(r, app) {
         '',
         '## Machines',
         ...(view.length ? view.map(machine) : ['None: everything runs on this computer.']),
+        ...(app.sandbox?.available() ? ['- `sandbox` **Sandbox**: a fresh box of its own on the user\'s wisp Grid for each subagent (machine: "sandbox" in delegate): it can install anything (sudo apt-get), run servers and drive a real browser (the browser connector) without touching the user\'s computers. It gets a copy of your folder; its changes come back when it finishes. Claude Code only (or auto); kept for this task, so delegating to it again finds its files and installs.'] : []),
         '',
         '## Projects',
         ...(projects.length ? projects : ['None yet.']),

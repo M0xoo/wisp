@@ -27,7 +27,7 @@ export function createComputer(app) {
   const conf = () => store.config.computer || null;
   // Each sign-in on a grid (its cloud computer and device token) is an account: several grids,
   // and several accounts on one grid, each with its own computers.
-  const accounts = () => machines.list.filter((m) => m.kind === 'grid' && !m.computer);
+  const accounts = () => machines.list.filter((m) => m.kind === 'grid' && !m.computer && !m.sandbox);
   // The account this computer is on the grid with (its cloud computer's id, or older configs: the
   // first on that grid). None added yet: the one asked for, else the first.
   const account = (c = conf(), id = '') => {
@@ -177,12 +177,18 @@ export function createComputer(app) {
     // sign-in (the cloud computer): this computer leaves that grid, and so do the others' cards.
     async removing(m) {
       if (m.kind !== 'grid') return;
+      if (m.sandbox) return app.sandbox?.removing(m); // a sandbox: gone from the grid too
       if (m.computer) {
         const a = accounts().find((x) => sameAccount(m, x));
         return void (a && (await call(a, 'DELETE', `/api/computers/${m.computer}`).catch(() => {})));
       }
       if (conf() && account(conf()) === m) await this.disable();
       for (const x of machines.list.filter((x) => x.computer && sameAccount(x, m))) machines.remove(x.id);
+      // Its sandboxes too, while its token can still remove them there.
+      for (const x of machines.list.filter((x) => x.sandbox && sameAccount(x, m))) {
+        await app.sandbox?.removing(x);
+        machines.remove(x.id);
+      }
     },
     start() {
       if (conf()) {

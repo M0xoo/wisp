@@ -61,6 +61,12 @@ const MIGRATIONS = [
      id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, key TEXT NOT NULL,
      title TEXT NOT NULL, pass TEXT, size INTEGER NOT NULL, meta TEXT NOT NULL,
      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (user_id, key));`,
+  // Sandboxes (grid/sandboxes.js): a box of its own for one task (/sandbox in wisp), at
+  // <label>.<domain> (label "sb-<id>--<handle>"). Its home is its own; it goes when its task does.
+  `CREATE TABLE sandboxes (
+     id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     label TEXT UNIQUE NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL);
+   CREATE INDEX sandboxes_user ON sandboxes(user_id);`,
 ];
 
 export async function openDb(dataDir) {

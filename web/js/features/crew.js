@@ -31,7 +31,7 @@ import { runnerPicker } from './runner-picker.js';
 import { MODES, agentName, harnessesAt, harnessLogo, modeMenu, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { connectMachine } from './machines.js';
 import { placeMenu } from './place-menu.js';
-import { machineById, pathAt, placeName, placesOf } from './places.js';
+import { canSandbox, machineById, pathAt, placeName, placesOf } from './places.js';
 import { slotHtml, spellProp } from './spells.js';
 import { paintTeamBtn, teamEditor } from './team.js';
 import { addFiles, kitClick, kitHtml, offerClick, offerHtml } from './crew-kit.js';
@@ -45,6 +45,8 @@ import { cronWords, toCron } from '../schedule.js';
 document.body.insertAdjacentHTML('beforeend', spiritDefs());
 
 export const crewList = () => S.config.crew || [];
+// Where a member's jobs run when it's a sandbox (services/sandbox.js), as the editor and profile say it.
+const SANDBOX_LABEL = { job: 'Sandbox per job', own: 'Own sandbox' };
 export const memberById = (id) => crewList().find((m) => m.id === id) || null;
 const handleOf = (name) => String(name || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '');
 const jobsOf = (m) => [...S.sessions.values()].filter((s) => s.crew?.id === m.id && !s.pending);
@@ -915,7 +917,7 @@ function buildView(id) {
     node.classList.toggle('wide', wide);
     if (wide) about.open = true;
     // Its cadence, unless the head already says the same (an idle member's status is its cadence).
-    const how = [cadenceText(m), m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · ');
+    const how = [cadenceText(m), m.sandbox ? (m.sandbox === 'own' ? 'in their own sandbox' : 'in a sandbox per job') : m.machine ? `on ${placeName(m.machine)}` : ''].filter(Boolean).join(' · ');
     $('summary', about).innerHTML = `${icon('info')}About ${esc(m.name)}<span>${how === statusLine(m, st).text ? '' : esc(how)}</span>${icon('chevron', 'chev')}`;
     paintSide(m, st, $('.cv-side', about));
     // Its About page, while it's in: the same details, a page of their own.
@@ -1087,7 +1089,7 @@ function paintSide(m, st, side) {
     ...(eventsLabel(m) ? [['bolt', eventsLabel(m)]] : []),
     ['queue', `${m.parallel} job${m.parallel > 1 ? 's' : ''} at once${st.live.length ? ` · ${st.live.length} working` : ''}`],
     // Paired on one line each so the column fits a window without scrolling.
-    ['folder', `${project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')} · ${m.machine ? placeName(m.machine) : HERE}`],
+    ['folder', `${project?.name || (m.cwd ? m.cwd.split(/[\\/]/).pop() : 'No project')} · ${SANDBOX_LABEL[m.sandbox] || (m.machine ? placeName(m.machine) : HERE)}`],
     [`logo:${m.agent}`, `${agentName(m.agent)}${m.agent === 'auto' ? '' : ` · ${m.model || 'Default model'}`} · ${MODES.find((x) => x.id === m.mode)?.label || 'Full auto'}`],
   ];
   const team = (m.team || []).map((t) => (t.crew && memberById(t.crew) ? `<span class="cv-mate" title="${esc(memberById(t.crew).name)}">${avatarHtml(memberById(t.crew), { size: 20, dot: false })}</span>` : `<span class="cv-mate logo" title="${esc(agentName(t.agent))}">${harnessLogo(t.agent)}</span>`)).join('');
@@ -1232,6 +1234,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     team: member?.team || [], // its delegates: any harness, other crew members
     cwd: member?.cwd ?? (task ? '' : S.config.projects?.find((p) => p.id === launch.project)?.path || ''),
     machine: member?.machine || '', // '' = this computer
+    sandbox: member?.sandbox || '', // '' | 'job' | 'own': their jobs in a box on your grid
     agent: member?.agent || S.config.defaults?.agent || 'auto',
     model: member?.model || '',
     effort: member?.effort || '',
@@ -1353,9 +1356,9 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
     paintRunnerBtn($('.ce-runner', node), d.agent, d.model, d.effort);
     // Where they live: this computer, or one of your machines (memory and schedule stay here).
     const pb = $('.ce-place', node);
-    pb.classList.toggle('on', !!d.machine);
-    pb.innerHTML = `${icon(d.machine ? 'server' : 'laptop')}<span>${esc(placeName(d.machine))}</span>${icon('chevron', 'chev')}`;
-    pb.hidden = !S.machines.length && !d.machine;
+    pb.classList.toggle('on', !!(d.machine || d.sandbox));
+    pb.innerHTML = `${icon(d.sandbox ? 'box' : d.machine ? 'server' : 'laptop')}<span>${esc(SANDBOX_LABEL[d.sandbox] || placeName(d.machine))}</span>${icon('chevron', 'chev')}`;
+    pb.hidden = !S.machines.length && !d.machine && !d.sandbox && !canSandbox();
   };
 
   // The spirit maker: a big preview, the dice, and a row of choices per part.
@@ -1446,8 +1449,20 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       return;
     }
     if (e.target.closest('.ce-place')) {
-      placeMenu(e.target.closest('.ce-place'), { title: 'Their jobs run on', current: d.machine, note: 'Their memory and schedule stay on this computer' }, (k) => {
-        if (k === d.machine) return;
+      const extra = canSandbox() || d.sandbox ? [
+        { k: 'sandbox:job', icon: 'box', name: 'A sandbox per job', sub: 'Fresh each time, with the project as it is here · Claude Code' },
+        { k: 'sandbox:own', icon: 'box', name: 'A sandbox of their own', sub: 'Kept for them: what they install stays · Claude Code' },
+      ] : [];
+      placeMenu(e.target.closest('.ce-place'), { title: 'Their jobs run on', current: d.sandbox ? `sandbox:${d.sandbox}` : d.machine, note: 'Their memory and schedule stay on this computer', extra }, (k) => {
+        // A sandbox: their project here goes along each time; only Claude Code signs in there so far.
+        if (k.startsWith('sandbox:')) {
+          const p = S.config.projects?.find((x) => x.path === d.cwd || Object.values(x.copies || {}).includes(d.cwd));
+          Object.assign(d, { sandbox: k.slice(8), machine: '', cwd: (p && pathAt(p, '')) || (d.machine ? '' : d.cwd) });
+          if (d.agent !== 'claude') Object.assign(d, { agent: 'auto', model: '', effort: '' });
+          return paintBar();
+        }
+        if (k === d.machine && !d.sandbox) return;
+        d.sandbox = '';
         d.machine = k;
         if (k && machineById(k)?.state === 'off') connectMachine(k);
         // The project, where it has a checkout there; the harness, if it's installed there.
@@ -1489,7 +1504,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
       return;
     }
     if (e.target.closest('.ce-runner')) {
-      runnerPicker(e.target.closest('.ce-runner'), { agent: d.agent, model: d.model, effort: d.effort, savedModel, savedEffort, places: [d.machine], auto: true }, (a, mo, ef) => {
+      runnerPicker(e.target.closest('.ce-runner'), { agent: d.agent, model: d.model, effort: d.effort, savedModel, savedEffort, places: [d.sandbox ? 'sandbox' : d.machine], auto: true }, (a, mo, ef) => {
         Object.assign(d, { agent: a, model: mo, effort: ef });
         paintBar();
       });
@@ -1506,7 +1521,7 @@ export function crewEditor({ member = null, task = null, draft = null } = {}) {
 
   f.onsubmit = async (e) => {
     e.preventDefault();
-    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, on: d.on, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, agent: d.agent, model: d.model, effort: d.effort }) };
+    const body = { name: $f('name').value.trim(), role: $f('role').value.trim(), avatar: d.avatar, ...(isSpirit(d.avatar) && { color: parseSpirit(d.avatar).color }), brief: $f('brief').value.trim(), cron: d.cron, on: d.on, parallel: d.parallel, mode: d.mode, team: d.team, ...(task ? {} : { cwd: d.cwd, machine: d.machine, sandbox: d.sandbox, agent: d.agent, model: d.model, effort: d.effort }) };
     if (!body.name) return $f('name').focus();
     if (!locked && body.cron && !toCron(body.cron)) return $f('cron').focus();
     // A spell's member: only where and how they run is yours to change.

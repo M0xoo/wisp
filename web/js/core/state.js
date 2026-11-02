@@ -71,6 +71,7 @@ export const S = {
   config: { defaults: {}, projects: [] },
   agents: load('wisp.agents', []), // the last list seen, so the launcher paints before detection answers
   machines: [], // other computers over SSH: GET /api/machines, kept fresh by the 'machines' event
+  sandboxes: [], // /sandbox's boxes (same list, m.sandbox): each one task's, so never a place to pick
   filter: load('wisp.filter', 'all'),
   showDone: load('wisp.showDone', false),
   showArchived: false,

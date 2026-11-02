@@ -237,6 +237,13 @@ test('every task-list section and its folding heading are parts', () => {
   assert.ok(problems({ ...base0, ui: { hide: ['section.waiting'] } }).length);
 });
 
+test('sandboxes: the card in Settings → Cloud is a part', () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['settings.cloud.sandboxes'] } }), []);
+  assert.ok(problems({ ...base0, ui: { hide: ['settings.cloud.sandbox'] } }).length, 'a typo is refused');
+  assert.ok(schema.ICONS.includes('box'), 'the sandbox icon is one spells can use');
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.browser'] } }), []);
+});
+
 test('drafts: the section and its rows are parts', () => {
   assert.deepEqual(problems({ ...base0, ui: { hide: ['section.drafts'] }, parts: { 'drafts.row': { style: { opacity: '0.8' } } } }), []);
 });

@@ -47,7 +47,7 @@ export function remember() {
     room -= size;
     kept.unshift([id, s]);
   }
-  const snap = { at: Date.now(), config: S.config, machines: S.machines, sessions: [...S.sessions.values()], listToken: S.listToken, full, kept };
+  const snap = { at: Date.now(), config: S.config, machines: [...S.machines, ...S.sandboxes], sessions: [...S.sessions.values()], listToken: S.listToken, full, kept };
   try {
     localStorage.setItem(KEY, JSON.stringify(snap));
   } catch {

@@ -45,6 +45,8 @@ const WAKE_MIN = 5; // minutes
 const WAKE_MAX = 7 * 24 * 60;
 export const NAME = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,23}$/u;
 const PLACE = /^[\w-]{1,40}$/; // a machine id
+// Their jobs run away from here: on a machine, or in a sandbox (memory, schedule and queue stay here).
+const elsewhere = (m) => !!(m.machine || m.sandbox);
 const NOTE_MAX = 60_000;
 const SEEN_MAX = 200;
 const OFFERS_MAX = 10;
@@ -77,8 +79,12 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
   if (!name) throw bad('Give them a name.');
   if (!NAME.test(name)) throw bad('A name is up to 24 letters, digits, spaces, dots, dashes or underscores, starting with a letter or digit.');
   if (taken.some((m) => m.id !== prev?.id && handleOf(m.name) === handleOf(name))) throw bad(`${name} is already on your crew. Pick another name.`);
-  const machine = String(v('machine') || '');
+  // sandbox: their jobs run in a box on your wisp Grid (services/sandbox.js), a fresh one per job
+  // or one of their own. Exclusive with a machine: the project is the one here, carried there.
+  const sandbox = ['job', 'own'].includes(v('sandbox')) ? v('sandbox') : '';
+  const machine = sandbox ? '' : String(v('machine') || '');
   if (machine && (!PLACE.test(machine) || !machineOk(machine))) throw bad('That machine isn’t one of yours. Add it in Machines first.');
+  if (sandbox && v('agent', 'auto') !== 'auto' && v('agent', 'auto') !== 'claude') throw bad('Only Claude Code signs in to sandboxes so far: pick Claude Code or Auto for a member whose jobs run in a sandbox.');
   const cwd = String(v('cwd'));
   if (cwd && !machine && !exists(cwd)) throw bad(`Not a folder on this computer: ${cwd}`);
   const agent = String(v('agent', 'auto')) || 'auto';
@@ -97,6 +103,7 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
     brief: String(v('brief')).trim().slice(0, BRIEF_MAX),
     cwd,
     machine, // '' = this computer
+    sandbox, // '' | 'job' | 'own'
     agent,
     model: String(v('model')).slice(0, 120),
     effort: /^[\w-]{0,20}$/.test(String(v('effort'))) ? String(v('effort')) : '',
@@ -112,7 +119,7 @@ export function normalizeMember(body = {}, prev = null, { taken = [], exists = (
     // Bookkeeping: what it did and what's next.
     log: prev?.log || [],
     queue: prev?.queue || [],
-    away: machine === (prev?.machine || '') ? prev?.away || {} : {}, // jobs running on its machine: { [job id]: { reply? } }
+    away: machine === (prev?.machine || '') && sandbox === (prev?.sandbox || '') ? prev?.away || {} : {}, // jobs running on its machine: { [job id]: { reply? } }
     seen: prev?.seen || [], // turns of its jobs there already filed ("<job id>:<turn count>")
     links: prev?.links || [], // tasks it was tagged in or delegated by, newest first: it may follow up on them
     offers: prev?.offers || [], // skills and instructions its jobs proposed for its kit, for you to pick from
@@ -456,12 +463,12 @@ export class Crew {
     // A job here for a member of another wisp carries its note; a member of ours, we write it.
     runner.crewNote = (s) => {
       const m = this.get(s.crew?.id);
-      return m ? crewNote(m, s.crew, m.machine ? null : this.kitFiles(m)) : s.crew?.note || '';
+      return m ? crewNote(m, s.crew, elsewhere(m) ? null : this.kitFiles(m)) : s.crew?.note || '';
     };
     // Its skills' folders, readable by the job (a harness that limits reads to its folders).
     runner.crewDirs = (s) => {
       const m = this.get(s.crew?.id);
-      const files = m && !m.machine ? this.kitFiles(m) : null;
+      const files = m && !elsewhere(m) ? this.kitFiles(m) : null;
       if (!files) return [];
       return [...new Set((m.kit || []).filter((k) => k.kind === 'skill' && k.on !== false).flatMap((k) => [path.dirname(files[k.name]), k.path || []].flat()))];
     };
@@ -496,7 +503,7 @@ export class Crew {
   // Automations stop at: { why, until } while its check-ins wait for the plan. Its harness's account
   // says so now; a member on Auto (no account known ahead) shows the last check-in it skipped.
   #held(m) {
-    if (m.paused || m.machine) return null;
+    if (m.paused || elsewhere(m)) return null;
     const h = this.hold(m);
     if (h) return { why: h.why, until: h.until };
     return m.held?.until > this.now() ? { why: m.held.why, until: m.held.until } : null;
@@ -518,7 +525,7 @@ export class Crew {
 
   // Its jobs: tasks here, or (a member on a machine) the summaries of its tasks there.
   jobs(m) {
-    return [...this.store.all().filter((s) => s.crew?.id === m.id), ...(m.machine && this.remote ? this.remote.jobs(m) : [])];
+    return [...this.store.all().filter((s) => s.crew?.id === m.id), ...(elsewhere(m) && this.remote ? this.remote.jobs(m) : [])];
   }
 
   busy(m) {
@@ -630,7 +637,7 @@ export class Crew {
       if (w.job === 'checkin') Object.assign(m, { checkins: was.checkins + 1, lastCheckinAt: this.now() });
       const crew = { id: m.id, job: w.job, ...(w.from && { from: w.from }), ...(w.reply && { reply: w.reply }), ...(w.wake && { wake: true }), ...(w.event && { event: w.event }), ...(w.kit && { kit: true }) };
       const body = { prompt: w.prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, attachments: w.attachments || [], ...this.#teamFor(m, w.job, w.team) };
-      if (m.machine) return await this.#startAway(m, body, crew, w.origin);
+      if (elsewhere(m)) return await this.#startAway(m, body, crew, w.origin);
       const [s] = await this.launch(body, w.origin || null, { crew, unattended: !!w.unattended });
       delete m.held;
       return s;
@@ -648,7 +655,10 @@ export class Crew {
   async #startAway(m, body, crew, origin = null) {
     if (!this.remote) throw bad('Machines aren’t available here.');
     const { reply, ...sent } = crew;
-    const [s] = await this.remote.launch({ ...body, machine: m.machine, crewJob: { ...sent, note: crewNote(m, crew) } }, origin);
+    // In a sandbox: theirs, or a fresh one for this job, with their project as it is here.
+    const at = m.sandbox ? await this.remote.sandbox(m, { title: body.prompt }) : { machine: m.machine };
+    const [s] = await this.remote.launch({ ...body, ...(at.cwd ? { cwd: at.cwd, scratch: undefined } : m.sandbox ? { scratch: true, cwd: undefined } : {}), ...(m.sandbox && { agent: 'claude', worktree: false }), machine: at.machine, crewJob: { ...sent, note: crewNote(m, crew) } }, origin);
+    if (m.sandbox) this.remote.sandboxJob?.(at.machine, s.id);
     m.away[s.id] = { ...(reply && { reply }), at: this.now() };
     return s;
   }
@@ -657,7 +667,7 @@ export class Crew {
   // loops between members), and one on a machine can't reach the crew here.
   #teamFor(m, job, extra = []) {
     const mine = [...(m.team || []), ...extra.filter((x) => !(m.team || []).some((t) => t.crew === x.crew))];
-    const team = normalizeTeam(mine.filter((x) => x.crew !== m.id && !(x.crew && (job === 'delegated' || m.machine))), adapters);
+    const team = normalizeTeam(mine.filter((x) => x.crew !== m.id && !(x.crew && (job === 'delegated' || elsewhere(m)))), adapters);
     return team.length ? { subagents: team } : {};
   }
 
@@ -764,7 +774,7 @@ export class Crew {
         job.crew.reply = reply;
         await this.followUp(job, text, { queue: true });
       } else {
-        if (!m.machine || !this.remote?.reply) throw bad('That job is gone.', 404);
+        if (!elsewhere(m) || !this.remote?.reply) throw bad('That job is gone.', 404);
         m.away[parent.job] = { reply, at: this.now() };
         await this.remote.reply(parent.job, text);
       }
@@ -822,7 +832,7 @@ export class Crew {
         this.#changed();
       }
       // Jobs on its machine that finished while we weren't told (a dropped stream, a restart).
-      if (m.machine) for (const s of this.jobs(m)) this.remoteSeen(s);
+      if (elsewhere(m)) for (const s of this.jobs(m)) this.remoteSeen(s);
       this.drain(m);
     }
   }
@@ -882,7 +892,7 @@ export class Crew {
     if (!m) return { error: `${member.label || member.name} is no longer on the user's crew.` };
     if (this.busy(m) >= m.parallel) return { error: `${m.name} is already running ${m.parallel} job${m.parallel > 1 ? 's' : ''}, their limit. Wait for one with subagent_results, or do it yourself.` };
     // On its machine: the lead reads the job as we last fetched it, refreshed when it's done.
-    if (m.machine)
+    if (elsewhere(m))
       return this.#startAway(m, { prompt, ...(m.cwd ? { cwd: m.cwd } : { scratch: true }), agent: m.agent, model: m.model || undefined, effort: m.effort || undefined, mode: m.mode, ...this.#teamFor(m, 'delegated') }, { id: m.id, job: 'delegated', from: { id: lead.id, title: lead.title } })
         .then((s) => this.remote.fetch(s.id))
         .then((full) => (this.fetched.set(full.id, full), full));
@@ -920,7 +930,7 @@ export class Crew {
   // lead's delegation. Each turn once.
   async remoteSeen(sum) {
     const m = this.get(sum?.crew?.id);
-    if (!m?.machine || !this.remote || sum.state === 'running' || sum.pending) return;
+    if (!m || !elsewhere(m) || !this.remote || sum.state === 'running' || sum.pending) return;
     const key = `${sum.id}:${sum.turnCount || 0}`;
     if (m.seen.includes(key) || this.filing.has(key)) return;
     this.filing.add(key);
@@ -941,6 +951,9 @@ export class Crew {
       delete m.away[s.id];
       if (turn.status === 'done') this.#sendFollowUps(m, s, turn.crewOut?.followUps);
       if (s.crew?.from?.id) this.runner.touchLead?.(s.crew.from.id, s.id);
+      // A job in a sandbox of its own: filed, its sandbox can go (services/sandbox.js keeps the
+      // member's latest ones a while, to look at).
+      if (m.sandbox === 'job') this.remote.sandboxFiled?.(s.id);
       this.#changed();
       setImmediate(() => this.drain(m));
     } catch {

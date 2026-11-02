@@ -150,6 +150,22 @@ Users are `ada@example.com` (handle `ada`) and `bob@example.com` (handle `bob`),
   from `p5173--<name>--ada.<domain>`, live reload works; on the desktop itself it still loads
   `localhost:5173`. Off again: refused at once. The row fits 390px, light and dark.
 
+### GRID-29 · /sandbox: a task in a box of its own
+- **Preconditions:** a grid with containers and gVisor (a scratch grid beside production works: its
+  own boxd socket, image tag and port, reached over `ssh -L`); a desktop wisp signed in to it; a git
+  project with an uncommitted change and a `.wisp/sandbox.sh`.
+- **Steps:** Settings → Cloud → **Sandboxes**: *Sign in with Claude*, open the link, paste the code;
+  add an env var. In New task type `/sandbox install cowsay with apt and open example.com` and send
+  it. Open the task's side panel → **Browser**. Delete the task.
+- **Expected:** before signing in, the launch is refused with a toast whose **Sign in** opens the card
+  with the sign-in started. The placeholder card goes *Making a sandbox* → *Starting the sandbox* →
+  *Copying your project* → *Starting the agent*, with a **Sandbox** pill. In the box: the project
+  with its uncommitted change, `setup.log` from the script, the env var, `sudo apt-get` works.
+  The Browser tab shows Chromium live, and you can click in it. Stop the box (`docker stop`) and wake
+  it: cowsay is back and the browser starts again. Deleting the task removes the box and its home.
+  The card and the tab fit 390px, light and dark. A delegate placed on **Sandbox** and a crew member
+  on **A sandbox of their own** each get one; deleting the lead or the member removes it.
+
 ### GRID-24 · Caddy on-demand TLS and DNS
 *Manual*
 - **Expected:** a new handle gets a certificate on first visit; an unknown name is refused (Caddy's

@@ -11,7 +11,8 @@ import { MACHINE_STATE, machineById, placeName } from './places.js';
 // One place for a follow-up or a rerun: this computer or a machine. from: where the task is now.
 // locked: why it can't move right now (a running task), shown instead of a choice.
 // back: the prompt it's for, where the caret goes once it closes.
-export function placeMenu(anchor, { title, current, from, note = '', locked = '', back }, pick) {
+// extra: more rows after the places, { k, icon, name, sub } (a crew member's sandbox choices).
+export function placeMenu(anchor, { title, current, from, note = '', locked = '', back, extra = [] }, pick) {
   if ($('.menu.place-menu')) return $('.menu.place-menu').close(), refocus(back);
   const box = el(`<div class="menu where-menu place-menu" role="menu"></div>`);
   const paint = () => {
@@ -26,7 +27,10 @@ export function placeMenu(anchor, { title, current, from, note = '', locked = ''
         <span class="wm-name"><b>${esc(placeName(k))}</b><small>${esc(sub)}</small></span>
       </button>`;
     };
-    box.innerHTML = `<div class="wm-h">${esc(title)}</div>${locked || note ? `<p class="wm-note ${locked ? 'warn' : ''}">${esc(locked || note)}</p>` : ''}${row('')}${S.machines.map((m) => row(m.id)).join('')}`;
+    const more = (x) => `<button class="wm-row wm-prose ${x.k === current ? 'on' : ''}" data-k="${esc(x.k)}" role="menuitemradio" aria-checked="${x.k === current}" ${locked ? 'disabled' : ''}>
+        <span class="wm-check">${icon('check')}</span><span class="wm-icon">${icon(x.icon)}</span><span class="wm-name"><b>${esc(x.name)}</b><small>${esc(x.sub)}</small></span>
+      </button>`;
+    box.innerHTML = `<div class="wm-h">${esc(title)}</div>${locked || note ? `<p class="wm-note ${locked ? 'warn' : ''}">${esc(locked || note)}</p>` : ''}${row('')}${S.machines.map((m) => row(m.id)).join('')}${extra.length ? `<div class="wm-sep"></div>${extra.map(more).join('')}` : ''}`;
   };
   box.onclick = (e) => {
     const r = e.target.closest('.wm-row:not([disabled])');

@@ -142,10 +142,10 @@ function paintSnapshot(snap) {
   const agents = api('/agents').catch(() => null);
   const sessions = loadSessions();
   sessions.catch(() => {}); // awaited below, unless the loads before it fail
-  const painted = snap && JSON.stringify([S.config, S.machines]);
+  const painted = snap && JSON.stringify([S.config, S.machines, S.sandboxes]);
   try {
     await Promise.all([loadConfig(), loadMachines()]);
-    if (JSON.stringify([S.config, S.machines]) !== painted) {
+    if (JSON.stringify([S.config, S.machines, S.sandboxes]) !== painted) {
       renderLauncher();
       bus.emit('agents');
     }

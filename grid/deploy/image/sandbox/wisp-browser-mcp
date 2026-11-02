@@ -1,0 +1,5 @@
+#!/bin/sh
+# The Browser connector in a sandbox: Playwright's MCP server, driving the Chromium you can watch
+# (wisp-desktop) instead of a hidden one of its own.
+wisp-desktop >&2 || exit 1
+exec playwright-mcp --cdp-endpoint http://127.0.0.1:9222 "$@"
