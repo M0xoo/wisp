@@ -124,6 +124,8 @@ body.split.pane-wide #feed .item.open > .it-body > .goal-slot { position: sticky
 .jv-row.v-not_yet .jv-vote { color: color-mix(in srgb, var(--warn) 85%, var(--ink)); }
 /* The editor: Delegate's popover; rows rise in only when added, never on a repaint. */
 .judges-pop { z-index: 70; }
+/* A judge's harness picker opens over the editor, not behind it. */
+.judges-pop ~ .picker { z-index: 75; }
 .judges-pop .tp-row { animation: none; }
 .judges-pop .tp-row.fresh { animation: rise 0.25s var(--ease) both; }
 .judges-pop .tp-head { align-items: center; }
