@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Phone app: dictate a prompt.** In the Android app a mic next to the paperclip, in New task and in a task's reply box, types what you say into the box as you speak, using the phone's own speech recognition. Tap it again to stop. wisp asks for the microphone the first time; refused, it says how to allow it. Browsers and the desktop app are unchanged. Spells: the `composer.mic` and `launcher.mic` parts and the `mic` icon.
 - **Phone app: attach a photo or a video straight from the camera.** In the Android app the paperclip in New task and in a task's reply box opens *Take photo*, *Record video* and *Choose files*: a photo or video you take goes in the tray and uploads like a picked file, with no camera permission to grant. Browsers and the desktop app are unchanged, apart from a video in the tray now showing a video icon. Spells: the `composer.attachMenu` part and the `camera` and `video` icons.
 
 ### Fixed

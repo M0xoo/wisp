@@ -285,3 +285,15 @@ Never send builds to someone's own phone as part of QA.
   and goes with the message (the photo shows in the turn). Backing out adds nothing and the next pick
   still works. A second tap on the paperclip closes the menu. In a browser the paperclip still opens
   the file picker straight away.
+
+### MOB-30 Dictate a prompt
+- **Run:** Emulator with Google's speech service (its virtual mic) or the Pixel (debug APK).
+- **Steps:** in New task type a few words, tap the mic next to the paperclip. The first time, answer the
+  microphone question with *Don't allow*; tap the mic again and allow it. Say a sentence, pause, say
+  another, tap the mic. Open a task, tap the mic in its reply box (folded), speak, tap Send while it
+  still listens. Leave the app while it listens and come back.
+- **Expected:** refused, a red toast says how to allow it (after a second refusal: Android Settings →
+  Apps → wisp → Permissions). Allowed, the mic turns accent while it listens and the words appear in
+  the box as you speak, after the typed words with one space; tapping it stops and keeps the text.
+  The reply box opens up when the mic starts. Sending clears the box and nothing comes back into it.
+  Leaving the app stops listening. In a browser and the desktop app there is no mic.

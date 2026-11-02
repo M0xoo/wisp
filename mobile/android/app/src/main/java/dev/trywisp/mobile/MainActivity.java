@@ -21,6 +21,8 @@ import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     private ActivityResultLauncher<String> askPermission;
+    private ActivityResultLauncher<String> askMic;
+    private Dictation dictation;
     private volatile boolean resumed;
     private boolean clearHistory; // after falling back to the list: Back mustn't return to the error
     private String openTask; // a tapped notification's task, opened once wisp's page has loaded
@@ -34,6 +36,12 @@ public class MainActivity extends BridgeActivity {
             prefs().edit().putBoolean("asked", true).apply();
             if (granted) TunnelService.refresh(this);
             answer();
+        });
+        // The composer's mic: asked at its first tap. Refused: the page says how to allow it.
+        askMic = registerForActivityResult(new ActivityResultContracts.RequestPermission(), (granted) -> {
+            getSharedPreferences("wisp.dictation", 0).edit().putBoolean("asked", true).apply();
+            if (granted) dictation().start();
+            else dictated("error", "", micBlocked() ? "blocked" : "denied");
         });
         // wisp's page is served from the machine (http://127.0.0.1:<port>), where Capacitor's bridge
         // isn't injected, and the WebView has no Notification API: web/js/features/notify.js
@@ -107,6 +115,11 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onPause() {
         resumed = false;
+        // Leaving the app stops listening: the mic isn't kept open in the background.
+        if (dictation != null && dictation.active()) {
+            dictation.cancel();
+            dictated("end", "", "");
+        }
         super.onPause();
     }
 
@@ -143,6 +156,26 @@ public class MainActivity extends BridgeActivity {
     // wisp's page opens it without a history entry (window.wispOpen); an older wisp only has the route.
     private void open(String task) {
         js("window.wispOpen ? wispOpen(" + JSONObject.quote(task) + ") : (location.hash = " + JSONObject.quote("#/s/" + task) + ")");
+    }
+
+    private Dictation dictation() {
+        if (dictation == null) dictation = new Dictation(this, (state, v) -> dictated(state, v[0], v[1]));
+        return dictation;
+    }
+
+    private void dictated(String state, String text, String error) {
+        JSONObject d = new JSONObject();
+        try {
+            d.put("state", state);
+            d.put("text", text);
+            d.put("error", error);
+        } catch (org.json.JSONException ignored) {}
+        js("window.dispatchEvent(new CustomEvent('wisp-dictation', { detail: " + d + " }))");
+    }
+
+    // Refused for good ("Don't ask again", or twice): only Android's settings can allow it now.
+    private boolean micBlocked() {
+        return getSharedPreferences("wisp.dictation", 0).getBoolean("asked", false) && !shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO);
     }
 
     private SharedPreferences prefs() {
@@ -193,6 +226,27 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public boolean camera() {
             return true;
+        }
+
+        // The composer's mic (web/js/features/dictate.js): only on a phone with a speech service.
+        @JavascriptInterface
+        public boolean dictation() {
+            return Dictation.available(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void dictate() {
+            runOnUiThread(() -> {
+                if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) MainActivity.this.dictation().start();
+                else askMic.launch(Manifest.permission.RECORD_AUDIO);
+            });
+        }
+
+        @JavascriptInterface
+        public void dictateStop() {
+            runOnUiThread(() -> {
+                if (dictation != null) dictation.stop();
+            });
         }
 
         @JavascriptInterface
