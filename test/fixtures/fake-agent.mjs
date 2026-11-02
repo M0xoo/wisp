@@ -4,7 +4,7 @@
 //
 // Which harness it plays comes from the script's file name (test/helpers.js installs copies as
 // claude.mjs, codex.mjs, …). Behaviour knobs, via env:
-//   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid, opencodeConfig, allowAll, configDir, codexHome } to <name>.jsonl
+//   FAKE_RECORD  directory; each invocation appends { argv, stdin, cwd, pwd, pid, opencodeConfig, allowAll, configDir, codexHome, summaries } to <name>.jsonl
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_LIMIT_ONCE=<file>  the first run hits a usage limit (stderr, exit 1); later runs work
@@ -166,7 +166,7 @@ const btw = stdin.includes('# wisp btw');
 
 if (process.env.FAKE_RECORD) {
   fs.mkdirSync(process.env.FAKE_RECORD, { recursive: true });
-  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME }) + '\n');
+  fs.appendFileSync(path.join(process.env.FAKE_RECORD, `${retro ? 'retro' : btw ? 'btw' : name}.jsonl`), JSON.stringify({ argv, stdin, cwd: process.cwd(), pwd: process.env.PWD, pid: process.pid, opencodeConfig: process.env.OPENCODE_CONFIG_CONTENT, allowAll: process.env.COPILOT_ALLOW_ALL, configDir: process.env.CLAUDE_CONFIG_DIR, codexHome: process.env.CODEX_HOME, summaries: process.env.CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES }) + '\n');
 }
 
 // FAKE_LIMITS: claude reports this rate_limit_info first (its usage windows, server/budget.js).

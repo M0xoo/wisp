@@ -6,7 +6,7 @@ import path from 'node:path';
 import { ASK_TIMEOUT_MS, MAX_SNAPSHOT, attachmentNote, clip, crewToolLabel, detectFirst, exitText, flatten, helpEfforts, helpText, rel, spawnJsonl } from './common.js';
 import { describeCommand } from './commands.js';
 import { claudeLimits } from '../budget.js';
-import { PARENT_SESSION_ENV } from '../pty.js';
+import { COSTLY_ENV, PARENT_SESSION_ENV } from '../pty.js';
 
 const DEFAULT_BIN = process.env.WISP_CLAUDE_BIN || 'claude';
 let BIN = DEFAULT_BIN;
@@ -217,6 +217,7 @@ export default {
 
     const env = { ...process.env, ...accountEnv };
     for (const k of PARENT_SESSION_ENV) delete env[k]; // don't let a parent Claude Code session leak into the child
+    for (const k of COSTLY_ENV) delete env[k];
     env.MCP_TOOL_TIMEOUT ??= String(ASK_TIMEOUT_MS);
 
     let sawResult = false;

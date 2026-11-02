@@ -130,6 +130,10 @@ export function ptyCommand(argv, { cols = 100, rows = 30, platform = process.pla
 // the user's own settings.
 export const PARENT_SESSION_ENV = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_EXECPATH', 'CLAUDE_PID'];
 
+// Settings that make Claude Code spend extra model calls on wisp's behalf (progress summaries of its
+// subagents). wisp never asks for them, so an exported value doesn't reach the CLIs it starts.
+export const COSTLY_ENV = ['CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES'];
+
 // t's output as one string of at most KEEP characters. Cut from the start of a line or an escape
 // sequence near the limit, so a replay doesn't begin with half of one printed as text.
 function keep(t) {
@@ -172,6 +176,7 @@ export class Terms {
     const env = { ...this.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', TERM_PROGRAM: 'wisp' };
     delete env.NO_COLOR;
     for (const k of PARENT_SESSION_ENV) delete env[k];
+    if (this.track) for (const k of COSTLY_ENV) delete env[k]; // a take over, not the user's own shell
     const child = this.spawnFn(command, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
     const t = {
       id, child, cwd, cols, rows, resizable, code: null, startedAt: Date.now(), usedAt: Date.now(), clients: new Set(), timer: null,

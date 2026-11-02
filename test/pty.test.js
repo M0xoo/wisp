@@ -115,6 +115,19 @@ test('Terms: a Claude Code session that started wisp does not leak into its term
   terms.close('env');
 });
 
+test('Terms: a take over drops settings that cost extra calls; a shell beside the task keeps them', { skip: win || !python() }, async (ctx) => {
+  const env = { ...process.env, CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES: '1' };
+  const takeover = new Terms({ env, track: new Set() });
+  const shell = new Terms({ env, track: null });
+  ctx.after(() => (takeover.closeAll(), shell.closeAll()));
+  const argv = ['sh', '-c', 'echo "[$CLAUDE_CODE_AGENT_PROGRESS_SUMMARIES]"'];
+  const a = takeover.open('a', { argv, cwd: tmp('pty-costly-a') });
+  const b = shell.open('b', { argv, cwd: tmp('pty-costly-b') });
+  await waitFor(() => a.code !== null && b.code !== null);
+  assert.match(a.out, /\[\]/, 'take over: gone');
+  assert.match(b.out, /\[1\]/, 'shell: the user\'s own');
+});
+
 // --- the routes ------------------------------------------------------------------------------
 
 const freePort = () =>
