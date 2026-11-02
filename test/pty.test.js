@@ -3,7 +3,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -81,13 +81,18 @@ test('Terms: runs on a terminal, takes input and a new size, replays its output 
   assert.equal(terms.get('s1'), null);
 });
 
-test('Terms: the program sees its size from its first line, however late the helper sets it', { skip: win || !python() }, () => {
-  const [py, args] = ptyCommand(['stty', 'size'], { cols: 90, rows: 33 });
+test('Terms: the program sees its size from its first line, however late the helper sets it', { skip: win || !python() }, async (ctx) => {
+  // It stays up after printing: macOS drops a pty's unread output once its program has exited.
+  const [py, args] = ptyCommand(['sh', '-c', 'stty size; sleep 10'], { cols: 90, rows: 33 });
   // A busy machine: the parent sets the size well after the program has started.
   const slow = args[1].replace('\nsize(fd, rows, cols)\n', '\nimport time; time.sleep(0.5)\nsize(fd, rows, cols)\n');
   assert.notEqual(slow, args[1]);
-  const r = spawnSync(py, ['-c', slow, ...args.slice(2)], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe', 'pipe'], timeout: 10_000 });
-  assert.match(r.stdout, /^33 90\r?\n/);
+  const child = spawn(py, ['-c', slow, ...args.slice(2)], { stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
+  ctx.after(() => child.kill('SIGKILL'));
+  let out = '';
+  child.stdout.on('data', (d) => (out += d));
+  await waitFor(() => /\d+ \d+/.test(out));
+  assert.match(out, /^33 90\r?\n/);
 });
 
 test('Terms: a big paste goes in whole while the program prints (no hang)', { skip: win || !python() }, async (ctx) => {
