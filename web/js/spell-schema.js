@@ -278,6 +278,9 @@ export const PARTS = {
   'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
   'split.upcoming.more': '#splitHome .sh-coming .sh-more', // Show all / Show fewer, past the first `count`
   'split.upcoming.day': '#splitHome .sh-coming .sh-day', // a day's heading in the full list (Today, Tomorrow, Fri 31 Oct)
+  // Spare allowance (web/js/spare.js): a row under Needs you when a weekly window resets soon with much left.
+  'split.spare': '#splitHome .sh-spare',
+  'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box
   'split.feedback': '#splitHome .sh-fb', // Hit a bug, or an idea: opens Send feedback (hidden when feedback is off)
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',
@@ -416,6 +419,7 @@ export const PARTS = {
   // …and the Check Codex while work waits row.
   'settings.liveLimits': '.sx-budget .sx-row:has(#liveLimits)',
   'settings.webhookTriggers': '.sx-row:has(#hookTriggers)',
+  'settings.spareCard': '.sx-budget .sx-row:has(#spareCard)',
   // A hook trigger's editor (features/automations.js): its URL with Copy and Regenerate, and its last deliveries.
   'automations.hookUrl': '.auto-modal .au-hook',
   'automations.deliveries': '.auto-modal .au-deliv',
@@ -493,6 +497,7 @@ export const PART_PROPS = {
   'stuff.page': { view: ['grid', 'list'], group: ['time', 'task'], cardWidth: 'px' }, // until you pick one there; cardWidth: a card's least width in the grid
   tips: { count: 'int' },
   'split.upcoming': { count: 'int' },
+  'split.spare': { hours: 'int' }, // the card shows once a window resets within this many hours (24)
   term: { fontSize: 'int' },
   // tab: what it opens on (the toggle, ]), until you open another; swipe: false stops swiping a
   // task page left (and the panel right) bringing it in and out in the phone app
@@ -611,6 +616,8 @@ export const SETTINGS = {
   liveLimits: ['on', 'off'],
   // Drain watch: warn when an account's recent runs take twice its usual share of a window per unit of work.
   drainWatch: ['on', 'off'],
+  // Spare allowance: home's card when a weekly window resets soon with much of it unused (on unless off).
+  spareCard: ['on', 'off'],
   // Ask before running a changed harness: hold a run whose harness's program changed until you trust it (server/harness-watch.js).
   harnessAsk: ['on', 'off'],
   // Hide .env values: a .env / .env.* file's values show as KEY=•••• in activity, diffs and Changes until Reveal (server/env-mask.js).
