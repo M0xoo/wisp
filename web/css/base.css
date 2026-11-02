@@ -21,7 +21,7 @@
   display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--muted);
   transition: background 0.15s, color 0.15s;
 }
-.icon-btn:hover { background: var(--bg-2); color: var(--ink); }
+.icon-btn:hover, .icon-btn.open { background: var(--bg-2); color: var(--ink); }
 .link { color: var(--accent-ink); font-weight: 500; }
 .link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .link.on { color: var(--ink); }

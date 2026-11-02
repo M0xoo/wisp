@@ -174,3 +174,4 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 a.mn:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.menu.att-menu button:focus-visible { outline: 0; background: var(--bg-2); color: var(--ink); } /* the phone attach menu (attachments.js) */

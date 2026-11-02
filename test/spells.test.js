@@ -895,3 +895,9 @@ test('the side panel editor: Edit here, the editor, its code and Save are parts'
   assert.deepEqual(problems({ ...base0, ui: { hide: ['panel.changes.edit', 'panel.changes.open', 'card.setupWarn', 'mention.file', 'form.selectMenu', 'panel.editor.problems', 'panel.editor.hover'] }, parts: { 'form.select': { style: { borderRadius: '6px' } }, 'panel.editor.code': { style: { fontSize: '13px' } }, 'panel.editor.save': { style: { color: 'var(--accent)' } }, 'panel.editor': { style: { background: 'var(--bg-2)' } } } }), []);
   assert.ok(problems({ ...base0, ui: { hide: ['panel.edit'] } }).some((x) => /panel\.edit isn't a part/.test(x)));
 });
+
+test("phone attach menu: a part, and its camera and video icons", () => {
+  assert.deepEqual(problems({ ...base0, ui: { hide: ['composer.attachMenu'] } }), []);
+  assert.ok(schema.ICONS.includes('camera') && schema.ICONS.includes('video'));
+  assert.ok(problems({ ...base0, ui: { hide: ['composer.attachMenus'] } }).length, 'a typo is refused');
+});

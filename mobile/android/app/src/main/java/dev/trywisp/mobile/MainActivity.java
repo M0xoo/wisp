@@ -40,6 +40,8 @@ public class MainActivity extends BridgeActivity {
         // uses this instead.
         WebView web = getBridge().getWebView();
         web.addJavascriptInterface(new Notify(), "wispAndroid");
+        // Take photo / Record video in the attach menu open the camera (Capture.java).
+        web.setWebChromeClient(new Capture(getBridge()));
         // Between pages (the list, then wisp's) the WebView shows its own background: the pages'
         // (--bg in web/css/tokens.css), so dark mode doesn't flash white. It also draws the parts
         // just off screen ahead of time, so a fling doesn't show blank tiles.
@@ -185,6 +187,12 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public String tunnel() {
             return WispSshPlugin.pageState();
+        }
+
+        // The attach menu offers Take photo / Record video only to an app that has Capture.java.
+        @JavascriptInterface
+        public boolean camera() {
+            return true;
         }
 
         @JavascriptInterface
