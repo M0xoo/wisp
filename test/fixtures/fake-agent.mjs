@@ -8,6 +8,7 @@
 //   FAKE_HANG=1  stop after the first events and wait to be killed
 //   FAKE_FAIL=1  exit 1 with an error on stderr, no result
 //   FAKE_LIMIT_ONCE=<file>  the first run hits a usage limit (stderr, exit 1); later runs work
+//   FAKE_LIMIT_TEXT  what that first run prints instead of the usual session-limit line
 //   FAKE_LIMITS  claude: a rate_limit_info (JSON) it reports as a rate_limit_event before anything else
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
@@ -229,7 +230,7 @@ if (stdin.includes('You check whether a coding agent reached its goal')) {
 // FAKE_LIMIT_ONCE=<file>: the first run (whichever harness) hits a usage limit, later ones work.
 if (process.env.FAKE_LIMIT_ONCE && !retro && !fs.existsSync(process.env.FAKE_LIMIT_ONCE)) {
   fs.writeFileSync(process.env.FAKE_LIMIT_ONCE, name);
-  process.stderr.write("You've hit your session limit · resets 9pm (Europe/Zurich)\n");
+  process.stderr.write(`${process.env.FAKE_LIMIT_TEXT || "You've hit your session limit · resets 9pm (Europe/Zurich)"}\n`);
   process.exit(1);
 }
 if (process.env.FAKE_FAIL) {

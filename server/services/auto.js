@@ -213,6 +213,7 @@ export function createAuto(app) {
     router,
     settings: () => autoSettings(store.config.defaults),
     agents: () => agentsHere,
+    windows: (agent, account) => app.runner.budget?.windows?.(agent, account) || [],
     launchSibling,
     broadcast: (e, d) => app.broadcast(e, d),
     summarize: (s) => summarize(s, store),

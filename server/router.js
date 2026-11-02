@@ -179,10 +179,29 @@ export function tierOf(key) {
 // not that the model got the task wrong. Returns { scope: 'agent' | 'arm', ms } or null.
 export function infraError(text = '') {
   const t = String(text);
+  // Too many devices or sessions signed in on the account (Codex): not a usage window, nothing to
+  // wait for; the user closes one elsewhere. Before "session limit", which is Claude's usage window.
+  if (DEVICE_LIMIT.test(t)) return { scope: 'agent', ms: 15 * 60_000, kind: 'device' };
+  if (/usage_limit_reached/i.test(t)) return { scope: 'agent', ms: resetIn(t) ?? 60 * 60_000 };
   if (/session limit|usage limit|limit reached|resets \d|quota|exceeded your|insufficient (credit|balance|quota)|balance exhausted|payment required|\b402\b|billing/i.test(t)) return { scope: 'agent', ms: resetIn(t) ?? 60 * 60_000 };
   if (/rate[- ]?limit|too many requests|\b429\b|overloaded|\b529\b|try again in a few minutes/i.test(t)) return { scope: 'arm', ms: 10 * 60_000 };
   return null;
 }
+const DEVICE_LIMIT = /\b(?:devices?|device[- ]session) limit|too many (?:devices|active sessions|concurrent sessions|sessions (?:are )?(?:active|open|signed in))|(?:maximum|max) (?:number of )?(?:devices|active sessions|concurrent sessions)|signed in on too many|concurrent session limit/i;
+
+// A 429 says "too many requests", which Codex also answers while the plan still has room
+// (openai/codex#57084, #58530). With the account's windows known (server/budget.js) and none of
+// them full, it's a hiccup: a short pause, not the 10 minutes a real rate limit rests the arm.
+// windows: budget.windows(agent, account) as the run ended. Never another account (design/accounts.md).
+export const BLIP_MS = 60_000;
+export function limitOf(text = '', { agent = '', windows = [] } = {}) {
+  const limit = infraError(text);
+  if (!limit || limit.scope !== 'arm' || agent !== 'codex') return limit;
+  const known = (windows || []).filter((w) => Number.isFinite(w?.used));
+  if (!known.length || known.some((w) => w.used >= 0.995)) return limit;
+  return { ...limit, ms: BLIP_MS, blip: true };
+}
+
 // "resets 9pm" / "resets at 21:00" → ms until then (today, else tomorrow), capped at 6 h.
 function resetIn(t) {
   const m = t.match(/resets?(?: at)? (\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);

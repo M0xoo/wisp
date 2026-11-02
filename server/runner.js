@@ -1509,6 +1509,7 @@ export class Runner extends EventEmitter {
   #atLimit(session, turn, ev) {
     const limit = infraError(ev.text);
     if (limit?.scope !== 'agent' || session.parentId || session.delegated) return;
+    if (limit.kind === 'device') return this.#deviceLimit(session, turn, ev);
     const accounts = this.accounts;
     const multi = !!session.account && !!accounts?.multi?.(session.agent);
     const reset = this.budget?.resetAt?.(session.agent, session.account || 'default');
@@ -1527,6 +1528,20 @@ export class Runner extends EventEmitter {
       blocks: [
         // No time here: the card under it says when, in the page's own time format.
         { type: 'hero', title: `${from?.label || adapters[session.agent]?.name || 'This harness'} is at its usage limit`, summary: others.length ? 'Wait for the reset, continue on another of your accounts, or hand the task to another agent.' : 'Wait for the reset, or hand the task to another agent.', status: 'blocked' },
+        { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
+      ],
+    };
+  }
+
+  // Refused because too many devices or sessions are signed in on the account (Codex): no window to
+  // wait out and nothing another account should get around, so no limit card, just what happened
+  // and what to do. The account isn't marked: it has room the moment one sign-in goes.
+  #deviceLimit(session, turn, ev) {
+    const name = adapters[session.agent]?.name || 'This harness';
+    turn.presentation = {
+      blocks: [
+        { type: 'hero', title: `${name} refused: too many devices signed in`, summary: `Your ${name} account has as many devices or sessions open as its plan allows, so it turned this run down. Your usage isn’t used up.`, status: 'blocked' },
+        { type: 'checklist', title: 'What you can do', items: [{ text: `Close ${name} on another computer, in your editor or in its app, or sign out there`, done: false }, { text: 'Then Rerun this task, or hand it to another agent', done: false }] },
         { type: 'terminal', command: `${session.agent} run`, output: ev.text || 'No output.', exitCode: 1 },
       ],
     };

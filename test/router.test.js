@@ -8,7 +8,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { installFakeBins, makeRepo, tmp, until } from './helpers.js';
 
-const { Router, classify, reward, betaSample, tierOf, infraError, splitKey, levelsFor, canon, ruleMatches } = await import('../server/router.js');
+const { Router, classify, reward, betaSample, tierOf, infraError, limitOf, BLIP_MS, splitKey, levelsFor, canon, ruleMatches } = await import('../server/router.js');
 const { adapters } = await import('../server/adapters/index.js');
 
 const AGENTS = [
@@ -148,6 +148,7 @@ test('limits: a usage or rate limit is the harness being unavailable, not the mo
   assert.equal(infraError('API error (status 402 Payment Required): Grok Build usage balance exhausted').scope, 'agent');
   assert.equal(infraError('`opencode/deepseek` is rate-limited right now').scope, 'arm');
   assert.equal(infraError('TypeError: cannot read properties of undefined'), null);
+  assert.equal(infraError("You've hit your session limit · resets 9pm").kind, undefined, 'Claude’s session limit is a usage window, not a device limit');
   let t = 1_000_000;
   const r = new Router(tmp('router-cool'), { now: () => t });
   r.sync(AGENTS);
@@ -539,4 +540,20 @@ test('preview: what Auto would run, then the launch keeps it; a harness you pick
   assert.equal(set.settings.habits, false);
   for (let i = 0; i < 5; i++) assert.notEqual((await api('/router/preview', { prompt: `fix bug ${i}` })).pick?.agent, 'codex');
   await api('/router', { blocked: [], prefer: [], habits: true }, 'PATCH');
+});
+
+test('Codex limits: a 429 with plan left is a one-minute blip; a full window, a device limit or no reading is not', () => {
+  const r429 = 'exceeded retry limit, last status: 429 Too Many Requests';
+  const room = [{ id: 'five_hour', used: 0.42 }, { id: 'seven_day', used: 0.7 }];
+  assert.deepEqual(limitOf(r429, { agent: 'codex', windows: room }), { scope: 'arm', ms: BLIP_MS, blip: true });
+  assert.equal(limitOf(r429, { agent: 'codex', windows: [{ id: 'five_hour', used: 1 }, { id: 'seven_day', used: 0.3 }] }).ms, 10 * 60_000, 'a full window: the real limit');
+  assert.equal(limitOf(r429, { agent: 'codex', windows: [] }).ms, 10 * 60_000, 'nothing known about the plan: rest as before');
+  assert.equal(limitOf(r429, { agent: 'claude', windows: room }).ms, 10 * 60_000, 'only Codex');
+  assert.equal(limitOf('unexpected status 429: {"type":"usage_limit_reached"}', { agent: 'codex', windows: room }).scope, 'agent', 'usage_limit_reached is the plan, whatever the windows said last');
+  assert.equal(limitOf('TypeError: x', { agent: 'codex', windows: room }), null);
+  for (const t of ['You have reached the device limit for your plan', 'Too many active sessions. Sign out of Codex on another device', 'Maximum number of devices reached', 'concurrent session limit exceeded']) {
+    const l = limitOf(t, { agent: 'codex', windows: room });
+    assert.equal(l.kind, 'device', t);
+    assert.equal(l.scope, 'agent', t);
+  }
 });
