@@ -67,6 +67,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **A terminal in wisp starts at its real size.** On a busy computer, a program started in a wisp terminal (Take over, `/terminal`, Shell) could see a 0×0 screen on its first look and draw itself wrong until the next resize: the size is now set before the program starts.
+
 - **`/terminal` no longer refuses a task with a goal, a team or a crew member.** Typing `/terminal …` with *Done when* set, delegates picked, compare runs added or `@Ada` in the prompt used to show an error and keep the prompt. Now it starts the task in your terminal and leaves those out: you drive the agent there yourself. It's still refused where no terminal can open (Windows, or a harness that can't resume its sessions).
 
 - **Changes and the editor, said in words.** A file's stage toggle in Changes says *Stage*, *Part* or *Staged* in Viewed's style (a bare +/− beside the +3 −2 counts read as one), and on a phone a file's Stage · Viewed · ⋯ sit on a line under its name so the name stays whole. An empty commit message shows the one Commit will use (the task's title). The harness picker's plan use is plain grey, amber only near your line. The editor's language support offer is a quiet *Add TypeScript support* in its head instead of a note that pushed the code down; hover cards sit above the name's line; references and definitions say *3 references to add*. Preview's Pick and the app's Issue have their words; the issue picker keeps one height from loading to loaded; trigger kinds are named like the others (*Webhook called*, *Slack mention*, *Linear issue created*).

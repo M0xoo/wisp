@@ -3,6 +3,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -55,8 +56,9 @@ test('ptyCommand: the Python helper when there is one, else script(1) at a fixed
   assert.equal(python({ platform: 'linux', env: {}, has: () => false }), null);
 });
 
-test('Terms: runs on a terminal, takes input and a new size, replays its output to a late page', { skip: win || !python() }, async () => {
+test('Terms: runs on a terminal, takes input and a new size, replays its output to a late page', { skip: win || !python() }, async (ctx) => {
   const terms = new Terms();
+  ctx.after(() => terms.closeAll()); // a failed wait leaves its program running, and the run never ends
   const t = terms.open('s1', { argv: ['sh', '-c', 'stty size; read l; stty size; echo "got $l"'], cwd: tmp('pty'), cols: 90, rows: 33 });
   assert.equal(terms.open('s1', { argv: ['false'], cwd: '/' }), t, 'one terminal per session');
   await waitFor(() => t.out.includes('33 90'));
@@ -79,8 +81,23 @@ test('Terms: runs on a terminal, takes input and a new size, replays its output 
   assert.equal(terms.get('s1'), null);
 });
 
-test('Terms: a big paste goes in whole while the program prints (no hang)', { skip: win || !python() }, async () => {
+test('Terms: the program sees its size from its first line, however late the helper sets it', { skip: win || !python() }, async (ctx) => {
+  // It stays up after printing: macOS drops a pty's unread output once its program has exited.
+  const [py, args] = ptyCommand(['sh', '-c', 'stty size; sleep 10'], { cols: 90, rows: 33 });
+  // A busy machine: the parent sets the size well after the program has started.
+  const slow = args[1].replace('\nsize(fd, rows, cols)\n', '\nimport time; time.sleep(0.5)\nsize(fd, rows, cols)\n');
+  assert.notEqual(slow, args[1]);
+  const child = spawn(py, ['-c', slow, ...args.slice(2)], { stdio: ['pipe', 'pipe', 'pipe', 'pipe'] });
+  ctx.after(() => child.kill('SIGKILL'));
+  let out = '';
+  child.stdout.on('data', (d) => (out += d));
+  await waitFor(() => /\d+ \d+/.test(out));
+  assert.match(out, /^33 90\r?\n/);
+});
+
+test('Terms: a big paste goes in whole while the program prints (no hang)', { skip: win || !python() }, async (ctx) => {
   const terms = new Terms({ track: null });
+  ctx.after(() => terms.closeAll()); // a failed wait leaves its program running, and the run never ends
   const t = terms.open('paste', { argv: ['cat'], cwd: tmp('pty-paste') });
   let text = '';
   for (let i = 0; i < 4000; i++) text += `pasted line ${i} ${'x'.repeat(40)}\r`;
@@ -89,8 +106,9 @@ test('Terms: a big paste goes in whole while the program prints (no hang)', { sk
   terms.closeAll();
 });
 
-test('Terms: a Claude Code session that started wisp does not leak into its terminals', { skip: win || !python() }, async () => {
+test('Terms: a Claude Code session that started wisp does not leak into its terminals', { skip: win || !python() }, async (ctx) => {
   const terms = new Terms({ env: { ...process.env, CLAUDECODE: '1', CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_CODE_SESSION_ID: 'x', CLAUDE_CODE_USE_BEDROCK: '1' } });
+  ctx.after(() => terms.closeAll()); // a failed wait leaves its program running, and the run never ends
   const t = terms.open('env', { argv: ['sh', '-c', 'echo "[$CLAUDECODE][$CLAUDE_CODE_CHILD_SESSION][$CLAUDE_CODE_SESSION_ID][$CLAUDE_CODE_USE_BEDROCK]"'], cwd: tmp('pty-env') });
   await waitFor(() => t.code !== null);
   assert.match(t.out, /\[\]\[\]\[\]\[1\]/, 'its markers go; the user\'s own settings stay');

@@ -27,6 +27,12 @@ def size(fd, r, c):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', r, c, 0, 0))
 pid, fd = pty.fork()
 if pid == 0:
+    # The size goes on before the program starts: set only by the parent, it raced the program's
+    # first look (stty size said 0 0 on a busy machine).
+    try:
+        size(0, rows, cols)
+    except OSError:
+        pass
     try:
         os.close(3)
     except OSError:
