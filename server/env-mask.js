@@ -19,35 +19,33 @@ export function isEnvFile(file) {
 export const maskOn = (config) => config?.defaults?.maskEnvFiles !== 'off';
 
 // KEY=value, export KEY=value, KEY: value. The value goes (quotes and all), a trailing comment too.
+// Any other line but a comment or a blank one goes whole: an edit's snippet can be a bare value
+// (Claude's Edit sends old_string "sk-live-one"), and a command's output can be anything.
 const LINE = /^(\s*(?:export\s+)?[A-Za-z_][\w.-]*\s*[=:]\s*)(\S.*)$/;
+const KEPT = /^\s*(#.*|(?:export\s+)?[A-Za-z_][\w.-]*\s*[=:]\s*)?$/; // blank, a comment, KEY= with no value
 
-// changed: keys whose value this line should say changed (an edit's after side), so a diff still
-// shows which values an edit touched.
-export function maskLine(line, changed) {
+export function maskLine(line) {
+  if (KEPT.test(line)) return line;
   const m = LINE.exec(line);
-  if (!m) return line;
-  const key = m[1].replace(/^\s*(?:export\s+)?/, '').replace(/\s*[=:]\s*$/, '');
-  return `${m[1]}${DOTS}${changed?.has(key) ? ' (changed)' : ''}`;
+  return m ? `${m[1]}${DOTS}` : line.replace(/^(\s*).*$/, `$1${DOTS}`);
 }
 
-export const maskText = (text, changed) => (typeof text === 'string' ? text.split('\n').map((l) => maskLine(l, changed)).join('\n') : text);
+export const maskText = (text) => (typeof text === 'string' ? text.split('\n').map(maskLine).join('\n') : text);
 
-const values = (text) => {
-  const out = new Map();
-  for (const l of String(text || '').split('\n')) {
-    const m = LINE.exec(l);
-    if (m) out.set(m[1].replace(/^\s*(?:export\s+)?/, '').replace(/\s*[=:]\s*$/, ''), m[2]);
-  }
-  return out;
-};
-
-// One captured edit { before, after }: masked on both sides, a key whose value it changed marked so
-// the diff still has a line to show.
+// One captured edit { before, after }: masked on both sides. A line it changed that masks the same
+// as a line it replaced says (changed), so the diff still has a line to show.
 export function maskEdit(e) {
   if (!e || typeof e !== 'object') return e;
-  const was = values(e.before);
-  const changed = new Set([...values(e.after)].filter(([k, v]) => was.has(k) && was.get(k) !== v).map(([k]) => k));
-  return { ...e, before: maskText(e.before), after: maskText(e.after, changed) };
+  const was = String(e.before ?? '').split('\n');
+  const raw = new Set(was);
+  const masked = new Set(was.map(maskLine));
+  const after = typeof e.after === 'string'
+    ? e.after.split('\n').map((l) => {
+        const m = maskLine(l);
+        return m !== l && !raw.has(l) && masked.has(m) ? `${m} (changed)` : m;
+      }).join('\n')
+    : e.after;
+  return { ...e, before: maskText(e.before), after };
 }
 
 // A command line that names a .env file (cat .env, head -5 apps/web/.env.local, Get-Content .env).

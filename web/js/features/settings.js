@@ -64,7 +64,7 @@ const settingsPanes = (grid = inGrid()) => [
   { id: 'automations', label: 'Automations', icon: 'bolt', lede: 'Saved prompts, and the triggers that launch them for you.' },
   { id: 'spells', label: 'Spells', icon: 'wizard', lede: 'Changes to wisp itself: buttons, panels, blocks, looks and behaviour. Cast one, or add one a colleague sent.' },
   { id: 'usage', label: 'Usage', icon: 'stats', lede: 'Spend and outcomes over the last 7 days.' },
-  { id: 'privacy', label: 'Privacy', icon: 'info', lede: 'What wisp sends about itself. Never prompts, paths or code.' },
+  { id: 'privacy', label: 'Privacy', icon: 'info', lede: 'What wisp sends about itself (never prompts, paths or code), and what it hides on screen.' },
 ];
 let settingsPane = 'general';
 
@@ -227,10 +227,10 @@ export function openSettings(opts) {
           <div class="sx-group">
             ${row('Anonymous usage stats', '<span class="tele-hint"></span>', '<button class="switch" id="tele" role="switch"></button>')}
           </div>
+          <p class="hint">Agent, model, status, timings and scrubbed errors only.</p>
           <div class="sx-group">
             ${row('Hide .env values', 'What a task shows of a .env or .env.* file reads KEY=•••• in its activity, diffs and Changes, until you press Reveal there. Not .env.example or .env.sample', '<button class="switch" id="maskEnv" role="switch"></button>')}
           </div>
-          <p class="hint">Agent, model, status, timings and scrubbed errors only.</p>
         </section>
       </div>
     </div>`);

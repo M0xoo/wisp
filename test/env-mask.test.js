@@ -24,7 +24,8 @@ test('isEnvFile: .env and .env.*, not the templates', () => {
 test('maskText: values go, keys, comments and blank lines stay', () => {
   const text = '# db\nDATABASE_URL=postgres://me:pw@db/app\nexport TOKEN="ghp_x" # mine\nEMPTY=\nyaml_like: value\n\n  INDENTED = 3';
   assert.equal(maskText(text), `# db\nDATABASE_URL=${DOTS}\nexport TOKEN=${DOTS}\nEMPTY=\nyaml_like: ${DOTS}\n\n  INDENTED = ${DOTS}`);
-  assert.equal(maskLine('not a pair'), 'not a pair');
+  assert.equal(maskLine('sk-live-bare-value'), DOTS, 'a line with no key goes whole (an edit snippet)');
+  assert.equal(maskLine('  # a comment'), '  # a comment');
   assert.equal(maskText(undefined), undefined);
 });
 
@@ -196,4 +197,24 @@ test('the page gets .env values masked, Reveal gets one view as it is, and Setti
     ctl.abort();
     await reading;
   }
+});
+
+test('a run that reads and edits .env (the real adapter path): masked on the page, Reveal shows the edit', async () => {
+  const repo = makeClone();
+  const s = await api('/sessions', { body: { prompt: 'ENVFILE fix the add bug', cwd: repo.dir, agent: 'claude' } });
+  const done = await settled(s.id);
+  const t = done.turns.at(-1);
+  { const j = JSON.stringify(done); const i = j.indexOf('sk-live'); assert.ok(i < 0, j.slice(Math.max(0, i - 300), i + 50)); }
+  const step = t.activity.find((a) => a.detail === 'cat .env');
+  assert.ok(step?.masked && step.output.includes(`API_KEY=${DOTS}`), JSON.stringify(step));
+  const change = t.changes.find((c) => c.file.endsWith('.env'));
+  assert.ok(change?.masked, JSON.stringify(t.changes));
+  assert.ok(change.edits.some((e) => e.after.includes(`${DOTS} (changed)`) || e.after === DOTS), JSON.stringify(change.edits));
+  const raw = (await api(`/sessions/${s.id}/unmasked?${change.masked}`)).value;
+  assert.ok(raw.edits.some((e) => e.after.includes('sk-live-two')), JSON.stringify(raw.edits));
+});
+
+test('maskEdit: a bare value snippet (Claude Edit old_string/new_string) masks and still shows as changed', () => {
+  assert.deepEqual(maskEdit({ before: 'sk-live-one', after: 'sk-live-two' }), { before: DOTS, after: `${DOTS} (changed)` });
+  assert.deepEqual(maskEdit({ before: '# keep', after: '# keep\nNEW=1' }), { before: '# keep', after: `# keep\nNEW=${DOTS}` });
 });
