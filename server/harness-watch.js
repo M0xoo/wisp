@@ -25,14 +25,14 @@ export function resolveBin(bin, env = process.env) {
       return null;
     }
   };
+  if (/[\\/]/.test(bin)) {
+    const r = real(path.resolve(bin));
+    if (r || process.platform !== 'win32') return r ? { path: path.resolve(bin), real: r } : null;
+  }
   if (process.platform === 'win32') {
     const p = whichWindows(bin, env);
     const r = p && real(p);
     return r ? { path: p, real: r } : null;
-  }
-  if (bin.includes('/')) {
-    const r = real(path.resolve(bin));
-    return r ? { path: path.resolve(bin), real: r } : null;
   }
   for (const dir of String(env.PATH || '').split(path.delimiter).filter(Boolean)) {
     const p = path.join(dir, bin);
