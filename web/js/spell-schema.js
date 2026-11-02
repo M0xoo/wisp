@@ -278,9 +278,9 @@ export const PARTS = {
   'split.upcoming': '#splitHome .sh-coming', // Coming up: what runs next, soonest first
   'split.upcoming.more': '#splitHome .sh-coming .sh-more', // Show all / Show fewer, past the first `count`
   'split.upcoming.day': '#splitHome .sh-coming .sh-day', // a day's heading in the full list (Today, Tomorrow, Fri 31 Oct)
-  // Spare allowance (web/js/spare.js): a card over Needs you when a weekly window resets soon with much left.
+  // Spare allowance (web/js/spare.js): a row under Needs you when a weekly window resets soon with much left.
   'split.spare': '#splitHome .sh-spare',
-  'split.spare.start': '#splitHome .sh-spare .sp-start', // Start a task: picks that harness and account in the prompt box
+  'split.spare.start': '#splitHome .sh-spare .sp-start', // Use <harness>: picks that harness and account in the prompt box
   'split.feedback': '#splitHome .sh-fb', // Hit a bug, or an idea: opens Send feedback (hidden when feedback is off)
   // Split view's home: tips under the prompt box (after Needs you), each linking to its guide on trywisp.dev.
   tips: '#splitHome .sh-tips',

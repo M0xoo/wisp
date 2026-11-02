@@ -19,7 +19,7 @@
 import { esc } from '../md.js';
 import * as bus from '../core/bus.js';
 import { $, $$, beforePaint, el, icon } from '../core/dom.js';
-import { ago, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
+import { ago, fmtDate, SHORT_TIME, STATUS_LABEL, timeAttrs, whenLabel } from '../core/format.js';
 import { inGrid, isForLater, load, MOBILE, needsYou, S, save } from '../core/state.js';
 import { SPLIT_MIN_WIDTH } from '../spell-schema.js';
 import { onBack } from '../ui/back.js';
@@ -510,10 +510,10 @@ function paintHome() {
         )
         .join('')}`
     : '';
-  paintSpare();
   const next = $('.sh-next', home);
   if (next.dataset.h !== html) (next.innerHTML = html), (next.dataset.h = html);
   next.hidden = !html;
+  paintSpare();
   // What's coming up: scheduled tasks, reminders, follow-ups, crew check-ins and schedules (later.js).
   // Past the first few, Show all opens the rest in place, a heading per day; the heading sticks
   // so Show fewer stays in reach down a long list.
@@ -532,9 +532,11 @@ function paintHome() {
   $('.sh-keys', home).innerHTML = '<kbd>J</kbd><kbd>K</kbd> move through tasks · <kbd>↵</kbd> open · <kbd>E</kbd> done · <kbd>Esc</kbd> back here · <kbd>[</kbd> hide the list';
 }
 
-// Spare allowance (web/js/spare.js): a weekly window about to reset with much of it unused, above
-// Needs you. Start a task picks that harness and account in the prompt box above (you send it);
-// × hides that window's card until its next period, on this device.
+// Spare allowance (web/js/spare.js): a weekly window about to reset with much of it unused, under
+// Needs you (so Needs you never moves when it comes). Use <harness> picks that harness and account
+// in the prompt box above (you send it); × hides that window's card until its next period, here.
+// Within a day the weekday and time say when; the tooltip has the full date.
+const spareWhen = (t) => fmtDate(t, new Date().toDateString() === new Date(t).toDateString() ? SHORT_TIME : { weekday: 'short', ...SHORT_TIME });
 let spare = []; // the cards, as painted
 function paintSpare() {
   const box = $('.sh-spare', home);
@@ -543,12 +545,12 @@ function paintSpare() {
   const html = spare
     .map((x, i) => {
       const who = `${x.name}${x.accountLabel ? ` (${x.accountLabel})` : ''}`;
-      const tip = `What’s left at the reset doesn’t carry over. wisp never switches accounts for you: Start a task only picks ${who} in the prompt box.${x.at ? ` Last reported ${whenLabel(x.at)}.` : ''}`;
-      return `<div class="sp-card" role="status" aria-label="${esc(spareWords(x, whenLabel(x.resetsAt)))}" data-i="${i}">
+      const tip = `Resets ${whenLabel(x.resetsAt)}. What’s left then doesn’t carry over. wisp never switches accounts for you.${x.at ? ` Last reported ${whenLabel(x.at)}.` : ''}`;
+      return `<div class="sp-card" aria-label="${esc(spareWords(x, spareWhen(x.resetsAt)))}" data-i="${i}">
         <span class="model-logo">${harnessLogo(x.agent)}</span>
-        <span class="sp-text" title="${esc(tip)}"><b>${esc(`${Math.round(x.left * 100)}% left`)}</b><span>${esc(` of ${spareWhose(x)} · resets ${whenLabel(x.resetsAt)}`)}</span></span>
-        <button type="button" class="ghost sm sp-start" data-spare="start" data-i="${i}" title="${esc(`Pick ${who} in the prompt box`)}">${icon('plus')}Start a task</button>
-        <button type="button" class="icon-btn sp-x" data-spare="x" data-i="${i}" title="Hide until it resets" aria-label="Hide until it resets">${icon('x')}</button>
+        <span class="sp-text" title="${esc(tip)}"><b>${Math.round(x.left * 100)}%</b>${esc(` of ${spareWhose(x)} left · resets ${spareWhen(x.resetsAt)}`)}</span>
+        <button type="button" class="ghost sm sp-start" data-spare="start" data-i="${i}" title="${esc(`Pick ${who} in the prompt box`)}">${esc(`Use ${x.name}`)}</button>
+        <button type="button" class="icon-btn sp-x" data-spare="x" data-i="${i}" title="Hide until the window resets" aria-label="Hide until the window resets">${icon('x')}</button>
       </div>`;
     })
     .join('');

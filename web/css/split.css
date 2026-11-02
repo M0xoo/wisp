@@ -240,20 +240,28 @@ body.split .task-runs { padding: 0 4px 4px; }
 body.split:not(.stack):not(.side-hidden) .sh-next .sh-s { display: none; }
 /* ...and drops its column, or the empty track's gap pulls the times in from the right edge */
 body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-template-columns: 10px minmax(0, 1fr) auto; }
-/* Spare allowance (split.js paintSpare): a quiet row per window over Needs you. Neutral, not a
-   warning: nothing is wrong, there's just plan left that a reset will take. */
-.sh-spare { margin-top: 30px; display: flex; flex-direction: column; gap: 6px; }
+/* Spare allowance (split.js paintSpare): rows under Needs you, like its own: advice, not a warning,
+   so no surface until hovered. */
+.sh-spare { margin-top: 30px; display: flex; flex-direction: column; gap: 2px; }
 .sh-spare[hidden] { display: none; }
-.sh-spare:not([hidden]) + .sh-next { margin-top: 22px; }
-.sp-card { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 6px 6px 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.sh-next:not([hidden]) + .sh-spare:not([hidden]) { margin-top: 14px; }
+.sp-card { display: grid; grid-template-columns: 13px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; min-height: 42px; padding: 5px 6px 5px 12px; border-radius: 9px; border: 1px solid transparent; transition: background 0.15s, border-color 0.15s; }
+.sp-card:hover { background: var(--surface); border-color: var(--line); }
 .sp-text { min-width: 0; font-size: 13px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-text b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.sp-start { gap: 6px; }
 .sp-x { width: 30px; height: 30px; color: var(--faint); }
 .sp-x:hover { color: var(--ink-2); }
-.sp-start .i, .sp-x .i { width: 13px; height: 13px; }
-/* a phone's width: the line wraps instead of losing the reset time */
-@media (max-width: 520px) { .sp-text { white-space: normal; line-height: 1.4; } }
+.sp-x .i { width: 13px; height: 13px; }
+/* without hover (touch) the button needs its own edge, or it reads as text */
+@media (hover: none) { .sp-start { border: 1px solid var(--line); } }
+/* a phone's width: the line wraps over the whole row, the button goes under it */
+@media (max-width: 520px) {
+  .sp-card { grid-template-columns: 13px minmax(0, 1fr) auto; grid-template-areas: 'l t x' '. s .'; row-gap: 2px; align-items: start; }
+  .sp-card > .model-logo { grid-area: l; margin-top: 3px; }
+  .sp-text { grid-area: t; white-space: normal; line-height: 1.4; }
+  .sp-x { grid-area: x; margin-top: -6px; }
+  .sp-start { grid-area: s; justify-self: start; margin-top: 4px; }
+}
 .sh-keys { margin: 18px 0 0; padding: 0 8px 0 13px; font-size: 12.5px; color: var(--faint); line-height: 2; }
 /* the prompt box at home, quieter: chips without outlines, recipes without a rule over them */
 .split-home .launcher .lp-chip:not(.add) { border-color: transparent; }
@@ -274,7 +282,7 @@ body.split:not(.stack):not(.side-hidden) .sh-next .sh-task:not(.sh-up) { grid-te
 .tips { display: flex; flex-direction: column; gap: 1px; }
 .sh-tips { margin-top: 30px; }
 .sh-next:not([hidden]) + .sh-tips, .sh-next:not([hidden]) + .sh-coming:not([hidden]) { margin-top: 22px; }
-.sh-coming:not([hidden]) + .sh-tips { margin-top: 22px; }
+.sh-coming:not([hidden]) + .sh-tips, .sh-spare:not([hidden]) + .sh-coming:not([hidden]), .sh-spare:not([hidden]) + .sh-tips { margin-top: 22px; }
 /* Coming up: a glyph (clock, bell, bolt, a face) where Needs you has its dot; the time ahead in the last column */
 .sh-up { grid-template-columns: 18px minmax(0, 1fr) minmax(0, auto) auto; }
 .sh-up > .q-dot.auto, .sh-up > .cr-av { justify-self: center; }

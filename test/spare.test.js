@@ -17,7 +17,7 @@ test('a weekly window resetting within a day with a fifth or more left gets a ca
   assert.equal(rest.length, 0, 'the 5-hour window never gets one');
   assert.deepEqual({ agent: c.agent, account: c.account, window: c.window, at: c.at }, { agent: 'codex', account: '', window: 'seven_day', at: now - H });
   assert.equal(Math.round(c.left * 100), 38);
-  assert.equal(spareWords(c, 'Thu 21:00'), '38% of Codex’s weekly window is left, resets Thu 21:00');
+  assert.equal(spareWords(c, 'Thu 21:00'), '38% of Codex’s weekly window left, resets Thu 21:00');
 });
 
 test('no card: too far off, too little left, already reset, runs out first, or the account is used up', () => {
@@ -47,7 +47,7 @@ test('several accounts: a card per account by the launcher’s id and label; a r
   };
   const cards = spareOf([a], { now });
   assert.deepEqual(cards.map((c) => [c.account, c.accountLabel]), [['acc1', 'work'], ['acc2', 'home']], 'soonest reset first');
-  assert.match(spareWords(cards[0], '16:00'), /^90% of Claude Code \(work\)’s weekly window is left/);
+  assert.match(spareWords(cards[0], '16:00'), /^90% of Claude Code \(work\)’s weekly window left/);
 });
 
 test('hidden until its next period: the same reset (give or take Codex’s drift) stays hidden, a new one shows', () => {

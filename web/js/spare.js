@@ -46,9 +46,9 @@ export function spareWhose(x) {
   return `${x.name}${x.accountLabel ? ` (${x.accountLabel})` : ''}’s ${win} window`;
 }
 
-// The card in one sentence (its label for screen readers): "38% of Codex’s weekly window is left,
+// The card in one sentence (its label for screen readers): "38% of Codex’s weekly window left,
 // resets Thu 21:00" (the page formats the time).
-export const spareWords = (x, when) => `${Math.round(x.left * 100)}% of ${spareWhose(x)} is left, resets ${when}`;
+export const spareWords = (x, when) => `${Math.round(x.left * 100)}% of ${spareWhose(x)} left, resets ${when}`;
 
 // Dismissals for windows that have since reset are let go, so the store doesn't grow.
 export function pruneSeen(seen = {}, now = Date.now()) {

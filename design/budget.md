@@ -104,10 +104,14 @@ the numbers are already on `GET /agents` (`budget`).
   with at least 20% left, on an installed harness. Not when the window runs out first at this pace
   (`hitAt`), when any window of the account is used up (a task now would only wait), or for an
   account since removed. The 5-hour window never counts: it always resets soon.
-- **Card** (`split.js paintSpare`, `.sh-spare` over Needs you, at most two, soonest first): the
-  harness logo, *38% left* of *Codex’s weekly window · resets Thu 21:00*, **Start a task** and ×.
-  Its tooltip says when the CLI last reported. Repaints on the `agents` bus event.
-- **Start a task** sets the launcher's harness and account (`#launcher.spellSet({ agent, account })`,
+- **Row** (`split.js paintSpare`, `.sh-spare` under Needs you so Needs you never moves when the
+  numbers arrive; at most two, soonest first; no surface until hovered, like `.sh-task`): the
+  harness logo, ***38%** of Codex’s weekly window left · resets Thu 21:00* (weekday and time; the
+  tooltip has the date and when the CLI last reported), **Use Codex** and ×. On a phone the line
+  wraps and the button goes under it; 44px targets in the app. Repaints on the `agents` bus event.
+  Reviewed for UI by a stand-in for Gucci (2026-11-02): quieter rows, under Needs you, *Use …*
+  rather than *Start a task* (nothing starts), phone layout.
+- **Use <harness>** sets the launcher's harness and account (`#launcher.spellSet({ agent, account })`,
   the same `pickRun` as the picker, so it's saved as the harness's account like a pick by hand) and
   focuses the prompt. Nothing is sent.
 - **×** keeps `wisp.spareSeen[agent:account:window] = resetsAt` in this browser; the same period
