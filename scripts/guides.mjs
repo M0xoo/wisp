@@ -650,7 +650,7 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
       h1: 'Moving off Jules',
       card: 'Jules goes read-only on 11 November and closes on 31 December 2026. Here is how its tasks, setup scripts, schedules and PRs carry over to wisp.',
       description: 'Google Jules goes read-only on 11 November 2026 and shuts down on 31 December. What to export, and how Jules-style async tasks map onto wisp: a worktree per task, PRs with Ship it, schedules, a crew, and your phone.',
-      lede: 'Google is winding Jules down: you can finish sessions until 11 November 2026, then it’s read-only, and it closes on 31 December. Your code, branches and pull requests are on GitHub and stay there; export the rest (setup scripts, environment variables, scheduled tasks, memory) with the Jules CLI. To keep working the same way, hand off a task and come back to a branch and a PR, run wisp: each task runs in its own git worktree with the agent CLIs you already have, Antigravity included, and comes back as a short report with <b>Ship it</b> to open the PR.',
+      lede: 'Google is winding Jules down: finish your sessions by 11 November 2026, then it’s read-only until it closes on 31 December. Your branches and pull requests stay on GitHub; export the rest with the Jules CLI. To keep handing off tasks and coming back to a PR, run wisp: each task runs in its own git worktree with the agent CLIs you already have, Antigravity included, and ends with a short report and <b>Ship it</b> to open the PR.',
       shot: ['report', 'A wisp report for a finished task: headline, numbers, the real diff and the test run, with Ship it'],
       body: `
     <section>
