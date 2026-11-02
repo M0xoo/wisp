@@ -644,6 +644,93 @@ wisp "bump node to 22" --wait --json                   # block until done, for s
     },
 
     {
+      slug: 'moving-off-jules',
+      topic: 'agents',
+      title: 'Moving off Google Jules: async coding tasks with wisp',
+      h1: 'Moving off Jules',
+      card: 'Jules goes read-only on 11 November and closes on 31 December 2026. Here is how its tasks, setup scripts, schedules and PRs carry over to wisp.',
+      description: 'Google Jules goes read-only on 11 November 2026 and shuts down on 31 December. What to export, and how Jules-style async tasks map onto wisp: a worktree per task, PRs with Ship it, schedules, a crew, and your phone.',
+      lede: 'Google is winding Jules down: you can finish sessions until 11 November 2026, then it’s read-only, and it closes on 31 December. Your code, branches and pull requests are on GitHub and stay there; export the rest (setup scripts, environment variables, scheduled tasks, memory) with the Jules CLI. To keep working the same way, hand off a task and come back to a branch and a PR, run wisp: each task runs in its own git worktree with the agent CLIs you already have, Antigravity included, and comes back as a short report with <b>Ship it</b> to open the PR.',
+      shot: ['report', 'A wisp report for a finished task: headline, numbers, the real diff and the test run, with Ship it'],
+      body: `
+    <section>
+      <h2 id="dates">The dates, and what to export</h2>
+      <div class="table"><table>
+        <thead><tr><th>When</th><th>What happens</th></tr></thead>
+        <tbody>
+          <tr><td>Until 11 November 2026</td><td>Finish the sessions you have open</td></tr>
+          <tr><td>11 November to 31 December</td><td>Jules is read-only</td></tr>
+          <tr><td>31 December 2026</td><td>Jules shuts down</td></tr>
+        </tbody>
+      </table></div>
+      <p>Nothing on GitHub goes away: branches and PRs Jules opened are yours. The export covers what lives only in Jules. Google’s steps start with the Jules CLI:</p>
+      ${sh(`npm install -g @google/jules
+jules login`)}
+      <p>Then follow the export prompt in the <a href="https://jules.google/docs/changelog/" target="_blank" rel="noopener">Jules changelog</a> (29 October 2026 entry). Keep the export folder private: <code>env-variables.json</code> holds your environment variables’ values. The pieces you’ll reuse below are your setup scripts, environment variables and scheduled tasks.</p>
+      <p class="muted">Dates from Google’s Jules changelog, 29 October 2026.</p>
+    </section>
+
+    <section>
+      <h2 id="map">Jules, mapped onto wisp</h2>
+      <p>The big difference is where the agent runs. Jules ran in Google’s VMs on Gemini. wisp runs the agent CLIs you install (Claude Code, Codex, Cursor, opencode, Antigravity, Grok, Copilot) on your computer, your other machines, or your own cloud wisp, signed in with your own plans.</p>
+      <div class="table"><table>
+        <thead><tr><th>In Jules</th><th>In wisp</th></tr></thead>
+        <tbody>
+          <tr><td>A task on a repo, in a cloud VM</td><td>A task in its own git worktree and branch from <code>origin/main</code>, on this computer, a machine you added, or <a href="/guides/use-wisp-cloud.html">wisp Cloud</a></td></tr>
+          <tr><td>Setup script</td><td><code>.wisp/worktree.json</code>: <code>{ "setup": ["npm ci"] }</code> runs in each new worktree</td></tr>
+          <tr><td>Environment variables</td><td>Ignored files copied into each worktree: the root’s <code>.env</code> files, or what <code>.worktreeinclude</code> lists</td></tr>
+          <tr><td>Approve the plan first</td><td>Ask for it in the prompt (<i>write a plan and ask me before you change anything</i>): the agent asks you and the task waits under <i>Needs you</i> until you answer. Or launch in <b>Plan</b> mode, read-only</td></tr>
+          <tr><td>Publish a branch, open a PR</td><td><b>Ship it</b> commits, pushes and opens the PR with <code>gh</code>; the card follows checks and reviews; <b>Merge</b> squash-merges and syncs your local main</td></tr>
+          <tr><td>Fix CI on its PRs</td><td>A <b>CI failed</b> trigger starts a task when a GitHub Actions run fails, or a crew member like <i>Scout · CI watcher</i> checks CI every 30 minutes and fixes what breaks</td></tr>
+          <tr><td>Scheduled tasks</td><td>A <b>Schedule</b> trigger runs a saved prompt (a recipe) on a cron, or a crew member works on its own schedule</td></tr>
+          <tr><td>Memory</td><td>A crew member’s notebook carries what it learned from job to job; the agent CLIs also read the repo’s <code>AGENTS.md</code> or <code>CLAUDE.md</code></td></tr>
+          <tr><td>Jules CLI and API</td><td>The <code>wisp</code> CLI (every command takes <code>--json</code>), the HTTP API and webhooks</td></tr>
+          <tr><td>Gemini</td><td><a href="/agents/antigravity.html">Antigravity</a>, where Google points Jules users, through its CLI (<code>agy</code>): one harness among the others</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section>
+      <h2 id="set-up">Set up a repo the Jules way</h2>
+      <ol class="doc-steps">
+        <li><b>Start wisp in the repo</b> with <code>npx wisp-agents</code>. Install and sign in to the agent CLIs you want, and sign in to the <a href="https://cli.github.com" target="_blank" rel="noopener">GitHub CLI</a> (<code>gh auth login</code>) so Ship it can open PRs.</li>
+        <li><b>Bring your setup script</b> into <code>.wisp/worktree.json</code>, so every task’s worktree installs its dependencies before the agent starts.</li>
+        <li><b>Bring your environment variables</b> as a <code>.env</code> file in the repo’s root folder, kept out of git. Each worktree gets a copy; list other ignored files in <code>.worktreeinclude</code>.</li>
+        <li><b>Send a task off</b> and go do something else. Several at once is fine: each has its own worktree, so they never touch each other or your checkout.</li>
+        <li><b>Read the report, then Ship it.</b> Each task ends with a headline, the real diff and the test run. Follow up if it’s not right, or press <b>Ship it</b> (<kbd>S</kbd>).</li>
+      </ol>
+      ${sh(`cd ~/code/app
+npx wisp-agents "fix the flaky auth test"          # the agent you last picked
+npx wisp-agents --agent antigravity "add a test"   # or pick one`)}
+      <aside class="g-note"><b>Your plans, your limits.</b> wisp doesn’t resell model usage. Each agent runs on the account it’s signed in with, so its plan’s limits apply. wisp itself is free and MIT.</aside>
+    </section>
+
+    <section>
+      <h2 id="schedules">Schedules, CI and a crew</h2>
+      ${fig.crew}
+      <p>Jules’ scheduled tasks become <b>triggers</b> (⌘K → <i>Triggers</i>): a <b>Schedule</b> on a cron like <code>0 9 * * 1-5</code>, <b>CI failed</b> on a GitHub Actions run, or <b>Issue labelled</b> for an open issue with a label you pick. They poll GitHub with your <code>gh</code> login, so nothing has to reach your machine, and they run while wisp is open.</p>
+      <p>For work that should keep going on its own, add a <b>crew member</b>: a named agent with a brief, a schedule and a notebook. Templates include <i>Scout · CI watcher</i>, <i>Quill · PR reviewer</i> and <i>Tinker · Dependency keeper</i>. Every job is a task of its own, with its worktree, report and Ship it. See <a href="/guides/organize-your-ai-agent-crew.html">Organize your crew</a>.</p>
+    </section>
+
+    <section>
+      <h2 id="away">With the laptop shut, from your phone</h2>
+      <ul class="doc-list">
+        <li><b>A computer that stays on.</b> Run tasks on a desktop or a server through <a href="/guides/run-coding-agents-on-multiple-machines.html">Machines</a>, or on <a href="/guides/use-wisp-cloud.html">wisp Cloud</a>: your own wisp on a server, free during the preview, that sleeps when nothing runs.</li>
+        <li><b>From your phone.</b> Open grid.trywisp.dev in any phone browser to reach your cloud wisp and every computer you added, or use the Android app (a prototype you build from the repo). See <a href="/guides/reach-your-computer-from-your-phone.html">use your agents from anywhere</a>.</li>
+        <li><b>Told when it needs you.</b> Questions and finished tasks go to ntfy or Telegram, with the answers as buttons.</li>
+      </ul>
+    </section>
+`,
+      faq: [
+        ['Does wisp run my tasks in the cloud like Jules did?', 'Only if you want it to. By default tasks run on your own computer. wisp Cloud gives you your own wisp on a server (free during the preview), and Machines runs tasks on any computer you can reach over SSH or the grid.'],
+        ['Can I keep using Gemini?', 'Through the Antigravity CLI, which wisp runs like any other harness. You can also send the same task to Antigravity and Claude Code or Codex at once and keep the better result (Compare).'],
+        ['What happens to the PRs Jules opened?', 'Nothing: they’re on GitHub, where you review and merge them as before. New work from wisp opens PRs the same way, with Ship it.'],
+        ['Is it free?', 'wisp is free and MIT. The agents run on your own plans and accounts, and wisp doesn’t charge for or resell model usage.'],
+      ],
+      related: ['run-coding-agents-in-the-background', 'use-wisp-cloud', 'organize-your-ai-agent-crew'],
+    },
+
+    {
       slug: 'make-claude-code-keep-going-until-tests-pass',
       topic: 'agents',
       title: 'Make Claude Code keep going until the tests pass — wisp',
