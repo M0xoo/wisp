@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-11-02
+
 ### Added
 
 - **Phone app: dictate a prompt.** In the Android app a mic next to the paperclip, in New task and in a task's reply box, types what you say into the box as you speak, using the phone's own speech recognition. Tap it again to stop. wisp asks for the microphone the first time; refused, it says how to allow it. Browsers and the desktop app are unchanged. Spells: the `composer.mic` and `launcher.mic` parts and the `mic` icon.
