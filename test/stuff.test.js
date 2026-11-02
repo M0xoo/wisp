@@ -440,7 +440,8 @@ test('app data: a query that never ends is stopped, and the next one works; the 
   try {
     const forever = await q('WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c');
     assert.deepEqual([forever.status, /stopped/.test(forever.error)], [503, true]);
-    assert.deepEqual((await q('SELECT 1 AS one')).rows, [{ one: 1 }], 'a fresh worker takes over');
+    const next = await q('SELECT 1 AS one');
+    assert.deepEqual(next.rows, [{ one: 1 }], `a fresh worker takes over: ${JSON.stringify(next)}`);
     let full;
     for (let i = 0; i < 40 && !full; i++) {
       const r = await q('INSERT INTO t VALUES (?)', ['x'.repeat(8000)]);
