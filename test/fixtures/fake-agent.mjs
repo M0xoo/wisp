@@ -13,6 +13,7 @@
 //   FAKE_RATE_LIMIT  opencode: log a rate-limit error to stderr, then go quiet for good as the
 //                real CLI does while it retries (`recover`: carry on with the turn after it)
 //   FAKE_RETRO   what a claude retro run (wisp's preference learner) replies with
+//   ENVFILE in the prompt (claude): `cat .env`, then an edit of a value in .env
 //   FAKE_DELAY   ms to work before answering (screenshots of live runs)
 //   FAKE_GOAL_DELAY  ms a goal check takes (screenshots of a check)
 //   FAKE_GOAL_SCRIPT  JSON [{ why, next, progress }]: what each goal check says (screenshots)
@@ -503,6 +504,15 @@ if (name === 'claude') {
     }
     out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't2', name: 'Edit', input: { file_path: target, old_string: 'a - b', new_string: 'a + b' } }] } });
     fs.writeFileSync(target, after);
+    if (stdin.includes('ENVFILE')) {
+      // .env masking (server/env-mask.js): read a .env file with a command, then change a value in it.
+      const envFile = path.join(process.cwd(), '.env');
+      const was = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : 'API_KEY=sk-live-one\nPORT=3000\n';
+      out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't5', name: 'Bash', input: { command: 'cat .env', description: 'Read the env file' } }] } });
+      out({ type: 'user', session_id: session, message: { content: [{ type: 'tool_result', tool_use_id: 't5', content: was }] } });
+      out({ type: 'assistant', session_id: session, message: { content: [{ type: 'tool_use', id: 't6', name: 'Edit', input: { file_path: envFile, old_string: 'sk-live-one', new_string: 'sk-live-two' } }] } });
+      fs.writeFileSync(envFile, was.replace('sk-live-one', 'sk-live-two'));
+    }
     if (stdin.includes('ALSO')) {
       const at = argv.indexOf('--add-dir');
       const dirs = at < 0 ? [] : argv.slice(at + 1, argv.findIndex((a, i) => i > at && a.startsWith('--')));

@@ -2,6 +2,7 @@
 // wait, presentation, reply, btw, queue, answer, revert, rollback, exec, takeover, stop, file.
 // Ids of the form <id>@<machine> are passed through to that machine's wisp (proxy.js).
 
+import { maskOn, maskSession, unmasked } from '../env-mask.js';
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import fs from 'node:fs';
@@ -256,7 +257,17 @@ export function register(r, app) {
       // Crew members' jobs it delegated count as its children here too.
       const kids = [...Object.values(s.children || {}), ...s.turns.flatMap((t) => (t.delegations || []).filter((d) => d.crew).map((d) => d.sessionId))];
       const out = kids.length ? { ...s, childSessions: Object.fromEntries(kids.map((cid) => [cid, store.get(cid) || runner.crewChild(cid)]).filter(([, x]) => x)) } : s;
-      c.send(200, c.query.get('lean') === '1' ? lean(out, Number(c.query.get('turns')) || 0) : out);
+      const sent = c.query.get('lean') === '1' ? lean(out, Number(c.query.get('turns')) || 0) : out;
+      c.send(200, maskOn(store.config) ? maskSession(sent) : sent);
+    }),
+  );
+  // Reveal on a masked .env view (server/env-mask.js): that one step, change or block as stored.
+  r.route(
+    'GET',
+    '/sessions/:id/unmasked',
+    one((c, s) => {
+      const value = unmasked(s, c.query);
+      c.send(value ? 200 : 404, value ? { value } : { error: 'Nothing to reveal there any more.' });
     }),
   );
   r.route(

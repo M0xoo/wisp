@@ -11,6 +11,8 @@ import { docBody, docStats, docTitle, readDoc } from './ui/reader.js';
 import { appBlock } from './app-frame.js';
 import { previewBlock } from './preview-frame.js';
 import { embedUrl, mapPlaces, mapZoom, openUrl, routeUrl } from './map-spec.js';
+import { hide, maskBar, reveal, revealedOf } from './env-mask.js';
+import { toastError } from './ui/toast.js';
 
 export const icon = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
@@ -251,9 +253,14 @@ R.diff = (b, ctx) => {
   let op = 'edit';
   let file = b.file || b.path || '';
   const c = findChange(ctx.turn, file);
-  if (b.before !== undefined || b.after !== undefined) edits = [{ before: b.before || '', after: b.after || '' }];
+  // A .env file's values come masked (server/env-mask.js): Reveal swaps in the real edits here only.
+  const sid = ctx.session?.id;
+  const own = b.before !== undefined || b.after !== undefined;
+  const mq = own ? b.masked : c?.masked;
+  const raw = revealedOf(sid, mq);
+  if (own) edits = [{ before: (raw || b).before || '', after: (raw || b).after || '' }];
   else if (c) {
-    edits = c.edits;
+    edits = raw?.edits || c.edits;
     op = c.op;
     file = c.file;
   }
@@ -280,15 +287,45 @@ R.diff = (b, ctx) => {
   const node = el(`
     <div class="b-diff ${b.bare ? 'bare' : 'card'} ${reverted ? 'is-reverted' : ''}">
       ${b.bare ? '' : `<div class="diff-head">${icon('file')}${pathHtml(file)}${reverted ? '<span class="rev-tag">Reverted</span>' : ''}<span class="nums"><span class="plus">+${add}</span><span class="minus">−${del}</span></span>${canRevert ? `<button class="ghost xs revert ${reverted ? 'reverted' : ''}" title="${reverted ? 'Re-apply changes to this file' : 'Revert this file to before this turn'}">${icon(reverted ? 'rerun' : 'replay')}<span>${reverted ? 'Re-apply' : 'Revert'}</span></button>` : ''}${ctx.openFile ? `<button class="ghost xs open" title="Open in editor">${icon('external')}</button>` : ''}</div>`}
+      ${mq && sid ? maskBar(file, mq, !!raw) : ''}
       <div class="diff-scroll"><table><tbody>${body}</tbody></table></div>
       ${b.caption ? `<p class="caption">${inlineMd(b.caption)}</p>` : ''}
     </div>`);
+  bindReveal(node, sid, mq, () => R.diff(b, ctx));
   node.querySelector('.open')?.addEventListener('click', () => ctx.openFile?.(file));
   node.querySelector('.revert')?.addEventListener('click', () => ctx.revertFile?.(file, reverted));
   return node;
 };
 
+// Reveal / Hide on a masked view: the view is drawn again (draw()) with the value or without it.
+// The button says what it will do at once; a refusal puts it back with a toast.
+export function bindReveal(node, sid, q, draw) {
+  const btn = node.querySelector(':scope > .env-mask .env-reveal');
+  if (!btn) return;
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation(); // a Files row would fold
+    if (revealedOf(sid, q)) {
+      hide(sid, q);
+      return void node.replaceWith(draw());
+    }
+    btn.disabled = true;
+    btn.textContent = 'Hide';
+    try {
+      await reveal(sid, q);
+      node.replaceWith(draw());
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Reveal';
+      toastError(`Couldn’t reveal it: ${err.message}`);
+    }
+  });
+}
+
 R.code = (b, ctx) => {
+  const orig = b;
+  const sid = ctx.session?.id;
+  const raw = revealedOf(sid, b.masked);
+  if (raw) b = { ...b, code: raw.code };
   const lines = String(b.code || '').replace(/\n$/, '').split('\n');
   const hl = new Set(b.highlight || []);
   const start = Number(b.line) || 1;
@@ -297,11 +334,13 @@ R.code = (b, ctx) => {
   const node = el(`
     <div class="b-code card">
       <div class="code-head">${b.file ? `<button class="link file">${pathHtml(b.file)}${b.line ? `<span class="lineno">:${b.line}</span>` : ''}</button>` : `<span class="lang">${esc(lang)}</span>`}<span class="code-tools">${ctx.keep?.html(codeWhat, 'ghost xs') || ''}<button class="ghost xs copy" title="Copy">${icon('copy')}</button></span></div>
+      ${b.masked && sid ? maskBar(b.file, b.masked, !!raw) : ''}
       <div class="code-scroll"><table><tbody>${lines
         .map((l, i) => `<tr class="${hl.has(i + 1) ? 'hl' : ''}"><td class="no">${start + i}</td><td class="src">${highlight(l, lang) || ' '}</td></tr>`)
         .join('')}</tbody></table></div>
       ${b.caption ? `<p class="caption">${inlineMd(b.caption)}</p>` : ''}
     </div>`);
+  bindReveal(node, sid, b.masked, () => R.code(orig, ctx));
   node.querySelector('.copy').addEventListener('click', (e) => copy(b.code, e.currentTarget));
   const fileName = String(b.file || '').split(/[\\/]/).pop();
   ctx.keep?.bind(node, codeWhat, { text: String(b.code || ''), lang: lang || 'text', name: fileName || undefined, title: plainTitle(b.caption) || fileName || `${lang || 'Code'} snippet` });

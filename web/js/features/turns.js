@@ -207,7 +207,9 @@ export function renderBody(id, { fresh }) {
     const isLatest = t.id === latestId;
     const folded = !isLatest && (!n.unfolded.has(t.id) || !!t.stub);
     const revKey = `${t.rolledBackAt || 0}:${(t.changes || []).map((c) => (c.reverted ? 1 : 0)).join('')}`;
-    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}`;
+    // .env masking turned on or off (Settings → Privacy): the turn is drawn again with or without it.
+    const envKey = t.changes?.some((c) => c.masked) || t.activity?.some((x) => x.masked) ? 'm' : '';
+    const key = `${t.status}${t.held?.waiting ? '-waiting' : ''}|${isLatest}|${folded}|${revKey}|${t.approval || ''}|${t.status === 'running' ? (s.ask?.id || '') + s.queue?.length + !!summary.watch : ''}|${subKey(s, t)}|${tx}|${isLatest ? s.goal?.status || '' : ''}|${envKey}`;
     const prev = n.turnNodes.get(t.id);
     let node = prev?.node;
     if (!prev || prev.key !== key) {
