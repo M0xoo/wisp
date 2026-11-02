@@ -75,10 +75,16 @@ try {
     // The greeting is in index.html; Needs you and the tasks paint once /api answers, so wait for them.
     for (const t of ['New task', 'Needs you', 'Welcome to wisp', 'Tips'])
       await p.getByText(t, { exact: false }).first().waitFor({ timeout: 10_000 }).catch(() => ok(false, `"${t}" not visible`));
-    // The launcher is under 800px wide here, so the place shows as its icon; its title names it.
-    ok(await p.locator('#whereBtn').isVisible(), 'the place button is not visible');
-    ok(/this computer/i.test(await p.locator('#whereBtn').getAttribute('title')), 'the place button does not say this computer');
+    // Before the first task the launcher is the prompt, how it runs and Send; the rest is behind More options (#520).
+    await p.locator('#launcher.first-run').waitFor({ timeout: 10_000 }).catch(() => ok(false, 'a fresh home is not a first-run launcher'));
+    ok(await p.locator('#whereBtn').isHidden(), 'the place button shows before More options');
     await p.shot('home');
+    await p.locator('#launchMore').click();
+    ok(await p.locator('#launcher.first-run').count() === 0, 'More options did not open the full launcher');
+    // The launcher is under 800px wide here, so the place shows as its icon; its title names it.
+    ok(await p.locator('#whereBtn').isVisible(), 'the place button is not visible after More options');
+    ok(/this computer/i.test(await p.locator('#whereBtn').getAttribute('title')), 'the place button does not say this computer');
+    ok(await p.locator('#launchMore').isHidden(), 'More options still shows once opened');
     // You, Machines, Automations and Settings: behind the avatar.
     await p.locator('#meBtn').click();
     for (const t of ['Not connected', 'Machines', 'Automations', 'Settings'])

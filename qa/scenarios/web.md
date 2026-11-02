@@ -18,10 +18,11 @@ Every page check also fails on an uncaught page error or a `console.error`.
 
 ### WEB-02 · First paint: split view home
 - **Preconditions:** window 1440×900, fresh home.
-- **Steps:** open `/`.
+- **Steps:** open `/`, look at the launcher, then press **More options**.
 - **Expected:** sidebar with *New task*, *Needs you* listing *Welcome to wisp*; the home shows
-  *What should wisp do next?*, the launcher (prompt box, the place as a laptop icon titled *Runs on this computer…*, permission
-  mode, harness)
+  *What should wisp do next?*, the launcher as on a first run (prompt box, permission mode, harness, **More options**, Send;
+  no place, compare, team, goal, worktree or later), and **More options** opens the rest for good (the place as a laptop
+  icon titled *Runs on this computer…*; *More options* goes)
   and *Tips*; the sidebar's head ends with a round avatar (a greyed cloud, signed out) whose menu
   says *wisp Grid · Not connected · Sign in* (a click opens Machines' sign-in), then *Machines*,
   *Automations*, *Get the app* and *Settings*. No foot under the list. No console errors.
