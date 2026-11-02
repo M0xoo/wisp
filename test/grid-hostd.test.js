@@ -176,3 +176,11 @@ test('a box killed when nobody asked ran out of memory: its next start tells its
   assert.equal(await oom(), '');
   assert.deepEqual(h.stops, [['ada', 'out of memory'], ['ada', 'put to sleep']]);
 });
+
+test('admit: a sandbox needs its own memory limit’s worth (room for its browser), a box only boxMb', async () => {
+  const h = hostd({ maxRunning: 10, admit: { boxMb: 1000, reserveMb: 1000 }, memory: () => 3000, queueMs: 300 });
+  const sb = { id: 'u-ada-sb-1', handle: 'sb-1--ada', owner: 'u-ada', sandbox: '1' };
+  await assert.rejects(h.ensure(sb), /full/, '1000 kept + 2560 for the sandbox > 3000');
+  await h.ensure(user('bob'));
+  assert.equal(h.state('u-bob'), 'running', 'a box fits in 1000 + 1000');
+});

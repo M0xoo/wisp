@@ -15,7 +15,7 @@ import { draftInto } from './composer.js';
 import { scheduleRefetch } from './feed.js';
 import { connectMachine, openMachines } from './machines.js';
 import { placeMenu } from './place-menu.js';
-import { MACHINE_STATE, machineById, placeName } from './places.js';
+import { canSandbox, MACHINE_STATE, machineById, placeName, SANDBOX_KEY } from './places.js';
 import { runnerPicker } from './runner-picker.js';
 import { agentById, agentName, effortLabel, harnessesAt, harnessLogo, paintRunnerBtn, savedEffort, savedModel } from './runners.js';
 import { ctxFor } from './turns.js';
@@ -75,7 +75,7 @@ export function paintTeamBtn(btn, team, presetId, lead) {
   btn.classList.toggle('on', team.length > 0 && ok);
   btn.classList.toggle('off', team.length > 0 && !ok);
   btn.innerHTML = team.length
-    ? `<span class="tb-stack">${flat.slice(0, 5).map((m, i) => `<span class="ts-m${m.crew ? ' crew' : ''}" style="--i:${i}">${faceOf(m, 18)}</span>`).join('')}${n > 5 ? `<span class="ts-m ts-more" style="--i:5">+${n - 5}</span>` : ''}</span>${team.some((m) => m.machine) ? `<span class="tb-away" aria-hidden="true">${icon('server')}</span>` : ''}<span class="tb-label">${esc(p?.name || `${n} delegate${n > 1 ? 's' : ''}`)}</span>`
+    ? `<span class="tb-stack">${flat.slice(0, 5).map((m, i) => `<span class="ts-m${m.crew ? ' crew' : ''}" style="--i:${i}">${faceOf(m, 18)}</span>`).join('')}${n > 5 ? `<span class="ts-m ts-more" style="--i:5">+${n - 5}</span>` : ''}</span>${team.some((m) => m.machine) ? `<span class="tb-away" aria-hidden="true">${icon(team.some((m) => m.machine === SANDBOX_KEY) ? 'box' : 'server')}</span>` : ''}<span class="tb-label">${esc(p?.name || `${n} delegate${n > 1 ? 's' : ''}`)}</span>`
     : `${icon('agent')}<span class="tb-label">Delegate</span>`;
   btn.title = !team.length
     ? 'Delegate: agents the lead can hand parts of the task to, on other harnesses or other machines'
@@ -87,12 +87,12 @@ export function paintTeamBtn(btn, team, presetId, lead) {
 // Where a member runs, as the page names places: '' with the lead, 'here' this computer, or a
 // machine id. One away from the lead works on a copy of its work there (server/services/relay.js).
 const HERE_KEY = 'here';
-export const memberPlaceName = (m) => (!m.machine ? '' : m.machine === HERE_KEY ? here : machineById(m.machine)?.name || m.place || 'a machine');
+export const memberPlaceName = (m) => (!m.machine ? '' : m.machine === HERE_KEY ? here : m.machine === SANDBOX_KEY ? 'a sandbox' : machineById(m.machine)?.name || m.place || 'a machine');
 // The places whose harnesses a member can use: the lead's, or its own.
 const placesFor = (m, leadPlaces) => (m.machine ? [m.machine === HERE_KEY ? '' : m.machine] : leadPlaces);
-const placeState = (k) => (k && k !== HERE_KEY ? machineById(k)?.state || 'off' : 'online');
-const placeIcon = (k) => icon(k && k !== HERE_KEY ? 'server' : 'laptop');
-const stateDot = (k) => (k && k !== HERE_KEY ? `<i class="dot ${placeState(k) === 'online' ? 'ok' : placeState(k) === 'error' ? 'bad' : ''}"></i>` : '');
+const placeState = (k) => (k === SANDBOX_KEY ? 'online' : k && k !== HERE_KEY ? machineById(k)?.state || 'off' : 'online');
+const placeIcon = (k) => icon(k === SANDBOX_KEY ? 'box' : k && k !== HERE_KEY ? 'server' : 'laptop');
+const stateDot = (k) => (k && k !== HERE_KEY && k !== SANDBOX_KEY ? `<i class="dot ${placeState(k) === 'online' ? 'ok' : placeState(k) === 'error' ? 'bad' : ''}"></i>` : '');
 
 // The delegate editor: who the lead can hand work to, where each one runs and on what, plus a
 // name and a "use it for" note. lead / leadModel / leadEffort: the lead's run. places: where the
@@ -159,9 +159,9 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
   const placeChip = (m) => {
     const k = m.machine || '';
     const st = placeState(k);
-    const tip = !k ? 'Runs with the lead: same computer and folder, sees its edits as they happen' : `Runs on ${memberPlaceName(m)}, on a copy of the lead's work. Its changes come back when it finishes.${st === 'online' ? '' : ` ${MACHINE_STATE[st] || 'Not connected'}: wisp connects when you launch.`}`;
+    const tip = !k ? 'Runs with the lead: same computer and folder, sees its edits as they happen' : k === SANDBOX_KEY ? 'Runs in a sandbox of its own on your grid, on a copy of the lead’s work: it can install anything and drive a browser. Its changes come back when it finishes; the sandbox goes with this task.' : `Runs on ${memberPlaceName(m)}, on a copy of the lead's work. Its changes come back when it finishes.${st === 'online' ? '' : ` ${MACHINE_STATE[st] || 'Not connected'}: wisp connects when you launch.`}`;
     return `<button class="tp-place${k ? ' away' : ''}${k && st !== 'online' ? ' off' : ''}" aria-haspopup="menu" title="${esc(tip)}">
-      ${k ? placeIcon(k) : icon('agent')}<span>${esc(k ? memberPlaceName(m) : 'With the lead')}</span>${stateDot(k)}${icon('chevron', 'chev')}
+      ${k ? placeIcon(k) : icon('agent')}<span>${esc(k ? (k === SANDBOX_KEY ? 'Sandbox' : memberPlaceName(m)) : 'With the lead')}</span>${stateDot(k)}${icon('chevron', 'chev')}
     </button>`;
   };
   const paintList = () => {
@@ -249,17 +249,17 @@ export function teamEditor(anchor, { lead, leadModel = '', leadEffort = '', team
     const prev = $('.menu.tp-where');
     if (prev) return prev.close();
     const ks = leadPlaces();
-    const others = [...(ks.length === 1 && !ks[0] ? [] : [HERE_KEY]), ...S.machines.filter((m) => !(ks.length === 1 && ks[0] === m.id)).map((m) => m.id)];
+    const others = [...(ks.length === 1 && !ks[0] ? [] : [HERE_KEY]), ...S.machines.filter((m) => !(ks.length === 1 && ks[0] === m.id)).map((m) => m.id), ...(canSandbox() ? [SANDBOX_KEY] : [])];
     const row = (k) => {
       const m = k && k !== HERE_KEY ? machineById(k) : null;
       const st = placeState(k);
       const ready = m && st === 'online' ? (m.remote?.agents || []).filter((a) => a.available) : [];
       const on = !adding && k === current;
-      const sub = !k ? 'Same computer and folder · sees edits live' : m ? (st === 'online' ? `${m.target} · works on a copy` : `${m.target} · ${MACHINE_STATE[st]}`) : 'Where wisp runs · works on a copy';
-      return `<button class="wm-row ${on ? 'on' : ''}" data-k="${k}" role="menuitemradio" aria-checked="${on}">
+      const sub = !k ? 'Same computer and folder · sees edits live' : k === SANDBOX_KEY ? 'A fresh box of its own on your grid · can install anything · Claude Code' : m ? (st === 'online' ? `${m.target} · works on a copy` : `${m.target} · ${MACHINE_STATE[st]}`) : 'Where wisp runs · works on a copy';
+      return `<button class="wm-row ${on ? 'on' : ''}${k === SANDBOX_KEY ? ' wm-prose' : ''}" data-k="${k}" role="menuitemradio" aria-checked="${on}">
         ${adding ? '' : `<span class="wm-check">${icon('check')}</span>`}
         <span class="wm-icon">${k ? placeIcon(k) : icon('agent')}${stateDot(k)}</span>
-        <span class="wm-name"><b>${esc(k ? (k === HERE_KEY ? HERE : m?.name || 'machine') : 'With the lead')}</b><small>${esc(sub)}</small></span>
+        <span class="wm-name"><b>${esc(k ? (k === HERE_KEY ? HERE : k === SANDBOX_KEY ? 'Sandbox' : m?.name || 'machine') : 'With the lead')}</b><small>${esc(sub)}</small></span>
         ${ready.length ? `<span class="wm-agents">${ready.slice(0, 4).map((a) => `<span class="model-logo">${harnessLogo(a.id)}</span>`).join('')}</span>` : ''}
       </button>`;
     };

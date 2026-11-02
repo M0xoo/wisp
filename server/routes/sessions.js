@@ -308,6 +308,7 @@ export function register(r, app) {
         for (const x of [s, ...(s.also || [])]) if (x.worktree) await removeWorktree(x.worktree, { force: true, branch: s.delegated ? 'force' : true }).catch(() => {}); // a delegate's branch only held the lead's work
         app.terms.close(s.id);
         app.shells?.close(s.id);
+        await app.sandbox?.leadGone(s.id); // its delegates' sandboxes (services/sandbox.js)
         store.delete(s.id);
         app.overlaps?.dropped(s);
         app.broadcast('removed', { id: s.id });

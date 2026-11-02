@@ -11,7 +11,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign as rsaSign } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { browser, installFakeBins, sleep, tmp, until, win } from './helpers.js';
+import { browser, installFakeBins, makeRepo, sleep, tmp, until, win } from './helpers.js';
 
 // The grid needs node:sqlite (Node 22.13+): on older Node it won't start, and these are skipped.
 const sqlite = await import('node:sqlite').then(
@@ -113,7 +113,7 @@ before(async () => {
   oidc.st.base = await listen(oidc.srv);
   gh.st.base = await listen(gh.srv);
   const port = await freePort();
-  const dataDir = tmp('grid');
+  const dataDir = fs.realpathSync(tmp('grid')); // macOS: /var is /private/var, and agents report real paths
   ensureMaster(dataDir);
   cfg = loadConfig({
     dataDir,
@@ -1108,6 +1108,229 @@ test('wisp on a desktop signs in to the grid (Settings → Cloud) and uses the c
     assert.equal((await api('/computer', { method: 'POST', body: { on: false } })).json.on, false);
     assert.deepEqual((await browser().go(`${base}/api/computers`, { headers: { authorization: `Bearer ${phone}` } })).json.computers, []);
   } finally {
+    desk.shutdown();
+    desk.server?.close();
+  }
+});
+
+// `claude setup-token` as it runs on a terminal: its link, a prompt for the code, then the token.
+function fakeSetupToken() {
+  const dir = tmp('setup-token');
+  const file = path.join(dir, 'claude-setup');
+  fs.writeFileSync(
+    file,
+    `#!${process.execPath}
+process.stdout.write('Browser didn\\u2019t open? Use the url below to sign in\\n\\nhttps://claude.example/oauth/authorize?code=true&state=x\\n\\nPaste code here if prompted > ');
+process.stdin.on('data', (d) => {
+  if (String(d).trim() !== 'good-code') return void process.stdout.write('\\nOAuth error: invalid code\\nPaste code here if prompted > ');
+  process.stdout.write('\\n\\u2713 Long-lived authentication token created successfully!\\n\\nYour OAuth token (valid for 1 year):\\n\\nsk-ant-oat01-${'Ab9_'.repeat(20)}\\n\\nStore this token securely.\\n');
+  setTimeout(() => process.exit(0), 50);
+});
+`,
+  );
+  fs.chmodSync(file, 0o755);
+  return { file, token: `sk-ant-oat01-${'Ab9_'.repeat(20)}` };
+}
+
+nodeTest('/sandbox: a task in a fresh box of its own on the grid, signed in to Claude once for every sandbox, gone with its task', { skip: (!sqlite && 'the grid needs node:sqlite (Node 22.13+)') || (win && 'sign-ins on a terminal (pty.js) aren’t on Windows') }, async () => {
+  const { startServer } = await import('../server/index.js');
+  const port = await freePort();
+  const desk = await startServer({ port, handleSignals: false });
+  const api = async (p, opts = {}) => {
+    const r = await fetch(`http://127.0.0.1:${port}/api${p}`, { method: opts.method || 'GET', headers: { 'content-type': 'application/json' }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    return { status: r.status, json: await r.json() };
+  };
+  try {
+    // Signed in to the grid (an earlier test may have done it already): the first account makes them.
+    if (!(await api('/sandbox')).json.grid) {
+      const token = await deviceToken('sid@example.com', 'Sid laptop');
+      desk.machines.addGrid({ url: cfg.instanceUrl('sid'), grid: base, handle: 'sid', name: 'Cloud', token });
+    }
+    // The image's browser helpers, stood in for on the boxes' PATH (hostd.path).
+    for (const [bin, body] of [['wisp-desktop', 'process.exit(0)'], ['wisp-browser-mcp', 'process.exit(0)']]) {
+      fs.writeFileSync(path.join(fakeBin, bin), `#!${process.execPath}\n${body}\n`);
+      fs.chmodSync(path.join(fakeBin, bin), 0o755);
+    }
+    const v0 = (await api('/sandbox')).json;
+    assert.equal(v0.grid.host, new URL(base).host);
+    assert.deepEqual(v0.logins, { claude: false });
+    const who = grid.accounts.byHandle(v0.grid.handle);
+    const repo = makeRepo();
+    const launch = (prompt) => api('/sessions', { method: 'POST', body: { prompt, cwd: repo, agent: 'claude' } });
+
+    // Bare, or with nothing signed in for sandboxes: refused with the way to sign in, and nothing made.
+    assert.equal((await launch('/sandbox')).status, 400);
+    const refused = await launch('/sandbox add a test');
+    assert.equal(refused.status, 409, JSON.stringify(refused.json));
+    assert.equal(refused.json.sandboxLogin, true);
+    assert.match(refused.json.error, /Sign in to Claude for your sandboxes first/);
+    // Only Claude signs in for sandboxes: another harness is refused before anything is made.
+    const codex = await api('/sessions', { method: 'POST', body: { prompt: '/sandbox add a test', cwd: repo, agent: 'codex' } });
+    assert.equal(codex.status, 400);
+    assert.match(codex.json.error, /Only Claude Code signs in to sandboxes/);
+    assert.equal(grid.sandboxes.list(who.id).length, 0);
+
+    // Sign in once: `claude setup-token` on a terminal here, its link and code on the page, the token to the grid.
+    const fake = fakeSetupToken();
+    const was = process.env.WISP_CLAUDE_BIN;
+    process.env.WISP_CLAUDE_BIN = fake.file;
+    try {
+      assert.equal((await api('/sandbox/login', { method: 'POST' })).status, 200);
+    } finally {
+      if (was === undefined) delete process.env.WISP_CLAUDE_BIN;
+      else process.env.WISP_CLAUDE_BIN = was;
+    }
+    const asking = await until(async () => {
+      const l = (await api('/sandbox')).json.login;
+      return l.needsInput && l;
+    }, { what: 'the setup-token link' });
+    assert.equal(asking.url, 'https://claude.example/oauth/authorize?code=true&state=x');
+    assert.equal(asking.state, 'waiting');
+    await api('/sandbox/login/input', { method: 'POST', body: { code: 'bad-code' } });
+    await until(async () => (await api('/sandbox')).json.login.needsInput, { what: 'asked again after a wrong code' });
+    assert.equal((await api('/sandbox/login/input', { method: 'POST', body: { code: 'good-code' } })).status, 200);
+    const signed = await until(async () => {
+      const x = (await api('/sandbox')).json;
+      return x.logins.claude && x;
+    }, { what: 'signed in for sandboxes' });
+    assert.equal(signed.login.state, 'done');
+    assert.doesNotMatch(JSON.stringify(signed), /sk-ant/, 'the page never sees the token');
+    assert.deepEqual(grid.sandboxes.envFor(who.id), { CLAUDE_CODE_OAUTH_TOKEN: fake.token }, 'sealed for that user on the grid');
+    for (const f of ['config.json', 'secrets.json']) assert.doesNotMatch(fs.readFileSync(path.join(process.env.WISP_HOME, f), 'utf8'), /sk-ant/, `not kept in ${f} here`);
+    // Never in the user's own box: only sandboxes start with it.
+    assert.deepEqual(grid.hostd.envFor(who), {});
+
+    // Env vars for every sandbox: sealed on the grid, names back; wisp's own names refused.
+    const env = await api('/sandbox/env', { method: 'PUT', body: { key: 'STRIPE_KEY', value: 'sk_test_123' } });
+    assert.deepEqual(env.json, { env: ['STRIPE_KEY'] });
+    assert.equal((await api('/sandbox/env', { method: 'PUT', body: { key: 'WISP_HOME', value: 'x' } })).status, 400);
+    assert.equal((await api('/sandbox/env', { method: 'PUT', body: { key: 'PATH', value: 'x' } })).status, 400);
+    assert.deepEqual((await api('/sandbox')).json.env, ['STRIPE_KEY']);
+    assert.doesNotMatch(JSON.stringify((await api('/sandbox')).json), /sk_test_123/);
+    // The project's own setup script runs once in the sandbox, before the agent starts.
+    fs.mkdirSync(path.join(repo, '.wisp'), { recursive: true });
+    fs.writeFileSync(path.join(repo, '.wisp', 'sandbox.sh'), 'echo "set up with $STRIPE_KEY" > "$HOME/setup-ran"\n');
+
+    // The task: a sandbox is made, the project goes along as it is here (uncommitted line included).
+    const l = await launch('/sandbox add a test');
+    assert.equal(l.status, 201, JSON.stringify(l.json));
+    const m = (await api('/machines')).json.find((x) => x.sandbox);
+    assert.ok(m, 'the sandbox is a machine here');
+    assert.match(l.json.id, new RegExp(`@${m.id}$`));
+    assert.deepEqual(m.owner, { task: l.json.id });
+    assert.equal(m.kind, 'grid');
+    const [row] = grid.sandboxes.list(who.id);
+    assert.equal(row.id, m.sandbox);
+    assert.equal(row.name, 'add a test');
+    assert.equal(m.url, cfg.instanceUrl(`sb-${row.id}--${who.handle}`));
+    const box = grid.sandboxes.box(row, who);
+    assert.equal(grid.hostd.state(box.id), 'running');
+    assert.equal(grid.hostd.state(who.id) === 'running' && grid.hostd.port(who.id) === grid.hostd.port(box.id), false, 'not the user’s own box');
+    assert.equal(grid.hostd.envFor(box).CLAUDE_CODE_OAUTH_TOKEN, fake.token, 'the sandbox starts signed in');
+    assert.equal(grid.hostd.envFor(box).STRIPE_KEY, 'sk_test_123', 'and with your env vars');
+    assert.equal(fs.readFileSync(path.join(grid.hostd.dirs(box).home, 'setup-ran'), 'utf8'), 'set up with sk_test_123\n', '.wisp/sandbox.sh ran there, with them');
+    const s = (await api(`/sessions/${encodeURIComponent(l.json.id)}`)).json;
+    assert.equal(s.prompt ?? s.turns[0].prompt, 'add a test', '/sandbox is dropped from the prompt');
+    const home = grid.hostd.dirs(box).home;
+    assert.ok(fs.realpathSync(s.cwd).startsWith(fs.realpathSync(path.join(home, 'code'))), s.cwd);
+    assert.match(fs.readFileSync(path.join(s.cwd, 'math.js'), 'utf8'), /\/\/ uncommitted\n$/);
+    assert.match(spawnSync('git', ['log', '--format=%s'], { cwd: s.cwd, encoding: 'utf8' }).stdout, /^init$/m);
+    assert.equal(spawnSync('git', ['config', 'user.email'], { cwd: s.cwd, encoding: 'utf8' }).stdout.trim(), 'test@example.com', 'commits there carry your name');
+    assert.ok(!(await api('/config')).json.projects?.some((p) => p.machine === m.id), 'not a project of its own');
+    await until(async () => {
+      const r = await api(`/sessions/${encodeURIComponent(l.json.id)}`);
+      return r.json.state && r.json.state !== 'running';
+    }, { what: 'the sandboxed task' });
+
+    // Its address opens only with its own token (or the owner's device), never someone else's.
+    const sbToken = desk.secrets.get('machines', m.id);
+    assert.match(sbToken, /^wsb_/);
+    assert.equal((await browser().go(`${m.url}/api/health`, { headers: { authorization: `Bearer ${sbToken}`, accept: 'application/json' } })).status, 200);
+    assert.equal((await browser().go(`${cfg.instanceUrl(who.handle)}/api/health`, { headers: { authorization: `Bearer ${sbToken}`, accept: 'application/json' } })).status, 401, 'not the user’s own wisp');
+    const other = await deviceToken('zed@example.com', 'Zed laptop');
+    assert.equal((await browser().go(`${m.url}/api/health`, { headers: { authorization: `Bearer ${other}`, accept: 'application/json' } })).status, 401);
+    // Its browser: the Browser connector is there for every task's agent, and the live view is a
+    // one-time link to port 6080 in that sandbox, through the grid.
+    const conns = await browser().go(`${m.url}/api/connectors`, { headers: { authorization: `Bearer ${desk.secrets.get('machines', m.id)}`, accept: 'application/json' } });
+    assert.ok((conns.json.connectors || conns.json).some((c) => c.name === 'browser' && c.command === 'wisp-browser-mcp'), conns.text);
+    const live = await api('/sandbox/browser', { method: 'POST', body: { task: l.json.id } });
+    assert.equal(live.status, 200, JSON.stringify(live.json));
+    assert.ok(live.json.url.startsWith(`${cfg.instanceUrl(`p6080--sb-${row.id}--${who.handle}`)}/_grid/auth?t=`), live.json.url);
+    assert.match(decodeURIComponent(live.json.url), /r=\/wisp\.html/);
+    // Its cookie works in a frame of another site (wisp on a computer at localhost): partitioned.
+    const pvAuth = await browser().go(live.json.url);
+    assert.match(String(pvAuth.headers['set-cookie']), /SameSite=None; Secure; Partitioned/);
+    assert.equal((await api('/sandbox/browser', { method: 'POST', body: { task: 'nope@x' } })).status, 404);
+    assert.equal((await api('/sandbox/desktop', { method: 'POST', body: {} })).status, 403, 'not a sandbox here');
+    // A sandbox is no one's account: its own proxy secret doesn't make sandboxes, publish or share.
+    const boxAuth = { authorization: `Box ${row.label} ${grid.sandboxes.proxySecret(row)}`, accept: 'application/json' };
+    for (const p of ['/api/sandboxes', '/api/sites', '/api/shares/mine']) assert.equal((await browser().go(`${base}${p}`, { headers: boxAuth })).status, 401, p);
+    // Only a sandbox sets up a project from a bundle.
+    assert.equal((await api('/sandbox/seed', { method: 'POST', body: { upload: 'x', ref: 'refs/wisp/x' } })).status, 403);
+    // Caddy may get a certificate for it.
+    assert.equal((await browser().go(`${base}/_grid/tls-ask?domain=sb-${row.id}--${who.handle}.${cfg.domain}`)).status, 200);
+
+    // Deleting the task deletes the sandbox: its box, home and token, here and on the grid.
+    const del = await api(`/sessions/${encodeURIComponent(l.json.id)}`, { method: 'DELETE', body: {} });
+    assert.equal(del.status, 200, JSON.stringify(del.json));
+    assert.equal(grid.sandboxes.list(who.id).length, 0);
+    assert.ok(!(await api('/machines')).json.some((x) => x.sandbox));
+    assert.equal(desk.secrets.get('machines', m.id) ?? null, null);
+    assert.equal(fs.existsSync(grid.hostd.dirs(box).root), false);
+    assert.equal(grid.hostd.state(box.id), 'stopped');
+    assert.equal((await browser().go(`${m.url}/api/health`, { headers: { authorization: `Bearer ${sbToken}`, accept: 'application/json' } })).status, 404);
+
+    // A subagent whose place is Sandbox: a box of its own, the lead's work (uncommitted too) carried
+    // there, its changes back in the lead's folder; the sandbox stays for the lead, and goes with it.
+    const lead = await api('/sessions', { method: 'POST', body: { prompt: 'DELEGATE the notes', cwd: repo, agent: 'claude', subagents: [{ name: 'boxer', agent: 'claude', machine: 'sandbox' }] } });
+    assert.equal(lead.status, 201, JSON.stringify(lead.json));
+    const led = await until(async () => {
+      const x = (await api(`/sessions/${lead.json.id}`)).json;
+      return x.state === 'review' && x;
+    }, { timeout: 90_000, what: 'the lead with a sandboxed delegate' });
+    assert.deepEqual(led.subagents.map((x) => [x.machine, x.place]), [['sandbox', 'Sandbox']]);
+    const [dl] = led.turns[0].delegations;
+    const kid = led.childSessions[dl.sessionId];
+    assert.equal(kid.turns[0].status, 'done', JSON.stringify(kid.turns[0].presentation));
+    const dbox = (await api('/machines')).json.find((x) => x.sandbox && x.owner?.lead === lead.json.id);
+    assert.ok(dbox, 'a sandbox for the delegate');
+    assert.equal(dbox.owner.delegate, `${lead.json.id}:${dl.sessionId}`);
+    assert.equal(dl.place, 'Sandbox');
+    // The lead's work as it stood (its own uncommitted edit), set up in the delegate's sandbox.
+    const dhome = grid.hostd.dirs(grid.sandboxes.box(grid.sandboxes.get(dbox.sandbox), who)).home;
+    const seeded = fs.readFileSync(path.join(dhome, 'code', path.basename(repo), 'math.js'), 'utf8');
+    assert.match(seeded, /a \+ b/);
+    assert.equal(grid.sandboxes.list(who.id).length, 1);
+    // Deleting the lead deletes its delegates' sandboxes.
+    assert.equal((await api(`/sessions/${lead.json.id}`, { method: 'DELETE', body: {} })).status, 200);
+    assert.equal(grid.sandboxes.list(who.id).length, 0);
+    assert.ok(!(await api('/machines')).json.some((x) => x.sandbox));
+
+    // A crew member with a sandbox of their own: their job runs there with their project, the
+    // sandbox is kept for their next job, and goes when they leave the crew.
+    const boxy = await api('/crew', { method: 'POST', body: { name: 'Boxy', role: 'Builds', cwd: repo, agent: 'claude', sandbox: 'own', brief: 'Build things.' } });
+    assert.equal(boxy.status, 201, JSON.stringify(boxy.json));
+    assert.equal(boxy.json.sandbox, 'own');
+    assert.equal((await api('/crew', { method: 'POST', body: { name: 'Codey', agent: 'codex', sandbox: 'job' } })).status, 400, 'only Claude signs in to sandboxes');
+    const job = await api('/sessions', { method: 'POST', body: { prompt: '@Boxy add a test' } });
+    assert.equal(job.status, 201, JSON.stringify(job.json));
+    const own = await until(async () => (await api('/machines')).json.find((x) => x.sandbox && x.owner?.crew === boxy.json.id), { timeout: 60_000, what: 'Boxy’s sandbox' });
+    assert.deepEqual(own.owner, { crew: boxy.json.id });
+    assert.match(job.json.id, new RegExp(`@${own.id}$`));
+    await until(async () => (await api(`/sessions/${encodeURIComponent(job.json.id)}`)).json.state !== 'running', { timeout: 60_000, what: 'Boxy’s job' });
+    const job2 = await api('/sessions', { method: 'POST', body: { prompt: '@Boxy add another test' } });
+    assert.match(job2.json.id, new RegExp(`@${own.id}$`), 'the same sandbox, kept for them');
+    await until(async () => (await api(`/sessions/${encodeURIComponent(job2.json.id)}`)).json.state !== 'running', { timeout: 60_000, what: 'Boxy’s second job' });
+    assert.equal(grid.sandboxes.list(who.id).length, 1);
+    assert.equal((await api(`/crew/${boxy.json.id}`, { method: 'DELETE', body: {} })).status, 200);
+    assert.equal(grid.sandboxes.list(who.id).length, 0);
+
+    // Signing sandboxes out: the grid forgets the token.
+    assert.deepEqual((await api('/sandbox/logins/claude', { method: 'DELETE', body: {} })).json.logins, { claude: false });
+    assert.deepEqual((await api('/sandbox/env/STRIPE_KEY', { method: 'DELETE', body: {} })).json, { env: [] });
+    assert.deepEqual(grid.sandboxes.envFor(who.id), {});
+  } finally {
+    desk.sandbox.stop();
     desk.shutdown();
     desk.server?.close();
   }

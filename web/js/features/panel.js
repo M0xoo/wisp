@@ -40,6 +40,7 @@ import { isSplit, isStacked, relayout, splitOpen } from './split.js';
 import { connect, SCREEN_HTML, termState, TermView, TOUCH } from './term-view.js';
 import { changesClick, changesOf, CHANGES_HTML, loadChanges, paintChanges } from './changes.js';
 import { forgetWatch, loadWatch, paintWatch, WATCH_HTML, watchClick, watchTitle } from './watch.js';
+import { BROWSER_HTML, paintBrowser, sandboxed } from './sandbox-browser.js';
 
 const PANEL_W = 480;
 const MIN_W = 360;
@@ -57,6 +58,7 @@ const pageOn = () => isStacked() && !!page && page.id === target();
 // Watch on a task with nothing to watch shows its shell.
 const tabOf = () => {
   const tab = pageOn() ? page.tab : pref.tab || spellProp('panel', 'tab') || 'changes';
+  if (tab === 'browser' && !sandboxed(S.sessions.get(target()))) return 'changes';
   return tab === 'watch' && !S.sessions.get(target())?.watch ? 'changes' : tab;
 };
 
@@ -88,6 +90,7 @@ const panel = el(`
     <section class="pn-pr" hidden></section>
     ${CHANGES_HTML}
     ${WATCH_HTML}
+    ${BROWSER_HTML}
   </aside>`);
 $('#stage').append(panel);
 const view = new TermView($('.pn-shell', panel), { shown: () => !panel.hidden && $('.pn-shell', panel).hidden === false });
@@ -199,7 +202,7 @@ function paintBtn() {
 
 // Its head is the tabs, in a fixed order: Changes, the PR (PR #412, PRs with several, PR before
 // there's one), Shell, and Watch last once the agent put a page up, so the others never move.
-const TAB_SECTION = { changes: '.pn-changes', pr: '.pn-pr', shell: '.pn-shell', watch: '.pn-watch' };
+const TAB_SECTION = { changes: '.pn-changes', pr: '.pn-pr', shell: '.pn-shell', watch: '.pn-watch', browser: '.pn-browser' };
 function paintName() {
   const s = S.sessions.get(shown);
   const prs = prsOf(s);
@@ -210,14 +213,16 @@ function paintName() {
     ['pr', 'merge', n > 1 ? 'PRs' : n ? `PR #${prs[0].pr.number}` : 'PR'],
     ['shell', 'shell', 'Shell'],
     ...(s?.watch ? [['watch', 'eye', 'Watch', watchTitle(shown)]] : []),
+    // A sandboxed task's browser, live (sandbox-browser.js): last, so the others never move.
+    ...(sandboxed(s) ? [['browser', 'web', 'Browser', 'The sandbox’s browser, live: what the agent drives']] : []),
   ];
   const html = tabs.map(([k, ic, label, title]) => `<button role="tab" data-tab="${k}" class="${k === tab ? 'on' : ''}" aria-selected="${k === tab}" tabindex="${k === tab ? 0 : -1}" title="${esc(title || label)}">${icon(ic)}<span>${esc(label)}</span></button>`).join('');
   const head = $('.pn-tabs', panel);
   if (head.dataset.h !== html) (head.innerHTML = html), (head.dataset.h = html);
-  panel.setAttribute('aria-label', { shell: 'Shell', watch: 'Watch', changes: 'Changes', pr: 'Pull request' }[tab]);
+  panel.setAttribute('aria-label', { shell: 'Shell', watch: 'Watch', changes: 'Changes', pr: 'Pull request', browser: 'Browser' }[tab]);
   for (const [k, sel] of Object.entries(TAB_SECTION)) $(sel, panel).hidden = tab !== k;
   // Watch is about the page, not the folder: no place line.
-  panel.classList.toggle('on-watch', tab === 'watch');
+  panel.classList.toggle('on-watch', tab === 'watch' || tab === 'browser');
   const acts = $('.pn-acts', panel);
   const btns = slotHtml('panel.head', s);
   if (acts.dataset.h !== btns) (acts.innerHTML = btns), (acts.dataset.h = btns);
@@ -228,6 +233,7 @@ function paintBody() {
   if (tab === 'changes') paintCx();
   else if (tab === 'shell') paintShell();
   else if (tab === 'watch') paintWatch($('.pn-watch', panel), shown);
+  else if (tab === 'browser') paintBrowser($('.pn-browser', panel), shown, () => tabOf() === 'browser' && paintBody());
   else paintPr();
 }
 
@@ -235,7 +241,7 @@ function paintBody() {
 
 // Where the task runs: { icon, name } for this computer, a machine, or a cloud computer.
 function placeOf(s) {
-  if (s?.machine) return { icon: s.machine.kind === 'grid' ? 'cloud' : 'server', name: s.machine.name };
+  if (s?.machine) return { icon: s.machine.sandbox ? 'box' : s.machine.kind === 'grid' ? 'cloud' : 'server', name: s.machine.name };
   return { icon: inGrid() ? 'cloud' : 'laptop', name: HERE };
 }
 const folderName = (dir) => String(dir || '').split(/[\\/]/).filter(Boolean).pop() || '~';

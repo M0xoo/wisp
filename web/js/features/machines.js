@@ -26,9 +26,11 @@ const fetchMachines = shared(() => api('/machines').then(setMachines));
 export const loadMachines = () => fetchMachines().catch(() => {});
 loadMachines.since = (t) => fetchMachines.since(t).catch(() => {});
 export function setMachines(list, { quiet = false } = {}) {
-  const was = new Map(S.machines.map((m) => [m.id, m.state === 'online']));
+  const was = new Map([...S.machines, ...S.sandboxes].map((m) => [m.id, m.state === 'online']));
   for (const m of list) keepSignIns(m.id, m.remote?.agents);
-  S.machines = list;
+  // A sandbox belongs to one task: it's never offered as a place (Run on, Delegate, Machines).
+  S.machines = list.filter((m) => !m.sandbox);
+  S.sandboxes = list.filter((m) => m.sandbox);
   paintMachinesBtn();
   renderLaunchChips();
   $('#launcher')?.placesChanged?.();

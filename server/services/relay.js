@@ -38,6 +38,7 @@ export function inFolder(text, dir) {
 
 export function createRelay(app) {
   const { store, runner, machines } = app;
+  const SANDBOX = 'sandbox';
   const inflight = new Set(); // `${lead place}:${child}:${turn}` being carried over
   const here = () => os.hostname().replace(/\.local$/, '') || 'this computer';
   const placeName = (k) => (!k || k === HERE ? here() : machines.get(k).name);
@@ -54,6 +55,9 @@ export function createRelay(app) {
       // The crew is this wisp's: a machine's wisp doesn't have it, so this one starts their jobs.
       if (m?.crew) return mid ? { ...rest, upstream: true } : rest;
       const k = typeof m?.machine === 'string' ? m.machine : '';
+      // Sandbox: a place, not a machine (services/sandbox.js makes one per delegate when it's first
+      // given work). The wisp signed in to the grid makes it: upstream when the lead is elsewhere.
+      if (k === SANDBOX) return { ...rest, machine: SANDBOX, place: 'Sandbox', ...(mid && { upstream: true }) };
       if (!k || k === (mid || HERE)) return { ...rest, machine: '' };
       if (k !== HERE) machines.get(k); // a machine this wisp knows, or a clear error
       return { ...rest, machine: k, place: placeName(k), ...(mid && { upstream: true }) };
@@ -78,13 +82,14 @@ export function createRelay(app) {
       let pack = null;
       if (!scratch) {
         const u = app.uploads.reserve('work.bundle');
-        const out = await packWork(workdir(lead), lead.worktree, u.file).catch((err) => {
+        // full: everything, for a sandbox (it can't fetch a private repo's published commits).
+        const out = await packWork(workdir(lead), body.full ? null : lead.worktree, u.file).catch((err) => {
           throw bad(`Couldn’t pack the lead’s work: ${err.message}`);
         });
         if (out) pack = { ...out, branch: '', upload: u.add().id }; // a branch of its own over there
       }
       const history = child.turns.filter((t) => t !== turn && t.status !== 'running').map(({ checkpoint, delegations, attachments, relay, ...t }) => ({ ...t, checkpoint: null }));
-      return { prompt: scratch ? turn.prompt : [workdir(lead), lead.cwd].reduce(inFolder, turn.prompt), agent: child.agent, model: child.model, effort: child.effort || '', mode: child.mode, cwd: lead.cwd, scratch, title: lead.title, name: child.member, history, pack };
+      return { prompt: scratch ? turn.prompt : [workdir(lead), lead.cwd].reduce(inFolder, turn.prompt), agent: child.agent, model: child.model, effort: child.effort || '', mode: child.mode, cwd: lead.cwd, scratch, title: lead.title, lead: lead.id, name: child.member, history, pack };
     }
     if (body.op === 'progress') {
       if (turn.status === 'running' && body.item?.label) runner.relayed(child, turn, body.item);
@@ -153,7 +158,7 @@ export function createRelay(app) {
     inflight.add(key);
     let job;
     try {
-      job = await leadCall(lead, r.child, { op: 'claim', turn: r.turn });
+      job = await leadCall(lead, r.child, { op: 'claim', turn: r.turn, ...(r.machine === SANDBOX && { full: true }) });
     } catch (err) {
       inflight.delete(key);
       if (err.status !== 409) console.warn(`wisp: delegate: ${err.message}`);
@@ -161,10 +166,20 @@ export function createRelay(app) {
     }
     const finish = (body) => leadCall(lead, r.child, { op: 'finish', turn: r.turn, ...body });
     if (job.crew) return carryCrew(lead, r, job, finish).finally(() => inflight.delete(key));
-    const where = r.machine === HERE ? null : r.machine;
-    const there = member(where);
+    let where = r.machine === HERE ? null : r.machine;
+    let there = member(where);
     let rid = null;
     try {
+      // Sandbox: this delegate's own sandbox on the grid, made the first time (services/sandbox.js).
+      let sandboxed = null;
+      if (where === SANDBOX) {
+        if (!app.sandbox?.available()) throw bad('Sign in to a wisp Grid first (Settings → Cloud): a sandboxed delegate runs in a box there.', 409);
+        app.sandbox.harnessOk(job.agent);
+        await leadCall(lead, r.child, { op: 'progress', turn: r.turn, item: { kind: 'agent', label: 'Starting its sandbox' } }).catch(() => {});
+        sandboxed = await app.sandbox.forDelegate({ lead: lead ? `${job.lead}@${lead}` : job.lead, child: r.child, title: job.title, name: job.name });
+        where = sandboxed.id;
+        there = member(where);
+      }
       if (where) {
         machines.get(where);
         if (!machines.usable(where)) throw bad(`${machines.get(where).name} is offline. Connect it from Machines, then delegate again.`, 503);
@@ -172,9 +187,11 @@ export function createRelay(app) {
       // The packed work: from the lead's wisp to the member's, through this one.
       const packs = job.pack ? [{ ...job.pack, upload: await app.mover.carry(job.pack.upload, lead, where) }] : [];
       if (lead && job.pack) machines.json(lead, 'DELETE', `/uploads/${job.pack.upload}`).catch(() => {});
+      // In its sandbox, the lead's repo is set up there once; each delegation unpacks onto it.
+      const cwd = sandboxed && packs[0] ? await app.sandbox.seedDelegate(sandboxed, packs[0], job.cwd) : job.cwd;
       const [s] = await app.launcher.launchAny({
         prompt: job.prompt,
-        ...(job.scratch ? { scratch: true } : { cwd: job.cwd }),
+        ...(job.scratch ? { scratch: true } : { cwd }),
         machine: where || '',
         agent: job.agent,
         model: job.model,

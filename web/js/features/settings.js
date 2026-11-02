@@ -16,6 +16,7 @@ import { renderLauncher } from './launcher.js';
 import { loadConfig } from './live.js';
 import { openComputers, openMachines } from './machines.js';
 import { cloudPane, connectHtml, mountGridHere } from './cloud.js';
+import { mountSandboxes } from './sandbox.js';
 import { loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
 import { accountCount, accountsHtml, gridAccountsNote, manyAccounts, wireAccounts } from './accounts.js';
 import { memorySummary, openMemory, setLearning } from './memory.js';
@@ -182,7 +183,7 @@ export function openSettings(opts) {
 `
           }
         </section>
-        ${MOBILE ? '' : '<section class="sx-pane" data-pane="cloud"><div class="sx-cloud"></div></section>'}
+        ${MOBILE ? '' : '<section class="sx-pane" data-pane="cloud"><div class="sx-cloud"></div><div class="sx-sandbox"></div></section>'}
         <section class="sx-pane" data-pane="memory">
           <div class="sx-group">
             ${row('Learn from tasks', 'A short retro after each task keeps preferences and lessons', '<button class="switch" id="learn" role="switch"></button>')}
@@ -839,15 +840,19 @@ export function openSettings(opts) {
       $('#copyAddress', node).onclick = (e) => {
         copy(grid.address, e.currentTarget);
       };
+      mountSandboxes($('.sx-sandbox', node)); // a cloud computer makes sandboxes on its own grid
     } else {
       $('#openMachines', node).onclick = () => openMachines({ host: host('machines') });
       cloudPane($('.sx-cloud', node));
+      mountSandboxes($('.sx-sandbox', node));
       // This computer on your wisp Grid, as in Machines: phones and other computers reach it there.
       mountGridHere($('.mc-grid', node));
       $('#reachRecheck', node).onclick = () => {
         paintReachable(reachableBox(node));
       };
     }
+    // From /sandbox's "Sign in": the Sandboxes card in view, its sign-in started.
+    if (opts?.focus === 'sandbox') setTimeout(() => $('.sx-sandbox', node)?.focusSignIn?.(), 0);
   }
 }
 

@@ -15,7 +15,17 @@ export const SLASH = [
 export const HOME_SLASH = [
   ...SLASH.filter((c) => c.name !== 'btw').map((c) => (c.name === 'goal' ? { ...c, hint: 'Start a task that keeps going until it holds' } : c)),
   { name: 'terminal', args: 'task', hint: 'Start it in the agent’s own terminal (Babysitting mode)' },
+  { name: 'sandbox', args: 'task', hint: 'Run it in a fresh box of its own on your wisp Grid' },
 ];
+
+// The task in "/sandbox try the new build" ('' for a bare /sandbox), or null when it isn't one.
+// The server reads it the same way (services/sandbox.js), for the CLI and the phone.
+const SANDBOX_CMD = /^\/sandbox(?:\s+|$)/i;
+export function sandboxAsk(text) {
+  const t = String(text || '').trim();
+  return SANDBOX_CMD.test(t) ? t.replace(SANDBOX_CMD, '').trim() : null;
+}
+export const SANDBOX_HINT = 'Say what to do after /sandbox, like “/sandbox try the new build script”';
 
 // The task in "/terminal fix the login bug" ('' for a bare /terminal), or null when it isn't one.
 // The server reads it the same way (services/launch.js), for the CLI and the phone.

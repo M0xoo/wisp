@@ -91,8 +91,9 @@ export function register(r, app) {
   r.route(
     'DELETE',
     '/crew/:id',
-    member((c, m) => {
+    member(async (c, m) => {
       crew.remove(m);
+      await app.sandbox?.crewGone(m.id); // their own sandbox goes with them (services/sandbox.js)
       c.send(200, { ok: true });
     }),
   );

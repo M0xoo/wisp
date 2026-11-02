@@ -132,6 +132,31 @@ Each user's account page lists what they published, with Unpublish.
 They're arbitrary pages on your domain's subdomains: turn `enabled` off if you can't keep an eye
 on what people publish.
 
+### Sandboxes
+
+`/sandbox <task>` in wisp asks the grid for a box of its own for that task (`grid/sandboxes.js`):
+one more of hostd's boxes, with the same image, runtime and network as a user's own, a home of its
+own and 2.5 GB (`hostd.container.sandbox: { memory, memorySwap, cpus, pids }`). It's at
+`sb-<id>--<handle>.<domain>`, opened with a token only it accepts, and deleted (container, home,
+token) when wisp deletes the task. Subagents and crew members can have sandboxes too.
+
+- **Root, under gVisor only.** boxd starts a sandbox as root with Docker's default capabilities and
+  the image's `wisp-sandbox-init`, which keeps a root helper for the agent's `sudo` and runs wisp as
+  uid 1000. gVisor doesn't honour setuid binaries, and its root isn't the host's. With `runc` a
+  sandbox is locked down like any box (no capabilities, no sudo).
+- **Sign-ins and env vars.** People sign in to Claude once for all their sandboxes from wisp
+  (`claude setup-token`) and can add env vars. The grid seals both per user, and every sandbox starts
+  with them (`CLAUDE_CODE_OAUTH_TOKEN`, …). They never go into the user's own box.
+- **Browser.** The image has Chromium, Xvfb and noVNC (`wisp-desktop`). wisp shows the live view
+  through the box's `p6080` preview, and agents drive the browser through Playwright MCP.
+
+```json
+"sandboxes": { "enabled": true, "perUser": 10 }
+```
+
+Each sandbox counts against `hostd.maxRunning`, and `admit` reserves its memory limit for it. It
+stops when idle like any box, and wakes on the next request.
+
 ### Usage stats
 
 Off unless `grid.json` has `"telemetry": true`. Then the grid sends wisp's PostHog project

@@ -1,0 +1,51 @@
+#!/bin/sh
+# A screen, a browser and a live view of them, for agents in a box (grid/sandboxes.js): Xvfb on :99,
+# Chromium with its DevTools port on 127.0.0.1:9222 (what agents drive), and noVNC on port 6080
+# (what you watch, through the grid's p6080--<box> preview). Starts what isn't running yet, so it's
+# safe to call any number of times; prints nothing when all is up.
+set -e
+# Its pids and logs live in the box's /tmp: a box starts fresh each time, and pids from the last one
+# would point at nothing (or at something else).
+D="${WISP_DESKTOP_DIR:-/tmp/wisp-desktop}"
+mkdir -p "$D"
+up() { [ -f "$D/$1.pid" ] && kill -0 "$(cat "$D/$1.pid")" 2>/dev/null; }
+start() {
+  name=$1
+  shift
+  up "$name" || { nohup "$@" >"$D/$name.log" 2>&1 & echo $! >"$D/$name.pid"; }
+}
+export DISPLAY=:99
+# WISP_DESKTOP_SIZE (WxH): the screen fits where you watch it (the task's Browser tab), so the view is
+# 1:1, not a shrunk 1280x800. Xvfb starts at the largest size and RandR sets the one asked for.
+SIZE="${WISP_DESKTOP_SIZE:-1280x800}"
+W="${SIZE%x*}"
+H="${SIZE#*x}"
+start xvfb Xvfb :99 -screen 0 1920x1200x24 -nolisten tcp -noreset
+i=0
+while [ ! -e /tmp/.X11-unix/X99 ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+# Right after it starts, Xvfb may not take RandR yet: a few tries.
+i=0
+until xrandr --fb "$SIZE" >/dev/null 2>&1 || [ $i -ge 30 ]; do sleep 0.1; i=$((i + 1)); done
+# The profile stays in the home (logins, history), but a lock from the last box would make Chromium
+# think it's still open elsewhere.
+up chromium || rm -f "$HOME/.sandbox/chromium/SingletonLock" "$HOME/.sandbox/chromium/SingletonSocket" "$HOME/.sandbox/chromium/SingletonCookie"
+# --no-sandbox: Chromium's own sandbox needs kernel features gVisor doesn't give; gVisor is the sandbox.
+# --test-type: no bar about that flag; no "Restore pages?" after a box that stopped mid-session.
+start chromium chromium --no-sandbox --disable-dev-shm-usage --no-first-run --no-default-browser-check \
+  --test-type --hide-crash-restore-bubble --disable-session-crashed-bubble --noerrdialogs \
+  --disable-features=Translate --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.sandbox/chromium" --window-position=0,0 --window-size="$W,$H" about:blank
+start vnc x11vnc -display :99 -forever -shared -nopw -localhost -rfbport 5900 -quiet -xrandr newfbsize
+start web websockify --web /usr/share/novnc 6080 127.0.0.1:5900
+i=0
+while [ $i -lt 150 ]; do
+  if curl -fsS http://127.0.0.1:9222/json/version >/dev/null 2>&1; then
+    # Already up at another size: the window follows the screen (no window manager to do it).
+    xdotool search --onlyvisible --class chromium 2>/dev/null | while read -r w; do xdotool windowmove "$w" 0 0 windowsize "$w" "$W" "$H"; done
+    exit 0
+  fi
+  sleep 0.1
+  i=$((i + 1))
+done
+echo "wisp-desktop: the browser didn't start; see $D/chromium.log" >&2
+exit 1

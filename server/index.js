@@ -32,6 +32,7 @@ import { Secrets } from './secrets.js';
 import { turnServers } from './connectors.js';
 import { createCloud } from './services/cloud.js';
 import { createComputer } from './services/computer.js';
+import { createSandbox } from './services/sandbox.js';
 import { createAgentLogin } from './agent-login.js';
 import { Router } from './router.js';
 import { Accounts, useAccounts } from './accounts.js';
@@ -285,6 +286,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.relay = createRelay(app);
   app.cloud = createCloud(app);
   app.computer = createComputer(app);
+  app.sandbox = createSandbox(app); // /sandbox: a task in a fresh box on your grid (services/sandbox.js)
   // Signing in to a harness from the page; once in, its models are looked up again.
   const loginStates = new Map();
   app.accounts = accounts;
@@ -321,9 +323,13 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     launch: (body, origin, opts) => app.launcher.launch(body.subagents ? { ...body, subagents: app.relay.placeTeam(body.subagents) } : body, origin, opts),
     // Members on machines: their jobs run there (as summaries and sessions with qualified ids).
     remote: {
-      ok: (mid) => store.config.machines.some((m) => m.id === mid),
+      ok: (mid) => store.config.machines.some((m) => m.id === mid && !m.sandbox), // a sandbox is one task's, never a member's machine
       launch: (body, origin) => app.launcher.launchAny(body, origin),
-      jobs: (m) => [...(app.machines.cache.get(m.machine)?.values() || [])].filter((s) => s.crew?.id === m.id).map((s) => app.machines.summary(m.machine, s)),
+      // A member in a sandbox: their jobs are in their own sandbox, or each in its own.
+      jobs: (m) => (m.sandbox ? app.sandbox.crewMachines(m.id) : [m.machine]).flatMap((mid) => [...(app.machines.cache.get(mid)?.values() || [])].filter((s) => s.crew?.id === m.id).map((s) => app.machines.summary(mid, s))),
+      sandbox: (m, o) => app.sandbox.forCrew(m, o),
+      sandboxJob: (mid, id) => app.sandbox.crewJob(mid, id),
+      sandboxFiled: (id) => app.sandbox.jobFiled(id),
       fetch: async (id) => {
         const { id: rid, machine } = splitId(id) || {};
         return app.machines.session(machine, await app.machines.json(machine, 'GET', `/sessions/${rid}`));
@@ -484,7 +490,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
         app.telemetry.captureError(err, { route: `${req.method} ${url.pathname.replace(/\/[a-f0-9]{8,}(?=\/|$)/g, '/:id')}` });
       }
       if (res.gzipping) return; // the answer is already on its way
-      if (!res.headersSent) send(res, err.status || 500, { error: err.message, ...(err.hold && { hold: err.hold }) }); // hold: Ask near the limit (server/guard.js)
+      if (!res.headersSent) send(res, err.status || 500, { error: err.message, ...(err.hold && { hold: err.hold }), ...(err.sandboxLogin && { sandboxLogin: true }) }); // hold: Ask near the limit (server/guard.js); sandboxLogin: /sandbox needs Settings → Cloud → Sandboxes
       else res.end();
     }
   });
@@ -514,6 +520,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
     app.overlaps.stop();
     app.cloud.stop();
     app.computer.stop();
+    app.sandbox.stop();
     app.agentLogin.stop();
     app.terms.closeAll();
     app.shells.closeAll();
@@ -541,6 +548,7 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
   app.liveLimits.start();
   app.machines.start();
   app.computer.start();
+  app.sandbox.start();
 
   app.auto.detect().catch(() => {});
   // The page's files, ready before the window asks (not under `node --test`: hundreds of servers).
@@ -553,5 +561,5 @@ export async function startServer({ port = DEFAULT_PORT, host = '127.0.0.1', han
       .catch(() => {});
   }
 
-  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, auto: app.auto, broadcast: app.broadcast, routes };
+  return { url: `http://localhost:${port}`, server, store, runner, shutdown, telemetry, triggers: app.triggers, later: app.later, crew: app.crew, guard: app.guard, budget: app.budget, token, stuff: app.stuff, remote: app.remote, liveLimits: app.liveLimits, resetEarly: app.resetEarly, machines: app.machines, computer: app.computer, sandbox: app.sandbox, secrets: app.secrets, auto: app.auto, broadcast: app.broadcast, routes };
 }

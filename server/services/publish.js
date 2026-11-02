@@ -19,12 +19,13 @@ export function gridTargets(app, env = process.env) {
   const out = [];
   const grid = String(env.WISP_GRID_URL || '').replace(/\/+$/, '');
   const secret = env.WISP_TRUSTED_PROXY_SECRET;
-  if (grid && secret && env.WISP_PUBLIC_URL) {
+  // A sandbox (grid/sandboxes.js) is one task's box: it publishes and shares nothing as its owner.
+  if (grid && secret && env.WISP_PUBLIC_URL && env.WISP_SANDBOX !== '1') {
     const handle = new URL(env.WISP_PUBLIC_URL).hostname.split('.')[0];
     out.push({ id: 'box', grid, handle, auth: `Box ${handle} ${secret}` });
   }
   for (const m of app.machines?.list || []) {
-    if (m.kind !== 'grid' || m.computer || !m.grid) continue;
+    if (m.kind !== 'grid' || m.computer || m.sandbox || !m.grid) continue;
     const token = app.secrets?.get('machines', m.id);
     if (token && !out.some((t) => t.grid === m.grid && t.handle === m.handle)) out.push({ id: m.id, grid: m.grid, handle: m.handle, auth: `Bearer ${token}` });
   }

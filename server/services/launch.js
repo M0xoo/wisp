@@ -16,7 +16,7 @@ import { holdMessage } from '../guard.js';
 import { bad, expand, MODES, newId } from '../util.js';
 import { attachmentNote } from '../adapters/common.js';
 import { openTui, startsInTerminal, tuiReply } from './tui.js';
-import { terminalAsk } from '../../web/js/slash-text.js';
+import { sandboxAsk, terminalAsk } from '../../web/js/slash-text.js';
 
 export const MAX_COMPARE = 4;
 export const MAX_ALSO = 8; // extra folders one task may work in
@@ -187,6 +187,11 @@ export function createLaunch(app) {
   // launch(), here or on a machine. Resolves with summaries (a compare launch has several).
   // opts: launch()'s (unattended). A machine keeps its own plan budget, so it isn't held here.
   async function launchAny(body, origin = null, opts = {}) {
+    // "/sandbox …": a fresh box of its own on your grid, made first (services/sandbox.js), which
+    // comes back here with the machine set.
+    if (!body.machine && body.kind !== 'spell' && sandboxAsk(body.prompt) !== null && app.sandbox) return app.sandbox.launch(body, origin);
+    // machine: "sandbox" (wisp_launch, the API): the same as typing /sandbox.
+    if (body.machine === 'sandbox' && app.sandbox) return app.sandbox.launch({ ...body, machine: undefined, prompt: `/sandbox ${String(body.prompt || '').trim()}` }, origin);
     const mid = body.kind === 'spell' ? null : machineFor(body); // spells change this wisp, so they're cast here
     // You picked a harness yourself after Auto's preview showed another: Auto learns from it.
     if (body.agent && body.agent !== 'auto') app.auto.overrode(body, body);
@@ -208,7 +213,8 @@ export function createLaunch(app) {
     const out = await machines.launch(mid, { ...sendBody, attachments: await pushUploads(mid, body.attachments), ...(origin && { origin }) });
     (out.group || [out]).forEach((x, i) => routes[i] && app.router.record(qualify(x.id, mid), routes[i]));
     const known = out.scratch || store.projectFor(out.cwd, mid);
-    if (!out.scratch) {
+    // A sandbox's folder is that task's alone: not a project of its own in the list.
+    if (!out.scratch && !machines.get(mid).sandbox) {
       (known || store.addProject(out.cwd, { machine: mid })).lastUsedAt = Date.now();
       store.saveConfig();
       if (!known) app.broadcast('config', {});

@@ -74,7 +74,16 @@ export function register(r, app) {
     // A new team: members on other machines are carried there from here (services/relay.js).
     if ((action === 'reply' || (!action && m === 'PATCH')) && Array.isArray(body?.subagents)) body.subagents = app.relay.placeTeam(body.subagents, mid);
     if ((action === 'reply' || action === 'fork') && body?.attachments?.length) body.attachments = await app.launcher.pushUploads(mid, body.attachments);
+    // A /sandbox task deleted: its sandbox goes with it, so whatever its own wisp says (asleep, full,
+    // broken) the task goes (services/sandbox.js).
+    if (!action && m === 'DELETE' && app.sandbox?.ownedBy(c.params.id)) {
+      await machines.json(mid, m, sub, body).catch(() => {});
+      await app.sandbox.taskGone(c.params.id);
+      app.broadcast('removed', { id: c.params.id });
+      return c.send(200, { ok: true });
+    }
     const out = await machines.json(mid, m, sub, body, action === 'wait' ? { timeout: (MAX_WAIT_S + 30) * 1000 } : undefined);
+    if (!action && m === 'DELETE') await app.sandbox?.leadGone(c.params.id); // a lead there: its delegates' sandboxes here
     if (!action && m === 'GET') return c.send(200, machines.session(mid, out));
     if ((!action && m === 'PATCH') || action === 'wait' || action === 'fork') return c.send(200, machines.summary(mid, out));
     if (out && typeof out === 'object' && out.sessionId) out.sessionId = qualify(out.sessionId, mid);

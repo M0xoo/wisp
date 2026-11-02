@@ -1,0 +1,30 @@
+#!/bin/sh
+# apt and apt-get in a box, as root (sudo, sandboxes only): what's installed is written down, and the
+# box's next start installs it again (a box starts from the image each time; only its home stays).
+# Only package names are kept (not options, their values or ./file.deb); remove and purge cross off.
+L=/home/wisp/.sandbox/packages
+case " $* " in
+*" install "* | *" remove "* | *" purge "*)
+  mkdir -p /home/wisp/.sandbox
+  touch "$L"
+  verb=""
+  skip=0
+  for a in "$@"; do
+    if [ $skip = 1 ]; then skip=0; continue; fi
+    case $a in
+    -o | -t | -c | --option | --target-release | --config-file) skip=1 ;;
+    -*) ;;
+    install | remove | purge) verb=$a ;;
+    *)
+      echo "$a" | grep -Eq '^[a-z0-9][a-z0-9+.-]+(:[a-z0-9]+)?(=[A-Za-z0-9.+:~-]+)?$' || continue
+      [ -n "$verb" ] || continue
+      grep -vxF "$a" "$L" >"$L.tmp" || true
+      [ "$verb" = install ] && echo "$a" >>"$L.tmp"
+      mv "$L.tmp" "$L"
+      ;;
+    esac
+  done
+  chown -R 1000:1000 /home/wisp/.sandbox 2>/dev/null || true
+  ;;
+esac
+exec "/usr/bin/$(basename "$0")" "$@"

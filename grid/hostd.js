@@ -43,6 +43,12 @@ const WAKE_QUEUE_MS = 30 * 60_000; // a scheduled wake waits this long for room
 const WAKE_SOON_MS = 5 * 60_000; // a box whose schedule is this close isn't evicted
 // The memory one more box needs, on top of what the host keeps for itself (the grid, Caddy, boxd).
 export const ADMIT = { boxMb: 1024, reserveMb: 1024 };
+// "2560m" / "3g" / bytes → MiB.
+const mib = (size) => {
+  const m = /^(\d+)([bkmg]?)$/i.exec(String(size || '0'));
+  const n = Number(m?.[1] || 0);
+  return Math.ceil({ b: n / 1048576, k: n / 1024, m: n, g: n * 1024, '': n / 1048576 }[(m?.[2] || '').toLowerCase()]);
+};
 const full = () => Object.assign(new Error('This grid is full right now. Try again in a few minutes.'), { status: 503 });
 
 // MiB the host can still hand out: MemAvailable on Linux (counts reclaimable cache), else free.
@@ -106,14 +112,15 @@ export class Hostd extends EventEmitter {
   // user: { id, handle }. secretFor(user) → the trusted-proxy secret; urlFor(user) → its public URL;
   // previewFor(user) → where its box's pages show ("…p{port}--handle…", '' for none);
   // exists(user): still has an account (a scheduled wake doesn't start a deleted user's box).
+  // envFor(user) → more environment for that box (a sandbox's sign-ins, grid/sandboxes.js).
   // admit: { boxMb, reserveMb } (false: count boxes only); memory() → MiB available (tests).
-  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, admit, evictAfterMs = 120_000, queueMs = 120_000, memory = availableMb, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, previewFor = () => '', exists = () => true, gridUrl = '', telemetry = false, wispBin = WISP_BIN, log = () => {} }) {
+  constructor({ dataDir, driver = 'process', idleMs, checkMs, startMs = 45_000, maxRunning = 50, admit, evictAfterMs = 120_000, queueMs = 120_000, memory = availableMb, env = {}, path: extraPath = '', container = {}, secretFor, urlFor, previewFor = () => '', envFor = () => ({}), exists = () => true, gridUrl = '', telemetry = false, wispBin = WISP_BIN, log = () => {} }) {
     super();
     if (driver !== 'process' && driver !== 'container') throw new Error(`hostd driver "${driver}" isn’t built yet: use "process" or "container" (see grid/README.md).`);
     // By default only where MemAvailable says what's really free (Linux): elsewhere free memory
     // leaves out the cache the system would hand back, and would keep boxes from starting.
     admit = admit === undefined ? driver === 'container' && fs.existsSync('/proc/meminfo') && ADMIT : admit && { ...ADMIT, ...admit };
-    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, admit, evictAfterMs, queueMs, memory, env, extraPath, secretFor, urlFor, previewFor, exists, gridUrl, telemetry, wispBin, log, container: { ...CONTAINER, ...container } });
+    Object.assign(this, { dataDir, driver, idleMs, checkMs, startMs, maxRunning, admit, evictAfterMs, queueMs, memory, env, extraPath, secretFor, urlFor, previewFor, envFor, exists, gridUrl, telemetry, wispBin, log, container: { ...CONTAINER, ...container } });
     this.setMaxListeners(0); // every start waiting in line listens for 'room'
     this.gate = Promise.resolve(); // one admission at a time
     this.peak = 0; // most boxes up at once since takePeak()
@@ -201,9 +208,11 @@ export class Hostd extends EventEmitter {
     return [...this.inst.values()].filter((x) => x.state === 'running' || x.state === 'starting' || x.state === 'stopping').length;
   }
 
-  #room() {
+  // i: the box asking. A sandbox needs its own memory limit's worth (room for its browser).
+  #room(i = null) {
     if (this.#up() >= this.maxRunning) return false;
-    return !this.admit || this.memory() >= this.admit.reserveMb + this.admit.boxMb;
+    const need = i?.user?.sandbox ? Math.max(this.admit?.boxMb || 0, mib(this.#limits(i.user).memory)) : this.admit?.boxMb;
+    return !this.admit || this.memory() >= this.admit.reserveMb + need;
   }
 
   // How many boxes this host could have up now: those up, plus what the free memory fits.
@@ -242,13 +251,13 @@ export class Hostd extends EventEmitter {
         if (this.closed) throw Object.assign(new Error('The grid is shutting down.'), { status: 503 });
         if (!this.#first(i)) return false;
         // A few at most: memory comes back as each box exits.
-        for (let n = 0; !this.#room() && !i.wake && n < 3; n++) {
+        for (let n = 0; !this.#room(i) && !i.wake && n < 3; n++) {
           const v = await this.#victim(i);
           if (!v) break;
           this.log(`hostd: ${v.user.handle} quiet, stopping to make room for ${i.user.handle}`);
           await this.stop(v.user.id, 'evicted');
         }
-        if (!this.#room()) return false;
+        if (!this.#room(i)) return false;
         i.state = 'starting'; // counted from here on, before the next admission looks
         this.peak = Math.max(this.peak, this.#up());
         this.#changed(i);
@@ -298,6 +307,13 @@ export class Hostd extends EventEmitter {
     return null;
   }
 
+  // A box's limits: container's, or for a sandbox (room for its browser) container.sandbox's over them.
+  #limits(user) {
+    const c = this.container;
+    const sb = user.sandbox ? { memory: '2560m', memorySwap: '4g', ...(c.sandbox || {}) } : {};
+    return { memory: sb.memory ?? c.memory, memorySwap: sb.memorySwap ?? c.memorySwap, cpus: sb.cpus ?? c.cpus, pids: sb.pids ?? c.pids };
+  }
+
   async #start(i) {
     const d = this.dirs(i.user);
     const c = this.container;
@@ -306,12 +322,14 @@ export class Hostd extends EventEmitter {
     for (const x of dirs) fs.mkdirSync(x, { recursive: true });
     i.port = await freePort();
     // WISP_OUT_OF_MEMORY: the last run was killed for memory (its limit, with containers).
-    const oom = i.oom && { WISP_OUT_OF_MEMORY: this.driver === 'container' ? String(c.memory) : '1' };
+    const oom = i.oom && { WISP_OUT_OF_MEMORY: this.driver === 'container' ? String(this.#limits(i.user).memory) : '1' };
     i.oom = false;
+    // A sandbox's env vars (its owner's) first: the admin's hostd.env and wisp's own win over them.
+    const extra = this.envFor(i.user) || {};
     const wisp = { WISP_TRUSTED_PROXY_SECRET: this.secretFor(i.user), WISP_PUBLIC_URL: this.urlFor(i.user), ...(this.previewFor(i.user) && { WISP_PREVIEW_URL: this.previewFor(i.user) }), ...(this.gridUrl && { WISP_GRID_URL: this.gridUrl }), ...oom, WISP_UPDATE_CHECK: '0', ...(!this.telemetry && { WISP_TELEMETRY: '0' }), WISP_FEEDBACK: '0', WISP_NO_OPEN: '1' };
     let child;
     if (this.boxd) {
-      child = boxdRun(this.boxd, { id: i.user.id, port: i.port, env: { ...this.env, ...wisp }, limits: { memory: c.memory, memorySwap: c.memorySwap, cpus: c.cpus, pids: c.pids }, dns: c.dns }, d.log);
+      child = boxdRun(this.boxd, { id: i.user.id, port: i.port, env: { ...extra, ...this.env, ...wisp }, limits: this.#limits(i.user), dns: c.dns, ...(i.user.sandbox && { sandbox: true }) }, d.log);
     } else {
       let cmd;
       let args;
@@ -320,8 +338,8 @@ export class Hostd extends EventEmitter {
         await this.network;
         const resolv = path.join(d.root, 'resolv.conf');
         fs.writeFileSync(resolv, c.dns.map((x) => `nameserver ${x}\n`).join(''));
-        writeEnvFile(d.env, { ...this.env, ...wisp });
-        ({ cmd, args } = containerRun({ ...c, resolv, envFile: d.env, name: containerName(i.user), port: i.port, home: d.home }));
+        writeEnvFile(d.env, { ...extra, ...this.env, ...wisp });
+        ({ cmd, args } = containerRun({ ...c, ...this.#limits(i.user), resolv, envFile: d.env, name: containerName(i.user), port: i.port, home: d.home, sandbox: !!i.user.sandbox }));
         env = { PATH: process.env.PATH };
         // The image runs as uid 1000; its home is this folder.
         try {
@@ -330,7 +348,7 @@ export class Hostd extends EventEmitter {
       } else {
         env = Object.fromEntries(BASE_ENV.filter((k) => process.env[k]).map((k) => [k, process.env[k]]));
         if (this.extraPath) env.PATH = `${this.extraPath}${path.delimiter}${env.PATH || ''}`;
-        Object.assign(env, this.env, { HOME: d.home, USERPROFILE: d.home, WISP_HOME: d.wisp, ...wisp });
+        Object.assign(env, extra, this.env, { HOME: d.home, USERPROFILE: d.home, WISP_HOME: d.wisp, ...wisp });
         [cmd, args] = [process.execPath, [this.wispBin, '--no-open', '--port', String(i.port)]];
       }
       const out = fs.openSync(d.log, 'a');

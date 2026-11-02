@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+// sudo in a box: the command runs as root through wisp-rootd (sandboxes only; gVisor's root, not the
+// host's). Takes sudo's usual flags (-n, -E, -H, -u root, -i, -s) and ignores the rest of sudo's knobs.
+import net from 'node:net';
+
+let a = process.argv.slice(2);
+while (a[0]?.startsWith('-')) {
+  const o = a.shift();
+  if (o === '--') break;
+  if (o === '-u' || o === '-g') {
+    const u = a.shift();
+    if (u !== 'root' && u !== '0') {
+      process.stderr.write('sudo: only root here\n');
+      process.exit(1);
+    }
+  }
+  if ((o === '-i' || o === '-s') && !a.length) a = ['/bin/bash'];
+  if (o === '-v' || o === '-k' || o === '-K') process.exit(0);
+}
+if (!a.length) {
+  process.stderr.write('usage: sudo command [args]\n');
+  process.exit(1);
+}
+const s = net.connect('/run/wisp/root.sock');
+s.on('error', () => {
+  process.stderr.write('sudo: there is no root in this box (only a sandbox has it: /sandbox in wisp)\n');
+  process.exit(1);
+});
+s.on('connect', () => {
+  s.write(`${JSON.stringify({ argv: a, cwd: process.cwd(), env: process.env })}\n`);
+  if (process.stdin.isTTY) s.write('{"eof":true}\n');
+  else {
+    process.stdin.on('data', (d) => s.write(`${JSON.stringify({ i: d.toString('base64') })}\n`));
+    process.stdin.on('end', () => s.write('{"eof":true}\n'));
+    process.stdin.on('error', () => s.write('{"eof":true}\n'));
+  }
+});
+let buf = '';
+s.on('data', (d) => {
+  buf += d;
+  for (let i; (i = buf.indexOf('\n')) >= 0; ) {
+    const m = JSON.parse(buf.slice(0, i));
+    buf = buf.slice(i + 1);
+    if (m.o) process.stdout.write(Buffer.from(m.o, 'base64'));
+    if (m.e) process.stderr.write(Buffer.from(m.e, 'base64'));
+    if (m.x !== undefined) process.stdout.write('', () => process.exit(m.x));
+  }
+});

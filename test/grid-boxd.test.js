@@ -68,7 +68,11 @@ test('boxd checks what a run asks for; image, network, mounts and uid stay its o
   assert.throws(() => checkRun({ id: 'u1', port: 47000, limits: { pids: 1 } }), /pids/);
   assert.throws(() => checkRun({ id: 'u1', port: 47000, dns: ['evil.example'] }), /dns/);
   const r = checkRun({ id: 'u1', port: 47000, env: { S: 'x' }, image: 'alpine', network: 'host', runtime: 'runc', home: '/', uid: 0 });
-  assert.deepEqual(Object.keys(r).sort(), ['dns', 'env', 'id', 'limits', 'port'], 'nothing else is taken from the request');
+  assert.deepEqual(Object.keys(r).sort(), ['dns', 'env', 'id', 'limits', 'port', 'sandbox'], 'nothing else is taken from the request');
+  assert.equal(r.sandbox, false);
+  assert.equal(checkRun({ id: 'u1', port: 47000, sandbox: 'yes' }).sandbox, false, 'only true asks for a sandbox');
+  assert.equal(checkRun({ id: 'u1', port: 47000, sandbox: true }).sandbox, false, 'a user’s own box is never a sandbox');
+  assert.equal(checkRun({ id: 'u1-sb-0a1b2c3d', port: 47000, sandbox: true }).sandbox, true);
   assert.deepEqual(r.limits, { memory: '1536m', memorySwap: '3g', cpus: 1.5, pids: 512 });
 
   const dir = tmp('envfile');
@@ -78,6 +82,17 @@ test('boxd checks what a run asks for; image, network, mounts and uid stay its o
   assert.equal(fs.readFileSync(f, 'utf8'), `WISP_TRUSTED_PROXY_SECRET=${SECRET}\nA=b=c\n`);
   const s = containerRun({ ...CONTAINER, envFile: f, name: 'wisp-u-1', port: 47001, home: '/h' }).args.join(' ');
   assert.doesNotMatch(s, /SECRET/);
+  // A cloud computer's box: no capabilities, no setuid. A sandbox under gVisor: Docker's defaults
+  // (sudo works inside, against gVisor's kernel). A sandbox under runc stays locked down.
+  assert.match(s, /--cap-drop ALL --security-opt no-new-privileges/);
+  const sb = containerRun({ ...CONTAINER, runtime: 'runsc', sandbox: true, name: 'wisp-u-1-sb-x', port: 47001, home: '/h' }).args.join(' ');
+  assert.doesNotMatch(sb, /cap-drop ALL|no-new-privileges/);
+  assert.match(sb, /--cap-drop NET_RAW --cap-drop MKNOD --cap-drop AUDIT_WRITE/);
+  assert.match(sb, /--runtime runsc/);
+  assert.match(sb, /--shm-size 512m/);
+  assert.match(sb, /--user 0 wisp-grid-user \/usr\/local\/sbin\/wisp-sandbox-init node /, 'root only to start its root helper, then wisp as uid 1000');
+  const runc = containerRun({ ...CONTAINER, runtime: '', sandbox: true, name: 'wisp-u-1-sb-x', port: 47001, home: '/h' }).args.join(' ');
+  assert.match(runc, /--cap-drop ALL --security-opt no-new-privileges/);
 });
 
 test('boxd runs a box: its own settings, the home in its folder, secrets in a 0600 file; SIGTERM stops it', { skip, timeout: 30_000 }, async () => {

@@ -195,6 +195,18 @@ export class Machines extends EventEmitter {
     return { m, added };
   }
 
+  // A sandbox on a grid (services/sandbox.js): one task's own box there, opened with its own token.
+  // owner: what it's for ({ task }, or { pending: when } until the task exists): services/sandbox.js.
+  addSandbox({ url, grid, handle, name, token, sandbox, owner, user = null }) {
+    const u = new URL(url);
+    const m = { id: randomBytes(3).toString('hex'), kind: 'grid', sandbox, owner, name: String(name || 'Sandbox').slice(0, 40), url: u.origin, grid, handle, user, target: u.host, port: Number(u.port) || (u.protocol === 'https:' ? 443 : 80), command: '', autoConnect: true, addedAt: Date.now() };
+    this.list.push(m);
+    this.secrets?.set('machines', m.id, token);
+    this.store.saveConfig();
+    this.onChange();
+    return m;
+  }
+
   add(body = {}) {
     const m = { id: randomBytes(3).toString('hex'), ...this.#clean(body), addedAt: Date.now() };
     if (this.list.some((x) => x.target === m.target && x.port === m.port)) throw bad(`${m.target} is already added.`, 409);
@@ -617,7 +629,10 @@ export class Machines extends EventEmitter {
 
   async #raw(m, c, method, p, body, opts = {}) {
     const json = method !== 'GET';
-    const res = await this.#request(m, c, method, p, { body: json ? JSON.stringify(body ?? {}) : undefined, headers: json ? { 'content-type': 'application/json' } : {}, ...opts });
+    const data = json ? JSON.stringify(body ?? {}) : undefined;
+    // content-length always: Node doesn't chunk a DELETE's body by default, so without it the body
+    // goes out unframed and the other end reads it as a broken next request (an empty 400).
+    const res = await this.#request(m, c, method, p, { body: data, headers: json ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) } : {}, ...opts });
     const text = await readAll(res);
     let j;
     try {
@@ -707,6 +722,8 @@ export class Machines extends EventEmitter {
   // --- rewriting: remote shapes → local ones -----------------------------------------------
 
   #tag(m) {
+    // A sandbox shows as one wherever its task says where it runs (its title is the task's own).
+    if (m.sandbox) return { id: m.id, name: 'Sandbox', target: m.target, sandbox: true };
     return { id: m.id, name: m.name, target: m.target };
   }
 

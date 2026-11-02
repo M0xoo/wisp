@@ -13,7 +13,7 @@ import { S } from '../core/state.js';
 import { toast, toastError } from '../ui/toast.js';
 import { copy } from '../blocks.js';
 import { loadMachines, setMachines } from './machines.js';
-import { MACHINE_STATE } from './places.js';
+import { cloudAccounts, MACHINE_STATE } from './places.js';
 import { harnessLogo } from './runners.js';
 import { CAN, loginControl, loginPanel, typingLogin, wireLogins } from './agent-login.js';
 import { ask } from '../ui/confirm.js';
@@ -29,7 +29,7 @@ const LAST = 'wisp.cloud.grid';
 export const DEFAULT_GRID = 'grid.trywisp.dev';
 
 // Cloud computers only: your other computers on a grid (m.computer) are Machines' business.
-const gridMachines = () => S.machines.filter((m) => m.kind === 'grid' && !m.computer);
+const gridMachines = () => cloudAccounts();
 const hostOf = (u) => {
   try {
     return new URL(u).host;
@@ -135,7 +135,8 @@ export function connectHtml(grid, row) {
       ${row('wisp phone app', `On its first screen, <i>Sign in to wisp Cloud</i> with <code>${g}</code>. No SSH and no Tailscale.`, '')}
       ${row('Devices you let in', `Desktops and phones signed in to it. Sign one out on your ${g} account page.`, `<a class="ghost sm btn-link" href="${esc(grid.url)}/account" target="_blank" rel="noopener">${icon('external')}Account</a>`)}
     </div>
-    <p class="hint">It sleeps when nothing’s going on, and wakes when you open it, send it a task, or a schedule is due. Your tasks, files and sign-ins stay on it.</p>`;
+    <p class="hint">It sleeps when nothing’s going on, and wakes when you open it, send it a task, or a schedule is due. Your tasks, files and sign-ins stay on it.</p>
+    <div class="sx-sandbox"></div>`;
 }
 
 // Machines → this computer on your wisp Grid: your phone and your other computers, signed in to the

@@ -30,7 +30,7 @@ import { feedAnchor, keepInPlace, stage, topInset } from './scroll.js';
 import { canLead, paintTeamBtn, teamEditor } from './team.js';
 import { activeSpells, launcherParts, runAction, spellProp } from './spells.js';
 import { cast } from './spell-ui.js';
-import { goalAsk, HOME_SLASH, isGoalDrop, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
+import { goalAsk, HOME_SLASH, isGoalDrop, SANDBOX_HINT, sandboxAsk, SPELL_HINT, spellAsk, terminalAsk } from '../slash-text.js';
 import { historyStep, remember } from '../prompt-history.js';
 import { goBack, goHome, isSplit, isStacked, stackPage } from './split.js';
 import { addressedTo, openCrew } from './crew.js';
@@ -111,6 +111,13 @@ export function spellSlash(text) {
 }
 
 bus.on('spells:launcher', () => $('#launcher:not(.skel)') && renderLauncher());
+// A /sandbox launch's placeholder says where it's at (services/sandbox.js): making, starting, copying.
+bus.on('sandbox-step', ({ key, live }) => {
+  const card = S.sessions.get(key);
+  if (!card?.pending || !live) return;
+  card.live = live;
+  renderFeed();
+});
 
 export function renderLauncher() {
   const box = $('#launcher');
@@ -161,7 +168,8 @@ export function renderLauncher() {
   launcherParts(box); // what spells add to the prompt box
 
   const ta = mentionBox($('#prompt', box));
-  slashMenu(ta, ta.parentNode, HOME_SLASH); // before the Enter below: picking a command doesn't launch
+  // The phone app has no Settings → Cloud to sign sandboxes in from: /sandbox isn't offered there.
+  slashMenu(ta, ta.parentNode, MOBILE ? HOME_SLASH.filter((c) => c.name !== 'sandbox') : HOME_SLASH); // before the Enter below: picking a command doesn't launch
   let pv = null; // Auto's preview (auto-preview.js), once the pickers below exist
   const tray = attachTray({ onChange: () => pv?.refresh() });
   ta.parentNode.before(tray.node); // before the mention box's wrapper
@@ -494,6 +502,9 @@ export function renderLauncher() {
     if (typedGoal && isGoalDrop(typedGoal)) return toast('No goal to drop yet: <b>/goal drop</b> works in a task’s reply box.');
     // /terminal <task>: in the agent's own terminal (the server reads it, launch.js), opened at once.
     if (terminalAsk(prompt) === '') return toast('Say what to do after /terminal, like “/terminal fix the login bug”');
+    // /sandbox <task>: a fresh box of its own on your grid, made from here (services/sandbox.js).
+    const typedSandbox = sandboxAsk(prompt);
+    if (typedSandbox === '') return toast(SANDBOX_HINT);
     // /draft <task>: kept in Drafts until you start it. /after <task> <prompt>: starts once that task is done.
     const held = planAsk(prompt);
     if (held?.error) return toast(held.error);
@@ -508,6 +519,9 @@ export function renderLauncher() {
     const typedTerm = terminalAsk(addr.members.length ? addr.rest : prompt) !== null;
     const toCrew = typedTerm ? [] : addr.members;
     if (toCrew.length || typedTerm) targets.length = 1;
+    // One sandbox, made by this wisp, whatever Run on points at: it's a place of its own. Its card
+    // says Sandbox from the first frame (the real machine comes with the task).
+    if (typedSandbox !== null) targets.splice(0, targets.length, { ...targets[0], k: null, m: null, sandbox: true });
     const off = targets.find((t) => t.m && !usable(t.m));
     if (off) return offlineToast(off.k);
     if (needsSetup()) return nudgeSetup();
@@ -577,7 +591,7 @@ export function renderLauncher() {
     const goalBack = box.goalTaken?.(goal) || (() => {});
     // A repo still cloning gets a stand-in project; its card says so until the clone lands.
     const fetching = (t) => t.k && [t.project, ...t.also].some((p) => p && !p.scratch && !pathAt(p, t.k)); // not on that machine yet
-    const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : undefined));
+    const pending = targets.map((t) => addPending(prompt, t.project ? t : { ...t, project: { id: t.clone.id, name: t.clone.name, path: '', color: 'slate' } }, runner, t.clone ? `Cloning ${t.clone.label}` : fetching(t) ? `Cloning ${t.project.name} on ${placeName(t.k)}` : typedSandbox !== null ? 'Starting a sandbox' : undefined));
     // A terminal session (/terminal, or Settings → General) opens at once, still starting up: its
     // terminal is where you carry on, so there's nothing to wait for on the prompt page. The server
     // decides (services/tui.js); this is its guess for the things the page knows.
@@ -614,17 +628,20 @@ export function renderLauncher() {
       // Several places: one shared groupId, so the runs land as one task with a row each.
       const groupId = targets.length > 1 ? [...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('') : undefined;
       const results = await Promise.allSettled(
-        targets.map((t) =>
+        targets.map((t, i) =>
           api('/sessions', {
             method: 'POST',
-            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, compare: cmp.length && !typedTerm ? cmp : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
+            body: { prompt, cwd: t.project.scratch ? undefined : t.project.path, also: t.also.length ? t.also.map((p) => p.path) : undefined, scratch: t.project.scratch || undefined, machine: t.k, groupId, agent: runner.agent, mode: launchMode, model: runner.model, effort: runner.effort, account: runner.account || undefined, attachments, worktree: S.config.defaults.worktree === 'off' && (!cmp.length || typedTerm) ? false : undefined, progress: t.sandbox ? pending[i] : undefined, compare: cmp.length && !typedTerm ? cmp : undefined, subagents: !typedTerm && team.length && canLead(runner.agent) ? team : undefined, goal: typedTerm ? undefined : goal, confirmLimit: confirm || undefined, autoPin: pin, autoOverride: corrected || undefined, ...cells },
           }),
         ),
       );
       // Near the limit there (the server knew better): the hold row, once the prompt is back.
       const held = results.find((r) => r.status === 'rejected' && r.reason.hold)?.reason.hold;
       results.forEach((r, i) => {
-        if (r.status === 'rejected' && !(r.reason.hold && results.length === 1)) toast(`${esc(placeName(targets[i].k))}: ${esc(r.reason.message)}`, { tone: 'bad' });
+        // /sandbox with nothing signed in for sandboxes: a setup step, with the sign-in one click away.
+        const signIn = r.status === 'rejected' && r.reason.sandboxLogin && { label: 'Sign in', run: () => import('./settings.js').then((m) => m.openSettings({ pane: S.config.grid ? 'machines' : 'cloud', focus: 'sandbox' })) };
+        const where = targets[i].sandbox ? 'Sandbox' : placeName(targets[i].k);
+        if (r.status === 'rejected' && !(r.reason.hold && results.length === 1)) toast(signIn ? esc(r.reason.message) : `${esc(where)}: ${esc(r.reason.message)}`, signIn ? { action: signIn, timeout: 12_000 } : { tone: 'bad' });
       });
       const started = results.filter((r) => r.status === 'fulfilled').map((r) => r.value);
       // Still on its placeholder: the real task takes its place in the main pane.
@@ -1023,9 +1040,9 @@ function launchedFx(from, to) {
 // A launch the server hasn't answered yet: a placeholder summary that shows in Working as a
 // "Starting up" card. It can't be opened; the real card takes its place.
 let pendingSeq = 0;
-function addPending(prompt, { project: p, m, also = [] }, { agent, model, effort, account }, live = 'Starting up') {
+function addPending(prompt, { project: p, m, also = [], sandbox = false }, { agent, model, effort, account }, live = 'Starting up') {
   const id = `pending-${++pendingSeq}`;
-  const line = plain(terminalAsk(prompt) ?? prompt).split('\n')[0].replace(/\s+/g, ' '); // the server drops /terminal too
+  const line = plain(terminalAsk(prompt) ?? sandboxAsk(prompt) ?? prompt).split('\n')[0].replace(/\s+/g, ' '); // the server drops /terminal and /sandbox too
   const now = Date.now();
   S.sessions.set(id, {
     id,
@@ -1045,7 +1062,7 @@ function addPending(prompt, { project: p, m, also = [] }, { agent, model, effort
     live,
     createdAt: now,
     updatedAt: now,
-    machine: m ? { id: m.id, name: m.name, target: m.target } : null,
+    machine: sandbox ? { id: id, name: 'Sandbox', target: '', sandbox: true } : m ? { id: m.id, name: m.name, target: m.target } : null,
   });
   return id;
 }

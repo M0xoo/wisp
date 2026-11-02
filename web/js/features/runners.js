@@ -29,7 +29,9 @@ export const AUTO_GOALS = [
 export const AUTO = { id: 'auto', name: 'Auto', available: true, delegates: true, models: AUTO_GOALS, efforts: [], hint: 'wisp picks the harness, model and thinking level from what worked before' };
 
 // Harness lists per place: '' is this computer, else a machine (what it reported when it came online).
-export const agentsAt = (k) => (k ? (usable(machineById(k)) && machineById(k).remote?.agents) || null : S.agents);
+// A sandbox runs Claude Code only so far (its one sign-in): the harness as it is here, or plainly.
+const sandboxAgents = () => [{ ...(S.agents.find((a) => a.id === 'claude') || { id: 'claude', name: 'Claude Code', models: [] }), available: true, signedIn: true }];
+export const agentsAt = (k) => (k === 'sandbox' ? sandboxAgents() : k ? (usable(machineById(k)) && machineById(k).remote?.agents) || null : S.agents);
 
 // A harness's models and levels: this computer's if it's installed here, else the first machine's that has it.
 export function agentById(id) {
